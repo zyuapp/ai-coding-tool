@@ -63,6 +63,12 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       return { ...task, messages, updatedAt: now() };
     });
   }
+  if (event.type === "context.usage") {
+    return applyTask(withSequence, event.taskId, (task) => ({
+      ...task,
+      contextUsage: { tokens: event.tokens, limit: event.limit, model: event.model },
+    }));
+  }
   if (event.type === "tool.intent") {
     return applyTask(withSequence, event.taskId, (task) => ({
       ...task,

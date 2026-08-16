@@ -57,3 +57,17 @@ test("scopes approvals and expires them on terminal state", () => {
   assert.equal(finished.lastRunTaskId, "task-a");
   assert.equal(finished.lastRunStatus, "stopped");
 });
+
+test("stores the latest context usage for the active task", () => {
+  const updated = applyRunEvent(state(), {
+    type: "context.usage",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 1,
+    tokens: 42_000,
+    limit: 200_000,
+    model: "claude-sonnet",
+  });
+
+  assert.deepEqual(updated.tasks[0].contextUsage, { tokens: 42_000, limit: 200_000, model: "claude-sonnet" });
+});

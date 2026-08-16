@@ -73,6 +73,13 @@ export class ClaudeAgentProvider implements AgentProvider {
               });
             }
           }
+          const usage = message.message.usage;
+          input.emit({
+            type: "usage",
+            tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+            limit: input.contextWindow === "1m" ? 1_000_000 : 200_000,
+            model: message.message.model,
+          });
         } else if (message.type === "result" && (message.subtype !== "success" || message.is_error)) {
           return { status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") };
         }

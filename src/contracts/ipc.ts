@@ -60,6 +60,7 @@ export type RunEvent =
   | (RunEventBase & { type: "run.started" })
   | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string })
   | (RunEventBase & { type: "assistant.delta"; messageId: string; text: string })
+  | (RunEventBase & { type: "context.usage"; tokens: number; limit: number; model: string })
   | (RunEventBase & { type: "tool.intent"; intent: ToolIntent })
   | (RunEventBase & {
       type: "approval.requested";
@@ -131,6 +132,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "run.started") return true;
   if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000));
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string";
+  if (event.type === "context.usage") return typeof event.tokens === "number" && Number.isFinite(event.tokens) && event.tokens >= 0 && typeof event.limit === "number" && Number.isFinite(event.limit) && event.limit > 0 && isString(event.model);
   if (event.type === "tool.intent") return isIntent(event.intent);
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);

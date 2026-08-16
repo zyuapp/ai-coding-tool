@@ -551,6 +551,7 @@ pre {
 .permission-check { color: #b6b6b2; font-size: 18px; text-align: center; }
 .permission-option.elevated strong, .permission-option.elevated small, .permission-option.elevated .permission-icon { color: #ef8451; }
 .composer-actions { display: flex; align-items: center; gap: 7px; }
+.context-usage { color: #6f747a; font-size: var(--text-micro); font-variant-numeric: tabular-nums; }
 .send-button {
   width: 32px;
   height: 32px;

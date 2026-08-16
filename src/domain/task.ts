@@ -25,6 +25,12 @@ export type ChangeSnapshot = {
 
 export type ContinuationStatus = "none" | "available" | "invalid";
 
+export type ContextUsage = {
+  tokens: number;
+  limit: number;
+  model: string;
+};
+
 export type Task = {
   id: string;
   title: string;
@@ -32,6 +38,7 @@ export type Task = {
   executionPolicy: ExecutionPolicy;
   model?: AgentModel;
   contextWindow?: ContextWindow;
+  contextUsage?: ContextUsage;
   messages: TaskMessage[];
   continuation?: Continuation;
   continuationStatus: ContinuationStatus;
@@ -323,6 +330,7 @@ function isTaskBase(value: unknown): value is Task {
     isExecutionPolicy(value.executionPolicy) &&
     (value.model === undefined || isAgentModel(value.model)) &&
     (value.contextWindow === undefined || isContextWindow(value.contextWindow)) &&
+    (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
@@ -379,6 +387,10 @@ function isAgentModel(value: unknown): value is AgentModel {
 
 function isContextWindow(value: unknown): value is ContextWindow {
   return value === "default" || value === "1m";
+}
+
+function isContextUsage(value: unknown): value is ContextUsage {
+  return isRecord(value) && finiteNumber(value.tokens) && value.tokens >= 0 && finiteNumber(value.limit) && value.limit > 0 && nonEmptyString(value.model);
 }
 
 function nonEmptyString(value: unknown): value is string {

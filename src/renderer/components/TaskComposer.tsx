@@ -1,4 +1,5 @@
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
+import type { ContextUsage } from "../../domain/task";
 
 const modes: { value: ExecutionPolicy; label: string; description: string; glyph: string }[] = [
   { value: "confirm", label: "Ask for approval", description: "Ask before using tools or changing files", glyph: "✋" },
@@ -13,6 +14,7 @@ export type TaskComposerProps = {
   mode: ExecutionPolicy;
   model: AgentModel;
   contextWindow: ContextWindow;
+  contextUsage?: ContextUsage;
   runActive: boolean;
   onPromptChange: (prompt: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
@@ -28,6 +30,7 @@ export function TaskComposer({
   mode,
   model,
   contextWindow,
+  contextUsage,
   runActive,
   onPromptChange,
   onModeChange,
@@ -89,6 +92,11 @@ export function TaskComposer({
           </select>
           </div>
           <div className="composer-actions">
+            {contextUsage && (
+              <span className="context-usage" title={`${contextUsage.tokens.toLocaleString()} of ${contextUsage.limit.toLocaleString()} context tokens used with ${contextUsage.model}`}>
+                {Math.round(contextUsage.tokens / contextUsage.limit * 100)}%
+              </span>
+            )}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
               disabled={!runActive && !prompt.trim()}

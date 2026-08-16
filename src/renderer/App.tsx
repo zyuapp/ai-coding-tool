@@ -74,6 +74,7 @@ export function App() {
           mode={workspace.policy}
           model={workspace.model}
           contextWindow={workspace.contextWindow}
+          contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
           onPromptChange={workspace.actions.setPrompt}
           onModeChange={workspace.actions.setPolicy}

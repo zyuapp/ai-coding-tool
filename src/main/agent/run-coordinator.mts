@@ -109,6 +109,7 @@ export class RunCoordinator {
   private handleProviderEvent(active: ActiveRun, event: ProviderEvent) {
     if (!this.isCurrent(active) || active.terminal) return;
     if (event.type === "assistant") this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text });
+    if (event.type === "usage") this.publish(active, { type: "context.usage", tokens: event.tokens, limit: event.limit, model: event.model });
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
   }
