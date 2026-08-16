@@ -71,3 +71,29 @@ test("stores the latest context usage for the active task", () => {
 
   assert.deepEqual(updated.tasks[0].contextUsage, { tokens: 42_000, limit: 200_000, model: "claude-sonnet" });
 });
+
+test("records compaction and updates context usage", () => {
+  const initial = state();
+  initial.tasks[0].contextUsage = { tokens: 182_000, limit: 200_000, model: "claude-sonnet" };
+  const compacting = applyRunEvent(initial, {
+    type: "context.compaction-status",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 1,
+    compacting: true,
+  });
+  const updated = applyRunEvent(compacting, {
+    type: "context.compacted",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 2,
+    trigger: "auto",
+    preTokens: 182_000,
+    postTokens: 41_000,
+  });
+
+  assert.equal(compacting.activeRun.status, "compacting");
+  assert.equal(updated.activeRun.status, "running");
+  assert.equal(updated.tasks[0].messages[0].text, "Context auto-compacted: 182,000 → 41,000 tokens.");
+  assert.deepEqual(updated.tasks[0].contextUsage, { tokens: 41_000, limit: 200_000, model: "claude-sonnet" });
+});

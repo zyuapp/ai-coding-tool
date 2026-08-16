@@ -1,3 +1,4 @@
+import { ListCollapse } from "lucide-react";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -12,9 +13,10 @@ export type ConversationTimelineProps = {
   currentTask?: Task;
   folder: string;
   status: "idle" | "running" | "stopped";
+  compacting: boolean;
 };
 
-export function ConversationTimeline({ currentTask, folder, status }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting }: ConversationTimelineProps) {
   if (!currentTask?.messages.length) {
     return (
       <div className="empty-state">
@@ -39,7 +41,14 @@ export function ConversationTimeline({ currentTask, folder, status }: Conversati
           )}
         </article>
       ))}
-      {status === "running" && (
+      {status === "running" && compacting && (
+        <div className="compacting-row" role="status" aria-live="polite">
+          <ListCollapse aria-hidden="true" />
+          <span>Compacting messages…</span>
+          <span className="activity-dots" aria-hidden="true"><i /><i /><i /></span>
+        </div>
+      )}
+      {status === "running" && !compacting && (
         <div className="thinking-row">
           <span /> <span /> <span />
         </div>

@@ -62,6 +62,19 @@ export class ClaudeAgentProvider implements AgentProvider {
             type: "continuation",
             continuation: { provider: "claude", value: message.session_id },
           });
+        } else if (message.type === "system" && message.subtype === "compact_boundary") {
+          input.emit({
+            type: "compaction",
+            trigger: message.compact_metadata.trigger,
+            preTokens: message.compact_metadata.pre_tokens,
+            ...(message.compact_metadata.post_tokens === undefined ? {} : { postTokens: message.compact_metadata.post_tokens }),
+          });
+        } else if (message.type === "system" && message.subtype === "status" && (message.status === "compacting" || message.compact_result)) {
+          input.emit({
+            type: "compaction-status",
+            compacting: message.status === "compacting",
+            ...(message.compact_result === "failed" ? { error: message.compact_error ?? "Context compaction failed." } : {}),
+          });
         } else if (message.type === "assistant") {
           for (const block of message.message.content) {
             if (block.type === "text" && block.text.trim()) {

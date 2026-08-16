@@ -5,7 +5,7 @@ export type ActiveRun = {
   taskId: string;
   runId: string;
   sequence: number;
-  status: "running" | "awaiting-approval";
+  status: "running" | "compacting" | "awaiting-approval";
 };
 
 export type ApprovalView = {
@@ -67,6 +67,28 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     return applyTask(withSequence, event.taskId, (task) => ({
       ...task,
       contextUsage: { tokens: event.tokens, limit: event.limit, model: event.model },
+    }));
+  }
+  if (event.type === "context.compaction-status") {
+    const activeState = { ...withSequence, activeRun: { ...withSequence.activeRun!, status: event.compacting ? "compacting" as const : "running" as const } } as T;
+    return event.error
+      ? applyTask(activeState, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.error!)], updatedAt: now() }))
+      : activeState;
+  }
+  if (event.type === "context.compacted") {
+    const activeState = { ...withSequence, activeRun: { ...withSequence.activeRun!, status: "running" as const } } as T;
+    return applyTask(activeState, event.taskId, (task) => ({
+      ...task,
+      messages: [...task.messages, createTaskMessage(
+        "system",
+        event.postTokens === undefined
+          ? `Context ${event.trigger}-compacted at ${event.preTokens.toLocaleString("en-US")} tokens.`
+          : `Context ${event.trigger}-compacted: ${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tokens.`,
+      )],
+      ...(task.contextUsage && event.postTokens !== undefined
+        ? { contextUsage: { ...task.contextUsage, tokens: event.postTokens } }
+        : {}),
+      updatedAt: now(),
     }));
   }
   if (event.type === "tool.intent") {

@@ -153,6 +153,7 @@ export function useTaskWorkspace() {
   const orderedTasks = visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt);
   const recentTasks = orderedTasks.filter((task) => !task.projectId);
   const status = state.currentId && (state.activeRun?.taskId === state.currentId || state.lastRunTaskId === state.currentId) ? state.lastRunStatus : "idle";
+  const compacting = state.activeRun?.taskId === state.currentId && state.activeRun.status === "compacting";
   const visibleApproval = state.activeRun?.status === "awaiting-approval" && state.approvals[state.activeRun.runId]?.taskId === state.currentId ? state.approvals[state.activeRun.runId] : undefined;
 
   function setStateAndRef(next: WorkspaceState | ((state: WorkspaceState) => WorkspaceState)) {
@@ -314,6 +315,7 @@ export function useTaskWorkspace() {
     contextWindow,
     prompt: state.prompt,
     status,
+    compacting,
     globalStatus: state.lastRunStatus,
     runActive: Boolean(state.activeRun),
     runningTaskId: state.activeRun?.taskId ?? null,

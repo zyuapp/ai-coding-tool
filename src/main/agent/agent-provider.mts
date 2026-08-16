@@ -3,6 +3,8 @@ import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, ToolInte
 export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string }
   | { type: "usage"; tokens: number; limit: number; model: string }
+  | { type: "compaction-status"; compacting: boolean; error?: string }
+  | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }
   | { type: "tool"; intent: ToolIntent }
   | { type: "continuation"; continuation: Continuation };
 
