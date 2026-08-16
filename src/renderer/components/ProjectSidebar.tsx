@@ -1,3 +1,4 @@
+import { Ellipsis, SquarePen } from "lucide-react";
 import type { Project, Task } from "../../domain/task";
 
 function shortFolder(folder: string) {
@@ -12,14 +13,6 @@ function FolderIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3.5 7.5h6l2-2h3.8c1.8 0 2.7 0 3.4.35.62.32 1.13.83 1.45 1.45.35.7.35 1.6.35 3.4v4.4c0 1.8 0 2.7-.35 3.4a3.25 3.25 0 0 1-1.45 1.45c-.7.35-1.6.35-3.4.35H7.5c-1.8 0-2.7 0-3.4-.35a3.25 3.25 0 0 1-1.45-1.45c-.35-.7-.35-1.6-.35-3.4V9.2c0-.95 0-1.42.18-1.78.16-.32.42-.58.74-.74.36-.18.83-.18 1.78-.18Z" />
-    </svg>
-  );
-}
-
-function ComposeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M13.5 5.5H6.8A2.8 2.8 0 0 0 4 8.3v8.9A2.8 2.8 0 0 0 6.8 20h8.9a2.8 2.8 0 0 0 2.8-2.8v-6.7M11 13l1.1-3.2L18.9 3a1.5 1.5 0 0 1 2.1 2.1l-6.8 6.8L11 13Z" />
     </svg>
   );
 }
@@ -134,7 +127,7 @@ export function ProjectSidebar({
                       if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
                     }}
                   >
-                    <button className="menu-trigger" aria-label={`More options for ${shortFolder(project.root)}`} aria-expanded={openMenu === `project:${project.id}`} onClick={() => onSetOpenMenu(openMenu === `project:${project.id}` ? null : `project:${project.id}`)}>•••</button>
+                    <button className="menu-trigger" aria-label={`More options for ${shortFolder(project.root)}`} aria-expanded={openMenu === `project:${project.id}`} onClick={() => onSetOpenMenu(openMenu === `project:${project.id}` ? null : `project:${project.id}`)}><Ellipsis size={16} /></button>
                     {openMenu === `project:${project.id}` && <div className="project-menu-popover" role="menu">
                       <button role="menuitem" onClick={() => {
                         onNewTask(project.id);
@@ -147,7 +140,7 @@ export function ProjectSidebar({
                     </div>
                     }
                   </div>
-                  <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${shortFolder(project.root)}`}><ComposeIcon /></button>
+                  <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${shortFolder(project.root)}`}><SquarePen size={16} /></button>
                 </div>
                 {expanded && projectTasks.length > 0 && (
                   <div className="project-tasks">
@@ -173,7 +166,7 @@ export function ProjectSidebar({
               if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
             }}
           >
-            <button className="menu-trigger" aria-label="Recent chat options" aria-expanded={openMenu === "recents"} onClick={() => onSetOpenMenu(openMenu === "recents" ? null : "recents")}>•••</button>
+            <button className="menu-trigger" aria-label="Recent chat options" aria-expanded={openMenu === "recents"} onClick={() => onSetOpenMenu(openMenu === "recents" ? null : "recents")}><Ellipsis size={16} /></button>
             {openMenu === "recents" && <div className="project-menu-popover section-menu-popover" role="menu">
               <button role="menuitem" onClick={() => {
                 onNewTask();
@@ -182,7 +175,7 @@ export function ProjectSidebar({
             </div>
             }
           </div>
-          <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><ComposeIcon /></button>
+          <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
         </div>
         {recentsOpen && <nav className="task-list" aria-label="Project-less tasks">
           {recentTasks.length === 0 ? (

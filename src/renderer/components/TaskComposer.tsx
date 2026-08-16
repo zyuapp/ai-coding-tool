@@ -1,12 +1,64 @@
+import { Brain, Check, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, Zap, type LucideIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 
-const modes: { value: ExecutionPolicy; label: string; description: string; glyph: string }[] = [
-  { value: "confirm", label: "Ask for approval", description: "Ask before using tools or changing files", glyph: "✋" },
-  { value: "plan", label: "Plan mode", description: "Plan the work without making changes", glyph: "◇" },
-  { value: "allow-edits", label: "Accept edits", description: "Apply file edits without asking", glyph: "✓" },
-  { value: "autonomous", label: "Approve for me", description: "Only ask for potentially unsafe actions", glyph: "⌁" },
+type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon; elevated?: boolean };
+
+const modes: Choice<ExecutionPolicy>[] = [
+  { value: "confirm", label: "Ask for approval", description: "Ask before using tools or changing files", icon: Hand },
+  { value: "plan", label: "Plan mode", description: "Plan the work without making changes", icon: ListTodo },
+  { value: "allow-edits", label: "Accept edits", description: "Apply file edits without asking", icon: FileCheck2 },
+  { value: "autonomous", label: "Approve for me", description: "Only ask for potentially unsafe actions", icon: Zap, elevated: true },
 ];
+
+const models: Choice<AgentModel>[] = [
+  { value: "default", label: "Default model", description: "Use Claude's recommended model", icon: Sparkles },
+  { value: "sonnet", label: "Sonnet", description: "Balanced speed and capability", icon: Gauge },
+  { value: "opus", label: "Opus", description: "Best for complex reasoning", icon: Brain },
+  { value: "haiku", label: "Haiku", description: "Fastest for lightweight work", icon: Feather },
+];
+
+const contextWindows: Choice<ContextWindow>[] = [
+  { value: "default", label: "200K context", description: "Standard context window", icon: FileText },
+  { value: "1m", label: "1M context", description: "Extended context for large tasks", icon: Library },
+];
+
+function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange }: {
+  label: string;
+  heading: string;
+  choices: Choice<T>[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  const selected = choices.find((item) => item.value === value)!;
+  const SelectedIcon = selected.icon;
+
+  return <details className="setting-menu">
+    <summary aria-label={label}>
+      <span className="setting-summary-icon" aria-hidden="true"><SelectedIcon size={16} /></span>
+      {selected.label}
+    </summary>
+    <div className="setting-popover">
+      <div className="setting-heading">{heading}</div>
+      {choices.map((item) => {
+        const Icon = item.icon;
+        return <button
+          className={`setting-option ${item.elevated ? "elevated" : ""}`}
+          key={item.value}
+          onClick={(event) => {
+            onChange(item.value);
+            event.currentTarget.closest("details")?.removeAttribute("open");
+          }}
+        >
+          <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
+          <span><strong>{item.label}</strong><small>{item.description}</small></span>
+          <span className="setting-check" aria-hidden="true">{item.value === value && <Check size={20} />}</span>
+        </button>;
+      })}
+    </div>
+  </details>;
+}
 
 export type TaskComposerProps = {
   prompt: string;
@@ -39,6 +91,18 @@ export function TaskComposer({
   onSend,
   onCancel,
 }: TaskComposerProps) {
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const closeOtherMenus = (event: PointerEvent) => {
+      settingsRef.current?.querySelectorAll("details[open]").forEach((details) => {
+        if (!details.contains(event.target as Node)) details.removeAttribute("open");
+      });
+    };
+    document.addEventListener("pointerdown", closeOtherMenus);
+    return () => document.removeEventListener("pointerdown", closeOtherMenus);
+  }, []);
+
   return (
     <footer className="composer-wrap">
       <div className="composer">
@@ -56,40 +120,10 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <div className="composer-settings">
-          <details className="permission-menu">
-            <summary aria-label="Permission mode">
-              <span className="permission-summary-icon" aria-hidden="true">{modes.find((item) => item.value === mode)?.glyph}</span>
-              {modes.find((item) => item.value === mode)?.label}
-            </summary>
-            <div className="permission-popover">
-              <div className="permission-heading">How should Claude actions be approved?</div>
-              {modes.map((item) => (
-                <button
-                  className={`permission-option ${item.value === "autonomous" ? "elevated" : ""}`}
-                  key={item.value}
-                  onClick={(event) => {
-                    onModeChange(item.value);
-                    event.currentTarget.closest("details")?.removeAttribute("open");
-                  }}
-                >
-                  <span className="permission-icon" aria-hidden="true">{item.glyph}</span>
-                  <span><strong>{item.label}</strong><small>{item.description}</small></span>
-                  <span className="permission-check" aria-hidden="true">{item.value === mode ? "✓" : ""}</span>
-                </button>
-              ))}
-            </div>
-          </details>
-          <select value={model} onChange={(event) => onModelChange(event.target.value as AgentModel)} aria-label="Model">
-            <option value="default">Default model</option>
-            <option value="sonnet">Sonnet</option>
-            <option value="opus">Opus</option>
-            <option value="haiku">Haiku</option>
-          </select>
-          <select value={contextWindow} onChange={(event) => onContextWindowChange(event.target.value as ContextWindow)} aria-label="Context window">
-            <option value="default">200K context</option>
-            <option value="1m">1M context</option>
-          </select>
+          <div className="composer-settings" ref={settingsRef}>
+            <ChoiceMenu label="Permission mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
+            <ChoiceMenu label="Model" heading="Choose a model" choices={models} value={model} onChange={onModelChange} />
+            <ChoiceMenu label="Context window" heading="Choose a context window" choices={contextWindows} value={contextWindow} onChange={onContextWindowChange} />
           </div>
           <div className="composer-actions">
             {contextUsage && (
