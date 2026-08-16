@@ -45,6 +45,7 @@ export type ProjectSidebarProps = {
   onSetOpenMenu: (menu: string | null) => void;
   onSetChatSort: (sort: "priority" | "updated" | "manual") => void;
   onSelectTask: (taskId: string) => void;
+  onArchiveTask: (taskId: string) => void;
 };
 
 export function ProjectSidebar({
@@ -68,7 +69,32 @@ export function ProjectSidebar({
   onSetOpenMenu,
   onSetChatSort,
   onSelectTask,
+  onArchiveTask,
 }: ProjectSidebarProps) {
+  const taskRow = (task: Task, className: string, content: React.ReactNode) => (
+    <div className="task-entry" key={task.id}>
+      <button
+        className={className}
+        onClick={() => onSelectTask(task.id)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onSetOpenMenu(`task:${task.id}`);
+        }}
+        title={task.title}
+      >
+        {content}
+      </button>
+      {openMenu === `task:${task.id}` && (
+        <div className="task-context-menu project-menu-popover" data-popover-menu role="menu">
+          <button role="menuitem" onClick={() => {
+            onArchiveTask(task.id);
+            onSetOpenMenu(null);
+          }}>Archive</button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <aside className="sidebar">
       <div className="traffic-space" aria-hidden="true" />
@@ -152,17 +178,10 @@ export function ProjectSidebar({
                 </div>
                 {expanded && projectTasks.length > 0 && (
                   <div className="project-tasks">
-                    {projectTasks.map((task) => (
-                      <button
-                        key={task.id}
-                        className={`project-task-row ${task.id === currentId ? "active" : ""}`}
-                        onClick={() => onSelectTask(task.id)}
-                        title={task.title}
-                      >
+                    {projectTasks.map((task) => taskRow(task, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
                         <span>{task.title}</span>
                         {status === "running" && task.id === runningTaskId && <span className="task-spinner" aria-label="Working" />}
-                      </button>
-                    ))}
+                      </>))}
                   </div>
                 )}
               </section>
@@ -196,16 +215,10 @@ export function ProjectSidebar({
           {recentTasks.length === 0 ? (
             <p className="sidebar-empty">No chats</p>
           ) : (
-            recentTasks.map((task) => (
-              <button
-                key={task.id}
-                className={`task-row ${task.id === currentId ? "active" : ""}`}
-                onClick={() => onSelectTask(task.id)}
-              >
+            recentTasks.map((task) => taskRow(task, `task-row ${task.id === currentId ? "active" : ""}`, <>
                 <span>{task.title}</span>
                 <small>{formatTime(task.updatedAt)}</small>
-              </button>
-            ))
+              </>))
           )}
         </nav>}
       </div>

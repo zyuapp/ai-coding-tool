@@ -144,7 +144,8 @@ export function useTaskWorkspace() {
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
   const folder = currentProject?.root ?? "";
   const policy = currentTask?.executionPolicy ?? state.draftPolicy;
-  const orderedTasks = state.chatSort === "updated" ? [...state.tasks].sort((a, b) => b.updatedAt - a.updatedAt) : [...state.tasks];
+  const visibleTasks = state.tasks.filter((task) => task.archivedAt === undefined);
+  const orderedTasks = state.chatSort === "updated" ? visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt) : visibleTasks;
   const recentTasks = orderedTasks.filter((task) => !task.projectId);
   const status = state.currentId && (state.activeRun?.taskId === state.currentId || state.lastRunTaskId === state.currentId) ? state.lastRunStatus : "idle";
   const visibleApproval = state.activeRun?.status === "awaiting-approval" && state.approvals[state.activeRun.runId]?.taskId === state.currentId ? state.approvals[state.activeRun.runId] : undefined;
@@ -180,6 +181,15 @@ export function useTaskWorkspace() {
     const task = stateRef.current.tasks.find((item) => item.id === taskId);
     const project = projectFor(stateRef.current, task);
     setStateAndRef((current) => ({ ...current, currentId: taskId, draftProjectId: task?.projectId ?? null, lastFolder: project?.root ?? current.lastFolder, actionError: null }));
+  }
+
+  function archiveTask(taskId: string) {
+    if (stateRef.current.activeRun?.taskId === taskId) return;
+    setStateAndRef((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) => task.id === taskId ? { ...task, archivedAt: now() } : task),
+      currentId: current.currentId === taskId ? null : current.currentId,
+    }));
   }
 
   function toggleProject(projectId: string) {
@@ -298,6 +308,7 @@ export function useTaskWorkspace() {
       newTask,
       openFolder,
       selectTask,
+      archiveTask,
       toggleProject,
       setProjectsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, projectsOpen: open })),
       setRecentsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, recentsOpen: open })),

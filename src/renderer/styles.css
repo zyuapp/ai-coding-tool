@@ -259,6 +259,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-menu-popover .menu-choice > span { color: #aaa9a6; }
 .project-menu-popover.section-menu-popover { width: 224px; }
 .project-tasks { display: grid; gap: 1px; margin: 1px 0 4px; }
+.task-entry { position: relative; min-width: 0; }
+.task-context-menu { top: 34px; right: 8px; }
 .project-task-row {
   width: 100%;
   min-width: 0;

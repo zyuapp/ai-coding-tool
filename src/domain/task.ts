@@ -35,6 +35,7 @@ export type Task = {
   continuationStatus: ContinuationStatus;
   lastChangeSnapshot: ChangeSnapshot;
   updatedAt: number;
+  archivedAt?: number;
 };
 
 export type TaskStoreData = {
@@ -321,7 +322,8 @@ function isTaskBase(value: unknown): value is Task {
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
-    finiteNumber(value.updatedAt);
+    finiteNumber(value.updatedAt) &&
+    (value.archivedAt === undefined || finiteNumber(value.archivedAt));
 }
 
 function isRecord(value: unknown): value is Record<string, any> {

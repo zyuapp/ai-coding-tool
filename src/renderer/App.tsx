@@ -52,6 +52,7 @@ export function App() {
         onSetOpenMenu={workspace.actions.setOpenMenu}
         onSetChatSort={workspace.actions.setChatSort}
         onSelectTask={workspace.actions.selectTask}
+        onArchiveTask={workspace.actions.archiveTask}
       />
 
       <section className="workspace">
