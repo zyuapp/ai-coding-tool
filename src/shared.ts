@@ -25,6 +25,7 @@ export type AgentRequest =
       requestId: string;
       prompt: string;
       cwd: string;
+      projectless?: boolean;
       mode: PermissionMode;
       sessionId?: string;
     }

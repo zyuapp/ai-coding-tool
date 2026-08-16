@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from "electron";
 import { execFile } from "node:child_process";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { AgentEvent, AgentRequest } from "../shared";
@@ -73,6 +74,13 @@ ipcMain.handle("folder:open", async () => {
 
 ipcMain.on("agent:request", (_event, request: AgentRequest) => {
   if (!agent) startAgent();
+  if (request.type === "start" && request.projectless) {
+    const cwd = path.join(app.getPath("userData"), "projectless");
+    void mkdir(cwd, { recursive: true })
+      .then(() => agent?.postMessage({ ...request, cwd }))
+      .catch((error: unknown) => sendToRenderer({ type: "error", message: error instanceof Error ? error.message : String(error) }));
+    return;
+  }
   agent?.postMessage(request);
 });
 

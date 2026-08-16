@@ -3,12 +3,24 @@ import type { AgentEvent, ApprovalRequest, ChatMessage, PermissionMode, Task } f
 
 const STORAGE_KEY = "threadline.tasks.v1";
 const LAST_FOLDER_KEY = "threadline.last-folder.v1";
+const PROJECTS_KEY = "threadline.projects.v1";
 
 function loadTasks(): Task[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as Task[];
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as unknown;
+    return Array.isArray(value) ? value.filter((task): task is Task => Boolean(task && typeof task === "object" && "id" in task)) : [];
   } catch {
     return [];
+  }
+}
+
+function loadProjects(tasks: Task[]): string[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROJECTS_KEY) ?? "[]") as unknown;
+    const folders = Array.isArray(saved) ? saved.filter((item): item is string => typeof item === "string" && Boolean(item)) : [];
+    return [...new Set([...folders, ...tasks.map((task) => task.folder).filter(Boolean)])];
+  } catch {
+    return [...new Set(tasks.map((task) => task.folder).filter(Boolean))];
   }
 }
 
@@ -41,17 +53,34 @@ function FolderIcon() {
   );
 }
 
+function ComposeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M13.5 5.5H6.8A2.8 2.8 0 0 0 4 8.3v8.9A2.8 2.8 0 0 0 6.8 20h8.9a2.8 2.8 0 0 0 2.8-2.8v-6.7M11 13l1.1-3.2L18.9 3a1.5 1.5 0 0 1 2.1 2.1l-6.8 6.8L11 13Z" />
+    </svg>
+  );
+}
+
 export function App() {
   const [tasks, setTasks] = useState<Task[]>(loadTasks);
+  const [projects, setProjects] = useState<string[]>(() => loadProjects(loadTasks()));
   const [currentId, setCurrentId] = useState<string | null>(tasks[0]?.id ?? null);
-  const [draftFolder, setDraftFolder] = useState(() => localStorage.getItem(LAST_FOLDER_KEY) ?? "");
+  const [draftFolder, setDraftFolder] = useState(() => tasks[0]?.folder ?? localStorage.getItem(LAST_FOLDER_KEY) ?? "");
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set(tasks[0]?.folder ? [tasks[0].folder] : []));
+  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [recentsOpen, setRecentsOpen] = useState(true);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [chatSort, setChatSort] = useState<"priority" | "updated" | "manual">("manual");
   const [draftMode, setDraftMode] = useState<PermissionMode>("default");
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<"idle" | "running" | "stopped">("idle");
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
   const [approval, setApproval] = useState<ApprovalRequest | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const currentIdRef = useRef(currentId);
   const currentFolderRef = useRef(draftFolder);
+  const runningTaskIdRef = useRef<string | null>(null);
+  const runningFolderRef = useRef("");
 
   const currentTask = useMemo(() => tasks.find((task) => task.id === currentId), [tasks, currentId]);
   const folder = currentTask?.folder ?? draftFolder;
@@ -63,6 +92,7 @@ export function App() {
   }, [currentId, folder]);
 
   useEffect(() => localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)), [tasks]);
+  useEffect(() => localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects)), [projects]);
   useEffect(() => {
     if (draftFolder) localStorage.setItem(LAST_FOLDER_KEY, draftFolder);
   }, [draftFolder]);
@@ -72,24 +102,47 @@ export function App() {
   }, [currentTask?.messages.length, status, approval]);
 
   useEffect(() => {
+    if (!("desktop" in window)) return;
     return window.desktop.onAgentEvent((event) => handleAgentEvent(event));
   }, []);
 
+  useEffect(() => {
+    function dismissMenu(event: PointerEvent) {
+      if (!(event.target instanceof Element) || !event.target.closest("[data-popover-menu]")) setOpenMenu(null);
+    }
+    function dismissMenuWithKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenu(null);
+    }
+    document.addEventListener("pointerdown", dismissMenu);
+    document.addEventListener("keydown", dismissMenuWithKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", dismissMenu);
+      document.removeEventListener("keydown", dismissMenuWithKeyboard);
+    };
+  }, []);
+
   function updateCurrent(mutator: (task: Task) => Task) {
-    const id = currentIdRef.current;
+    const id = runningTaskIdRef.current ?? currentIdRef.current;
     if (!id) return;
     setTasks((existing) => existing.map((task) => (task.id === id ? mutator(task) : task)));
   }
 
   async function refreshChanges() {
-    const activeFolder = currentFolderRef.current;
+    const activeFolder = runningFolderRef.current || currentFolderRef.current;
     if (!activeFolder) return;
     const changedFiles = await window.desktop.changedFiles(activeFolder);
     updateCurrent((task) => ({ ...task, changedFiles, updatedAt: Date.now() }));
   }
 
   function handleAgentEvent(event: AgentEvent) {
-    if (event.type === "status") setStatus(event.status);
+    if (event.type === "status") {
+      setStatus(event.status);
+      if (event.status !== "running") {
+        runningTaskIdRef.current = null;
+        runningFolderRef.current = "";
+        setRunningTaskId(null);
+      }
+    }
     if (event.type === "session") {
       updateCurrent((task) => ({ ...task, sessionId: event.sessionId, updatedAt: Date.now() }));
     }
@@ -138,14 +191,27 @@ export function App() {
   async function openFolder() {
     const selected = await window.desktop.openFolder();
     if (!selected) return;
+    setProjects((existing) => existing.includes(selected) ? existing : [selected, ...existing]);
     setDraftFolder(selected);
     setCurrentId(null);
+    setExpandedProjects((existing) => new Set(existing).add(selected));
   }
 
-  function newTask() {
+  function newTask(project = "") {
     setCurrentId(null);
+    setDraftFolder(project);
     setApproval(null);
     setPrompt("");
+    if (project) setExpandedProjects((existing) => new Set(existing).add(project));
+  }
+
+  function toggleProject(project: string) {
+    setExpandedProjects((existing) => {
+      const next = new Set(existing);
+      if (next.has(project)) next.delete(project);
+      else next.add(project);
+      return next;
+    });
   }
 
   function setMode(nextMode: PermissionMode) {
@@ -162,11 +228,6 @@ export function App() {
     const text = prompt.trim();
     if (!text || status === "running") return;
     let activeFolder = folder;
-    if (!activeFolder) {
-      activeFolder = (await window.desktop.openFolder()) ?? "";
-      if (!activeFolder) return;
-      setDraftFolder(activeFolder);
-    }
 
     let task = currentTask;
     if (!task) {
@@ -194,11 +255,16 @@ export function App() {
       ),
     );
     setPrompt("");
+    runningTaskIdRef.current = task.id;
+    runningFolderRef.current = activeFolder;
+    setRunningTaskId(task.id);
+    setStatus("running");
     window.desktop.send({
       type: "start",
       requestId: crypto.randomUUID(),
       prompt: text,
       cwd: activeFolder,
+      projectless: !activeFolder,
       mode: task.mode,
       sessionId: task.sessionId,
     });
@@ -210,7 +276,8 @@ export function App() {
     setApproval(null);
   }
 
-  const orderedTasks = [...tasks].sort((a, b) => b.updatedAt - a.updatedAt);
+  const orderedTasks = chatSort === "updated" ? [...tasks].sort((a, b) => b.updatedAt - a.updatedAt) : [...tasks];
+  const recentTasks = orderedTasks.filter((task) => !task.folder);
 
   return (
     <main className="app-shell">
@@ -221,24 +288,130 @@ export function App() {
           <span className="brand-chevron" aria-hidden="true">⌄</span>
         </div>
 
-        <button className="new-task-button" onClick={newTask}>
+        <button className="new-task-button" onClick={() => newTask()}>
           <span className="new-task-icon" aria-hidden="true">＋</span>
           <span>New task</span>
         </button>
 
-        <div className="section-label">Project</div>
-        <button className="folder-button" onClick={openFolder} title={folder || "Open a project folder"}>
-          <span className="folder-icon"><FolderIcon /></span>
-          <span>{folder ? shortFolder(folder) : "Open a folder"}</span>
-          <span className="folder-chevron" aria-hidden="true">⌄</span>
-        </button>
+        <div className="sidebar-scroll">
+          <div className="section-heading projects-heading">
+            <button className="section-toggle" onClick={() => setProjectsOpen((open) => !open)} aria-expanded={projectsOpen}>
+              <span>Projects</span><span className="section-chevron" aria-hidden="true" />
+            </button>
+            <div
+              className={`section-menu ${openMenu === "projects" ? "open" : ""}`}
+              data-popover-menu
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(null);
+              }}
+            >
+              <button className="menu-trigger" aria-label="Project options" aria-expanded={openMenu === "projects"} onClick={() => setOpenMenu((menu) => menu === "projects" ? null : "projects")}>•••</button>
+              {openMenu === "projects" && <div className="project-menu-popover section-menu-popover" role="menu">
+                <div className="menu-label">Organize sidebar</div>
+                <button className="menu-choice selected" role="menuitemradio" aria-checked="true"><span>✓</span>By project</button>
+                <button className="menu-choice" role="menuitemradio" aria-checked="false"><span />In one list</button>
+                <div className="menu-label menu-label-spaced">Sort chats by</div>
+                {(["priority", "updated", "manual"] as const).map((sort) => (
+                  <button
+                    className={`menu-choice ${chatSort === sort ? "selected" : ""}`}
+                    role="menuitemradio"
+                    aria-checked={chatSort === sort}
+                    key={sort}
+                    onClick={() => {
+                      setChatSort(sort);
+                      setOpenMenu(null);
+                    }}
+                  ><span>{chatSort === sort ? "✓" : ""}</span>{sort === "updated" ? "Last updated" : `${sort[0].toUpperCase()}${sort.slice(1)}${sort === "manual" ? " order" : ""}`}</button>
+                ))}
+              </div>
+              }
+            </div>
+            <button className="section-action add-project" onClick={openFolder} aria-label="Add project">＋</button>
+          </div>
+          {projectsOpen && <nav className="project-list" aria-label="Projects">
+            {projects.map((project) => {
+              const projectTasks = orderedTasks.filter((task) => task.folder === project);
+              const expanded = expandedProjects.has(project);
+              return (
+                <section className="project-group" key={project}>
+                  <div className={`project-row ${draftFolder === project ? "current" : ""}`}>
+                    <button className="project-main" onClick={() => toggleProject(project)} title={project} aria-expanded={expanded}>
+                      <span className="folder-icon"><FolderIcon /></span>
+                      <span>{shortFolder(project)}</span>
+                    </button>
+                    <div
+                      className={`project-menu ${openMenu === `project:${project}` ? "open" : ""}`}
+                      data-popover-menu
+                      onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(null);
+                      }}
+                    >
+                      <button className="menu-trigger" aria-label={`More options for ${shortFolder(project)}`} aria-expanded={openMenu === `project:${project}`} onClick={() => setOpenMenu((menu) => menu === `project:${project}` ? null : `project:${project}`)}>•••</button>
+                      {openMenu === `project:${project}` && <div className="project-menu-popover" role="menu">
+                        <button role="menuitem" onClick={() => {
+                          newTask(project);
+                          setOpenMenu(null);
+                        }}>New task</button>
+                        <button role="menuitem" onClick={() => {
+                          toggleProject(project);
+                          setOpenMenu(null);
+                        }}>{expanded ? "Collapse" : "Expand"}</button>
+                      </div>
+                      }
+                    </div>
+                    <button className="project-new" onClick={() => newTask(project)} aria-label={`New task in ${shortFolder(project)}`}><ComposeIcon /></button>
+                  </div>
+                  {expanded && projectTasks.length > 0 && (
+                    <div className="project-tasks">
+                      {projectTasks.map((task) => (
+                        <button
+                          key={task.id}
+                          className={`project-task-row ${task.id === currentId ? "active" : ""}`}
+                          onClick={() => {
+                            setCurrentId(task.id);
+                            setDraftFolder(task.folder);
+                            setApproval(null);
+                          }}
+                          title={task.title}
+                        >
+                          <span>{task.title}</span>
+                          {status === "running" && task.id === runningTaskId && <span className="task-spinner" aria-label="Working" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </nav>}
 
-        <div className="section-label task-label">Recent</div>
-        <nav className="task-list" aria-label="Tasks">
-          {orderedTasks.length === 0 ? (
-            <p className="sidebar-empty">Your tasks will stay here.</p>
+          <div className="section-heading recents-heading">
+            <button className="section-toggle" onClick={() => setRecentsOpen((open) => !open)} aria-expanded={recentsOpen}>
+              <span>Recents</span><span className="section-chevron" aria-hidden="true" />
+            </button>
+            <div
+              className={`section-menu ${openMenu === "recents" ? "open" : ""}`}
+              data-popover-menu
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setOpenMenu(null);
+              }}
+            >
+              <button className="menu-trigger" aria-label="Recent chat options" aria-expanded={openMenu === "recents"} onClick={() => setOpenMenu((menu) => menu === "recents" ? null : "recents")}>•••</button>
+              {openMenu === "recents" && <div className="project-menu-popover section-menu-popover" role="menu">
+                <button role="menuitem" onClick={() => {
+                  newTask();
+                  setOpenMenu(null);
+                }}>New chat</button>
+              </div>
+              }
+            </div>
+            <button className="section-action recent-new" onClick={() => newTask()} aria-label="New chat"><ComposeIcon /></button>
+          </div>
+          {recentsOpen && <nav className="task-list" aria-label="Project-less tasks">
+          {recentTasks.length === 0 ? (
+            <p className="sidebar-empty">No chats</p>
           ) : (
-            orderedTasks.map((task) => (
+            recentTasks.map((task) => (
               <button
                 key={task.id}
                 className={`task-row ${task.id === currentId ? "active" : ""}`}
@@ -249,11 +422,12 @@ export function App() {
                 }}
               >
                 <span>{task.title}</span>
-                <small>{shortFolder(task.folder)} · {formatTime(task.updatedAt)}</small>
+                <small>{formatTime(task.updatedAt)}</small>
               </button>
             ))
           )}
-        </nav>
+          </nav>}
+        </div>
       </aside>
 
       <section className="workspace">
@@ -300,8 +474,7 @@ export function App() {
               <div className="empty-state">
                 <div className="empty-glyph"><FolderIcon /></div>
                 <h2>Start a task</h2>
-                <p>Tell Claude what you want to change, investigate, or build in this project.</p>
-                {!folder && <button onClick={openFolder}>Open a project</button>}
+                <p>{folder ? "Tell Claude what you want to change, investigate, or build in this project." : "Ask a question or start a self-contained task."}</p>
               </div>
             ) : (
               <div className="timeline">
@@ -356,7 +529,7 @@ export function App() {
                   void sendPrompt();
                 }
               }}
-              placeholder={folder ? "Ask Claude to work on anything" : "Open a folder, then describe a task"}
+              placeholder={folder ? "Ask Claude to work on anything" : "Ask Claude anything"}
               aria-label="Task prompt"
               rows={2}
             />

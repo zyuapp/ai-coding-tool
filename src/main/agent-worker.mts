@@ -64,7 +64,7 @@ async function run(request: Extract<AgentRequest, { type: "start" }>) {
         cwd: request.cwd,
         resume: request.sessionId,
         permissionMode: request.mode,
-        settingSources: ["user", "project", "local"],
+        settingSources: request.projectless ? ["user"] : ["user", "project", "local"],
         skills: "all",
         canUseTool,
         abortController: activeAbort,
