@@ -9,6 +9,7 @@ app.setName("Threadline");
 const execFileAsync = promisify(execFile);
 let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
+const icon = path.join(app.getAppPath(), "assets", "icon.png");
 
 function sendToRenderer(event: AgentEvent) {
   if (window && !window.isDestroyed()) window.webContents.send("agent:event", event);
@@ -35,6 +36,7 @@ async function createWindow() {
     minHeight: 620,
     titleBarStyle: "hiddenInset",
     backgroundColor: "#f7f6f2",
+    icon,
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
@@ -47,6 +49,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  app.dock?.setIcon(icon);
   startAgent();
   void createWindow();
   app.on("activate", () => {
