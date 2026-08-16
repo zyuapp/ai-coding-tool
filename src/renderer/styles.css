@@ -461,7 +461,7 @@ pre {
 .composer {
   max-width: 860px;
   margin: 0 auto;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #292f37;
   border-radius: 17px;
   background: #141820;
