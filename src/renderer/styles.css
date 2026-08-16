@@ -511,15 +511,8 @@ pre {
   line-height: 1;
 }
 .send-button:disabled { background: #343941; color: #171a1f; cursor: default; }
-.stop-button {
-  border: 1px solid #343941;
-  border-radius: 8px;
-  padding: 6px 9px;
-  background: transparent;
-  color: #d58d92;
-  font-size: var(--text-micro);
-  cursor: pointer;
-}
+.send-button.running { display: grid; place-items: center; }
+.stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: #171a1f; }
 
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }

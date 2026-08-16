@@ -13,7 +13,6 @@ export type TaskComposerProps = {
   prompt: string;
   folder: string;
   mode: ExecutionPolicy;
-  status: "idle" | "running" | "stopped";
   runActive: boolean;
   onPromptChange: (prompt: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
@@ -25,7 +24,6 @@ export function TaskComposer({
   prompt,
   folder,
   mode,
-  status,
   runActive,
   onPromptChange,
   onModeChange,
@@ -55,11 +53,13 @@ export function TaskComposer({
             ))}
           </select>
           <div className="composer-actions">
-            {status === "running" && runActive && (
-              <button className="stop-button" onClick={onCancel}>Stop</button>
-            )}
-            <button className="send-button" disabled={!prompt.trim() || runActive} onClick={onSend} aria-label="Send task">
-              ↑
+            <button
+              className={`send-button ${runActive ? "running" : ""}`}
+              disabled={!runActive && !prompt.trim()}
+              onClick={runActive ? onCancel : onSend}
+              aria-label={runActive ? "Stop task" : "Send task"}
+            >
+              {runActive ? <span className="stop-glyph" /> : "↑"}
             </button>
           </div>
         </div>

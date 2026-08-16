@@ -72,7 +72,6 @@ export function App() {
           prompt={workspace.prompt}
           folder={workspace.folder}
           mode={workspace.policy}
-          status={workspace.status}
           runActive={workspace.runActive}
           onPromptChange={workspace.actions.setPrompt}
           onModeChange={workspace.actions.setPolicy}
