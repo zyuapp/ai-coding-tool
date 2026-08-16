@@ -1,5 +1,5 @@
 import { Brain, Check, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, Zap, type LucideIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 
@@ -92,6 +92,7 @@ export function TaskComposer({
   onCancel,
 }: TaskComposerProps) {
   const settingsRef = useRef<HTMLDivElement>(null);
+  const contextPercent = contextUsage ? Math.round(contextUsage.tokens / contextUsage.limit * 100) : 0;
 
   useEffect(() => {
     const closeOtherMenus = (event: PointerEvent) => {
@@ -127,8 +128,13 @@ export function TaskComposer({
           </div>
           <div className="composer-actions">
             {contextUsage && (
-              <span className="context-usage" title={`${contextUsage.tokens.toLocaleString()} of ${contextUsage.limit.toLocaleString()} context tokens used with ${contextUsage.model}`}>
-                {Math.round(contextUsage.tokens / contextUsage.limit * 100)}%
+              <span className="context-usage" tabIndex={0} aria-label={`${contextPercent}% of context window used`} aria-describedby="context-usage-tooltip">
+                <span className="context-usage-ring" aria-hidden="true" style={{ "--context-progress": `${Math.min(contextPercent, 100)}%` } as CSSProperties} />
+                <span className="context-usage-tooltip" id="context-usage-tooltip" role="tooltip">
+                  <span>Context window:</span>
+                  <strong>{contextPercent}% used ({100 - contextPercent}% left)</strong>
+                  <span className="context-usage-tokens">{contextUsage.tokens.toLocaleString("en-US", { notation: "compact" })} / {contextUsage.limit.toLocaleString("en-US", { notation: "compact" })} tokens used</span>
+                </span>
               </span>
             )}
             <button
