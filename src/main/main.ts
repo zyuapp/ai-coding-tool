@@ -183,7 +183,7 @@ async function createWindow() {
 
 async function checkForUpdates() {
   if (!app.isPackaged) return;
-  const { autoUpdater } = await import("electron-updater");
+  const { autoUpdater } = (await import("electron-updater")).default;
   autoUpdater.autoDownload = false;
   autoUpdater.on("error", (error) => console.error("Update error:", error));
   autoUpdater.on("update-available", async ({ version }) => {
