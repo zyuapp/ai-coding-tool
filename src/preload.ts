@@ -1,15 +1,16 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AgentEvent, AgentRequest, DesktopAPI } from "./shared";
+import type { DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
 
 const api: DesktopAPI = {
-  openFolder: () => ipcRenderer.invoke("folder:open"),
-  send: (request: AgentRequest) => ipcRenderer.send("agent:request", request),
-  onAgentEvent: (listener: (event: AgentEvent) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: AgentEvent) => listener(payload);
-    ipcRenderer.on("agent:event", handler);
-    return () => ipcRenderer.removeListener("agent:event", handler);
+  openFolder: () => ipcRenderer.invoke("workspace:open"),
+  projectlessWorkspace: () => ipcRenderer.invoke("workspace:projectless"),
+  send: (command: RunCommand) => ipcRenderer.send("run:command", command),
+  onAgentEvent: (listener: (event: RunEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: RunEvent) => listener(payload);
+    ipcRenderer.on("run:event", handler);
+    return () => ipcRenderer.removeListener("run:event", handler);
   },
-  changedFiles: (folder: string) => ipcRenderer.invoke("git:changed-files", folder),
+  changedFiles: (workspaceId: string) => ipcRenderer.invoke("workspace:changed-files", workspaceId),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

@@ -1,0 +1,381 @@
+import type { Continuation, ExecutionPolicy } from "./run.js";
+
+export const TASK_STORE_VERSION = 2 as const;
+
+export type TaskMessageKind = "user" | "assistant" | "tool" | "system";
+
+export type TaskMessage = {
+  id: string;
+  kind: TaskMessageKind;
+  text: string;
+  detail?: string;
+  at: number;
+};
+
+export type Project = {
+  id: string;
+  root: string;
+  workspaceId?: string;
+};
+
+export type ChangeSnapshot = {
+  files: string[];
+  capturedAt: number;
+};
+
+export type ContinuationStatus = "none" | "available" | "invalid";
+
+export type Task = {
+  id: string;
+  title: string;
+  projectId?: string;
+  executionPolicy: ExecutionPolicy;
+  messages: TaskMessage[];
+  continuation?: Continuation;
+  continuationStatus: ContinuationStatus;
+  lastChangeSnapshot: ChangeSnapshot;
+  updatedAt: number;
+};
+
+export type TaskStoreData = {
+  version: typeof TASK_STORE_VERSION;
+  tasks: Task[];
+  projects: Project[];
+  lastFolder: string | null;
+};
+
+export type StorageValues = {
+  tasks: string | null;
+  projects: string | null;
+  lastFolder: string | null;
+};
+
+export type TaskStoreParseResult =
+  | {
+      ok: true;
+      data: TaskStoreData;
+      sourceVersion: 0 | 1 | 2;
+      preservedV1: StorageValues | null;
+    }
+  | {
+      ok: false;
+      canWrite: false;
+      sourceVersion: 0 | 1 | 2;
+      errorKind: "corrupt" | "storage";
+      errors: string[];
+      preservedV1: StorageValues | null;
+      raw: StorageValues;
+    };
+
+const LEGACY_MODES = {
+  default: "confirm",
+  plan: "plan",
+  acceptEdits: "allow-edits",
+  auto: "autonomous",
+} as const satisfies Record<string, ExecutionPolicy>;
+
+type LegacyMode = keyof typeof LEGACY_MODES;
+
+type VersionedValue<T> = {
+  version: typeof TASK_STORE_VERSION;
+  value: T;
+};
+
+export type SerializedTaskStore = StorageValues;
+
+export function legacyProjectId(root: string) {
+  return `legacy-project-${encodeURIComponent(normalizeRoot(root))}`;
+}
+
+export function parseTaskStore(raw: StorageValues): TaskStoreParseResult {
+  if (raw.tasks === null && raw.projects === null && raw.lastFolder === null) {
+    return {
+      ok: true,
+      data: { version: TASK_STORE_VERSION, tasks: [], projects: [], lastFolder: null },
+      sourceVersion: 0,
+      preservedV1: null,
+    };
+  }
+  const decoded = decodeV2(raw);
+  if (decoded.kind === "v2") return parseV2(decoded.values, raw);
+  if (decoded.kind === "corrupt") {
+    return {
+      ok: false,
+      canWrite: false,
+      sourceVersion: 2,
+      errorKind: "corrupt",
+      errors: decoded.errors,
+      preservedV1: null,
+      raw,
+    };
+  }
+  return migrateV1ToV2(raw);
+}
+
+export function migrateV1ToV2(raw: StorageValues): TaskStoreParseResult {
+  const errors: string[] = [];
+  const tasksValue = parseJson(raw.tasks, "tasks", errors);
+  const projectsValue = parseJson(raw.projects, "projects", errors);
+  const lastFolder = parseLegacyLastFolder(raw.lastFolder, errors);
+  if (errors.length) return corrupt(1, errors, raw);
+
+  if (tasksValue !== null && !Array.isArray(tasksValue)) errors.push("tasks must be an array");
+  if (projectsValue !== null && !Array.isArray(projectsValue)) errors.push("projects must be an array");
+  if (errors.length) return corrupt(1, errors, raw);
+
+  const legacyProjectsValue = Array.isArray(projectsValue) ? projectsValue : [];
+  const legacyProjects = legacyProjectsValue.filter((value): value is string => typeof value === "string" && value.length > 0);
+  if (legacyProjectsValue.some((value) => typeof value !== "string")) errors.push("projects must contain only strings");
+  if (errors.length) return corrupt(1, errors, raw);
+  const legacyTasks = Array.isArray(tasksValue) ? tasksValue : [];
+  const roots = new Set(legacyProjects);
+  for (const value of legacyTasks) {
+    if (!isRecord(value)) {
+      errors.push("tasks contains a non-object value");
+      continue;
+    }
+    if (typeof value.folder === "string" && value.folder) roots.add(value.folder);
+  }
+
+  const projects = [...roots].map((root) => ({ id: legacyProjectId(root), root }));
+  const projectByRoot = new Map(projects.map((project) => [project.root, project.id]));
+  const tasks: Task[] = [];
+  for (const [index, value] of legacyTasks.entries()) {
+    const task = migrateLegacyTask(value, index, projectByRoot, errors);
+    if (task) tasks.push(task);
+  }
+  if (errors.length) return corrupt(1, errors, raw);
+
+  return {
+    ok: true,
+    data: { version: TASK_STORE_VERSION, tasks, projects, lastFolder },
+    sourceVersion: 1,
+    preservedV1: raw,
+  };
+}
+
+export function serializeTaskStore(data: TaskStoreData): SerializedTaskStore {
+  return {
+    tasks: JSON.stringify(versioned(data.tasks)),
+    projects: JSON.stringify(versioned(data.projects)),
+    lastFolder: JSON.stringify(versioned(data.lastFolder)),
+  };
+}
+
+function migrateLegacyTask(
+  value: unknown,
+  index: number,
+  projectByRoot: Map<string, string>,
+  errors: string[],
+): Task | null {
+  if (!isRecord(value)) {
+    errors.push(`tasks[${index}] must be an object`);
+    return null;
+  }
+  if (typeof value.id !== "string" || !value.id) errors.push(`tasks[${index}].id must be a non-empty string`);
+  if (typeof value.title !== "string") errors.push(`tasks[${index}].title must be a string`);
+  if (typeof value.folder !== "string") errors.push(`tasks[${index}].folder must be a string`);
+  if (!isLegacyMode(value.mode)) errors.push(`tasks[${index}].mode is invalid`);
+  if (!Array.isArray(value.messages)) errors.push(`tasks[${index}].messages must be an array`);
+  if (!Array.isArray(value.changedFiles) || value.changedFiles.some((file) => typeof file !== "string")) {
+    errors.push(`tasks[${index}].changedFiles must be an array of strings`);
+  }
+  if (typeof value.updatedAt !== "number" || !Number.isFinite(value.updatedAt)) errors.push(`tasks[${index}].updatedAt must be a number`);
+  const messages = migrateMessages(value.messages, index, errors);
+  if (
+    typeof value.id !== "string" || !value.id ||
+    typeof value.title !== "string" ||
+    typeof value.folder !== "string" ||
+    !isLegacyMode(value.mode) ||
+    !Array.isArray(value.changedFiles) ||
+    typeof value.updatedAt !== "number" || !Number.isFinite(value.updatedAt) ||
+    !messages
+  ) return null;
+
+  const continuationStatus = continuationStatusFor(value.sessionId);
+  const continuation = continuationStatus === "available" ? toContinuation(value.sessionId) : undefined;
+  return {
+    id: value.id,
+    title: value.title,
+    ...(value.folder ? { projectId: projectByRoot.get(value.folder) ?? legacyProjectId(value.folder) } : {}),
+    executionPolicy: LEGACY_MODES[value.mode],
+    messages,
+    ...(continuation ? { continuation } : {}),
+    continuationStatus,
+    lastChangeSnapshot: { files: value.changedFiles, capturedAt: value.updatedAt },
+    updatedAt: value.updatedAt,
+  };
+}
+
+function migrateMessages(value: unknown, taskIndex: number, errors: string[]) {
+  if (!Array.isArray(value)) return null;
+  const messages: TaskMessage[] = [];
+  for (const [index, message] of value.entries()) {
+    if (!isRecord(message) || typeof message.id !== "string" || typeof message.kind !== "string" || !isMessageKind(message.kind) || typeof message.text !== "string" || typeof message.at !== "number" || !Number.isFinite(message.at) || (message.detail !== undefined && typeof message.detail !== "string")) {
+      errors.push(`tasks[${taskIndex}].messages[${index}] is invalid`);
+      continue;
+    }
+    messages.push({ id: message.id, kind: message.kind, text: message.text, ...(message.detail === undefined ? {} : { detail: message.detail }), at: message.at });
+  }
+  return messages;
+}
+
+function decodeV2(raw: StorageValues):
+  | { kind: "none" }
+  | { kind: "v2"; values: { tasks: unknown; projects: unknown; lastFolder: unknown } }
+  | { kind: "corrupt"; errors: string[] } {
+  if (raw.tasks === null && raw.projects === null && raw.lastFolder === null) return { kind: "none" };
+  const errors: string[] = [];
+  const tasks = parseJson(raw.tasks, "tasks", errors);
+  const projects = parseJson(raw.projects, "projects", errors);
+  const lastFolder = parseJson(raw.lastFolder, "lastFolder", errors);
+  const values = { tasks, projects, lastFolder };
+  const hasV2Marker = [tasks, projects, lastFolder].some((value) => isRecord(value) && value.version === TASK_STORE_VERSION);
+  if (!hasV2Marker) return { kind: "none" };
+  if (errors.length) return { kind: "corrupt", errors };
+  if (![tasks, projects, lastFolder].every((value) => isRecord(value) && value.version === TASK_STORE_VERSION && "value" in value)) {
+    return { kind: "corrupt", errors: ["version 2 storage must contain all three versioned values"] };
+  }
+  return {
+    kind: "v2",
+    values: {
+      tasks: (tasks as { value: unknown }).value,
+      projects: (projects as { value: unknown }).value,
+      lastFolder: (lastFolder as { value: unknown }).value,
+    },
+  };
+}
+
+function parseV2(values: { tasks: unknown; projects: unknown; lastFolder: unknown }, raw: StorageValues): TaskStoreParseResult {
+  const errors: string[] = [];
+  if (!Array.isArray(values.tasks)) errors.push("v2 tasks must be an array");
+  if (!Array.isArray(values.projects)) errors.push("v2 projects must be an array");
+  if (values.lastFolder !== null && typeof values.lastFolder !== "string") errors.push("v2 lastFolder must be a string or null");
+  const projects = Array.isArray(values.projects) ? values.projects.filter(isProject) : [];
+  const tasks = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, errors)).filter((task): task is Task => task !== null) : [];
+  if (Array.isArray(values.projects) && projects.length !== values.projects.length) errors.push("v2 projects contains an invalid value");
+  const projectIds = new Set(projects.map((project) => project.id));
+  for (const task of tasks) {
+    if (task.projectId && !projectIds.has(task.projectId)) errors.push(`v2 task ${task.id} references an unknown project`);
+  }
+  if (errors.length) return corrupt(2, errors, raw);
+  return {
+    ok: true,
+    data: { version: TASK_STORE_VERSION, tasks, projects, lastFolder: values.lastFolder as string | null },
+    sourceVersion: 2,
+    preservedV1: null,
+  };
+}
+
+function parseJson(value: string | null, label: string, errors: string[]): unknown | null {
+  if (value === null) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    errors.push(`${label} is not valid JSON`);
+    return null;
+  }
+}
+
+function parseLegacyLastFolder(value: string | null, errors: string[]) {
+  if (value === null || typeof value === "string") return value;
+  errors.push("lastFolder must be a string or null");
+  return null;
+}
+
+function corrupt(sourceVersion: 1 | 2, errors: string[], raw: StorageValues): TaskStoreParseResult {
+  return { ok: false, canWrite: false, sourceVersion, errorKind: "corrupt", errors, preservedV1: sourceVersion === 1 ? raw : null, raw };
+}
+
+function versioned<T>(value: T): VersionedValue<T> {
+  return { version: TASK_STORE_VERSION, value };
+}
+
+function continuationStatusFor(value: unknown): ContinuationStatus {
+  if (value === undefined) return "none";
+  return typeof value === "string" && value.trim() ? "available" : "invalid";
+}
+
+function toContinuation(value: unknown): Continuation {
+  return { provider: "claude", value: String(value) };
+}
+
+function isLegacyMode(value: unknown): value is LegacyMode {
+  return typeof value === "string" && value in LEGACY_MODES;
+}
+
+function isMessageKind(value: string): value is TaskMessageKind {
+  return value === "user" || value === "assistant" || value === "tool" || value === "system";
+}
+
+function isProject(value: unknown): value is Project {
+  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId));
+}
+
+function isTaskBase(value: unknown): value is Task {
+  return isRecord(value) &&
+    nonEmptyString(value.id) &&
+    nonEmptyString(value.title) &&
+    (value.projectId === undefined || nonEmptyString(value.projectId)) &&
+    isExecutionPolicy(value.executionPolicy) &&
+    Array.isArray(value.messages) &&
+    value.messages.every(isTaskMessage) &&
+    isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
+    finiteNumber(value.updatedAt);
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function sanitizeV2Task(value: unknown, errors: string[]): Task | null {
+  if (!isTaskBase(value)) {
+    errors.push("v2 tasks contains an invalid value");
+    return null;
+  }
+
+  const continuation = value.continuation;
+  if (continuation !== undefined && !isContinuation(continuation)) {
+    const { continuation: _discarded, ...withoutContinuation } = value;
+    return { ...withoutContinuation, continuationStatus: "invalid" };
+  }
+  if (continuation && value.continuationStatus !== "available") {
+    errors.push(`v2 task ${value.id} has an inconsistent continuation status`);
+    return null;
+  }
+  if (!continuation && value.continuationStatus !== "none" && value.continuationStatus !== "invalid") {
+    errors.push(`v2 task ${value.id} has an inconsistent continuation status`);
+    return null;
+  }
+  return value;
+}
+
+function isTaskMessage(value: unknown): value is TaskMessage {
+  return isRecord(value) &&
+    nonEmptyString(value.id) &&
+    typeof value.kind === "string" && isMessageKind(value.kind) &&
+    typeof value.text === "string" &&
+    (value.detail === undefined || typeof value.detail === "string") &&
+    finiteNumber(value.at);
+}
+
+function isContinuation(value: unknown): value is Continuation {
+  return isRecord(value) && nonEmptyString(value.provider) && nonEmptyString(value.value);
+}
+
+function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
+  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
+}
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizeRoot(root: string) {
+  const normalized = root.replace(/[\\/]+$/, "");
+  return normalized || root;
+}

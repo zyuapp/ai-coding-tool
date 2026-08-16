@@ -1,32 +1,165 @@
-import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from "electron";
-import { execFile } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { app, BrowserWindow, dialog, ipcMain, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import path from "node:path";
-import { promisify } from "node:util";
-import type { AgentEvent, AgentRequest } from "../shared";
+import { isRunCommand, isRunEvent, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
+import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
 
 app.setName("Threadline");
 
-const execFileAsync = promisify(execFile);
+const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
-const icon = path.join(app.getAppPath(), "assets", "icon.png");
+let workspaceService: WorkspaceService | null = null;
+let quitting = false;
+let activeRunKey: string | null = null;
 
-function sendToRenderer(event: AgentEvent) {
-  if (window && !window.isDestroyed()) window.webContents.send("agent:event", event);
+type RunState = {
+  taskId: string;
+  runId: string;
+  lastSequence: number;
+  terminal: boolean;
+};
+
+const runStates = new Map<string, RunState>();
+const pendingStarts = new Map<string, StartRunCommand>();
+
+function runKey(taskId: string, runId: string) {
+  return `${taskId}\u0000${runId}`;
+}
+
+function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
+  return Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
+}
+
+function sendToRenderer(event: RunEvent) {
+  if (window && !window.isDestroyed()) window.webContents.send("run:event", event);
+}
+
+function recordRun(command: StartRunCommand) {
+  const key = runKey(command.taskId, command.runId);
+  runStates.set(key, { taskId: command.taskId, runId: command.runId, lastSequence: 0, terminal: false });
+  activeRunKey = key;
+  return key;
+}
+
+function publishRunEvent(event: RunEvent) {
+  if (!isRunEvent(event)) return;
+  const key = runKey(event.taskId, event.runId);
+  let state = runStates.get(key);
+  if (!state && event.type === "run.started") {
+    state = { taskId: event.taskId, runId: event.runId, lastSequence: 0, terminal: false };
+    runStates.set(key, state);
+  }
+  if (!state || event.sequence <= state.lastSequence) return;
+  if (!acceptRunEvent(state, event)) return;
+  if (state.terminal && activeRunKey === key) activeRunKey = null;
+  sendToRenderer(event);
+}
+
+function emitSyntheticTerminal(command: StartRunCommand, status: "failed" | "cancelled", message: string) {
+  const key = runKey(command.taskId, command.runId);
+  const state = runStates.get(key) ?? { taskId: command.taskId, runId: command.runId, lastSequence: 0, terminal: false };
+  runStates.set(key, state);
+  if (state.lastSequence === 0) publishRunEvent({ type: "run.started", taskId: command.taskId, runId: command.runId, sequence: 1 });
+  publishRunEvent({ type: "run.status", taskId: command.taskId, runId: command.runId, sequence: state.lastSequence + 1, status, message });
 }
 
 function startAgent() {
+  if (agent) return;
   agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [], {
     serviceName: "Threadline Agent",
     stdio: "pipe",
   });
-  agent.on("message", (event) => sendToRenderer(event as AgentEvent));
+  agent.on("message", (event: unknown) => {
+    if (isRunEvent(event)) publishRunEvent(event);
+  });
   agent.on("exit", (code) => {
-    if (code) sendToRenderer({ type: "error", message: `Agent process exited with code ${code}.` });
     agent = null;
+    if (!quitting) {
+      pendingStarts.clear();
+      const message = `Agent process exited${code === null ? "" : ` with code ${code}`}.`;
+      for (const event of failedEventsForTransportLoss(runStates.values(), message)) publishRunEvent(event);
+    }
   });
   agent.stderr?.on("data", (chunk) => console.error(String(chunk)));
+}
+
+function getWorkspaceService() {
+  if (!workspaceService) throw new Error("Workspace service is not ready.");
+  return workspaceService;
+}
+
+async function resolveStart(command: StartRunCommand) {
+  const resolution = await getWorkspaceService().resolve(command.workspaceId);
+  if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+  return {
+    ...command,
+    workspaceRoot: resolution.workspace.root,
+    projectless: resolution.workspace.kind === "projectless",
+  };
+}
+
+async function readChangedFiles(workspaceId: string) {
+  const { changedFiles } = await import("./workspace/git-changes.mjs");
+  return changedFiles(workspaceId, getWorkspaceService());
+}
+
+function postCommand(command: RunCommand) {
+  try {
+    if (!agent) startAgent();
+    if (!agent) throw new Error("Agent process is unavailable.");
+    agent.postMessage(command);
+  } catch (error) {
+    const state = runStates.get(runKey(command.taskId, command.runId));
+    if (state && !state.terminal) {
+      publishRunEvent({
+        type: "run.status",
+        taskId: command.taskId,
+        runId: command.runId,
+        sequence: state.lastSequence + 1,
+        status: "failed",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+}
+
+async function dispatchStart(command: StartRunCommand) {
+  const key = recordRun(command);
+  pendingStarts.set(key, command);
+  try {
+    const internal = await resolveStart(command);
+    if (!pendingStarts.has(key)) return;
+    pendingStarts.delete(key);
+    startAgent();
+    agent?.postMessage(internal);
+  } catch (error) {
+    pendingStarts.delete(key);
+    emitSyntheticTerminal(command, "failed", error instanceof Error ? error.message : String(error));
+  }
+}
+
+function handleRunCommand(event: IpcMainEvent, payload: unknown) {
+  if (!trustedSender(event) || !isRunCommand(payload)) return;
+  if (payload.type === "start") {
+    if (runStates.has(runKey(payload.taskId, payload.runId))) return;
+    for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId))) {
+      if (runStates.get(oldKey)?.terminal) continue;
+      emitSyntheticTerminal(oldCommand, "cancelled", "The run was superseded before it started.");
+    }
+    void dispatchStart(payload);
+    return;
+  }
+  const key = runKey(payload.taskId, payload.runId);
+  const pending = pendingStarts.get(key);
+  if (pending && payload.type === "cancel") {
+    pendingStarts.delete(key);
+    emitSyntheticTerminal(pending, "cancelled", "The run was cancelled before it started.");
+    return;
+  }
+  const state = runStates.get(key);
+  if (!state || state.terminal) return;
+  postCommand(payload);
 }
 
 async function createWindow() {
@@ -45,11 +178,16 @@ async function createWindow() {
       sandbox: true,
     },
   });
-
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const userData = app.getPath("userData");
+  const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
+  workspaceService = new WorkspaceServiceConstructor({
+    registryPath: path.join(userData, "workspaces.v1.json"),
+    projectlessRoot: path.join(userData, "projectless"),
+  });
   app.dock?.setIcon(icon);
   startAgent();
   void createWindow();
@@ -62,36 +200,35 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => agent?.kill());
+app.on("before-quit", () => {
+  quitting = true;
+  agent?.kill();
+});
 
-ipcMain.handle("folder:open", async () => {
+ipcMain.handle("workspace:open", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   const result = await dialog.showOpenDialog(window!, {
     properties: ["openDirectory", "createDirectory"],
     title: "Open a project folder",
   });
-  return result.canceled ? null : result.filePaths[0];
+  if (result.canceled || !result.filePaths[0]) return null;
+  const registration = await getWorkspaceService().registerProject(result.filePaths[0]);
+  return registration.workspace;
 });
 
-ipcMain.on("agent:request", (_event, request: AgentRequest) => {
-  if (!agent) startAgent();
-  if (request.type === "start" && request.projectless) {
-    const cwd = path.join(app.getPath("userData"), "projectless");
-    void mkdir(cwd, { recursive: true })
-      .then(() => agent?.postMessage({ ...request, cwd }))
-      .catch((error: unknown) => sendToRenderer({ type: "error", message: error instanceof Error ? error.message : String(error) }));
-    return;
-  }
-  agent?.postMessage(request);
+ipcMain.handle("workspace:projectless", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return (await getWorkspaceService().getProjectless()).workspace;
 });
 
-ipcMain.handle("git:changed-files", async (_event, folder: string) => {
+ipcMain.on("run:command", handleRunCommand);
+
+ipcMain.handle("workspace:changed-files", async (event, workspaceId: unknown) => {
+  if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
+  if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
   try {
-    const { stdout } = await execFileAsync("git", ["status", "--short"], {
-      cwd: folder,
-      timeout: 5_000,
-    });
-    return stdout.split("\n").filter(Boolean);
-  } catch {
-    return [];
+    return await readChangedFiles(workspaceId);
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
   }
 });

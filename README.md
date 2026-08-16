@@ -20,7 +20,18 @@ npm start
 - Allow/deny permission cards
 - User and project Claude skills
 - Stop control and Git changed-file summary
-- File-edit enforcement inside the selected project folder
+- Path-addressable file-edit enforcement inside the selected project folder
+
+Shell commands are approved according to the selected permission mode, but are not OS-sandboxed to that folder.
+
+## Architecture
+
+- `src/domain`: provider-neutral Task, Run, and Workspace language
+- `src/application`: storage and application policies
+- `src/main/agent`: agent coordination and the Claude adapter
+- `src/main/workspace`: Workspace registry, path policy, and Git adapter
+- `src/renderer/components`: passive UI components
+- `src/renderer/task-workspace`: renderer state and orchestration
 
 ## Checks
 

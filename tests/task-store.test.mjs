@@ -1,0 +1,239 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { legacyProjectId, migrateV1ToV2, parseTaskStore, serializeTaskStore } from "../dist/main/domain/task.js";
+import { TASK_STORE_KEYS, TaskStore } from "../dist/main/application/task-store.js";
+
+const task = {
+  id: "task-1",
+  title: "Fix the app",
+  folder: "/work/threadline",
+  sessionId: "session-1",
+  mode: "acceptEdits",
+  messages: [{ id: "message-1", kind: "user", text: "Fix it", at: 10 }],
+  changedFiles: [" M src/App.tsx"],
+  updatedAt: 20,
+};
+
+function legacyValues(overrides = {}) {
+  return {
+    tasks: JSON.stringify([task]),
+    projects: JSON.stringify(["/work/threadline"]),
+    lastFolder: "/work/threadline",
+    ...overrides,
+  };
+}
+
+test("migrates all v1 keys and keeps a resumable transcript", () => {
+  const result = migrateV1ToV2(legacyValues());
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+
+  const migrated = result.data.tasks[0];
+  assert.equal(result.data.version, 2);
+  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/threadline"), root: "/work/threadline" }]);
+  assert.equal(migrated.projectId, legacyProjectId("/work/threadline"));
+  assert.equal(migrated.executionPolicy, "allow-edits");
+  assert.deepEqual(migrated.continuation, { provider: "claude", value: "session-1" });
+  assert.equal(migrated.continuationStatus, "available");
+  assert.deepEqual(migrated.lastChangeSnapshot, { files: [" M src/App.tsx"], capturedAt: 20 });
+  assert.equal(result.data.lastFolder, "/work/threadline");
+  assert.deepEqual(result.preservedV1, legacyValues());
+  assert.equal(legacyProjectId("/work/threadline"), legacyProjectId("/work/threadline/"));
+});
+
+test("malformed storage preserves the payload and blocks writes", () => {
+  const raw = legacyValues({ tasks: "{not-json" });
+  const result = parseTaskStore(raw);
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.canWrite, false);
+  assert.deepEqual(result.raw, raw);
+  assert.deepEqual(result.preservedV1, raw);
+
+  const memory = new Map([
+    [TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [TASK_STORE_KEYS.v1.projects, raw.projects],
+    [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+  ]);
+  const store = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  });
+  const loaded = store.load();
+  assert.equal(loaded.ok, false);
+  assert.equal(store.save({ version: 2, tasks: [], projects: [], lastFolder: null }).ok, false);
+  assert.equal(memory.has(TASK_STORE_KEYS.v2.tasks), false);
+});
+
+test("serializes and parses v2 data without changing it", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const parsed = parseTaskStore(serialized);
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data, migrated.data);
+  assert.equal(parsed.sourceVersion, 2);
+  assert.equal(parsed.preservedV1, null);
+});
+
+test("invalid continuation keeps messages and marks the task non-resumable", () => {
+  const raw = legacyValues({
+    tasks: JSON.stringify([{ ...task, sessionId: { provider: "claude" } }]),
+  });
+  const result = migrateV1ToV2(raw);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.tasks[0].continuation, undefined);
+  assert.equal(result.data.tasks[0].continuationStatus, "invalid");
+  assert.deepEqual(result.data.tasks[0].messages, task.messages);
+});
+
+test("an empty store is a clean version-zero result", () => {
+  const result = parseTaskStore({ tasks: null, projects: null, lastFolder: null });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.sourceVersion, 0);
+  assert.deepEqual(result.data, { version: 2, tasks: [], projects: [], lastFolder: null });
+});
+
+test("salvages a v2 task with an invalid continuation", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const tasks = JSON.parse(serialized.tasks);
+  tasks.value[0].continuation = { provider: "", value: "" };
+  tasks.value[0].continuationStatus = "available";
+  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.tasks[0].continuation, undefined);
+  assert.equal(result.data.tasks[0].continuationStatus, "invalid");
+  assert.deepEqual(result.data.tasks[0].messages, migrated.data.tasks[0].messages);
+});
+
+test("rejects invalid v2 policy and timestamps", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const tasks = JSON.parse(serialized.tasks);
+  tasks.value[0].executionPolicy = "not-a-policy";
+  tasks.value[0].updatedAt = "not-a-timestamp";
+  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.errorKind, "corrupt");
+  assert.equal(result.canWrite, false);
+});
+
+test("rejects a v2 task that references an unknown project", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const projects = JSON.parse(serialized.projects);
+  projects.value = [];
+  const result = parseTaskStore({ ...serialized, projects: JSON.stringify(projects) });
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.equal(result.canWrite, false);
+  assert.match(result.errors.join(" "), /unknown project/);
+});
+
+test("storage write failures disable future writes without touching v1", () => {
+  const raw = legacyValues();
+  const memory = new Map([
+    [TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [TASK_STORE_KEYS.v1.projects, raw.projects],
+    [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+  ]);
+  const original = new Map(memory);
+  const store = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => {
+      if (key === TASK_STORE_KEYS.v2.envelope) throw new Error("quota exceeded");
+      memory.set(key, value);
+    },
+    removeItem: (key) => memory.delete(key),
+  });
+  const loaded = store.load();
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) return;
+  const saved = store.save(loaded.data);
+  assert.deepEqual(saved, { ok: false, reason: "storage", error: "quota exceeded" });
+  assert.equal(memory.get(TASK_STORE_KEYS.v1.tasks), original.get(TASK_STORE_KEYS.v1.tasks));
+  assert.equal(memory.get(TASK_STORE_KEYS.v1.projects), original.get(TASK_STORE_KEYS.v1.projects));
+  assert.equal(memory.get(TASK_STORE_KEYS.v1.lastFolder), original.get(TASK_STORE_KEYS.v1.lastFolder));
+  assert.equal(store.save(loaded.data).ok, false);
+});
+
+test("writes v2 atomically as one envelope and leaves v1 untouched", () => {
+  const raw = legacyValues();
+  const memory = new Map([
+    [TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [TASK_STORE_KEYS.v1.projects, raw.projects],
+    [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+  ]);
+  const store = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  });
+  const loaded = store.load();
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) return;
+
+  assert.equal(store.save(loaded.data).ok, true);
+  assert.equal(typeof memory.get(TASK_STORE_KEYS.v2.envelope), "string");
+  assert.equal(memory.has(TASK_STORE_KEYS.v2.tasks), false);
+  assert.equal(memory.has(TASK_STORE_KEYS.v2.projects), false);
+  assert.equal(memory.has(TASK_STORE_KEYS.v2.lastFolder), false);
+  assert.equal(memory.get(TASK_STORE_KEYS.v1.tasks), raw.tasks);
+  assert.equal(memory.get(TASK_STORE_KEYS.v1.projects), raw.projects);
+  assert.equal(memory.get(TASK_STORE_KEYS.v1.lastFolder), raw.lastFolder);
+
+  const reloaded = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  }).load();
+  assert.equal(reloaded.ok, true);
+  if (reloaded.ok) assert.deepEqual(reloaded.data, loaded.data);
+});
+
+test("ignores an incomplete split-v2 write and recovers from intact v1", () => {
+  const raw = legacyValues();
+  const memory = new Map([
+    [TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [TASK_STORE_KEYS.v1.projects, raw.projects],
+    [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+    [TASK_STORE_KEYS.v2.tasks, serializeTaskStore({ version: 2, tasks: [], projects: [], lastFolder: null }).tasks],
+  ]);
+  const result = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  }).load();
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.sourceVersion, 1);
+    assert.equal(result.data.tasks[0].id, task.id);
+  }
+});
+
+test("storage read failures return a non-writable error", () => {
+  const store = new TaskStore({
+    getItem: () => {
+      throw new Error("storage unavailable");
+    },
+    setItem: () => {
+      throw new Error("must not write");
+    },
+  });
+  const loaded = store.load();
+  assert.equal(loaded.ok, false);
+  if (loaded.ok) return;
+  assert.equal(loaded.errorKind, "storage");
+  assert.equal(loaded.canWrite, false);
+  assert.match(loaded.errors[0], /storage unavailable/);
+});
