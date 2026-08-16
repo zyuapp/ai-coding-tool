@@ -56,10 +56,6 @@ export function App() {
   }, [workspace.currentTask?.id]);
 
   useEffect(() => {
-    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
-  }, [workspace.currentTask?.messages.length, workspace.status, workspace.approval]);
-
-  useEffect(() => {
     function dismissMenu(event: PointerEvent) {
       if (!(event.target instanceof Element) || !event.target.closest("[data-popover-menu]")) workspace.actions.setOpenMenu(null);
     }
@@ -124,7 +120,7 @@ export function App() {
 
         <div className="work-area">
           <div className="conversation" ref={transcriptRef}>
-            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} />
+            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} scrollContainerRef={transcriptRef} />
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>

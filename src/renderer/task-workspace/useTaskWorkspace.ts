@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { applyRunEvent, applyTask, createTaskMessage, type RunTransitionState } from "../../application/task-workspace";
-import type { ChangedFilesResult, RunEvent } from "../../contracts/ipc";
+import type { ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskStoreData } from "../../domain/task";
 import { legacyProjectId } from "../../domain/task";
@@ -38,6 +38,37 @@ function projectFor(state: WorkspaceState, task: Task | undefined) {
   return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
 }
 
+function stateFromData(data: TaskStoreData, storageError: string | null = null): WorkspaceState {
+  const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
+    ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
+    : data.projects;
+  const firstTask = data.tasks[0];
+  const firstProject = firstTask?.projectId ?? (firstTask ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
+  return {
+    tasks: data.tasks,
+    projects,
+    lastFolder: data.lastFolder,
+    currentId: firstTask?.id ?? null,
+    draftProjectId: firstProject,
+    draftPolicy: firstTask?.executionPolicy ?? "confirm",
+    draftModel: firstTask?.model ?? "default",
+    draftContextWindow: firstTask?.contextWindow ?? "default",
+    prompt: "",
+    expandedProjects: new Set(firstProject ? [firstProject] : []),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    environment: null,
+    activeRun: null,
+    lastRunStatus: "idle",
+    lastRunTaskId: null,
+    approvals: {},
+    storageError,
+    actionError: null,
+    writable: storageError === null,
+  };
+}
+
 function initialState(store: ReturnType<typeof createLocalTaskStore>): WorkspaceState {
   const loaded = store.load();
   if (!loaded.ok) {
@@ -65,33 +96,25 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       writable: false,
     };
   }
-  const projects = loaded.data.lastFolder && !loaded.data.projects.some((project) => project.root === loaded.data.lastFolder)
-    ? [...loaded.data.projects, { id: legacyProjectId(loaded.data.lastFolder), root: loaded.data.lastFolder }]
-    : loaded.data.projects;
-  const firstTask = loaded.data.tasks[0];
-  const firstProject = firstTask?.projectId ?? (firstTask ? null : projects.find((project) => project.root === loaded.data.lastFolder)?.id ?? null);
+  return stateFromData(loaded.data);
+}
+
+function persistedTask(task: Task): PersistedTask {
+  const { messages: _messages, ...record } = task;
+  return record;
+}
+
+function persistenceDelta(previous: WorkspaceState | null, next: WorkspaceState): TaskStoreDelta {
+  const previousTasks = new Map(previous?.tasks.map((task) => [task.id, task]));
   return {
-    tasks: loaded.data.tasks,
-    projects,
-    lastFolder: loaded.data.lastFolder,
-    currentId: firstTask?.id ?? null,
-    draftProjectId: firstProject,
-    draftPolicy: firstTask?.executionPolicy ?? "confirm",
-    draftModel: firstTask?.model ?? "default",
-    draftContextWindow: firstTask?.contextWindow ?? "default",
-    prompt: "",
-    expandedProjects: new Set(firstProject ? [firstProject] : []),
-    projectsOpen: true,
-    recentsOpen: true,
-    openMenu: null,
-    environment: null,
-    activeRun: null,
-    lastRunStatus: "idle",
-    lastRunTaskId: null,
-    approvals: {},
-    storageError: null,
-    actionError: null,
-    writable: true,
+    tasks: next.tasks.flatMap((task) => {
+      const before = previousTasks.get(task.id);
+      if (before === task) return [];
+      const messages = task.messages.flatMap((message, index) => before?.messages[index] === message ? [] : [{ index, message }]);
+      return [{ task: persistedTask(task), messages }];
+    }),
+    ...(!previous || previous.projects !== next.projects ? { projects: next.projects } : {}),
+    ...(!previous || previous.lastFolder !== next.lastFolder ? { lastFolder: next.lastFolder } : {}),
   };
 }
 
@@ -103,15 +126,27 @@ export function useTaskWorkspace() {
   const stateRef = useRef(state);
   const runIds = useRef(new Map<string, string>());
   const submitting = useRef(false);
+  const persistenceReady = useRef(false);
+  const persistenceQueue = useRef(Promise.resolve());
 
   useEffect(() => {
-    if (!state.writable || state.storageError) return;
-    const data: TaskStoreData = { version: 2, tasks: state.tasks, projects: state.projects, lastFolder: state.lastFolder };
-    const result = store.save(data);
-    if (!result.ok) {
-      setStateAndRef((current) => ({ ...current, writable: false, storageError: result.error ?? `Task storage ${result.reason}.` }));
-    }
-  }, [state.tasks, state.projects, state.lastFolder, state.storageError, state.writable, store]);
+    let cancelled = false;
+    void window.desktop.loadTaskStore().then(async (data) => {
+      if (cancelled) return;
+      if (data) {
+        const loaded = stateFromData(data);
+        stateRef.current = loaded;
+        setState(loaded);
+      } else {
+        await window.desktop.persistTaskStore(persistenceDelta(null, stateRef.current));
+      }
+      persistenceReady.current = true;
+    }).catch((error) => {
+      if (cancelled) return;
+      setStateAndRef((current) => ({ ...current, writable: false, storageError: error instanceof Error ? error.message : String(error) }));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!("desktop" in window)) return;
@@ -156,9 +191,21 @@ export function useTaskWorkspace() {
   }, [currentProject?.workspaceId, currentTask?.id, state.activeRun?.runId]);
 
   function setStateAndRef(next: WorkspaceState | ((state: WorkspaceState) => WorkspaceState)) {
-    const resolved = typeof next === "function" ? next(stateRef.current) : next;
+    const previous = stateRef.current;
+    const resolved = typeof next === "function" ? next(previous) : next;
     stateRef.current = resolved;
     setState(resolved);
+    if (persistenceReady.current && resolved.writable && !resolved.storageError) {
+      const delta = persistenceDelta(previous, resolved);
+      if (delta.tasks.length || delta.projects || "lastFolder" in delta) {
+        persistenceQueue.current = persistenceQueue.current
+          .then(() => window.desktop.persistTaskStore(delta))
+          .catch((error) => {
+            persistenceReady.current = false;
+            setStateAndRef((current) => ({ ...current, writable: false, storageError: error instanceof Error ? error.message : String(error) }));
+          });
+      }
+    }
   }
 
   async function refreshEnvironment(workspaceId: string, taskId?: string, runId?: string) {

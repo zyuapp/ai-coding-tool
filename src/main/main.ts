@@ -4,6 +4,7 @@ import path from "node:path";
 import { isRunCommand, isRunEvent, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
+import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 
 app.setName("Claudex");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
@@ -13,6 +14,7 @@ const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
 let workspaceService: WorkspaceService | null = null;
+let taskDatabase: TaskDatabase | null = null;
 let quitting = false;
 
 type RunState = {
@@ -222,6 +224,8 @@ app.whenReady().then(async () => {
     registryPath: path.join(userData, "workspaces.v1.json"),
     projectlessRoot: path.join(userData, "projectless"),
   });
+  const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
+  taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"));
   app.dock?.setIcon(icon);
   startAgent();
   await createWindow();
@@ -238,6 +242,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   quitting = true;
   agent?.kill();
+  taskDatabase?.close();
 });
 
 ipcMain.handle("workspace:open", async (event) => {
@@ -254,6 +259,18 @@ ipcMain.handle("workspace:open", async (event) => {
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
+});
+
+ipcMain.handle("task-store:load", (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!taskDatabase) throw new Error("Task database is not ready.");
+  return taskDatabase.load();
+});
+
+ipcMain.handle("task-store:persist", (event, delta) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!taskDatabase) throw new Error("Task database is not ready.");
+  taskDatabase.persist(delta);
 });
 
 ipcMain.on("run:command", handleRunCommand);

@@ -49,10 +49,6 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
     });
   }, []);
 
-  useEffect(() => {
-    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
-  }, [task.messages.length, state.activeRun?.status]);
-
   useEffect(() => () => {
     const active = stateRef.current.activeRun;
     if (active) window.desktop.send({ type: "cancel", taskId: active.taskId, runId: active.runId });
@@ -123,6 +119,7 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
           folder={project?.root ?? ""}
           status={status}
           compacting={state.activeRun?.status === "compacting"}
+          scrollContainerRef={transcriptRef}
           empty={{
             icon: GitFork,
             title: available ? "Ask without changing the thread" : "Main context unavailable",

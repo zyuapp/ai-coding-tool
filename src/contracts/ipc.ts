@@ -1,8 +1,17 @@
 import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
+
+export type PersistedTask = Omit<Task, "messages">;
+
+export type TaskStoreDelta = {
+  tasks: Array<{ task: PersistedTask; messages: Array<{ index: number; message: TaskMessage }> }>;
+  projects?: Project[];
+  lastFolder?: string | null;
+};
 
 export type StartRunCommand = {
   type: "start";
@@ -45,6 +54,8 @@ export type DesktopAPI = {
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
+  loadTaskStore(): Promise<TaskStoreData | null>;
+  persistTaskStore(delta: TaskStoreDelta): Promise<void>;
 };
 
 export type ChangedFilesResult =

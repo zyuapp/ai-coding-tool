@@ -11,6 +11,8 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("run:event", handler);
   },
   changedFiles: (workspaceId: string) => ipcRenderer.invoke("workspace:changed-files", workspaceId),
+  loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
+  persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

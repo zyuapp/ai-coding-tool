@@ -16,10 +16,14 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.233",
+    "@tanstack/react-virtual": "^3.14.9",
     "electron-updater": "^6.8.9",
     "lucide-react": "^1.31.0",
+    "mermaid": "^11.16.1",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",

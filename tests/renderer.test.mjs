@@ -17,6 +17,7 @@ const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/Sess
 const { SideChat } = await vite.ssrLoadModule("/src/renderer/components/SideChat.tsx");
 const { SubagentInspector } = await vite.ssrLoadModule("/src/renderer/components/SubagentInspector.tsx");
 const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/WorkspaceHeader.tsx");
+const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/MarkdownMessage.tsx");
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 
@@ -36,6 +37,17 @@ async function mount(element) {
     async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
   };
 }
+
+test("assistant markdown renders GFM without executing raw HTML", async () => {
+  const view = await mount(React.createElement(MarkdownMessage, null, "## Heading\n\n**Bold**\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n- [x] Done\n\n<script>bad()</script>"));
+
+  assert.equal(view.container.querySelector("h2")?.textContent, "Heading");
+  assert.equal(view.container.querySelector("strong")?.textContent, "Bold");
+  assert.equal(view.container.querySelector("table td")?.textContent, "1");
+  assert.equal(view.container.querySelector('input[type="checkbox"]')?.checked, true);
+  assert.equal(view.container.querySelector("script"), null);
+  await view.unmount();
+});
 
 const subagents = [
   { id: "working", description: "Working agent", status: "working", lastToolName: "Read", totalTokens: 321, startedAt: 1, activity: [] },
@@ -182,15 +194,19 @@ async function mountWorkspace(desktop) {
 
 function fakeDesktop(overrides = {}) {
   const sent = [];
+  const persisted = [];
   let listener;
   let unsubscribed = false;
   return {
     sent,
+    persisted,
     get listener() { return listener; },
     get unsubscribed() { return unsubscribed; },
     openFolder: async () => null,
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
+    loadTaskStore: async () => null,
+    persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
     onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },
     ...overrides,
@@ -387,7 +403,8 @@ test("workspace hook keeps subagents when the task continues", async () => {
   await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
 
   assert.equal(workspace.get().subagents[0].description, "Inspect");
-  const stored = JSON.parse(localStorage.getItem("claudex.store.v2"));
-  assert.equal(JSON.parse(stored.tasks).value[0].subagents[0].description, "Inspect");
+  await act(async () => {});
+  const stored = desktop.persisted.flatMap((delta) => delta.tasks).findLast((change) => change.task.subagents?.length);
+  assert.equal(stored.task.subagents[0].description, "Inspect");
   await workspace.view.unmount();
 });
