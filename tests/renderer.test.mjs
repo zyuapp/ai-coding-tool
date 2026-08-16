@@ -10,12 +10,14 @@ for (const name of ["window", "document", "localStorage", "Element", "Node", "HT
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+dom.window.HTMLElement.prototype.scrollTo = () => {};
 
 const vite = await createServer({ logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
 const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/SessionPanel.tsx");
 const { SubagentInspector } = await vite.ssrLoadModule("/src/renderer/components/SubagentInspector.tsx");
 const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/WorkspaceHeader.tsx");
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
+const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -154,6 +156,38 @@ function seedLegacyWorkspace() {
   localStorage.setItem("threadline.last-folder.v1", "/project");
 }
 
+function seedTaskWithSubagent() {
+  const task = {
+    id: "task-with-agent",
+    title: "Inspect",
+    executionPolicy: "confirm",
+    messages: [],
+    subagents: [subagents[1]],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+  };
+  localStorage.clear();
+  localStorage.setItem("threadline.store.v2", JSON.stringify({
+    tasks: JSON.stringify({ version: 2, value: [task] }),
+    projects: JSON.stringify({ version: 2, value: [] }),
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  }));
+}
+
+test("closing subagent details returns to the session panel", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Open Complete agent details"]').click(); });
+  assert.ok(view.container.querySelector(".subagent-inspector"));
+  await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
+  assert.ok(view.container.querySelector('.session-panel button[aria-label="Open Complete agent details"]'));
+
+  await view.unmount();
+});
+
 test("workspace hook runs a projectless task and scopes events, approvals, and cancellation", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
@@ -251,5 +285,22 @@ test("workspace hook ignores a changed-files response from a replaced run", asyn
   await act(async () => {});
 
   assert.notDeepEqual(workspace.get().currentTask.lastChangeSnapshot.files, ["stale"]);
+  await workspace.view.unmount();
+});
+
+test("workspace hook keeps subagents when the task continues", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { workspace.get().actions.setPrompt("First"); await workspace.get().actions.sendPrompt(); });
+  const first = desktop.sent[0];
+  await act(async () => {
+    desktop.listener({ type: "subagent.started", taskId: first.taskId, runId: first.runId, sequence: 1, id: "agent-1", description: "Inspect", agentType: "Explore" });
+    desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 2, status: "succeeded" });
+  });
+  await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
+
+  assert.equal(workspace.get().subagents[0].description, "Inspect");
+  const stored = JSON.parse(localStorage.getItem("threadline.store.v2"));
+  assert.equal(JSON.parse(stored.tasks).value[0].subagents[0].description, "Inspect");
   await workspace.view.unmount();
 });

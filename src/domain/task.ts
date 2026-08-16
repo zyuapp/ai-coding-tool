@@ -1,4 +1,4 @@
-import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy } from "./run.js";
+import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, Subagent } from "./run.js";
 
 export const TASK_STORE_VERSION = 2 as const;
 
@@ -40,6 +40,7 @@ export type Task = {
   contextWindow?: ContextWindow;
   contextUsage?: ContextUsage;
   messages: TaskMessage[];
+  subagents?: Subagent[];
   continuation?: Continuation;
   continuationStatus: ContinuationStatus;
   lastChangeSnapshot: ChangeSnapshot;
@@ -333,6 +334,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&
+    (value.subagents === undefined || Array.isArray(value.subagents) && value.subagents.every(isSubagent)) &&
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
@@ -391,6 +393,21 @@ function isContextWindow(value: unknown): value is ContextWindow {
 
 function isContextUsage(value: unknown): value is ContextUsage {
   return isRecord(value) && finiteNumber(value.tokens) && value.tokens >= 0 && finiteNumber(value.limit) && value.limit > 0 && nonEmptyString(value.model);
+}
+
+function isSubagent(value: unknown): value is Subagent {
+  return isRecord(value) &&
+    nonEmptyString(value.id) &&
+    typeof value.description === "string" &&
+    (value.agentType === undefined || typeof value.agentType === "string") &&
+    (value.status === "working" || value.status === "completed" || value.status === "failed" || value.status === "stopped") &&
+    (value.lastToolName === undefined || typeof value.lastToolName === "string") &&
+    (value.summary === undefined || typeof value.summary === "string") &&
+    (value.totalTokens === undefined || finiteNumber(value.totalTokens) && value.totalTokens >= 0) &&
+    finiteNumber(value.startedAt) &&
+    (value.finishedAt === undefined || finiteNumber(value.finishedAt)) &&
+    Array.isArray(value.activity) &&
+    value.activity.every((item) => isRecord(item) && nonEmptyString(item.id) && (item.kind === "text" || item.kind === "tool") && (item.title === undefined || typeof item.title === "string") && typeof item.text === "string" && finiteNumber(item.at));
 }
 
 function nonEmptyString(value: unknown): value is string {

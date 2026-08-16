@@ -99,7 +99,10 @@ export function App() {
           />
         )}
 
-        {inspectedSubagent && <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />}
+        {inspectedSubagent && <SubagentInspector subagent={inspectedSubagent} onClose={() => {
+          setSelectedSubagent(null);
+          setSessionPanelOpen(true);
+        }} />}
 
         <TaskComposer
           prompt={workspace.prompt}

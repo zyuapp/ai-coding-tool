@@ -25,7 +25,6 @@ export type RunTransitionState = {
   lastRunStatus: "idle" | "running" | "stopped";
   lastRunTaskId: string | null;
   approvals: Record<string, ApprovalView>;
-  subagents: Record<string, Subagent[]>;
 };
 
 function now() {
@@ -41,13 +40,13 @@ export function applyTask<T extends RunTransitionState>(state: T, taskId: string
 }
 
 function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
-  const byTask = state.subagents ?? {};
-  const current = byTask[taskId] ?? [];
-  const index = current.findIndex((subagent) => subagent.id === subagentId);
-  const next = [...current];
-  if (index === -1) next.push(update());
-  else next[index] = update(next[index]);
-  return { ...state, subagents: { ...byTask, [taskId]: next } } as T;
+  return applyTask(state, taskId, (task) => {
+    const subagents = [...(task.subagents ?? [])];
+    const index = subagents.findIndex((subagent) => subagent.id === subagentId);
+    if (index === -1) subagents.push(update());
+    else subagents[index] = update(subagents[index]);
+    return { ...task, subagents, updatedAt: now() };
+  });
 }
 
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
@@ -63,10 +62,14 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     let next = { ...withSequence, activeRun: null, lastRunTaskId: event.taskId, lastRunStatus: event.status === "cancelled" ? "stopped" : "idle" } as T;
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
-    const subagents = next.subagents[event.taskId];
+    const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
     if (subagents?.some((subagent) => subagent.status === "working")) {
       const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
-      next = { ...next, subagents: { ...next.subagents, [event.taskId]: subagents.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent) } } as T;
+      next = applyTask(next, event.taskId, (task) => ({
+        ...task,
+        subagents: task.subagents?.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent),
+        updatedAt: now(),
+      }));
     }
     if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.message!)], updatedAt: now() }));
     return next;

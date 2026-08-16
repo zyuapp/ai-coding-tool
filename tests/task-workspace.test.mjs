@@ -21,7 +21,6 @@ function state() {
     lastRunStatus: "running",
     lastRunTaskId: "task-a",
     approvals: {},
-    subagents: {},
   };
 }
 
@@ -67,10 +66,10 @@ test("collects subagent progress and nested activity", () => {
     summary: "Renderer inspected",
   });
 
-  assert.equal(finished.subagents["task-a"][0].status, "completed");
-  assert.equal(finished.subagents["task-a"][0].activity[0].title, "Read");
+  assert.equal(finished.tasks[0].subagents[0].status, "completed");
+  assert.equal(finished.tasks[0].subagents[0].activity[0].title, "Read");
   const terminal = applyRunEvent(active, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" });
-  assert.equal(terminal.subagents["task-a"][0].status, "completed");
+  assert.equal(terminal.tasks[0].subagents[0].status, "completed");
 });
 
 test("scopes approvals and expires them on terminal state", () => {
@@ -139,15 +138,15 @@ test("records compaction and updates context usage", () => {
 test("terminal runs finalize only working subagents", () => {
   for (const [runStatus, subagentStatus] of [["succeeded", "completed"], ["failed", "failed"], ["cancelled", "stopped"]]) {
     const initial = state();
-    initial.subagents["task-a"] = [
+    initial.tasks[0].subagents = [
       { id: "working", description: "Working", status: "working", startedAt: 1, activity: [] },
       { id: "done", description: "Done", status: "completed", startedAt: 1, finishedAt: 2, activity: [] },
     ];
     const terminal = applyRunEvent(initial, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: runStatus });
-    assert.equal(terminal.subagents["task-a"][0].status, subagentStatus);
-    assert.equal(typeof terminal.subagents["task-a"][0].finishedAt, "number");
-    assert.equal(terminal.subagents["task-a"][1].status, "completed");
-    assert.equal(terminal.subagents["task-a"][1].finishedAt, 2);
+    assert.equal(terminal.tasks[0].subagents[0].status, subagentStatus);
+    assert.equal(typeof terminal.tasks[0].subagents[0].finishedAt, "number");
+    assert.equal(terminal.tasks[0].subagents[1].status, "completed");
+    assert.equal(terminal.tasks[0].subagents[1].finishedAt, 2);
   }
 });
 
@@ -160,9 +159,9 @@ test("subagent progress can arrive first and duplicate activity is ignored", () 
   const once = applyRunEvent(progressed, { ...activity, sequence: 2 });
   const twice = applyRunEvent(once, { ...activity, sequence: 3 });
 
-  assert.equal(twice.subagents["task-a"][0].status, "working");
-  assert.equal(twice.subagents["task-a"][0].startedAt > 0, true);
-  assert.equal(twice.subagents["task-a"][0].activity.length, 1);
+  assert.equal(twice.tasks[0].subagents[0].status, "working");
+  assert.equal(twice.tasks[0].subagents[0].startedAt > 0, true);
+  assert.equal(twice.tasks[0].subagents[0].activity.length, 1);
 });
 
 test("assistant chunks, tool intents, and continuation updates preserve order", () => {

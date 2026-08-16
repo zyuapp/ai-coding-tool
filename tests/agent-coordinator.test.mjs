@@ -192,11 +192,10 @@ test("Claude subagent events reach correlated renderer state", async () => {
     lastRunStatus: "running",
     lastRunTaskId: "task-v",
     approvals: {},
-    subagents: {},
   };
   for (const event of events) state = applyRunEvent(state, event);
 
-  const subagent = state.subagents["task-v"][0];
+  const subagent = state.tasks[0].subagents[0];
   assert.equal(closed, true);
   assert.deepEqual(events.map((event) => event.sequence), events.map((_, index) => index + 1));
   assert.deepEqual(state.tasks[0].continuation, { provider: "claude", value: "session-1" });

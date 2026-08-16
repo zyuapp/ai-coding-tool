@@ -60,7 +60,6 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       lastRunStatus: "idle",
       lastRunTaskId: null,
       approvals: {},
-      subagents: {},
       storageError: loaded.errors.join(" "),
       actionError: null,
       writable: false,
@@ -90,7 +89,6 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
     lastRunStatus: "idle",
     lastRunTaskId: null,
     approvals: {},
-    subagents: {},
     storageError: null,
     actionError: null,
     writable: true,
@@ -304,7 +302,7 @@ export function useTaskWorkspace() {
     const runId = crypto.randomUUID();
     const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", text)], updatedAt: now() };
     const nextTasks = current.tasks.some((item) => item.id === task!.id) ? current.tasks.map((item) => item.id === task!.id ? nextTask : item) : [nextTask, ...current.tasks];
-    const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, subagents: { ...current.subagents, [task.id]: [] }, actionError: null };
+    const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, actionError: null };
     runIds.current.set(task.id, runId);
     setStateAndRef(nextState);
     submitting.current = false;
@@ -345,7 +343,7 @@ export function useTaskWorkspace() {
     runActive: Boolean(state.activeRun),
     runningTaskId: state.activeRun?.taskId ?? null,
     approval: visibleApproval,
-    subagents: currentTask ? state.subagents[currentTask.id] ?? [] : [],
+    subagents: currentTask?.subagents ?? [],
     environment: currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null,
     storageError: state.storageError,
     actionError: state.actionError,

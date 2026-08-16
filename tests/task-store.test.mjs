@@ -69,6 +69,15 @@ test("serializes and parses v2 data without changing it", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
+  migrated.data.tasks[0].subagents = [{
+    id: "agent-1",
+    description: "Inspect storage",
+    status: "completed",
+    summary: "Stored",
+    startedAt: 21,
+    finishedAt: 22,
+    activity: [{ id: "activity-1", kind: "text", text: "Done", at: 22 }],
+  }];
   const serialized = serializeTaskStore(migrated.data);
   const parsed = parseTaskStore(serialized);
   assert.equal(parsed.ok, true);
