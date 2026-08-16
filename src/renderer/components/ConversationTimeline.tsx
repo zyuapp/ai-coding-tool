@@ -1,4 +1,4 @@
-import { ListCollapse } from "lucide-react";
+import { ListCollapse, type LucideIcon } from "lucide-react";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -14,15 +14,17 @@ export type ConversationTimelineProps = {
   folder: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
+  empty?: { icon: LucideIcon; title: string; description: string };
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, empty }: ConversationTimelineProps) {
   if (!currentTask?.messages.length) {
+    const EmptyIcon = empty?.icon;
     return (
       <div className="empty-state">
-        <div className="empty-glyph"><FolderIcon /></div>
-        <h2>Start a task</h2>
-        <p>{folder ? "Tell Claude what you want to change, investigate, or build in this project." : "Ask a question or start a self-contained task."}</p>
+        <div className="empty-glyph">{EmptyIcon ? <EmptyIcon /> : <FolderIcon />}</div>
+        <h2>{empty?.title ?? "Start a task"}</h2>
+        <p>{empty?.description ?? (folder ? "Tell Claude what you want to change, investigate, or build in this project." : "Ask a question or start a self-contained task.")}</p>
       </div>
     );
   }

@@ -6,6 +6,7 @@ import { RunCoordinator } from "../dist/main/main/agent/run-coordinator.mjs";
 
 const base = (taskId, runId) => ({
   type: "start",
+  channel: "main",
   taskId,
   runId,
   prompt: "do the work",

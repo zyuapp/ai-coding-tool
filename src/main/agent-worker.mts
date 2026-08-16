@@ -9,11 +9,14 @@ type ParentPort = {
 };
 
 const parentPort = (process as typeof process & { parentPort: ParentPort }).parentPort;
-const coordinator = new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), { isWritePathInside });
+const coordinators = {
+  main: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), { isWritePathInside }),
+  side: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), { isWritePathInside }),
+};
 
 parentPort.on("message", ({ data }) => {
   if (!isInternalRunCommand(data)) return;
-  if (data.type === "start") coordinator.start(data);
-  else if (data.type === "cancel") coordinator.cancel(data.taskId, data.runId);
-  else coordinator.decideApproval(data.taskId, data.runId, data.approvalId, data.allow);
+  if (data.type === "start") coordinators[data.channel].start(data);
+  else if (data.type === "cancel") Object.values(coordinators).some((coordinator) => coordinator.cancel(data.taskId, data.runId));
+  else Object.values(coordinators).some((coordinator) => coordinator.decideApproval(data.taskId, data.runId, data.approvalId, data.allow));
 });

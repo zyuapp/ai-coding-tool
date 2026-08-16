@@ -2,9 +2,11 @@ import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, RunStatu
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
 export type WorkspaceId = string;
+export type RunChannel = "main" | "side";
 
 export type StartRunCommand = {
   type: "start";
+  channel: RunChannel;
   taskId: string;
   runId: string;
   prompt: string;
@@ -13,6 +15,7 @@ export type StartRunCommand = {
   model: AgentModel;
   contextWindow: ContextWindow;
   continuation?: Continuation;
+  forkContinuation?: boolean;
 };
 
 export type InternalStartRunCommand = StartRunCommand & {
@@ -96,6 +99,10 @@ function isContextWindow(value: unknown): value is ContextWindow {
   return value === "default" || value === "1m";
 }
 
+function isRunChannel(value: unknown): value is RunChannel {
+  return value === "main" || value === "side";
+}
+
 function isContinuation(value: unknown): value is Continuation {
   return Boolean(value && typeof value === "object" && isString((value as Record<string, unknown>).provider) && isString((value as Record<string, unknown>).value, 100_000));
 }
@@ -125,7 +132,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isContextWindow(command.contextWindow) && (command.continuation === undefined || isContinuation(command.continuation));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isContextWindow(command.contextWindow) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean";

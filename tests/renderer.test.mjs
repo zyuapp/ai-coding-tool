@@ -14,6 +14,7 @@ dom.window.HTMLElement.prototype.scrollTo = () => {};
 
 const vite = await createServer({ logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
 const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/SessionPanel.tsx");
+const { SideChat } = await vite.ssrLoadModule("/src/renderer/components/SideChat.tsx");
 const { SubagentInspector } = await vite.ssrLoadModule("/src/renderer/components/SubagentInspector.tsx");
 const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/WorkspaceHeader.tsx");
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
@@ -90,6 +91,51 @@ test("subagent inspector renders activity and closes", async () => {
   assert.equal(view.container.querySelector("details summary").textContent, "Read");
   await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
   assert.equal(closed, true);
+  await view.unmount();
+});
+
+test("side chat forks once and never changes the main continuation", async () => {
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const source = {
+    id: "main-task",
+    title: "Main task",
+    executionPolicy: "confirm",
+    messages: [],
+    continuation: { provider: "claude", value: "main-session" },
+    continuationStatus: "available",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 1,
+  };
+  const view = await mount(React.createElement(SideChat, { source, onClose() {} }));
+  const textarea = view.container.querySelector('textarea[aria-label="Side chat prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+
+  await act(async () => {
+    setValue.call(textarea, "What does this code do?");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "What does this code do?" }));
+    textarea.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => { view.container.querySelector('button[aria-label="Send side chat message"]').click(); });
+  const first = desktop.sent[0];
+  assert.equal(first.channel, "side");
+  assert.equal(first.forkContinuation, true);
+  assert.deepEqual(first.continuation, { provider: "claude", value: "main-session" });
+
+  await act(async () => {
+    desktop.listener({ type: "continuation.updated", taskId: first.taskId, runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "side-session" } });
+    desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 2, status: "succeeded" });
+  });
+  await act(async () => {
+    setValue.call(textarea, "Follow up");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Follow up" }));
+    textarea.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => { view.container.querySelector('button[aria-label="Send side chat message"]').click(); });
+
+  assert.deepEqual(desktop.sent[1].continuation, { provider: "claude", value: "side-session" });
+  assert.equal("forkContinuation" in desktop.sent[1], false);
+  assert.deepEqual(source.continuation, { provider: "claude", value: "main-session" });
   await view.unmount();
 });
 
@@ -201,6 +247,7 @@ test("workspace hook runs a projectless task and scopes events, approvals, and c
   await act(async () => { await workspace.get().actions.sendPrompt(); });
   const start = desktop.sent[0];
   assert.equal(start.type, "start");
+  assert.equal(start.channel, "main");
   assert.equal(start.workspaceId, "projectless");
 
   await act(async () => {

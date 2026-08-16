@@ -14,7 +14,6 @@ let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
 let workspaceService: WorkspaceService | null = null;
 let quitting = false;
-let activeRunKey: string | null = null;
 
 type RunState = {
   taskId: string;
@@ -41,7 +40,6 @@ function sendToRenderer(event: RunEvent) {
 function recordRun(command: StartRunCommand) {
   const key = runKey(command.taskId, command.runId);
   runStates.set(key, { taskId: command.taskId, runId: command.runId, lastSequence: 0, terminal: false });
-  activeRunKey = key;
   return key;
 }
 
@@ -55,7 +53,6 @@ function publishRunEvent(event: RunEvent) {
   }
   if (!state || event.sequence <= state.lastSequence) return;
   if (!acceptRunEvent(state, event)) return;
-  if (state.terminal && activeRunKey === key) activeRunKey = null;
   sendToRenderer(event);
 }
 
@@ -146,7 +143,7 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
   if (!trustedSender(event) || !isRunCommand(payload)) return;
   if (payload.type === "start") {
     if (runStates.has(runKey(payload.taskId, payload.runId))) return;
-    for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId))) {
+    for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId), (command) => command.channel === payload.channel)) {
       if (runStates.get(oldKey)?.terminal) continue;
       emitSyntheticTerminal(oldCommand, "cancelled", "The run was superseded before it started.");
     }

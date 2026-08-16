@@ -4,6 +4,7 @@ import { ClaudeAgentProvider } from "../dist/main/main/agent/claude-agent-provid
 
 function input(overrides = {}) {
   return {
+    channel: "main",
     prompt: "inspect the app",
     workspaceRoot: "/tmp/project",
     projectless: false,
@@ -60,6 +61,22 @@ test("Claude query options follow run policy and workspace settings", async () =
   assert.deepEqual(capture.options.options.betas, ["context-1m-2025-08-07"]);
   assert.equal(capture.options.options.skills, "all");
   assert.equal(capture.options.options.forwardSubagentText, true);
+});
+
+test("side chat forks the main continuation and exposes read-only tools", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(queryFactory([], capture));
+  await provider.execute(input({
+    channel: "side",
+    policy: "autonomous",
+    continuation: { provider: "claude", value: "main-session" },
+    forkContinuation: true,
+  }));
+
+  assert.equal(capture.options.options.resume, "main-session");
+  assert.equal(capture.options.options.forkSession, true);
+  assert.equal(capture.options.options.permissionMode, "plan");
+  assert.deepEqual(capture.options.options.tools, ["Read", "Grep", "Glob"]);
 });
 
 test("Claude messages translate to provider events and normalized tool intents", async () => {

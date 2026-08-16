@@ -4,6 +4,7 @@ import { isInternalRunCommand, isRunCommand, isRunEvent } from "../dist/main/con
 
 const command = {
   type: "start",
+  channel: "main",
   taskId: "task-1",
   runId: "run-1",
   prompt: "inspect",
@@ -19,6 +20,9 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand({ ...command, projectless: true }), false);
   assert.equal(isRunCommand({ ...command, cwd: "/tmp/project" }), false);
   assert.equal(isRunCommand({ ...command, sessionId: "claude-session" }), false);
+  assert.equal(isRunCommand({ ...command, channel: "background" }), false);
+  assert.equal(isRunCommand({ ...command, channel: "side", forkContinuation: true }), false);
+  assert.equal(isRunCommand({ ...command, channel: "side", continuation: { provider: "claude", value: "session" }, forkContinuation: true }), true);
 });
 
 test("internal worker commands require a resolved root and projectless flag", () => {

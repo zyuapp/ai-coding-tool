@@ -306,7 +306,7 @@ export function useTaskWorkspace() {
     runIds.current.set(task.id, runId);
     setStateAndRef(nextState);
     submitting.current = false;
-    window.desktop.send({ type: "start", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
+    window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 
   function cancelRun() {

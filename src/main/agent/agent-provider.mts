@@ -1,3 +1,4 @@
+import type { RunChannel } from "../../contracts/ipc.js";
 import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 export type ProviderEvent =
@@ -13,6 +14,7 @@ export type ProviderEvent =
   | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string };
 
 export type ProviderRunInput = {
+  channel: RunChannel;
   prompt: string;
   workspaceRoot: string;
   projectless: boolean;
@@ -20,6 +22,7 @@ export type ProviderRunInput = {
   model: AgentModel;
   contextWindow: ContextWindow;
   continuation?: Continuation;
+  forkContinuation?: boolean;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;
   emit: (event: ProviderEvent) => void;

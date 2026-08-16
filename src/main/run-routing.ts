@@ -17,10 +17,10 @@ export function acceptRunEvent(state: RunEventGateState, event: { sequence: numb
   return true;
 }
 
-export function supersedePendingStarts<T>(pending: Map<string, T>, keepKey: string) {
+export function supersedePendingStarts<T>(pending: Map<string, T>, keepKey: string, matches: (value: T) => boolean = () => true) {
   const superseded: Array<[string, T]> = [];
   for (const [key, value] of pending) {
-    if (key === keepKey) continue;
+    if (key === keepKey || !matches(value)) continue;
     pending.delete(key);
     superseded.push([key, value]);
   }

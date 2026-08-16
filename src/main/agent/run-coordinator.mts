@@ -87,6 +87,7 @@ export class RunCoordinator {
   private async execute(active: ActiveRun, command: InternalStartRunCommand) {
     try {
       const result = await this.provider.execute({
+        channel: command.channel,
         prompt: command.prompt,
         workspaceRoot: active.workspaceRoot,
         projectless: active.projectless,
@@ -94,6 +95,7 @@ export class RunCoordinator {
         model: command.model,
         contextWindow: command.contextWindow,
         continuation: command.continuation,
+        forkContinuation: command.forkContinuation,
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),

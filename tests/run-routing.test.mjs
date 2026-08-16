@@ -9,6 +9,17 @@ test("new start supersedes every older pending start and keeps the new one", () 
   assert.deepEqual([...pending.keys()], ["new"]);
 });
 
+test("pending starts can be superseded within one run channel", () => {
+  const pending = new Map([
+    ["main-old", { channel: "main" }],
+    ["side-old", { channel: "side" }],
+    ["main-new", { channel: "main" }],
+  ]);
+  const superseded = supersedePendingStarts(pending, "main-new", (command) => command.channel === "main");
+  assert.deepEqual(superseded, [["main-old", { channel: "main" }]]);
+  assert.deepEqual([...pending.keys()], ["side-old", "main-new"]);
+});
+
 test("terminal run events close the gate and late events are ignored", () => {
   const state = { lastSequence: 0, terminal: false };
   assert.equal(acceptRunEvent(state, { sequence: 1, type: "run.started" }), true);

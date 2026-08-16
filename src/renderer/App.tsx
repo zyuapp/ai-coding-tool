@@ -3,6 +3,7 @@ import { ApprovalCard } from "./components/ApprovalCard";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SessionPanel } from "./components/SessionPanel";
+import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
 import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
@@ -12,14 +13,20 @@ export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sessionPanelOpen, setSessionPanelOpen] = useState(() => window.innerWidth >= 1400);
+  const [rightPanel, setRightPanel] = useState<"session" | "side" | null>(() => window.innerWidth >= 1400 ? "session" : null);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
+  const sessionPanelOpen = rightPanel === "session";
+  const sideChatOpen = rightPanel === "side";
 
   useEffect(() => {
     if (selectedSubagent && !workspace.subagents.some((subagent) => subagent.id === selectedSubagent)) setSelectedSubagent(null);
   }, [workspace.currentTask?.id, workspace.subagents, selectedSubagent]);
+
+  useEffect(() => {
+    setRightPanel((panel) => panel === "side" ? null : panel);
+  }, [workspace.currentTask?.id]);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
@@ -66,7 +73,7 @@ export function App() {
       />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
 
-      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${inspectedSubagent ? "inspector-open" : ""}`}>
+      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${sideChatOpen ? "side-open" : ""} ${inspectedSubagent ? "inspector-open" : ""}`}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
@@ -77,7 +84,7 @@ export function App() {
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
             setSelectedSubagent(null);
-            setSessionPanelOpen((open) => !open);
+            setRightPanel((panel) => panel === "session" ? null : "session");
           }}
           onToggleInspector={() => setSelectedSubagent(null)}
         />
@@ -98,15 +105,24 @@ export function App() {
             hasProject={Boolean(workspace.folder)}
             subagents={workspace.subagents}
             onSelect={(id) => {
-              setSessionPanelOpen(false);
+              setRightPanel(null);
               setSelectedSubagent(id);
             }}
           />
         )}
 
+        {sideChatOpen && workspace.currentTask && (
+          <SideChat
+            key={workspace.currentTask.id}
+            source={workspace.currentTask}
+            project={workspace.currentProject}
+            onClose={() => setRightPanel(null)}
+          />
+        )}
+
         {inspectedSubagent && <SubagentInspector subagent={inspectedSubagent} onClose={() => {
           setSelectedSubagent(null);
-          setSessionPanelOpen(true);
+          setRightPanel("session");
         }} />}
 
         <TaskComposer
@@ -121,7 +137,15 @@ export function App() {
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
           onContextWindowChange={workspace.actions.setContextWindow}
-          onSend={() => void workspace.actions.sendPrompt()}
+          onSend={() => {
+            if (workspace.prompt.trim() === "/side") {
+              workspace.actions.setPrompt("");
+              setSelectedSubagent(null);
+              setRightPanel("side");
+              return;
+            }
+            void workspace.actions.sendPrompt();
+          }}
           onCancel={workspace.actions.cancelRun}
         />
       </section>
