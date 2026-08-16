@@ -1,4 +1,4 @@
-import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, RunStatus, ToolIntent } from "../domain/run.js";
+import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
 export type WorkspaceId = string;
@@ -45,7 +45,7 @@ export type DesktopAPI = {
 };
 
 export type ChangedFilesResult =
-  | { status: "available"; files: string[] }
+  | { status: "available"; files: string[]; branch: string | null; additions: number; deletions: number }
   | { status: "unavailable"; reason: "missing" | "not-directory" | "inaccessible" | "changed" }
   | { status: "unknown"; workspaceId: WorkspaceId }
   | { status: "error"; message: string };
@@ -64,6 +64,10 @@ export type RunEvent =
   | (RunEventBase & { type: "context.compaction-status"; compacting: boolean; error?: string })
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
   | (RunEventBase & { type: "tool.intent"; intent: ToolIntent })
+  | (RunEventBase & { type: "subagent.started"; id: string; description: string; agentType?: string })
+  | (RunEventBase & { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number })
+  | (RunEventBase & { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string })
+  | (RunEventBase & { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string })
   | (RunEventBase & {
       type: "approval.requested";
       approvalId: string;
@@ -138,6 +142,10 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "context.compaction-status") return typeof event.compacting === "boolean" && (event.error === undefined || isString(event.error, 100_000));
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));
   if (event.type === "tool.intent") return isIntent(event.intent);
+  if (event.type === "subagent.started") return isString(event.id) && isString(event.description, 100_000) && (event.agentType === undefined || isString(event.agentType));
+  if (event.type === "subagent.progress") return isString(event.id) && isString(event.description, 100_000) && (event.lastToolName === undefined || isString(event.lastToolName)) && (event.summary === undefined || isString(event.summary, 100_000)) && typeof event.totalTokens === "number" && Number.isFinite(event.totalTokens) && event.totalTokens >= 0;
+  if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";
+  if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   return false;

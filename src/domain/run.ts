@@ -16,6 +16,29 @@ export type ToolIntent = {
 
 export type RunStatus = "running" | "awaiting-approval" | "succeeded" | "failed" | "cancelled";
 
+export type SubagentStatus = "working" | "completed" | "failed" | "stopped";
+
+export type SubagentActivity = {
+  id: string;
+  kind: "text" | "tool";
+  title?: string;
+  text: string;
+  at: number;
+};
+
+export type Subagent = {
+  id: string;
+  description: string;
+  agentType?: string;
+  status: SubagentStatus;
+  lastToolName?: string;
+  summary?: string;
+  totalTokens?: number;
+  startedAt: number;
+  finishedAt?: number;
+  activity: SubagentActivity[];
+};
+
 export type Run = {
   taskId: string;
   runId: string;

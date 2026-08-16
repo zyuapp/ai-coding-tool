@@ -21,6 +21,7 @@ function state() {
     lastRunStatus: "running",
     lastRunTaskId: "task-a",
     approvals: {},
+    subagents: {},
   };
 }
 
@@ -33,6 +34,43 @@ test("ignores events for another task and stale sequence numbers", () => {
   assert.equal(updated.tasks[0].messages[0].text, "hello");
   assert.equal(updated.activeRun.sequence, 1);
   assert.deepEqual(applyRunEvent(updated, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-a", text: "late" }), updated);
+});
+
+test("collects subagent progress and nested activity", () => {
+  const started = applyRunEvent(state(), {
+    type: "subagent.started",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 1,
+    id: "agent-1",
+    description: "Inspect the renderer",
+    agentType: "Explore",
+  });
+  const active = applyRunEvent(started, {
+    type: "subagent.activity",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 2,
+    id: "agent-1",
+    activityId: "tool-1",
+    kind: "tool",
+    title: "Read",
+    text: "src/renderer/App.tsx",
+  });
+  const finished = applyRunEvent(active, {
+    type: "subagent.finished",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 3,
+    id: "agent-1",
+    status: "completed",
+    summary: "Renderer inspected",
+  });
+
+  assert.equal(finished.subagents["task-a"][0].status, "completed");
+  assert.equal(finished.subagents["task-a"][0].activity[0].title, "Read");
+  const terminal = applyRunEvent(active, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" });
+  assert.equal(terminal.subagents["task-a"][0].status, "completed");
 });
 
 test("scopes approvals and expires them on terminal state", () => {

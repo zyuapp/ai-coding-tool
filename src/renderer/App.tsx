@@ -1,7 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
+import { SessionPanel } from "./components/SessionPanel";
+import { SubagentInspector } from "./components/SubagentInspector";
 import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
@@ -9,6 +11,14 @@ import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(true);
+  const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
+  const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
+  const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
+
+  useEffect(() => {
+    if (selectedSubagent && !workspace.subagents.some((subagent) => subagent.id === selectedSubagent)) setSelectedSubagent(null);
+  }, [workspace.currentTask?.id, workspace.subagents, selectedSubagent]);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
@@ -53,8 +63,19 @@ export function App() {
         onArchiveTask={workspace.actions.archiveTask}
       />
 
-      <section className="workspace">
-        <WorkspaceHeader currentTask={workspace.currentTask} folder={workspace.folder} />
+      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${inspectedSubagent ? "inspector-open" : ""}`}>
+        <WorkspaceHeader
+          currentTask={workspace.currentTask}
+          folder={workspace.folder}
+          sessionPanelOpen={sessionPanelOpen}
+          inspectorOpen={Boolean(inspectedSubagent)}
+          workingSubagents={workingSubagents}
+          onToggleSessionPanel={() => {
+            setSelectedSubagent(null);
+            setSessionPanelOpen((open) => !open);
+          }}
+          onToggleInspector={() => setSelectedSubagent(null)}
+        />
         {(workspace.storageError || workspace.actionError) && (
           <p className="storage-error" role="alert">{workspace.storageError || workspace.actionError}</p>
         )}
@@ -65,6 +86,20 @@ export function App() {
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>
+
+        {sessionPanelOpen && (
+          <SessionPanel
+            environment={workspace.environment}
+            hasProject={Boolean(workspace.folder)}
+            subagents={workspace.subagents}
+            onSelect={(id) => {
+              setSessionPanelOpen(false);
+              setSelectedSubagent(id);
+            }}
+          />
+        )}
+
+        {inspectedSubagent && <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />}
 
         <TaskComposer
           prompt={workspace.prompt}

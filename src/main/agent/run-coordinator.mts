@@ -114,6 +114,10 @@ export class RunCoordinator {
     if (event.type === "compaction") this.publish(active, { type: "context.compacted", trigger: event.trigger, preTokens: event.preTokens, ...(event.postTokens === undefined ? {} : { postTokens: event.postTokens }) });
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
+    if (event.type === "subagent.started") this.publish(active, event);
+    if (event.type === "subagent.progress") this.publish(active, event);
+    if (event.type === "subagent.activity") this.publish(active, event);
+    if (event.type === "subagent.finished") this.publish(active, event);
   }
 
   private async authorize(active: ActiveRun, intent: ToolIntent): Promise<"allow" | "deny"> {

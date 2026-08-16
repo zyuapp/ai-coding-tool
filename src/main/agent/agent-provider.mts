@@ -1,4 +1,4 @@
-import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string }
@@ -6,7 +6,11 @@ export type ProviderEvent =
   | { type: "compaction-status"; compacting: boolean; error?: string }
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }
   | { type: "tool"; intent: ToolIntent }
-  | { type: "continuation"; continuation: Continuation };
+  | { type: "continuation"; continuation: Continuation }
+  | { type: "subagent.started"; id: string; description: string; agentType?: string }
+  | { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number }
+  | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
+  | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string };
 
 export type ProviderRunInput = {
   prompt: string;

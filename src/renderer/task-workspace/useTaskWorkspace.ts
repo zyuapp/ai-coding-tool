@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { applyRunEvent, applyTask, createTaskMessage, type RunTransitionState } from "../../application/task-workspace";
-import type { RunEvent } from "../../contracts/ipc";
+import type { ChangedFilesResult, RunEvent } from "../../contracts/ipc";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskStoreData } from "../../domain/task";
 import { legacyProjectId } from "../../domain/task";
@@ -21,6 +21,7 @@ type WorkspaceState = {
   projectsOpen: boolean;
   recentsOpen: boolean;
   openMenu: string | null;
+  environment: { workspaceId: string; result: ChangedFilesResult } | null;
 } & RunTransitionState & {
   storageError: string | null;
   actionError: string | null;
@@ -54,10 +55,12 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       projectsOpen: true,
       recentsOpen: true,
       openMenu: null,
+      environment: null,
       activeRun: null,
       lastRunStatus: "idle",
       lastRunTaskId: null,
       approvals: {},
+      subagents: {},
       storageError: loaded.errors.join(" "),
       actionError: null,
       writable: false,
@@ -82,10 +85,12 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,
+    environment: null,
     activeRun: null,
     lastRunStatus: "idle",
     lastRunTaskId: null,
     approvals: {},
+    subagents: {},
     storageError: null,
     actionError: null,
     writable: true,
@@ -109,25 +114,6 @@ export function useTaskWorkspace() {
     }
   }, [state.tasks, state.projects, state.lastFolder, state.storageError, state.writable, store]);
 
-  async function refreshChanges(taskId: string, runId: string, workspaceId: string) {
-    try {
-      const result = await window.desktop.changedFiles(workspaceId);
-      if (runIds.current.get(taskId) !== runId) return;
-      if (result.status === "available") {
-        setStateAndRef((current) => applyTask(current, taskId, (task) => ({ ...task, lastChangeSnapshot: { files: result.files, capturedAt: now() }, updatedAt: now() })));
-        return;
-      }
-      const detail = result.status === "error"
-        ? result.message
-        : result.status === "unknown"
-          ? `Unknown workspace: ${result.workspaceId}`
-          : `Workspace is unavailable (${result.reason}).`;
-      setStateAndRef((current) => ({ ...current, actionError: detail }));
-    } catch (error) {
-      if (runIds.current.get(taskId) === runId) setStateAndRef((current) => ({ ...current, actionError: error instanceof Error ? error.message : String(error) }));
-    }
-  }
-
   useEffect(() => {
     if (!("desktop" in window)) return;
     return window.desktop.onAgentEvent((event) => {
@@ -137,7 +123,7 @@ export function useTaskWorkspace() {
       const project = projectFor(current, current.tasks.find((task) => task.id === event.taskId));
       const next = applyRunEvent(current, event);
       setStateAndRef(next);
-      if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed") && project?.workspaceId) void refreshChanges(event.taskId, event.runId, project.workspaceId);
+      if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed") && project?.workspaceId) void refreshEnvironment(project.workspaceId, event.taskId, event.runId);
     });
   }, []);
 
@@ -156,10 +142,43 @@ export function useTaskWorkspace() {
   const compacting = state.activeRun?.taskId === state.currentId && state.activeRun.status === "compacting";
   const visibleApproval = state.activeRun?.status === "awaiting-approval" && state.approvals[state.activeRun.runId]?.taskId === state.currentId ? state.approvals[state.activeRun.runId] : undefined;
 
+  useEffect(() => {
+    const workspaceId = currentProject?.workspaceId;
+    if (!workspaceId) {
+      setStateAndRef((current) => current.environment === null ? current : { ...current, environment: null });
+      return;
+    }
+    const taskId = currentTask?.id;
+    const runId = taskId ? runIds.current.get(taskId) : undefined;
+    void refreshEnvironment(workspaceId, taskId, runId);
+    if (!state.activeRun || state.activeRun.taskId !== taskId) return;
+    const timer = window.setInterval(() => void refreshEnvironment(workspaceId, taskId, runId), 2_000);
+    return () => window.clearInterval(timer);
+  }, [currentProject?.workspaceId, currentTask?.id, state.activeRun?.runId]);
+
   function setStateAndRef(next: WorkspaceState | ((state: WorkspaceState) => WorkspaceState)) {
     const resolved = typeof next === "function" ? next(stateRef.current) : next;
     stateRef.current = resolved;
     setState(resolved);
+  }
+
+  async function refreshEnvironment(workspaceId: string, taskId?: string, runId?: string) {
+    try {
+      const result = await window.desktop.changedFiles(workspaceId);
+      if (taskId && runId && runIds.current.get(taskId) !== runId) return;
+      setStateAndRef((current) => {
+        let next = { ...current, environment: { workspaceId, result } };
+        if (taskId && result.status === "available") {
+          next = applyTask(next, taskId, (task) => ({ ...task, lastChangeSnapshot: { files: result.files, capturedAt: now() }, updatedAt: now() }));
+        }
+        return next;
+      });
+    } catch (error) {
+      setStateAndRef((current) => ({
+        ...current,
+        environment: { workspaceId, result: { status: "error", message: error instanceof Error ? error.message : String(error) } },
+      }));
+    }
   }
 
   function newTask(projectId?: string) {
@@ -280,7 +299,7 @@ export function useTaskWorkspace() {
     const runId = crypto.randomUUID();
     const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", text)], updatedAt: now() };
     const nextTasks = current.tasks.some((item) => item.id === task!.id) ? current.tasks.map((item) => item.id === task!.id ? nextTask : item) : [nextTask, ...current.tasks];
-    const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, actionError: null };
+    const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, subagents: { ...current.subagents, [task.id]: [] }, actionError: null };
     runIds.current.set(task.id, runId);
     setStateAndRef(nextState);
     window.desktop.send({ type: "start", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
@@ -320,6 +339,8 @@ export function useTaskWorkspace() {
     runActive: Boolean(state.activeRun),
     runningTaskId: state.activeRun?.taskId ?? null,
     approval: visibleApproval,
+    subagents: currentTask ? state.subagents[currentTask.id] ?? [] : [],
+    environment: currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null,
     storageError: state.storageError,
     actionError: state.actionError,
     expandedProjects: state.expandedProjects,

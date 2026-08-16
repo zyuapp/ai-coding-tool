@@ -1,3 +1,4 @@
+import { PanelRight, SlidersHorizontal } from "lucide-react";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -11,9 +12,14 @@ function FolderIcon() {
 export type WorkspaceHeaderProps = {
   currentTask?: Task;
   folder: string;
+  sessionPanelOpen: boolean;
+  inspectorOpen: boolean;
+  workingSubagents: number;
+  onToggleSessionPanel: () => void;
+  onToggleInspector: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder, sessionPanelOpen, inspectorOpen, workingSubagents, onToggleSessionPanel, onToggleInspector }: WorkspaceHeaderProps) {
   return (
     <header className="topbar">
       <div className="task-heading">
@@ -22,6 +28,28 @@ export function WorkspaceHeader({ currentTask, folder }: WorkspaceHeaderProps) {
           <h1>{currentTask?.title ?? "New task"}</h1>
           <p title={folder}>{folder || "Choose a project folder to begin"}</p>
         </div>
+      </div>
+      <div className="workspace-controls">
+        <button
+          className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
+          type="button"
+          aria-label={`${sessionPanelOpen ? "Hide" : "Show"} session summary`}
+          aria-pressed={sessionPanelOpen}
+          onClick={onToggleSessionPanel}
+        >
+          <SlidersHorizontal size={19} aria-hidden="true" />
+          {workingSubagents > 0 && <span>{workingSubagents}</span>}
+        </button>
+        <button
+          className={`session-toggle ${inspectorOpen ? "active" : ""}`}
+          type="button"
+          aria-label={`${inspectorOpen ? "Hide" : "Show"} subagent details`}
+          aria-pressed={inspectorOpen}
+          disabled={!inspectorOpen}
+          onClick={onToggleInspector}
+        >
+          <PanelRight size={19} aria-hidden="true" />
+        </button>
       </div>
     </header>
   );

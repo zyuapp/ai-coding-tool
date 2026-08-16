@@ -1,4 +1,5 @@
 import type { RunEvent } from "../contracts/ipc.js";
+import type { Subagent } from "../domain/run.js";
 import type { Task, TaskMessage } from "../domain/task.js";
 
 export type ActiveRun = {
@@ -24,6 +25,7 @@ export type RunTransitionState = {
   lastRunStatus: "idle" | "running" | "stopped";
   lastRunTaskId: string | null;
   approvals: Record<string, ApprovalView>;
+  subagents: Record<string, Subagent[]>;
 };
 
 function now() {
@@ -36,6 +38,16 @@ export function createTaskMessage(kind: TaskMessage["kind"], text: string, detai
 
 export function applyTask<T extends RunTransitionState>(state: T, taskId: string, update: (task: Task) => Task): T {
   return { ...state, tasks: state.tasks.map((task) => task.id === taskId ? update(task) : task) } as T;
+}
+
+function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
+  const byTask = state.subagents ?? {};
+  const current = byTask[taskId] ?? [];
+  const index = current.findIndex((subagent) => subagent.id === subagentId);
+  const next = [...current];
+  if (index === -1) next.push(update());
+  else next[index] = update(next[index]);
+  return { ...state, subagents: { ...byTask, [taskId]: next } } as T;
 }
 
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
@@ -51,6 +63,11 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     let next = { ...withSequence, activeRun: null, lastRunTaskId: event.taskId, lastRunStatus: event.status === "cancelled" ? "stopped" : "idle" } as T;
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
+    const subagents = next.subagents[event.taskId];
+    if (subagents?.some((subagent) => subagent.status === "working")) {
+      const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
+      next = { ...next, subagents: { ...next.subagents, [event.taskId]: subagents.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent) } } as T;
+    }
     if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.message!)], updatedAt: now() }));
     return next;
   }
@@ -96,6 +113,63 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       ...task,
       messages: [...task.messages, createTaskMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
       updatedAt: now(),
+    }));
+  }
+  if (event.type === "subagent.started") {
+    return updateSubagent(withSequence, event.taskId, event.id, (existing) => ({
+      id: event.id,
+      description: event.description,
+      ...(event.agentType ? { agentType: event.agentType } : {}),
+      status: "working",
+      startedAt: existing?.startedAt ?? now(),
+      activity: existing?.activity ?? [],
+    }));
+  }
+  if (event.type === "subagent.progress") {
+    return updateSubagent(withSequence, event.taskId, event.id, (existing) => ({
+      id: event.id,
+      description: event.description,
+      ...(existing?.agentType ? { agentType: existing.agentType } : {}),
+      status: existing?.status ?? "working",
+      ...(event.lastToolName ? { lastToolName: event.lastToolName } : {}),
+      ...(event.summary ? { summary: event.summary } : {}),
+      totalTokens: event.totalTokens,
+      startedAt: existing?.startedAt ?? now(),
+      ...(existing?.finishedAt ? { finishedAt: existing.finishedAt } : {}),
+      activity: existing?.activity ?? [],
+    }));
+  }
+  if (event.type === "subagent.activity") {
+    return updateSubagent(withSequence, event.taskId, event.id, (existing) => {
+      const activity = existing?.activity ?? [];
+      return {
+        id: event.id,
+        description: existing?.description ?? "Subagent",
+        ...(existing?.agentType ? { agentType: existing.agentType } : {}),
+        status: existing?.status ?? "working",
+        ...(existing?.lastToolName ? { lastToolName: existing.lastToolName } : {}),
+        ...(existing?.summary ? { summary: existing.summary } : {}),
+        ...(existing?.totalTokens === undefined ? {} : { totalTokens: existing.totalTokens }),
+        startedAt: existing?.startedAt ?? now(),
+        ...(existing?.finishedAt ? { finishedAt: existing.finishedAt } : {}),
+        activity: activity.some((item) => item.id === event.activityId)
+          ? activity
+          : [...activity, { id: event.activityId, kind: event.kind, ...(event.title ? { title: event.title } : {}), text: event.text, at: now() }],
+      };
+    });
+  }
+  if (event.type === "subagent.finished") {
+    return updateSubagent(withSequence, event.taskId, event.id, (existing) => ({
+      id: event.id,
+      description: existing?.description ?? "Subagent",
+      ...(existing?.agentType ? { agentType: existing.agentType } : {}),
+      status: event.status,
+      ...(existing?.lastToolName ? { lastToolName: existing.lastToolName } : {}),
+      summary: event.summary || existing?.summary,
+      ...(existing?.totalTokens === undefined ? {} : { totalTokens: existing.totalTokens }),
+      startedAt: existing?.startedAt ?? now(),
+      finishedAt: now(),
+      activity: existing?.activity ?? [],
     }));
   }
   if (event.type === "approval.requested") {

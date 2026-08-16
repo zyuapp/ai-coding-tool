@@ -31,6 +31,8 @@ export class ClaudeAgentProvider implements AgentProvider {
 
   async execute(input: ProviderRunInput): Promise<ProviderResult> {
     let activeQuery: Query | null = null;
+    const subagentIds = new Set<string>();
+    const subagentByToolUse = new Map<string, string>();
     const canUseTool: CanUseTool = async (toolName, toolInput, options) => {
       const intent = normalizeToolIntent(toolName, toolInput, options.toolUseID);
       const decision = await input.authorize(intent);
@@ -51,6 +53,7 @@ export class ClaudeAgentProvider implements AgentProvider {
           ...(input.contextWindow === "1m" ? { betas: ["context-1m-2025-08-07" as const] } : {}),
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
           skills: "all",
+          forwardSubagentText: true,
           canUseTool,
           abortController: input.abortController,
         },
@@ -75,7 +78,43 @@ export class ClaudeAgentProvider implements AgentProvider {
             compacting: message.status === "compacting",
             ...(message.compact_result === "failed" ? { error: message.compact_error ?? "Context compaction failed." } : {}),
           });
+        } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
+          subagentIds.add(message.task_id);
+          if (message.tool_use_id) subagentByToolUse.set(message.tool_use_id, message.task_id);
+          input.emit({
+            type: "subagent.started",
+            id: message.task_id,
+            description: message.description,
+            agentType: message.subagent_type,
+          });
+        } else if (message.type === "system" && message.subtype === "task_progress" && (message.subagent_type || subagentIds.has(message.task_id))) {
+          input.emit({
+            type: "subagent.progress",
+            id: message.task_id,
+            description: message.description,
+            ...(message.last_tool_name ? { lastToolName: message.last_tool_name } : {}),
+            ...(message.summary ? { summary: message.summary } : {}),
+            totalTokens: message.usage.total_tokens,
+          });
+        } else if (message.type === "system" && message.subtype === "task_notification" && subagentIds.has(message.task_id)) {
+          input.emit({
+            type: "subagent.finished",
+            id: message.task_id,
+            status: message.status === "completed" ? "completed" : message.status,
+            summary: message.summary,
+          });
         } else if (message.type === "assistant") {
+          const subagentId = message.parent_tool_use_id ? subagentByToolUse.get(message.parent_tool_use_id) : undefined;
+          if (subagentId) {
+            for (const block of message.message.content) {
+              if (block.type === "text" && block.text.trim()) {
+                input.emit({ type: "subagent.activity", id: subagentId, activityId: `${message.uuid}:text`, kind: "text", text: block.text });
+              } else if (block.type === "tool_use") {
+                input.emit({ type: "subagent.activity", id: subagentId, activityId: block.id, kind: "tool", title: block.name, text: JSON.stringify(block.input, null, 2) });
+              }
+            }
+            continue;
+          }
           for (const block of message.message.content) {
             if (block.type === "text" && block.text.trim()) {
               input.emit({ type: "assistant", messageId: message.uuid, text: block.text });
