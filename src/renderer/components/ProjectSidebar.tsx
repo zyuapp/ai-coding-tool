@@ -18,6 +18,7 @@ function FolderIcon() {
 }
 
 export type ProjectSidebarProps = {
+  compactOpen: boolean;
   projects: Project[];
   orderedTasks: Task[];
   recentTasks: Task[];
@@ -40,6 +41,7 @@ export type ProjectSidebarProps = {
 };
 
 export function ProjectSidebar({
+  compactOpen,
   projects,
   orderedTasks,
   recentTasks,
@@ -90,7 +92,7 @@ export function ProjectSidebar({
   );
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`}>
       <div className="traffic-space" aria-hidden="true" />
       <div className="brand-row">
         <strong>Claudex</strong>

@@ -11,7 +11,8 @@ import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const [sessionPanelOpen, setSessionPanelOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(() => window.innerWidth >= 1400);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
@@ -42,6 +43,7 @@ export function App() {
   return (
     <main className="app-shell">
       <ProjectSidebar
+        compactOpen={sidebarOpen}
         projects={workspace.projects}
         orderedTasks={workspace.orderedTasks}
         recentTasks={workspace.recentTasks}
@@ -62,14 +64,17 @@ export function App() {
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
       />
+      {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
 
       <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${inspectedSubagent ? "inspector-open" : ""}`}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
+          sidebarOpen={sidebarOpen}
           sessionPanelOpen={sessionPanelOpen}
           inspectorOpen={Boolean(inspectedSubagent)}
           workingSubagents={workingSubagents}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
             setSelectedSubagent(null);
             setSessionPanelOpen((open) => !open);

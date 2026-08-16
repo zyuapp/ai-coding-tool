@@ -1,4 +1,4 @@
-import { PanelRight, SlidersHorizontal } from "lucide-react";
+import { PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -12,17 +12,28 @@ function FolderIcon() {
 export type WorkspaceHeaderProps = {
   currentTask?: Task;
   folder: string;
+  sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   inspectorOpen: boolean;
   workingSubagents: number;
+  onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
   onToggleInspector: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder, sessionPanelOpen, inspectorOpen, workingSubagents, onToggleSessionPanel, onToggleInspector }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, inspectorOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleInspector }: WorkspaceHeaderProps) {
   return (
     <header className="topbar">
       <div className="task-heading">
+        <button
+          className={`session-toggle sidebar-toggle ${sidebarOpen ? "active" : ""}`}
+          type="button"
+          aria-label={`${sidebarOpen ? "Hide" : "Show"} sidebar`}
+          aria-pressed={sidebarOpen}
+          onClick={onToggleSidebar}
+        >
+          <PanelLeft size={19} aria-hidden="true" />
+        </button>
         <span className="heading-folder"><FolderIcon /></span>
         <div>
           <h1>{currentTask?.title ?? "New task"}</h1>

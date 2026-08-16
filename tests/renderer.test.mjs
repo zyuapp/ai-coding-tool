@@ -94,13 +94,16 @@ test("subagent inspector renders activity and closes", async () => {
 });
 
 test("workspace header exposes session and inspector controls", async () => {
+  let sidebarToggles = 0;
   let summaryToggles = 0;
   let inspectorToggles = 0;
   const view = await mount(React.createElement(WorkspaceHeader, {
     folder: "/project",
+    sidebarOpen: false,
     sessionPanelOpen: true,
     inspectorOpen: true,
     workingSubagents: 2,
+    onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
     onToggleInspector: () => { inspectorToggles += 1; },
   }));
@@ -108,9 +111,11 @@ test("workspace header exposes session and inspector controls", async () => {
   assert.equal(view.container.querySelector('button[aria-label="Hide session summary"]').getAttribute("aria-pressed"), "true");
   assert.match(view.container.textContent, /2/);
   await act(async () => {
+    view.container.querySelector('button[aria-label="Show sidebar"]').click();
     view.container.querySelector('button[aria-label="Hide session summary"]').click();
     view.container.querySelector('button[aria-label="Hide subagent details"]').click();
   });
+  assert.equal(sidebarToggles, 1);
   assert.equal(summaryToggles, 1);
   assert.equal(inspectorToggles, 1);
   await view.unmount();
@@ -180,6 +185,7 @@ test("closing subagent details returns to the session panel", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
+  await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
   await act(async () => { view.container.querySelector('button[aria-label="Open Complete agent details"]').click(); });
   assert.ok(view.container.querySelector(".subagent-inspector"));
   await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
