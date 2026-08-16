@@ -181,6 +181,40 @@ async function createWindow() {
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
 }
 
+async function checkForUpdates() {
+  if (!app.isPackaged) return;
+  const { autoUpdater } = await import("electron-updater");
+  autoUpdater.autoDownload = false;
+  autoUpdater.on("error", (error) => console.error("Update error:", error));
+  autoUpdater.on("update-available", async ({ version }) => {
+    if (!window || window.isDestroyed()) return;
+    const result = await dialog.showMessageBox(window, {
+      type: "info",
+      title: "Update available",
+      message: `Claudex ${version} is available.`,
+      detail: "Download it now? You can keep working while it downloads.",
+      buttons: ["Download update", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (result.response === 0) await autoUpdater.downloadUpdate().catch((error) => console.error("Update download failed:", error));
+  });
+  autoUpdater.on("update-downloaded", async ({ version }) => {
+    if (!window || window.isDestroyed()) return;
+    const result = await dialog.showMessageBox(window, {
+      type: "info",
+      title: "Update ready",
+      message: `Claudex ${version} is ready to install.`,
+      detail: "Restart Claudex to finish the update.",
+      buttons: ["Restart and install", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (result.response === 0) autoUpdater.quitAndInstall(false, true);
+  });
+  await autoUpdater.checkForUpdates();
+}
+
 app.whenReady().then(async () => {
   const userData = app.getPath("userData");
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
@@ -190,7 +224,8 @@ app.whenReady().then(async () => {
   });
   app.dock?.setIcon(icon);
   startAgent();
-  void createWindow();
+  await createWindow();
+  void checkForUpdates().catch((error) => console.error("Update check failed:", error));
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });

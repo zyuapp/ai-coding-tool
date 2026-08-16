@@ -3,16 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "author": "Zhuocheng Yu",
   "description": "A fast local desktop client for Claude coding tasks.",
+  "homepage": "https://github.com/zyuapp/claudex",
   "main": "dist/main/main/main.js",
   "scripts": {
     "build": "vite build && tsc -p tsconfig.main.json",
     "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "package:mac": "npm run build && electron-builder --mac --arm64",
+    "release:mac": "npm run build && electron-builder --mac --arm64 --publish always"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.233",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.31.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -23,8 +28,52 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",
     "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.1"
+  },
+  "build": {
+    "appId": "com.zyuapp.claudex",
+    "productName": "Claudex",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "assets/**"
+    ],
+    "asarUnpack": [
+      "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "notarize": true,
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "zyuapp",
+        "repo": "claudex",
+        "releaseType": "release"
+      }
+    ]
   }
 }
