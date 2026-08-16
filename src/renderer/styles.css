@@ -62,7 +62,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   cursor: col-resize;
   touch-action: none;
 }
-.sidebar-resizer:hover, .sidebar-resizer:focus-visible { background: #3a414b; }
+.sidebar-resizer:hover::after, .sidebar-resizer:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 0 2px;
+  background: #3a414b;
+}
 
 .traffic-space { height: 48px; flex: 0 0 auto; -webkit-app-region: drag; }
 .brand-row {
