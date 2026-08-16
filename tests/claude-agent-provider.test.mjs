@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { ClaudeAgentProvider } from "../dist/main/main/agent/claude-agent-provider.mjs";
+import { ClaudeAgentProvider, packagedClaudeExecutable } from "../dist/main/main/agent/claude-agent-provider.mjs";
 
 function input(overrides = {}) {
   return {
@@ -31,6 +34,15 @@ function queryFactory(messages, capture = {}) {
     };
   };
 }
+
+test("packaged builds use the unpacked Claude executable", async () => {
+  const resourcesPath = await mkdtemp(path.join(os.tmpdir(), "claudex-resources-"));
+  const executable = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude");
+  await mkdir(path.dirname(executable), { recursive: true });
+  await writeFile(executable, "");
+  assert.equal(packagedClaudeExecutable(resourcesPath), executable);
+  assert.equal(packagedClaudeExecutable(path.join(resourcesPath, "missing")), undefined);
+});
 
 test("Claude query options follow run policy and workspace settings", async () => {
   const cases = [

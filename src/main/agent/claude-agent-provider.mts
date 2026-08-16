@@ -1,8 +1,16 @@
 import { query, type CanUseTool, type Query } from "@anthropic-ai/claude-agent-sdk";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 
 type QueryFactory = typeof query;
+
+export function packagedClaudeExecutable(resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath) {
+  if (!resourcesPath) return undefined;
+  const executable = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude");
+  return existsSync(executable) ? executable : undefined;
+}
 
 function claudePermissionMode(policy: ExecutionPolicy) {
   return {
@@ -47,6 +55,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         prompt: input.prompt,
         options: {
           cwd: input.workspaceRoot,
+          pathToClaudeCodeExecutable: packagedClaudeExecutable(),
           resume: continuation,
           ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
           permissionMode: input.channel === "side" ? "plan" : claudePermissionMode(input.policy),

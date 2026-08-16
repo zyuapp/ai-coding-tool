@@ -30,12 +30,24 @@ jobs:
           umask 077
           printf '%s' "$MAC_CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/claudex.p12"
           printf '%s' "$APPLE_API_KEY_P8" | base64 -D > "$RUNNER_TEMP/apple.p8"
-      - name: Build, sign, notarize, and publish
+      - name: Build, sign, and notarize
         env:
           CSC_LINK: ${{ runner.temp }}/claudex.p12
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY: ${{ runner.temp }}/apple.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: npm run package:mac
+      - name: Publish GitHub release
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release:mac
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          gh release upload "$GITHUB_REF_NAME" \
+            release/*.dmg \
+            release/*.dmg.blockmap \
+            release/*.zip \
+            release/*.zip.blockmap \
+            release/latest-mac.yml \
+            --clobber
