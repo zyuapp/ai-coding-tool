@@ -33,6 +33,14 @@ function modeLabel(mode: PermissionMode) {
   }[mode];
 }
 
+function FolderIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.5 7.5h6l2-2h3.8c1.8 0 2.7 0 3.4.35.62.32 1.13.83 1.45 1.45.35.7.35 1.6.35 3.4v4.4c0 1.8 0 2.7-.35 3.4a3.25 3.25 0 0 1-1.45 1.45c-.7.35-1.6.35-3.4.35H7.5c-1.8 0-2.7 0-3.4-.35a3.25 3.25 0 0 1-1.45-1.45c-.35-.7-.35-1.6-.35-3.4V9.2c0-.95 0-1.42.18-1.78.16-.32.42-.58.74-.74.36-.18.83-.18 1.78-.18Z" />
+    </svg>
+  );
+}
+
 export function App() {
   const [tasks, setTasks] = useState<Task[]>(loadTasks);
   const [currentId, setCurrentId] = useState<string | null>(tasks[0]?.id ?? null);
@@ -209,22 +217,23 @@ export function App() {
       <aside className="sidebar">
         <div className="traffic-space" aria-hidden="true" />
         <div className="brand-row">
-          <div className="brand-mark">T</div>
           <strong>Threadline</strong>
-          <button className="icon-button" onClick={newTask} aria-label="New task" title="New task">
-            +
-          </button>
+          <span className="brand-chevron" aria-hidden="true">⌄</span>
         </div>
 
-        <button className="folder-button" onClick={openFolder}>
-          <span className="folder-icon">⌁</span>
-          <span>
-            <small>Project</small>
-            <strong>{folder ? shortFolder(folder) : "Open a folder"}</strong>
-          </span>
+        <button className="new-task-button" onClick={newTask}>
+          <span className="new-task-icon" aria-hidden="true">＋</span>
+          <span>New task</span>
         </button>
 
-        <div className="section-label">Tasks</div>
+        <div className="section-label">Project</div>
+        <button className="folder-button" onClick={openFolder} title={folder || "Open a project folder"}>
+          <span className="folder-icon"><FolderIcon /></span>
+          <span>{folder ? shortFolder(folder) : "Open a folder"}</span>
+          <span className="folder-chevron" aria-hidden="true">⌄</span>
+        </button>
+
+        <div className="section-label task-label">Recent</div>
         <nav className="task-list" aria-label="Tasks">
           {orderedTasks.length === 0 ? (
             <p className="sidebar-empty">Your tasks will stay here.</p>
@@ -240,7 +249,7 @@ export function App() {
                 }}
               >
                 <span>{task.title}</span>
-                <small>{formatTime(task.updatedAt)}</small>
+                <small>{shortFolder(task.folder)} · {formatTime(task.updatedAt)}</small>
               </button>
             ))
           )}
@@ -249,12 +258,39 @@ export function App() {
 
       <section className="workspace">
         <header className="topbar">
-          <div>
+          <div className="task-heading">
+            <span className="heading-folder"><FolderIcon /></span>
+            <div>
             <h1>{currentTask?.title ?? "New task"}</h1>
             <p title={folder}>{folder || "Choose a project folder to begin"}</p>
+            </div>
           </div>
-          <div className={`run-state ${status}`}>
-            <span /> {status === "running" ? "Working" : status === "stopped" ? "Stopped" : "Ready"}
+          <div className="topbar-actions">
+            <div className={`run-state ${status}`}>
+              <span /> {status === "running" ? "Working" : status === "stopped" ? "Stopped" : "Ready"}
+            </div>
+            {currentTask && (
+              <details className="changes-menu">
+                <summary>
+                  Changes <span>{currentTask.changedFiles.length}</span>
+                </summary>
+                <div className="changes-popover">
+                  <strong>Changed files</strong>
+                  {currentTask.changedFiles.length ? (
+                    <ul>
+                      {currentTask.changedFiles.map((file) => (
+                        <li key={file} title={file}>
+                          <span className={`file-status status-${file.trim()[0]}`}>{file.slice(0, 2).trim()}</span>
+                          <span>{file.slice(3)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Working tree is clean.</p>
+                  )}
+                </div>
+              </details>
+            )}
           </div>
         </header>
 
@@ -262,31 +298,18 @@ export function App() {
           <div className="conversation" ref={transcriptRef}>
             {!currentTask?.messages.length ? (
               <div className="empty-state">
-                <div className="empty-glyph">⌁</div>
-                <h2>What should Claude do?</h2>
-                <p>Open a folder, describe the outcome, and review actions as they happen.</p>
+                <div className="empty-glyph"><FolderIcon /></div>
+                <h2>Start a task</h2>
+                <p>Tell Claude what you want to change, investigate, or build in this project.</p>
                 {!folder && <button onClick={openFolder}>Open a project</button>}
               </div>
             ) : (
               <div className="timeline">
                 {currentTask.messages.map((message) => (
                   <article className={`message ${message.kind}`} key={message.id}>
-                    <div className="timeline-dot" aria-hidden="true" />
-                    <div className="message-meta">
-                      <strong>
-                        {message.kind === "user"
-                          ? "You"
-                          : message.kind === "assistant"
-                            ? "Claude"
-                            : message.kind === "tool"
-                              ? "Tool"
-                              : "Notice"}
-                      </strong>
-                      <time>{formatTime(message.at)}</time>
-                    </div>
                     {message.kind === "tool" ? (
-                      <details>
-                        <summary>{message.text}</summary>
+                      <details className="work-row">
+                        <summary><span>Worked</span><span>{message.text}</span></summary>
                         <pre>{message.detail}</pre>
                       </details>
                     ) : (
@@ -320,27 +343,6 @@ export function App() {
               </section>
             )}
           </div>
-
-          {currentTask && (
-            <aside className="changes-panel">
-              <div className="changes-heading">
-                <strong>Changes</strong>
-                <span>{currentTask.changedFiles.length}</span>
-              </div>
-              {currentTask.changedFiles.length ? (
-                <ul>
-                  {currentTask.changedFiles.map((file) => (
-                    <li key={file} title={file}>
-                      <span className={`file-status status-${file.trim()[0]}`}>{file.slice(0, 2).trim()}</span>
-                      <span>{file.slice(3)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No local changes</p>
-              )}
-            </aside>
-          )}
         </div>
 
         <footer className="composer-wrap">
@@ -354,7 +356,7 @@ export function App() {
                   void sendPrompt();
                 }
               }}
-              placeholder={folder ? "Ask Claude to work in this folder…" : "Open a folder, then describe a task…"}
+              placeholder={folder ? "Ask Claude to work on anything" : "Open a folder, then describe a task"}
               aria-label="Task prompt"
               rows={2}
             />
@@ -374,7 +376,6 @@ export function App() {
               </div>
             </div>
           </div>
-          <p className="composer-hint">Enter to send · Shift+Enter for a new line</p>
         </footer>
       </section>
     </main>
