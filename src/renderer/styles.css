@@ -101,7 +101,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   padding: 0 7px 0 10px;
   color: #55595e;
 }
-.projects-heading { margin-top: 15px; }
+.projects-heading { grid-template-columns: minmax(0, 1fr) 35px; margin-top: 15px; }
 .recents-heading { margin-top: 22px; }
 .section-toggle,
 .section-action,
@@ -241,22 +241,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .project-menu-popover button { width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; font-size: var(--text-small); }
 .project-menu-popover button:hover { background: #2a2f36; }
-.project-menu-popover .menu-label {
-  padding: 4px 8px 5px;
-  color: #656970;
-  font-size: var(--text-small);
-  font-weight: 550;
-}
-.project-menu-popover .menu-label-spaced { margin-top: 7px; }
-.project-menu-popover .menu-choice {
-  display: grid;
-  grid-template-columns: 21px minmax(0, 1fr);
-  align-items: center;
-  min-height: 34px;
-  color: #c9c8c4;
-  font-size: var(--text-ui);
-}
-.project-menu-popover .menu-choice > span { color: #aaa9a6; }
 .project-menu-popover.section-menu-popover { width: 224px; }
 .project-tasks { display: grid; gap: 1px; margin: 1px 0 4px; }
 .task-entry { position: relative; min-width: 0; }

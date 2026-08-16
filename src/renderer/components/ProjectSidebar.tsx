@@ -36,14 +36,12 @@ export type ProjectSidebarProps = {
   projectsOpen: boolean;
   recentsOpen: boolean;
   openMenu: string | null;
-  chatSort: "priority" | "updated" | "manual";
   onNewTask: (projectId?: string) => void;
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
   onSetProjectsOpen: (open: boolean) => void;
   onSetRecentsOpen: (open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
-  onSetChatSort: (sort: "priority" | "updated" | "manual") => void;
   onSelectTask: (taskId: string) => void;
   onArchiveTask: (taskId: string) => void;
 };
@@ -60,14 +58,12 @@ export function ProjectSidebar({
   projectsOpen,
   recentsOpen,
   openMenu,
-  chatSort,
   onNewTask,
   onOpenFolder,
   onToggleProject,
   onSetProjectsOpen,
   onSetRecentsOpen,
   onSetOpenMenu,
-  onSetChatSort,
   onSelectTask,
   onArchiveTask,
 }: ProjectSidebarProps) {
@@ -113,34 +109,6 @@ export function ProjectSidebar({
           <button className="section-toggle" onClick={() => onSetProjectsOpen(!projectsOpen)} aria-expanded={projectsOpen}>
             <span>Projects</span><span className="section-chevron" aria-hidden="true" />
           </button>
-          <div
-            className={`section-menu ${openMenu === "projects" ? "open" : ""}`}
-            data-popover-menu
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
-            }}
-          >
-            <button className="menu-trigger" aria-label="Project options" aria-expanded={openMenu === "projects"} onClick={() => onSetOpenMenu(openMenu === "projects" ? null : "projects")}>•••</button>
-            {openMenu === "projects" && <div className="project-menu-popover section-menu-popover" role="menu">
-              <div className="menu-label">Organize sidebar</div>
-              <button className="menu-choice selected" role="menuitemradio" aria-checked="true"><span>✓</span>By project</button>
-              <button className="menu-choice" role="menuitemradio" aria-checked="false"><span />In one list</button>
-              <div className="menu-label menu-label-spaced">Sort chats by</div>
-              {(["priority", "updated", "manual"] as const).map((sort) => (
-                <button
-                  className={`menu-choice ${chatSort === sort ? "selected" : ""}`}
-                  role="menuitemradio"
-                  aria-checked={chatSort === sort}
-                  key={sort}
-                  onClick={() => {
-                    onSetChatSort(sort);
-                    onSetOpenMenu(null);
-                  }}
-                ><span>{chatSort === sort ? "✓" : ""}</span>{sort === "updated" ? "Last updated" : `${sort[0].toUpperCase()}${sort.slice(1)}${sort === "manual" ? " order" : ""}`}</button>
-              ))}
-            </div>
-            }
-          </div>
           <button className="section-action add-project" onClick={onOpenFolder} aria-label="Add project">＋</button>
         </div>
         {projectsOpen && <nav className="project-list" aria-label="Projects">

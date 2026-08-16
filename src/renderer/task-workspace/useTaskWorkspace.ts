@@ -21,7 +21,6 @@ type WorkspaceState = {
   projectsOpen: boolean;
   recentsOpen: boolean;
   openMenu: string | null;
-  chatSort: "priority" | "updated" | "manual";
 } & RunTransitionState & {
   storageError: string | null;
   actionError: string | null;
@@ -55,7 +54,6 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       projectsOpen: true,
       recentsOpen: true,
       openMenu: null,
-      chatSort: "manual",
       activeRun: null,
       lastRunStatus: "idle",
       lastRunTaskId: null,
@@ -84,7 +82,6 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,
-    chatSort: "manual",
     activeRun: null,
     lastRunStatus: "idle",
     lastRunTaskId: null,
@@ -153,7 +150,7 @@ export function useTaskWorkspace() {
   const model = currentTask?.model ?? state.draftModel;
   const contextWindow = currentTask?.contextWindow ?? state.draftContextWindow;
   const visibleTasks = state.tasks.filter((task) => task.archivedAt === undefined);
-  const orderedTasks = state.chatSort === "updated" ? visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt) : visibleTasks;
+  const orderedTasks = visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt);
   const recentTasks = orderedTasks.filter((task) => !task.projectId);
   const status = state.currentId && (state.activeRun?.taskId === state.currentId || state.lastRunTaskId === state.currentId) ? state.lastRunStatus : "idle";
   const visibleApproval = state.activeRun?.status === "awaiting-approval" && state.approvals[state.activeRun.runId]?.taskId === state.currentId ? state.approvals[state.activeRun.runId] : undefined;
@@ -327,7 +324,6 @@ export function useTaskWorkspace() {
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
     openMenu: state.openMenu,
-    chatSort: state.chatSort,
     actions: {
       newTask,
       openFolder,
@@ -337,7 +333,6 @@ export function useTaskWorkspace() {
       setProjectsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, projectsOpen: open })),
       setRecentsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, recentsOpen: open })),
       setOpenMenu: (menu: string | null) => setStateAndRef((current) => ({ ...current, openMenu: menu })),
-      setChatSort: (sort: "priority" | "updated" | "manual") => setStateAndRef((current) => ({ ...current, chatSort: sort })),
       setPrompt: (prompt: string) => setStateAndRef((current) => ({ ...current, prompt })),
       setPolicy,
       setModel,

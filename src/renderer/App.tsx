@@ -43,14 +43,12 @@ export function App() {
         projectsOpen={workspace.projectsOpen}
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}
-        chatSort={workspace.chatSort}
         onNewTask={workspace.actions.newTask}
         onOpenFolder={workspace.actions.openFolder}
         onToggleProject={workspace.actions.toggleProject}
         onSetProjectsOpen={workspace.actions.setProjectsOpen}
         onSetRecentsOpen={workspace.actions.setRecentsOpen}
         onSetOpenMenu={workspace.actions.setOpenMenu}
-        onSetChatSort={workspace.actions.setChatSort}
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
       />
