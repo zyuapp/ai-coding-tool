@@ -151,9 +151,9 @@ function seedLegacyWorkspace() {
     messages: [], changedFiles: [], updatedAt: 1,
   };
   localStorage.clear();
-  localStorage.setItem("threadline.tasks.v1", JSON.stringify([legacyTask]));
-  localStorage.setItem("threadline.projects.v1", JSON.stringify(["/project"]));
-  localStorage.setItem("threadline.last-folder.v1", "/project");
+  localStorage.setItem("claudex.tasks.v1", JSON.stringify([legacyTask]));
+  localStorage.setItem("claudex.projects.v1", JSON.stringify(["/project"]));
+  localStorage.setItem("claudex.last-folder.v1", "/project");
 }
 
 function seedTaskWithSubagent() {
@@ -168,7 +168,7 @@ function seedTaskWithSubagent() {
     updatedAt: 2,
   };
   localStorage.clear();
-  localStorage.setItem("threadline.store.v2", JSON.stringify({
+  localStorage.setItem("claudex.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: [task] }),
     projects: JSON.stringify({ version: 2, value: [] }),
     lastFolder: JSON.stringify({ version: 2, value: null }),
@@ -300,7 +300,7 @@ test("workspace hook keeps subagents when the task continues", async () => {
   await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
 
   assert.equal(workspace.get().subagents[0].description, "Inspect");
-  const stored = JSON.parse(localStorage.getItem("threadline.store.v2"));
+  const stored = JSON.parse(localStorage.getItem("claudex.store.v2"));
   assert.equal(JSON.parse(stored.tasks).value[0].subagents[0].description, "Inspect");
   await workspace.view.unmount();
 });

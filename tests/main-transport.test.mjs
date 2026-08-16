@@ -17,7 +17,7 @@ async function waitFor(predicate) {
 }
 
 test("main transport validates, correlates, cancels, supersedes, and fails runs", async (t) => {
-  const userData = await mkdtemp(path.join(os.tmpdir(), "threadline-main-"));
+  const userData = await mkdtemp(path.join(os.tmpdir(), "claudex-main-"));
   const handlers = new Map();
   const listeners = new Map();
   const windows = [];
@@ -43,7 +43,7 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
     async loadFile() {}
   }
 
-  globalThis.__threadlineElectron = {
+  globalThis.__claudexElectron = {
     app: {
       dock: { setIcon() {} },
       setName() {},
@@ -73,14 +73,14 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__threadlineElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, utilityProcess=e.utilityProcess;";
+        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, utilityProcess=e.utilityProcess;";
       },
     }],
   });
   t.after(async () => {
     await vite.close();
     await rm(userData, { recursive: true, force: true });
-    delete globalThis.__threadlineElectron;
+    delete globalThis.__claudexElectron;
     delete globalThis.__dirname;
   });
   await vite.ssrLoadModule("/src/main/main.ts");

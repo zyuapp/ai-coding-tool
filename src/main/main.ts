@@ -1,10 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { isRunCommand, isRunEvent, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
 
-app.setName("Threadline");
+app.setName("Claudex");
+const legacyUserData = path.join(app.getPath("appData"), "Threadline");
+if (existsSync(legacyUserData)) app.setPath("userData", legacyUserData);
 
 const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
@@ -67,7 +70,7 @@ function emitSyntheticTerminal(command: StartRunCommand, status: "failed" | "can
 function startAgent() {
   if (agent) return;
   agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [], {
-    serviceName: "Threadline Agent",
+    serviceName: "Claudex Agent",
     stdio: "pipe",
   });
   agent.on("message", (event: unknown) => {

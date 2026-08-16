@@ -9,7 +9,7 @@ import {
 } from "../dist/main/main/workspace/workspace-service.mjs";
 
 async function setup() {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "threadline-workspaces-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "claudex-workspaces-"));
   return {
     directory,
     registryPath: path.join(directory, "state", "workspaces.json"),

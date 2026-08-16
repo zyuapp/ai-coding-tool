@@ -13,8 +13,8 @@ test("file edits stay inside the selected project", () => {
 });
 
 test("canonical write targets stay inside the selected project", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "threadline-path-policy-"));
-  const outside = await mkdtemp(path.join(os.tmpdir(), "threadline-path-policy-outside-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "claudex-path-policy-"));
+  const outside = await mkdtemp(path.join(os.tmpdir(), "claudex-path-policy-outside-"));
   const inside = path.join(root, "src");
   const outsideFile = path.join(outside, "outside.txt");
   const targetLink = path.join(root, "target-link");

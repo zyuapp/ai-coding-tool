@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { legacyProjectId, migrateV1ToV2, parseTaskStore, serializeTaskStore } from "../dist/main/domain/task.js";
-import { TASK_STORE_KEYS, TaskStore } from "../dist/main/application/task-store.js";
+import { LEGACY_TASK_STORE_KEYS, TASK_STORE_KEYS, TaskStore } from "../dist/main/application/task-store.js";
 
 const task = {
   id: "task-1",
   title: "Fix the app",
-  folder: "/work/threadline",
+  folder: "/work/claudex",
   sessionId: "session-1",
   mode: "acceptEdits",
   messages: [{ id: "message-1", kind: "user", text: "Fix it", at: 10 }],
@@ -17,8 +17,8 @@ const task = {
 function legacyValues(overrides = {}) {
   return {
     tasks: JSON.stringify([task]),
-    projects: JSON.stringify(["/work/threadline"]),
-    lastFolder: "/work/threadline",
+    projects: JSON.stringify(["/work/claudex"]),
+    lastFolder: "/work/claudex",
     ...overrides,
   };
 }
@@ -30,15 +30,33 @@ test("migrates all v1 keys and keeps a resumable transcript", () => {
 
   const migrated = result.data.tasks[0];
   assert.equal(result.data.version, 2);
-  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/threadline"), root: "/work/threadline" }]);
-  assert.equal(migrated.projectId, legacyProjectId("/work/threadline"));
+  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/claudex"), root: "/work/claudex" }]);
+  assert.equal(migrated.projectId, legacyProjectId("/work/claudex"));
   assert.equal(migrated.executionPolicy, "allow-edits");
   assert.deepEqual(migrated.continuation, { provider: "claude", value: "session-1" });
   assert.equal(migrated.continuationStatus, "available");
   assert.deepEqual(migrated.lastChangeSnapshot, { files: [" M src/App.tsx"], capturedAt: 20 });
-  assert.equal(result.data.lastFolder, "/work/threadline");
+  assert.equal(result.data.lastFolder, "/work/claudex");
   assert.deepEqual(result.preservedV1, legacyValues());
-  assert.equal(legacyProjectId("/work/threadline"), legacyProjectId("/work/threadline/"));
+  assert.equal(legacyProjectId("/work/claudex"), legacyProjectId("/work/claudex/"));
+});
+
+test("loads the previous Threadline namespace and saves it under Claudex", () => {
+  const raw = legacyValues();
+  const memory = new Map([
+    [LEGACY_TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [LEGACY_TASK_STORE_KEYS.v1.projects, raw.projects],
+    [LEGACY_TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+  ]);
+  const store = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  });
+  const loaded = store.load();
+  assert.equal(loaded.ok, true);
+  if (!loaded.ok) return;
+  assert.equal(store.save(loaded.data).ok, true);
+  assert.equal(typeof memory.get(TASK_STORE_KEYS.v2.envelope), "string");
 });
 
 test("malformed storage preserves the payload and blocks writes", () => {
@@ -330,10 +348,10 @@ test("a valid v2 envelope takes precedence over split and v1 values", () => {
 });
 
 test("v1 migration deduplicates project roots with trailing separators", () => {
-  const result = migrateV1ToV2(legacyValues({ projects: JSON.stringify(["/work/threadline/"]) }));
+  const result = migrateV1ToV2(legacyValues({ projects: JSON.stringify(["/work/claudex/"]) }));
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/threadline"), root: "/work/threadline" }]);
+  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/claudex"), root: "/work/claudex" }]);
   assert.equal(result.data.tasks[0].projectId, result.data.projects[0].id);
 });

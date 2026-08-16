@@ -9,6 +9,20 @@ import {
 
 export const TASK_STORE_KEYS = {
   v1: {
+    tasks: "claudex.tasks.v1",
+    projects: "claudex.projects.v1",
+    lastFolder: "claudex.last-folder.v1",
+  },
+  v2: {
+    envelope: "claudex.store.v2",
+    tasks: "claudex.tasks.v2",
+    projects: "claudex.projects.v2",
+    lastFolder: "claudex.last-folder.v2",
+  },
+} as const;
+
+export const LEGACY_TASK_STORE_KEYS = {
+  v1: {
     tasks: "threadline.tasks.v1",
     projects: "threadline.projects.v1",
     lastFolder: "threadline.last-folder.v1",
@@ -43,6 +57,11 @@ export class TaskStore {
       envelope = this.storage.getItem(TASK_STORE_KEYS.v2.envelope);
       v2 = read(this.storage, TASK_STORE_KEYS.v2);
       v1 = read(this.storage, TASK_STORE_KEYS.v1);
+      if (envelope === null && empty(v2) && empty(v1)) {
+        envelope = this.storage.getItem(LEGACY_TASK_STORE_KEYS.v2.envelope);
+        v2 = read(this.storage, LEGACY_TASK_STORE_KEYS.v2);
+        v1 = read(this.storage, LEGACY_TASK_STORE_KEYS.v1);
+      }
     } catch (error) {
       this.loaded = true;
       this.writable = false;
@@ -89,6 +108,10 @@ function read(storage: KeyValueStorage, keys: { tasks: string; projects: string;
     projects: storage.getItem(keys.projects),
     lastFolder: storage.getItem(keys.lastFolder),
   };
+}
+
+function empty(values: StorageValues) {
+  return values.tasks === null && values.projects === null && values.lastFolder === null;
 }
 
 function parseEnvelope(raw: string): StorageValues | "corrupt" {

@@ -93,7 +93,7 @@ export function ProjectSidebar({
     <aside className="sidebar">
       <div className="traffic-space" aria-hidden="true" />
       <div className="brand-row">
-        <strong>Threadline</strong>
+        <strong>Claudex</strong>
         <span className="brand-chevron" aria-hidden="true">⌄</span>
       </div>
 

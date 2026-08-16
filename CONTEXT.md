@@ -1,6 +1,6 @@
-# Threadline
+# Claudex
 
-Threadline organizes local coding conversations and the attempts a coding agent makes to carry them out.
+Claudex organizes local coding conversations and the attempts a coding agent makes to carry them out.
 
 ## Language
 
@@ -9,7 +9,7 @@ A saved local folder shown in the sidebar. A Project does not have to be a Git r
 _Avoid_: Repository, workspace
 
 **Workspace**:
-The canonical filesystem scope used for one Run. It is either a Project root or Threadline's projectless scratch folder.
+The canonical filesystem scope used for one Run. It is either a Project root or Claudex's projectless scratch folder.
 _Avoid_: Current directory, cwd
 
 **Task**:
@@ -25,7 +25,7 @@ An opaque coding-agent reference that allows a later Run to resume prior provide
 _Avoid_: Claude session, session ID
 
 **Tool intent**:
-A coding agent's proposed action before Threadline policy decides whether to deny it, allow it, or request Approval.
+A coding agent's proposed action before Claudex policy decides whether to deny it, allow it, or request Approval.
 _Avoid_: Tool call, permission callback
 
 **Approval**:

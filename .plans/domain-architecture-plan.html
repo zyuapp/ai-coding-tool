@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Threadline domain architecture plan</title>
+  <title>Claudex domain architecture plan</title>
   <style>
     :root {
       color-scheme: dark;
@@ -105,7 +105,7 @@
     <main>
       <header id="overview">
         <div class="eyebrow">Investigation · August 15, 2026</div>
-        <h1>Threadline domain architecture plan</h1>
+        <h1>Claudex domain architecture plan</h1>
         <p class="lede">Keep the proven MVP behavior, separate product concepts from Claude, Electron, Git, and localStorage, and break the renderer into feature-owned components without introducing a framework-heavy architecture.</p>
         <div class="decision"><strong>Recommendation:</strong> use two core domains—<b>Task</b> and <b>Run</b>—plus a supporting <b>Workspace</b> security/application module. Approval belongs to Run. Git is a Workspace read adapter. Claude is the first coding-agent adapter, not a domain.</div>
         <p>
@@ -148,7 +148,7 @@
             <tr><td><strong>Task</strong></td><td>A persisted conversation with a title, messages, execution preference, and optional Project.</td><td>Conversation history and Project association; selection remains controller/UI state.</td></tr>
             <tr><td><strong>Run</strong></td><td>One attempt by a coding agent to respond to a prompt for a Task.</td><td><code>running ↔ awaiting approval → succeeded | failed | cancelled</code>. There is no queue yet.</td></tr>
             <tr><td><strong>Continuation</strong></td><td>An opaque provider-owned reference that can resume a later Run.</td><td>Provider identity plus opaque value; the domain does not call it a Claude session.</td></tr>
-            <tr><td><strong>Tool intent</strong></td><td>A proposed agent action that policy can deny, allow, or send for approval.</td><td>Only fields Threadline uses are normalized: tool name, opaque input, effect category/path when known, and approval metadata.</td></tr>
+            <tr><td><strong>Tool intent</strong></td><td>A proposed agent action that policy can deny, allow, or send for approval.</td><td>Only fields Claudex uses are normalized: tool name, opaque input, effect category/path when known, and approval metadata.</td></tr>
             <tr><td><strong>Approval</strong></td><td>A pending user decision for one Tool intent in one Run.</td><td>Run-scoped and expires when that Run ends.</td></tr>
             <tr><td><strong>Change snapshot</strong></td><td>A read-only list of changed files for a Project at a point in time.</td><td>Produced by Git today; not part of Task identity.</td></tr>
             <tr><td><strong>Coding-agent adapter</strong></td><td>Technology-specific implementation that starts and streams Runs.</td><td>Claude Agent SDK now; not a plugin system or bounded context.</td></tr>
@@ -225,7 +225,7 @@
         <div class="requirement"><b>RUN-02</b> — Cancelling or superseding a Run cannot change another Run's state or append to another Task. Only the current Run generation may clear active references or emit terminal state.</div>
         <div class="requirement"><b>RUN-03</b> — Approval is visible only while its Run is awaiting that decision; completion, cancellation, or replacement expires it.</div>
         <div class="requirement"><b>RUN-04</b> — Worker exit or transport loss fails the active Run, expires its approvals, and does not become an uncorrelated generic message.</div>
-        <div class="requirement"><b>DATA-01</b> — Existing <code>threadline.tasks.v1</code>, <code>threadline.projects.v1</code>, and <code>threadline.last-folder.v1</code> data preserves messages, sidebar grouping, last-folder behavior, execution preference, and valid resume capability. A v1 <code>sessionId</code> becomes <code>{ provider: "claude", value: sessionId }</code>.</div>
+        <div class="requirement"><b>DATA-01</b> — Existing <code>claudex.tasks.v1</code>, <code>claudex.projects.v1</code>, and <code>claudex.last-folder.v1</code> data preserves messages, sidebar grouping, last-folder behavior, execution preference, and valid resume capability. A v1 <code>sessionId</code> becomes <code>{ provider: "claude", value: sessionId }</code>.</div>
         <div class="requirement"><b>DATA-02</b> — Invalid persisted data is surfaced and preserved for recovery. Normal write-back remains disabled until recovery or reset; an invalid continuation retains its transcript but is marked non-resumable.</div>
         <div class="requirement"><b>WORK-01</b> — The folder picker returns a main-issued Workspace ID. Agent and Git operations carry only that ID; main resolves it to a canonical root.</div>
         <div class="requirement"><b>WORK-02</b> — Approved Projects re-register after restart from persisted entries, with canonical roots revalidated before use. The renderer cannot register a new arbitrary path.</div>
@@ -304,7 +304,7 @@ npm start</pre>
             <tr><td class="risk-high">High</td><td>Path containment is lexical and only named edit tools are checked; symlinks or shell actions can escape the stated boundary.</td><td>PR 4 canonicalizes existing parents and denies known path escapes. Shell confinement remains out of scope without a provider or OS sandbox.</td></tr>
             <tr><td class="risk-high">High</td><td>IPC accepts arbitrary paths and trusts compile-time types at runtime.</td><td>Use small handwritten guards at the main boundary; no validation dependency is needed yet.</td></tr>
             <tr><td class="risk-medium">Medium</td><td>Changing persisted Task shape can lose resume references or history.</td><td>Keep a tested v1 reader and migrate to the new schema without deleting the source payload.</td></tr>
-            <tr><td class="risk-medium">Medium</td><td>A provider-neutral contract may become a speculative universal API.</td><td>Model only capabilities Threadline uses today. Add optional capabilities or another adapter only when a real provider requires them.</td></tr>
+            <tr><td class="risk-medium">Medium</td><td>A provider-neutral contract may become a speculative universal API.</td><td>Model only capabilities Claudex uses today. Add optional capabilities or another adapter only when a real provider requires them.</td></tr>
             <tr><td>Constraint</td><td>The application intentionally supports one active Run.</td><td>Model correlation now; add scheduling only when parallel execution becomes a product requirement.</td></tr>
           </tbody>
         </table>
@@ -329,7 +329,7 @@ npm start</pre>
       </section>
 
       <footer>
-        Evidence reviewed: <code>src/renderer/App.tsx</code>, <code>src/shared.ts</code>, <code>src/preload.ts</code>, <code>src/main/main.ts</code>, <code>src/main/agent-worker.mts</code>, <code>src/main/path-policy.mts</code>, existing tests, README, commit history, and prior Threadline product tasks. No production code was changed.
+        Evidence reviewed: <code>src/renderer/App.tsx</code>, <code>src/shared.ts</code>, <code>src/preload.ts</code>, <code>src/main/main.ts</code>, <code>src/main/agent-worker.mts</code>, <code>src/main/path-policy.mts</code>, existing tests, README, commit history, and prior Claudex product tasks. No production code was changed.
       </footer>
     </main>
   </div>

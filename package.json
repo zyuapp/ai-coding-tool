@@ -1,7 +1,8 @@
 {
-  "name": "threadline",
+  "name": "claudex",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "A fast local desktop client for Claude coding tasks.",
   "main": "dist/main/main/main.js",
   "scripts": {

@@ -15,10 +15,10 @@ async function git(root, ...args) {
 }
 
 async function repository() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "threadline-git-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "claudex-git-"));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
-  await git(root, "config", "user.name", "Threadline Tests");
+  await git(root, "config", "user.name", "Claudex Tests");
   await writeFile(path.join(root, "tracked.txt"), "one\n");
   await git(root, "add", "tracked.txt");
   await git(root, "commit", "-m", "initial");
@@ -60,7 +60,7 @@ test("numstat totals ignore binary files and renamed path records", () => {
 
 test("changed files reports exact Git summary including safe untracked line counts", async (t) => {
   const root = await repository();
-  const outside = await mkdtemp(path.join(os.tmpdir(), "threadline-outside-"));
+  const outside = await mkdtemp(path.join(os.tmpdir(), "claudex-outside-"));
   t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(outside, { recursive: true, force: true })]); });
   await writeFile(path.join(root, "tracked.txt"), "one\ntwo\n");
   await writeFile(path.join(root, "no-final-newline.txt"), "one\ntwo");
@@ -81,7 +81,7 @@ test("changed files reports exact Git summary including safe untracked line coun
 
 test("changed files reports detached HEAD and non-Git failures", async (t) => {
   const root = await repository();
-  const nonGit = await mkdtemp(path.join(os.tmpdir(), "threadline-not-git-"));
+  const nonGit = await mkdtemp(path.join(os.tmpdir(), "claudex-not-git-"));
   t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(nonGit, { recursive: true, force: true })]); });
   const { stdout } = await git(root, "rev-parse", "--short", "HEAD");
   await git(root, "checkout", "--detach");
