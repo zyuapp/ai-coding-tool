@@ -135,3 +135,53 @@ test("records compaction and updates context usage", () => {
   assert.equal(updated.tasks[0].messages[0].text, "Context auto-compacted: 182,000 → 41,000 tokens.");
   assert.deepEqual(updated.tasks[0].contextUsage, { tokens: 41_000, limit: 200_000, model: "claude-sonnet" });
 });
+
+test("terminal runs finalize only working subagents", () => {
+  for (const [runStatus, subagentStatus] of [["succeeded", "completed"], ["failed", "failed"], ["cancelled", "stopped"]]) {
+    const initial = state();
+    initial.subagents["task-a"] = [
+      { id: "working", description: "Working", status: "working", startedAt: 1, activity: [] },
+      { id: "done", description: "Done", status: "completed", startedAt: 1, finishedAt: 2, activity: [] },
+    ];
+    const terminal = applyRunEvent(initial, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: runStatus });
+    assert.equal(terminal.subagents["task-a"][0].status, subagentStatus);
+    assert.equal(typeof terminal.subagents["task-a"][0].finishedAt, "number");
+    assert.equal(terminal.subagents["task-a"][1].status, "completed");
+    assert.equal(terminal.subagents["task-a"][1].finishedAt, 2);
+  }
+});
+
+test("subagent progress can arrive first and duplicate activity is ignored", () => {
+  const progressed = applyRunEvent(state(), {
+    type: "subagent.progress", taskId: "task-a", runId: "run-a", sequence: 1,
+    id: "agent-1", description: "Inspect", lastToolName: "Read", summary: "Working", totalTokens: 10,
+  });
+  const activity = { type: "subagent.activity", taskId: "task-a", runId: "run-a", id: "agent-1", activityId: "same", kind: "text", text: "Only once" };
+  const once = applyRunEvent(progressed, { ...activity, sequence: 2 });
+  const twice = applyRunEvent(once, { ...activity, sequence: 3 });
+
+  assert.equal(twice.subagents["task-a"][0].status, "working");
+  assert.equal(twice.subagents["task-a"][0].startedAt > 0, true);
+  assert.equal(twice.subagents["task-a"][0].activity.length, 1);
+});
+
+test("assistant chunks, tool intents, and continuation updates preserve order", () => {
+  const first = applyRunEvent(state(), { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-1", text: "one" });
+  const second = applyRunEvent(first, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 2, messageId: "message-1", text: "two" });
+  const tool = applyRunEvent(second, { type: "tool.intent", taskId: "task-a", runId: "run-a", sequence: 3, intent: { toolId: "tool-1", name: "Read", input: { file_path: "src/App.tsx" } } });
+  const continued = applyRunEvent(tool, { type: "continuation.updated", taskId: "task-a", runId: "run-a", sequence: 4, continuation: { provider: "claude", value: "session-1" } });
+
+  assert.equal(continued.tasks[0].messages[0].text, "one\ntwo");
+  assert.equal(continued.tasks[0].messages[1].kind, "tool");
+  assert.deepEqual(continued.tasks[0].continuation, { provider: "claude", value: "session-1" });
+  assert.equal(continued.tasks[0].continuationStatus, "available");
+});
+
+test("compaction failure and unknown post-token count remain visible", () => {
+  const failed = applyRunEvent(state(), { type: "context.compaction-status", taskId: "task-a", runId: "run-a", sequence: 1, compacting: false, error: "Could not compact" });
+  const compacted = applyRunEvent(failed, { type: "context.compacted", taskId: "task-a", runId: "run-a", sequence: 2, trigger: "manual", preTokens: 100_000 });
+
+  assert.equal(failed.activeRun.status, "running");
+  assert.equal(compacted.tasks[0].messages[0].text, "Could not compact");
+  assert.equal(compacted.tasks[0].messages[1].text, "Context manual-compacted at 100,000 tokens.");
+});

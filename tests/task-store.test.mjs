@@ -237,3 +237,94 @@ test("storage read failures return a non-writable error", () => {
   assert.equal(loaded.canWrite, false);
   assert.match(loaded.errors[0], /storage unavailable/);
 });
+
+test("v2 round-trips model, context usage, and archive metadata", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const richTask = {
+    ...migrated.data.tasks[0],
+    model: "opus",
+    contextWindow: "1m",
+    contextUsage: { tokens: 42_000, limit: 1_000_000, model: "claude-opus" },
+    archivedAt: 30,
+  };
+  const data = { ...migrated.data, tasks: [richTask] };
+  const parsed = parseTaskStore(serializeTaskStore(data));
+
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) assert.deepEqual(parsed.data, data);
+});
+
+test("v2 rejects invalid model, context window, and usage values", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const mutations = [
+    (value) => { value.model = "future"; },
+    (value) => { value.contextWindow = "2m"; },
+    (value) => { value.contextUsage = { tokens: -1, limit: 200_000, model: "claude" }; },
+    (value) => { value.contextUsage = { tokens: 1, limit: 0, model: "claude" }; },
+    (value) => { value.contextUsage = { tokens: 1, limit: 200_000, model: "" }; },
+    (value) => { value.archivedAt = Number.NaN; },
+  ];
+  for (const mutate of mutations) {
+    const serialized = serializeTaskStore(migrated.data);
+    const tasks = JSON.parse(serialized.tasks);
+    mutate(tasks.value[0]);
+    const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+    assert.equal(parsed.ok, false);
+  }
+});
+
+test("a corrupt v2 envelope blocks writes instead of falling back to older data", () => {
+  const raw = legacyValues();
+  const memory = new Map([
+    [TASK_STORE_KEYS.v2.envelope, "{broken"],
+    [TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [TASK_STORE_KEYS.v1.projects, raw.projects],
+    [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+  ]);
+  const store = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  });
+
+  const loaded = store.load();
+
+  assert.equal(loaded.ok, false);
+  assert.equal(loaded.sourceVersion, 2);
+  assert.equal(store.save({ version: 2, tasks: [], projects: [], lastFolder: null }).ok, false);
+});
+
+test("a valid v2 envelope takes precedence over split and v1 values", () => {
+  const envelopeData = { version: 2, tasks: [], projects: [], lastFolder: null };
+  const envelope = serializeTaskStore(envelopeData);
+  const split = serializeTaskStore({ version: 2, tasks: [], projects: [], lastFolder: "/split" });
+  const raw = legacyValues();
+  const memory = new Map([
+    [TASK_STORE_KEYS.v2.envelope, JSON.stringify(envelope)],
+    [TASK_STORE_KEYS.v2.tasks, split.tasks],
+    [TASK_STORE_KEYS.v2.projects, split.projects],
+    [TASK_STORE_KEYS.v2.lastFolder, split.lastFolder],
+    [TASK_STORE_KEYS.v1.tasks, raw.tasks],
+    [TASK_STORE_KEYS.v1.projects, raw.projects],
+    [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
+  ]);
+  const loaded = new TaskStore({
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+  }).load();
+
+  assert.equal(loaded.ok, true);
+  if (loaded.ok) assert.deepEqual(loaded.data, envelopeData);
+});
+
+test("v1 migration deduplicates project roots with trailing separators", () => {
+  const result = migrateV1ToV2(legacyValues({ projects: JSON.stringify(["/work/threadline/"]) }));
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/threadline"), root: "/work/threadline" }]);
+  assert.equal(result.data.tasks[0].projectId, result.data.projects[0].id);
+});

@@ -104,6 +104,7 @@ export function useTaskWorkspace() {
   const [state, setState] = useState(() => initialState(store));
   const stateRef = useRef(state);
   const runIds = useRef(new Map<string, string>());
+  const submitting = useRef(false);
 
   useEffect(() => {
     if (!state.writable || state.storageError) return;
@@ -247,7 +248,7 @@ export function useTaskWorkspace() {
   async function sendPrompt() {
     let current = stateRef.current;
     const text = current.prompt.trim();
-    if (!text || current.activeRun) return;
+    if (!text || current.activeRun || submitting.current) return;
     let task = current.tasks.find((item) => item.id === current.currentId);
     const projectId = task?.projectId ?? current.draftProjectId;
     let project = projectId ? current.projects.find((item) => item.id === projectId) : undefined;
@@ -255,15 +256,18 @@ export function useTaskWorkspace() {
       setStateAndRef((state) => ({ ...state, actionError: "This task's project is unavailable. Reopen the project folder before running it." }));
       return;
     }
+    submitting.current = true;
     let workspace: WorkspaceRecord;
     try {
       if (project && !project.workspaceId) {
         const selected = await window.desktop.openFolder();
         if (!selected) {
+          submitting.current = false;
           setStateAndRef((state) => ({ ...state, actionError: "Reopen this project folder before running a task." }));
           return;
         }
         if (selected.root !== project.root) {
+          submitting.current = false;
           setStateAndRef((state) => ({ ...state, actionError: "Choose the same project folder to continue this task." }));
           return;
         }
@@ -279,6 +283,7 @@ export function useTaskWorkspace() {
         workspace = project?.workspaceId ? { id: project.workspaceId, kind: "project", root: project.root } : await window.desktop.projectlessWorkspace();
       }
     } catch (error) {
+      submitting.current = false;
       setStateAndRef((state) => ({ ...state, actionError: error instanceof Error ? error.message : String(error) }));
       return;
     }
@@ -302,6 +307,7 @@ export function useTaskWorkspace() {
     const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, subagents: { ...current.subagents, [task.id]: [] }, actionError: null };
     runIds.current.set(task.id, runId);
     setStateAndRef(nextState);
+    submitting.current = false;
     window.desktop.send({ type: "start", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 

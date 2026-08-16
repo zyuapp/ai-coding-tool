@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, realpath, readdir, rename, rmdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, readdir, rename, rm, rmdir, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -121,4 +121,45 @@ test("rejects unknown IDs and preserves missing roots as unavailable", async () 
   assert.equal(missing.status, "unavailable");
   assert.equal(missing.reason, "missing");
   assert.equal(missing.workspace.id, registered.workspace.id);
+});
+
+test("detects registered roots replaced by a symlink or regular file", async () => {
+  const { directory, registryPath, projectlessRoot } = await setup();
+  const linkedProject = path.join(directory, "linked-project");
+  const linkedProjectOriginal = path.join(directory, "linked-project-original");
+  const replacement = path.join(directory, "replacement");
+  const fileProject = path.join(directory, "file-project");
+  await Promise.all([mkdir(linkedProject), mkdir(replacement), mkdir(fileProject)]);
+  const service = new WorkspaceService({ registryPath, projectlessRoot });
+  const linked = await service.registerProject(linkedProject);
+  const file = await service.registerProject(fileProject);
+
+  await rename(linkedProject, linkedProjectOriginal);
+  await symlink(replacement, linkedProject);
+  await rm(fileProject, { recursive: true });
+  await writeFile(fileProject, "not a directory");
+
+  const changed = await service.resolve(linked.workspace.id);
+  const notDirectory = await service.resolve(file.workspace.id);
+  assert.equal(changed.status, "unavailable");
+  assert.equal(changed.reason, "changed");
+  assert.equal(notDirectory.status, "unavailable");
+  assert.equal(notDirectory.reason, "not-directory");
+});
+
+test("preserves valid JSON with an invalid registry shape before recovery", async () => {
+  const { directory, registryPath, projectlessRoot } = await setup();
+  const project = path.join(directory, "project");
+  await mkdir(project);
+  await mkdir(path.dirname(registryPath), { recursive: true });
+  const malformed = JSON.stringify({ version: 1, workspaces: [{ id: "bad", root: "", kind: "project" }] });
+  await writeFile(registryPath, malformed);
+
+  const registered = await new WorkspaceService({ registryPath, projectlessRoot }).registerProject(project);
+  const entries = await readdir(path.dirname(registryPath));
+  const preserved = entries.find((entry) => entry.startsWith("workspaces.json.corrupt."));
+
+  assert.equal(registered.status, "available");
+  assert.ok(preserved);
+  assert.equal(await readFile(path.join(path.dirname(registryPath), preserved), "utf8"), malformed);
 });

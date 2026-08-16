@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, stat } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { ChangedFilesResult } from "../../contracts/ipc.js";
@@ -27,7 +27,7 @@ async function untrackedLines(root: string, files: string[]) {
     const relative = path.relative(root, candidate);
     if (relative.startsWith("..") || path.isAbsolute(relative)) continue;
     try {
-      const metadata = await stat(candidate);
+      const metadata = await lstat(candidate);
       if (!metadata.isFile() || metadata.size > 5_000_000) continue;
       const contents = await readFile(candidate);
       if (contents.includes(0)) continue;

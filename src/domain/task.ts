@@ -138,13 +138,13 @@ export function migrateV1ToV2(raw: StorageValues): TaskStoreParseResult {
   if (legacyProjectsValue.some((value) => typeof value !== "string")) errors.push("projects must contain only strings");
   if (errors.length) return corrupt(1, errors, raw);
   const legacyTasks = Array.isArray(tasksValue) ? tasksValue : [];
-  const roots = new Set(legacyProjects);
+  const roots = new Set(legacyProjects.map(normalizeRoot));
   for (const value of legacyTasks) {
     if (!isRecord(value)) {
       errors.push("tasks contains a non-object value");
       continue;
     }
-    if (typeof value.folder === "string" && value.folder) roots.add(value.folder);
+    if (typeof value.folder === "string" && value.folder) roots.add(normalizeRoot(value.folder));
   }
 
   const projects = [...roots].map((root) => ({ id: legacyProjectId(root), root }));
@@ -207,7 +207,7 @@ function migrateLegacyTask(
   return {
     id: value.id,
     title: value.title,
-    ...(value.folder ? { projectId: projectByRoot.get(value.folder) ?? legacyProjectId(value.folder) } : {}),
+    ...(value.folder ? { projectId: projectByRoot.get(normalizeRoot(value.folder)) ?? legacyProjectId(value.folder) } : {}),
     executionPolicy: LEGACY_MODES[value.mode],
     messages,
     ...(continuation ? { continuation } : {}),

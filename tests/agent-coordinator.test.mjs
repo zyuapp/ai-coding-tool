@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { applyRunEvent } from "../dist/main/application/task-workspace.js";
+import { ClaudeAgentProvider } from "../dist/main/main/agent/claude-agent-provider.mjs";
 import { RunCoordinator } from "../dist/main/main/agent/run-coordinator.mjs";
 
 const base = (taskId, runId) => ({
@@ -148,4 +150,98 @@ test("write-path policy denies outside paths before creating an approval", async
 
   assert.equal(events.some((event) => event.type === "approval.requested"), false);
   assert.deepEqual(statuses(events, "run-w"), ["running", "failed"]);
+});
+
+test("Claude subagent events reach correlated renderer state", async () => {
+  let closed = false;
+  const provider = new ClaudeAgentProvider(() => ({
+    async *[Symbol.asyncIterator]() {
+      yield { type: "system", subtype: "init", session_id: "session-1" };
+      yield { type: "system", subtype: "task_started", task_id: "agent-1", tool_use_id: "parent-tool", subagent_type: "Explore", description: "Inspect the renderer" };
+      yield {
+        type: "assistant",
+        uuid: "child-message",
+        parent_tool_use_id: "parent-tool",
+        message: { content: [
+          { type: "text", text: "Reading the renderer" },
+          { type: "tool_use", id: "read-1", name: "Read", input: { file_path: "src/renderer/App.tsx" } },
+        ] },
+      };
+      yield { type: "system", subtype: "task_progress", task_id: "agent-1", subagent_type: "Explore", description: "Inspect the renderer", last_tool_name: "Read", summary: "Renderer inspected", usage: { total_tokens: 321 } };
+      yield { type: "system", subtype: "task_notification", task_id: "agent-1", status: "completed", summary: "Renderer inspected" };
+      yield { type: "result", subtype: "success", is_error: false, result: "done" };
+    },
+    close() {
+      closed = true;
+    },
+  }));
+  const events = [];
+  let resolveTerminal;
+  const terminal = new Promise((resolve) => { resolveTerminal = resolve; });
+  const coordinator = new RunCoordinator(provider, (event) => {
+    events.push(event);
+    if (event.type === "run.status" && event.status === "succeeded") resolveTerminal();
+  });
+
+  coordinator.start(base("task-v", "run-v"));
+  await terminal;
+
+  let state = {
+    tasks: [{ id: "task-v", title: "Vertical flow", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
+    activeRun: { taskId: "task-v", runId: "run-v", sequence: 0, status: "running" },
+    lastRunStatus: "running",
+    lastRunTaskId: "task-v",
+    approvals: {},
+    subagents: {},
+  };
+  for (const event of events) state = applyRunEvent(state, event);
+
+  const subagent = state.subagents["task-v"][0];
+  assert.equal(closed, true);
+  assert.deepEqual(events.map((event) => event.sequence), events.map((_, index) => index + 1));
+  assert.deepEqual(state.tasks[0].continuation, { provider: "claude", value: "session-1" });
+  assert.deepEqual(
+    { id: subagent.id, description: subagent.description, agentType: subagent.agentType, status: subagent.status, lastToolName: subagent.lastToolName, summary: subagent.summary, totalTokens: subagent.totalTokens },
+    { id: "agent-1", description: "Inspect the renderer", agentType: "Explore", status: "completed", lastToolName: "Read", summary: "Renderer inspected", totalTokens: 321 },
+  );
+  assert.deepEqual(subagent.activity.map(({ id, kind, title, text }) => ({ id, kind, title, text })), [
+    { id: "child-message:text", kind: "text", title: undefined, text: "Reading the renderer" },
+    { id: "read-1", kind: "tool", title: "Read", text: JSON.stringify({ file_path: "src/renderer/App.tsx" }, null, 2) },
+  ]);
+  assert.equal(state.activeRun, null);
+});
+
+test("coordinator forwards every provider event with one ordered sequence", async () => {
+  const events = [];
+  const providerEvents = [
+    { type: "assistant", messageId: "message-1", text: "hello" },
+    { type: "usage", tokens: 10, limit: 200_000, model: "claude" },
+    { type: "compaction-status", compacting: true },
+    { type: "compaction", trigger: "manual", preTokens: 10 },
+    { type: "tool", intent: { toolId: "tool-1", name: "Read", input: {} } },
+    { type: "continuation", continuation: { provider: "claude", value: "session-1" } },
+  ];
+  const provider = { execute: async (input) => {
+    for (const event of providerEvents) input.emit(event);
+    return { status: "succeeded" };
+  } };
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-events", "run-events"));
+  await tick();
+
+  assert.deepEqual(events.slice(2, -1).map((event) => event.type), ["assistant.delta", "context.usage", "context.compaction-status", "context.compacted", "tool.intent", "continuation.updated"]);
+  assert.deepEqual(events.map((event) => event.sequence), events.map((_, index) => index + 1));
+  assert.equal(events.at(-1).status, "succeeded");
+});
+
+test("coordinator converts a thrown provider error into one failure", async () => {
+  const events = [];
+  const coordinator = new RunCoordinator({ execute: async () => { throw new Error("provider exploded"); } }, (event) => events.push(event));
+
+  coordinator.start(base("task-throw", "run-throw"));
+  await tick();
+
+  assert.deepEqual(statuses(events, "run-throw"), ["running", "failed"]);
+  assert.equal(events.at(-1).message, "provider exploded");
 });

@@ -49,3 +49,45 @@ test("run event guard accepts tool intents without a write path", () => {
     intent: { toolId: "tool-1", name: "Read", input: {}, writePath: undefined },
   }), true);
 });
+
+test("run event guard validates every subagent event", () => {
+  const base = { taskId: "task-1", runId: "run-1", sequence: 1, id: "agent-1" };
+  const valid = [
+    { ...base, type: "subagent.started", description: "Inspect", agentType: "Explore" },
+    { ...base, type: "subagent.progress", description: "Inspect", lastToolName: "Read", summary: "Done", totalTokens: 42 },
+    { ...base, type: "subagent.activity", activityId: "activity-1", kind: "text", text: "Working" },
+    { ...base, type: "subagent.activity", activityId: "activity-2", kind: "tool", title: "Read", text: "{}" },
+    { ...base, type: "subagent.finished", status: "completed", summary: "Done" },
+    { ...base, type: "subagent.finished", status: "failed", summary: "Failed" },
+    { ...base, type: "subagent.finished", status: "stopped", summary: "" },
+  ];
+  for (const event of valid) assert.equal(isRunEvent(event), true, event.type);
+
+  const invalid = [
+    { ...valid[0], description: "" },
+    { ...valid[1], totalTokens: -1 },
+    { ...valid[1], totalTokens: Number.NaN },
+    { ...valid[2], activityId: "" },
+    { ...valid[2], kind: "image" },
+    { ...valid[3], title: 42 },
+    { ...valid[4], status: "working" },
+    { ...valid[4], summary: 42 },
+  ];
+  for (const event of invalid) assert.equal(isRunEvent(event), false, JSON.stringify(event));
+});
+
+test("run guards enforce numeric and string boundaries", () => {
+  assert.equal(isRunCommand({ ...command, taskId: "x".repeat(256), prompt: "x".repeat(1_000_000) }), true);
+  assert.equal(isRunCommand({ ...command, taskId: "x".repeat(257) }), false);
+  assert.equal(isRunCommand({ ...command, prompt: "x".repeat(1_000_001) }), false);
+  assert.equal(isRunCommand({ ...command, model: "future-model" }), false);
+  assert.equal(isRunCommand({ ...command, contextWindow: "2m" }), false);
+  assert.equal(isRunCommand({ ...command, continuation: { provider: "", value: "session" } }), false);
+
+  const usage = { type: "context.usage", taskId: "task-1", runId: "run-1", sequence: 1, tokens: 0, limit: 1, model: "claude" };
+  assert.equal(isRunEvent(usage), true);
+  assert.equal(isRunEvent({ ...usage, sequence: 0 }), false);
+  assert.equal(isRunEvent({ ...usage, sequence: 1.5 }), false);
+  assert.equal(isRunEvent({ ...usage, tokens: -1 }), false);
+  assert.equal(isRunEvent({ ...usage, limit: 0 }), false);
+});

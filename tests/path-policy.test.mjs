@@ -19,11 +19,15 @@ test("canonical write targets stay inside the selected project", async () => {
   const outsideFile = path.join(outside, "outside.txt");
   const targetLink = path.join(root, "target-link");
   const parentLink = path.join(root, "parent-link");
+  const loopA = path.join(root, "loop-a");
+  const loopB = path.join(root, "loop-b");
 
   await mkdir(inside);
   await writeFile(outsideFile, "outside");
   await symlink(outsideFile, targetLink);
   await symlink(outside, parentLink);
+  await symlink(loopB, loopA);
+  await symlink(loopA, loopB);
 
   assert.equal(await isWritePathInside(root, path.join(root, "src", "file.txt")), true);
   assert.equal(await isWritePathInside(root, "src/new-file.txt"), true);
@@ -35,4 +39,5 @@ test("canonical write targets stay inside the selected project", async () => {
   assert.equal(await isWritePathInside(root, path.join(root, "src", "..", "..", "outside.txt")), false);
   assert.equal(await isWritePathInside(root, targetLink), false);
   assert.equal(await isWritePathInside(root, path.join(parentLink, "new.txt")), false);
+  assert.equal(await isWritePathInside(root, path.join(loopA, "new.txt")), false);
 });
