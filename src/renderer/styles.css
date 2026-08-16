@@ -40,11 +40,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 
 .sidebar {
+  position: relative;
   width: 330px;
   min-width: 220px;
   max-width: 50vw;
-  resize: horizontal;
-  overflow: auto;
+  overflow: visible;
   flex: 0 0 auto;
   padding: 0 10px 18px;
   background: var(--sidebar);
@@ -52,6 +52,17 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   display: flex;
   flex-direction: column;
 }
+.sidebar-resizer {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sidebar-resizer:hover, .sidebar-resizer:focus-visible { background: #3a414b; }
 
 .traffic-space { height: 48px; flex: 0 0 auto; -webkit-app-region: drag; }
 .brand-row {

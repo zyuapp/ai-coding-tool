@@ -67,6 +67,11 @@ export function ProjectSidebar({
   onSelectTask,
   onArchiveTask,
 }: ProjectSidebarProps) {
+  function resizeSidebar(target: HTMLElement, clientX: number) {
+    const sidebar = target.parentElement;
+    if (sidebar) sidebar.style.width = `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`;
+  }
+
   const taskRow = (task: Task, className: string, content: React.ReactNode) => (
     <div className="task-entry" key={task.id}>
       <button
@@ -190,6 +195,22 @@ export function ProjectSidebar({
           )}
         </nav>}
       </div>
+      <div
+        className="sidebar-resizer"
+        role="separator"
+        aria-label="Resize sidebar"
+        aria-orientation="vertical"
+        tabIndex={0}
+        onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+        onPointerMove={(event) => {
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeSidebar(event.currentTarget, event.clientX);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          const sidebar = event.currentTarget.parentElement;
+          if (sidebar) resizeSidebar(event.currentTarget, sidebar.getBoundingClientRect().right + (event.key === "ArrowLeft" ? -10 : 10));
+        }}
+      />
     </aside>
   );
 }
