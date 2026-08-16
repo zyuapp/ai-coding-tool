@@ -287,6 +287,14 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-row span { font-size: var(--text-body); line-height: 1.3; }
 .task-row small { margin-top: 5px; color: #686d74; font-size: var(--text-micro); }
 .task-row.active small { color: #85898f; }
+.folder-button > span:nth-child(2),
+.project-main > span:last-child,
+.project-task-row > span:first-child,
+.task-row span,
+.task-row small {
+  text-overflow: clip;
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
 .sidebar-empty { margin: 8px 11px; color: #55595e; font-size: var(--text-body); line-height: 1.5; }
 
 .workspace {
