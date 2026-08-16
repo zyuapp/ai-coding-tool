@@ -56,7 +56,7 @@ export function App() {
       />
 
       <section className="workspace">
-        <WorkspaceHeader currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} />
+        <WorkspaceHeader currentTask={workspace.currentTask} folder={workspace.folder} />
         {(workspace.storageError || workspace.actionError) && (
           <p className="storage-error" role="alert">{workspace.storageError || workspace.actionError}</p>
         )}

@@ -11,10 +11,9 @@ function FolderIcon() {
 export type WorkspaceHeaderProps = {
   currentTask?: Task;
   folder: string;
-  status: "idle" | "running" | "stopped";
 };
 
-export function WorkspaceHeader({ currentTask, folder, status }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder }: WorkspaceHeaderProps) {
   return (
     <header className="topbar">
       <div className="task-heading">
@@ -25,9 +24,6 @@ export function WorkspaceHeader({ currentTask, folder, status }: WorkspaceHeader
         </div>
       </div>
       <div className="topbar-actions">
-        <div className={`run-state ${status}`}>
-          <span /> {status === "running" ? "Working" : status === "stopped" ? "Stopped" : "Ready"}
-        </div>
         {currentTask && (
           <details className="changes-menu">
             <summary>

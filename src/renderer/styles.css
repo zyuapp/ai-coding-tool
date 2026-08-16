@@ -341,19 +341,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   white-space: nowrap;
 }
 .topbar-actions { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
-.run-state {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 31px;
-  padding: 0 10px;
-  color: #7e8389;
-  font-size: var(--text-small);
-}
-.run-state > span { width: 6px; height: 6px; border-radius: 50%; background: #676c73; }
-.run-state.running > span { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
-.run-state.idle > span { background: var(--success); }
-
 .changes-menu { position: relative; }
 .changes-menu > summary {
   display: flex;
@@ -581,7 +568,6 @@ pre {
   cursor: pointer;
 }
 
-@keyframes pulse { 50% { opacity: 0.35; transform: scale(0.78); } }
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; transition: none !important; } }
@@ -589,7 +575,6 @@ pre {
 @media (max-width: 820px) {
   .conversation { padding-inline: 28px; }
   .composer-wrap { padding-inline: 24px; }
-  .run-state { display: none; }
   .message.user .message-text { max-width: 85%; }
 }
 
