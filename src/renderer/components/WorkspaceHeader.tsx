@@ -14,14 +14,14 @@ export type WorkspaceHeaderProps = {
   folder: string;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
-  inspectorOpen: boolean;
+  rightDockOpen: boolean;
   workingSubagents: number;
   onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
-  onToggleInspector: () => void;
+  onToggleRightDock: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, inspectorOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleInspector }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className="topbar">
       <div className="task-heading">
@@ -52,12 +52,11 @@ export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanel
           {workingSubagents > 0 && <span>{workingSubagents}</span>}
         </button>
         <button
-          className={`session-toggle ${inspectorOpen ? "active" : ""}`}
+          className={`session-toggle ${rightDockOpen ? "active" : ""}`}
           type="button"
-          aria-label={`${inspectorOpen ? "Hide" : "Show"} subagent details`}
-          aria-pressed={inspectorOpen}
-          disabled={!inspectorOpen}
-          onClick={onToggleInspector}
+          aria-label={`${rightDockOpen ? "Hide" : "Show"} right panel`}
+          aria-pressed={rightDockOpen}
+          onClick={onToggleRightDock}
         >
           <PanelRight size={19} aria-hidden="true" />
         </button>

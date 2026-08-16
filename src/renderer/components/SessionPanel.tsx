@@ -75,3 +75,33 @@ export function SessionPanel({ environment, hasProject, subagents, onSelect }: S
     </aside>
   );
 }
+
+export function AgentsPanel({ subagents, onSelect }: Pick<SessionPanelProps, "subagents" | "onSelect">) {
+  const working = subagents.filter((subagent) => subagent.status === "working").length;
+
+  return (
+    <section className="agents-panel" aria-label="Agents">
+      <header className="agents-panel-heading">
+        <div><h2>Subagents</h2><p>Work delegated from this task</p></div>
+        {working > 0 && <span>{working} working</span>}
+      </header>
+      {subagents.length === 0 ? (
+        <div className="agents-panel-empty">
+          <span className="agent-orb"><Bot size={17} /></span>
+          <h2>No subagents yet</h2>
+          <p>Subagents created by the main task will appear here.</p>
+        </div>
+      ) : (
+        <div className="subagent-list agents-panel-list" aria-live="polite">
+          {subagents.map((subagent) => (
+            <button key={subagent.id} onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
+              <span className={`agent-orb ${subagent.status}`}><Bot size={15} /></span>
+              <span><strong>{subagent.description}</strong><small>{subagent.lastToolName ? `Using ${subagent.lastToolName}` : statusLabel(subagent.status)}</small></span>
+              <StatusIcon status={subagent.status} />
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}

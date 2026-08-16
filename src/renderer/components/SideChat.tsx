@@ -26,7 +26,7 @@ function initialState(source: Task): SideState {
   return { tasks: [task], activeRun: null, lastRunStatus: "idle", lastRunTaskId: null, approvals: {}, prompt: "", error: null };
 }
 
-export function SideChat({ source, project, onClose }: { source: Task; project?: Project; onClose: () => void }) {
+export function SideChat({ source, project, title = "Side chat", onClose }: { source: Task; project?: Project; title?: string; onClose: () => void }) {
   const [state, setState] = useState(() => initialState(source));
   const stateRef = useRef(state);
   const submitting = useRef(false);
@@ -40,11 +40,14 @@ export function SideChat({ source, project, onClose }: { source: Task; project?:
     setState(resolved);
   }
 
-  useEffect(() => window.desktop.onAgentEvent((event: RunEvent) => {
-    const active = stateRef.current.activeRun;
-    if (!active || event.taskId !== active.taskId || event.runId !== active.runId) return;
-    update((current) => applyRunEvent(current, event));
-  }), []);
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    return window.desktop.onAgentEvent((event: RunEvent) => {
+      const active = stateRef.current.activeRun;
+      if (!active || event.taskId !== active.taskId || event.runId !== active.runId) return;
+      update((current) => applyRunEvent(current, event));
+    });
+  }, []);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
@@ -110,7 +113,7 @@ export function SideChat({ source, project, onClose }: { source: Task; project?:
       <header className="side-chat-header">
         <div className="side-chat-title">
           <span className="side-chat-fork"><GitFork size={17} /></span>
-          <div><h2>Side chat</h2><p>Temporary · forked from {source.title}</p></div>
+          <div><h2>{title}</h2><p>Temporary · forked from {source.title}</p></div>
         </div>
         <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>
       </header>

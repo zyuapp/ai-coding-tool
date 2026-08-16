@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { Bot, GitFork, Plus, X } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
-import { SessionPanel } from "./components/SessionPanel";
+import { AgentsPanel, SessionPanel } from "./components/SessionPanel";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
 import { TaskComposer } from "./components/TaskComposer";
@@ -12,20 +13,46 @@ import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const sideChatSequence = useRef(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [rightPanel, setRightPanel] = useState<"session" | "side" | null>(() => window.innerWidth >= 1400 ? "session" : null);
+  const [sideChats, setSideChats] = useState<{ id: string; title: string }[]>([]);
+  const [sessionPanelOpen, setSessionPanelOpen] = useState(() => window.innerWidth >= 1400);
+  const [rightDockOpen, setRightDockOpen] = useState(false);
+  const [activeRightTab, setActiveRightTab] = useState("agents");
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
-  const sessionPanelOpen = rightPanel === "session";
-  const sideChatOpen = rightPanel === "side";
+
+  function addSideChat() {
+    sideChatSequence.current += 1;
+    const chat = { id: crypto.randomUUID(), title: `Chat ${sideChatSequence.current}` };
+    setSideChats((current) => [...current, chat]);
+    setActiveRightTab(chat.id);
+    setSessionPanelOpen(false);
+    setRightDockOpen(true);
+  }
+
+  function openRightTab(id: string) {
+    setActiveRightTab(id);
+    setSessionPanelOpen(false);
+    setRightDockOpen(true);
+  }
+
+  function closeSideChat(id: string) {
+    const index = sideChats.findIndex((chat) => chat.id === id);
+    setSideChats((current) => current.filter((chat) => chat.id !== id));
+    if (activeRightTab === id) setActiveRightTab(sideChats[index - 1]?.id ?? sideChats[index + 1]?.id ?? "agents");
+  }
 
   useEffect(() => {
     if (selectedSubagent && !workspace.subagents.some((subagent) => subagent.id === selectedSubagent)) setSelectedSubagent(null);
   }, [workspace.currentTask?.id, workspace.subagents, selectedSubagent]);
 
   useEffect(() => {
-    setRightPanel((panel) => panel === "side" ? null : panel);
+    setSideChats([]);
+    sideChatSequence.current = 0;
+    setActiveRightTab("agents");
+    setSelectedSubagent(null);
   }, [workspace.currentTask?.id]);
 
   useEffect(() => {
@@ -73,20 +100,23 @@ export function App() {
       />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
 
-      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${sideChatOpen ? "side-open" : ""} ${inspectedSubagent ? "inspector-open" : ""}`}>
+      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
           sidebarOpen={sidebarOpen}
           sessionPanelOpen={sessionPanelOpen}
-          inspectorOpen={Boolean(inspectedSubagent)}
+          rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
-            setSelectedSubagent(null);
-            setRightPanel((panel) => panel === "session" ? null : "session");
+            setRightDockOpen(false);
+            setSessionPanelOpen((open) => !open);
           }}
-          onToggleInspector={() => setSelectedSubagent(null)}
+          onToggleRightDock={() => {
+            setSessionPanelOpen(false);
+            setRightDockOpen((open) => !open);
+          }}
         />
         {(workspace.storageError || workspace.actionError) && (
           <p className="storage-error" role="alert">{workspace.storageError || workspace.actionError}</p>
@@ -105,25 +135,48 @@ export function App() {
             hasProject={Boolean(workspace.folder)}
             subagents={workspace.subagents}
             onSelect={(id) => {
-              setRightPanel(null);
               setSelectedSubagent(id);
+              openRightTab("agents");
             }}
           />
         )}
 
-        {sideChatOpen && workspace.currentTask && (
-          <SideChat
-            key={workspace.currentTask.id}
-            source={workspace.currentTask}
-            project={workspace.currentProject}
-            onClose={() => setRightPanel(null)}
-          />
-        )}
-
-        {inspectedSubagent && <SubagentInspector subagent={inspectedSubagent} onClose={() => {
-          setSelectedSubagent(null);
-          setRightPanel("session");
-        }} />}
+        <aside className="right-dock" aria-label="Right panel" hidden={!rightDockOpen}>
+            <div className="right-dock-tabs">
+              <div role="tablist" aria-label="Right panel tabs">
+                <button className={activeRightTab === "agents" ? "active" : ""} type="button" role="tab" aria-selected={activeRightTab === "agents"} onClick={() => openRightTab("agents")}>
+                  <Bot size={15} aria-hidden="true" /><span>Agents</span>
+                  {workingSubagents > 0 && <em>{workingSubagents}</em>}
+                </button>
+                {sideChats.map((chat) => (
+                  <div className={`right-dock-chat-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
+                    <button type="button" role="tab" aria-selected={activeRightTab === chat.id} onClick={() => setActiveRightTab(chat.id)}><GitFork size={14} aria-hidden="true" /><span>{chat.title}</span></button>
+                    <button type="button" aria-label={`Close ${chat.title}`} onClick={() => closeSideChat(chat.id)}><X size={13} /></button>
+                  </div>
+                ))}
+              </div>
+              <details className="right-dock-add">
+                <summary aria-label="Add right panel tab"><Plus size={18} /></summary>
+                <div>
+                  <button type="button" onClick={(event) => { openRightTab("agents"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Bot size={16} />Agents</button>
+                  <button type="button" disabled={!workspace.currentTask} onClick={(event) => { addSideChat(); event.currentTarget.closest("details")?.removeAttribute("open"); }}><GitFork size={16} />Side chat</button>
+                </div>
+              </details>
+              <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => setRightDockOpen(false)}><X size={17} /></button>
+            </div>
+            <div className="right-dock-content">
+              <div hidden={activeRightTab !== "agents"}>
+                {inspectedSubagent ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} /> : (
+                  <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />
+                )}
+              </div>
+              {workspace.currentTask && sideChats.map((chat) => (
+                <div key={chat.id} hidden={activeRightTab !== chat.id}>
+                  <SideChat source={workspace.currentTask!} project={workspace.currentProject} title={chat.title} onClose={() => closeSideChat(chat.id)} />
+                </div>
+              ))}
+            </div>
+        </aside>
 
         <TaskComposer
           prompt={workspace.prompt}
@@ -141,7 +194,7 @@ export function App() {
             if (workspace.prompt.trim() === "/side") {
               workspace.actions.setPrompt("");
               setSelectedSubagent(null);
-              setRightPanel("side");
+              addSideChat();
               return;
             }
             void workspace.actions.sendPrompt();

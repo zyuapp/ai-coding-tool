@@ -312,8 +312,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   grid-template-rows: 72px minmax(0, 1fr) auto;
   background: var(--canvas);
 }
-.workspace.inspector-open { grid-template-columns: minmax(0, 1fr) minmax(380px, 42vw); }
-.workspace.side-open { grid-template-columns: minmax(0, 1fr) minmax(360px, 38vw); }
+.workspace.dock-open { grid-template-columns: minmax(0, 1fr) clamp(380px, 40vw, 620px); }
 .topbar {
   position: relative;
   z-index: 3;
@@ -387,6 +386,64 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .work-area { min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
 .workspace.summary-open .work-area,
 .workspace.summary-open .composer-wrap { margin-right: 282px; }
+.right-dock {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 50px minmax(0, 1fr);
+  overflow: hidden;
+  border-left: 1px solid var(--line);
+  background: #11151b;
+  grid-column: 2;
+  grid-row: 1 / 4;
+  animation: inspector-in 160ms ease-out;
+}
+.right-dock[hidden] { display: none; }
+.right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+.right-dock-tabs > div:first-child { min-width: 0; flex: 1; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.right-dock-tabs > div::-webkit-scrollbar { display: none; }
+.right-dock-tabs [role="tab"], .right-dock-chat-tab {
+  min-width: 0;
+  height: 36px;
+  flex: 0 1 150px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0 9px;
+  background: transparent;
+  color: #747a82;
+}
+.right-dock-tabs [role="tab"] { cursor: pointer; }
+.right-dock-tabs [role="tab"]:hover, .right-dock-chat-tab:hover { background: #171b21; color: #b4b5b2; }
+.right-dock-tabs [role="tab"].active, .right-dock-chat-tab.active { border-color: #292f38; background: #1b2028; color: #d5d3ce; }
+.right-dock-tabs [role="tab"] > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-control); }
+.right-dock-tabs [role="tab"] > em { min-width: 17px; height: 17px; display: grid; place-items: center; margin-left: auto; border-radius: 9px; background: #315e8e; color: #e9f2fc; font-size: var(--text-badge); font-style: normal; }
+.right-dock-chat-tab { flex: 0 1 150px; padding: 0 4px 0 0; }
+.right-dock-chat-tab > [role="tab"] { flex: 1; border: 0; padding-right: 2px; background: transparent; color: inherit; }
+.right-dock-chat-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #626871; cursor: pointer; }
+.right-dock-chat-tab > button:last-child:hover { background: #292f37; color: #d0cfca; }
+.right-dock-add { position: relative; flex: 0 0 auto; }
+.right-dock-add summary, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #737980; cursor: pointer; list-style: none; }
+.right-dock-add summary::-webkit-details-marker { display: none; }
+.right-dock-add summary:hover, .right-dock-add[open] summary, .right-dock-hide:hover { background: #1b2027; color: #c7c6c2; }
+.right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 174px; display: grid; gap: 3px; border: 1px solid #2b3139; border-radius: 11px; padding: 6px; background: #1a1f27; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42); }
+.right-dock-add button { display: flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; padding: 9px 10px; background: transparent; color: #c9c8c4; text-align: left; cursor: pointer; }
+.right-dock-add button:hover { background: #242a33; }
+.right-dock-add button:disabled { color: #555b63; cursor: default; }
+.right-dock-content, .right-dock-content > div { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+.right-dock-content > [hidden] { display: none; }
+.right-dock .subagent-inspector { height: 100%; border-left: 0; }
+.agents-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
+.agents-panel-heading h2 { margin: 0; color: #d2d0cb; font-size: var(--text-heading); font-weight: 580; }
+.agents-panel-heading p { margin: 4px 0 0; color: #636a73; font-size: var(--text-meta); }
+.agents-panel-heading > span { color: #7695b8; font-size: var(--text-meta); }
+.agents-panel-list { min-height: 0; overflow: auto; margin: 0; padding: 14px; }
+.agents-panel-list button { padding: 11px 10px; }
+.agents-panel-empty { flex: 1; display: grid; place-content: center; justify-items: center; padding: 24px 24px 10vh; text-align: center; }
+.agents-panel-empty h2 { margin: 15px 0 7px; color: #c9c8c4; font-size: var(--text-heading); font-weight: 560; }
+.agents-panel-empty p { max-width: 290px; margin: 0; color: #676d75; font-size: var(--text-control); line-height: 1.5; }
 .conversation {
   min-width: 0;
   flex: 1;
@@ -577,9 +634,7 @@ pre {
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: #11151b;
-  grid-column: 2;
-  grid-row: 1 / 4;
-  animation: inspector-in 160ms ease-out;
+  height: 100%;
 }
 .side-chat-header {
   min-width: 0;
@@ -982,7 +1037,6 @@ pre {
   .topbar { min-width: 0; gap: 8px; padding-inline: 16px; }
   .task-heading { flex: 1; gap: 8px; }
   .task-heading h1, .task-heading p { max-width: none; }
-  .workspace-controls .session-toggle:disabled { display: none; }
   .session-panel { top: 82px; right: 12px; width: calc(100% - 24px); max-height: calc(100% - 94px); }
   .conversation { padding: 36px 18px 56px; }
   .composer-wrap { padding: 10px 14px 14px; }
@@ -992,7 +1046,7 @@ pre {
 }
 
 @media (max-width: 760px) {
-  .workspace.side-open { display: block; }
-  .workspace.side-open > :not(.side-chat) { visibility: hidden; }
-  .side-chat { position: absolute; z-index: 30; inset: 0; border-left: 0; }
+  .workspace.dock-open { display: block; }
+  .workspace.dock-open > :not(.right-dock) { visibility: hidden; }
+  .right-dock { position: absolute; z-index: 30; inset: 0; border-left: 0; }
 }

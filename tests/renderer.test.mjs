@@ -139,31 +139,32 @@ test("side chat forks once and never changes the main continuation", async () =>
   await view.unmount();
 });
 
-test("workspace header exposes session and inspector controls", async () => {
+test("workspace header keeps session summary and right panel controls separate", async () => {
   let sidebarToggles = 0;
   let summaryToggles = 0;
-  let inspectorToggles = 0;
+  let rightPanelToggles = 0;
   const view = await mount(React.createElement(WorkspaceHeader, {
     folder: "/project",
     sidebarOpen: false,
     sessionPanelOpen: true,
-    inspectorOpen: true,
+    rightDockOpen: true,
     workingSubagents: 2,
     onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
-    onToggleInspector: () => { inspectorToggles += 1; },
+    onToggleRightDock: () => { rightPanelToggles += 1; },
   }));
 
+  assert.equal(view.container.querySelector('button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
   assert.equal(view.container.querySelector('button[aria-label="Hide session summary"]').getAttribute("aria-pressed"), "true");
   assert.match(view.container.textContent, /2/);
   await act(async () => {
     view.container.querySelector('button[aria-label="Show sidebar"]').click();
     view.container.querySelector('button[aria-label="Hide session summary"]').click();
-    view.container.querySelector('button[aria-label="Hide subagent details"]').click();
+    view.container.querySelector('button[aria-label="Hide right panel"]').click();
   });
   assert.equal(sidebarToggles, 1);
   assert.equal(summaryToggles, 1);
-  assert.equal(inspectorToggles, 1);
+  assert.equal(rightPanelToggles, 1);
   await view.unmount();
 });
 
@@ -226,17 +227,50 @@ function seedTaskWithSubagent() {
   }));
 }
 
-test("closing subagent details returns to the session panel", async () => {
+test("closing subagent details returns to the agents tab", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Open Complete agent details"]').click(); });
+  assert.ok(view.container.querySelector(".subagent-inspector"));
+  await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
+  assert.ok(view.container.querySelector('.agents-panel button[aria-label="Open Complete agent details"]'));
+
+  await view.unmount();
+});
+
+test("session summary stays outside the tabbed right panel", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
   await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
+  assert.ok(view.container.querySelector('.workspace > .session-panel'));
+  assert.equal(view.container.querySelector('.right-dock .session-panel'), null);
   await act(async () => { view.container.querySelector('button[aria-label="Open Complete agent details"]').click(); });
-  assert.ok(view.container.querySelector(".subagent-inspector"));
-  await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
-  assert.ok(view.container.querySelector('.session-panel button[aria-label="Open Complete agent details"]'));
+  assert.equal(view.container.querySelector('.workspace > .session-panel'), null);
+  assert.ok(view.container.querySelector('.right-dock .subagent-inspector'));
 
+  await view.unmount();
+});
+
+test("right panel keeps multiple side chats mounted as tabs", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  const add = view.container.querySelector('summary[aria-label="Add right panel tab"]');
+  await act(async () => { add.click(); });
+  await act(async () => { [...view.container.querySelectorAll('.right-dock-add button')].find((button) => button.textContent.includes("Side chat")).click(); });
+  await act(async () => { add.click(); });
+  await act(async () => { [...view.container.querySelectorAll('.right-dock-add button')].find((button) => button.textContent.includes("Side chat")).click(); });
+
+  assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 3);
+  assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 2);
   await view.unmount();
 });
 
