@@ -1,0 +1,3 @@
+# How we work
+- UI is very important to us. Everytime you finish any UI changes, start the application, take screenshots of the changes in all screen sizes, and show it to me. Double check the screenshots to make sure everything still assessble in all screen sizes. Ensure there is no UI overlap or misalignment. Font sizes should be consistent across all UI. Icon sizes should be consistent across all UI. 
+- We are the sole owners of the codebase. No need to make branches for any changes. We are allowed to make quick changes and push them directly to the main branch. 
