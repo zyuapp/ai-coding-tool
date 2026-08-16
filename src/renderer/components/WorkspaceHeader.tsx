@@ -23,30 +23,6 @@ export function WorkspaceHeader({ currentTask, folder }: WorkspaceHeaderProps) {
           <p title={folder}>{folder || "Choose a project folder to begin"}</p>
         </div>
       </div>
-      <div className="topbar-actions">
-        {currentTask && (
-          <details className="changes-menu">
-            <summary>
-                  Changes <span>{currentTask.lastChangeSnapshot.files.length}</span>
-            </summary>
-            <div className="changes-popover">
-              <strong>Changed files</strong>
-              {currentTask.lastChangeSnapshot.files.length ? (
-                <ul>
-                  {currentTask.lastChangeSnapshot.files.map((file) => (
-                    <li key={file} title={file}>
-                      <span className={`file-status status-${file.trim()[0]}`}>{file.slice(0, 2).trim()}</span>
-                      <span>{file.slice(3)}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p>Working tree is clean.</p>
-              )}
-            </div>
-          </details>
-        )}
-      </div>
     </header>
   );
 }

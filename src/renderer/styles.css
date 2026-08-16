@@ -340,53 +340,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.topbar-actions { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
-.changes-menu { position: relative; }
-.changes-menu > summary {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 32px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 0 10px;
-  color: #9a9da1;
-  background: #13171d;
-  font-size: var(--text-small);
-  cursor: pointer;
-  list-style: none;
-}
-.changes-menu > summary::-webkit-details-marker { display: none; }
-.changes-menu > summary span { color: #6f747a; font-variant-numeric: tabular-nums; }
-.changes-menu[open] > summary { background: var(--surface-raised); color: #c9c8c4; }
-.changes-popover {
-  position: absolute;
-  top: 39px;
-  right: 0;
-  width: 310px;
-  max-height: 340px;
-  overflow: auto;
-  border: 1px solid #313740;
-  border-radius: 11px;
-  padding: 13px;
-  background: #171b21;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.42);
-}
-.changes-popover > strong { font-size: var(--text-small); font-weight: 600; }
-.changes-popover > p { margin: 13px 0 2px; color: var(--muted); font-size: var(--text-small); }
-.changes-popover ul { list-style: none; padding: 9px 0 0; margin: 0; }
-.changes-popover li {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 7px;
-  padding: 6px 2px;
-  font: var(--text-micro)/1.35 ui-monospace, "SFMono-Regular", Menlo, monospace;
-}
-.changes-popover li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-status { color: #cba36c; font-weight: 700; }
-.status-M, .status-A { color: var(--success); }
-.status-D { color: var(--danger); }
-
 .work-area { min-height: 0; display: flex; }
 .conversation {
   min-width: 0;
@@ -585,6 +538,4 @@ pre {
   .task-heading h1, .task-heading p { max-width: 58vw; }
   .conversation { padding: 36px 18px 56px; }
   .composer-wrap { padding: 10px 14px 14px; }
-  .changes-menu > summary { font-size: 0; }
-  .changes-menu > summary span { font-size: 11px; }
 }
