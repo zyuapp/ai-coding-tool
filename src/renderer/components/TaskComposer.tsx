@@ -1,4 +1,4 @@
-import type { ExecutionPolicy } from "../../domain/run";
+import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 
 const modes: { value: ExecutionPolicy; label: string; description: string; glyph: string }[] = [
   { value: "confirm", label: "Ask for approval", description: "Ask before using tools or changing files", glyph: "✋" },
@@ -11,9 +11,13 @@ export type TaskComposerProps = {
   prompt: string;
   folder: string;
   mode: ExecutionPolicy;
+  model: AgentModel;
+  contextWindow: ContextWindow;
   runActive: boolean;
   onPromptChange: (prompt: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
+  onModelChange: (model: AgentModel) => void;
+  onContextWindowChange: (contextWindow: ContextWindow) => void;
   onSend: () => void;
   onCancel: () => void;
 };
@@ -22,9 +26,13 @@ export function TaskComposer({
   prompt,
   folder,
   mode,
+  model,
+  contextWindow,
   runActive,
   onPromptChange,
   onModeChange,
+  onModelChange,
+  onContextWindowChange,
   onSend,
   onCancel,
 }: TaskComposerProps) {
@@ -45,6 +53,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
+          <div className="composer-settings">
           <details className="permission-menu">
             <summary aria-label="Permission mode">
               <span className="permission-summary-icon" aria-hidden="true">{modes.find((item) => item.value === mode)?.glyph}</span>
@@ -68,6 +77,17 @@ export function TaskComposer({
               ))}
             </div>
           </details>
+          <select value={model} onChange={(event) => onModelChange(event.target.value as AgentModel)} aria-label="Model">
+            <option value="default">Default model</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="opus">Opus</option>
+            <option value="haiku">Haiku</option>
+          </select>
+          <select value={contextWindow} onChange={(event) => onContextWindowChange(event.target.value as ContextWindow)} aria-label="Context window">
+            <option value="default">200K context</option>
+            <option value="1m">1M context</option>
+          </select>
+          </div>
           <div className="composer-actions">
             <button
               className={`send-button ${runActive ? "running" : ""}`}

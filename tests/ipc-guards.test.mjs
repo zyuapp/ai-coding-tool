@@ -9,6 +9,8 @@ const command = {
   prompt: "inspect",
   workspaceId: "workspace-1",
   policy: "confirm",
+  model: "default",
+  contextWindow: "default",
 };
 
 test("external start commands carry only a workspace ID", () => {

@@ -10,6 +10,8 @@ const base = (taskId, runId) => ({
   workspaceRoot: "/tmp/project",
   projectless: false,
   policy: "confirm",
+  model: "default",
+  contextWindow: "default",
 });
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));

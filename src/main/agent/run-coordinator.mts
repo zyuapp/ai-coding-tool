@@ -91,6 +91,8 @@ export class RunCoordinator {
         workspaceRoot: active.workspaceRoot,
         projectless: active.projectless,
         policy: command.policy,
+        model: command.model,
+        contextWindow: command.contextWindow,
         continuation: command.continuation,
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),

@@ -47,6 +47,8 @@ export class ClaudeAgentProvider implements AgentProvider {
           cwd: input.workspaceRoot,
           resume: continuation,
           permissionMode: claudePermissionMode(input.policy),
+          ...(input.model === "default" ? {} : { model: input.model }),
+          ...(input.contextWindow === "1m" ? { betas: ["context-1m-2025-08-07" as const] } : {}),
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
           skills: "all",
           canUseTool,

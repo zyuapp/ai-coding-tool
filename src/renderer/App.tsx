@@ -72,9 +72,13 @@ export function App() {
           prompt={workspace.prompt}
           folder={workspace.folder}
           mode={workspace.policy}
+          model={workspace.model}
+          contextWindow={workspace.contextWindow}
           runActive={workspace.runActive}
           onPromptChange={workspace.actions.setPrompt}
           onModeChange={workspace.actions.setPolicy}
+          onModelChange={workspace.actions.setModel}
+          onContextWindowChange={workspace.actions.setContextWindow}
           onSend={() => void workspace.actions.sendPrompt()}
           onCancel={workspace.actions.cancelRun}
         />

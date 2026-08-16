@@ -1,4 +1,4 @@
-import type { Continuation, ExecutionPolicy } from "./run.js";
+import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy } from "./run.js";
 
 export const TASK_STORE_VERSION = 2 as const;
 
@@ -30,6 +30,8 @@ export type Task = {
   title: string;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
+  model?: AgentModel;
+  contextWindow?: ContextWindow;
   messages: TaskMessage[];
   continuation?: Continuation;
   continuationStatus: ContinuationStatus;
@@ -319,6 +321,8 @@ function isTaskBase(value: unknown): value is Task {
     nonEmptyString(value.title) &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
+    (value.model === undefined || isAgentModel(value.model)) &&
+    (value.contextWindow === undefined || isContextWindow(value.contextWindow)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
@@ -367,6 +371,14 @@ function isContinuation(value: unknown): value is Continuation {
 
 function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
   return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
+}
+
+function isAgentModel(value: unknown): value is AgentModel {
+  return value === "default" || value === "sonnet" || value === "opus" || value === "haiku";
+}
+
+function isContextWindow(value: unknown): value is ContextWindow {
+  return value === "default" || value === "1m";
 }
 
 function nonEmptyString(value: unknown): value is string {

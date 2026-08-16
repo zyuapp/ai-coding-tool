@@ -1,4 +1,4 @@
-import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 
 export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string }
@@ -10,6 +10,8 @@ export type ProviderRunInput = {
   workspaceRoot: string;
   projectless: boolean;
   policy: ExecutionPolicy;
+  model: AgentModel;
+  contextWindow: ContextWindow;
   continuation?: Continuation;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;

@@ -1,4 +1,6 @@
 export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous";
+export type AgentModel = "default" | "sonnet" | "opus" | "haiku";
+export type ContextWindow = "default" | "1m";
 
 export type Continuation = {
   provider: string;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { applyRunEvent, applyTask, createTaskMessage, type RunTransitionState } from "../../application/task-workspace";
 import type { RunEvent } from "../../contracts/ipc";
-import type { ExecutionPolicy } from "../../domain/run";
+import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskStoreData } from "../../domain/task";
 import { legacyProjectId } from "../../domain/task";
 import type { WorkspaceRecord } from "../../domain/workspace";
@@ -14,6 +14,8 @@ type WorkspaceState = {
   currentId: string | null;
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
+  draftModel: AgentModel;
+  draftContextWindow: ContextWindow;
   prompt: string;
   expandedProjects: Set<string>;
   projectsOpen: boolean;
@@ -46,6 +48,8 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       currentId: null,
       draftProjectId: null,
       draftPolicy: "confirm",
+      draftModel: "default",
+      draftContextWindow: "default",
       prompt: "",
       expandedProjects: new Set(),
       projectsOpen: true,
@@ -73,6 +77,8 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
     currentId: firstTask?.id ?? null,
     draftProjectId: firstProject,
     draftPolicy: firstTask?.executionPolicy ?? "confirm",
+    draftModel: firstTask?.model ?? "default",
+    draftContextWindow: firstTask?.contextWindow ?? "default",
     prompt: "",
     expandedProjects: new Set(firstProject ? [firstProject] : []),
     projectsOpen: true,
@@ -144,6 +150,8 @@ export function useTaskWorkspace() {
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
   const folder = currentProject?.root ?? "";
   const policy = currentTask?.executionPolicy ?? state.draftPolicy;
+  const model = currentTask?.model ?? state.draftModel;
+  const contextWindow = currentTask?.contextWindow ?? state.draftContextWindow;
   const visibleTasks = state.tasks.filter((task) => task.archivedAt === undefined);
   const orderedTasks = state.chatSort === "updated" ? visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt) : visibleTasks;
   const recentTasks = orderedTasks.filter((task) => !task.projectId);
@@ -207,6 +215,18 @@ export function useTaskWorkspace() {
       : { ...current, draftPolicy: nextPolicy });
   }
 
+  function setModel(nextModel: AgentModel) {
+    setStateAndRef((current) => current.currentId
+      ? applyTask({ ...current, draftModel: nextModel }, current.currentId, (task) => ({ ...task, model: nextModel, updatedAt: now() }))
+      : { ...current, draftModel: nextModel });
+  }
+
+  function setContextWindow(nextContextWindow: ContextWindow) {
+    setStateAndRef((current) => current.currentId
+      ? applyTask({ ...current, draftContextWindow: nextContextWindow }, current.currentId, (task) => ({ ...task, contextWindow: nextContextWindow, updatedAt: now() }))
+      : { ...current, draftContextWindow: nextContextWindow });
+  }
+
   async function sendPrompt() {
     let current = stateRef.current;
     const text = current.prompt.trim();
@@ -251,6 +271,8 @@ export function useTaskWorkspace() {
         title: text.length > 52 ? `${text.slice(0, 49)}…` : text,
         ...(project ? { projectId: project.id } : {}),
         executionPolicy: current.draftPolicy,
+        model: current.draftModel,
+        contextWindow: current.draftContextWindow,
         messages: [],
         continuationStatus: "none",
         lastChangeSnapshot: { files: [], capturedAt: now() },
@@ -263,7 +285,7 @@ export function useTaskWorkspace() {
     const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, actionError: null };
     runIds.current.set(task.id, runId);
     setStateAndRef(nextState);
-    window.desktop.send({ type: "start", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, ...(task.continuation ? { continuation: task.continuation } : {}) });
+    window.desktop.send({ type: "start", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 
   function cancelRun() {
@@ -291,6 +313,8 @@ export function useTaskWorkspace() {
     currentProject,
     folder,
     policy,
+    model,
+    contextWindow,
     prompt: state.prompt,
     status,
     globalStatus: state.lastRunStatus,
@@ -316,6 +340,8 @@ export function useTaskWorkspace() {
       setChatSort: (sort: "priority" | "updated" | "manual") => setStateAndRef((current) => ({ ...current, chatSort: sort })),
       setPrompt: (prompt: string) => setStateAndRef((current) => ({ ...current, prompt })),
       setPolicy,
+      setModel,
+      setContextWindow,
       sendPrompt,
       cancelRun,
       decideApproval,
