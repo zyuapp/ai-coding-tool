@@ -57,11 +57,46 @@ function normalizeToolIntent(toolName: string, input: unknown, toolUseID: string
   return { toolId: toolUseID, name: toolName, input, ...(writePath === undefined ? {} : { writePath }) };
 }
 
+type MarkdownBuffer = {
+  text: string;
+  scanned: number;
+  fence?: { marker: string; length: number };
+};
+
+function appendCompleteMarkdown(buffer: MarkdownBuffer, text: string) {
+  buffer.text += text;
+  let safeEnd = 0;
+  let lineStart = buffer.scanned;
+  while (lineStart < buffer.text.length) {
+    const newline = buffer.text.indexOf("\n", lineStart);
+    if (newline === -1) break;
+    const line = buffer.text.slice(lineStart, newline);
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (!buffer.fence && marker) {
+      buffer.fence = { marker: marker[1]![0]!, length: marker[1]!.length };
+    } else if (buffer.fence && new RegExp(`^ {0,3}${buffer.fence.marker}{${buffer.fence.length},}\\s*$`).test(line)) {
+      buffer.fence = undefined;
+      safeEnd = newline + 1;
+    } else if (!buffer.fence && line.trim() === "") {
+      safeEnd = newline + 1;
+    }
+    lineStart = newline + 1;
+  }
+  buffer.scanned = lineStart;
+  if (!safeEnd) return "";
+  const complete = buffer.text.slice(0, safeEnd);
+  buffer.text = buffer.text.slice(safeEnd);
+  buffer.scanned -= safeEnd;
+  return complete;
+}
+
 export class ClaudeAgentProvider implements AgentProvider {
   constructor(private readonly queryFactory: QueryFactory = query) {}
 
   async execute(input: ProviderRunInput): Promise<ProviderResult> {
     let activeQuery: Query | null = null;
+    const streamedText = new Map<string, MarkdownBuffer>();
+    let activeMainStreamId: string | undefined;
     const subagentIds = new Set<string>();
     const subagentByToolUse = new Map<string, string>();
     const canUseTool: CanUseTool = async (toolName, toolInput, options) => {
@@ -107,6 +142,7 @@ export class ClaudeAgentProvider implements AgentProvider {
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
           skills: "all",
           forwardSubagentText: true,
+          includePartialMessages: true,
           canUseTool,
           abortController: input.abortController,
         },
@@ -156,6 +192,13 @@ export class ClaudeAgentProvider implements AgentProvider {
             status: message.status === "completed" ? "completed" : message.status,
             summary: message.summary,
           });
+        } else if (message.type === "stream_event" && !message.parent_tool_use_id && message.event.type === "message_start") {
+          activeMainStreamId = message.event.message.id;
+          streamedText.set(activeMainStreamId, { text: "", scanned: 0 });
+        } else if (message.type === "stream_event" && !message.parent_tool_use_id && activeMainStreamId && message.event.type === "content_block_delta" && message.event.delta.type === "text_delta") {
+          const buffered = streamedText.get(activeMainStreamId);
+          const complete = buffered ? appendCompleteMarkdown(buffered, message.event.delta.text) : "";
+          if (complete) input.emit({ type: "assistant", messageId: activeMainStreamId, text: complete, append: true });
         } else if (message.type === "assistant") {
           const subagentId = message.parent_tool_use_id ? subagentByToolUse.get(message.parent_tool_use_id) : undefined;
           if (subagentId) {
@@ -168,8 +211,15 @@ export class ClaudeAgentProvider implements AgentProvider {
             }
             continue;
           }
+          const streamId = message.message.id;
+          const streamed = streamedText.get(streamId);
+          if (streamed !== undefined) {
+            if (streamed.text) input.emit({ type: "assistant", messageId: streamId, text: streamed.text, append: true });
+            streamedText.delete(streamId);
+            if (activeMainStreamId === streamId) activeMainStreamId = undefined;
+          }
           for (const block of message.message.content) {
-            if (block.type === "text" && block.text.trim()) {
+            if (block.type === "text" && streamed === undefined && block.text.trim()) {
               input.emit({ type: "assistant", messageId: message.uuid, text: block.text });
             } else if (block.type === "tool_use") {
               input.emit({

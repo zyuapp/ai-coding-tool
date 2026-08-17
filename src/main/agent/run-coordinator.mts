@@ -111,7 +111,7 @@ export class RunCoordinator {
 
   private handleProviderEvent(active: ActiveRun, event: ProviderEvent) {
     if (!this.isCurrent(active) || active.terminal) return;
-    if (event.type === "assistant") this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text });
+    if (event.type === "assistant") this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text, ...(event.append ? { append: true } : {}) });
     if (event.type === "usage") this.publish(active, { type: "context.usage", tokens: event.tokens, limit: event.limit, model: event.model });
     if (event.type === "compaction-status") this.publish(active, { type: "context.compaction-status", compacting: event.compacting, ...(event.error === undefined ? {} : { error: event.error }) });
     if (event.type === "compaction") this.publish(active, { type: "context.compacted", trigger: event.trigger, preTokens: event.preTokens, ...(event.postTokens === undefined ? {} : { postTokens: event.postTokens }) });

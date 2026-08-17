@@ -92,6 +92,40 @@ test("Claude query options follow run policy and workspace settings", async () =
   assert.deepEqual(capture.options.options.betas, ["context-1m-2025-08-07"]);
   assert.equal(capture.options.options.skills, "all");
   assert.equal(capture.options.options.forwardSubagentText, true);
+  assert.equal(capture.options.options.includePartialMessages, true);
+});
+
+test("Claude streams only complete Markdown blocks and does not repeat final text", async () => {
+  const emitted = [];
+  const messageId = "api-message-streamed";
+  const delta = (text) => ({
+    type: "stream_event",
+    uuid: crypto.randomUUID(),
+    parent_tool_use_id: null,
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+  });
+  const fullText = "## First\n\nParagraph with **bold**.\n\n```ts\nconst x = 1;\n\n```\n";
+  const provider = new ClaudeAgentProvider(queryFactory([
+    { type: "stream_event", uuid: crypto.randomUUID(), parent_tool_use_id: null, event: { type: "message_start", message: { id: messageId } } },
+    delta("## Fi"),
+    delta("rst\n\nParagraph with **bo"),
+    delta("ld**.\n\n```ts\nconst x = 1;\n\n"),
+    delta("```\n"),
+    {
+      type: "assistant",
+      uuid: "different-final-wrapper-uuid",
+      parent_tool_use_id: null,
+      message: { id: messageId, model: "claude-sonnet", usage: { input_tokens: 1 }, content: [{ type: "text", text: fullText }] },
+    },
+  ]));
+
+  assert.deepEqual(await provider.execute(input({ emit: (event) => emitted.push(event) })), { status: "succeeded" });
+  assert.deepEqual(emitted, [
+    { type: "assistant", messageId, text: "## First\n\n", append: true },
+    { type: "assistant", messageId, text: "Paragraph with **bold**.\n\n", append: true },
+    { type: "assistant", messageId, text: "```ts\nconst x = 1;\n\n```\n", append: true },
+    { type: "usage", tokens: 1, limit: 200_000, model: "claude-sonnet" },
+  ]);
 });
 
 test("side chat forks the main continuation and exposes read-only tools", async () => {

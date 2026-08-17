@@ -2,7 +2,7 @@ import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
 import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 export type ProviderEvent =
-  | { type: "assistant"; messageId: string; text: string }
+  | { type: "assistant"; messageId: string; text: string; append?: boolean }
   | { type: "usage"; tokens: number; limit: number; model: string }
   | { type: "compaction-status"; compacting: boolean; error?: string }
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }

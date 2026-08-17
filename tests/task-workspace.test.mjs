@@ -176,6 +176,13 @@ test("assistant chunks, tool intents, and continuation updates preserve order", 
   assert.equal(continued.tasks[0].continuationStatus, "available");
 });
 
+test("streamed Markdown blocks append without injected newlines", () => {
+  const first = applyRunEvent(state(), { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-1", text: "## Title\n\n", append: true });
+  const second = applyRunEvent(first, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 2, messageId: "message-1", text: "Paragraph.", append: true });
+
+  assert.equal(second.tasks[0].messages[0].text, "## Title\n\nParagraph.");
+});
+
 test("compaction failure and unknown post-token count remain visible", () => {
   const failed = applyRunEvent(state(), { type: "context.compaction-status", taskId: "task-a", runId: "run-a", sequence: 1, compacting: false, error: "Could not compact" });
   const compacted = applyRunEvent(failed, { type: "context.compacted", taskId: "task-a", runId: "run-a", sequence: 2, trigger: "manual", preTokens: 100_000 });

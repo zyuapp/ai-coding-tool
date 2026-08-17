@@ -78,7 +78,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     return applyTask(withSequence, event.taskId, (task) => {
       const messages = [...task.messages];
       const last = messages.at(-1);
-      if (last?.kind === "assistant" && last.id === event.messageId) messages[messages.length - 1] = { ...last, text: `${last.text}\n${event.text}` };
+      if (last?.kind === "assistant" && last.id === event.messageId) messages[messages.length - 1] = { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` };
       else messages.push({ id: event.messageId, kind: "assistant", text: event.text, at: now() });
       return { ...task, messages, updatedAt: now() };
     });
