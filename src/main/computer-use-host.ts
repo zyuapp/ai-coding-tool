@@ -1,4 +1,4 @@
-import { app, systemPreferences } from "electron";
+import { app, desktopCapturer, systemPreferences } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -45,7 +45,10 @@ export async function requestComputerUsePermissions(): Promise<ComputerUsePermis
   }
   const { openMacOSScreenRecordingSettings, requestMacOSPermissions } = await cuaElectron();
   const status = requestMacOSPermissions();
-  if (!status.screenRecording) await openMacOSScreenRecordingSettings();
+  if (!status.screenRecording) {
+    await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }).catch(() => []);
+    await openMacOSScreenRecordingSettings();
+  }
   return status;
 }
 
