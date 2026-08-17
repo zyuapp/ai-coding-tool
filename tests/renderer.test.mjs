@@ -219,16 +219,16 @@ function fakeDesktop(overrides = {}) {
   };
 }
 
-test("computer-use setup stays contextual and requires an explicit restart", async () => {
+test("computer-use setup requests once, refreshes automatically, and requires an explicit restart", async () => {
   let dismissed = false;
   let restarted = false;
-  let permissionRequests = 0;
+  let checks = 0;
   window.desktop = fakeDesktop({
-    enableComputerUse: async () => [
-      { accessibility: false, screenRecording: false },
+    enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
+    computerUsePermissions: async () => [
       { accessibility: true, screenRecording: false },
       { accessibility: true, screenRecording: true },
-    ][permissionRequests++],
+    ][checks++],
     restartForComputerUse: () => { restarted = true; },
   });
   const view = await mount(React.createElement(ComputerUseSetupCard, { onDismiss: () => { dismissed = true; } }));
@@ -236,12 +236,14 @@ test("computer-use setup stays contextual and requires an explicit restart", asy
   assert.match(view.container.textContent, /Enable computer use/);
   await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
   assert.match(view.container.textContent, /Accessibility/);
-  assert.match(view.container.textContent, /Accessibility first/);
+  assert.match(view.container.textContent, /updates automatically/);
   assert.match(view.container.textContent, /Required/);
-  await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
-  assert.match(view.container.textContent, /click \+ and choose Claudex from Applications/);
-  await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
+  assert.match(view.container.textContent, /captures one frame and discards it/);
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  assert.match(view.container.textContent, /Screen & System Audio Recording/);
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
   assert.match(view.container.textContent, /Computer use is ready/);
+  assert.match(view.container.textContent, /Restart and continue/);
   await act(async () => { view.container.querySelector(".computer-use-actions button").click(); });
   assert.equal(restarted, true);
   assert.equal(dismissed, false);

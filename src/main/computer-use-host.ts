@@ -1,4 +1,4 @@
-import { app, desktopCapturer, systemPreferences } from "electron";
+import { app, systemPreferences } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -24,6 +24,20 @@ async function cuaElectron() {
     : import("@trycua/cua-driver/electron");
 }
 
+async function probeScreenRecordingRegistration() {
+  const { CuaDriver } = await cuaDriver();
+  const driver = CuaDriver.create(undefined) as ReturnType<typeof CuaDriver.create> & { uniffiDestroy(): void };
+  try {
+    await driver.getDesktopState({});
+  } finally {
+    try {
+      await driver.shutdown();
+    } finally {
+      driver.uniffiDestroy();
+    }
+  }
+}
+
 function binaryPath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, "cua-driver")
@@ -39,17 +53,15 @@ export async function computerUsePermissions(): Promise<ComputerUsePermissions> 
 export async function requestComputerUsePermissions(): Promise<ComputerUsePermissions> {
   if (process.platform !== "darwin") return { accessibility: false, screenRecording: false };
   const current = await computerUsePermissions();
-  if (!current.accessibility) {
-    systemPreferences.isTrustedAccessibilityClient(true);
-    return computerUsePermissions();
-  }
+  if (!current.accessibility) systemPreferences.isTrustedAccessibilityClient(true);
   const { openMacOSScreenRecordingSettings, requestMacOSPermissions } = await cuaElectron();
   const status = requestMacOSPermissions();
   if (!status.screenRecording) {
-    await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 1, height: 1 } }).catch(() => []);
-    await openMacOSScreenRecordingSettings();
+    await probeScreenRecordingRegistration().catch(() => undefined);
   }
-  return status;
+  const next = await computerUsePermissions();
+  if (current.accessibility && !next.screenRecording) await openMacOSScreenRecordingSettings();
+  return next;
 }
 
 function mcpConfig(connection: EmbeddedDriverConnection): ComputerUseRunConfig {
