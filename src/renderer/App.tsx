@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, GitFork, Plus, X } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ConversationTimeline } from "./components/ConversationTimeline";
+import { ComputerUseSetupCard } from "./components/ComputerUseSetupCard";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { AgentsPanel, SessionPanel } from "./components/SessionPanel";
 import { SideChat } from "./components/SideChat";
@@ -122,6 +123,7 @@ export function App() {
         <div className="work-area">
           <div className="conversation" ref={transcriptRef}>
             <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} scrollContainerRef={transcriptRef} />
+            {workspace.computerUseSetup && <ComputerUseSetupCard onDismiss={workspace.actions.dismissComputerUseSetup} />}
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>

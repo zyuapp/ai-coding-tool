@@ -91,6 +91,7 @@ export class RunCoordinator {
         prompt: command.prompt,
         workspaceRoot: active.workspaceRoot,
         projectless: active.projectless,
+        computerUse: command.computerUse,
         policy: command.policy,
         model: command.model,
         contextWindow: command.contextWindow,
@@ -115,6 +116,7 @@ export class RunCoordinator {
     if (event.type === "compaction-status") this.publish(active, { type: "context.compaction-status", compacting: event.compacting, ...(event.error === undefined ? {} : { error: event.error }) });
     if (event.type === "compaction") this.publish(active, { type: "context.compacted", trigger: event.trigger, preTokens: event.preTokens, ...(event.postTokens === undefined ? {} : { postTokens: event.postTokens }) });
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });
+    if (event.type === "computer-use.setup-required") this.publish(active, event);
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
     if (event.type === "subagent.started") this.publish(active, event);
     if (event.type === "subagent.progress") this.publish(active, event);

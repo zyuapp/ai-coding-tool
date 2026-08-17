@@ -5,6 +5,7 @@ import { isRunCommand, isRunEvent, type RunCommand, type RunEvent, type StartRun
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
+import { computerUseForRun, computerUsePermissions, requestComputerUsePermissions, stopComputerUse } from "./computer-use-host.js";
 
 app.setName("Claudex");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
@@ -16,6 +17,7 @@ let agent: Electron.UtilityProcess | null = null;
 let workspaceService: WorkspaceService | null = null;
 let taskDatabase: TaskDatabase | null = null;
 let quitting = false;
+let quitAfterComputerUseStops = false;
 
 type RunState = {
   taskId: string;
@@ -92,12 +94,13 @@ function getWorkspaceService() {
 }
 
 async function resolveStart(command: StartRunCommand) {
-  const resolution = await getWorkspaceService().resolve(command.workspaceId);
+  const [resolution, computerUse] = await Promise.all([getWorkspaceService().resolve(command.workspaceId), computerUseForRun()]);
   if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
   return {
     ...command,
     workspaceRoot: resolution.workspace.root,
     projectless: resolution.workspace.kind === "projectless",
+    computerUse,
   };
 }
 
@@ -246,7 +249,13 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (!quitAfterComputerUseStops) {
+    event.preventDefault();
+    quitAfterComputerUseStops = true;
+    void stopComputerUse().finally(() => app.quit());
+    return;
+  }
   quitting = true;
   agent?.kill();
   taskDatabase?.close();
@@ -276,6 +285,22 @@ ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
   }
+});
+
+ipcMain.handle("computer-use:permissions", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return computerUsePermissions();
+});
+
+ipcMain.handle("computer-use:enable", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return requestComputerUsePermissions();
+});
+
+ipcMain.on("computer-use:restart", (event) => {
+  if (!trustedSender(event)) return;
+  app.relaunch();
+  app.quit();
 });
 
 ipcMain.handle("task-store:load", (event) => {

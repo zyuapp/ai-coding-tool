@@ -18,6 +18,7 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand(command), true);
   assert.equal(isRunCommand({ ...command, workspaceRoot: "/tmp/project" }), false);
   assert.equal(isRunCommand({ ...command, projectless: true }), false);
+  assert.equal(isRunCommand({ ...command, computerUse: { status: "setup-required" } }), false);
   assert.equal(isRunCommand({ ...command, cwd: "/tmp/project" }), false);
   assert.equal(isRunCommand({ ...command, sessionId: "claude-session" }), false);
   assert.equal(isRunCommand({ ...command, channel: "background" }), false);
@@ -26,7 +27,7 @@ test("external start commands carry only a workspace ID", () => {
 });
 
 test("internal worker commands require a resolved root and projectless flag", () => {
-  assert.equal(isInternalRunCommand({ ...command, workspaceRoot: "/tmp/project", projectless: false }), true);
+  assert.equal(isInternalRunCommand({ ...command, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), true);
   assert.equal(isInternalRunCommand(command), false);
   assert.equal(isInternalRunCommand({ ...command, workspaceRoot: "/tmp/project" }), false);
 });
@@ -42,6 +43,10 @@ test("run event guard validates optional status messages", () => {
   const event = { type: "run.status", taskId: "task-1", runId: "run-1", sequence: 1, status: "failed" };
   assert.equal(isRunEvent({ ...event, message: "failed" }), true);
   assert.equal(isRunEvent({ ...event, message: 42 }), false);
+});
+
+test("run event guard accepts the computer-use setup signal", () => {
+  assert.equal(isRunEvent({ type: "computer-use.setup-required", taskId: "task-1", runId: "run-1", sequence: 1 }), true);
 });
 
 test("run event guard accepts tool intents without a write path", () => {

@@ -11,6 +11,7 @@ function input(overrides = {}) {
     prompt: "inspect the app",
     workspaceRoot: "/tmp/project",
     projectless: false,
+    computerUse: { status: "unavailable", message: "test" },
     policy: "confirm",
     model: "default",
     contextWindow: "default",
@@ -107,6 +108,41 @@ test("side chat forks the main continuation and exposes read-only tools", async 
   assert.equal(capture.options.options.forkSession, true);
   assert.equal(capture.options.options.permissionMode, "plan");
   assert.deepEqual(capture.options.options.tools, ["Read", "Grep", "Glob"]);
+});
+
+test("Claude receives bundled computer-use MCP or the internal setup tool", async () => {
+  const availableCapture = {};
+  await new ClaudeAgentProvider(queryFactory([], availableCapture)).execute(input({
+    computerUse: { status: "available", mcp: { command: "/app/cua-driver", args: ["mcp", "--embedded"], env: { CUA_DRIVER_EMBEDDED: "1" } } },
+  }));
+  assert.deepEqual(availableCapture.options.options.mcpServers["cua-driver"], {
+    type: "stdio",
+    command: "/app/cua-driver",
+    args: ["mcp", "--embedded"],
+    env: { CUA_DRIVER_EMBEDDED: "1" },
+  });
+
+  const setupCapture = {};
+  await new ClaudeAgentProvider(queryFactory([], setupCapture)).execute(input({ computerUse: { status: "setup-required" } }));
+  assert.equal(setupCapture.options.options.mcpServers["claudex-computer-use"].type, "sdk");
+  assert.equal((await setupCapture.options.options.canUseTool("mcp__claudex-computer-use__request_setup", {}, { toolUseID: "setup-1" })).behavior, "allow");
+  assert.match(setupCapture.options.options.systemPrompt.append, /Observe the exact target before every action/);
+  assert.match(setupCapture.options.options.systemPrompt.append, /Never invoke a separately installed cua-driver through Bash/);
+});
+
+test("autonomous runs allow bundled computer use without bypassing other tool approvals", async () => {
+  const capture = {};
+  const authorized = [];
+  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({
+    policy: "autonomous",
+    computerUse: { status: "available", mcp: { command: "/app/cua-driver", args: [], env: {} } },
+    authorize: async (intent) => { authorized.push(intent.name); return "allow"; },
+  }));
+
+  assert.equal((await capture.options.options.canUseTool("mcp__cua-driver__click", {}, { toolUseID: "cua-1" })).behavior, "allow");
+  assert.deepEqual(authorized, []);
+  assert.equal((await capture.options.options.canUseTool("Bash", {}, { toolUseID: "bash-1" })).behavior, "allow");
+  assert.deepEqual(authorized, ["Bash"]);
 });
 
 test("Claude messages translate to provider events and normalized tool intents", async () => {

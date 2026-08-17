@@ -4,6 +4,7 @@ import { parseTaskStore, serializeTaskStore, type Project, type Task, type TaskM
 
 export class TaskDatabase {
   private readonly database: DatabaseSync;
+  private closed = false;
 
   constructor(path: string) {
     this.database = new DatabaseSync(path);
@@ -25,7 +26,9 @@ export class TaskDatabase {
   }
 
   close() {
+    if (this.closed) return;
     this.database.close();
+    this.closed = true;
   }
 
   load(): TaskStoreData | null {

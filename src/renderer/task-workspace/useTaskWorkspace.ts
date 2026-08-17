@@ -22,6 +22,7 @@ type WorkspaceState = {
   recentsOpen: boolean;
   openMenu: string | null;
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
+  computerUseSetup: boolean;
 } & RunTransitionState & {
   storageError: string | null;
   actionError: string | null;
@@ -59,6 +60,7 @@ function stateFromData(data: TaskStoreData, storageError: string | null = null):
     recentsOpen: true,
     openMenu: null,
     environment: null,
+    computerUseSetup: false,
     activeRun: null,
     lastRunStatus: "idle",
     lastRunTaskId: null,
@@ -87,6 +89,7 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       recentsOpen: true,
       openMenu: null,
       environment: null,
+      computerUseSetup: false,
       activeRun: null,
       lastRunStatus: "idle",
       lastRunTaskId: null,
@@ -156,7 +159,7 @@ export function useTaskWorkspace() {
       if (!active || event.taskId !== active.taskId || event.runId !== active.runId || event.sequence <= active.sequence) return;
       const project = projectFor(current, current.tasks.find((task) => task.id === event.taskId));
       const next = applyRunEvent(current, event);
-      setStateAndRef(next);
+      setStateAndRef(event.type === "computer-use.setup-required" ? { ...next, computerUseSetup: true } : next);
       if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed") && project?.workspaceId) void refreshEnvironment(project.workspaceId, event.taskId, event.runId);
     });
   }, []);
@@ -421,6 +424,7 @@ export function useTaskWorkspace() {
     environment: currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null,
     storageError: state.storageError,
     actionError: state.actionError,
+    computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
@@ -442,6 +446,7 @@ export function useTaskWorkspace() {
       sendPrompt,
       cancelRun,
       decideApproval,
+      dismissComputerUseSetup: () => setStateAndRef((current) => ({ ...current, computerUseSetup: false })),
     },
   };
 }

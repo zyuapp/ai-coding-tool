@@ -21,6 +21,7 @@ const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/M
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
+const { ComputerUseSetupCard } = await vite.ssrLoadModule("/src/renderer/components/ComputerUseSetupCard.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -206,6 +207,9 @@ function fakeDesktop(overrides = {}) {
     openFolder: async () => null,
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
     commands: async () => ({ status: "available", commands: [] }),
+    computerUsePermissions: async () => ({ accessibility: true, screenRecording: true }),
+    enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
+    restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
     loadTaskStore: async () => null,
     persistTaskStore: async (delta) => { persisted.push(delta); },
@@ -214,6 +218,35 @@ function fakeDesktop(overrides = {}) {
     ...overrides,
   };
 }
+
+test("computer-use setup stays contextual and requires an explicit restart", async () => {
+  let dismissed = false;
+  let restarted = false;
+  let permissionRequests = 0;
+  window.desktop = fakeDesktop({
+    enableComputerUse: async () => [
+      { accessibility: false, screenRecording: false },
+      { accessibility: true, screenRecording: false },
+      { accessibility: true, screenRecording: true },
+    ][permissionRequests++],
+    restartForComputerUse: () => { restarted = true; },
+  });
+  const view = await mount(React.createElement(ComputerUseSetupCard, { onDismiss: () => { dismissed = true; } }));
+
+  assert.match(view.container.textContent, /Enable computer use/);
+  await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
+  assert.match(view.container.textContent, /Accessibility/);
+  assert.match(view.container.textContent, /Accessibility first/);
+  assert.match(view.container.textContent, /Required/);
+  await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
+  assert.match(view.container.textContent, /click \+ and choose Claudex from Applications/);
+  await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
+  assert.match(view.container.textContent, /Computer use is ready/);
+  await act(async () => { view.container.querySelector(".computer-use-actions button").click(); });
+  assert.equal(restarted, true);
+  assert.equal(dismissed, false);
+  await view.unmount();
+});
 
 test("slash command palette filters skills and supports keyboard selection", async () => {
   window.desktop = fakeDesktop({

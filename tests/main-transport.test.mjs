@@ -9,9 +9,10 @@ import { createServer } from "vite";
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 async function waitFor(predicate) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
     if (predicate()) return;
-    await tick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   assert.fail("Timed out waiting for transport state");
 }

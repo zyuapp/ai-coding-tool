@@ -27,9 +27,26 @@ export type StartRunCommand = {
   forkContinuation?: boolean;
 };
 
+export type ComputerUsePermissions = {
+  accessibility: boolean;
+  screenRecording: boolean;
+};
+
+export type ComputerUseMcp = {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+};
+
+export type ComputerUseRunConfig =
+  | { status: "available"; mcp: ComputerUseMcp }
+  | { status: "setup-required" }
+  | { status: "unavailable"; message: string };
+
 export type InternalStartRunCommand = StartRunCommand & {
   workspaceRoot: string;
   projectless: boolean;
+  computerUse: ComputerUseRunConfig;
 };
 
 export type CancelRunCommand = {
@@ -52,6 +69,9 @@ export type DesktopAPI = {
   openFolder(): Promise<WorkspaceRecord | null>;
   projectlessWorkspace(): Promise<WorkspaceRecord>;
   commands(workspaceId: WorkspaceId): Promise<CommandDiscoveryResult>;
+  computerUsePermissions(): Promise<ComputerUsePermissions>;
+  enableComputerUse(): Promise<ComputerUsePermissions>;
+  restartForComputerUse(): void;
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
@@ -90,6 +110,7 @@ export type RunEvent =
   | (RunEventBase & { type: "context.compaction-status"; compacting: boolean; error?: string })
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
   | (RunEventBase & { type: "tool.intent"; intent: ToolIntent })
+  | (RunEventBase & { type: "computer-use.setup-required" })
   | (RunEventBase & { type: "subagent.started"; id: string; description: string; agentType?: string })
   | (RunEventBase & { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number })
   | (RunEventBase & { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string })
@@ -136,6 +157,18 @@ function isIntent(value: unknown): value is ToolIntent {
   return isString(intent.toolId) && isString(intent.name) && (intent.writePath === undefined || typeof intent.writePath === "string");
 }
 
+function isComputerUseRunConfig(value: unknown): value is ComputerUseRunConfig {
+  if (!value || typeof value !== "object") return false;
+  const config = value as Record<string, unknown>;
+  if (config.status === "setup-required") return true;
+  if (config.status === "unavailable") return isString(config.message, 10_000);
+  if (config.status !== "available" || !config.mcp || typeof config.mcp !== "object") return false;
+  const mcp = config.mcp as Record<string, unknown>;
+  return isString(mcp.command, 4_096)
+    && Array.isArray(mcp.args) && mcp.args.every((item) => typeof item === "string")
+    && Boolean(mcp.env && typeof mcp.env === "object" && !Array.isArray(mcp.env) && Object.values(mcp.env).every((item) => typeof item === "string"));
+}
+
 export function isRunCommand(value: unknown): value is RunCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
@@ -157,8 +190,8 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
   const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isContextWindow(command.contextWindow) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
   if (!base) return false;
-  if (!internal) return !["workspaceRoot", "projectless", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
-  return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean";
+  if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
+  return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
 }
 
 export function isRunEvent(value: unknown): value is RunEvent {
@@ -172,6 +205,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "context.compaction-status") return typeof event.compacting === "boolean" && (event.error === undefined || isString(event.error, 100_000));
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));
   if (event.type === "tool.intent") return isIntent(event.intent);
+  if (event.type === "computer-use.setup-required") return true;
   if (event.type === "subagent.started") return isString(event.id) && isString(event.description, 100_000) && (event.agentType === undefined || isString(event.agentType));
   if (event.type === "subagent.progress") return isString(event.id) && isString(event.description, 100_000) && (event.lastToolName === undefined || isString(event.lastToolName)) && (event.summary === undefined || isString(event.summary, 100_000)) && typeof event.totalTokens === "number" && Number.isFinite(event.totalTokens) && event.totalTokens >= 0;
   if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";

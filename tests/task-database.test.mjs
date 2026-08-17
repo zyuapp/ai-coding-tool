@@ -38,6 +38,7 @@ test("SQLite task storage appends and updates messages without rewriting the tra
     assert.equal(loaded.tasks[0].updatedAt, 3);
   } finally {
     database.close();
+    database.close();
     await rm(directory, { recursive: true });
   }
 });

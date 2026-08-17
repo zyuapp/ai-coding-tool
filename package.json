@@ -1,6 +1,6 @@
 {
   "name": "claudex",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "license": "MIT",
   "author": "Zhuocheng Yu",
@@ -11,12 +11,14 @@
     "build": "vite build && tsc -p tsconfig.main.json",
     "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "start": "npm run build && electron .",
-    "package:mac": "npm run build && electron-builder --mac --arm64 --publish never"
+    "prepare:cua": "node scripts/prepare-cua-driver.mjs",
+    "start": "npm run prepare:cua && npm run build && electron .",
+    "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.233",
     "@tanstack/react-virtual": "^3.14.9",
+    "@trycua/cua-driver": "^0.20.0",
     "electron-updater": "^6.8.9",
     "lucide-react": "^1.31.0",
     "mermaid": "^11.16.1",
@@ -44,7 +46,23 @@
     },
     "files": [
       "dist/**",
-      "assets/**"
+      "assets/**",
+      "!node_modules/@trycua/**",
+      "!node_modules/@ubjs/**"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/cua-driver/cua-driver",
+        "to": "cua-driver"
+      },
+      {
+        "from": "node_modules/@trycua",
+        "to": "cua-sdk/node_modules/@trycua"
+      },
+      {
+        "from": "node_modules/@ubjs",
+        "to": "cua-sdk/node_modules/@ubjs"
+      }
     ],
     "asarUnpack": [
       "node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude"
@@ -53,6 +71,11 @@
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "notarize": true,
+      "signIgnore": "Contents/Resources/cua-driver$",
+      "extendInfo": {
+        "NSAppleEventsUsageDescription": "Claudex uses Automation only when a requested computer-use action needs to communicate with another app.",
+        "NSScreenCaptureUsageDescription": "Claudex captures app windows so Claude can see and interact with interfaces you ask it to control."
+      },
       "icon": "assets/icon.png",
       "target": [
         {

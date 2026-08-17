@@ -1,4 +1,4 @@
-import type { RunChannel } from "../../contracts/ipc.js";
+import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
 import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 export type ProviderEvent =
@@ -7,6 +7,7 @@ export type ProviderEvent =
   | { type: "compaction-status"; compacting: boolean; error?: string }
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }
   | { type: "tool"; intent: ToolIntent }
+  | { type: "computer-use.setup-required" }
   | { type: "continuation"; continuation: Continuation }
   | { type: "subagent.started"; id: string; description: string; agentType?: string }
   | { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number }
@@ -18,6 +19,7 @@ export type ProviderRunInput = {
   prompt: string;
   workspaceRoot: string;
   projectless: boolean;
+  computerUse: ComputerUseRunConfig;
   policy: ExecutionPolicy;
   model: AgentModel;
   contextWindow: ContextWindow;

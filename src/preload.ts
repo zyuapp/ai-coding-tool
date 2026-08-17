@@ -5,6 +5,9 @@ const api: DesktopAPI = {
   openFolder: () => ipcRenderer.invoke("workspace:open"),
   projectlessWorkspace: () => ipcRenderer.invoke("workspace:projectless"),
   commands: (workspaceId: string) => ipcRenderer.invoke("workspace:commands", workspaceId),
+  computerUsePermissions: () => ipcRenderer.invoke("computer-use:permissions"),
+  enableComputerUse: () => ipcRenderer.invoke("computer-use:enable"),
+  restartForComputerUse: () => ipcRenderer.send("computer-use:restart"),
   send: (command: RunCommand) => ipcRenderer.send("run:command", command),
   onAgentEvent: (listener: (event: RunEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: RunEvent) => listener(payload);

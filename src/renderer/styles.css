@@ -465,7 +465,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .empty-glyph svg { width: 100%; height: 100%; }
 .empty-state h2 { margin: 18px 0 8px; color: #d1cfca; font-size: var(--text-display); font-weight: 560; line-height: 1.25; letter-spacing: -0.025em; }
 .empty-state p { max-width: 410px; margin: 0; color: #72777e; font-size: var(--text-content); line-height: 1.55; }
-.empty-state button, .approval-actions button {
+.empty-state button, .approval-actions button, .computer-use-actions button {
   margin-top: 20px;
   border: 0;
   border-radius: 8px;
@@ -617,6 +617,31 @@ pre {
 .approval-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .approval-actions button { margin-top: 11px; }
 .approval-actions .secondary { border: 1px solid #393d43; background: transparent; color: #c1c1be; }
+
+.computer-use-card {
+  max-width: 860px;
+  margin: 10px auto 0;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 13px;
+  border: 1px solid #38566c;
+  border-radius: 13px;
+  padding: 15px;
+  background: #171d24;
+}
+.computer-use-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: #203444; color: #76acd0; }
+.computer-use-card strong { font-size: var(--text-control); }
+.computer-use-card p { margin: 6px 0 12px; color: #9da3aa; font-size: var(--text-control); line-height: 1.45; }
+.computer-use-card ul { display: grid; gap: 6px; margin: 0 0 10px; padding: 0; list-style: none; }
+.computer-use-card li { display: flex; justify-content: space-between; gap: 16px; border-radius: 7px; padding: 7px 9px; background: #20262e; color: #b7bbc0; font-size: var(--text-control); }
+.computer-use-card li span { color: #d78b6f; font-size: var(--text-meta); }
+.computer-use-card li.granted span { color: #75b38e; }
+.computer-use-card small { display: block; color: #737b84; font-size: var(--text-meta); line-height: 1.4; }
+.computer-use-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.computer-use-actions button { margin-top: 0; }
+.computer-use-actions button:disabled { background: #343941; color: #8d9298; cursor: default; }
+.computer-use-actions .secondary { border: 1px solid #393f47; background: transparent; color: #c1c4c7; }
+.computer-use-error { color: #dd8b6d !important; }
 
 .composer-wrap {
   position: relative;

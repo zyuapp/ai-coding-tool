@@ -1,5 +1,6 @@
 node_modules/
 dist/
 release/
+vendor/cua-driver/
 *.log
 .DS_Store

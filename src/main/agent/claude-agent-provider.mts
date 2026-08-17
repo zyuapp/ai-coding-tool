@@ -1,10 +1,12 @@
-import { query, type CanUseTool, type Query, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type Query, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 
 type QueryFactory = typeof query;
+const setupToolName = "mcp__claudex-computer-use__request_setup";
+const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails. If only request_setup is available, call it instead of telling the user to install or configure anything.`;
 
 async function* idlePrompt() {
   await new Promise<void>(() => {});
@@ -63,6 +65,8 @@ export class ClaudeAgentProvider implements AgentProvider {
     const subagentIds = new Set<string>();
     const subagentByToolUse = new Map<string, string>();
     const canUseTool: CanUseTool = async (toolName, toolInput, options) => {
+      if (toolName === setupToolName) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
+      if (input.channel === "main" && input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
       const intent = normalizeToolIntent(toolName, toolInput, options.toolUseID);
       const decision = await input.authorize(intent);
       return decision === "allow"
@@ -72,6 +76,21 @@ export class ClaudeAgentProvider implements AgentProvider {
 
     try {
       const continuation = input.continuation?.provider === "claude" ? input.continuation.value : undefined;
+      const mcpServers: Record<string, McpServerConfig> | undefined = input.computerUse.status === "available"
+        ? { "cua-driver": { type: "stdio" as const, ...input.computerUse.mcp } }
+        : input.computerUse.status === "setup-required"
+          ? {
+              "claudex-computer-use": createSdkMcpServer({
+                name: "claudex-computer-use",
+                version: "1.0.0",
+                alwaysLoad: true,
+                tools: [tool("request_setup", "Use when a task requires operating another application's interface but computer use needs to be enabled in Claudex.", {}, async () => {
+                  input.emit({ type: "computer-use.setup-required" });
+                  return { content: [{ type: "text", text: "Claudex displayed its computer-use permission setup. Ask the user to complete it, then retry after Claudex restarts." }] };
+                })],
+              }),
+            }
+          : undefined;
       activeQuery = this.queryFactory({
         prompt: input.prompt,
         options: {
@@ -83,6 +102,8 @@ export class ClaudeAgentProvider implements AgentProvider {
           ...(input.channel === "side" ? { tools: ["Read", "Grep", "Glob"] } : {}),
           ...(input.model === "default" ? {} : { model: input.model }),
           ...(input.contextWindow === "1m" ? { betas: ["context-1m-2025-08-07" as const] } : {}),
+          ...(mcpServers ? { mcpServers } : {}),
+          systemPrompt: { type: "preset", preset: "claude_code", append: computerUseInstructions },
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
           skills: "all",
           forwardSubagentText: true,

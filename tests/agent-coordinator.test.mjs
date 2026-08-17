@@ -12,6 +12,7 @@ const base = (taskId, runId) => ({
   prompt: "do the work",
   workspaceRoot: "/tmp/project",
   projectless: false,
+  computerUse: { status: "unavailable", message: "test" },
   policy: "confirm",
   model: "default",
   contextWindow: "default",
