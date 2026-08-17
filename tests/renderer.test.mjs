@@ -373,6 +373,10 @@ test("closing subagent details returns to the agents tab", async () => {
   const view = await mount(React.createElement(App));
 
   await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  assert.ok(view.container.querySelector('[aria-label="Choose a right panel"]'));
+  assert.equal(view.container.querySelector('.right-dock [role="tab"]'), null);
+  await act(async () => { view.container.querySelector('button[aria-label="Open Subagents panel"]').click(); });
+  assert.match(view.container.querySelector('.right-dock [role="tab"]').textContent, /Subagents/);
   await act(async () => { view.container.querySelector('button[aria-label="Open Complete agent details"]').click(); });
   assert.ok(view.container.querySelector(".subagent-inspector"));
   await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
@@ -410,7 +414,22 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 3);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 2);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 3);
+  await view.unmount();
+});
+
+test("right panel resizes with the keyboard", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  const workspace = view.container.querySelector(".workspace");
+  const panel = view.container.querySelector(".right-dock");
+  workspace.getBoundingClientRect = () => ({ width: 1000, right: 1000 });
+  panel.getBoundingClientRect = () => ({ left: 600 });
+  await act(async () => { panel.querySelector('[aria-label="Resize right panel"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })); });
+  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "410px");
   await view.unmount();
 });
 

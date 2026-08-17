@@ -19,7 +19,7 @@ export function App() {
   const [sideChats, setSideChats] = useState<{ id: string; title: string }[]>([]);
   const [sessionPanelOpen, setSessionPanelOpen] = useState(() => window.innerWidth >= 1400);
   const [rightDockOpen, setRightDockOpen] = useState(false);
-  const [activeRightTab, setActiveRightTab] = useState("agents");
+  const [activeRightTab, setActiveRightTab] = useState("home");
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsVisible = settingsOpen || workspace.computerUseSetup;
@@ -44,7 +44,7 @@ export function App() {
   function closeSideChat(id: string) {
     const index = sideChats.findIndex((chat) => chat.id === id);
     setSideChats((current) => current.filter((chat) => chat.id !== id));
-    if (activeRightTab === id) setActiveRightTab(sideChats[index - 1]?.id ?? sideChats[index + 1]?.id ?? "agents");
+    if (activeRightTab === id) setActiveRightTab(sideChats[index - 1]?.id ?? sideChats[index + 1]?.id ?? "home");
   }
 
   function openSettings() {
@@ -59,6 +59,14 @@ export function App() {
     workspace.actions.dismissComputerUseSetup();
   }
 
+  function resizeRightDock(target: HTMLElement, clientX: number) {
+    const panel = target.parentElement;
+    const parent = panel?.parentElement;
+    if (!panel || !parent) return;
+    const bounds = parent.getBoundingClientRect();
+    parent.style.setProperty("--right-dock-width", `${Math.min(bounds.width - 320, Math.max(320, bounds.right - clientX))}px`);
+  }
+
   useEffect(() => {
     if (selectedSubagent && !workspace.subagents.some((subagent) => subagent.id === selectedSubagent)) setSelectedSubagent(null);
   }, [workspace.currentTask?.id, workspace.subagents, selectedSubagent]);
@@ -66,7 +74,7 @@ export function App() {
   useEffect(() => {
     setSideChats([]);
     sideChatSequence.current = 0;
-    setActiveRightTab("agents");
+    setActiveRightTab("home");
     setSelectedSubagent(null);
   }, [workspace.currentTask?.id]);
 
@@ -130,6 +138,10 @@ export function App() {
           }}
           onToggleRightDock={() => {
             setSessionPanelOpen(false);
+            if (!rightDockOpen) {
+              setActiveRightTab("home");
+              setSelectedSubagent(null);
+            }
             setRightDockOpen((open) => !open);
           }}
         />
@@ -157,12 +169,30 @@ export function App() {
         )}
 
         <aside className="right-dock" aria-label="Right panel" hidden={!rightDockOpen}>
+            <div
+              className="right-dock-resizer"
+              role="separator"
+              aria-label="Resize right panel"
+              aria-orientation="vertical"
+              tabIndex={0}
+              onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+              onPointerMove={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeRightDock(event.currentTarget, event.clientX);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                const panel = event.currentTarget.parentElement;
+                if (panel) resizeRightDock(event.currentTarget, panel.getBoundingClientRect().left + (event.key === "ArrowLeft" ? -10 : 10));
+              }}
+            />
             <div className="right-dock-tabs">
               <div role="tablist" aria-label="Right panel tabs">
-                <button className={activeRightTab === "agents" ? "active" : ""} type="button" role="tab" aria-selected={activeRightTab === "agents"} onClick={() => openRightTab("agents")}>
-                  <Bot size={15} aria-hidden="true" /><span>Agents</span>
-                  {workingSubagents > 0 && <em>{workingSubagents}</em>}
-                </button>
+                {activeRightTab !== "home" && (
+                  <button className={activeRightTab === "agents" ? "active" : ""} type="button" role="tab" aria-selected={activeRightTab === "agents"} onClick={() => openRightTab("agents")}>
+                    <Bot size={15} aria-hidden="true" /><span>Subagents</span>
+                    {workingSubagents > 0 && <em>{workingSubagents}</em>}
+                  </button>
+                )}
                 {sideChats.map((chat) => (
                   <div className={`right-dock-chat-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
                     <button type="button" role="tab" aria-selected={activeRightTab === chat.id} onClick={() => setActiveRightTab(chat.id)}><GitFork size={14} aria-hidden="true" /><span>{chat.title}</span></button>
@@ -173,13 +203,29 @@ export function App() {
               <details className="right-dock-add">
                 <summary aria-label="Add right panel tab"><Plus size={18} /></summary>
                 <div>
-                  <button type="button" onClick={(event) => { openRightTab("agents"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Bot size={16} />Agents</button>
+                  <button type="button" onClick={(event) => { openRightTab("agents"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Bot size={16} />Subagents</button>
                   <button type="button" disabled={!workspace.currentTask} onClick={(event) => { addSideChat(); event.currentTarget.closest("details")?.removeAttribute("open"); }}><GitFork size={16} />Side chat</button>
                 </div>
               </details>
               <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => setRightDockOpen(false)}><X size={17} /></button>
             </div>
             <div className="right-dock-content">
+              <div className="right-dock-picker" hidden={activeRightTab !== "home"} aria-label="Choose a right panel">
+                <header>
+                  <h2>Choose a panel</h2>
+                  <p>Inspect delegated work or start a focused conversation.</p>
+                </header>
+                <div>
+                  <button type="button" aria-label="Open Subagents panel" onClick={() => openRightTab("agents")}>
+                    <Bot size={19} aria-hidden="true" />
+                    <span><strong>Subagents</strong><small>View work delegated from this task</small></span>
+                  </button>
+                  <button type="button" aria-label="Open Side chat panel" disabled={!workspace.currentTask} onClick={addSideChat}>
+                    <GitFork size={19} aria-hidden="true" />
+                    <span><strong>Side chat</strong><small>Start a focused conversation from this task</small></span>
+                  </button>
+                </div>
+              </div>
               <div hidden={activeRightTab !== "agents"}>
                 {inspectedSubagent ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} /> : (
                   <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />

@@ -38,7 +38,7 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
   return <details className="setting-menu">
     <summary aria-label={label}>
       <span className="setting-summary-icon" aria-hidden="true"><SelectedIcon size={16} /></span>
-      {selected.label}
+      <span className="setting-summary-label">{selected.label}</span>
     </summary>
     <div className="setting-popover">
       <div className="setting-heading">{heading}</div>

@@ -115,7 +115,6 @@ export function ProjectSidebar({
       <div className="traffic-space" aria-hidden="true" />
       <div className="brand-row">
         <strong>Claudex</strong>
-        <span className="brand-chevron" aria-hidden="true">⌄</span>
       </div>
 
       <button className="new-task-button" onClick={() => onNewTask()}>

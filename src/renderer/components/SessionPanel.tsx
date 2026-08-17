@@ -40,14 +40,12 @@ export function SessionPanel({ environment, hasProject, subagents, onSelect }: S
               <div className="session-row">
                 <span className="session-row-icon"><FileDiff size={18} /></span>
                 <span>Changes</span>
-                <span className="change-counts">
-                  {available ? <><strong>+{available.additions}</strong><em>−{available.deletions}</em></> : "—"}
-                </span>
+                {available && <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>}
               </div>
               <div className="session-row">
                 <span className="session-row-icon"><GitBranch size={18} /></span>
                 <span>Branch</span>
-                <code title={available?.branch ?? undefined}>{available?.branch ?? "—"}</code>
+                {available?.branch && <code title={available.branch}>{available.branch}</code>}
               </div>
               {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
             </div>
