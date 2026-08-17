@@ -51,6 +51,32 @@ test("assistant markdown renders GFM without executing raw HTML", async () => {
   await view.unmount();
 });
 
+test("assistant markdown preserves nested, quoted, linked, and fenced structures", async () => {
+  const markdown = [
+    "> **Quoted** guidance",
+    ">",
+    "> - Parent",
+    ">   - Child",
+    "",
+    "A [safe link](https://example.com) and ~~obsolete text~~.",
+    "",
+    "```typescript",
+    "const first = 1;",
+    "",
+    "const second = 2;",
+    "```",
+  ].join("\n");
+  const view = await mount(React.createElement(MarkdownMessage, null, markdown));
+
+  assert.equal(view.container.querySelector("blockquote strong")?.textContent, "Quoted");
+  assert.equal(view.container.querySelector("blockquote ul ul li")?.textContent, "Child");
+  assert.equal(view.container.querySelector("a")?.target, "_blank");
+  assert.equal(view.container.querySelector("a")?.rel, "noreferrer");
+  assert.equal(view.container.querySelector("del")?.textContent, "obsolete text");
+  assert.match(view.container.querySelector("pre code.language-typescript")?.textContent ?? "", /first = 1;\n\nconst second = 2;/);
+  await view.unmount();
+});
+
 const subagents = [
   { id: "working", description: "Working agent", status: "working", lastToolName: "Read", totalTokens: 321, startedAt: 1, activity: [] },
   { id: "complete", description: "Complete agent", status: "completed", summary: "Done", startedAt: 1, finishedAt: 2, activity: [] },

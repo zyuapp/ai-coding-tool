@@ -71,10 +71,10 @@ function appendCompleteMarkdown(buffer: MarkdownBuffer, text: string) {
     const newline = buffer.text.indexOf("\n", lineStart);
     if (newline === -1) break;
     const line = buffer.text.slice(lineStart, newline);
-    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    const marker = line.match(/^(?:\s*>\s*)*\s*(?:(?:[-+*]|\d+[.)])\s+)?(`{3,}|~{3,})([\s\S]*)$/);
     if (!buffer.fence && marker) {
       buffer.fence = { marker: marker[1]![0]!, length: marker[1]!.length };
-    } else if (buffer.fence && new RegExp(`^ {0,3}${buffer.fence.marker}{${buffer.fence.length},}\\s*$`).test(line)) {
+    } else if (buffer.fence && marker && marker[1]![0] === buffer.fence.marker && marker[1]!.length >= buffer.fence.length && !marker[2]!.trim()) {
       buffer.fence = undefined;
       safeEnd = newline + 1;
     } else if (!buffer.fence && line.trim() === "") {

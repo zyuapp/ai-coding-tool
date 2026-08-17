@@ -128,6 +128,54 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
   ]);
 });
 
+test("Claude keeps complex Markdown fences intact across adversarial chunk boundaries", async () => {
+  const cases = [
+    {
+      name: "fenced code nested in a list",
+      chunks: [
+        "Before.\n\n- Example:\n\n    ```ts\n    const first = 1;\n",
+        "\n    const second = 2;\n",
+        "    ```\n\nAfter.",
+      ],
+      expected: [
+        "Before.\n\n- Example:\n\n",
+        "    ```ts\n    const first = 1;\n\n    const second = 2;\n    ```\n\n",
+        "After.",
+      ],
+    },
+    {
+      name: "four-backtick fence containing a triple-backtick fence",
+      chunks: ["``", "``md\n```ts\nconst value = 1;\n", "```\n\nStill outer.\n```", "`\n\nDone."],
+      expected: ["````md\n```ts\nconst value = 1;\n```\n\nStill outer.\n````\n\n", "Done."],
+    },
+    {
+      name: "tilde fence with CRLF newlines",
+      chunks: ["~~~ts\r\nconst first = 1;\r", "\n\r\nconst second = 2;\r\n", "~~~\r\n\r\nTail."],
+      expected: ["~~~ts\r\nconst first = 1;\r\n\r\nconst second = 2;\r\n~~~\r\n\r\n", "Tail."],
+    },
+    {
+      name: "unterminated final fence",
+      chunks: ["Intro.\n\n```ts\nconst delayed =", " true;"],
+      expected: ["Intro.\n\n", "```ts\nconst delayed = true;"],
+    },
+  ];
+
+  for (const scenario of cases) {
+    const emitted = [];
+    const messageId = `complex-${scenario.name}`;
+    const fullText = scenario.chunks.join("");
+    const messages = [
+      { type: "stream_event", uuid: crypto.randomUUID(), parent_tool_use_id: null, event: { type: "message_start", message: { id: messageId } } },
+      ...scenario.chunks.map((text) => ({ type: "stream_event", uuid: crypto.randomUUID(), parent_tool_use_id: null, event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } } })),
+      { type: "assistant", uuid: crypto.randomUUID(), parent_tool_use_id: null, message: { id: messageId, model: "claude-sonnet", usage: { input_tokens: 1 }, content: [{ type: "text", text: fullText }] } },
+    ];
+
+    const provider = new ClaudeAgentProvider(queryFactory(messages));
+    await provider.execute(input({ emit: (event) => emitted.push(event) }));
+    assert.deepEqual(emitted.filter((event) => event.type === "assistant").map((event) => event.text), scenario.expected, scenario.name);
+  }
+});
+
 test("side chat forks the main continuation and exposes read-only tools", async () => {
   const capture = {};
   const provider = new ClaudeAgentProvider(queryFactory([], capture));
