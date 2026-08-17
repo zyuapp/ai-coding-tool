@@ -1,10 +1,31 @@
-import { query, type CanUseTool, type Query } from "@anthropic-ai/claude-agent-sdk";
+import { query, type CanUseTool, type Query, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 
 type QueryFactory = typeof query;
+
+async function* idlePrompt() {
+  await new Promise<void>(() => {});
+}
+
+export async function discoverClaudeCommands(workspaceRoot: string, projectless: boolean, queryFactory: QueryFactory = query): Promise<SlashCommand[]> {
+  const session = queryFactory({
+    prompt: idlePrompt(),
+    options: {
+      cwd: workspaceRoot,
+      pathToClaudeCodeExecutable: packagedClaudeExecutable(),
+      settingSources: projectless ? ["user"] : ["user", "project", "local"],
+      skills: "all",
+    },
+  });
+  try {
+    return await session.supportedCommands();
+  } finally {
+    session.close();
+  }
+}
 
 export function packagedClaudeExecutable(resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath) {
   if (!resourcesPath) return undefined;

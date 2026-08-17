@@ -178,6 +178,7 @@ export function App() {
         <TaskComposer
           prompt={workspace.prompt}
           folder={workspace.folder}
+          workspaceId={workspace.currentProject?.workspaceId}
           mode={workspace.policy}
           model={workspace.model}
           contextWindow={workspace.contextWindow}

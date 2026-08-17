@@ -1,5 +1,6 @@
-import { Brain, Check, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, Zap, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, type CSSProperties } from "react";
+import { Brain, Check, Command, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, Zap, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 
@@ -63,6 +64,7 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
 export type TaskComposerProps = {
   prompt: string;
   folder: string;
+  workspaceId?: string;
   mode: ExecutionPolicy;
   model: AgentModel;
   contextWindow: ContextWindow;
@@ -79,6 +81,7 @@ export type TaskComposerProps = {
 export function TaskComposer({
   prompt,
   folder,
+  workspaceId,
   mode,
   model,
   contextWindow,
@@ -92,7 +95,34 @@ export function TaskComposer({
   onCancel,
 }: TaskComposerProps) {
   const settingsRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const commandMenuRef = useRef<HTMLDivElement>(null);
+  const [commands, setCommands] = useState<AvailableCommand[]>([]);
+  const [commandsLoading, setCommandsLoading] = useState(true);
+  const [selectedCommand, setSelectedCommand] = useState(0);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
   const contextPercent = contextUsage ? Math.round(contextUsage.tokens / contextUsage.limit * 100) : 0;
+  const slashQuery = prompt.match(/^\/([^\s]*)$/)?.[1].toLowerCase();
+  const appCommand = { name: "side", description: "Open a focused side chat.", argumentHint: "", aliases: [] as string[], kind: "app" as const };
+  const matchingCommands = slashQuery === undefined ? [] : [
+    appCommand,
+    ...commands.filter((command) => command.name !== "side").map((command) => ({ ...command, kind: "skill" as const })),
+  ].filter((command) => command.name.toLowerCase().startsWith(slashQuery) || command.aliases?.some((alias) => alias.toLowerCase().startsWith(slashQuery)));
+  const commandMenuOpen = inputFocused && slashQuery !== undefined && dismissedPrompt !== prompt;
+
+  function shortDescription(description: string) {
+    const firstSentence = description.split(/(?<=[.!?])\s/, 1)[0].replace(/\s+\([^)]*\)$/, "");
+    return firstSentence.length > 110 ? `${firstSentence.slice(0, 107).trimEnd()}…` : firstSentence;
+  }
+
+  function chooseCommand(command: (typeof matchingCommands)[number]) {
+    const nextPrompt = `/${command.name}${command.argumentHint ? " " : ""}`;
+    onPromptChange(nextPrompt);
+    setDismissedPrompt(nextPrompt);
+    setInputFocused(true);
+    textareaRef.current?.focus();
+  }
 
   useEffect(() => {
     const closeOtherMenus = (event: PointerEvent) => {
@@ -104,13 +134,85 @@ export function TaskComposer({
     return () => document.removeEventListener("pointerdown", closeOtherMenus);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setCommandsLoading(true);
+    void (async () => {
+      try {
+        const id = workspaceId ?? (await window.desktop.projectlessWorkspace()).id;
+        const result = await window.desktop.commands(id);
+        if (!cancelled) setCommands(result.status === "available" ? result.commands : []);
+      } catch {
+        if (!cancelled) setCommands([]);
+      } finally {
+        if (!cancelled) setCommandsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [workspaceId]);
+
+  useEffect(() => setSelectedCommand(0), [prompt, commands]);
+
+  useEffect(() => {
+    if (!commandMenuOpen) return;
+    commandMenuRef.current?.querySelector(`#slash-command-${selectedCommand}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [commandMenuOpen, selectedCommand]);
+
   return (
     <footer className="composer-wrap">
       <div className="composer">
+        {commandMenuOpen && (
+          <div className="command-menu" ref={commandMenuRef} id="slash-command-menu" role="listbox" aria-label="Slash commands">
+            <div className="command-menu-heading"><Command size={14} aria-hidden="true" /><span>Commands</span><kbd>↑↓</kbd></div>
+            <div className="command-menu-list">
+              {matchingCommands.map((command, index) => (
+                <button
+                  type="button"
+                  id={`slash-command-${index}`}
+                  key={`${command.kind}:${command.name}`}
+                  className={`command-option ${index === selectedCommand ? "selected" : ""}`}
+                  role="option"
+                  aria-selected={index === selectedCommand}
+                  onMouseEnter={() => setSelectedCommand(index)}
+                  onClick={() => chooseCommand(command)}
+                >
+                  <span className={`command-mark ${command.kind}`} aria-hidden="true">{command.kind === "app" ? <Command size={16} /> : <Sparkles size={15} />}</span>
+                  <span className="command-copy"><strong>/{command.name}{command.argumentHint && <em> {command.argumentHint}</em>}</strong><small>{shortDescription(command.description)}</small></span>
+                  <span className="command-source">{command.kind === "app" ? "Claudex" : "Skill"}</span>
+                </button>
+              ))}
+              {matchingCommands.length === 0 && <p className="command-empty">No matching commands</p>}
+            </div>
+            {commandsLoading && <div className="command-menu-status">Loading installed skills…</div>}
+          </div>
+        )}
         <textarea
+          ref={textareaRef}
           value={prompt}
-          onChange={(event) => onPromptChange(event.target.value)}
+          onInput={(event) => {
+            onPromptChange(event.currentTarget.value);
+            setDismissedPrompt(null);
+          }}
+          onFocus={() => setInputFocused(true)}
+          onBlur={(event) => {
+            if (!commandMenuRef.current?.contains(event.relatedTarget as Node)) setInputFocused(false);
+          }}
           onKeyDown={(event) => {
+            if (commandMenuOpen && matchingCommands.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+              event.preventDefault();
+              setSelectedCommand((current) => (current + (event.key === "ArrowDown" ? 1 : matchingCommands.length - 1)) % matchingCommands.length);
+              return;
+            }
+            if (commandMenuOpen && event.key === "Escape") {
+              event.preventDefault();
+              setDismissedPrompt(prompt);
+              return;
+            }
+            if (commandMenuOpen && matchingCommands[selectedCommand] && (event.key === "Enter" || event.key === "Tab")) {
+              event.preventDefault();
+              chooseCommand(matchingCommands[selectedCommand]);
+              return;
+            }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               onSend();
@@ -118,6 +220,10 @@ export function TaskComposer({
           }}
           placeholder={folder ? "Ask Claude to work on anything" : "Ask Claude anything"}
           aria-label="Task prompt"
+          aria-autocomplete="list"
+          aria-controls={commandMenuOpen ? "slash-command-menu" : undefined}
+          aria-expanded={commandMenuOpen}
+          aria-activedescendant={commandMenuOpen && matchingCommands[selectedCommand] ? `slash-command-${selectedCommand}` : undefined}
           rows={2}
         />
         <div className="composer-bar">

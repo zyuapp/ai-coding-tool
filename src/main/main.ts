@@ -106,6 +106,13 @@ async function readChangedFiles(workspaceId: string) {
   return changedFiles(workspaceId, getWorkspaceService());
 }
 
+async function readCommands(workspaceId: string) {
+  const resolution = await getWorkspaceService().resolve(workspaceId);
+  if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+  const { discoverClaudeCommands } = await import("./agent/claude-agent-provider.mjs");
+  return discoverClaudeCommands(resolution.workspace.root, resolution.workspace.kind === "projectless");
+}
+
 function postCommand(command: RunCommand) {
   try {
     if (!agent) startAgent();
@@ -259,6 +266,16 @@ ipcMain.handle("workspace:open", async (event) => {
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
+});
+
+ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {
+  if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
+  if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
+  try {
+    return { status: "available", commands: await readCommands(workspaceId) } as const;
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
+  }
 });
 
 ipcMain.handle("task-store:load", (event) => {

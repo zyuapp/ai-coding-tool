@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { ClaudeAgentProvider, packagedClaudeExecutable } from "../dist/main/main/agent/claude-agent-provider.mjs";
+import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../dist/main/main/agent/claude-agent-provider.mjs";
 
 function input(overrides = {}) {
   return {
@@ -42,6 +42,24 @@ test("packaged builds use the unpacked Claude executable", async () => {
   await writeFile(executable, "");
   assert.equal(packagedClaudeExecutable(resourcesPath), executable);
   assert.equal(packagedClaudeExecutable(path.join(resourcesPath, "missing")), undefined);
+});
+
+test("command discovery initializes an idle workspace session and closes it", async () => {
+  const capture = {};
+  const commands = [{ name: "pdf", description: "Work with PDFs", argumentHint: "<file>" }];
+  const result = await discoverClaudeCommands("/tmp/project", false, (options) => {
+    capture.options = options;
+    return {
+      supportedCommands: async () => commands,
+      close: () => { capture.closed = true; },
+    };
+  });
+
+  assert.deepEqual(result, commands);
+  assert.equal(typeof capture.options.prompt[Symbol.asyncIterator], "function");
+  assert.deepEqual(capture.options.options.settingSources, ["user", "project", "local"]);
+  assert.equal(capture.options.options.skills, "all");
+  assert.equal(capture.closed, true);
 });
 
 test("Claude query options follow run policy and workspace settings", async () => {

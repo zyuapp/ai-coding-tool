@@ -4,6 +4,7 @@ import type { DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
 const api: DesktopAPI = {
   openFolder: () => ipcRenderer.invoke("workspace:open"),
   projectlessWorkspace: () => ipcRenderer.invoke("workspace:projectless"),
+  commands: (workspaceId: string) => ipcRenderer.invoke("workspace:commands", workspaceId),
   send: (command: RunCommand) => ipcRenderer.send("run:command", command),
   onAgentEvent: (listener: (event: RunEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: RunEvent) => listener(payload);

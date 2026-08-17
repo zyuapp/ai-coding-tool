@@ -51,12 +51,24 @@ export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCo
 export type DesktopAPI = {
   openFolder(): Promise<WorkspaceRecord | null>;
   projectlessWorkspace(): Promise<WorkspaceRecord>;
+  commands(workspaceId: WorkspaceId): Promise<CommandDiscoveryResult>;
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
   loadTaskStore(): Promise<TaskStoreData | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
 };
+
+export type AvailableCommand = {
+  name: string;
+  description: string;
+  argumentHint: string;
+  aliases?: string[];
+};
+
+export type CommandDiscoveryResult =
+  | { status: "available"; commands: AvailableCommand[] }
+  | { status: "error"; message: string };
 
 export type ChangedFilesResult =
   | { status: "available"; files: string[]; branch: string | null; additions: number; deletions: number }

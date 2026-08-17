@@ -20,6 +20,7 @@ const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/W
 const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/MarkdownMessage.tsx");
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
+const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -204,6 +205,7 @@ function fakeDesktop(overrides = {}) {
     get unsubscribed() { return unsubscribed; },
     openFolder: async () => null,
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
+    commands: async () => ({ status: "available", commands: [] }),
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
     loadTaskStore: async () => null,
     persistTaskStore: async (delta) => { persisted.push(delta); },
@@ -212,6 +214,62 @@ function fakeDesktop(overrides = {}) {
     ...overrides,
   };
 }
+
+test("slash command palette filters skills and supports keyboard selection", async () => {
+  window.desktop = fakeDesktop({
+    commands: async () => ({ status: "available", commands: [
+      { name: "security-scan", description: "Scan the repository for security issues. Extra details are hidden.", argumentHint: "" },
+      { name: "pdf", description: "Work with PDF files.", argumentHint: "<file>" },
+    ] }),
+  });
+  let sends = 0;
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      mode: "confirm",
+      model: "default",
+      contextWindow: "default",
+      runActive: false,
+      onPromptChange: setPrompt,
+      onModeChange() {},
+      onModelChange() {},
+      onContextWindowChange() {},
+      onSend: () => { sends += 1; },
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  const scrolled = [];
+  const originalScrollIntoView = dom.window.HTMLElement.prototype.scrollIntoView;
+  dom.window.HTMLElement.prototype.scrollIntoView = function (options) { scrolled.push({ id: this.id, options }); };
+  textarea.attachEvent = () => {};
+  textarea.detachEvent = () => {};
+
+  await act(async () => {
+    textarea.focus();
+    setValue.call(textarea, "/s");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "/s" }));
+    textarea.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/side", "/security-scan"]);
+
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" })); });
+  assert.deepEqual(scrolled.at(-1), { id: "slash-command-1", options: { block: "nearest" } });
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })); });
+
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
+  assert.equal(textarea.value, "/side");
+  assert.equal(view.container.querySelector(".command-menu"), null);
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
+  assert.equal(sends, 1);
+  dom.window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  await view.unmount();
+});
 
 function seedLegacyWorkspace() {
   const legacyTask = {
