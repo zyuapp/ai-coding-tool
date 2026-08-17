@@ -253,10 +253,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .project-menu-popover button { width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; font-size: var(--text-control); }
 .project-menu-popover button:hover { background: #2a2f36; }
+.project-menu-popover .danger-menu-item { color: #e16b66; }
 .project-menu-popover.section-menu-popover { width: 224px; }
 .project-tasks { display: grid; gap: 1px; margin: 1px 0 4px; }
 .task-entry { position: relative; min-width: 0; }
-.task-context-menu { top: 34px; right: 8px; }
+.task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 .project-task-row {
   width: 100%;
   min-width: 0;

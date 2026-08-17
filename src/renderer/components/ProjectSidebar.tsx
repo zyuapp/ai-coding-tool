@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Ellipsis, SquarePen } from "lucide-react";
 import type { Project, Task } from "../../domain/task";
 
@@ -33,6 +35,7 @@ export type ProjectSidebarProps = {
   onNewTask: (projectId?: string) => void;
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
+  onRemoveProject: (projectId: string) => void;
   onSetProjectsOpen: (open: boolean) => void;
   onSetRecentsOpen: (open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
@@ -56,12 +59,15 @@ export function ProjectSidebar({
   onNewTask,
   onOpenFolder,
   onToggleProject,
+  onRemoveProject,
   onSetProjectsOpen,
   onSetRecentsOpen,
   onSetOpenMenu,
   onSelectTask,
   onArchiveTask,
 }: ProjectSidebarProps) {
+  const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
+
   function resizeSidebar(target: HTMLElement, clientX: number) {
     const sidebar = target.parentElement;
     if (sidebar) sidebar.style.width = `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`;
@@ -74,19 +80,26 @@ export function ProjectSidebar({
         onClick={() => onSelectTask(task.id)}
         onContextMenu={(event) => {
           event.preventDefault();
+          const row = event.currentTarget.getBoundingClientRect();
+          const menuHeight = 48;
+          setTaskMenuPosition({
+            left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
+            top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
+          });
           onSetOpenMenu(`task:${task.id}`);
         }}
         title={task.title}
       >
         {content}
       </button>
-      {openMenu === `task:${task.id}` && (
-        <div className="task-context-menu project-menu-popover" data-popover-menu role="menu">
+      {openMenu === `task:${task.id}` && createPortal(
+        <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
           <button role="menuitem" onClick={() => {
             onArchiveTask(task.id);
             onSetOpenMenu(null);
           }}>Archive</button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -139,6 +152,7 @@ export function ProjectSidebar({
                         onToggleProject(project.id);
                         onSetOpenMenu(null);
                       }}>{expanded ? "Collapse" : "Expand"}</button>
+                      <button className="danger-menu-item" role="menuitem" onClick={() => onRemoveProject(project.id)}>Remove</button>
                     </div>
                     }
                   </div>

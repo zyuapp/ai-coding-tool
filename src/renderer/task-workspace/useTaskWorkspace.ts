@@ -272,6 +272,33 @@ export function useTaskWorkspace() {
     });
   }
 
+  function removeProject(projectId: string) {
+    if (stateRef.current.activeRun && stateRef.current.tasks.some((task) => task.id === stateRef.current.activeRun?.taskId && task.projectId === projectId)) {
+      setStateAndRef((current) => ({ ...current, actionError: "Stop the running task before removing this project." }));
+      return;
+    }
+    setStateAndRef((current) => {
+      const project = current.projects.find((item) => item.id === projectId);
+      const expandedProjects = new Set(current.expandedProjects);
+      expandedProjects.delete(projectId);
+      return {
+        ...current,
+        projects: current.projects.filter((item) => item.id !== projectId),
+        tasks: current.tasks.map((task) => {
+          if (task.projectId !== projectId) return task;
+          const { projectId: _removed, ...projectlessTask } = task;
+          return task.archivedAt === undefined ? { ...projectlessTask, archivedAt: now() } : projectlessTask;
+        }),
+        currentId: current.tasks.find((task) => task.id === current.currentId)?.projectId === projectId ? null : current.currentId,
+        draftProjectId: current.draftProjectId === projectId ? null : current.draftProjectId,
+        lastFolder: project?.root === current.lastFolder ? null : current.lastFolder,
+        expandedProjects,
+        openMenu: null,
+        actionError: null,
+      };
+    });
+  }
+
   function setPolicy(nextPolicy: ExecutionPolicy) {
     setStateAndRef((current) => current.currentId
       ? applyTask({ ...current, draftPolicy: nextPolicy }, current.currentId, (task) => ({ ...task, executionPolicy: nextPolicy, updatedAt: now() }))
@@ -404,6 +431,7 @@ export function useTaskWorkspace() {
       selectTask,
       archiveTask,
       toggleProject,
+      removeProject,
       setProjectsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, projectsOpen: open })),
       setRecentsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, recentsOpen: open })),
       setOpenMenu: (menu: string | null) => setStateAndRef((current) => ({ ...current, openMenu: menu })),

@@ -340,6 +340,26 @@ test("workspace hook reopens a legacy project and prevents duplicate submissions
   await view.unmount();
 });
 
+test("workspace hook removes a project without touching its folder", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const task = {
+    id: "task-1", title: "Task", projectId: project.id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task], lastFolder: project.root }) });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+
+  await act(async () => { workspace.get().actions.removeProject(project.id); });
+
+  assert.equal(workspace.get().projects.length, 0);
+  assert.equal(workspace.get().currentTask, undefined);
+  assert.ok(workspace.get().tasks[0].archivedAt);
+  assert.equal(workspace.get().tasks[0].projectId, undefined);
+  assert.equal(workspace.get().folder, "");
+  await workspace.view.unmount();
+});
+
 test("workspace hook can retry cancelled, mismatched, and failed folder recovery", async () => {
   const outcomes = [null, { id: "wrong", kind: "project", root: "/wrong" }, new Error("dialog failed"), { id: "workspace-1", kind: "project", root: "/project" }];
   const desktop = fakeDesktop({ openFolder: async () => {
