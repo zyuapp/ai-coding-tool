@@ -258,6 +258,9 @@ app.on("before-quit", (event) => {
   }
   quitting = true;
   agent?.kill();
+});
+
+app.on("will-quit", () => {
   taskDatabase?.close();
 });
 
