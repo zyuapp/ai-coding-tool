@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Ellipsis, SquarePen } from "lucide-react";
+import { Ellipsis, Settings, SquarePen } from "lucide-react";
 import type { Project, Task } from "../../domain/task";
 
 function shortFolder(folder: string) {
@@ -21,6 +21,7 @@ function FolderIcon() {
 
 export type ProjectSidebarProps = {
   compactOpen: boolean;
+  inactive: boolean;
   projects: Project[];
   orderedTasks: Task[];
   recentTasks: Task[];
@@ -32,6 +33,7 @@ export type ProjectSidebarProps = {
   projectsOpen: boolean;
   recentsOpen: boolean;
   openMenu: string | null;
+  settingsOpen: boolean;
   onNewTask: (projectId?: string) => void;
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
@@ -41,10 +43,12 @@ export type ProjectSidebarProps = {
   onSetOpenMenu: (menu: string | null) => void;
   onSelectTask: (taskId: string) => void;
   onArchiveTask: (taskId: string) => void;
+  onOpenSettings: () => void;
 };
 
 export function ProjectSidebar({
   compactOpen,
+  inactive,
   projects,
   orderedTasks,
   recentTasks,
@@ -56,6 +60,7 @@ export function ProjectSidebar({
   projectsOpen,
   recentsOpen,
   openMenu,
+  settingsOpen,
   onNewTask,
   onOpenFolder,
   onToggleProject,
@@ -65,6 +70,7 @@ export function ProjectSidebar({
   onSetOpenMenu,
   onSelectTask,
   onArchiveTask,
+  onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
 
@@ -105,7 +111,7 @@ export function ProjectSidebar({
   );
 
   return (
-    <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`}>
+    <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`} inert={inactive}>
       <div className="traffic-space" aria-hidden="true" />
       <div className="brand-row">
         <strong>Claudex</strong>
@@ -204,6 +210,10 @@ export function ProjectSidebar({
           )}
         </nav>}
       </div>
+      <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
+        <Settings size={17} aria-hidden="true" />
+        <span>Settings</span>
+      </button>
       <div
         className="sidebar-resizer"
         role="separator"

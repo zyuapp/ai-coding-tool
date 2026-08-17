@@ -21,7 +21,7 @@ const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/M
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
-const { ComputerUseSetupCard } = await vite.ssrLoadModule("/src/renderer/components/ComputerUseSetupCard.tsx");
+const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -219,8 +219,7 @@ function fakeDesktop(overrides = {}) {
   };
 }
 
-test("computer-use setup requests once, refreshes automatically, and requires an explicit restart", async () => {
-  let dismissed = false;
+test("computer-use settings refresh permissions", async () => {
   let restarted = false;
   let checks = 0;
   window.desktop = fakeDesktop({
@@ -231,22 +230,42 @@ test("computer-use setup requests once, refreshes automatically, and requires an
     ][checks++],
     restartForComputerUse: () => { restarted = true; },
   });
-  const view = await mount(React.createElement(ComputerUseSetupCard, { onDismiss: () => { dismissed = true; } }));
-
-  assert.match(view.container.textContent, /Enable computer use/);
-  await act(async () => { view.container.querySelector(".computer-use-actions button:last-child").click(); });
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {} }));
+  await act(async () => {});
   assert.match(view.container.textContent, /Accessibility/);
-  assert.match(view.container.textContent, /updates automatically/);
-  assert.match(view.container.textContent, /Required/);
-  assert.match(view.container.textContent, /captures one frame and discards it/);
+  assert.match(view.container.textContent, /Setup required/);
+  await act(async () => { view.container.querySelector(".setting-row-action button").click(); });
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.match(view.container.textContent, /Screen & System Audio Recording/);
-  await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.match(view.container.textContent, /Computer use is ready/);
-  assert.match(view.container.textContent, /Restart and continue/);
-  await act(async () => { view.container.querySelector(".computer-use-actions button").click(); });
+  assert.match(view.container.textContent, /Ready/);
+  assert.match(view.container.textContent, /Restart Claudex/);
+  await act(async () => { view.container.querySelector(".settings-restart button").click(); });
   assert.equal(restarted, true);
-  assert.equal(dismissed, false);
+  await view.unmount();
+});
+
+test("computer-use setup events open settings directly", async () => {
+  localStorage.clear();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+
+  await act(async () => {
+    setValue.call(textarea, "Use the Calculator app");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Use the Calculator app" }));
+    textarea.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => { view.container.querySelector('button[aria-label="Send task"]').click(); });
+  const start = desktop.sent[0];
+  await act(async () => {
+    desktop.listener({ type: "computer-use.setup-required", taskId: start.taskId, runId: start.runId, sequence: 1 });
+  });
+
+  assert.ok(view.container.querySelector(".settings-view"));
+  assert.equal(view.container.querySelector(".computer-use-card"), null);
+  await act(async () => { view.container.querySelector(".settings-back").click(); });
+  assert.equal(view.container.querySelector(".settings-view"), null);
   await view.unmount();
 });
 

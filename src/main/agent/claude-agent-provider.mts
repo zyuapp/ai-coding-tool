@@ -86,7 +86,7 @@ export class ClaudeAgentProvider implements AgentProvider {
                 alwaysLoad: true,
                 tools: [tool("request_setup", "Use when a task requires operating another application's interface but computer use needs to be enabled in Claudex.", {}, async () => {
                   input.emit({ type: "computer-use.setup-required" });
-                  return { content: [{ type: "text", text: "Claudex displayed its computer-use permission setup. Ask the user to complete it, then retry after Claudex restarts." }] };
+                  return { content: [{ type: "text", text: "Claudex opened Settings → Computer use. Ask the user to complete the required permissions, then retry after Claudex restarts." }] };
                 })],
               }),
             }

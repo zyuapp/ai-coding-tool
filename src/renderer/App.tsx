@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, GitFork, Plus, X } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { ConversationTimeline } from "./components/ConversationTimeline";
-import { ComputerUseSetupCard } from "./components/ComputerUseSetupCard";
 import { ProjectSidebar } from "./components/ProjectSidebar";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { AgentsPanel, SessionPanel } from "./components/SessionPanel";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
@@ -21,6 +21,8 @@ export function App() {
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const [activeRightTab, setActiveRightTab] = useState("agents");
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsVisible = settingsOpen || workspace.computerUseSetup;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
 
@@ -43,6 +45,18 @@ export function App() {
     const index = sideChats.findIndex((chat) => chat.id === id);
     setSideChats((current) => current.filter((chat) => chat.id !== id));
     if (activeRightTab === id) setActiveRightTab(sideChats[index - 1]?.id ?? sideChats[index + 1]?.id ?? "agents");
+  }
+
+  function openSettings() {
+    setSettingsOpen(true);
+    setSidebarOpen(false);
+    setSessionPanelOpen(false);
+    setRightDockOpen(false);
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false);
+    workspace.actions.dismissComputerUseSetup();
   }
 
   useEffect(() => {
@@ -75,6 +89,7 @@ export function App() {
     <main className="app-shell">
       <ProjectSidebar
         compactOpen={sidebarOpen}
+        inactive={settingsVisible}
         projects={workspace.projects}
         orderedTasks={workspace.orderedTasks}
         recentTasks={workspace.recentTasks}
@@ -86,6 +101,7 @@ export function App() {
         projectsOpen={workspace.projectsOpen}
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}
+        settingsOpen={settingsVisible}
         onNewTask={workspace.actions.newTask}
         onOpenFolder={workspace.actions.openFolder}
         onToggleProject={workspace.actions.toggleProject}
@@ -95,10 +111,11 @@ export function App() {
         onSetOpenMenu={workspace.actions.setOpenMenu}
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
+        onOpenSettings={openSettings}
       />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
 
-      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`}>
+      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`} inert={settingsVisible}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
@@ -123,7 +140,6 @@ export function App() {
         <div className="work-area">
           <div className="conversation" ref={transcriptRef}>
             <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} scrollContainerRef={transcriptRef} />
-            {workspace.computerUseSetup && <ComputerUseSetupCard onDismiss={workspace.actions.dismissComputerUseSetup} />}
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>
@@ -202,6 +218,7 @@ export function App() {
           onCancel={workspace.actions.cancelRun}
         />
       </section>
+      {settingsVisible && <SettingsPanel onClose={closeSettings} />}
     </main>
   );
 }
