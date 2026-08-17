@@ -1,11 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { isRunCommand, isRunEvent, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isRunCommand, isRunEvent, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
-import { computerUseForRun, computerUsePermissions, requestComputerUsePermissions, stopComputerUse } from "./computer-use-host.js";
+import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 
 app.setName("Claudex");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
@@ -295,9 +295,10 @@ ipcMain.handle("computer-use:permissions", async (event) => {
   return computerUsePermissions();
 });
 
-ipcMain.handle("computer-use:enable", async (event) => {
+ipcMain.handle("computer-use:enable", async (event, permission: ComputerUsePermission) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return requestComputerUsePermissions();
+  if (permission !== "accessibility" && permission !== "screenRecording") throw new Error("Invalid computer-use permission.");
+  return requestComputerUsePermission(permission);
 });
 
 ipcMain.on("computer-use:restart", (event) => {

@@ -32,6 +32,8 @@ export type ComputerUsePermissions = {
   screenRecording: boolean;
 };
 
+export type ComputerUsePermission = keyof ComputerUsePermissions;
+
 export type ComputerUseMcp = {
   command: string;
   args: string[];
@@ -70,7 +72,7 @@ export type DesktopAPI = {
   projectlessWorkspace(): Promise<WorkspaceRecord>;
   commands(workspaceId: WorkspaceId): Promise<CommandDiscoveryResult>;
   computerUsePermissions(): Promise<ComputerUsePermissions>;
-  enableComputerUse(): Promise<ComputerUsePermissions>;
+  enableComputerUse(permission: ComputerUsePermission): Promise<ComputerUsePermissions>;
   restartForComputerUse(): void;
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;

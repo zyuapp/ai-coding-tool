@@ -1,9 +1,9 @@
-import { app, systemPreferences } from "electron";
+import { app, shell, systemPreferences } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { EmbeddedCuaDriverHost, EmbeddedDriverConnection } from "@trycua/cua-driver" with { "resolution-mode": "import" };
-import type { ComputerUsePermissions, ComputerUseRunConfig } from "../contracts/ipc.js";
+import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../contracts/ipc.js";
 
 const bundleId = "com.zyuapp.claudex";
 let host: EmbeddedCuaDriverHost | null = null;
@@ -50,17 +50,17 @@ export async function computerUsePermissions(): Promise<ComputerUsePermissions> 
   return currentMacOsPermissionStatus();
 }
 
-export async function requestComputerUsePermissions(): Promise<ComputerUsePermissions> {
+export async function requestComputerUsePermission(permission: ComputerUsePermission): Promise<ComputerUsePermissions> {
   if (process.platform !== "darwin") return { accessibility: false, screenRecording: false };
-  const current = await computerUsePermissions();
-  if (!current.accessibility) systemPreferences.isTrustedAccessibilityClient(true);
+  if (permission === "accessibility") {
+    if (!systemPreferences.isTrustedAccessibilityClient(true)) await shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+    return computerUsePermissions();
+  }
   const { openMacOSScreenRecordingSettings, requestMacOSPermissions } = await cuaElectron();
   const status = requestMacOSPermissions();
-  if (!status.screenRecording) {
-    await probeScreenRecordingRegistration().catch(() => undefined);
-  }
+  if (!status.screenRecording) await probeScreenRecordingRegistration().catch(() => undefined);
   const next = await computerUsePermissions();
-  if (current.accessibility && !next.screenRecording) await openMacOSScreenRecordingSettings();
+  if (!next.screenRecording) await openMacOSScreenRecordingSettings();
   return next;
 }
 

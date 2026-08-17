@@ -1,10 +1,10 @@
 import { ArrowLeft, Check, MonitorCog } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ComputerUsePermissions } from "../../contracts/ipc";
+import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [permissions, setPermissions] = useState<ComputerUsePermissions | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<ComputerUsePermission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [restartRequired, setRestartRequired] = useState(false);
   const requested = useRef(false);
@@ -31,24 +31,22 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  async function enable() {
-    setBusy(true);
+  async function enable(permission: ComputerUsePermission) {
+    setBusy(permission);
     setError(null);
     requested.current = true;
     try {
-      const next = await window.desktop.enableComputerUse();
+      const next = await window.desktop.enableComputerUse(permission);
       setPermissions(next);
       if (next.accessibility && next.screenRecording) setRestartRequired(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   const ready = Boolean(permissions?.accessibility && permissions.screenRecording);
-  const action = permissions?.accessibility ? "Open System Settings" : "Enable Accessibility";
-
   return (
     <section className="settings-view" aria-label="Settings">
       <aside className="settings-sidebar">
@@ -78,7 +76,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               <h3 id="permissions-heading">Permissions</h3>
               <p>Claudex needs both macOS permissions to operate other apps.</p>
             </div>
-            <span className={ready ? "ready" : ""}>{ready ? "Ready" : "Setup required"}</span>
+            <span className={ready ? "ready" : ""}>{ready ? "Setup complete" : "Setup required"}</span>
           </div>
 
           <div className="setting-row">
@@ -88,8 +86,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               <p>Allows Claudex to click, type, and navigate apps.</p>
             </div>
             <div className="setting-row-action">
-              <em className={permissions?.accessibility ? "granted" : ""}>{permissions ? (permissions.accessibility ? "Enabled" : "Required") : "Checking…"}</em>
-              {permissions && !permissions.accessibility && <button type="button" disabled={busy} onClick={() => void enable()}>{busy ? "Opening…" : action}</button>}
+              {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
+              {permissions && !permissions.accessibility && <button type="button" disabled={busy !== null} onClick={() => void enable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</button>}
             </div>
           </div>
 
@@ -100,8 +98,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               <p>Allows Claudex to see app windows. System audio is not recorded.</p>
             </div>
             <div className="setting-row-action">
-              <em className={permissions?.screenRecording ? "granted" : ""}>{permissions ? (permissions.screenRecording ? "Enabled" : "Required") : "Checking…"}</em>
-              {permissions?.accessibility && !permissions.screenRecording && <button type="button" disabled={busy} onClick={() => void enable()}>{busy ? "Opening…" : action}</button>}
+              {permissions?.screenRecording ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
+              {permissions && !permissions.screenRecording && <button type="button" disabled={busy !== null} onClick={() => void enable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</button>}
             </div>
           </div>
 

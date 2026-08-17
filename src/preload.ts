@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
+import type { ComputerUsePermission, DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
 
 const api: DesktopAPI = {
   openFolder: () => ipcRenderer.invoke("workspace:open"),
   projectlessWorkspace: () => ipcRenderer.invoke("workspace:projectless"),
   commands: (workspaceId: string) => ipcRenderer.invoke("workspace:commands", workspaceId),
   computerUsePermissions: () => ipcRenderer.invoke("computer-use:permissions"),
-  enableComputerUse: () => ipcRenderer.invoke("computer-use:enable"),
+  enableComputerUse: (permission: ComputerUsePermission) => ipcRenderer.invoke("computer-use:enable", permission),
   restartForComputerUse: () => ipcRenderer.send("computer-use:restart"),
   send: (command: RunCommand) => ipcRenderer.send("run:command", command),
   onAgentEvent: (listener: (event: RunEvent) => void) => {

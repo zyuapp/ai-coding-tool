@@ -222,10 +222,14 @@ function fakeDesktop(overrides = {}) {
 test("computer-use settings refresh permissions", async () => {
   let restarted = false;
   let checks = 0;
+  const requested = [];
   window.desktop = fakeDesktop({
-    enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
+    enableComputerUse: async (permission) => {
+      requested.push(permission);
+      return { accessibility: false, screenRecording: false };
+    },
     computerUsePermissions: async () => [
-      { accessibility: true, screenRecording: false },
+      { accessibility: false, screenRecording: false },
       { accessibility: true, screenRecording: true },
     ][checks++],
     restartForComputerUse: () => { restarted = true; },
@@ -234,9 +238,17 @@ test("computer-use settings refresh permissions", async () => {
   await act(async () => {});
   assert.match(view.container.textContent, /Accessibility/);
   assert.match(view.container.textContent, /Setup required/);
-  await act(async () => { view.container.querySelector(".setting-row-action button").click(); });
+  assert.match(view.container.textContent, /Enable Accessibility/);
+  assert.match(view.container.textContent, /Enable Screen Recording/);
+  assert.equal(view.container.querySelectorAll(".setting-row-action button").length, 2);
+  const buttons = view.container.querySelectorAll(".setting-row-action button");
+  await act(async () => { buttons[0].click(); });
+  await act(async () => { buttons[1].click(); });
+  assert.deepEqual(requested, ["accessibility", "screenRecording"]);
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.match(view.container.textContent, /Ready/);
+  assert.match(view.container.textContent, /Setup complete/);
+  assert.equal(view.container.querySelectorAll(".setting-row-action em.granted").length, 2);
+  assert.match(view.container.textContent, /Done/);
   assert.match(view.container.textContent, /Restart Claudex/);
   await act(async () => { view.container.querySelector(".settings-restart button").click(); });
   assert.equal(restarted, true);
