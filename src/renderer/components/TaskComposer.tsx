@@ -31,9 +31,9 @@ function readImage(file: File) {
 type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon; elevated?: boolean };
 
 const modes: Choice<ExecutionPolicy>[] = [
-  { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files", icon: Hand },
-  { value: "allow-edits", label: "Allow all edit", description: "Apply file edits without asking", icon: FileCheck2 },
   { value: "autonomous", label: "Auto mode", description: "Only ask for potentially unsafe actions", icon: Zap, elevated: true },
+  { value: "allow-edits", label: "Allow all edit", description: "Apply file edits without asking", icon: FileCheck2 },
+  { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files", icon: Hand },
 ];
 
 const models: Choice<AgentModel>[] = [
@@ -44,11 +44,11 @@ const models: Choice<AgentModel>[] = [
 ];
 
 const efforts: Choice<AgentEffort>[] = [
-  { value: "low", label: "Low effort", description: "Minimal thinking, fastest replies", icon: SignalLow },
-  { value: "medium", label: "Medium effort", description: "Moderate thinking", icon: SignalMedium },
-  { value: "high", label: "High effort", description: "Deep reasoning", icon: SignalHigh },
-  { value: "xhigh", label: "Extra high effort", description: "Deeper than high, where the model offers it", icon: Signal },
   { value: "max", label: "Max effort", description: "Everything the model has, slowest", icon: Flame, elevated: true },
+  { value: "xhigh", label: "Extra high effort", description: "Deeper than high, where the model offers it", icon: Signal },
+  { value: "high", label: "High effort", description: "Deep reasoning", icon: SignalHigh },
+  { value: "medium", label: "Medium effort", description: "Moderate thinking", icon: SignalMedium },
+  { value: "low", label: "Low effort", description: "Minimal thinking, fastest replies", icon: SignalLow },
 ];
 
 function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange }: {

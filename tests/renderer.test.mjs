@@ -752,7 +752,7 @@ test("the composer offers model and effort choices, ordered most to least capabl
   const effortMenu = view.container.querySelectorAll(".setting-menu")[2];
   assert.deepEqual(
     [...effortMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
-    ["Low effort", "Medium effort", "High effort", "Extra high effort", "Max effort"],
+    ["Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"],
   );
   assert.equal(effortMenu.querySelector(".setting-summary-label").textContent, "High effort");
   await view.unmount();
