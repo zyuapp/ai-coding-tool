@@ -138,6 +138,15 @@ test("restoring an archived task returns it to the sidebar and leaves its automa
   assert.equal(reduce(restored.state, { type: "task.restore", taskId: "task-a" }).state, restored.state);
 });
 
+test("clearing the archive deletes every archived task at once", () => {
+  const state = workspace({ tasks: [task("kept"), task("archived-a", { archivedAt: 5 }), task("archived-b", { archivedAt: 6 })], currentId: "archived-a" });
+  const cleared = reduce(state, { type: "task.clear-archive" });
+
+  assert.deepEqual(cleared.state.tasks.map((item) => item.id), ["kept"]);
+  assert.equal(cleared.state.currentId, null);
+  assert.equal(reduce(cleared.state, { type: "task.clear-archive" }).state, cleared.state);
+});
+
 test("a load drops archived tasks past the retention window and keeps the rest", () => {
   const day = 86_400_000;
   const loaded = reduce(workspace(), {

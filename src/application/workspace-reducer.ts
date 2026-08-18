@@ -281,6 +281,16 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled(applyTask(state, input.taskId, ({ archivedAt: _restored, ...item }) => item));
     }
 
+    case "task.clear-archive": {
+      const tasks = state.tasks.filter((task) => task.archivedAt === undefined);
+      if (tasks.length === state.tasks.length) return settled(state);
+      return settled({
+        ...state,
+        tasks,
+        currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
+      });
+    }
+
     case "task.rename": {
       const title = clampTitle(input.title);
       if (!title || !state.tasks.some((task) => task.id === input.taskId)) return settled(state);

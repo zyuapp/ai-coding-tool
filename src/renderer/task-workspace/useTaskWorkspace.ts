@@ -227,6 +227,7 @@ export function useTaskWorkspace() {
       selectTask: (taskId: string) => dispatch({ type: "task.select", taskId }),
       archiveTask: (taskId: string) => dispatch({ type: "task.archive", taskId }),
       restoreTask: (taskId: string) => dispatch({ type: "task.restore", taskId }),
+      clearArchive: () => dispatch({ type: "task.clear-archive" }),
       renameTask: (taskId: string, title: string) => dispatch({ type: "task.rename", taskId, title }),
       moveTask: (taskId: string, target: TaskDropTarget) => dispatch({ type: "task.move", taskId, target }),
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),

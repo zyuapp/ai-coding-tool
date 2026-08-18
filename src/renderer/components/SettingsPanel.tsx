@@ -15,10 +15,12 @@ export type SettingsPanelProps = {
   onClose: () => void;
   archivedTasks: Task[];
   onRestoreTask: (taskId: string) => void;
+  onClearArchive: () => void;
 };
 
-export function SettingsPanel({ onClose, archivedTasks, onRestoreTask }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearArchive }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("computer-use");
+  const [confirmingClear, setConfirmingClear] = useState(false);
   const [permissions, setPermissions] = useState<ComputerUsePermissions | null>(null);
   const [busy, setBusy] = useState<ComputerUsePermission | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +99,18 @@ export function SettingsPanel({ onClose, archivedTasks, onRestoreTask }: Setting
               <h3 id="archive-heading">Archive</h3>
               <p>Restore a thread to put it back in the sidebar. Its automation stays off.</p>
             </div>
-            <span>{archivedTasks.length} archived</span>
+            <div className="settings-group-action">
+              <span>{archivedTasks.length} archived</span>
+              {archivedTasks.length > 0 && (confirmingClear
+                ? <>
+                    <button className="danger" type="button" onClick={() => {
+                      onClearArchive();
+                      setConfirmingClear(false);
+                    }}>Delete all</button>
+                    <button type="button" onClick={() => setConfirmingClear(false)}>Cancel</button>
+                  </>
+                : <button type="button" onClick={() => setConfirmingClear(true)}>Clear all</button>)}
+            </div>
           </div>
 
           {archivedTasks.length === 0

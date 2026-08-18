@@ -16,6 +16,7 @@ export type TaskCommand =
   | { type: "task.select"; taskId: string }
   | { type: "task.archive"; taskId: string }
   | { type: "task.restore"; taskId: string }
+  | { type: "task.clear-archive" }
   | { type: "task.rename"; taskId: string; title: string }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   | { type: "task.set-policy"; policy: ExecutionPolicy }

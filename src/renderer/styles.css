@@ -850,6 +850,11 @@ pre {
 .setting-row-action button, .settings-restart button { border: 1px solid #3b424c; border-radius: 8px; padding: 7px 11px; background: #20262e; color: #c9c9c5; font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .setting-row-action button:hover, .settings-restart button:hover { border-color: #4a535f; background: #272e37; }
 .setting-row-action button:disabled { color: #70757b; cursor: default; }
+.settings-group-action { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+.settings-group-action button { border: 1px solid #3b424c; border-radius: 8px; padding: 5px 9px; background: #20262e; color: #c9c9c5; font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+.settings-group-action button:hover { border-color: #4a535f; background: #272e37; }
+.settings-group-action button.danger { border-color: #5c3630; color: #e1897a; }
+.settings-group-action button.danger:hover { border-color: #74423a; background: #31221f; }
 .settings-empty { margin: 0; border-top: 1px solid #272d35; padding: 19px 0; color: #70767e; font-size: var(--text-control); }
 .settings-error { margin: 0; border-top: 1px solid #3c2e2a; padding: 13px 0; color: #dd8b6d; font-size: var(--text-control); }
 .settings-restart { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid #34445a; padding: 15px 0; }
