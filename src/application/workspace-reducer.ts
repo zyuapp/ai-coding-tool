@@ -155,19 +155,20 @@ function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: 
 }
 
 /**
- * A finished run hands its queue on. Messages the user is still waiting on start the next run; a run
- * the user stopped hands them back to the composer instead of speaking for them.
+ * A finished run hands its queue on one message at a time, so each queued message gets its own run
+ * and the ones behind it wait for that run to finish. A run the user stopped hands the whole queue
+ * back to the composer instead of speaking for them.
  */
 function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): WorkspaceTransition {
   const queued = queuedFor(state, taskId);
   if (!queued.length) return settled(state);
-  const drained = withQueued(state, taskId, []);
   if (status === "cancelled") {
     const text = [...queued.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
-    return settled(withPrompt(drained, taskId, text));
+    return settled(withPrompt(withQueued(state, taskId, []), taskId, text));
   }
   const task = state.tasks.find((item) => item.id === taskId);
-  if (!task) return settled(drained);
+  if (!task) return settled(withQueued(state, taskId, []));
+  const [next] = queued;
   const project = projectFor(state, task);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
@@ -175,10 +176,10 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     origin: "composer",
     taskId,
     ...(project ? { projectId: project.id } : {}),
-    text: queued.map((message) => message.text).join("\n\n"),
-    prompt: queued.map((message) => message.prompt).join("\n\n"),
-    attachments: queued.flatMap((message) => message.attachments),
-    queuedIds: queued.map((message) => message.id),
+    text: next.text,
+    prompt: next.prompt,
+    attachments: next.attachments,
+    queuedIds: [next.id],
   };
   return settled(withPending(state, pending), [{
     type: "resolve-run-workspace",
