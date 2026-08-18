@@ -259,7 +259,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   place-items: center;
   border: 0;
   border-radius: 6px;
-  background: #2a3038;
+  background: transparent;
   color: #aeadab;
   opacity: 0;
   pointer-events: none;
@@ -267,6 +267,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
 .task-archive:hover { background: #353c46; color: #dfddd8; }
+/** The icon sits where the run marks are, so they step aside while the row is hovered. */
+.task-entry:hover .task-row-marks, .task-entry:hover .task-attention { visibility: hidden; }
 .project-task-row {
   width: 100%;
   min-width: 0;

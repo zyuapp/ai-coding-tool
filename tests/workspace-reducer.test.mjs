@@ -109,7 +109,7 @@ test("a scheduled run starts with its own framing and acknowledges the tick", ()
   assert.equal(started.state.tasks[0].messages[0].detail, "Automation run #2");
 });
 
-test("archiving a task retires its automation and leaves a running one alone", () => {
+test("archiving a task retires its automation and cancels a run still going", () => {
   const state = workspace({
     tasks: [task("task-a"), task("task-b")],
     automations: [{ taskId: "task-a" }, { taskId: "task-b" }],
@@ -121,7 +121,11 @@ test("archiving a task retires its automation and leaves a running one alone", (
   assert.ok(archived.state.tasks[0].archivedAt);
 
   const running = reduce(state, { type: "task.archive", taskId: "task-b" });
-  assert.equal(running.state, state);
+  assert.deepEqual(running.effects, [
+    { type: "automation.delete", taskId: "task-b" },
+    { type: "send-run-command", command: { type: "cancel", taskId: "task-b", runId: "run-b" } },
+  ]);
+  assert.ok(running.state.tasks[1].archivedAt);
 });
 
 test("restoring an archived task returns it to the sidebar and leaves its automation retired", () => {

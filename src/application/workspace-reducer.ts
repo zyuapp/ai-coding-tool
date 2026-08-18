@@ -261,13 +261,17 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       }, input.taskId));
     }
 
+    /** Archiving a running task cancels its run; the task leaves the sidebar without waiting for the run to settle. */
     case "task.archive": {
-      if (state.activeRuns[input.taskId]) return settled(state);
+      const active = state.activeRuns[input.taskId];
       return settled({
         ...state,
         tasks: state.tasks.map((task) => task.id === input.taskId ? { ...task, archivedAt: now() } : task),
         currentId: state.currentId === input.taskId ? null : state.currentId,
-      }, retireAutomations(state, [input.taskId]));
+      }, [
+        ...retireAutomations(state, [input.taskId]),
+        ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
+      ]);
     }
 
     /** Restoring leaves the retired automation gone; the user re-arms it themselves. */
