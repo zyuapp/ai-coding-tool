@@ -69,13 +69,40 @@ function drawArrow(context: CanvasRenderingContext2D, annotation: Annotation, wi
   context.fill();
 }
 
+/** Greedy word wrap; a word longer than the line is split so it can never overflow the chip. */
+export function wrapLabel(context: CanvasRenderingContext2D, label: string, maxWidth: number) {
+  const lines: string[] = [];
+  let line = "";
+  const push = () => { if (line) { lines.push(line); line = ""; } };
+  label.split(/\s+/).filter(Boolean).forEach((word) => {
+    let rest = word;
+    while (context.measureText(rest).width > maxWidth) {
+      push();
+      let cut = 1;
+      while (cut < rest.length && context.measureText(rest.slice(0, cut + 1)).width <= maxWidth) cut += 1;
+      lines.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+    const candidate = line ? `${line} ${rest}` : rest;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      push();
+      line = rest;
+      return;
+    }
+    line = candidate;
+  });
+  push();
+  return lines.length > 0 ? lines : [label];
+}
+
 export function drawAnnotations(context: CanvasRenderingContext2D, annotations: Annotation[], width: number, height: number) {
   const scale = Math.max(width, height);
   const stroke = Math.max(2, Math.round(scale * 0.003));
-  const fontSize = Math.max(13, Math.round(scale * 0.018));
+  const fontSize = Math.max(11, Math.round(scale * 0.011));
   const padX = Math.round(fontSize * 0.5);
   const padY = Math.round(fontSize * 0.32);
-  const chipHeight = fontSize + padY * 2;
+  const lineHeight = Math.round(fontSize * 1.3);
+  const maxTextWidth = Math.max(fontSize * 6, width * 0.4 - padX * 2);
   context.lineJoin = "round";
   context.textBaseline = "middle";
   context.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif`;
@@ -95,13 +122,17 @@ export function drawAnnotations(context: CanvasRenderingContext2D, annotations: 
     context.strokeStyle = MARK_COLOR;
     context.strokeRect(x + stroke / 2, y + stroke / 2, Math.max(boxWidth - stroke, 1), Math.max(boxHeight - stroke, 1));
     const label = annotation.text.trim() ? `${mark}. ${annotation.text.trim()}` : `${mark}`;
-    const chipWidth = context.measureText(label).width + padX * 2;
+    const lines = wrapLabel(context, label, maxTextWidth);
+    const chipWidth = Math.max(...lines.map((line) => context.measureText(line).width)) + padX * 2;
+    const chipHeight = lines.length * lineHeight + padY * 2;
     const chipX = Math.max(0, Math.min(x, width - chipWidth));
     const chipY = y - chipHeight - stroke < 0 ? y + stroke : y - chipHeight - stroke;
     context.fillStyle = MARK_COLOR;
     context.fillRect(chipX, chipY, chipWidth, chipHeight);
     context.fillStyle = "#ffffff";
-    context.fillText(label, chipX + padX, chipY + chipHeight / 2 + 1);
+    lines.forEach((line, index) => {
+      context.fillText(line, chipX + padX, chipY + padY + index * lineHeight + lineHeight / 2);
+    });
   });
 }
 

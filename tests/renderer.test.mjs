@@ -25,7 +25,7 @@ const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/M
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
-const { drawAnnotations } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
+const { drawAnnotations, wrapLabel } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
@@ -439,6 +439,21 @@ test("arrows draw without a mark and never renumber the boxes around them", () =
   assert.deepEqual(context.calls.text, ["1. first", "2. second"]);
   assert.equal(context.calls.strokes, 2);
   assert.equal(context.calls.fills, 1);
+});
+
+test("a long note wraps onto several chip lines instead of running off the image", () => {
+  const context = recordingContext();
+  drawAnnotations(context, [
+    { kind: "box", x: 0.1, y: 0.4, width: 0.2, height: 0.2, text: "this note is long enough to need more than one line of chip" },
+  ], 1000, 800);
+
+  assert.ok(context.calls.text.length > 1);
+  assert.equal(context.calls.text.join(" "), "1. this note is long enough to need more than one line of chip");
+});
+
+test("a word wider than the chip is split rather than overflowing it", () => {
+  const context = recordingContext();
+  assert.deepEqual(wrapLabel(context, "aaaaaaaaaa bb", 35), ["aaaaa", "aaaaa", "bb"]);
 });
 
 test("a pasted image becomes an attachment chip and is saved on send", async () => {
