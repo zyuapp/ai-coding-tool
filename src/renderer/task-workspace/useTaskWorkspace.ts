@@ -335,6 +335,8 @@ export function useTaskWorkspace() {
       setRecentsOpen: (open: boolean) => dispatch({ type: "view.set-recents-open", open }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setOpenMenu: (menu: string | null) => dispatch({ type: "view.set-menu", menu }),
+      goBack: () => dispatch({ type: "view.go-back" }),
+      goForward: () => dispatch({ type: "view.go-forward" }),
       setPrompt: (prompt: string) => dispatch({ type: "view.set-prompt", prompt }),
       setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),
       setModel: (model: AgentModel) => dispatch({ type: "task.set-model", model }),

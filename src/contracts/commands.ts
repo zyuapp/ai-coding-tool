@@ -63,6 +63,9 @@ export type ViewCommand =
   | { type: "view.set-recents-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
   | { type: "view.set-menu"; menu: string | null }
+  /** Moves the visit cursor without recording a visit, so the trail behind and ahead survives. */
+  | { type: "view.go-back" }
+  | { type: "view.go-forward" }
   | { type: "view.set-focused"; focused: boolean }
   | { type: "view.dismiss-computer-use-setup" }
   | { type: "view.refresh-environment" };

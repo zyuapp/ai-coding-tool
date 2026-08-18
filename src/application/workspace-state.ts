@@ -59,6 +59,9 @@ export type WorkspaceState = {
   projects: Project[];
   lastFolder: string | null;
   currentId: string | null;
+  /** Threads the user has landed on this session, oldest first, with a cursor for back and forward. */
+  history: string[];
+  historyIndex: number;
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
   draftModel: AgentModel;
@@ -91,6 +94,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     projects: [],
     lastFolder: null,
     currentId: null,
+    history: [],
+    historyIndex: -1,
     draftProjectId: null,
     draftPolicy: "confirm",
     draftModel: DEFAULT_MODEL,
@@ -133,6 +138,8 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
     projects,
     lastFolder: data.lastFolder,
     currentId: firstTask?.id ?? null,
+    history: firstTask ? [firstTask.id] : [],
+    historyIndex: firstTask ? 0 : -1,
     draftProjectId: firstProject,
     draftPolicy: firstTask?.executionPolicy ?? "confirm",
     draftModel: firstTask?.model ?? DEFAULT_MODEL,
@@ -159,6 +166,22 @@ export function withPrompt(state: WorkspaceState, key: string, prompt: string): 
   if (prompt) return { ...state, prompts: { ...state.prompts, [key]: prompt } };
   const { [key]: _cleared, ...prompts } = state.prompts;
   return { ...state, prompts };
+}
+
+/** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
+export function reachableVisit(state: WorkspaceState, step: -1 | 1): number | null {
+  for (let index = state.historyIndex + step; index >= 0 && index < state.history.length; index += step) {
+    const id = state.history[index];
+    if (state.tasks.some((task) => task.id === id && task.archivedAt === undefined)) return index;
+  }
+  return null;
+}
+
+/** Remembers where the app took the user, dropping the forward entries the way a browser does. */
+export function recordVisit(state: WorkspaceState, taskId: string): WorkspaceState {
+  const history = state.history.slice(0, state.historyIndex + 1);
+  if (history[history.length - 1] !== taskId) history.push(taskId);
+  return { ...state, history, historyIndex: history.length - 1 };
 }
 
 export type WorkspaceView = ReturnType<typeof deriveView>;
@@ -204,6 +227,8 @@ export function deriveView(state: WorkspaceState) {
     recentsOpen: state.recentsOpen,
     sessionPanelOpen: state.sessionPanelOpen,
     openMenu: state.openMenu,
+    canGoBack: reachableVisit(state, -1) !== null,
+    canGoForward: reachableVisit(state, 1) !== null,
     sideChats: state.sideChats.map((chat): SideChatView => {
       const active = state.activeRuns[chat.id];
       return { ...chat, running: Boolean(active), compacting: active?.status === "compacting", status: active ? "running" : runStatusFor(state, chat.id), streamingTail: state.streamingTails[chat.id] ?? null };

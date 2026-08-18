@@ -98,14 +98,17 @@ export function App() {
     function dismissMenu(event: PointerEvent) {
       if (!(event.target instanceof Element) || !event.target.closest("[data-popover-menu]")) workspace.actions.setOpenMenu(null);
     }
-    function dismissMenuWithKeyboard(event: KeyboardEvent) {
+    function handleKeys(event: KeyboardEvent) {
       if (event.key === "Escape") workspace.actions.setOpenMenu(null);
+      if (!event.metaKey || event.ctrlKey || event.altKey || (event.key !== "[" && event.key !== "]")) return;
+      event.preventDefault();
+      void (event.key === "[" ? workspace.actions.goBack() : workspace.actions.goForward());
     }
     document.addEventListener("pointerdown", dismissMenu);
-    document.addEventListener("keydown", dismissMenuWithKeyboard);
+    document.addEventListener("keydown", handleKeys);
     return () => {
       document.removeEventListener("pointerdown", dismissMenu);
-      document.removeEventListener("keydown", dismissMenuWithKeyboard);
+      document.removeEventListener("keydown", handleKeys);
     };
   }, [workspace.actions]);
 
@@ -187,6 +190,10 @@ export function App() {
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
+          canGoBack={workspace.canGoBack}
+          canGoForward={workspace.canGoForward}
+          onGoBack={() => void workspace.actions.goBack()}
+          onGoForward={() => void workspace.actions.goForward()}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
             setRightDockOpen(false);

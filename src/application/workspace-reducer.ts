@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, stateFromData, viewPreferences, withPrompt, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, promptKey, reachableVisit, recordVisit, stateFromData, viewPreferences, withPrompt, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -236,8 +236,12 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
  */
 export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
   const transition = apply(state, input);
-  if (transition.state.currentId === state.currentId || !transition.state.sideChats.length) return transition;
-  const closed = closeSideChats(transition.state, transition.state.sideChats);
+  if (transition.state.currentId === state.currentId) return transition;
+  const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
+    ? recordVisit(transition.state, transition.state.currentId)
+    : transition.state;
+  if (!landed.sideChats.length) return { ...transition, state: landed };
+  const closed = closeSideChats(landed, landed.sideChats);
   return { state: { ...closed.state, sideChatSequence: 0 }, effects: [...transition.effects, ...closed.effects] };
 }
 
@@ -698,6 +702,22 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "view.set-menu":
       return settled({ ...state, openMenu: input.menu });
+
+    case "view.go-back":
+    case "view.go-forward": {
+      const index = reachableVisit(state, input.type === "view.go-back" ? -1 : 1);
+      if (index === null) return settled(state);
+      const taskId = state.history[index];
+      const task = state.tasks.find((item) => item.id === taskId);
+      return settled(withoutAttention({
+        ...state,
+        historyIndex: index,
+        currentId: taskId,
+        draftProjectId: task?.projectId ?? null,
+        lastFolder: projectFor(state, task)?.root ?? state.lastFolder,
+        actionError: null,
+      }, taskId));
+    }
 
     case "view.set-focused":
       return settled(input.focused ? withoutAttention({ ...state, focused: true }, state.currentId) : { ...state, focused: false });
