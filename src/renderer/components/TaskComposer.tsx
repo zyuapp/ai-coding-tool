@@ -1,4 +1,4 @@
-import { Brain, Check, Command, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Check, Command, Feather, FileCheck2, FileText, Gauge, Hand, Library, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { RunAttachment } from "../../application/attachments";
 import type { AvailableCommand } from "../../contracts/ipc";
@@ -30,10 +30,9 @@ function readImage(file: File) {
 type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon; elevated?: boolean };
 
 const modes: Choice<ExecutionPolicy>[] = [
-  { value: "confirm", label: "Ask for approval", description: "Ask before using tools or changing files", icon: Hand },
-  { value: "plan", label: "Plan mode", description: "Plan the work without making changes", icon: ListTodo },
-  { value: "allow-edits", label: "Accept edits", description: "Apply file edits without asking", icon: FileCheck2 },
-  { value: "autonomous", label: "Approve for me", description: "Only ask for potentially unsafe actions", icon: Zap, elevated: true },
+  { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files", icon: Hand },
+  { value: "allow-edits", label: "Allow all edit", description: "Apply file edits without asking", icon: FileCheck2 },
+  { value: "autonomous", label: "Auto mode", description: "Only ask for potentially unsafe actions", icon: Zap, elevated: true },
 ];
 
 const models: Choice<AgentModel>[] = [
@@ -55,7 +54,7 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
   value: T;
   onChange: (value: T) => void;
 }) {
-  const selected = choices.find((item) => item.value === value)!;
+  const selected = choices.find((item) => item.value === value) ?? choices[0];
   const SelectedIcon = selected.icon;
 
   return <details className="setting-menu">
