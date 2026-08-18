@@ -47,7 +47,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   max-width: 50vw;
   overflow: visible;
   flex: 0 0 auto;
-  padding: 0 10px 18px;
+  padding: 0 10px 10px;
   background: var(--sidebar);
   border-right: 1px solid var(--line);
   display: flex;
@@ -71,12 +71,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   background: #3a414b;
 }
 
-.traffic-space { height: 48px; flex: 0 0 auto; -webkit-app-region: drag; }
+.traffic-space { height: 40px; flex: 0 0 auto; -webkit-app-region: drag; }
 .brand-row {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 7px 12px 22px;
+  padding: 2px 12px 12px;
   color: #c9c8c4;
   -webkit-app-region: drag;
 }
@@ -95,7 +95,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 9px 11px;
+  padding: 7px 11px;
   border-radius: 9px;
   color: #c8c7c3;
   font-size: var(--text-control);
@@ -114,12 +114,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   display: grid;
   grid-template-columns: minmax(0, 1fr) 35px 35px;
   align-items: center;
-  min-height: 47px;
+  min-height: 34px;
   padding: 0 7px 0 10px;
   color: #55595e;
 }
-.projects-heading { grid-template-columns: minmax(0, 1fr) 35px; margin-top: 15px; }
-.recents-heading { margin-top: 22px; }
+.projects-heading { grid-template-columns: minmax(0, 1fr) 35px; margin-top: 8px; }
+.recents-heading { margin-top: 12px; }
 .section-toggle,
 .section-action,
 .menu-trigger {
@@ -130,7 +130,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .section-toggle {
   min-width: 0;
-  height: 47px;
+  height: 34px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -149,7 +149,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   transition: transform 120ms ease;
 }
 .section-toggle[aria-expanded="false"] .section-chevron { transform: translateY(2px) rotate(-45deg); }
-.section-menu { position: relative; height: 47px; }
+.section-menu { position: relative; height: 34px; }
 .section-menu,
 .section-action { opacity: 0; }
 .section-heading:hover .section-menu,
@@ -159,15 +159,15 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .section-menu.open { opacity: 1; }
 .section-menu > .menu-trigger {
   width: 35px;
-  height: 47px;
+  height: 34px;
   display: grid;
   place-items: center;
   list-style: none;
 }
-.section-action { width: 35px; height: 47px; display: grid; place-items: center; }
+.section-action { width: 35px; height: 34px; display: grid; place-items: center; }
 .add-project { font-size: 20px; font-weight: 300; line-height: 1; }
 .section-action:hover, .section-menu > .menu-trigger:hover { color: #989a98; }
-.section-menu-popover { top: 39px; right: -6px; width: 224px; padding: 10px; }
+.section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .folder-button {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 16px;
@@ -191,9 +191,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 31px 31px;
-  min-height: 39px;
+  min-height: 32px;
   align-items: center;
-  border-radius: 13px;
+  border-radius: 10px;
   color: #b8b8b4;
 }
 .project-row:hover, .project-row:has(.project-menu.open) { background: #20242a; }
@@ -209,7 +209,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .project-main {
   min-width: 0;
-  height: 39px;
+  height: 32px;
   display: grid;
   grid-template-columns: 25px minmax(0, 1fr) auto;
   align-items: center;
@@ -226,12 +226,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-row:hover .project-new,
 .project-row:hover .project-menu,
 .project-menu.open { opacity: 1; }
-.project-new { width: 31px; height: 39px; display: grid; place-items: center; color: #888a89; }
+.project-new { width: 31px; height: 32px; display: grid; place-items: center; color: #888a89; }
 .project-new:hover, .project-menu > .menu-trigger:hover { color: #c5c5c1; }
-.project-menu { position: relative; height: 39px; }
+.project-menu { position: relative; height: 32px; }
 .project-menu > .menu-trigger {
   width: 31px;
-  height: 39px;
+  height: 32px;
   display: grid;
   place-items: center;
   color: #858785;
@@ -241,7 +241,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-menu-popover {
   position: absolute;
   z-index: 10;
-  top: 35px;
+  top: 29px;
   right: -30px;
   width: 128px;
   border: 1px solid #343941;
@@ -254,19 +254,19 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-menu-popover button:hover { background: #2a2f36; }
 .project-menu-popover .danger-menu-item { color: #e16b66; }
 .project-menu-popover.section-menu-popover { width: 224px; }
-.project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 10px; margin: 1px 0 4px; }
+.project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
 .task-entry { position: relative; min-width: 0; }
 .task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 .project-task-row {
   width: 100%;
   min-width: 0;
-  height: 39px;
+  height: 30px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  border-radius: 13px;
+  border-radius: 10px;
   padding: 0 17px 0 42px;
   color: #aeadab;
   text-align: left;
@@ -311,18 +311,18 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   color: #dfddd8;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
 }
-.task-list { min-height: 10px; }
+.task-list { min-height: 8px; }
 .task-row {
   display: block;
   cursor: pointer;
-  padding: 10px 12px;
+  padding: 6px 12px;
   border-radius: 10px;
   color: #aaa9a6;
 }
 .task-row.active { background: #20242a; color: #dfddd8; }
 .task-row span, .task-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-row span { font-size: var(--text-control); line-height: 1.3; }
-.task-row small { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #686d74; font-size: var(--text-meta); }
+.task-row small { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: #686d74; font-size: var(--text-meta); }
 .task-row.active small { color: #85898f; }
 .folder-button > span:nth-child(2),
 .project-main > span:nth-child(2),
@@ -332,7 +332,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   text-overflow: clip;
   mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
 }
-.sidebar-empty { margin: 8px 11px; color: #55595e; font-size: var(--text-control); line-height: 1.5; }
+.sidebar-empty { margin: 4px 11px; color: #55595e; font-size: var(--text-control); line-height: 1.5; }
 .sidebar-settings {
   width: 100%;
   flex: 0 0 auto;
@@ -341,7 +341,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   gap: 10px;
   border: 0;
   border-radius: 9px;
-  padding: 9px 11px;
+  padding: 7px 11px;
   background: transparent;
   color: #777c82;
   font-size: var(--text-control);
