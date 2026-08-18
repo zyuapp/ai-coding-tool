@@ -136,6 +136,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         options: {
           cwd: input.workspaceRoot,
           pathToClaudeCodeExecutable: packagedClaudeExecutable(),
+          disallowedTools: ["AskUserQuestion"],
           resume: continuation,
           ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
           permissionMode: input.channel === "side" ? "plan" : claudePermissionMode(input.policy),
