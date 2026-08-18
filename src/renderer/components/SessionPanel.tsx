@@ -1,12 +1,18 @@
 import { Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, XCircle } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
+import type { AutomationPatch, AutomationView } from "../../domain/automation";
 import type { Subagent } from "../../domain/run";
+import { AutomationPanel } from "./AutomationPanel";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
   hasProject: boolean;
   subagents: Subagent[];
+  automation: AutomationView | null;
   onSelect: (id: string) => void;
+  onAutomationUpdate: (patch: AutomationPatch) => void;
+  onAutomationDelete: () => void;
+  onAutomationRunNow: () => void;
 };
 
 function statusLabel(status: Subagent["status"]) {
@@ -28,7 +34,7 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   return null;
 }
 
-export function SessionPanel({ environment, hasProject, subagents, onSelect }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, subagents, automation, onSelect, onAutomationUpdate, onAutomationDelete, onAutomationRunNow }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
 
@@ -49,6 +55,13 @@ export function SessionPanel({ environment, hasProject, subagents, onSelect }: S
               </div>
               {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
             </div>
+
+            <AutomationPanel
+              automation={automation}
+              onUpdate={onAutomationUpdate}
+              onDelete={onAutomationDelete}
+              onRunNow={onAutomationRunNow}
+            />
 
             <div className="subagent-section">
               <div className="subagent-heading">

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isInternalRunCommand, isRunCommand, isRunEvent } from "../dist/main/contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isInternalRunCommand, isRunCommand, isRunEvent } from "../dist/main/contracts/ipc.js";
 
 const command = {
   type: "start",
@@ -99,4 +99,35 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunEvent({ ...usage, sequence: 1.5 }), false);
   assert.equal(isRunEvent({ ...usage, tokens: -1 }), false);
   assert.equal(isRunEvent({ ...usage, limit: 0 }), false);
+});
+
+const automationRequest = { type: "automation.request", requestId: "request-1", taskId: "task-1" };
+
+test("automation requests carry a task and a well-formed payload", () => {
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "read" }), true);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "list" }), true);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "delete" }), true);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { prompt: "poll", schedule: "* * * * *" } }), true);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "update", patch: { paused: true } }), true);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "update", patch: {} }), true);
+
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "save" }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { schedule: "* * * * *" } }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { prompt: "poll", schedule: "* * * * *", policy: "root" } }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "update", patch: { paused: "yes" } }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "explode" }), false);
+  assert.equal(isAutomationRequest({ type: "automation.request", requestId: "request-1", op: "read" }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { prompt: "", schedule: "* * * * *" } }), false);
+});
+
+test("automation responses and acknowledgements are correlated and typed", () => {
+  assert.equal(isAutomationResponse({ type: "automation.response", requestId: "request-1", ok: true, result: null }), true);
+  assert.equal(isAutomationResponse({ type: "automation.response", requestId: "request-1", ok: false, message: "no automation" }), true);
+  assert.equal(isAutomationResponse({ type: "automation.response", requestId: "request-1", ok: false }), false);
+  assert.equal(isAutomationResponse({ type: "automation.response", ok: true, result: null }), false);
+  assert.equal(isAutomationResponse({ type: "run.status", requestId: "request-1", ok: true }), false);
+
+  assert.equal(isAutomationAck({ automationId: "automation-1", runId: "run-1", started: true }), true);
+  assert.equal(isAutomationAck({ automationId: "automation-1", runId: "run-1" }), false);
+  assert.equal(isAutomationAck({ automationId: "automation-1", started: false }), false);
 });

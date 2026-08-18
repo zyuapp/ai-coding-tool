@@ -5,9 +5,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isRunCommand, isRunEvent, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isRunCommand, isRunEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
+import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 
@@ -24,6 +26,7 @@ let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
 let workspaceService: WorkspaceService | null = null;
 let taskDatabase: TaskDatabase | null = null;
+let automationScheduler: AutomationScheduler | null = null;
 let quitting = false;
 let quitAfterComputerUseStops = false;
 
@@ -34,8 +37,16 @@ type RunState = {
   terminal: boolean;
 };
 
+/** A scheduled run is in flight from the moment the renderer is asked until its run reaches a terminal status. */
+type AutomationDispatchState = {
+  acknowledge?: (started: boolean) => void;
+  settle?: (status: AutomationRunStatus) => void;
+};
+
+const AUTOMATION_ACK_TIMEOUT = 30_000;
 const runStates = new Map<string, RunState>();
 const pendingStarts = new Map<string, StartRunCommand>();
+const automationDispatches = new Map<string, AutomationDispatchState>();
 
 function runKey(taskId: string, runId: string) {
   return `${taskId}\u0000${runId}`;
@@ -66,6 +77,62 @@ function publishRunEvent(event: RunEvent) {
   if (!state || event.sequence <= state.lastSequence) return;
   if (!acceptRunEvent(state, event)) return;
   sendToRenderer(event);
+  if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled")) {
+    automationDispatches.get(event.runId)?.settle?.(event.status);
+  }
+}
+
+function getAutomationScheduler() {
+  if (!automationScheduler) throw new Error("Automation scheduler is not ready.");
+  return automationScheduler;
+}
+
+/** Hands the tick to the renderer, which owns the transcript, then waits for that run to settle. */
+async function dispatchAutomation(automation: Automation): Promise<AutomationRunStatus> {
+  if (!window || window.isDestroyed()) return "skipped";
+  const runId = randomUUID();
+  const dispatch: AutomationDispatchState = {};
+  automationDispatches.set(runId, dispatch);
+  try {
+    const fire: AutomationFire = {
+      automationId: automation.id,
+      taskId: automation.taskId,
+      runId,
+      prompt: automation.prompt,
+      ...(automation.policy === undefined ? {} : { policy: automation.policy }),
+      runNumber: automation.runCount + 1,
+    };
+    // Armed before the tick leaves main so a run that settles immediately still reports back.
+    const settled = new Promise<AutomationRunStatus>((resolve) => { dispatch.settle = resolve; });
+    const started = await new Promise<boolean>((resolve) => {
+      dispatch.acknowledge = resolve;
+      setTimeout(() => resolve(false), AUTOMATION_ACK_TIMEOUT).unref?.();
+      window!.webContents.send("automation:fire", fire);
+    });
+    return started ? await settled : "skipped";
+  } finally {
+    automationDispatches.delete(runId);
+  }
+}
+
+async function handleAutomationRequest(request: AutomationRequest) {
+  let response: AutomationResponse;
+  try {
+    const scheduler = getAutomationScheduler();
+    const result = request.op === "read"
+      ? scheduler.forTask(request.taskId)
+      : request.op === "list"
+        ? scheduler.list()
+        : request.op === "save"
+          ? scheduler.save({ ...request.draft, taskId: request.taskId })
+          : request.op === "update"
+            ? scheduler.update(request.taskId, request.patch)
+            : scheduler.remove(request.taskId);
+    response = { type: "automation.response", requestId: request.requestId, ok: true, result };
+  } catch (error) {
+    response = { type: "automation.response", requestId: request.requestId, ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+  agent?.postMessage(response);
 }
 
 function emitSyntheticTerminal(command: StartRunCommand, status: "failed" | "cancelled", message: string) {
@@ -84,6 +151,7 @@ function startAgent() {
   });
   agent.on("message", (event: unknown) => {
     if (isRunEvent(event)) publishRunEvent(event);
+    else if (isAutomationRequest(event)) void handleAutomationRequest(event);
   });
   agent.on("exit", (code) => {
     agent = null;
@@ -244,6 +312,13 @@ app.whenReady().then(async () => {
   });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"));
+  const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
+  automationScheduler = new AutomationSchedulerConstructor(taskDatabase, dispatchAutomation, {
+    onChange: (automations) => {
+      if (window && !window.isDestroyed()) window.webContents.send("automation:changed", automations);
+    },
+  });
+  automationScheduler.start();
   protocol.handle(ATTACHMENT_SCHEME, async (request) => {
     const name = attachmentName(decodeURIComponent(new URL(request.url).pathname));
     if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
@@ -274,6 +349,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("will-quit", () => {
+  automationScheduler?.stop();
   taskDatabase?.close();
 });
 
@@ -333,6 +409,40 @@ ipcMain.handle("task-store:persist", (event, delta) => {
 });
 
 ipcMain.on("run:command", handleRunCommand);
+
+ipcMain.handle("automation:list", (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return getAutomationScheduler().list();
+});
+
+ipcMain.handle("automation:save", (event, draft: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!isAutomationDraft(draft)) throw new Error("Invalid automation.");
+  return getAutomationScheduler().save(draft);
+});
+
+ipcMain.handle("automation:update", (event, taskId: unknown, patch: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof taskId !== "string" || !taskId || taskId.length > 256 || !isAutomationPatch(patch)) throw new Error("Invalid automation change.");
+  return getAutomationScheduler().update(taskId, patch);
+});
+
+ipcMain.handle("automation:delete", (event, taskId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof taskId !== "string" || !taskId || taskId.length > 256) throw new Error("Invalid task ID.");
+  return getAutomationScheduler().remove(taskId);
+});
+
+ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof taskId !== "string" || !taskId || taskId.length > 256) throw new Error("Invalid task ID.");
+  return getAutomationScheduler().runNow(taskId);
+});
+
+ipcMain.on("automation:ack", (event, ack: unknown) => {
+  if (!trustedSender(event) || !isAutomationAck(ack)) return;
+  automationDispatches.get(ack.runId)?.acknowledge?.(ack.started);
+});
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 

@@ -1,98 +1,11 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createServer } from "vite";
-
-const tick = () => new Promise((resolve) => setImmediate(resolve));
-
-async function waitFor(predicate) {
-  const deadline = Date.now() + 2_000;
-  while (Date.now() < deadline) {
-    if (predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.fail("Timed out waiting for transport state");
-}
+import { startMainProcess, tick, waitFor } from "./support/electron-harness.mjs";
 
 test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async (t) => {
-  const userData = await mkdtemp(path.join(os.tmpdir(), "claudex-main-"));
-  const handlers = new Map();
-  const listeners = new Map();
-  const windows = [];
-  const agents = [];
-  const appListeners = new Map();
-  const protocolHandlers = new Map();
+  const { userData, handlers, listeners, agents, protocolHandlers, window, trusted, untrusted } = await startMainProcess(t, "claudex-main-");
 
-  class FakeAgent extends EventEmitter {
-    messages = [];
-    stderr = new EventEmitter();
-    throwOnPost = false;
-    postMessage(message) {
-      if (this.throwOnPost) throw new Error("post failed");
-      this.messages.push(message);
-    }
-    kill() {}
-  }
-
-  class FakeWindow {
-    static getAllWindows() { return windows; }
-    webContents = { sent: [], send: (channel, event) => this.webContents.sent.push({ channel, event }) };
-    constructor(options) { this.options = options; windows.push(this); }
-    isDestroyed() { return false; }
-    async loadFile() {}
-  }
-
-  globalThis.__claudexElectron = {
-    app: {
-      dock: { setIcon() {} },
-      setName() {},
-      getAppPath: () => process.cwd(),
-      getPath: () => userData,
-      whenReady: () => Promise.resolve(),
-      on: (name, listener) => appListeners.set(name, listener),
-      quit() {},
-    },
-    BrowserWindow: FakeWindow,
-    dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
-    ipcMain: {
-      handle: (name, handler) => handlers.set(name, handler),
-      on: (name, listener) => listeners.set(name, listener),
-    },
-    utilityProcess: { fork: () => { const agent = new FakeAgent(); agents.push(agent); return agent; } },
-    protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => protocolHandlers.set(scheme, handler) },
-    net: { fetch: async (url) => new Response(url) },
-  };
-  globalThis.__dirname = path.join(process.cwd(), "dist/main/main");
-
-  const vite = await createServer({
-    logLevel: "silent",
-    appType: "custom",
-    resolve: { alias: { electron: "virtual:fake-electron" } },
-    server: { middlewareMode: true },
-    plugins: [{
-      name: "fake-electron",
-      enforce: "pre",
-      resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
-      load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, utilityProcess=e.utilityProcess;";
-      },
-    }],
-  });
-  t.after(async () => {
-    await vite.close();
-    await rm(userData, { recursive: true, force: true });
-    delete globalThis.__claudexElectron;
-    delete globalThis.__dirname;
-  });
-  await vite.ssrLoadModule("/src/main/main.ts");
-  while (windows.length === 0) await tick();
-
-  const window = windows[0];
-  const trusted = { sender: window.webContents };
-  const untrusted = { sender: {} };
   const runCommand = listeners.get("run:command");
   const saved = await handlers.get("attachment:save")(trusted, Buffer.from([1, 2, 3]).toString("base64"));
   assert.equal(path.dirname(saved), path.join(userData, "attachments"));

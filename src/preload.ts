@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ComputerUsePermission, DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
+import type { AutomationAck, AutomationFire, ComputerUsePermission, DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
+import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
 const api: DesktopAPI = {
   openFolder: () => ipcRenderer.invoke("workspace:open"),
@@ -18,6 +19,22 @@ const api: DesktopAPI = {
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
+  listAutomations: () => ipcRenderer.invoke("automation:list"),
+  saveAutomation: (draft: AutomationDraft) => ipcRenderer.invoke("automation:save", draft),
+  updateAutomation: (taskId: string, patch: AutomationPatch) => ipcRenderer.invoke("automation:update", taskId, patch),
+  deleteAutomation: (taskId: string) => ipcRenderer.invoke("automation:delete", taskId),
+  runAutomationNow: (taskId: string) => ipcRenderer.invoke("automation:run-now", taskId),
+  onAutomationsChanged: (listener: (automations: AutomationView[]) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: AutomationView[]) => listener(payload);
+    ipcRenderer.on("automation:changed", handler);
+    return () => ipcRenderer.removeListener("automation:changed", handler);
+  },
+  onAutomationFire: (listener: (fire: AutomationFire) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: AutomationFire) => listener(payload);
+    ipcRenderer.on("automation:fire", handler);
+    return () => ipcRenderer.removeListener("automation:fire", handler);
+  },
+  acknowledgeAutomation: (ack: AutomationAck) => ipcRenderer.send("automation:ack", ack),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

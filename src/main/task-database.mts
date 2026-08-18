@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import type { TaskStoreDelta } from "../contracts/ipc.js";
+import { isAutomation, type Automation } from "../domain/automation.js";
 import { parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
 
 export class TaskDatabase {
@@ -22,7 +23,26 @@ export class TaskDatabase {
         PRIMARY KEY (task_id, id)
       );
       CREATE INDEX IF NOT EXISTS messages_task_position ON messages(task_id, position);
+      CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
     `);
+  }
+
+  listAutomations(): Automation[] {
+    const rows = this.database.prepare("SELECT data FROM automations ORDER BY task_id").all() as Array<{ data: string }>;
+    return rows.flatMap(({ data }) => {
+      const parsed = JSON.parse(data) as unknown;
+      return isAutomation(parsed) ? [parsed] : [];
+    });
+  }
+
+  saveAutomation(automation: Automation) {
+    this.database
+      .prepare("INSERT INTO automations (id, task_id, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET task_id = excluded.task_id, data = excluded.data")
+      .run(automation.id, automation.taskId, JSON.stringify(automation));
+  }
+
+  deleteAutomation(id: string) {
+    this.database.prepare("DELETE FROM automations WHERE id = ?").run(id);
   }
 
   close() {

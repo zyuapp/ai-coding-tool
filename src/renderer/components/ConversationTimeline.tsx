@@ -281,6 +281,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                         ))}
                       </div>
                     ) : null}
+                    {message!.kind === "user" && message!.detail && <div className="message-origin">{message!.detail}</div>}
                     {message!.text && <div className="message-text">{message!.text}</div>}
                   </div>
                 </article>

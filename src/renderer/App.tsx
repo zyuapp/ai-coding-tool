@@ -161,10 +161,14 @@ export function App() {
             environment={workspace.environment}
             hasProject={Boolean(workspace.folder)}
             subagents={workspace.subagents}
+            automation={workspace.automation}
             onSelect={(id) => {
               setSelectedSubagent(id);
               openRightTab("agents");
             }}
+            onAutomationUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
+            onAutomationDelete={() => void workspace.actions.deleteAutomation()}
+            onAutomationRunNow={() => void workspace.actions.runAutomationNow()}
           />
         )}
 

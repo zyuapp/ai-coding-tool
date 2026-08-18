@@ -1,3 +1,4 @@
+import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -67,6 +68,40 @@ export type ApprovalDecisionCommand = {
 
 export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand;
 
+/** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
+export type AutomationFire = {
+  automationId: string;
+  taskId: string;
+  runId: string;
+  prompt: string;
+  policy?: ExecutionPolicy;
+  runNumber: number;
+};
+
+export type AutomationAck = {
+  automationId: string;
+  runId: string;
+  started: boolean;
+};
+
+/** Automation tool calls travel from the agent process to the scheduler in main and back. */
+export type AutomationRequest = {
+  type: "automation.request";
+  requestId: string;
+  taskId: string;
+} & (
+  | { op: "read" }
+  | { op: "list" }
+  | { op: "save"; draft: Omit<AutomationDraft, "taskId"> }
+  | { op: "update"; patch: AutomationPatch }
+  | { op: "delete" }
+);
+
+export type AutomationResponse = {
+  type: "automation.response";
+  requestId: string;
+} & ({ ok: true; result: unknown } | { ok: false; message: string });
+
 export type DesktopAPI = {
   openFolder(): Promise<WorkspaceRecord | null>;
   projectlessWorkspace(): Promise<WorkspaceRecord>;
@@ -81,6 +116,14 @@ export type DesktopAPI = {
   saveAttachment(data: string): Promise<string>;
   loadTaskStore(): Promise<TaskStoreData | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
+  listAutomations(): Promise<AutomationView[]>;
+  saveAutomation(draft: AutomationDraft): Promise<AutomationView>;
+  updateAutomation(taskId: string, patch: AutomationPatch): Promise<AutomationView>;
+  deleteAutomation(taskId: string): Promise<boolean>;
+  runAutomationNow(taskId: string): Promise<AutomationRunStatus | "busy">;
+  onAutomationsChanged(listener: (automations: AutomationView[]) => void): () => void;
+  onAutomationFire(listener: (fire: AutomationFire) => void): () => void;
+  acknowledgeAutomation(ack: AutomationAck): void;
 };
 
 export type AvailableCommand = {
@@ -196,6 +239,29 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
+}
+
+export function isAutomationRequest(value: unknown): value is AutomationRequest {
+  if (!value || typeof value !== "object") return false;
+  const request = value as Record<string, unknown>;
+  if (request.type !== "automation.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
+  if (request.op === "read" || request.op === "list" || request.op === "delete") return true;
+  if (request.op === "save") return isAutomationDraft({ ...(request.draft as object), taskId: request.taskId });
+  if (request.op === "update") return isAutomationPatch(request.patch);
+  return false;
+}
+
+export function isAutomationResponse(value: unknown): value is AutomationResponse {
+  if (!value || typeof value !== "object") return false;
+  const response = value as Record<string, unknown>;
+  if (response.type !== "automation.response" || !isString(response.requestId)) return false;
+  return response.ok === true || (response.ok === false && isString(response.message, 100_000));
+}
+
+export function isAutomationAck(value: unknown): value is AutomationAck {
+  if (!value || typeof value !== "object") return false;
+  const ack = value as Record<string, unknown>;
+  return isString(ack.automationId) && isString(ack.runId) && typeof ack.started === "boolean";
 }
 
 export function isRunEvent(value: unknown): value is RunEvent {

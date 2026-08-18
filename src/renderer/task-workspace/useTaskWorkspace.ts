@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { promptWithAttachments, taskTitleFor, type RunAttachment } from "../../application/attachments";
 import { backfillSortIndex, moveTask as moveTaskInList, nextSortIndex, orderTasks, type TaskDropTarget } from "../../application/task-order";
-import { applyRunEvent, applyTask, createTaskMessage, runStatusFor, withActiveRun, withRunStatus, type RunTransitionState } from "../../application/task-workspace";
-import type { ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
+import { applyRunEvent, applyTask, automationRunLabel, automationRunPrompt, createTaskMessage, runStatusFor, withActiveRun, withRunStatus, type RunTransitionState } from "../../application/task-workspace";
+import type { AutomationFire, ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
+import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation";
 import { contextWindowLimit } from "../../domain/run";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskAttention, TaskStoreData } from "../../domain/task";
@@ -26,6 +27,7 @@ type WorkspaceState = {
   openMenu: string | null;
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
   computerUseSetup: boolean;
+  automations: AutomationView[];
 } & RunTransitionState & {
   storageError: string | null;
   actionError: string | null;
@@ -90,6 +92,7 @@ function stateFromData(data: TaskStoreData, storageError: string | null = null):
     openMenu: null,
     environment: null,
     computerUseSetup: false,
+    automations: [],
     activeRuns: {},
     runStatuses: {},
     approvals: {},
@@ -118,6 +121,7 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       openMenu: null,
       environment: null,
       computerUseSetup: false,
+      automations: [],
       activeRuns: {},
       runStatuses: {},
       approvals: {},
@@ -210,6 +214,19 @@ export function useTaskWorkspace() {
       setStateAndRef(event.type === "computer-use.setup-required" ? { ...next, computerUseSetup: true } : next);
       if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed") && project?.workspaceId) void refreshEnvironment(project.workspaceId, event.taskId, event.runId);
     });
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    void window.desktop.listAutomations()
+      .then((automations) => setStateAndRef((current) => ({ ...current, automations })))
+      .catch((error) => setStateAndRef((current) => ({ ...current, actionError: error instanceof Error ? error.message : String(error) })));
+    const stopWatching = window.desktop.onAutomationsChanged((automations) => setStateAndRef((current) => ({ ...current, automations })));
+    const stopFiring = window.desktop.onAutomationFire((fire) => { void runAutomation(fire); });
+    return () => {
+      stopWatching();
+      stopFiring();
+    };
   }, []);
 
   const currentTask = useMemo(() => state.tasks.find((task) => task.id === state.currentId), [state.tasks, state.currentId]);
@@ -309,6 +326,7 @@ export function useTaskWorkspace() {
 
   function archiveTask(taskId: string) {
     if (stateRef.current.activeRuns[taskId]) return;
+    if (stateRef.current.automations.some((automation) => automation.taskId === taskId)) void changeAutomation(() => window.desktop.deleteAutomation(taskId));
     setStateAndRef((current) => ({
       ...current,
       tasks: current.tasks.map((task) => task.id === taskId ? { ...task, archivedAt: now() } : task),
@@ -465,6 +483,89 @@ export function useTaskWorkspace() {
     window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: promptText, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 
+  /** The scheduler owns the cadence; the renderer decides whether this tick can actually run. */
+  async function runAutomation(fire: AutomationFire) {
+    const decline = () => window.desktop.acknowledgeAutomation({ automationId: fire.automationId, runId: fire.runId, started: false });
+    const current = stateRef.current;
+    const task = current.tasks.find((item) => item.id === fire.taskId);
+    if (!task || task.archivedAt !== undefined || current.activeRuns[fire.taskId]) return decline();
+    const project = projectFor(current, task);
+    if (task.projectId && !project?.workspaceId) return decline();
+    let workspace: WorkspaceRecord;
+    try {
+      workspace = project?.workspaceId
+        ? { id: project.workspaceId, kind: "project", root: project.root }
+        : await window.desktop.projectlessWorkspace();
+    } catch {
+      return decline();
+    }
+    const latest = stateRef.current;
+    const target = latest.tasks.find((item) => item.id === fire.taskId);
+    if (!target || target.archivedAt !== undefined || latest.activeRuns[fire.taskId]) return decline();
+    const message = createTaskMessage("user", fire.prompt, automationRunLabel(fire.runNumber));
+    const started = withRunStatus(
+      withActiveRun(
+        applyTask({ ...latest, actionError: null }, fire.taskId, (item) => ({ ...item, messages: [...item.messages, message], updatedAt: now() })),
+        fire.taskId,
+        { taskId: fire.taskId, runId: fire.runId, sequence: 0, status: "running" },
+      ),
+      fire.taskId,
+      "running",
+    );
+    runIds.current.set(fire.taskId, fire.runId);
+    setStateAndRef(started);
+    window.desktop.send({
+      type: "start",
+      channel: "main",
+      taskId: fire.taskId,
+      runId: fire.runId,
+      prompt: automationRunPrompt(fire.prompt, fire.runNumber),
+      workspaceId: workspace.id,
+      policy: fire.policy ?? target.executionPolicy,
+      model: target.model ?? "default",
+      contextWindow: target.contextWindow ?? "default",
+      ...(target.continuation ? { continuation: target.continuation } : {}),
+    });
+    window.desktop.acknowledgeAutomation({ automationId: fire.automationId, runId: fire.runId, started: true });
+  }
+
+  async function changeAutomation<T>(work: () => Promise<T>) {
+    try {
+      await work();
+    } catch (error) {
+      setStateAndRef((current) => ({ ...current, actionError: error instanceof Error ? error.message : String(error) }));
+    }
+  }
+
+  async function saveAutomation(draft: Omit<AutomationDraft, "taskId">) {
+    const taskId = stateRef.current.currentId;
+    if (!taskId) return;
+    await changeAutomation(() => window.desktop.saveAutomation({ ...draft, taskId }));
+  }
+
+  async function updateAutomation(patch: AutomationPatch) {
+    const taskId = stateRef.current.currentId;
+    if (!taskId) return;
+    await changeAutomation(() => window.desktop.updateAutomation(taskId, patch));
+  }
+
+  async function deleteAutomation() {
+    const taskId = stateRef.current.currentId;
+    if (!taskId) return;
+    await changeAutomation(() => window.desktop.deleteAutomation(taskId));
+  }
+
+  async function runAutomationNow() {
+    const taskId = stateRef.current.currentId;
+    if (!taskId) return;
+    await changeAutomation(async () => {
+      const status = await window.desktop.runAutomationNow(taskId);
+      if (status === "busy" || status === "skipped") {
+        setStateAndRef((current) => ({ ...current, actionError: "This task is already running. The automation will run on its next tick." }));
+      }
+    });
+  }
+
   function cancelRun() {
     const current = stateRef.current;
     const active = current.currentId ? current.activeRuns[current.currentId] : undefined;
@@ -500,6 +601,7 @@ export function useTaskWorkspace() {
     runningTaskIds,
     approval: visibleApproval,
     subagents: currentTask?.subagents ?? [],
+    automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     environment: currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null,
     storageError: state.storageError,
     actionError: state.actionError,
@@ -524,6 +626,10 @@ export function useTaskWorkspace() {
       setModel,
       setContextWindow,
       sendPrompt,
+      saveAutomation,
+      updateAutomation,
+      deleteAutomation,
+      runAutomationNow,
       cancelRun,
       decideApproval,
       dismissComputerUseSetup: () => setStateAndRef((current) => ({ ...current, computerUseSetup: false })),

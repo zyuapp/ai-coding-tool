@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { InternalStartRunCommand, RunEvent } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, ProviderEvent } from "./agent-provider.mjs";
+import type { AgentProvider, AutomationBridge, ProviderEvent } from "./agent-provider.mjs";
 
 type ActiveRun = {
   taskId: string;
@@ -16,6 +16,7 @@ type ActiveRun = {
 
 type CoordinatorOptions = {
   isWritePathInside?: (root: string, candidate: string) => boolean | Promise<boolean>;
+  automations?: (taskId: string) => AutomationBridge;
 };
 
 type RunEventPayload = RunEvent extends infer Event
@@ -85,6 +86,7 @@ export class RunCoordinator {
         contextWindow: command.contextWindow,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
+        automations: this.options.automations?.(command.taskId),
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),

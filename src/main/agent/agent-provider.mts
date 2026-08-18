@@ -1,5 +1,15 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
+import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+
+/** Scoped to the running task, so a run can only reach its own automation. */
+export type AutomationBridge = {
+  read(): Promise<AutomationView | null>;
+  list(): Promise<AutomationView[]>;
+  save(draft: Omit<AutomationDraft, "taskId">): Promise<AutomationView>;
+  update(patch: AutomationPatch): Promise<AutomationView>;
+  remove(): Promise<boolean>;
+};
 
 export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string; append?: boolean }
@@ -25,6 +35,7 @@ export type ProviderRunInput = {
   contextWindow: ContextWindow;
   continuation?: Continuation;
   forkContinuation?: boolean;
+  automations?: AutomationBridge;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;
   emit: (event: ProviderEvent) => void;

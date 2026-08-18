@@ -4,9 +4,11 @@ import path from "node:path";
 import { contextWindowLimit } from "../../domain/run.js";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
+import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 
 type QueryFactory = typeof query;
 const setupToolName = "mcp__claudex-computer-use__request_setup";
+const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the claudex-automation tools instead of looping yourself or reaching for cron. An automation runs the same prompt on its own schedule with no user present, so write the prompt to stand alone and carry its own stop condition. When a scheduled run is what is executing and that stop condition is met, call the stop tool; nothing else ends an automation.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails. If only request_setup is available, call it instead of telling the user to install or configure anything.`;
 
 async function* idlePrompt() {
@@ -112,21 +114,21 @@ export class ClaudeAgentProvider implements AgentProvider {
 
     try {
       const continuation = input.continuation?.provider === "claude" ? input.continuation.value : undefined;
-      const mcpServers: Record<string, McpServerConfig> | undefined = input.computerUse.status === "available"
-        ? { "cua-driver": { type: "stdio" as const, ...input.computerUse.mcp } }
-        : input.computerUse.status === "setup-required"
-          ? {
-              "claudex-computer-use": createSdkMcpServer({
-                name: "claudex-computer-use",
-                version: "1.0.0",
-                alwaysLoad: true,
-                tools: [tool("request_setup", "Use when a task requires operating another application's interface but computer use needs to be enabled in Claudex.", {}, async () => {
-                  input.emit({ type: "computer-use.setup-required" });
-                  return { content: [{ type: "text", text: "Claudex opened Settings → Computer use. Ask the user to complete the required permissions, then retry after Claudex restarts." }] };
-                })],
-              }),
-            }
-          : undefined;
+      const mcpServers: Record<string, McpServerConfig> = {};
+      if (input.computerUse.status === "available") {
+        mcpServers["cua-driver"] = { type: "stdio" as const, ...input.computerUse.mcp };
+      } else if (input.computerUse.status === "setup-required") {
+        mcpServers["claudex-computer-use"] = createSdkMcpServer({
+          name: "claudex-computer-use",
+          version: "1.0.0",
+          alwaysLoad: true,
+          tools: [tool("request_setup", "Use when a task requires operating another application's interface but computer use needs to be enabled in Claudex.", {}, async () => {
+            input.emit({ type: "computer-use.setup-required" });
+            return { content: [{ type: "text", text: "Claudex opened Settings → Computer use. Ask the user to complete the required permissions, then retry after Claudex restarts." }] };
+          })],
+        });
+      }
+      if (input.automations) mcpServers[AUTOMATION_SERVER_NAME] = automationServer(input.automations);
       activeQuery = this.queryFactory({
         prompt: input.prompt,
         options: {
@@ -138,8 +140,8 @@ export class ClaudeAgentProvider implements AgentProvider {
           ...(input.channel === "side" ? { tools: ["Read", "Grep", "Glob"] } : {}),
           ...(input.model === "default" ? {} : { model: input.model }),
           ...(input.contextWindow === "1m" ? { betas: ["context-1m-2025-08-07" as const] } : {}),
-          ...(mcpServers ? { mcpServers } : {}),
-          systemPrompt: { type: "preset", preset: "claude_code", append: computerUseInstructions },
+          ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
+          systemPrompt: { type: "preset", preset: "claude_code", append: input.automations ? `${computerUseInstructions}\n\n${automationInstructions}` : computerUseInstructions },
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
           skills: "all",
           forwardSubagentText: true,

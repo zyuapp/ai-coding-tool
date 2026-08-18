@@ -1019,6 +1019,49 @@ pre {
 .change-counts strong { color: #72c66b; }
 .change-counts em { color: #e06c75; }
 .session-note { margin: 2px 6px 0 34px; color: #656b72; font-size: var(--text-meta); line-height: 1.4; }
+.automation-section { border-top: 1px solid #242a31; padding: 9px 12px 11px; }
+.automation-field { display: grid; gap: 4px; margin-top: 9px; }
+.automation-field > span { color: #73787f; font-size: var(--text-meta); font-weight: 550; }
+.automation-field input, .automation-field textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #272d35;
+  border-radius: 8px;
+  background: #10141a;
+  color: #cac9c5;
+  font-family: inherit;
+  font-size: var(--text-meta);
+  line-height: 1.45;
+  resize: none;
+}
+.automation-field input { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
+.automation-field input:focus-visible, .automation-field textarea:focus-visible { outline: 1px solid #3d5a80; outline-offset: 0; }
+.automation-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 9px 0 0;
+  color: #656b72;
+  font-size: var(--text-meta);
+}
+.automation-meta svg { flex: none; color: #90949a; }
+.automation-actions { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
+.automation-actions button {
+  min-height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  border: 1px solid #272d35;
+  border-radius: 8px;
+  background: #171c23;
+  color: #a9adb3;
+  font-size: var(--text-meta);
+  font-weight: 550;
+}
+.automation-actions button:hover:not(:disabled) { border-color: #333a44; color: #d5d4d0; }
+.automation-actions button:disabled { opacity: 0.45; }
+.automation-actions button:first-child { margin-right: auto; padding: 0 10px; }
+.automation-actions .automation-remove:hover { border-color: #5c3237; color: #e06c75; }
 .subagent-section { border-top: 1px solid #242a31; padding: 9px 12px 10px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #73787f; font-size: var(--text-control); font-weight: 580; }
 .subagent-heading > span:last-child { color: #7695b8; font-size: var(--text-meta); font-weight: 550; }

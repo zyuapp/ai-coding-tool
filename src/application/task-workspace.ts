@@ -33,6 +33,15 @@ function now() {
   return Date.now();
 }
 
+/** Scheduled runs carry their own framing: nobody is present to answer a question or end the loop. */
+export function automationRunPrompt(prompt: string, runNumber: number) {
+  return `${prompt}\n\n---\nThis is automated run #${runNumber} of this task's automation, started by Claudex's scheduler with no user watching. If the automation's stop condition is now met, call the claudex-automation stop tool to end it.`;
+}
+
+export function automationRunLabel(runNumber: number) {
+  return `Automation run #${runNumber}`;
+}
+
 export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[]): TaskMessage {
   return {
     id: crypto.randomUUID(),

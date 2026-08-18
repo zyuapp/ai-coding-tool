@@ -24,6 +24,7 @@ const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/Task
 const { drawAnnotations } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
+const { AutomationPanel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -225,12 +226,20 @@ async function mountWorkspace(desktop) {
 function fakeDesktop(overrides = {}) {
   const sent = [];
   const persisted = [];
+  const acknowledged = [];
+  const automationChanges = [];
   let listener;
+  let automationsChanged;
+  let fireAutomation;
   let unsubscribed = false;
   return {
     sent,
     persisted,
+    acknowledged,
+    automationChanges,
     get listener() { return listener; },
+    get automationsChanged() { return automationsChanged; },
+    get fireAutomation() { return fireAutomation; },
     get unsubscribed() { return unsubscribed; },
     openFolder: async () => null,
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
@@ -244,6 +253,14 @@ function fakeDesktop(overrides = {}) {
     persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
     onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },
+    listAutomations: async () => [],
+    saveAutomation: async (draft) => ({ ...draft, id: "automation-1", paused: false, createdAt: 1, updatedAt: 1, runCount: 0, nextRunAt: 2 }),
+    updateAutomation: async (taskId, patch) => { automationChanges.push({ taskId, patch }); return { taskId, ...patch, id: "automation-1", paused: false, createdAt: 1, updatedAt: 2, runCount: 0, nextRunAt: 2 }; },
+    deleteAutomation: async (taskId) => { automationChanges.push({ taskId, deleted: true }); return true; },
+    runAutomationNow: async () => "succeeded",
+    onAutomationsChanged: (next) => { automationsChanged = next; return () => {}; },
+    onAutomationFire: (next) => { fireAutomation = next; return () => {}; },
+    acknowledgeAutomation: (ack) => acknowledged.push(ack),
     ...overrides,
   };
 }
@@ -968,4 +985,163 @@ test("elapsed labels stay readable from seconds to hours", async () => {
   assert.equal(formatElapsed(3_599_000), "59m 59s");
   assert.equal(formatElapsed(3_600_000), "1h 0m");
   assert.equal(formatElapsed(7_500_000), "2h 5m");
+});
+
+const automationView = (overrides = {}) => ({
+  id: "automation-1",
+  taskId: "task-1",
+  prompt: "Check whether the PR is approved",
+  schedule: "*/5 * * * *",
+  paused: false,
+  createdAt: 1,
+  updatedAt: 1,
+  runCount: 2,
+  lastRunAt: Date.parse("2026-08-17T09:30:00Z"),
+  lastStatus: "succeeded",
+  nextRunAt: Date.now() + 120_000,
+  ...overrides,
+});
+
+test("the automation panel explains itself before an automation exists", async () => {
+  const view = await mount(React.createElement(AutomationPanel, { automation: null, onUpdate() {}, onDelete() {}, onRunNow() {} }));
+
+  assert.match(view.container.textContent, /Ask Claude to repeat this task/);
+  assert.equal(view.container.querySelector('input[aria-label="Automation schedule"]'), null);
+  await view.unmount();
+});
+
+test("the automation panel edits the schedule and prompt in one save", async () => {
+  const patches = [];
+  const automation = automationView();
+  const view = await mount(React.createElement(AutomationPanel, { automation, onUpdate: (patch) => patches.push(patch), onDelete() {}, onRunNow() {} }));
+
+  const schedule = view.container.querySelector('input[aria-label="Automation schedule"]');
+  const prompt = view.container.querySelector('textarea[aria-label="Automation prompt"]');
+  const save = view.container.querySelector(".automation-actions button");
+  const setInput = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  const setTextarea = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  assert.equal(schedule.value, "*/5 * * * *");
+  assert.equal(prompt.value, "Check whether the PR is approved");
+  assert.equal(save.disabled, true, "an untouched automation has nothing to save");
+  assert.match(view.container.textContent, /2 runs/);
+  assert.match(view.container.textContent, /succeeded at/);
+
+  await act(async () => {
+    setInput.call(schedule, "0 8 * * *");
+    schedule.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "0 8 * * *" }));
+    schedule.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => {
+    setTextarea.call(prompt, "Check the PR and stop once it is approved");
+    prompt.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "Check the PR and stop once it is approved" }));
+    prompt.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => { view.container.querySelector(".automation-actions button").click(); });
+
+  assert.deepEqual(patches, [{ schedule: "0 8 * * *", prompt: "Check the PR and stop once it is approved" }]);
+  await view.unmount();
+});
+
+test("the automation panel pauses, reruns, and removes without editing", async () => {
+  const patches = [];
+  let deleted = 0;
+  let ranNow = 0;
+  const view = await mount(React.createElement(AutomationPanel, {
+    automation: automationView(),
+    onUpdate: (patch) => patches.push(patch),
+    onDelete: () => { deleted += 1; },
+    onRunNow: () => { ranNow += 1; },
+  }));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Pause automation"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Run automation now"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Remove automation"]').click(); });
+
+  assert.deepEqual(patches, [{ paused: true }]);
+  assert.equal(ranNow, 1);
+  assert.equal(deleted, 1);
+
+  await view.render(React.createElement(AutomationPanel, { automation: automationView({ paused: true, nextRunAt: null }), onUpdate: (patch) => patches.push(patch), onDelete() {}, onRunNow() {} }));
+  assert.match(view.container.textContent, /Paused/);
+  await act(async () => { view.container.querySelector('button[aria-label="Resume automation"]').click(); });
+  assert.deepEqual(patches.at(-1), { paused: false });
+  await view.unmount();
+});
+
+test("the automation countdown stays readable at every distance", () => {
+  const at = Date.parse("2026-08-17T09:00:00Z");
+  assert.equal(formatCountdown(at + 45_000, at), "in 45s");
+  assert.equal(formatCountdown(at + 300_000, at), "in 5m");
+  assert.equal(formatCountdown(at + 7_200_000, at), "in 2h");
+  assert.equal(formatCountdown(at - 5_000, at), "in 0s");
+  assert.equal(formatCountdown(null, at), "paused");
+});
+
+test("a scheduled tick runs in the original thread and reports back to the scheduler", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { workspace.get().actions.setPrompt("Watch PR 42"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const first = desktop.sent[0];
+  await act(async () => {
+    desktop.listener({ type: "continuation.updated", taskId: first.taskId, runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "session-1" } });
+    desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 2, status: "succeeded" });
+  });
+
+  await act(async () => {
+    await desktop.fireAutomation({ automationId: "automation-1", taskId: first.taskId, runId: "run-scheduled", prompt: "Check PR 42", runNumber: 3, policy: "autonomous" });
+  });
+
+  const scheduled = desktop.sent[1];
+  assert.equal(scheduled.taskId, first.taskId, "the tick continues the original thread");
+  assert.equal(scheduled.runId, "run-scheduled", "the scheduler's run ID is what comes back to it");
+  assert.equal(scheduled.policy, "autonomous", "the automation's policy wins over the task's");
+  assert.deepEqual(scheduled.continuation, { provider: "claude", value: "session-1" });
+  assert.match(scheduled.prompt, /^Check PR 42/);
+  assert.match(scheduled.prompt, /automated run #3/);
+  assert.match(scheduled.prompt, /stop tool/);
+  assert.deepEqual(desktop.acknowledged, [{ automationId: "automation-1", runId: "run-scheduled", started: true }]);
+
+  const messages = workspace.get().currentTask.messages;
+  assert.equal(messages.at(-1).text, "Check PR 42", "the transcript shows the prompt, not the scheduler's framing");
+  assert.equal(messages.at(-1).detail, "Automation run #3");
+  await workspace.view.unmount();
+});
+
+test("a tick that lands on a busy or archived task is declined instead of queued", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { workspace.get().actions.setPrompt("Watch PR 42"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const first = desktop.sent[0];
+
+  await act(async () => {
+    await desktop.fireAutomation({ automationId: "automation-1", taskId: first.taskId, runId: "run-overlap", prompt: "Check PR 42", runNumber: 2 });
+  });
+  assert.equal(desktop.sent.length, 1, "the running task never gets a second run");
+  assert.deepEqual(desktop.acknowledged, [{ automationId: "automation-1", runId: "run-overlap", started: false }]);
+
+  await act(async () => {
+    await desktop.fireAutomation({ automationId: "automation-1", taskId: "task-gone", runId: "run-missing", prompt: "Check PR 42", runNumber: 2 });
+  });
+  assert.equal(desktop.acknowledged.at(-1).started, false, "a tick for a task that no longer exists is declined");
+  await workspace.view.unmount();
+});
+
+test("archiving a task retires its automation", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { workspace.get().actions.setPrompt("Watch PR 42"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const first = desktop.sent[0];
+  await act(async () => {
+    desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 1, status: "succeeded" });
+  });
+  await act(async () => { desktop.automationsChanged([automationView({ taskId: first.taskId })]); });
+  assert.equal(workspace.get().automation.taskId, first.taskId);
+
+  await act(async () => { workspace.get().actions.archiveTask(first.taskId); });
+
+  assert.deepEqual(desktop.automationChanges, [{ taskId: first.taskId, deleted: true }]);
+  await workspace.view.unmount();
 });
