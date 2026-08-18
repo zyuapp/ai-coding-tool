@@ -1489,7 +1489,7 @@ pre {
 .setting-icon { color: #a5a7a8; }
 .setting-check { color: #b6b6b2; }
 .setting-option.elevated strong, .setting-option.elevated small, .setting-option.elevated .setting-icon { color: #ef8451; }
-.composer-actions { display: flex; align-items: center; gap: 7px; }
+.composer-actions { display: flex; align-items: center; gap: 12px; }
 .context-usage {
   position: relative;
   display: grid;
