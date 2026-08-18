@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, stateFromData, withPrompt, type PendingRun, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, promptKey, stateFromData, withPrompt, type PendingRun, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -131,11 +131,46 @@ function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
   return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
 }
 
+function withSideChat(state: WorkspaceState, chatId: string, update: (chat: SideChat) => SideChat): WorkspaceState {
+  return { ...state, sideChats: state.sideChats.map((chat) => chat.id === chatId ? update(chat) : chat) };
+}
+
+/** Side chats own their run state, so closing one has to cancel it rather than leave it orphaned. */
+function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTransition {
+  const effects: WorkspaceEffect[] = [];
+  let next = state;
+  for (const chat of closing) {
+    const active = next.activeRuns[chat.id];
+    if (active) {
+      effects.push({ type: "send-run-command", command: { type: "cancel", taskId: chat.id, runId: active.runId } });
+      const { [active.runId]: _abandoned, ...approvals } = next.approvals;
+      next = { ...next, approvals };
+    }
+    next = withRunStatus(withActiveRun(next, chat.id, null), chat.id, "idle");
+  }
+  const closed = new Set(closing.map((chat) => chat.id));
+  return {
+    state: {
+      ...next,
+      sideChats: next.sideChats.filter((chat) => !closed.has(chat.id)),
+      pendingRuns: Object.fromEntries(Object.entries(next.pendingRuns).filter(([, pending]) => !(pending.taskId && closed.has(pending.taskId)))),
+    },
+    effects,
+  };
+}
+
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else
  * driving the app); events report what the outside world did back. Nothing here touches Electron.
  */
 export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
+  const transition = apply(state, input);
+  if (transition.state.currentId === state.currentId || !transition.state.sideChats.length) return transition;
+  const closed = closeSideChats(transition.state, transition.state.sideChats);
+  return { state: { ...closed.state, sideChatSequence: 0 }, effects: [...transition.effects, ...closed.effects] };
+}
+
+function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
   switch (input.type) {
     case "task.new": {
       const project = input.projectId ? state.projects.find((item) => item.id === input.projectId) : undefined;
@@ -275,16 +310,17 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
       if (project && (project.workspaceId !== input.workspace.id || project.root !== input.workspace.root)) {
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id, root: input.workspace.root } : item) };
       }
-      return pending.origin === "automation" ? startAutomationRun(next, pending, input.workspace) : startComposerRun(next, pending, input.workspace);
+      if (pending.origin === "automation") return startAutomationRun(next, pending, input.workspace);
+      return pending.origin === "side" ? startSideRun(next, pending, input.workspace) : startComposerRun(next, pending, input.workspace);
     }
 
     case "run.unresolved": {
       const pending = state.pendingRuns[input.pendingId];
       if (!pending) return settled(state);
       const next = withoutPending(state, input.pendingId);
-      return pending.origin === "automation"
-        ? settled(next, ack(pending, false))
-        : settled({ ...next, actionError: input.message });
+      if (pending.origin === "automation") return settled(next, ack(pending, false));
+      if (pending.origin === "side") return settled(withSideChat(next, pending.taskId!, (chat) => ({ ...chat, error: input.message })));
+      return settled({ ...next, actionError: input.message });
     }
 
     case "run.cancel": {
@@ -306,6 +342,16 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
 
     case "run.event": {
       const { event } = input;
+      const chat = state.sideChats.find((item) => item.id === event.taskId);
+      if (chat) {
+        const applied = applyRunEvent({ tasks: [chat.task], activeRuns: state.activeRuns, runStatuses: state.runStatuses, approvals: state.approvals }, event);
+        return settled({
+          ...withSideChat(state, chat.id, (item) => ({ ...item, task: applied.tasks[0]! })),
+          activeRuns: applied.activeRuns,
+          runStatuses: applied.runStatuses,
+          approvals: applied.approvals,
+        });
+      }
       const active = state.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const project = projectFor(state, state.tasks.find((task) => task.id === event.taskId));
@@ -349,6 +395,70 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
         ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
         ...(project ? { root: project.root } : {}),
       }]);
+    }
+
+    case "side-chat.open": {
+      const source = state.tasks.find((task) => task.id === state.currentId);
+      if (!source) return settled(state);
+      const sequence = state.sideChatSequence + 1;
+      const chat: SideChat = {
+        id: input.chatId,
+        title: `Chat ${sequence}`,
+        sourceTaskId: source.id,
+        prompt: "",
+        error: null,
+        task: {
+          id: input.chatId,
+          title: "Side chat",
+          executionPolicy: "plan",
+          ...(source.model ? { model: source.model } : {}),
+          messages: [],
+          continuationStatus: "none",
+          lastChangeSnapshot: { files: [], capturedAt: now() },
+          updatedAt: now(),
+        },
+      };
+      return settled({ ...state, sideChats: [...state.sideChats, chat], sideChatSequence: sequence });
+    }
+
+    case "side-chat.close": {
+      const chat = state.sideChats.find((item) => item.id === input.chatId);
+      return chat ? closeSideChats(state, [chat]) : settled(state);
+    }
+
+    case "side-chat.set-prompt":
+      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, prompt: input.prompt })));
+
+    case "side-chat.send": {
+      const chat = state.sideChats.find((item) => item.id === input.chatId);
+      const text = chat?.prompt.trim();
+      const source = chat ? state.tasks.find((task) => task.id === chat.sourceTaskId) : undefined;
+      const sending = Object.values(state.pendingRuns).some((pending) => pending.taskId === input.chatId);
+      if (!chat || !text || !source?.continuation || sending || state.activeRuns[chat.id]) return settled(state);
+      const project = projectFor(state, source);
+      const pending: PendingRun = {
+        id: crypto.randomUUID(),
+        runId: crypto.randomUUID(),
+        origin: "side",
+        taskId: chat.id,
+        ...(project ? { projectId: project.id } : {}),
+        text,
+        prompt: text,
+        attachments: [],
+      };
+      return settled(withPending(withSideChat(state, chat.id, (item) => ({ ...item, error: null })), pending), [{
+        type: "resolve-run-workspace",
+        pendingId: pending.id,
+        picker: Boolean(project && !project.workspaceId),
+        ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
+        ...(project ? { root: project.root } : {}),
+      }]);
+    }
+
+    case "side-chat.cancel": {
+      const active = state.activeRuns[input.chatId];
+      if (!active) return settled(state);
+      return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
     }
 
     case "automation.save":
@@ -448,6 +558,34 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   return settled(
     pending.draftKey ? withPrompt(started, pending.draftKey, "") : started,
     [{ type: "start-run", command: startRunCommand(updated, pending.runId, pending.prompt, workspace.id) }],
+  );
+}
+
+/** A side chat forks the source thread on its first turn, then continues on its own branch. */
+function startSideRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+  const chat = state.sideChats.find((item) => item.id === pending.taskId);
+  const source = chat ? state.tasks.find((task) => task.id === chat.sourceTaskId) : undefined;
+  if (!chat || !source?.continuation || state.activeRuns[chat.id]) return settled(state);
+  const firstTurn = !chat.task.continuation;
+  const task = { ...chat.task, messages: [...chat.task.messages, createTaskMessage("user", pending.text)], updatedAt: now() };
+  const next = withSideChat(state, chat.id, (item) => ({ ...item, task, prompt: "", error: null }));
+  return settled(
+    withRunStatus(withActiveRun(next, chat.id, { taskId: chat.id, runId: pending.runId, sequence: 0, status: "running" }), chat.id, "running"),
+    [{
+      type: "start-run",
+      command: {
+        type: "start",
+        channel: "side",
+        taskId: chat.id,
+        runId: pending.runId,
+        prompt: pending.prompt,
+        workspaceId: workspace.id,
+        policy: "plan",
+        model: source.model ?? DEFAULT_MODEL,
+        continuation: firstTurn ? source.continuation : chat.task.continuation!,
+        ...(firstTurn ? { forkContinuation: true } : {}),
+      },
+    }],
   );
 }
 

@@ -133,3 +133,63 @@ test("a run that settles out of focus flags the task and refreshes its project",
   const focused = reduce(settled.state, { type: "view.set-focused", focused: true });
   assert.equal(focused.state.tasks[0].attention, undefined);
 });
+
+test("a side chat forks the source thread once, then continues on its own branch", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
+  ]);
+  assert.equal(opened.sideChats[0].title, "Chat 1");
+
+  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const forked = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const first = forked.effects[0].command;
+  assert.equal(first.channel, "side");
+  assert.equal(first.policy, "plan");
+  assert.equal(first.forkContinuation, true);
+  assert.deepEqual(first.continuation, { provider: "claude", value: "main-session" });
+  assert.equal(forked.state.sideChats[0].prompt, "");
+  assert.equal(forked.state.sideChats[0].task.messages[0].text, "What does this do?");
+
+  const branched = run(forked.state, [
+    { type: "run.event", event: { type: "continuation.updated", taskId: "chat-1", runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "side-session" } } },
+    { type: "run.event", event: { type: "run.status", taskId: "chat-1", runId: first.runId, sequence: 2, status: "succeeded" } },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Follow up" },
+  ]);
+  const resending = reduce(branched, { type: "side-chat.send", chatId: "chat-1" });
+  const second = reduce(resending.state, { type: "run.resolved", pendingId: resending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).effects[0].command;
+
+  assert.deepEqual(second.continuation, { provider: "claude", value: "side-session" });
+  assert.equal("forkContinuation" in second, false);
+  assert.deepEqual(branched.tasks[0].continuation, { provider: "claude", value: "main-session" }, "the main thread never moves");
+});
+
+test("a side chat cannot run without a source thread to fork", () => {
+  const opened = run(workspace({ tasks: [task("main-task")], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Ask" },
+  ]);
+  assert.deepEqual(reduce(opened, { type: "side-chat.send", chatId: "chat-1" }).effects, []);
+});
+
+test("closing a side chat cancels its run, and switching tasks closes every chat", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source, task("other")], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Ask" },
+  ]);
+  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const running = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
+  const runId = running.activeRuns["chat-1"].runId;
+
+  const closed = reduce(running, { type: "side-chat.close", chatId: "chat-1" });
+  assert.deepEqual(closed.effects, [{ type: "send-run-command", command: { type: "cancel", taskId: "chat-1", runId } }]);
+  assert.deepEqual(closed.state.sideChats, []);
+  assert.equal(closed.state.activeRuns["chat-1"], undefined);
+
+  const switched = reduce(running, { type: "task.select", taskId: "other" });
+  assert.deepEqual(switched.state.sideChats, []);
+  assert.equal(switched.effects.at(-1).command.type, "cancel");
+  assert.equal(switched.state.sideChatSequence, 0);
+});

@@ -1,4 +1,4 @@
-import { runStatusFor, type ApprovalView, type RunTransitionState } from "./task-workspace.js";
+import { runStatusFor, type ApprovalView, type RunTransitionState, type TaskRunStatus } from "./task-workspace.js";
 import { backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { AutomationView } from "../domain/automation.js";
@@ -12,7 +12,7 @@ import { legacyProjectId, type Project, type Task, type TaskStoreData } from "..
 export type PendingRun = {
   id: string;
   runId: string;
-  origin: "composer" | "automation";
+  origin: "composer" | "automation" | "side";
   taskId?: string;
   projectId?: string;
   /** Composer only: which draft to clear once the run starts. */
@@ -25,6 +25,18 @@ export type PendingRun = {
   policy?: ExecutionPolicy;
   automationId?: string;
 };
+
+/** One forked conversation. It holds its own task because nothing about it is ever persisted. */
+export type SideChat = {
+  id: string;
+  title: string;
+  sourceTaskId: string;
+  task: Task;
+  prompt: string;
+  error: string | null;
+};
+
+export type SideChatView = SideChat & { running: boolean; compacting: boolean; status: TaskRunStatus };
 
 export type WorkspaceState = {
   tasks: Task[];
@@ -43,6 +55,8 @@ export type WorkspaceState = {
   computerUseSetup: boolean;
   automations: AutomationView[];
   pendingRuns: Record<string, PendingRun>;
+  sideChats: SideChat[];
+  sideChatSequence: number;
   /** Latest run per task, so a reply from a superseded run can be dropped. */
   lastRunIds: Record<string, string>;
   focused: boolean;
@@ -70,6 +84,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     computerUseSetup: false,
     automations: [],
     pendingRuns: {},
+    sideChats: [],
+    sideChatSequence: 0,
     lastRunIds: {},
     focused: true,
     activeRuns: {},
@@ -153,5 +169,9 @@ export function deriveView(state: WorkspaceState) {
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
     openMenu: state.openMenu,
+    sideChats: state.sideChats.map((chat): SideChatView => {
+      const active = state.activeRuns[chat.id];
+      return { ...chat, running: Boolean(active), compacting: active?.status === "compacting", status: active ? "running" : runStatusFor(state, chat.id) };
+    }),
   };
 }

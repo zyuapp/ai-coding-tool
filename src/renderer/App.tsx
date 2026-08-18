@@ -15,9 +15,7 @@ import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const sideChatSequence = useRef(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sideChats, setSideChats] = useState<{ id: string; title: string }[]>([]);
   const [sessionPanelOpen, setSessionPanelOpen] = useState(() => window.innerWidth >= 1400);
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const [activeRightTab, setActiveRightTab] = useState("home");
@@ -28,10 +26,9 @@ export function App() {
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
 
   function addSideChat() {
-    sideChatSequence.current += 1;
-    const chat = { id: crypto.randomUUID(), title: `Chat ${sideChatSequence.current}` };
-    setSideChats((current) => [...current, chat]);
-    setActiveRightTab(chat.id);
+    const chatId = crypto.randomUUID();
+    void workspace.dispatch({ type: "side-chat.open", chatId });
+    setActiveRightTab(chatId);
     setSessionPanelOpen(false);
     setRightDockOpen(true);
   }
@@ -43,9 +40,10 @@ export function App() {
   }
 
   function closeSideChat(id: string) {
-    const index = sideChats.findIndex((chat) => chat.id === id);
-    setSideChats((current) => current.filter((chat) => chat.id !== id));
-    if (activeRightTab === id) setActiveRightTab(sideChats[index - 1]?.id ?? sideChats[index + 1]?.id ?? "home");
+    const chats = workspace.sideChats;
+    const index = chats.findIndex((chat) => chat.id === id);
+    void workspace.dispatch({ type: "side-chat.close", chatId: id });
+    if (activeRightTab === id) setActiveRightTab(chats[index - 1]?.id ?? chats[index + 1]?.id ?? "home");
   }
 
   function openSettings() {
@@ -73,8 +71,6 @@ export function App() {
   }, [workspace.currentTask?.id, workspace.subagents, selectedSubagent]);
 
   useEffect(() => {
-    setSideChats([]);
-    sideChatSequence.current = 0;
     setActiveRightTab("home");
     setSelectedSubagent(null);
   }, [workspace.currentTask?.id]);
@@ -202,7 +198,7 @@ export function App() {
                     <AlarmClock size={15} aria-hidden="true" /><span>Automation</span>
                   </button>
                 )}
-                {sideChats.map((chat) => (
+                {workspace.sideChats.map((chat) => (
                   <div className={`right-dock-chat-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
                     <button type="button" role="tab" aria-selected={activeRightTab === chat.id} onClick={() => setActiveRightTab(chat.id)}><GitFork size={14} aria-hidden="true" /><span>{chat.title}</span></button>
                     <button type="button" aria-label={`Close ${chat.title}`} onClick={() => closeSideChat(chat.id)}><X size={13} /></button>
@@ -253,9 +249,17 @@ export function App() {
                   onRunNow={() => void workspace.actions.runAutomationNow()}
                 />
               </div>
-              {workspace.currentTask && sideChats.map((chat) => (
+              {workspace.currentTask && workspace.sideChats.map((chat) => (
                 <div key={chat.id} hidden={activeRightTab !== chat.id}>
-                  <SideChat source={workspace.currentTask!} project={workspace.currentProject} title={chat.title} onClose={() => closeSideChat(chat.id)} />
+                  <SideChat
+                    chat={chat}
+                    source={workspace.currentTask!}
+                    project={workspace.currentProject}
+                    onPrompt={(prompt) => void workspace.dispatch({ type: "side-chat.set-prompt", chatId: chat.id, prompt })}
+                    onSend={() => void workspace.dispatch({ type: "side-chat.send", chatId: chat.id })}
+                    onCancel={() => void workspace.dispatch({ type: "side-chat.cancel", chatId: chat.id })}
+                    onClose={() => closeSideChat(chat.id)}
+                  />
                 </div>
               ))}
             </div>

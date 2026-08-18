@@ -8,7 +8,7 @@ import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | AutomationCommand | ViewCommand;
+export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | SideChatCommand | AutomationCommand | ViewCommand;
 
 /** Commands that act on the task the user is looking at read `currentId` from state rather than taking an id. */
 export type TaskCommand =
@@ -27,6 +27,14 @@ export type ProjectCommand =
 export type RunControlCommand =
   | { type: "run.cancel" }
   | { type: "run.decide"; allow: boolean };
+
+/** A side chat forks the current task's thread and is discarded when it closes. */
+export type SideChatCommand =
+  | { type: "side-chat.open"; chatId: string }
+  | { type: "side-chat.close"; chatId: string }
+  | { type: "side-chat.set-prompt"; chatId: string; prompt: string }
+  | { type: "side-chat.send"; chatId: string }
+  | { type: "side-chat.cancel"; chatId: string };
 
 export type AutomationCommand =
   | { type: "automation.save"; draft: Omit<AutomationDraft, "taskId"> }
