@@ -319,3 +319,24 @@ test("dropping a queued message removes only that one", () => {
   assert.deepEqual(dropped.effects, []);
   assert.deepEqual(dropped.state.queuedMessages["task-a"].map((message) => message.text), ["Second"]);
 });
+
+test("a run starting on a task the user is not looking at leaves them where they are", () => {
+  const queued = queueMessage(running(), "Run the tests");
+  const looking = run(queued, [{ type: "task.select", taskId: "task-b" }]);
+  const finished = reduce({ ...looking, tasks: [...looking.tasks, task("task-b")] }, {
+    type: "run.event",
+    event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" },
+  });
+  const [resolve] = finished.effects.filter((effect) => effect.type === "resolve-run-workspace");
+  const started = reduce(finished.state, { type: "run.resolved", pendingId: resolve.pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+
+  assert.equal(started.state.currentId, "task-b", "the drained queue runs without stealing the view");
+  assert.equal(started.state.activeRuns["task-a"].runId, resolve.pendingId ? started.effects[0].command.runId : undefined);
+});
+
+test("a send with no task yet opens the task it creates", () => {
+  const sending = reduce(run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]), { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+
+  assert.equal(started.state.currentId, started.state.tasks[0].id);
+});

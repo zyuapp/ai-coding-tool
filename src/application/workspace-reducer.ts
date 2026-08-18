@@ -136,7 +136,7 @@ function startRunCommand(task: Task, runId: string, prompt: string, workspaceId:
 /** Records the run against the task and marks it the task's latest, so stale replies can be dropped. */
 function beginRun(state: WorkspaceState, taskId: string, runId: string): WorkspaceState {
   return withRunStatus(
-    withActiveRun({ ...state, currentId: taskId, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running" }),
+    withActiveRun({ ...state, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running" }),
     taskId,
     "running",
   );
@@ -666,7 +666,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const message = createTaskMessage("user", pending.text, undefined, pending.attachments);
   const updated = { ...task, messages: [...task.messages, message], updatedAt: now() };
   const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
-  const started = beginRun({ ...state, tasks }, task.id, pending.runId);
+  /** Only a task the send just created needs looking at; anything else leaves the user where they are. */
+  const started = beginRun({ ...state, tasks, ...(existing ? {} : { currentId: task.id }) }, task.id, pending.runId);
   const drained = pending.queuedIds
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
