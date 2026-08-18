@@ -20,6 +20,18 @@ export type Project = {
   workspaceId?: string;
 };
 
+/** Where a dragged task lands: a slot in a project's list, or in the project-less "recents" list. */
+export type TaskDropTarget = {
+  projectId: string | null;
+  index: number;
+};
+
+export type RunAttachment = {
+  path: string;
+  /** Label per annotation, positional: index 0 is the box marked "1". Empty strings are unlabelled boxes. */
+  labels: string[];
+};
+
 export type ChangeSnapshot = {
   files: string[];
   capturedAt: number;

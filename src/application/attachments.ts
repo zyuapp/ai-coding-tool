@@ -1,8 +1,4 @@
-export type RunAttachment = {
-  path: string;
-  /** Label per annotation, positional: index 0 is the box marked "1". Empty strings are unlabelled boxes. */
-  labels: string[];
-};
+import type { RunAttachment } from "../domain/task.js";
 
 const ATTACHMENT_HEADING = "Attached screenshots (numbered red boxes mark the areas in question):";
 

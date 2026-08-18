@@ -1,10 +1,4 @@
-import type { Task } from "../domain/task.js";
-
-/** Where a dragged task lands: a slot in a project's list, or in the project-less "recents" list. */
-export type TaskDropTarget = {
-  projectId: string | null;
-  index: number;
-};
+import type { Task, TaskDropTarget } from "../domain/task.js";
 
 /**
  * Sidebar order. `sortIndex` wins so rows never move on their own; tasks stored before

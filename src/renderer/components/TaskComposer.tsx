@@ -1,6 +1,6 @@
 import { Brain, Check, Command, Feather, FileCheck2, Gauge, Hand, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { RunAttachment } from "../../application/attachments";
+import type { RunAttachment } from "../../domain/task";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";

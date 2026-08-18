@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Ellipsis, Settings, SquarePen } from "lucide-react";
-import type { TaskDropTarget } from "../../application/task-order";
+import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 
 const RECENTS_DROPPABLE = "recents";

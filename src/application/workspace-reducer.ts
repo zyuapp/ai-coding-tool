@@ -1,0 +1,464 @@
+import { promptWithAttachments, taskTitleFor } from "./attachments.js";
+import { moveTask as moveTaskInList, nextSortIndex } from "./task-order.js";
+import {
+  applyRunEvent,
+  applyTask,
+  automationRunLabel,
+  automationRunPrompt,
+  createTaskMessage,
+  withActiveRun,
+  withRunStatus,
+} from "./task-workspace.js";
+import { projectFor, promptKey, stateFromData, withPrompt, type PendingRun, type WorkspaceState } from "./workspace-state.js";
+import type { AppCommand } from "../contracts/commands.js";
+import type {
+  ApprovalDecisionCommand,
+  AutomationAck,
+  AutomationFire,
+  CancelRunCommand,
+  ChangedFilesResult,
+  RunEvent,
+  StartRunCommand,
+} from "../contracts/ipc.js";
+import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
+import { DEFAULT_MODEL } from "../domain/run.js";
+import { legacyProjectId, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
+import type { WorkspaceRecord } from "../domain/workspace.js";
+
+/** Things that happened: replies to effects, and pushes from the main process. */
+export type WorkspaceEvent =
+  | { type: "store.loaded"; data: TaskStoreData }
+  | { type: "store.failed"; message: string }
+  | { type: "action.failed"; message: string }
+  | { type: "project.opened"; workspace: WorkspaceRecord }
+  | { type: "run.event"; event: RunEvent }
+  | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord }
+  | { type: "run.unresolved"; pendingId: string; message: string }
+  | { type: "automation.fired"; fire: AutomationFire }
+  | { type: "automations.changed"; automations: AutomationView[] }
+  | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult };
+
+/** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
+export type WorkspaceEffect =
+  | { type: "pick-project" }
+  | { type: "resolve-run-workspace"; pendingId: string; picker: boolean; workspaceId?: string; root?: string }
+  | { type: "start-run"; command: StartRunCommand }
+  | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand }
+  | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  | { type: "automation.save"; draft: AutomationDraft }
+  | { type: "automation.update"; taskId: string; patch: AutomationPatch }
+  | { type: "automation.delete"; taskId: string }
+  | { type: "automation.run-now"; taskId: string }
+  | { type: "automation.ack"; ack: AutomationAck };
+
+export type WorkspaceInput = AppCommand | WorkspaceEvent;
+
+export type WorkspaceTransition = { state: WorkspaceState; effects: WorkspaceEffect[] };
+
+const REOPEN_PROJECT_ERROR = "Reopen this project folder before running a task.";
+const SAME_PROJECT_ERROR = "Choose the same project folder to continue this task.";
+const MISSING_PROJECT_ERROR = "This task's project is unavailable. Reopen the project folder before running it.";
+const RUNNING_PROJECT_ERROR = "Stop the running tasks before removing this project.";
+const BUSY_AUTOMATION_ERROR = "This task is already running. The automation will run on its next tick.";
+
+export const WORKSPACE_ERRORS = {
+  reopenProject: REOPEN_PROJECT_ERROR,
+  sameProject: SAME_PROJECT_ERROR,
+  busyAutomation: BUSY_AUTOMATION_ERROR,
+} as const;
+
+function now() {
+  return Date.now();
+}
+
+function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []): WorkspaceTransition {
+  return { state, effects };
+}
+
+/** A run only earns a dot when it settles on its own; cancelling is the user's own doing. */
+function attentionFor(event: RunEvent): TaskAttention | null {
+  if (event.type === "approval.requested") return "approval";
+  if (event.type !== "run.status") return null;
+  if (event.status === "succeeded") return "finished";
+  if (event.status === "failed") return "failed";
+  return null;
+}
+
+function withoutAttention(state: WorkspaceState, taskId: string | null): WorkspaceState {
+  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.attention)) return state;
+  return applyTask(state, taskId, ({ attention: _seen, ...task }) => task);
+}
+
+/** An archived task is unreachable, so its automation would tick forever with nowhere to run. */
+function retireAutomations(state: WorkspaceState, taskIds: Iterable<string>): WorkspaceEffect[] {
+  const scheduled = new Set(state.automations.map((automation) => automation.taskId));
+  return [...taskIds].filter((taskId) => scheduled.has(taskId)).map((taskId) => ({ type: "automation.delete" as const, taskId }));
+}
+
+function withPending(state: WorkspaceState, pending: PendingRun): WorkspaceState {
+  return { ...state, pendingRuns: { ...state.pendingRuns, [pending.id]: pending }, actionError: null };
+}
+
+function withoutPending(state: WorkspaceState, pendingId: string): WorkspaceState {
+  const { [pendingId]: _settled, ...pendingRuns } = state.pendingRuns;
+  return { ...state, pendingRuns };
+}
+
+function startRunCommand(task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
+  return {
+    type: "start",
+    channel: "main",
+    taskId: task.id,
+    runId,
+    prompt,
+    workspaceId,
+    policy,
+    model: task.model ?? DEFAULT_MODEL,
+    ...(task.continuation ? { continuation: task.continuation } : {}),
+  };
+}
+
+/** Records the run against the task and marks it the task's latest, so stale replies can be dropped. */
+function beginRun(state: WorkspaceState, taskId: string, runId: string): WorkspaceState {
+  return withRunStatus(
+    withActiveRun({ ...state, currentId: taskId, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running" }),
+    taskId,
+    "running",
+  );
+}
+
+function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
+  return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
+}
+
+/**
+ * The single writer for workspace state. Commands come from the UI (and, later, from anything else
+ * driving the app); events report what the outside world did back. Nothing here touches Electron.
+ */
+export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
+  switch (input.type) {
+    case "task.new": {
+      const project = input.projectId ? state.projects.find((item) => item.id === input.projectId) : undefined;
+      return settled({
+        ...state,
+        currentId: null,
+        draftProjectId: input.projectId ?? null,
+        actionError: null,
+        lastFolder: project?.root ?? state.lastFolder,
+        expandedProjects: input.projectId ? new Set(state.expandedProjects).add(input.projectId) : state.expandedProjects,
+      });
+    }
+
+    case "task.select": {
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      const project = projectFor(state, task);
+      return settled(withoutAttention({
+        ...state,
+        currentId: input.taskId,
+        draftProjectId: task?.projectId ?? null,
+        lastFolder: project?.root ?? state.lastFolder,
+        actionError: null,
+      }, input.taskId));
+    }
+
+    case "task.archive": {
+      if (state.activeRuns[input.taskId]) return settled(state);
+      return settled({
+        ...state,
+        tasks: state.tasks.map((task) => task.id === input.taskId ? { ...task, archivedAt: now() } : task),
+        currentId: state.currentId === input.taskId ? null : state.currentId,
+      }, retireAutomations(state, [input.taskId]));
+    }
+
+    case "task.move": {
+      const tasks = moveTaskInList(state.tasks, input.taskId, input.target);
+      if (tasks === state.tasks) return settled(state);
+      const projectId = tasks.find((task) => task.id === input.taskId)?.projectId;
+      return settled({
+        ...state,
+        tasks,
+        expandedProjects: projectId ? new Set(state.expandedProjects).add(projectId) : state.expandedProjects,
+        openMenu: null,
+      });
+    }
+
+    case "task.set-policy":
+      return settled(state.currentId
+        ? applyTask({ ...state, draftPolicy: input.policy }, state.currentId, (task) => ({ ...task, executionPolicy: input.policy, updatedAt: now() }))
+        : { ...state, draftPolicy: input.policy });
+
+    case "task.set-model":
+      return settled(state.currentId
+        ? applyTask({ ...state, draftModel: input.model }, state.currentId, (task) => ({ ...task, model: input.model, updatedAt: now() }))
+        : { ...state, draftModel: input.model });
+
+    case "task.send": {
+      const attachments = input.attachments ?? [];
+      const draftKey = promptKey(state);
+      const text = (state.prompts[draftKey] ?? "").trim();
+      const alreadySending = Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
+      if ((!text && attachments.length === 0) || alreadySending) return settled(state);
+      const task = state.tasks.find((item) => item.id === state.currentId);
+      if (task && state.activeRuns[task.id]) return settled(state);
+      const projectId = task?.projectId ?? state.draftProjectId;
+      const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
+      if (projectId && !project) return settled({ ...state, actionError: MISSING_PROJECT_ERROR });
+      const pending: PendingRun = {
+        id: crypto.randomUUID(),
+        runId: crypto.randomUUID(),
+        origin: "composer",
+        ...(task ? { taskId: task.id } : {}),
+        ...(project ? { projectId: project.id } : {}),
+        draftKey,
+        text,
+        prompt: promptWithAttachments(text, attachments),
+        attachments: attachments.map((attachment) => attachment.path),
+      };
+      return settled(withPending(state, pending), [{
+        type: "resolve-run-workspace",
+        pendingId: pending.id,
+        picker: Boolean(project && !project.workspaceId),
+        ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
+        ...(project ? { root: project.root } : {}),
+      }]);
+    }
+
+    case "project.open":
+      return settled(state, [{ type: "pick-project" }]);
+
+    case "project.opened": {
+      const id = legacyProjectId(input.workspace.root);
+      const projects = state.projects.some((project) => project.id === id)
+        ? state.projects.map((project) => project.id === id ? { ...project, root: input.workspace.root, workspaceId: input.workspace.id } : project)
+        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id }, ...state.projects];
+      return settled({
+        ...state,
+        projects,
+        currentId: null,
+        draftProjectId: id,
+        lastFolder: input.workspace.root,
+        actionError: null,
+        expandedProjects: new Set(state.expandedProjects).add(id),
+      });
+    }
+
+    case "project.remove": {
+      if (state.tasks.some((task) => task.projectId === input.projectId && state.activeRuns[task.id])) {
+        return settled({ ...state, actionError: RUNNING_PROJECT_ERROR });
+      }
+      const effects = retireAutomations(state, state.tasks.filter((task) => task.projectId === input.projectId).map((task) => task.id));
+      const project = state.projects.find((item) => item.id === input.projectId);
+      const expandedProjects = new Set(state.expandedProjects);
+      expandedProjects.delete(input.projectId);
+      return settled({
+        ...state,
+        projects: state.projects.filter((item) => item.id !== input.projectId),
+        tasks: state.tasks.map((task) => {
+          if (task.projectId !== input.projectId) return task;
+          const { projectId: _removed, ...projectlessTask } = task;
+          return task.archivedAt === undefined ? { ...projectlessTask, archivedAt: now() } : projectlessTask;
+        }),
+        currentId: state.tasks.find((task) => task.id === state.currentId)?.projectId === input.projectId ? null : state.currentId,
+        draftProjectId: state.draftProjectId === input.projectId ? null : state.draftProjectId,
+        lastFolder: project?.root === state.lastFolder ? null : state.lastFolder,
+        expandedProjects,
+        openMenu: null,
+        actionError: null,
+      }, effects);
+    }
+
+    case "run.resolved": {
+      const pending = state.pendingRuns[input.pendingId];
+      if (!pending) return settled(state);
+      let next = withoutPending(state, input.pendingId);
+      const project = pending.projectId ? next.projects.find((item) => item.id === pending.projectId) : undefined;
+      if (project && (project.workspaceId !== input.workspace.id || project.root !== input.workspace.root)) {
+        next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id, root: input.workspace.root } : item) };
+      }
+      return pending.origin === "automation" ? startAutomationRun(next, pending, input.workspace) : startComposerRun(next, pending, input.workspace);
+    }
+
+    case "run.unresolved": {
+      const pending = state.pendingRuns[input.pendingId];
+      if (!pending) return settled(state);
+      const next = withoutPending(state, input.pendingId);
+      return pending.origin === "automation"
+        ? settled(next, ack(pending, false))
+        : settled({ ...next, actionError: input.message });
+    }
+
+    case "run.cancel": {
+      const active = state.currentId ? state.activeRuns[state.currentId] : undefined;
+      if (!active) return settled(state);
+      return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
+    }
+
+    case "run.decide": {
+      const active = state.currentId ? state.activeRuns[state.currentId] : undefined;
+      const approval = active ? state.approvals[active.runId] : undefined;
+      if (!active || !approval) return settled(state);
+      const { [active.runId]: _decided, ...approvals } = state.approvals;
+      return settled({ ...state, approvals }, [{
+        type: "send-run-command",
+        command: { type: "approval", taskId: active.taskId, runId: active.runId, approvalId: approval.approvalId, allow: input.allow },
+      }]);
+    }
+
+    case "run.event": {
+      const { event } = input;
+      const active = state.activeRuns[event.taskId];
+      if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
+      const project = projectFor(state, state.tasks.find((task) => task.id === event.taskId));
+      const applied = applyRunEvent(state, event);
+      const attention = attentionFor(event);
+      let next = attention && !(state.focused && state.currentId === event.taskId)
+        ? applyTask(applied, event.taskId, (task) => ({ ...task, attention }))
+        : applied;
+      if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
+      const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
+      return settled(next, finished && project?.workspaceId
+        ? [{ type: "refresh-environment", workspaceId: project.workspaceId, taskId: event.taskId, runId: event.runId }]
+        : []);
+    }
+
+    /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */
+    case "automation.fired": {
+      const { fire } = input;
+      const decline: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
+      const task = state.tasks.find((item) => item.id === fire.taskId);
+      if (!task || task.archivedAt !== undefined || state.activeRuns[fire.taskId]) return settled(state, decline);
+      const project = projectFor(state, task);
+      if (task.projectId && !project?.workspaceId) return settled(state, decline);
+      const pending: PendingRun = {
+        id: crypto.randomUUID(),
+        runId: fire.runId,
+        origin: "automation",
+        taskId: fire.taskId,
+        ...(project ? { projectId: project.id } : {}),
+        text: fire.prompt,
+        prompt: automationRunPrompt(fire.prompt, fire.runNumber),
+        detail: automationRunLabel(fire.runNumber),
+        attachments: [],
+        ...(fire.policy ? { policy: fire.policy } : {}),
+        automationId: fire.automationId,
+      };
+      return settled(withPending(state, pending), [{
+        type: "resolve-run-workspace",
+        pendingId: pending.id,
+        picker: false,
+        ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
+        ...(project ? { root: project.root } : {}),
+      }]);
+    }
+
+    case "automation.save":
+      return state.currentId ? settled(state, [{ type: "automation.save", draft: { ...input.draft, taskId: state.currentId } }]) : settled(state);
+
+    case "automation.update":
+      return state.currentId ? settled(state, [{ type: "automation.update", taskId: state.currentId, patch: input.patch }]) : settled(state);
+
+    case "automation.delete":
+      return state.currentId ? settled(state, [{ type: "automation.delete", taskId: state.currentId }]) : settled(state);
+
+    case "automation.run-now":
+      return state.currentId ? settled(state, [{ type: "automation.run-now", taskId: state.currentId }]) : settled(state);
+
+    case "automations.changed":
+      return settled({ ...state, automations: input.automations });
+
+    case "view.refresh-environment": {
+      const currentTask = state.tasks.find((task) => task.id === state.currentId);
+      const currentProject = currentTask
+        ? projectFor(state, currentTask)
+        : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
+      if (!currentProject?.workspaceId) return settled(state.environment === null ? state : { ...state, environment: null });
+      const taskId = currentTask?.id;
+      const runId = taskId ? state.lastRunIds[taskId] : undefined;
+      return settled(state, [{
+        type: "refresh-environment",
+        workspaceId: currentProject.workspaceId,
+        ...(taskId ? { taskId } : {}),
+        ...(runId ? { runId } : {}),
+      }]);
+    }
+
+    case "environment.updated": {
+      if (input.taskId && input.runId && state.lastRunIds[input.taskId] !== input.runId) return settled(state);
+      const next: WorkspaceState = { ...state, environment: { workspaceId: input.workspaceId, result: input.result } };
+      if (!input.taskId || input.result.status !== "available") return settled(next);
+      const files = input.result.files;
+      return settled(applyTask(next, input.taskId, (task) => ({ ...task, lastChangeSnapshot: { files, capturedAt: now() }, updatedAt: now() })));
+    }
+
+    case "store.loaded":
+      return settled({ ...stateFromData(input.data), automations: state.automations, focused: state.focused });
+
+    case "store.failed":
+      return settled({ ...state, writable: false, storageError: input.message });
+
+    case "action.failed":
+      return settled({ ...state, actionError: input.message });
+
+    case "view.set-prompt":
+      return settled(withPrompt(state, promptKey(state), input.prompt));
+
+    case "view.toggle-project": {
+      const expandedProjects = new Set(state.expandedProjects);
+      if (expandedProjects.has(input.projectId)) expandedProjects.delete(input.projectId);
+      else expandedProjects.add(input.projectId);
+      return settled({ ...state, expandedProjects });
+    }
+
+    case "view.set-projects-open":
+      return settled({ ...state, projectsOpen: input.open });
+
+    case "view.set-recents-open":
+      return settled({ ...state, recentsOpen: input.open });
+
+    case "view.set-menu":
+      return settled({ ...state, openMenu: input.menu });
+
+    case "view.set-focused":
+      return settled(input.focused ? withoutAttention({ ...state, focused: true }, state.currentId) : { ...state, focused: false });
+
+    case "view.dismiss-computer-use-setup":
+      return settled({ ...state, computerUseSetup: false });
+  }
+}
+
+function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+  const existing = pending.taskId ? state.tasks.find((item) => item.id === pending.taskId) : undefined;
+  if (pending.taskId && (!existing || state.activeRuns[pending.taskId])) return settled(state);
+  const task: Task = existing ?? {
+    id: crypto.randomUUID(),
+    title: taskTitleFor(pending.text, pending.attachments.map((path) => ({ path, labels: [] }))),
+    ...(pending.projectId ? { projectId: pending.projectId } : {}),
+    executionPolicy: state.draftPolicy,
+    model: state.draftModel,
+    messages: [],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: now() },
+    sortIndex: nextSortIndex(state.tasks),
+    updatedAt: now(),
+  };
+  const message = createTaskMessage("user", pending.text, undefined, pending.attachments);
+  const updated = { ...task, messages: [...task.messages, message], updatedAt: now() };
+  const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
+  const started = beginRun({ ...state, tasks }, task.id, pending.runId);
+  return settled(
+    pending.draftKey ? withPrompt(started, pending.draftKey, "") : started,
+    [{ type: "start-run", command: startRunCommand(updated, pending.runId, pending.prompt, workspace.id) }],
+  );
+}
+
+function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+  const taskId = pending.taskId!;
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task || task.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
+  const message = createTaskMessage("user", pending.text, pending.detail);
+  const withMessage = applyTask(state, taskId, (item) => ({ ...item, messages: [...item.messages, message], updatedAt: now() }));
+  return settled(beginRun(withMessage, taskId, pending.runId), [
+    { type: "start-run", command: startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy) },
+    ...ack(pending, true),
+  ]);
+}
