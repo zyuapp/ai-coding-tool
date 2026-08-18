@@ -1,9 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ListCollapse, X, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
-import type { Task } from "../../domain/task";
+import type { Task, TaskMessage } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 function FolderIcon() {
@@ -32,6 +32,120 @@ function AttachmentViewer({ source, onClose }: { source: string; onClose: () => 
   );
 }
 
+type TimelineGroup =
+  | { kind: "message"; id: string; message: TaskMessage }
+  | { kind: "turn"; id: string; steps: TaskMessage[]; final: TaskMessage | null; live: boolean };
+
+type TurnSegment =
+  | { kind: "note"; id: string; message: TaskMessage }
+  | { kind: "tools"; id: string; messages: TaskMessage[] };
+
+/**
+ * Assistant text and the tool calls it drives belong to one turn. A turn ending in assistant text is
+ * settled; the newest turn of a running task is live and keeps collecting steps.
+ */
+export function groupTimeline(messages: TaskMessage[], running: boolean): TimelineGroup[] {
+  const turns: TaskMessage[][] = [];
+  const groups: (TimelineGroup | TaskMessage[])[] = [];
+  for (const message of messages) {
+    if (message.kind === "user" || message.kind === "system") {
+      groups.push({ kind: "message", id: message.id, message });
+      continue;
+    }
+    const open = groups.at(-1);
+    if (Array.isArray(open)) open.push(message);
+    else {
+      const turn = [message];
+      turns.push(turn);
+      groups.push(turn);
+    }
+  }
+  const liveTurn = running ? turns.at(-1) : undefined;
+  return groups.map((group) => {
+    if (!Array.isArray(group)) return group;
+    const settled = group !== liveTurn && group.at(-1)!.kind === "assistant";
+    return {
+      kind: "turn",
+      id: group[0]!.id,
+      steps: settled ? group.slice(0, -1) : group,
+      final: settled ? group.at(-1)! : null,
+      live: group === liveTurn,
+    };
+  });
+}
+
+function toSegments(steps: TaskMessage[]): TurnSegment[] {
+  const segments: TurnSegment[] = [];
+  for (const step of steps) {
+    if (step.kind !== "tool") {
+      segments.push({ kind: "note", id: step.id, message: step });
+      continue;
+    }
+    const open = segments.at(-1);
+    if (open?.kind === "tools") open.messages.push(step);
+    else segments.push({ kind: "tools", id: step.id, messages: [step] });
+  }
+  return segments;
+}
+
+/** Folded work stays out of the DOM until opened, so a long turn costs one row until it is read. */
+function Fold({ className, summary, children }: { className: string; summary: ReactNode; children: () => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className={className} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{summary}</summary>
+      {open && children()}
+    </details>
+  );
+}
+
+function ToolStep({ message }: { message: TaskMessage }) {
+  return (
+    <Fold className="work-row" summary={<><span>Worked</span><span>{message.text}</span></>}>
+      {() => <pre>{message.detail}</pre>}
+    </Fold>
+  );
+}
+
+/** Run of tool calls: the newest one stays visible, the rest hide behind a +N counter. */
+function ToolRun({ messages }: { messages: TaskMessage[] }) {
+  if (messages.length === 1) return <ToolStep message={messages[0]!} />;
+  const hidden = messages.length - 1;
+  const summary = (
+    <>
+      <span>Worked</span>
+      <span>{messages.at(-1)!.text}</span>
+      <span className="work-count" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</span>
+    </>
+  );
+  return (
+    <Fold className="work-group" summary={summary}>
+      {() => <div className="work-steps">{messages.map((message) => <ToolStep key={message.id} message={message} />)}</div>}
+    </Fold>
+  );
+}
+
+function TurnSegments({ segments }: { segments: TurnSegment[] }) {
+  return segments.map((segment) => segment.kind === "tools"
+    ? <ToolRun key={segment.id} messages={segment.messages} />
+    : <div key={segment.id} className="message-text markdown-body work-note"><MarkdownMessage>{segment.message.text}</MarkdownMessage></div>);
+}
+
+/** Settled turn: every step, tool calls and interim text alike, folds behind one row. */
+function SettledSteps({ steps }: { steps: TaskMessage[] }) {
+  const summary = (
+    <>
+      <span>Worked</span>
+      <span className="work-summary">{steps.length} step{steps.length === 1 ? "" : "s"}</span>
+    </>
+  );
+  return (
+    <Fold className="work-group" summary={summary}>
+      {() => <div className="work-steps"><TurnSegments segments={toSegments(steps)} /></div>}
+    </Fold>
+  );
+}
+
 export type ConversationTimelineProps = {
   currentTask?: Task;
   folder: string;
@@ -46,11 +160,16 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const pinnedToBottom = useRef(true);
+  const groups = useMemo(() => groupTimeline(messages, status === "running"), [messages, status]);
   const virtualizer = useVirtualizer({
-    count: messages.length,
+    count: groups.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (index) => messages[index]?.kind === "user" ? 88 : messages[index]?.kind === "tool" ? 64 : 140,
-    getItemKey: (index) => messages[index]?.id ?? index,
+    estimateSize: (index) => {
+      const group = groups[index];
+      if (group?.kind === "turn") return group.final ? 140 : 64;
+      return group?.message.kind === "user" ? 88 : 64;
+    },
+    getItemKey: (index) => groups[index]?.id ?? index,
     overscan: 6,
   });
 
@@ -92,28 +211,29 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => {
-          const message = messages[item.index]!;
+          const group = groups[item.index]!;
+          const message = group.kind === "message" ? group.message : null;
           return (
             <div
-              className={`timeline-row ${message.kind}`}
+              className={`timeline-row ${message?.kind ?? "turn"}`}
               data-index={item.index}
               key={item.key}
               ref={virtualizer.measureElement}
               style={{ transform: `translateY(${item.start}px)` }}
             >
-              <article className={`message ${message.kind}`}>
-                {message.kind === "tool" ? (
-                  <details className="work-row">
-                    <summary><span>Worked</span><span>{message.text}</span></summary>
-                    <pre>{message.detail}</pre>
-                  </details>
-                ) : message.kind === "assistant" ? (
-                  <div className="message-text markdown-body"><MarkdownMessage>{message.text}</MarkdownMessage></div>
-                ) : (
+              {group.kind === "turn" ? (
+                <article className="message assistant turn">
+                  {group.steps.length > 0 && (group.live
+                    ? <TurnSegments segments={toSegments(group.steps)} />
+                    : <SettledSteps steps={group.steps} />)}
+                  {group.final && <div className="message-text markdown-body"><MarkdownMessage>{group.final.text}</MarkdownMessage></div>}
+                </article>
+              ) : (
+                <article className={`message ${message!.kind}`}>
                   <div className="message-stack">
-                    {message.attachments?.length ? (
+                    {message!.attachments?.length ? (
                       <div className="message-attachments">
-                        {message.attachments.map((file, index) => (
+                        {message!.attachments.map((file, index) => (
                           <button
                             type="button"
                             key={file}
@@ -126,10 +246,10 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                         ))}
                       </div>
                     ) : null}
-                    {message.text && <div className="message-text">{message.text}</div>}
+                    {message!.text && <div className="message-text">{message!.text}</div>}
                   </div>
-                )}
-              </article>
+                </article>
+              )}
             </div>
           );
         })}

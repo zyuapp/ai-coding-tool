@@ -23,6 +23,7 @@ const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
 const { drawAnnotations } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
+const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -709,4 +710,91 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
   await act(async () => { workspace.get().actions.selectTask(second.taskId); });
   assert.equal(workspace.get().prompt, "Draft for second");
   await workspace.view.unmount();
+});
+
+function transcript(...messages) {
+  return messages.map((message, index) => ({ id: `m${index}`, at: index, ...message }));
+}
+
+async function expand(details) {
+  await act(async () => {
+    details.open = true;
+    details.dispatchEvent(new Event("toggle"));
+  });
+}
+
+function timelineView(messages, status) {
+  const scroller = document.createElement("div");
+  Object.defineProperty(scroller, "offsetWidth", { value: 860 });
+  Object.defineProperty(scroller, "offsetHeight", { value: 900 });
+  document.body.append(scroller);
+  const task = {
+    id: "t1", title: "T", executionPolicy: "confirm", messages,
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  return React.createElement(ConversationTimeline, {
+    currentTask: task, folder: "/p", status, compacting: false, scrollContainerRef: { current: scroller },
+  });
+}
+
+test("a running turn collapses its tool calls behind the newest one", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "assistant", text: "I'll investigate." },
+    { kind: "tool", text: "Bash", detail: "one" },
+    { kind: "tool", text: "Grep", detail: "two" },
+    { kind: "tool", text: "Read", detail: "three" },
+  );
+  const view = await mount(timelineView(messages, "running"));
+
+  const run = view.container.querySelector(".work-group");
+  assert.match(run.querySelector("summary").textContent, /Worked\s*Read\s*\+2/);
+  assert.equal(view.container.querySelector(".work-note").textContent, "I'll investigate.");
+  assert.equal(view.container.querySelectorAll(".work-steps").length, 0);
+
+  await expand(run);
+  assert.deepEqual([...view.container.querySelectorAll(".work-steps .work-row summary")].map((step) => step.textContent), ["WorkedBash", "WorkedGrep", "WorkedRead"]);
+  await view.unmount();
+});
+
+test("a settled turn folds its steps behind the final answer", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "assistant", text: "I'll investigate." },
+    { kind: "tool", text: "Bash", detail: "one" },
+    { kind: "tool", text: "Grep", detail: "two" },
+    { kind: "assistant", text: "Fixed the race." },
+  );
+  const view = await mount(timelineView(messages, "idle"));
+
+  const settled = view.container.querySelector(".work-group");
+  assert.match(settled.querySelector("summary").textContent, /Worked\s*3 steps/);
+  assert.equal(view.container.querySelector(".message.turn > .message-text").textContent, "Fixed the race.");
+  assert.equal(view.container.querySelector(".work-note"), null);
+
+  await expand(settled);
+  assert.equal(view.container.querySelector(".work-note").textContent, "I'll investigate.");
+  assert.match(view.container.querySelectorAll(".work-group")[1].querySelector("summary").textContent, /Worked\s*Grep\s*\+1/);
+
+  await view.unmount();
+});
+
+test("timeline groups keep user turns apart and leave a lone answer uncollapsed", () => {
+  const messages = transcript(
+    { kind: "user", text: "One" },
+    { kind: "assistant", text: "Sure." },
+    { kind: "user", text: "Two" },
+    { kind: "assistant", text: "Checking." },
+    { kind: "tool", text: "Bash" },
+  );
+
+  const settled = groupTimeline(messages, false);
+  assert.deepEqual(settled.map((group) => group.kind), ["message", "turn", "message", "turn"]);
+  assert.deepEqual(settled[1], { kind: "turn", id: "m1", steps: [], final: messages[1], live: false });
+  assert.equal(settled[3].final, null);
+  assert.equal(settled[3].steps.length, 2);
+
+  const running = groupTimeline(messages, true);
+  assert.equal(running[1].live, false);
+  assert.equal(running[3].live, true);
 });
