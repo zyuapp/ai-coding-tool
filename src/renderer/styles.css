@@ -514,7 +514,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   min-width: 0;
   flex: 1;
   overflow: auto;
-  padding: 54px clamp(20px, 4vw, 64px) 72px;
+  padding: 54px clamp(20px, 4vw, 64px) 24px;
   scrollbar-width: thin;
   scrollbar-color: #30353d transparent;
 }
@@ -544,9 +544,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 
 .timeline { max-width: 860px; margin: 0 auto; }
 .timeline-items { position: relative; width: 100%; }
-.timeline-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 34px; }
-.timeline-row.user { padding-bottom: 44px; }
-.timeline-row.turn { padding-bottom: 34px; }
+.timeline-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 26px; }
+.timeline-row.user { padding-bottom: 36px; }
+.timeline-row.turn { padding-bottom: 26px; }
 .message { margin: 0; }
 .message.user { display: flex; justify-content: flex-end; }
 .message-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; max-width: min(72%, 680px); }
@@ -1606,7 +1606,7 @@ pre {
   .task-heading { flex: 1; gap: 8px; }
   .task-heading h1, .task-heading p { max-width: none; }
   .session-panel { top: 82px; right: 12px; width: calc(100% - 24px); max-height: calc(100% - 94px); }
-  .conversation { padding: 36px 18px 56px; }
+  .conversation { padding: 36px 18px 20px; }
   .workspace.summary-open .conversation { padding-right: 18px; }
   .composer-wrap { padding: 10px 14px 14px; }
   .composer-settings { gap: 0; }
