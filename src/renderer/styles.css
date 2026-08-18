@@ -248,6 +248,25 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
 .task-entry { position: relative; min-width: 0; }
 .task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
+.task-archive {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: #2a3038;
+  color: #aeadab;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+}
+.task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
+.task-archive:hover { background: #353c46; color: #dfddd8; }
 .project-task-row {
   width: 100%;
   min-width: 0;
@@ -819,6 +838,7 @@ pre {
 .setting-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(150px, auto); align-items: center; gap: 13px; border-top: 1px solid #272d35; padding: 19px 0; }
 .setting-status { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid #564036; border-radius: 50%; color: #172019; }
 .setting-status.granted { border-color: #4c8666; background: #72b88e; }
+.settings-group .setting-status.archived { border-color: #3b424c; color: #70767e; }
 .setting-row > div:nth-child(2) { min-width: 0; }
 .setting-row strong { color: #cbc9c5; font-size: var(--text-control); font-weight: 570; }
 .setting-row p { margin: 5px 0 0; color: #70767e; font-size: var(--text-meta); line-height: 1.45; }
@@ -828,6 +848,7 @@ pre {
 .setting-row-action button, .settings-restart button { border: 1px solid #3b424c; border-radius: 8px; padding: 7px 11px; background: #20262e; color: #c9c9c5; font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .setting-row-action button:hover, .settings-restart button:hover { border-color: #4a535f; background: #272e37; }
 .setting-row-action button:disabled { color: #70757b; cursor: default; }
+.settings-empty { margin: 0; border-top: 1px solid #272d35; padding: 19px 0; color: #70767e; font-size: var(--text-control); }
 .settings-error { margin: 0; border-top: 1px solid #3c2e2a; padding: 13px 0; color: #dd8b6d; font-size: var(--text-control); }
 .settings-restart { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid #34445a; padding: 15px 0; }
 .settings-restart p { margin: 0; color: #91a9c1; font-size: var(--text-control); }

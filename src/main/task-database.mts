@@ -99,6 +99,14 @@ export class TaskDatabase {
       if (delta.lastFolder !== undefined) {
         this.database.prepare("INSERT INTO settings (key, value) VALUES ('lastFolder', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(delta.lastFolder));
       }
+      if (delta.removedTasks?.length) {
+        const dropTask = this.database.prepare("DELETE FROM tasks WHERE id = ?");
+        const dropMessages = this.database.prepare("DELETE FROM messages WHERE task_id = ?");
+        for (const id of delta.removedTasks) {
+          dropMessages.run(id);
+          dropTask.run(id);
+        }
+      }
       const saveTask = this.database.prepare("INSERT INTO tasks (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data");
       const saveMessage = this.database.prepare("INSERT INTO messages (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
       for (const change of delta.tasks) {

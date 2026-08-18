@@ -4,7 +4,7 @@ import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, type Project, type Task, type TaskStoreData } from "../domain/task.js";
+import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 
 /**
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
@@ -124,11 +124,12 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
     : data.projects;
-  const firstTask = data.tasks[0];
+  const tasks = retainedTasks(data.tasks, Date.now());
+  const firstTask = tasks[0];
   const firstProject = firstTask?.projectId ?? (firstTask ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
   return {
     ...emptyWorkspaceState(storageError),
-    tasks: backfillSortIndex(data.tasks),
+    tasks: backfillSortIndex(tasks),
     projects,
     lastFolder: data.lastFolder,
     currentId: firstTask?.id ?? null,
@@ -175,6 +176,7 @@ export function deriveView(state: WorkspaceState) {
     tasks: state.tasks,
     projects: state.projects,
     orderedTasks: orderTasks(visibleTasks),
+    archivedTasks: state.tasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
     recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt),
     currentTask,
     currentProject,

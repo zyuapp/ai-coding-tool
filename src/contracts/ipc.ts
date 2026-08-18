@@ -10,6 +10,7 @@ export type PersistedTask = Omit<Task, "messages">;
 
 export type TaskStoreDelta = {
   tasks: Array<{ task: PersistedTask; messages: Array<{ index: number; message: TaskMessage }> }>;
+  removedTasks?: string[];
   projects?: Project[];
   lastFolder?: string | null;
 };

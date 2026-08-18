@@ -329,7 +329,7 @@ export function App() {
           onCancel={workspace.actions.cancelRun}
         />
       </section>
-      {settingsVisible && <SettingsPanel onClose={closeSettings} />}
+      {settingsVisible && <SettingsPanel onClose={closeSettings} archivedTasks={workspace.archivedTasks} onRestoreTask={workspace.actions.restoreTask} />}
     </main>
   );
 }

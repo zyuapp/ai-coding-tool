@@ -124,6 +124,36 @@ test("archiving a task retires its automation and leaves a running one alone", (
   assert.equal(running.state, state);
 });
 
+test("restoring an archived task returns it to the sidebar and leaves its automation retired", () => {
+  const archived = reduce(workspace({ tasks: [task("task-a")], automations: [{ taskId: "task-a" }] }), { type: "task.archive", taskId: "task-a" });
+  const restored = reduce(archived.state, { type: "task.restore", taskId: "task-a" });
+
+  assert.equal(restored.state.tasks[0].archivedAt, undefined);
+  assert.deepEqual(restored.effects, []);
+  assert.deepEqual(deriveView(restored.state).orderedTasks.map((item) => item.id), ["task-a"]);
+  assert.equal(reduce(restored.state, { type: "task.restore", taskId: "task-a" }).state, restored.state);
+});
+
+test("a load drops archived tasks past the retention window and keeps the rest", () => {
+  const day = 86_400_000;
+  const loaded = reduce(workspace(), {
+    type: "store.loaded",
+    data: {
+      version: 2,
+      projects: [],
+      lastFolder: null,
+      tasks: [
+        task("kept"),
+        task("recent", { archivedAt: Date.now() - 4 * day }),
+        task("expired", { archivedAt: Date.now() - 6 * day }),
+      ],
+    },
+  });
+
+  assert.deepEqual(loaded.state.tasks.map((item) => item.id), ["kept", "recent"]);
+  assert.deepEqual(deriveView(loaded.state).archivedTasks.map((item) => item.id), ["recent"]);
+});
+
 test("changed files from a superseded run never overwrite the snapshot", () => {
   const state = workspace({ tasks: [task("task-a")], lastRunIds: { "task-a": "run-2" } });
   const stale = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1", result: { status: "available", files: ["stale"], branch: "old", additions: 0, deletions: 0 } });

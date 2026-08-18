@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { AlarmClock, Ellipsis, Settings, SquarePen } from "lucide-react";
+import { AlarmClock, Archive, Ellipsis, Settings, SquarePen } from "lucide-react";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 
@@ -167,6 +167,17 @@ export function ProjectSidebar({
                 />
               : content}
           </div>
+          {renamingId !== task.id && <button
+            className="task-archive"
+            type="button"
+            aria-label={`Archive ${task.title}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onArchiveTask(task.id);
+            }}
+          >
+            <Archive size={13} aria-hidden="true" />
+          </button>}
           {openMenu === `task:${task.id}` && createPortal(
             <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
               <button role="menuitem" onClick={() => {

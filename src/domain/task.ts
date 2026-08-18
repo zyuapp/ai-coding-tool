@@ -50,6 +50,13 @@ export function clampTitle(text: string) {
   return trimmed.length > TITLE_LIMIT ? `${trimmed.slice(0, TITLE_LIMIT - 3)}…` : trimmed;
 }
 
+export const ARCHIVE_RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
+
+/** Archiving keeps a task recoverable for {@link ARCHIVE_RETENTION_MS}; the next launch drops what outlived that. */
+export function retainedTasks(tasks: Task[], at: number): Task[] {
+  return tasks.filter((task) => task.archivedAt === undefined || at - task.archivedAt < ARCHIVE_RETENTION_MS);
+}
+
 export type ContextUsage = {
   tokens: number;
   limit: number;

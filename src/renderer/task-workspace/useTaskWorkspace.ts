@@ -28,7 +28,10 @@ function persistedTask(task: Task): PersistedTask {
 
 function persistenceDelta(previous: WorkspaceState | null, next: WorkspaceState): TaskStoreDelta {
   const previousTasks = new Map(previous?.tasks.map((task) => [task.id, task]));
+  const nextIds = new Set(next.tasks.map((task) => task.id));
+  const removedTasks = [...previousTasks.keys()].filter((id) => !nextIds.has(id));
   return {
+    ...(removedTasks.length ? { removedTasks } : {}),
     tasks: next.tasks.flatMap((task) => {
       const before = previousTasks.get(task.id);
       if (before === task) return [];
@@ -60,7 +63,7 @@ export function useTaskWorkspace() {
     setState(next);
     if (!persistenceReady.current || !next.writable || next.storageError) return;
     const delta = persistenceDelta(previous, next);
-    if (!delta.tasks.length && !delta.projects && !("lastFolder" in delta)) return;
+    if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !("lastFolder" in delta)) return;
     persistenceQueue.current = persistenceQueue.current
       .then(() => window.desktop.persistTaskStore(delta))
       .catch((error) => {
@@ -174,7 +177,7 @@ export function useTaskWorkspace() {
       if (data) {
         await dispatchRef.current({ type: "store.loaded", data });
         const backfill = persistenceDelta({ ...stateRef.current, tasks: data.tasks }, stateRef.current);
-        if (backfill.tasks.length) await window.desktop.persistTaskStore(backfill);
+        if (backfill.tasks.length || backfill.removedTasks) await window.desktop.persistTaskStore(backfill);
       } else {
         await window.desktop.persistTaskStore(persistenceDelta(null, stateRef.current));
       }
@@ -223,6 +226,7 @@ export function useTaskWorkspace() {
       openFolder: () => dispatch({ type: "project.open" }),
       selectTask: (taskId: string) => dispatch({ type: "task.select", taskId }),
       archiveTask: (taskId: string) => dispatch({ type: "task.archive", taskId }),
+      restoreTask: (taskId: string) => dispatch({ type: "task.restore", taskId }),
       renameTask: (taskId: string, title: string) => dispatch({ type: "task.rename", taskId, title }),
       moveTask: (taskId: string, target: TaskDropTarget) => dispatch({ type: "task.move", taskId, target }),
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),

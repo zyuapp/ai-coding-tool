@@ -270,6 +270,13 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       }, retireAutomations(state, [input.taskId]));
     }
 
+    /** Restoring leaves the retired automation gone; the user re-arms it themselves. */
+    case "task.restore": {
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      if (!task || task.archivedAt === undefined) return settled(state);
+      return settled(applyTask(state, input.taskId, ({ archivedAt: _restored, ...item }) => item));
+    }
+
     case "task.rename": {
       const title = clampTitle(input.title);
       if (!title || !state.tasks.some((task) => task.id === input.taskId)) return settled(state);
