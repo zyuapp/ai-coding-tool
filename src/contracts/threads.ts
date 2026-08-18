@@ -7,6 +7,15 @@ export type ProjectScope =
   | { kind: "project"; projectId: string }
   | { kind: "projectless" };
 
+/** What a caller may narrow a listing by. `project` is resolved against the caller's own thread. */
+export type ThreadListQuery = {
+  project?: string;
+  archived?: boolean;
+  idleForMs?: number;
+  search?: string;
+  limit?: number;
+};
+
 export type ThreadFilter = {
   scope: ProjectScope;
   /** Archived threads are excluded unless this asks for them. */
@@ -44,13 +53,11 @@ export type ThreadTranscript = {
 };
 
 /**
- * The commands anything outside the window may dispatch. Reading and writing a thread is allowed;
- * moving the user around the app, removing projects, and answering approvals are not.
+ * The commands anything outside the window may dispatch. Starting, continuing, archiving and
+ * stopping a thread is allowed; moving the user around the app, changing how much a thread is
+ * allowed to do, removing projects, and answering approvals are not.
  */
-export type ExternalCommand = Extract<
-  AppCommand,
-  { type: "task.send" | "task.archive" | "task.restore" | "task.rename" | "task.set-policy" | "task.set-model" | "task.set-effort" | "run.cancel" }
->;
+export type ExternalCommand = Extract<AppCommand, { type: "task.send" | "task.archive" | "run.cancel" }>;
 
 /** Thread tool calls travel from the agent process to the window and back. */
 export type ThreadRequest = {
@@ -59,7 +66,7 @@ export type ThreadRequest = {
   /** The thread the calling run belongs to, which is what "this project" resolves against. */
   taskId: string;
 } & (
-  | { op: "list"; project?: string; archived?: boolean; idleForMs?: number; search?: string; limit?: number }
+  | ({ op: "list" } & ThreadListQuery)
   | { op: "read"; threadId: string; limit?: number }
   | { op: "command"; command: ExternalCommand }
 );

@@ -1,6 +1,14 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
+import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+
+/** The window's workspace, reachable from the run: reads are projections, writes are commands. */
+export type ThreadBridge = {
+  list(query: ThreadListQuery): Promise<ThreadSummary[]>;
+  read(threadId: string, limit?: number): Promise<ThreadTranscript>;
+  command(command: ExternalCommand): Promise<ThreadCommandResult>;
+};
 
 /** Scoped to the running task, so a run can only reach its own automation. */
 export type AutomationBridge = {
@@ -49,6 +57,7 @@ export type ProviderRunInput = {
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;
+  threads?: ThreadBridge;
   steering: SteerQueue;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;

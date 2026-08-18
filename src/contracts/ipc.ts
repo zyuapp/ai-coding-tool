@@ -288,11 +288,7 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       && command.attachments === undefined
       && (command.steer === undefined || typeof command.steer === "boolean");
   }
-  if (command.type === "task.archive" || command.type === "task.restore") return isString(command.taskId);
-  if (command.type === "task.rename") return isString(command.taskId) && isString(command.title, 1_000);
-  if (command.type === "task.set-policy") return named && isPolicy(command.policy);
-  if (command.type === "task.set-model") return named && isModel(command.model);
-  if (command.type === "task.set-effort") return named && isEffort(command.effort);
+  if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "run.cancel") return named;
   return false;
 }

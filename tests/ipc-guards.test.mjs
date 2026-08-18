@@ -137,13 +137,13 @@ test("the external command surface covers reading and writing threads, and nothi
   assert.equal(isExternalCommand({ type: "task.send", text: "Implement item 1" }), true);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", steer: true }), true);
   assert.equal(isExternalCommand({ type: "task.archive", taskId: "task-1" }), true);
-  assert.equal(isExternalCommand({ type: "task.rename", taskId: "task-1", title: "Release prep" }), true);
   assert.equal(isExternalCommand({ type: "run.cancel", taskId: "task-1" }), true);
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Look", attachments: [{ path: "/etc/passwd", labels: [] }] }), false);
   assert.equal(isExternalCommand({ type: "task.send" }), false);
   assert.equal(isExternalCommand({ type: "task.archive" }), false);
-  assert.equal(isExternalCommand({ type: "task.set-policy", taskId: "task-1", policy: "root" }), false);
+  assert.equal(isExternalCommand({ type: "task.set-policy", taskId: "task-1", policy: "autonomous" }), false, "the agent does not widen what a thread may do");
+  assert.equal(isExternalCommand({ type: "task.rename", taskId: "task-1", title: "Release prep" }), false);
   assert.equal(isExternalCommand({ type: "task.select", taskId: "task-1" }), false, "the agent does not move the user around");
   assert.equal(isExternalCommand({ type: "task.clear-archive" }), false);
   assert.equal(isExternalCommand({ type: "project.remove", projectId: "project-1" }), false);

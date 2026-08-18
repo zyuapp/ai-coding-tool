@@ -380,3 +380,18 @@ test("a run that ends mid-stream publishes no further tail", async () => {
   assert.deepEqual(events.filter((event) => event.type === "assistant.tail").map((event) => event.text), ["Started"]);
   assert.equal(events.at(-1).type, "run.status");
 });
+
+test("each run reaches the workspace through a bridge scoped to its own thread", async () => {
+  const provider = new FakeProvider();
+  const bridges = [];
+  const coordinator = new RunCoordinator(provider, () => {}, {
+    threads: (taskId) => { bridges.push(taskId); return { taskId }; },
+  });
+
+  coordinator.start(base("task-a", "run-a"));
+  coordinator.start(base("task-b", "run-b"));
+  await tick();
+
+  assert.deepEqual(bridges, ["task-a", "task-b"]);
+  assert.deepEqual(provider.runs.map((run) => run.input.threads.taskId), ["task-a", "task-b"]);
+});

@@ -53,3 +53,23 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   runCommand(trusted, { type: "cancel", taskId: "post", runId: "run-post" });
   assert.equal(window.webContents.sent.map(({ event }) => event).some((event) => event.runId === "run-post" && event.type === "run.status" && event.status === "failed"), true);
 });
+
+test("thread requests are relayed to the window and only its answers reach the agent", async (t) => {
+  const { listeners, agents, window, trusted, untrusted } = await startMainProcess(t, "claudex-threads-");
+  const request = { type: "thread.request", requestId: "request-1", taskId: "task-caller", op: "list" };
+
+  agents[0].emit("message", { type: "thread.request", requestId: "malformed", taskId: "task-caller", op: "list", limit: -1 });
+  agents[0].emit("message", request);
+  await tick();
+  const relayed = window.webContents.sent.filter(({ channel }) => channel === "thread:request").map(({ event }) => event);
+  assert.deepEqual(relayed, [request], "only the valid request reached the window");
+
+  const answer = listeners.get("thread:answer");
+  answer(untrusted, { type: "thread.response", requestId: "request-1", ok: true, result: [] });
+  answer(trusted, { type: "thread.response", requestId: "unknown", ok: true, result: [] });
+  answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
+  answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
+
+  const answered = agents[0].messages.filter((message) => message.type === "thread.response");
+  assert.deepEqual(answered.map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
+});

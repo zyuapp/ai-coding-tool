@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { InternalStartRunCommand, RunEvent } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AutomationBridge, ProviderEvent } from "./agent-provider.mjs";
+import type { AgentProvider, AutomationBridge, ProviderEvent, ThreadBridge } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
 type ActiveRun = {
@@ -22,6 +22,7 @@ type ActiveRun = {
 type CoordinatorOptions = {
   isWritePathInside?: (root: string, candidate: string) => boolean | Promise<boolean>;
   automations?: (taskId: string) => AutomationBridge;
+  threads?: (taskId: string) => ThreadBridge;
   tailIntervalMs?: number;
 };
 
@@ -104,6 +105,7 @@ export class RunCoordinator {
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         automations: this.options.automations?.(command.taskId),
+        threads: this.options.threads?.(command.taskId),
         steering: active.steering,
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),

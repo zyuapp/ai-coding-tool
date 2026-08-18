@@ -379,3 +379,32 @@ test("a run ends on its turn's result even though its input stream stays open", 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
   assert.equal(capture.closed, true);
 });
+
+test("reading other threads needs no approval, but starting or stopping one does", async () => {
+  const capture = {};
+  const asked = [];
+  const provider = new ClaudeAgentProvider(queryFactory([], capture));
+  await provider.execute(input({
+    threads: { list: async () => [], read: async () => ({}), command: async () => ({ thread: null }) },
+    authorize: async (intent) => { asked.push(intent.name); return "deny"; },
+  }));
+
+  const { canUseTool, mcpServers, systemPrompt } = capture.options.options;
+  assert.equal(mcpServers["claudex-threads"].type, "sdk");
+  assert.match(systemPrompt.append, /the claudex-threads tools are the only way to reach them/);
+  for (const name of ["mcp__claudex-threads__list_threads", "mcp__claudex-threads__read_thread"]) {
+    assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "allow", name);
+  }
+  for (const name of ["mcp__claudex-threads__start_thread", "mcp__claudex-threads__archive_thread", "mcp__claudex-threads__stop_thread"]) {
+    assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "deny", name);
+  }
+  assert.deepEqual(asked, ["mcp__claudex-threads__start_thread", "mcp__claudex-threads__archive_thread", "mcp__claudex-threads__stop_thread"]);
+});
+
+test("a run with no workspace bridge is offered no thread tools", async () => {
+  const capture = {};
+  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input());
+
+  assert.equal(capture.options.options.mcpServers?.["claudex-threads"], undefined);
+  assert.doesNotMatch(capture.options.options.systemPrompt.append, /claudex-threads/);
+});
