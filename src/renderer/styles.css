@@ -666,16 +666,25 @@ pre {
   font: var(--text-meta)/1.55 ui-monospace, "SFMono-Regular", Menlo, monospace;
   white-space: pre-wrap;
 }
-/** Floats over the transcript without adding height, so showing it never moves the content. */
-.scroll-to-end {
+/**
+ * A zero-height dock pinned to the foot of the scrollport. The button hangs off it, so it floats
+ * over the transcript at a fixed distance from the bottom without adding any height of its own.
+ */
+.scroll-to-end-dock {
   position: sticky;
-  bottom: 14px;
+  bottom: 0;
   z-index: 2;
+  height: 0;
+  display: flex;
+  justify-content: center;
+}
+.scroll-to-end {
+  position: absolute;
+  bottom: 10px;
   display: grid;
   place-items: center;
   width: 34px;
   height: 34px;
-  margin: -34px auto 0;
   border: 1px solid #ffffff1c;
   border-radius: 50%;
   background: #1b1f26cc;

@@ -394,6 +394,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         </div>
       )}
       {!atBottom && (
+        <div className="scroll-to-end-dock">
         <button
           type="button"
           className="scroll-to-end"
@@ -409,6 +410,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         >
           <ChevronDown size={17} aria-hidden="true" />
         </button>
+        </div>
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
     </div>
