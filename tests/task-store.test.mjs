@@ -272,7 +272,6 @@ test("v2 round-trips model, context usage, and archive metadata", () => {
   const richTask = {
     ...migrated.data.tasks[0],
     model: "opus",
-    contextWindow: "1m",
     contextUsage: { tokens: 42_000, limit: 1_000_000, model: "claude-opus" },
     archivedAt: 30,
   };
@@ -283,13 +282,12 @@ test("v2 round-trips model, context usage, and archive metadata", () => {
   if (parsed.ok) assert.deepEqual(parsed.data, data);
 });
 
-test("v2 rejects invalid model, context window, and usage values", () => {
+test("v2 rejects invalid model and usage values", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   const mutations = [
     (value) => { value.model = "future"; },
-    (value) => { value.contextWindow = "2m"; },
     (value) => { value.contextUsage = { tokens: -1, limit: 200_000, model: "claude" }; },
     (value) => { value.contextUsage = { tokens: 1, limit: 0, model: "claude" }; },
     (value) => { value.contextUsage = { tokens: 1, limit: 200_000, model: "" }; },
@@ -302,6 +300,22 @@ test("v2 rejects invalid model, context window, and usage values", () => {
     const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
     assert.equal(parsed.ok, false);
   }
+});
+
+test("v2 drops the retired default model and context window instead of rejecting the task", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const tasks = JSON.parse(serialized.tasks);
+  Object.assign(tasks.value[0], { model: "default", contextWindow: "1m" });
+
+  const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal("model" in parsed.data.tasks[0], false);
+  assert.equal("contextWindow" in parsed.data.tasks[0], false);
 });
 
 test("a corrupt v2 envelope blocks writes instead of falling back to older data", () => {

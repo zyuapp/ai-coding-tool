@@ -1,5 +1,5 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
@@ -23,7 +23,6 @@ export type StartRunCommand = {
   workspaceId: WorkspaceId;
   policy: ExecutionPolicy;
   model: AgentModel;
-  contextWindow: ContextWindow;
   continuation?: Continuation;
   forkContinuation?: boolean;
 };
@@ -183,11 +182,7 @@ function isPolicy(value: unknown): value is ExecutionPolicy {
 }
 
 function isModel(value: unknown): value is AgentModel {
-  return value === "default" || value === "sonnet" || value === "opus" || value === "haiku";
-}
-
-function isContextWindow(value: unknown): value is ContextWindow {
-  return value === "default" || value === "1m";
+  return value === "fable" || value === "opus" || value === "sonnet" || value === "haiku";
 }
 
 function isRunChannel(value: unknown): value is RunChannel {
@@ -235,7 +230,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isContextWindow(command.contextWindow) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);

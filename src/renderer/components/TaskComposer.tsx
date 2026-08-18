@@ -1,8 +1,8 @@
-import { Brain, Check, Command, Feather, FileCheck2, FileText, Gauge, Hand, Library, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Check, Command, Feather, FileCheck2, Gauge, Hand, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { RunAttachment } from "../../application/attachments";
 import type { AvailableCommand } from "../../contracts/ipc";
-import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
+import type { AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 
@@ -36,15 +36,10 @@ const modes: Choice<ExecutionPolicy>[] = [
 ];
 
 const models: Choice<AgentModel>[] = [
-  { value: "default", label: "Default model", description: "Use Claude's recommended model", icon: Sparkles },
-  { value: "sonnet", label: "Sonnet", description: "Balanced speed and capability", icon: Gauge },
+  { value: "fable", label: "Fable", description: "Most capable for demanding work", icon: Sparkles },
   { value: "opus", label: "Opus", description: "Best for complex reasoning", icon: Brain },
+  { value: "sonnet", label: "Sonnet", description: "Balanced speed and capability", icon: Gauge },
   { value: "haiku", label: "Haiku", description: "Fastest for lightweight work", icon: Feather },
-];
-
-const contextWindows: Choice<ContextWindow>[] = [
-  { value: "default", label: "200K context", description: "Standard context window", icon: FileText },
-  { value: "1m", label: "1M context", description: "Extended context for large tasks", icon: Library },
 ];
 
 function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange }: {
@@ -89,13 +84,11 @@ export type TaskComposerProps = {
   workspaceId?: string;
   mode: ExecutionPolicy;
   model: AgentModel;
-  contextWindow: ContextWindow;
   contextUsage?: ContextUsage;
   runActive: boolean;
   onPromptChange: (prompt: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
-  onContextWindowChange: (contextWindow: ContextWindow) => void;
   onSend: (attachments: RunAttachment[]) => void;
   onCancel: () => void;
 };
@@ -106,13 +99,11 @@ export function TaskComposer({
   workspaceId,
   mode,
   model,
-  contextWindow,
   contextUsage,
   runActive,
   onPromptChange,
   onModeChange,
   onModelChange,
-  onContextWindowChange,
   onSend,
   onCancel,
 }: TaskComposerProps) {
@@ -322,7 +313,6 @@ export function TaskComposer({
           <div className="composer-settings" ref={settingsRef}>
             <ChoiceMenu label="Permission mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
             <ChoiceMenu label="Model" heading="Choose a model" choices={models} value={model} onChange={onModelChange} />
-            <ChoiceMenu label="Context window" heading="Choose a context window" choices={contextWindows} value={contextWindow} onChange={onContextWindowChange} />
           </div>
           <div className="composer-actions">
             {contextUsage && (

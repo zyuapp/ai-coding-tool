@@ -140,8 +140,8 @@ export class ClaudeAgentProvider implements AgentProvider {
           ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
           permissionMode: input.channel === "side" ? "plan" : claudePermissionMode(input.policy),
           ...(input.channel === "side" ? { tools: ["Read", "Grep", "Glob"] } : {}),
-          ...(input.model === "default" ? {} : { model: input.model }),
-          ...(input.contextWindow === "1m" ? { betas: ["context-1m-2025-08-07" as const] } : {}),
+          model: input.model,
+          betas: ["context-1m-2025-08-07" as const],
           ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
           systemPrompt: { type: "preset", preset: "claude_code", append: input.automations ? `${computerUseInstructions}\n\n${automationInstructions}` : computerUseInstructions },
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
@@ -237,7 +237,7 @@ export class ClaudeAgentProvider implements AgentProvider {
           input.emit({
             type: "usage",
             tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-            limit: contextWindowLimit(input.contextWindow),
+            limit: contextWindowLimit(input.model),
             model: message.message.model,
           });
         } else if (message.type === "result" && (message.subtype !== "success" || message.is_error)) {

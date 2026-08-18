@@ -249,13 +249,11 @@ export function App() {
           workspaceId={workspace.currentProject?.workspaceId}
           mode={workspace.policy}
           model={workspace.model}
-          contextWindow={workspace.contextWindow}
           contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
           onPromptChange={workspace.actions.setPrompt}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
-          onContextWindowChange={workspace.actions.setContextWindow}
           onSend={(attachments) => {
             if (workspace.prompt.trim() === "/side") {
               workspace.actions.setPrompt("");

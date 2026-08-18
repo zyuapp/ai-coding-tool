@@ -1,6 +1,6 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+import type { AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 /** Scoped to the running task, so a run can only reach its own automation. */
 export type AutomationBridge = {
@@ -32,7 +32,6 @@ export type ProviderRunInput = {
   computerUse: ComputerUseRunConfig;
   policy: ExecutionPolicy;
   model: AgentModel;
-  contextWindow: ContextWindow;
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;

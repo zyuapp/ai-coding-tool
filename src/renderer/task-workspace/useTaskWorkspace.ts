@@ -4,8 +4,8 @@ import { backfillSortIndex, moveTask as moveTaskInList, nextSortIndex, orderTask
 import { applyRunEvent, applyTask, automationRunLabel, automationRunPrompt, createTaskMessage, runStatusFor, withActiveRun, withRunStatus, type RunTransitionState } from "../../application/task-workspace";
 import type { AutomationFire, ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation";
-import { contextWindowLimit } from "../../domain/run";
-import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
+import { DEFAULT_MODEL } from "../../domain/run";
+import type { AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskAttention, TaskStoreData } from "../../domain/task";
 import { legacyProjectId } from "../../domain/task";
 import type { WorkspaceRecord } from "../../domain/workspace";
@@ -19,7 +19,6 @@ type WorkspaceState = {
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
   draftModel: AgentModel;
-  draftContextWindow: ContextWindow;
   prompts: Record<string, string>;
   expandedProjects: Set<string>;
   projectsOpen: boolean;
@@ -83,8 +82,7 @@ function stateFromData(data: TaskStoreData, storageError: string | null = null):
     currentId: firstTask?.id ?? null,
     draftProjectId: firstProject,
     draftPolicy: firstTask?.executionPolicy ?? "confirm",
-    draftModel: firstTask?.model ?? "default",
-    draftContextWindow: firstTask?.contextWindow ?? "default",
+    draftModel: firstTask?.model ?? DEFAULT_MODEL,
     prompts: {},
     expandedProjects: new Set(firstProject ? [firstProject] : []),
     projectsOpen: true,
@@ -112,8 +110,7 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       currentId: null,
       draftProjectId: null,
       draftPolicy: "confirm",
-      draftModel: "default",
-      draftContextWindow: "default",
+      draftModel: DEFAULT_MODEL,
       prompts: {},
       expandedProjects: new Set(),
       projectsOpen: true,
@@ -236,7 +233,6 @@ export function useTaskWorkspace() {
   const folder = currentProject?.root ?? "";
   const policy = currentTask?.executionPolicy ?? state.draftPolicy;
   const model = currentTask?.model ?? state.draftModel;
-  const contextWindow = currentTask?.contextWindow ?? state.draftContextWindow;
   const visibleTasks = useMemo(() => state.tasks.filter((task) => task.archivedAt === undefined), [state.tasks]);
   const orderedTasks = useMemo(() => orderTasks(visibleTasks), [visibleTasks]);
   const recentTasks = useMemo(() => visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt), [visibleTasks]);
@@ -406,17 +402,6 @@ export function useTaskWorkspace() {
       : { ...current, draftModel: nextModel });
   }
 
-  function setContextWindow(nextContextWindow: ContextWindow) {
-    setStateAndRef((current) => current.currentId
-      ? applyTask({ ...current, draftContextWindow: nextContextWindow }, current.currentId, (task) => ({
-        ...task,
-        contextWindow: nextContextWindow,
-        ...(task.contextUsage ? { contextUsage: { ...task.contextUsage, limit: contextWindowLimit(nextContextWindow) } } : {}),
-        updatedAt: now(),
-      }))
-      : { ...current, draftContextWindow: nextContextWindow });
-  }
-
   async function sendPrompt(attachments: RunAttachment[] = []) {
     let current = stateRef.current;
     const draftKey = promptKey(current);
@@ -469,7 +454,6 @@ export function useTaskWorkspace() {
         ...(project ? { projectId: project.id } : {}),
         executionPolicy: current.draftPolicy,
         model: current.draftModel,
-        contextWindow: current.draftContextWindow,
         messages: [],
         continuationStatus: "none",
         lastChangeSnapshot: { files: [], capturedAt: now() },
@@ -489,7 +473,7 @@ export function useTaskWorkspace() {
     runIds.current.set(task.id, runId);
     setStateAndRef(withPrompt(started, draftKey, ""));
     submitting.current.delete(draftKey);
-    window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: promptText, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
+    window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: promptText, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? DEFAULT_MODEL, ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 
   /** The scheduler owns the cadence; the renderer decides whether this tick can actually run. */
@@ -531,8 +515,7 @@ export function useTaskWorkspace() {
       prompt: automationRunPrompt(fire.prompt, fire.runNumber),
       workspaceId: workspace.id,
       policy: fire.policy ?? target.executionPolicy,
-      model: target.model ?? "default",
-      contextWindow: target.contextWindow ?? "default",
+      model: target.model ?? DEFAULT_MODEL,
       ...(target.continuation ? { continuation: target.continuation } : {}),
     });
     window.desktop.acknowledgeAutomation({ automationId: fire.automationId, runId: fire.runId, started: true });
@@ -602,7 +585,6 @@ export function useTaskWorkspace() {
     folder,
     policy,
     model,
-    contextWindow,
     prompt: state.prompts[promptKey(state)] ?? "",
     status,
     compacting,
@@ -633,7 +615,6 @@ export function useTaskWorkspace() {
       setPrompt: (prompt: string) => setStateAndRef((current) => withPrompt(current, promptKey(current), prompt)),
       setPolicy,
       setModel,
-      setContextWindow,
       sendPrompt,
       saveAutomation,
       updateAutomation,

@@ -20,7 +20,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   assert.equal((await handlers.get("workspace:changed-files")(untrusted, projectless.id)).status, "error");
   assert.equal((await handlers.get("workspace:changed-files")(trusted, "")).status, "error");
 
-  const command = (taskId, runId) => ({ type: "start", channel: "main", taskId, runId, prompt: "work", workspaceId: projectless.id, policy: "confirm", model: "default", contextWindow: "default" });
+  const command = (taskId, runId) => ({ type: "start", channel: "main", taskId, runId, prompt: "work", workspaceId: projectless.id, policy: "confirm", model: "opus" });
   runCommand(untrusted, command("ignored", "ignored"));
   runCommand(trusted, command("cancelled", "run-cancelled"));
   runCommand(trusted, { type: "cancel", taskId: "cancelled", runId: "run-cancelled" });

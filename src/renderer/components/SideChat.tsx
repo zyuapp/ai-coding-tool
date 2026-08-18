@@ -2,6 +2,7 @@ import { GitFork, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { applyRunEvent, createTaskMessage, type RunTransitionState } from "../../application/task-workspace";
 import type { RunEvent } from "../../contracts/ipc";
+import { DEFAULT_MODEL } from "../../domain/run";
 import type { Project, Task } from "../../domain/task";
 import type { WorkspaceRecord } from "../../domain/workspace";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -17,7 +18,6 @@ function initialState(source: Task): SideState {
     title: "Side chat",
     executionPolicy: "plan",
     model: source.model,
-    contextWindow: source.contextWindow,
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: Date.now() },
@@ -87,8 +87,7 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
         prompt: text,
         workspaceId: selected.id,
         policy: "plan",
-        model: source.model ?? "default",
-        contextWindow: source.contextWindow ?? "default",
+        model: source.model ?? DEFAULT_MODEL,
         continuation: firstTurn ? source.continuation : currentTask.continuation,
         ...(firstTurn ? { forkContinuation: true } : {}),
       });

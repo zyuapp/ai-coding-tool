@@ -83,7 +83,6 @@ export class RunCoordinator {
         computerUse: command.computerUse,
         policy: command.policy,
         model: command.model,
-        contextWindow: command.contextWindow,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         automations: this.options.automations?.(command.taskId),

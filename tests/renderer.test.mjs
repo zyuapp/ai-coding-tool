@@ -339,14 +339,12 @@ test("context usage stays within 100% when the window shrinks below the used tok
     folder: "/project",
     workspaceId: "workspace-1",
     mode: "confirm",
-    model: "default",
-    contextWindow: "default",
+    model: "opus",
     contextUsage: { tokens: 620_000, limit: 200_000, model: "claude-opus-5" },
     runActive: false,
     onPromptChange() {},
     onModeChange() {},
     onModelChange() {},
-    onContextWindowChange() {},
     onSend() {},
     onCancel() {},
   }));
@@ -374,13 +372,11 @@ test("slash command palette filters skills and supports keyboard selection", asy
       folder: "/project",
       workspaceId: "workspace-1",
       mode: "confirm",
-      model: "default",
-      contextWindow: "default",
+      model: "opus",
       runActive: false,
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},
-      onContextWindowChange() {},
       onSend: () => { sends += 1; },
       onCancel() {},
     });
@@ -455,13 +451,11 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
       folder: "/project",
       workspaceId: "workspace-1",
       mode: "confirm",
-      model: "default",
-      contextWindow: "default",
+      model: "opus",
       runActive: false,
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},
-      onContextWindowChange() {},
       onSend: (attachments) => { sent = attachments; },
       onCancel() {},
     });
@@ -695,21 +689,32 @@ test("workspace hook reopens a legacy project and prevents duplicate submissions
   await view.unmount();
 });
 
-test("switching the context window rescales the stored usage limit", async () => {
-  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
-  const task = {
-    id: "task-1", title: "Task", projectId: project.id, executionPolicy: "confirm", messages: [],
-    contextWindow: "1m", contextUsage: { tokens: 620_000, limit: 1_000_000, model: "claude-opus-5" },
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
-  };
-  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task], lastFolder: project.root }) });
-  const workspace = await mountWorkspace(desktop);
+test("the composer offers only model choices, ordered most to least capable", async () => {
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "",
+    folder: "/project",
+    workspaceId: "workspace-1",
+    mode: "confirm",
+    model: "opus",
+    runActive: false,
+    onPromptChange() {},
+    onModeChange() {},
+    onModelChange() {},
+    onSend() {},
+    onCancel() {},
+  }));
   await act(async () => {});
 
-  await act(async () => { workspace.get().actions.setContextWindow("default"); });
-
-  assert.deepEqual(workspace.get().currentTask.contextUsage, { tokens: 620_000, limit: 200_000, model: "claude-opus-5" });
-  await workspace.view.unmount();
+  const menus = [...view.container.querySelectorAll(".setting-menu summary")].map((item) => item.getAttribute("aria-label"));
+  assert.deepEqual(menus, ["Permission mode", "Model"]);
+  const modelMenu = view.container.querySelectorAll(".setting-menu")[1];
+  assert.deepEqual(
+    [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
+    ["Fable", "Opus", "Sonnet", "Haiku"],
+  );
+  assert.equal(modelMenu.querySelector(".setting-summary-label").textContent, "Opus");
+  await view.unmount();
 });
 
 test("workspace hook removes a project without touching its folder", async () => {

@@ -1,4 +1,4 @@
-import type { AgentModel, ContextWindow, Continuation, ExecutionPolicy, Subagent } from "./run.js";
+import type { AgentModel, Continuation, ExecutionPolicy, Subagent } from "./run.js";
 
 export const TASK_STORE_VERSION = 2 as const;
 
@@ -42,7 +42,6 @@ export type Task = {
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   model?: AgentModel;
-  contextWindow?: ContextWindow;
   contextUsage?: ContextUsage;
   messages: TaskMessage[];
   subagents?: Subagent[];
@@ -338,7 +337,6 @@ function isTaskBase(value: unknown): value is Task {
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     (value.model === undefined || isAgentModel(value.model)) &&
-    (value.contextWindow === undefined || isContextWindow(value.contextWindow)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&
@@ -358,7 +356,16 @@ function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-function sanitizeV2Task(value: unknown, errors: string[]): Task | null {
+/** Tasks written before the picker dropped "default" and the context window; both fall back to the current defaults. */
+function dropRetiredSettings(value: unknown) {
+  if (!isRecord(value)) return value;
+  const { contextWindow: _retired, ...task } = value;
+  if (task.model === "default") delete task.model;
+  return task;
+}
+
+function sanitizeV2Task(raw: unknown, errors: string[]): Task | null {
+  const value = dropRetiredSettings(raw);
   if (!isTaskBase(value)) {
     errors.push("v2 tasks contains an invalid value");
     return null;
@@ -399,11 +406,7 @@ function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
 }
 
 function isAgentModel(value: unknown): value is AgentModel {
-  return value === "default" || value === "sonnet" || value === "opus" || value === "haiku";
-}
-
-function isContextWindow(value: unknown): value is ContextWindow {
-  return value === "default" || value === "1m";
+  return value === "fable" || value === "opus" || value === "sonnet" || value === "haiku";
 }
 
 function isContextUsage(value: unknown): value is ContextUsage {

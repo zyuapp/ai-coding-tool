@@ -10,8 +10,7 @@ const command = {
   prompt: "inspect",
   workspaceId: "workspace-1",
   policy: "confirm",
-  model: "default",
-  contextWindow: "default",
+  model: "opus",
 };
 
 test("external start commands carry only a workspace ID", () => {
@@ -90,7 +89,6 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunCommand({ ...command, taskId: "x".repeat(257) }), false);
   assert.equal(isRunCommand({ ...command, prompt: "x".repeat(1_000_001) }), false);
   assert.equal(isRunCommand({ ...command, model: "future-model" }), false);
-  assert.equal(isRunCommand({ ...command, contextWindow: "2m" }), false);
   assert.equal(isRunCommand({ ...command, continuation: { provider: "", value: "session" } }), false);
 
   const usage = { type: "context.usage", taskId: "task-1", runId: "run-1", sequence: 1, tokens: 0, limit: 1, model: "claude" };

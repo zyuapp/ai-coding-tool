@@ -14,8 +14,7 @@ const base = (taskId, runId) => ({
   projectless: false,
   computerUse: { status: "unavailable", message: "test" },
   policy: "confirm",
-  model: "default",
-  contextWindow: "default",
+  model: "opus",
 });
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));

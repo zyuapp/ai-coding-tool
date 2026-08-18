@@ -13,8 +13,7 @@ function input(overrides = {}) {
     projectless: false,
     computerUse: { status: "unavailable", message: "test" },
     policy: "confirm",
-    model: "default",
-    contextWindow: "default",
+    model: "opus",
     abortController: new AbortController(),
     authorize: async () => "allow",
     emit() {},
@@ -83,7 +82,6 @@ test("Claude query options follow run policy and workspace settings", async () =
   await provider.execute(input({
     projectless: true,
     model: "opus",
-    contextWindow: "1m",
     continuation: { provider: "claude", value: "session-1" },
   }));
   assert.deepEqual(capture.options.options.settingSources, ["user"]);
@@ -124,8 +122,23 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
     { type: "assistant", messageId, text: "## First\n\n", append: true },
     { type: "assistant", messageId, text: "Paragraph with **bold**.\n\n", append: true },
     { type: "assistant", messageId, text: "```ts\nconst x = 1;\n\n```\n", append: true },
-    { type: "usage", tokens: 1, limit: 200_000, model: "claude-sonnet" },
+    { type: "usage", tokens: 1, limit: 1_000_000, model: "claude-sonnet" },
   ]);
+});
+
+test("reported context usage tracks the widest window the chosen model offers", async () => {
+  const assistant = {
+    type: "assistant",
+    uuid: crypto.randomUUID(),
+    parent_tool_use_id: null,
+    message: { id: "api-message", model: "claude-model", usage: { input_tokens: 1 }, content: [] },
+  };
+  for (const [model, limit] of [["fable", 1_000_000], ["opus", 1_000_000], ["sonnet", 1_000_000], ["haiku", 200_000]]) {
+    const emitted = [];
+    const provider = new ClaudeAgentProvider(queryFactory([assistant]));
+    await provider.execute(input({ model, emit: (event) => emitted.push(event) }));
+    assert.deepEqual(emitted, [{ type: "usage", tokens: 1, limit, model: "claude-model" }]);
+  }
 });
 
 test("Claude keeps complex Markdown fences intact across adversarial chunk boundaries", async () => {
@@ -259,7 +272,7 @@ test("Claude messages translate to provider events and normalized tool intents",
     { type: "compaction-status", compacting: false, error: "compact failed" },
     { type: "assistant", messageId: "message-1", text: "hello" },
     { type: "tool", intent: { toolId: "edit-1", name: "Edit", input: { file_path: "/tmp/project/a.ts" }, writePath: "/tmp/project/a.ts" } },
-    { type: "usage", tokens: 17, limit: 200_000, model: "claude-sonnet" },
+    { type: "usage", tokens: 17, limit: 1_000_000, model: "claude-sonnet" },
   ]);
 
   const intents = [];

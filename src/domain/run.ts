@@ -1,6 +1,6 @@
 export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous";
-export type AgentModel = "default" | "sonnet" | "opus" | "haiku";
-export type ContextWindow = "default" | "1m";
+export type AgentModel = "fable" | "opus" | "sonnet" | "haiku";
+export const DEFAULT_MODEL: AgentModel = "opus";
 
 export type Continuation = {
   provider: string;
@@ -46,6 +46,7 @@ export type Run = {
   sequence: number;
 };
 
-export function contextWindowLimit(contextWindow: ContextWindow) {
-  return contextWindow === "1m" ? 1_000_000 : 200_000;
+/** Runs always request the widest context a model offers; only Haiku stops short of 1M. */
+export function contextWindowLimit(model: AgentModel) {
+  return model === "haiku" ? 200_000 : 1_000_000;
 }
