@@ -324,9 +324,17 @@ export function useTaskWorkspace() {
     setStateAndRef((current) => withoutAttention({ ...current, currentId: taskId, draftProjectId: task?.projectId ?? null, lastFolder: project?.root ?? current.lastFolder, actionError: null }, taskId));
   }
 
+  /** An archived task is unreachable, so its automation would tick forever with nowhere to run. */
+  function retireAutomations(taskIds: Iterable<string>) {
+    const scheduled = new Set(stateRef.current.automations.map((automation) => automation.taskId));
+    for (const taskId of taskIds) {
+      if (scheduled.has(taskId)) void changeAutomation(() => window.desktop.deleteAutomation(taskId));
+    }
+  }
+
   function archiveTask(taskId: string) {
     if (stateRef.current.activeRuns[taskId]) return;
-    if (stateRef.current.automations.some((automation) => automation.taskId === taskId)) void changeAutomation(() => window.desktop.deleteAutomation(taskId));
+    retireAutomations([taskId]);
     setStateAndRef((current) => ({
       ...current,
       tasks: current.tasks.map((task) => task.id === taskId ? { ...task, archivedAt: now() } : task),
@@ -363,6 +371,7 @@ export function useTaskWorkspace() {
       setStateAndRef((state) => ({ ...state, actionError: "Stop the running tasks before removing this project." }));
       return;
     }
+    retireAutomations(current.tasks.filter((task) => task.projectId === projectId).map((task) => task.id));
     setStateAndRef((current) => {
       const project = current.projects.find((item) => item.id === projectId);
       const expandedProjects = new Set(current.expandedProjects);

@@ -1134,6 +1134,31 @@ test("a tick that lands on a busy or archived task is declined instead of queued
   await workspace.view.unmount();
 });
 
+test("removing a project retires the automations of every task it takes with it", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const task = (id) => ({
+    id, title: id, projectId: project.id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  });
+  const desktop = fakeDesktop({
+    loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task("task-1"), task("task-2"), task("task-3")], lastFolder: project.root }),
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+  await act(async () => {
+    desktop.automationsChanged([automationView({ taskId: "task-1" }), automationView({ id: "automation-2", taskId: "task-3" })]);
+  });
+
+  await act(async () => { workspace.get().actions.removeProject(project.id); });
+
+  assert.deepEqual(
+    desktop.automationChanges.map((change) => change.taskId).sort(),
+    ["task-1", "task-3"],
+    "every archived task's automation is retired, and tasks without one are left alone",
+  );
+  await workspace.view.unmount();
+});
+
 test("archiving a task retires its automation", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
