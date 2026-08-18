@@ -28,7 +28,7 @@ html, body, #root { height: 100%; margin: 0; }
 body { overflow: hidden; font-size: var(--text-content); }
 button, textarea, select { font: inherit; }
 button, select { color: inherit; }
-button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
+button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible, [role="button"]:focus-visible {
   outline: 2px solid #6f9ed6;
   outline-offset: 2px;
 }
@@ -254,7 +254,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-menu-popover button:hover { background: #2a2f36; }
 .project-menu-popover .danger-menu-item { color: #e16b66; }
 .project-menu-popover.section-menu-popover { width: 224px; }
-.project-tasks { display: grid; gap: 1px; margin: 1px 0 4px; }
+.project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 10px; margin: 1px 0 4px; }
+.project-tasks.collapsed, .task-list.collapsed { display: none; }
+.project-tasks.drop-into, .task-list.drop-into { box-shadow: inset 0 0 0 1px #35404e; border-radius: 13px; }
 .task-entry { position: relative; min-width: 0; }
 .task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 .project-task-row {
@@ -304,23 +306,16 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-size: var(--text-badge);
   font-variant-numeric: tabular-nums;
 }
-.task-entry.dragging { opacity: 0.45; }
-.task-entry.drop-before::before,
-.task-entry.drop-after::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  border-radius: 1px;
-  background: #6f9ed6;
+.task-entry.is-dragging > .project-task-row,
+.task-entry.is-dragging > .task-row {
+  background: #262b33;
+  color: #dfddd8;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
 }
-.task-entry.drop-before::before { top: -1px; }
-.task-entry.drop-after::after { bottom: -1px; }
-.project-row.drop-into, .section-heading.drop-into { box-shadow: inset 0 0 0 1px #6f9ed6; border-radius: 13px; }
-.task-list { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #343940 transparent; }
+.task-list { min-height: 10px; }
 .task-row {
   display: block;
+  cursor: pointer;
   padding: 10px 12px;
   border-radius: 10px;
   color: #aaa9a6;

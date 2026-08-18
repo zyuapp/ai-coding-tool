@@ -43,41 +43,37 @@ test("new tasks land above everything, including a list that was never reordered
   assert.equal(nextSortIndex([task("a", { sortIndex: -3 }), task("b", { sortIndex: 4 })]), -4);
 });
 
-test("dropping beside another row repositions without touching recency", () => {
+test("a drop lands at its slot and past the end without touching recency", () => {
   const tasks = [task("a", { sortIndex: 0 }), task("b", { sortIndex: 1 }), task("c", { sortIndex: 2 })];
-  assert.deepEqual(ids(moveTask(tasks, "c", { taskId: "a", place: "before" })), ["c", "a", "b"]);
-  assert.deepEqual(ids(moveTask(tasks, "a", { taskId: "c", place: "after" })), ["b", "c", "a"]);
-  assert.deepEqual(moveTask(tasks, "a", { taskId: "a", place: "before" }).map((item) => item.updatedAt), [1, 1, 1]);
+  assert.deepEqual(ids(moveTask(tasks, "c", { projectId: null, index: 0 })), ["c", "a", "b"]);
+  assert.deepEqual(ids(moveTask(tasks, "a", { projectId: null, index: 1 })), ["b", "a", "c"]);
+  assert.deepEqual(ids(moveTask(tasks, "a", { projectId: null, index: 9 })), ["b", "c", "a"]);
+  assert.deepEqual(moveTask(tasks, "a", { projectId: null, index: 0 }).map((item) => item.updatedAt), [1, 1, 1]);
 });
 
-test("dropping on a row in another project reparents as well as repositions", () => {
+test("a drop into another project reparents as well as repositions", () => {
   const tasks = [
     task("a", { sortIndex: 0, projectId: "one" }),
     task("b", { sortIndex: 1, projectId: "two" }),
     task("loose", { sortIndex: 2 }),
   ];
-  const reparented = moveTask(tasks, "loose", { taskId: "b", place: "before" });
+  const reparented = moveTask(tasks, "loose", { projectId: "two", index: 0 });
   assert.equal(reparented.find((item) => item.id === "loose").projectId, "two");
   assert.deepEqual(ids(reparented), ["a", "loose", "b"]);
 
-  const detached = moveTask(reparented, "loose", { projectId: null });
+  const detached = moveTask(reparented, "loose", { projectId: null, index: 0 });
   assert.equal("projectId" in detached.find((item) => item.id === "loose"), false);
 });
 
-test("dropping on a project header lands at the top of that group", () => {
-  const tasks = [
-    task("a", { sortIndex: 0, projectId: "one" }),
-    task("b", { sortIndex: 1, projectId: "one" }),
-    task("loose", { sortIndex: 2 }),
-  ];
-  const moved = moveTask(tasks, "loose", { projectId: "one" });
-  assert.deepEqual(ids(moved), ["loose", "a", "b"]);
-  assert.equal(moved.find((item) => item.id === "loose").projectId, "one");
+test("a drop into an empty project still joins it", () => {
+  const tasks = [task("a", { sortIndex: 0, projectId: "one" }), task("loose", { sortIndex: 1 })];
+  const moved = moveTask(tasks, "loose", { projectId: "empty", index: 0 });
+  assert.equal(moved.find((item) => item.id === "loose").projectId, "empty");
+  assert.deepEqual(ids(moved), ["loose", "a"]);
 });
 
-test("unknown tasks and archived rows leave the list alone", () => {
+test("unknown and archived tasks leave the list alone", () => {
   const tasks = [task("a", { sortIndex: 0 }), task("gone", { sortIndex: 1, archivedAt: 5 })];
-  assert.equal(moveTask(tasks, "missing", { taskId: "a", place: "before" }), tasks);
-  assert.equal(moveTask(tasks, "gone", { taskId: "a", place: "before" }), tasks);
-  assert.equal(moveTask(tasks, "a", { taskId: "gone", place: "before" }), tasks);
+  assert.equal(moveTask(tasks, "missing", { projectId: null, index: 0 }), tasks);
+  assert.equal(moveTask(tasks, "gone", { projectId: null, index: 0 }), tasks);
 });

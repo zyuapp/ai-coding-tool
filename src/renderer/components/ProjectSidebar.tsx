@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
+import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { Ellipsis, Settings, SquarePen } from "lucide-react";
 import type { TaskDropTarget } from "../../application/task-order";
 import type { Project, Task, TaskAttention } from "../../domain/task";
+
+const RECENTS_DROPPABLE = "recents";
 
 const ATTENTION_LABELS: Record<TaskAttention, string> = {
   finished: "Finished",
@@ -80,115 +83,69 @@ export function ProjectSidebar({
   onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
-  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
-  const [dropHint, setDropHint] = useState<string | null>(null);
-  const drag = useRef<{ taskId: string; startY: number } | null>(null);
-  const hint = useRef<{ key: string; target: TaskDropTarget } | null>(null);
-  const dropped = useRef(false);
+  /** Every folder accepts drops mid-drag, so a collapsed one is still a place to drop into. */
+  const [dragging, setDragging] = useState(false);
 
-  /** Resolves the row or group under the pointer; drop zones are marked with data attributes. */
-  function hintAt(taskId: string, clientX: number, clientY: number) {
-    const under = document.elementFromPoint(clientX, clientY);
-    const row = under?.closest?.("[data-task-id]");
-    const overId = row?.getAttribute("data-task-id");
-    if (row && overId && overId !== taskId) {
-      const box = row.getBoundingClientRect();
-      const place = clientY < box.top + box.height / 2 ? "before" : "after";
-      return { key: `task:${overId}:${place}`, target: { taskId: overId, place } as TaskDropTarget };
-    }
-    const group = under?.closest?.("[data-project-drop]");
-    const projectId = group?.getAttribute("data-project-drop");
-    if (projectId) return { key: `project:${projectId}`, target: { projectId: projectId === "recents" ? null : projectId } as TaskDropTarget };
-    return null;
+  function finishDrag({ draggableId, source, destination }: DropResult) {
+    setDragging(false);
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    onMoveTask(draggableId, {
+      projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
+      index: destination.index,
+    });
   }
-
-  function endDrag() {
-    drag.current = null;
-    hint.current = null;
-    setDragTaskId(null);
-    setDropHint(null);
-  }
-
-  useEffect(() => {
-    if (!dragTaskId) return;
-    const track = (event: PointerEvent) => {
-      hint.current = hintAt(dragTaskId, event.clientX, event.clientY);
-      setDropHint(hint.current?.key ?? null);
-    };
-    const drop = () => {
-      const target = hint.current?.target;
-      endDrag();
-      dropped.current = true;
-      if (target) onMoveTask(dragTaskId, target);
-    };
-    window.addEventListener("pointermove", track);
-    window.addEventListener("pointerup", drop);
-    window.addEventListener("pointercancel", endDrag);
-    window.addEventListener("blur", endDrag);
-    return () => {
-      window.removeEventListener("pointermove", track);
-      window.removeEventListener("pointerup", drop);
-      window.removeEventListener("pointercancel", endDrag);
-      window.removeEventListener("blur", endDrag);
-    };
-  }, [dragTaskId, onMoveTask]);
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
     const sidebar = target.parentElement;
     if (sidebar) sidebar.style.width = `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`;
   }
 
-  const taskRow = (task: Task, className: string, content: React.ReactNode) => (
-    <div
-      className={`task-entry ${dragTaskId === task.id ? "dragging" : ""} ${dropHint === `task:${task.id}:before` ? "drop-before" : ""} ${dropHint === `task:${task.id}:after` ? "drop-after" : ""}`}
-      key={task.id}
-      data-task-id={task.id}
-      onPointerDown={(event) => {
-        if (event.button !== 0) return;
-        drag.current = { taskId: task.id, startY: event.clientY };
-      }}
-      onPointerMove={(event) => {
-        if (drag.current?.taskId !== task.id || dragTaskId) return;
-        if (Math.abs(event.clientY - drag.current.startY) < 5) return;
-        setDragTaskId(task.id);
-      }}
-    >
-      <button
-        className={className}
-        onClick={() => {
-          if (dropped.current) {
-            dropped.current = false;
-            return;
-          }
-          onSelectTask(task.id);
-        }}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          const row = event.currentTarget.getBoundingClientRect();
-          const menuHeight = 48;
-          setTaskMenuPosition({
-            left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
-            top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
-          });
-          onSetOpenMenu(`task:${task.id}`);
-        }}
-        title={task.title}
-      >
-        {content}
-      </button>
-      {openMenu === `task:${task.id}` && createPortal(
-        <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
-          <button role="menuitem" onClick={() => {
-            onArchiveTask(task.id);
-            onSetOpenMenu(null);
-          }}>Archive</button>
-        </div>,
-        document.body,
+  const taskRow = (task: Task, index: number, className: string, content: React.ReactNode) => (
+    <Draggable draggableId={task.id} index={index} key={task.id}>
+      {(provided: DraggableProvided, snapshot) => (
+        <div
+          className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onSelectTask(task.id);
+          }}
+        >
+          <div
+            className={className}
+            onClick={() => onSelectTask(task.id)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              const row = event.currentTarget.getBoundingClientRect();
+              const menuHeight = 48;
+              setTaskMenuPosition({
+                left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
+                top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
+              });
+              onSetOpenMenu(`task:${task.id}`);
+            }}
+            title={task.title}
+          >
+            {content}
+          </div>
+          {openMenu === `task:${task.id}` && createPortal(
+            <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
+              <button role="menuitem" onClick={() => {
+                onArchiveTask(task.id);
+                onSetOpenMenu(null);
+              }}>Archive</button>
+            </div>,
+            document.body,
+          )}
+        </div>
       )}
-    </div>
+    </Draggable>
   );
 
   return (
+    <DragDropContext onDragStart={() => setDragging(true)} onDragEnd={finishDrag}>
     <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`} inert={inactive}>
       <div className="traffic-space" aria-hidden="true" />
       <div className="brand-row">
@@ -214,10 +171,7 @@ export function ProjectSidebar({
             const attentionCount = projectTasks.filter((task) => task.attention).length;
             return (
               <section className="project-group" key={project.id}>
-                <div
-                  className={`project-row ${draftProjectId === project.id ? "current" : ""} ${dropHint === `project:${project.id}` ? "drop-into" : ""}`}
-                  data-project-drop={project.id}
-                >
+                <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`}>
                   <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
                     <span className="folder-icon"><FolderIcon /></span>
                     <span>{shortFolder(project.root)}</span>
@@ -246,22 +200,29 @@ export function ProjectSidebar({
                   </div>
                   <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${shortFolder(project.root)}`}><SquarePen size={16} /></button>
                 </div>
-                {expanded && projectTasks.length > 0 && (
-                  <div className="project-tasks">
-                    {projectTasks.map((task) => taskRow(task, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
-                        <span>{task.title}</span>
-                        {runningTaskIds.has(task.id)
-                          ? <span className="task-spinner" aria-label="Working" />
-                          : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
-                      </>))}
-                  </div>
-                )}
+                <Droppable droppableId={project.id} type="task">
+                  {(provided, snapshot) => (
+                    <div
+                      className={`project-tasks ${expanded || dragging ? "" : "collapsed"} ${snapshot.isDraggingOver ? "drop-into" : ""}`}
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                    >
+                      {projectTasks.map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
+                          <span>{task.title}</span>
+                          {runningTaskIds.has(task.id)
+                            ? <span className="task-spinner" aria-label="Working" />
+                            : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                        </>))}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
               </section>
             );
           })}
         </nav>}
 
-        <div className={`section-heading recents-heading ${dropHint === "project:recents" ? "drop-into" : ""}`} data-project-drop="recents">
+        <div className="section-heading recents-heading">
           <button className="section-toggle" onClick={() => onSetRecentsOpen(!recentsOpen)} aria-expanded={recentsOpen}>
             <span>Recents</span><span className="section-chevron" aria-hidden="true" />
           </button>
@@ -283,19 +244,26 @@ export function ProjectSidebar({
           </div>
           <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
         </div>
-        {recentsOpen && <nav className="task-list" aria-label="Project-less tasks">
-          {recentTasks.length === 0 ? (
-            <p className="sidebar-empty">No chats</p>
-          ) : (
-            recentTasks.map((task) => taskRow(task, `task-row ${task.id === currentId ? "active" : ""}`, <>
-                <span>{task.title}</span>
-                <small>
-                  {formatTime(task.updatedAt)}
-                  {task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
-                </small>
-              </>))
+        <Droppable droppableId={RECENTS_DROPPABLE} type="task">
+          {(provided, snapshot) => (
+            <nav
+              className={`task-list ${recentsOpen || dragging ? "" : "collapsed"} ${snapshot.isDraggingOver ? "drop-into" : ""}`}
+              aria-label="Project-less tasks"
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+            >
+              {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
+              {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <>
+                  <span>{task.title}</span>
+                  <small>
+                    {formatTime(task.updatedAt)}
+                    {task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                  </small>
+                </>))}
+              {provided.placeholder}
+            </nav>
           )}
-        </nav>}
+        </Droppable>
       </div>
       <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
         <Settings size={17} aria-hidden="true" />
@@ -318,5 +286,6 @@ export function ProjectSidebar({
         }}
       />
     </aside>
+    </DragDropContext>
   );
 }

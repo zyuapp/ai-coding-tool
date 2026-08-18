@@ -1,9 +1,10 @@
 import type { Task } from "../domain/task.js";
 
-/** Where a dragged task lands: next to another task, or at the top of a project ("recents" when null). */
-export type TaskDropTarget =
-  | { taskId: string; place: "before" | "after" }
-  | { projectId: string | null };
+/** Where a dragged task lands: a slot in a project's list, or in the project-less "recents" list. */
+export type TaskDropTarget = {
+  projectId: string | null;
+  index: number;
+};
 
 /**
  * Sidebar order. `sortIndex` wins so rows never move on their own; tasks stored before
@@ -30,27 +31,21 @@ export function nextSortIndex(tasks: Task[]): number {
 }
 
 /**
- * Moves one task and renumbers the visible list. Dropping onto a row in another project — or onto a
- * project header — reparents the task as well as repositioning it.
+ * Moves one task into `target` and renumbers the visible list. `target.index` counts rows in the
+ * destination group with the moved task already taken out, matching what a drop reports.
  */
 export function moveTask(tasks: Task[], taskId: string, target: TaskDropTarget): Task[] {
   const visible = orderTasks(tasks.filter((task) => task.archivedAt === undefined));
   const moving = visible.find((task) => task.id === taskId);
   if (!moving) return tasks;
   const rest = visible.filter((task) => task.id !== taskId);
+  const projectId = target.projectId ?? undefined;
 
-  let projectId: string | undefined;
-  let index: number;
-  if ("taskId" in target) {
-    const anchor = rest.findIndex((task) => task.id === target.taskId);
-    if (anchor === -1) return tasks;
-    projectId = rest[anchor]!.projectId;
-    index = anchor + (target.place === "after" ? 1 : 0);
-  } else {
-    projectId = target.projectId ?? undefined;
-    const first = rest.findIndex((task) => task.projectId === projectId);
-    index = first === -1 ? 0 : first;
-  }
+  const group = rest.filter((task) => task.projectId === projectId);
+  const anchor = group[Math.max(0, target.index)];
+  const index = anchor
+    ? rest.indexOf(anchor)
+    : group.length ? rest.indexOf(group[group.length - 1]!) + 1 : 0;
 
   const { projectId: _reassigned, ...detached } = moving;
   rest.splice(index, 0, projectId === undefined ? detached : { ...detached, projectId });
