@@ -12,12 +12,18 @@ import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 
+const DOCK_PANELS = [
+  { id: "agents", title: "Subagents", icon: Bot },
+  { id: "automation", title: "Automation", icon: AlarmClock },
+];
+
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const [activeRightTab, setActiveRightTab] = useState("home");
+  const [openPanels, setOpenPanels] = useState<string[]>([]);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsVisible = settingsOpen || workspace.computerUseSetup;
@@ -34,15 +40,18 @@ export function App() {
   }
 
   function openRightTab(id: string) {
+    setOpenPanels((panels) => (panels.includes(id) ? panels : [...panels, id]));
     setActiveRightTab(id);
     setRightDockOpen(true);
   }
 
-  function closeSideChat(id: string) {
-    const chats = workspace.sideChats;
-    const index = chats.findIndex((chat) => chat.id === id);
-    void workspace.dispatch({ type: "side-chat.close", chatId: id });
-    if (activeRightTab === id) setActiveRightTab(chats[index - 1]?.id ?? chats[index + 1]?.id ?? "home");
+  function closeRightTab(id: string) {
+    const tabs = [...openPanels, ...workspace.sideChats.map((chat) => chat.id)];
+    const index = tabs.indexOf(id);
+    if (openPanels.includes(id)) setOpenPanels((panels) => panels.filter((panel) => panel !== id));
+    else void workspace.dispatch({ type: "side-chat.close", chatId: id });
+    if (id === "agents") setSelectedSubagent(null);
+    if (activeRightTab === id) setActiveRightTab(tabs[index - 1] ?? tabs[index + 1] ?? "home");
   }
 
   function openSettings() {
@@ -70,6 +79,7 @@ export function App() {
 
   useEffect(() => {
     setActiveRightTab("home");
+    setOpenPanels([]);
     setSelectedSubagent(null);
   }, [workspace.currentTask?.id]);
 
@@ -135,6 +145,7 @@ export function App() {
           onToggleRightDock={() => {
             if (!rightDockOpen) {
               setActiveRightTab("home");
+              setOpenPanels([]);
               setSelectedSubagent(null);
             }
             setRightDockOpen((open) => !open);
@@ -184,21 +195,22 @@ export function App() {
             />
             <div className="right-dock-tabs">
               <div role="tablist" aria-label="Right panel tabs">
-                {activeRightTab !== "home" && (
-                  <button className={activeRightTab === "agents" ? "active" : ""} type="button" role="tab" aria-selected={activeRightTab === "agents"} onClick={() => openRightTab("agents")}>
-                    <Bot size={15} aria-hidden="true" /><span>Subagents</span>
-                    {workingSubagents > 0 && <em>{workingSubagents}</em>}
-                  </button>
-                )}
-                {activeRightTab === "automation" && (
-                  <button className="active" type="button" role="tab" aria-selected={true} onClick={() => openRightTab("automation")}>
-                    <AlarmClock size={15} aria-hidden="true" /><span>Automation</span>
-                  </button>
-                )}
+                {openPanels.map((id) => {
+                  const panel = DOCK_PANELS.find((entry) => entry.id === id)!;
+                  return (
+                    <div className={`right-dock-tab ${activeRightTab === id ? "active" : ""}`} key={id}>
+                      <button type="button" role="tab" aria-selected={activeRightTab === id} onClick={() => setActiveRightTab(id)}>
+                        <panel.icon size={15} aria-hidden="true" /><span>{panel.title}</span>
+                        {id === "agents" && workingSubagents > 0 && <em>{workingSubagents}</em>}
+                      </button>
+                      <button type="button" aria-label={`Close ${panel.title}`} onClick={() => closeRightTab(id)}><X size={13} /></button>
+                    </div>
+                  );
+                })}
                 {workspace.sideChats.map((chat) => (
-                  <div className={`right-dock-chat-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
+                  <div className={`right-dock-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
                     <button type="button" role="tab" aria-selected={activeRightTab === chat.id} onClick={() => setActiveRightTab(chat.id)}><GitFork size={14} aria-hidden="true" /><span>{chat.title}</span></button>
-                    <button type="button" aria-label={`Close ${chat.title}`} onClick={() => closeSideChat(chat.id)}><X size={13} /></button>
+                    <button type="button" aria-label={`Close ${chat.title}`} onClick={() => closeRightTab(chat.id)}><X size={13} /></button>
                   </div>
                 ))}
               </div>
@@ -255,7 +267,7 @@ export function App() {
                     onPrompt={(prompt) => void workspace.dispatch({ type: "side-chat.set-prompt", chatId: chat.id, prompt })}
                     onSend={() => void workspace.dispatch({ type: "side-chat.send", chatId: chat.id })}
                     onCancel={() => void workspace.dispatch({ type: "side-chat.cancel", chatId: chat.id })}
-                    onClose={() => closeSideChat(chat.id)}
+                    onClose={() => closeRightTab(chat.id)}
                   />
                 </div>
               ))}

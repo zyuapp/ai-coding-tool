@@ -583,9 +583,28 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
   await act(async () => { add.click(); });
   await act(async () => { [...view.container.querySelectorAll('.right-dock-add button')].find((button) => button.textContent.includes("Side chat")).click(); });
 
-  assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 3);
+  assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
   assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 4);
+  await view.unmount();
+});
+
+test("closing the subagents tab returns to the panel picker", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Open Subagents panel"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Close Subagents"]').click(); });
+
+  assert.equal(view.container.querySelector('.right-dock [role="tab"]'), null);
+  assert.equal(view.container.querySelector('[aria-label="Choose a right panel"]').hidden, false);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Open Automation panel"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Close Automation"]').click(); });
+  assert.equal(view.container.querySelector('.right-dock [role="tab"]'), null);
+
   await view.unmount();
 });
 

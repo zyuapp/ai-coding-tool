@@ -455,7 +455,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 6px 8px; }
 .right-dock-tabs > div:first-child { min-width: 0; flex: 1; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .right-dock-tabs > div::-webkit-scrollbar { display: none; }
-.right-dock-tabs [role="tab"], .right-dock-chat-tab {
+.right-dock-tabs [role="tab"], .right-dock-tab {
   min-width: 0;
   height: 36px;
   flex: 0 1 150px;
@@ -469,14 +469,14 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   color: #747a82;
 }
 .right-dock-tabs [role="tab"] { cursor: pointer; }
-.right-dock-tabs [role="tab"]:hover, .right-dock-chat-tab:hover { background: #171b21; color: #b4b5b2; }
-.right-dock-tabs [role="tab"].active, .right-dock-chat-tab.active { border-color: #292f38; background: #1b2028; color: #d5d3ce; }
+.right-dock-tabs [role="tab"]:hover, .right-dock-tab:hover { background: #171b21; color: #b4b5b2; }
+.right-dock-tabs [role="tab"].active, .right-dock-tab.active { border-color: #292f38; background: #1b2028; color: #d5d3ce; }
 .right-dock-tabs [role="tab"] > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-control); }
 .right-dock-tabs [role="tab"] > em { min-width: 17px; height: 17px; display: grid; place-items: center; margin-left: auto; border-radius: 9px; background: #315e8e; color: #e9f2fc; font-size: var(--text-badge); font-style: normal; }
-.right-dock-chat-tab { flex: 0 1 150px; padding: 0 4px 0 0; }
-.right-dock-chat-tab > [role="tab"] { flex: 1; border: 0; padding-right: 2px; background: transparent; color: inherit; }
-.right-dock-chat-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #626871; cursor: pointer; }
-.right-dock-chat-tab > button:last-child:hover { background: #292f37; color: #d0cfca; }
+.right-dock-tab { flex: 0 1 150px; padding: 0 4px 0 0; }
+.right-dock-tab > [role="tab"] { flex: 1; border: 0; padding-right: 2px; background: transparent; color: inherit; }
+.right-dock-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: #626871; cursor: pointer; }
+.right-dock-tab > button:last-child:hover { background: #292f37; color: #d0cfca; }
 .right-dock-add { position: relative; flex: 0 0 auto; }
 .right-dock-add summary, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: #737980; cursor: pointer; list-style: none; }
 .right-dock-add summary::-webkit-details-marker { display: none; }
