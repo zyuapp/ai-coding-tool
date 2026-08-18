@@ -1115,6 +1115,155 @@ pre {
 .command-option.selected .command-source { border-color: #3a434f; color: #818a95; }
 .command-empty { margin: 0; padding: 18px 12px; color: #69717a; font-size: var(--text-control); text-align: center; }
 .command-menu-status { padding: 8px 13px 10px; border-top: 1px solid #252b34; color: #626a73; font-size: var(--text-meta); }
+.attachment-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 0; }
+.attachment-chip { position: relative; width: 62px; height: 62px; }
+.attachment-open {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #303741;
+  border-radius: 10px;
+  padding: 0;
+  background: #1b212a;
+  cursor: pointer;
+}
+.attachment-open:hover { border-color: #48525f; }
+.attachment-open img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.attachment-badge {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  min-width: 17px;
+  border-radius: 999px;
+  padding: 1px 5px;
+  background: #ff453a;
+  color: #fff;
+  font-size: var(--text-badge);
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+.attachment-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #3b434e;
+  border-radius: 999px;
+  padding: 0;
+  background: #232a34;
+  color: #b9bec5;
+  cursor: pointer;
+}
+.attachment-remove:hover { background: #333b46; color: var(--ink); }
+.attachment-error { margin: 8px 14px 0; color: var(--danger); font-size: var(--text-meta); }
+.annotator {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(6, 8, 12, 0.78);
+}
+.annotator-panel {
+  width: min(1080px, 100%);
+  height: min(820px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #2c333d;
+  border-radius: 16px;
+  background: #12161d;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+.annotator-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.annotator-close {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--quiet);
+  cursor: pointer;
+}
+.annotator-close:hover { background: #1f252e; color: var(--ink); }
+.annotator-stage { flex: 1; min-width: 0; min-height: 0; padding: 16px; }
+/* Measured for the image fit, so it must be the padding-free content box. */
+.annotator-fit { width: 100%; height: 100%; min-width: 0; min-height: 0; display: grid; place-items: center; }
+.annotator-frame { position: relative; }
+.annotator-frame canvas {
+  display: block;
+  border-radius: 4px;
+  touch-action: none;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M2.5 17.5l1.1-3.8L13.2 4.1l2.7 2.7-9.6 9.6-3.8 1.1z' fill='%23ff453a' stroke='%23fff' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E") 2 18, crosshair;
+}
+.annotator-delete {
+  position: absolute;
+  z-index: 3;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  border: 1px solid #ff8a82;
+  border-radius: 999px;
+  padding: 0;
+  background: #ff453a;
+  color: #fff;
+  cursor: pointer;
+}
+.annotator-delete:hover { background: #ff6259; }
+.annotator-label {
+  position: absolute;
+  z-index: 2;
+  width: min(280px, 60vw);
+  border: 1px solid #ff453a;
+  border-radius: 8px;
+  padding: 7px 9px;
+  outline: 0;
+  background: #171c24;
+  color: var(--ink);
+  font-size: var(--text-control);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.annotator-label::placeholder { color: #6b727b; }
+.annotator-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.annotator-count { margin-right: auto; color: var(--quiet); font-size: var(--text-meta); }
+.annotator-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #333b46;
+  border-radius: 9px;
+  padding: 7px 13px;
+  background: #1b212a;
+  color: #ccd0d6;
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+.annotator-action:hover:not(:disabled) { border-color: #48525f; color: var(--ink); }
+.annotator-action:disabled { opacity: 0.42; cursor: not-allowed; }
+.annotator-action.primary { border-color: transparent; background: var(--accent); color: #1b0f09; font-weight: 600; }
+.annotator-action.primary:hover:not(:disabled) { background: #e0855f; }
 .composer textarea {
   display: block;
   width: 100%;

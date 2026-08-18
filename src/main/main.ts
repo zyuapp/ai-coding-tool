@@ -1,5 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isRunCommand, isRunEvent, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -320,6 +322,21 @@ ipcMain.handle("task-store:persist", (event, delta) => {
 });
 
 ipcMain.on("run:command", handleRunCommand);
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+ipcMain.handle("attachment:save", async (event, data: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof data !== "string" || data.length === 0 || data.length > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error("Attachment payload is not base64.");
+  const bytes = Buffer.from(data, "base64");
+  if (bytes.byteLength === 0) throw new Error("Attachment is empty or too large.");
+  const directory = path.join(app.getPath("temp"), "claudex-attachments");
+  await mkdir(directory, { recursive: true });
+  const file = path.join(directory, `${randomUUID()}.png`);
+  await writeFile(file, bytes);
+  return file;
+});
 
 ipcMain.handle("workspace:changed-files", async (event, workspaceId: unknown) => {
   if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;

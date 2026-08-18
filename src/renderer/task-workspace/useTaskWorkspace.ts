@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { promptWithAttachments, taskTitleFor, type RunAttachment } from "../../application/attachments";
 import { applyRunEvent, applyTask, createTaskMessage, type RunTransitionState } from "../../application/task-workspace";
 import type { ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
@@ -320,10 +321,10 @@ export function useTaskWorkspace() {
       : { ...current, draftContextWindow: nextContextWindow });
   }
 
-  async function sendPrompt() {
+  async function sendPrompt(attachments: RunAttachment[] = []) {
     let current = stateRef.current;
     const text = current.prompt.trim();
-    if (!text || current.activeRun || submitting.current) return;
+    if ((!text && attachments.length === 0) || current.activeRun || submitting.current) return;
     let task = current.tasks.find((item) => item.id === current.currentId);
     const projectId = task?.projectId ?? current.draftProjectId;
     let project = projectId ? current.projects.find((item) => item.id === projectId) : undefined;
@@ -362,10 +363,11 @@ export function useTaskWorkspace() {
       setStateAndRef((state) => ({ ...state, actionError: error instanceof Error ? error.message : String(error) }));
       return;
     }
+    const promptText = promptWithAttachments(text, attachments);
     if (!task) {
       task = {
         id: crypto.randomUUID(),
-        title: text.length > 52 ? `${text.slice(0, 49)}…` : text,
+        title: taskTitleFor(text, attachments),
         ...(project ? { projectId: project.id } : {}),
         executionPolicy: current.draftPolicy,
         model: current.draftModel,
@@ -377,13 +379,13 @@ export function useTaskWorkspace() {
       };
     }
     const runId = crypto.randomUUID();
-    const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", text)], updatedAt: now() };
+    const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", promptText)], updatedAt: now() };
     const nextTasks = current.tasks.some((item) => item.id === task!.id) ? current.tasks.map((item) => item.id === task!.id ? nextTask : item) : [nextTask, ...current.tasks];
     const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, actionError: null };
     runIds.current.set(task.id, runId);
     setStateAndRef(nextState);
     submitting.current = false;
-    window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: text, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
+    window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: promptText, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 
   function cancelRun() {

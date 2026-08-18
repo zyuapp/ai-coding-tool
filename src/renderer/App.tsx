@@ -252,14 +252,14 @@ export function App() {
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
           onContextWindowChange={workspace.actions.setContextWindow}
-          onSend={() => {
+          onSend={(attachments) => {
             if (workspace.prompt.trim() === "/side") {
               workspace.actions.setPrompt("");
               setSelectedSubagent(null);
               addSideChat();
               return;
             }
-            void workspace.actions.sendPrompt();
+            void workspace.actions.sendPrompt(attachments);
           }}
           onCancel={workspace.actions.cancelRun}
         />

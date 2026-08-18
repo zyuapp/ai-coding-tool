@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { createServer } from "vite";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator"]) {
+for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -237,6 +237,7 @@ function fakeDesktop(overrides = {}) {
     enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
+    saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
     loadTaskStore: async () => null,
     persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
@@ -360,6 +361,45 @@ test("slash command palette filters skills and supports keyboard selection", asy
   await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
   assert.equal(sends, 1);
   dom.window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  await view.unmount();
+});
+
+test("a pasted image becomes an attachment chip and is saved on send", async () => {
+  window.desktop = fakeDesktop();
+  let sent = null;
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      mode: "confirm",
+      model: "default",
+      contextWindow: "default",
+      runActive: false,
+      onPromptChange: setPrompt,
+      onModeChange() {},
+      onModelChange() {},
+      onContextWindowChange() {},
+      onSend: (attachments) => { sent = attachments; },
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const send = view.container.querySelector('button[aria-label="Send task"]');
+  assert.equal(send.disabled, true);
+
+  const paste = new dom.window.Event("paste", { bubbles: true });
+  paste.clipboardData = { files: [new dom.window.File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] };
+  await act(async () => { view.container.querySelector("textarea").dispatchEvent(paste); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1);
+  assert.equal(view.container.querySelector('button[aria-label="Send task"]').disabled, false);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Send task"]').click(); });
+  assert.deepEqual(sent, [{ path: "/tmp/claudex-attachments/pasted.png", labels: [] }]);
+  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
   await view.unmount();
 });
 

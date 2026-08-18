@@ -1,8 +1,31 @@
-import { Brain, Check, Command, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Check, Command, Feather, FileCheck2, FileText, Gauge, Hand, Library, ListTodo, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type { RunAttachment } from "../../application/attachments";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
+import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
+
+const MAX_ATTACHMENTS = 6;
+
+type Attachment = {
+  id: string;
+  source: string;
+  preview: string;
+  annotations: Annotation[];
+};
+
+function readImage(file: File) {
+  return new Promise<Attachment>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const source = String(reader.result);
+      resolve({ id: crypto.randomUUID(), source, preview: source, annotations: [] });
+    });
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("Could not read the pasted image.")));
+    reader.readAsDataURL(file);
+  });
+}
 
 type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon; elevated?: boolean };
 
@@ -74,7 +97,7 @@ export type TaskComposerProps = {
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
   onContextWindowChange: (contextWindow: ContextWindow) => void;
-  onSend: () => void;
+  onSend: (attachments: RunAttachment[]) => void;
   onCancel: () => void;
 };
 
@@ -102,6 +125,11 @@ export function TaskComposer({
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
   const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [annotating, setAnnotating] = useState<string | null>(null);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const editing = attachments.find((attachment) => attachment.id === annotating);
   const contextPercent = contextUsage ? Math.round(contextUsage.tokens / contextUsage.limit * 100) : 0;
   const slashQuery = prompt.match(/^\/([^\s]*)$/)?.[1].toLowerCase();
   const appCommand = { name: "side", description: "Open a focused side chat.", argumentHint: "", aliases: [] as string[], kind: "app" as const };
@@ -122,6 +150,44 @@ export function TaskComposer({
     setDismissedPrompt(nextPrompt);
     setInputFocused(true);
     textareaRef.current?.focus();
+  }
+
+  async function attachPasted(files: File[]) {
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) {
+      setAttachmentError(`You can attach up to ${MAX_ATTACHMENTS} images.`);
+      return;
+    }
+    try {
+      const added = await Promise.all(files.slice(0, room).map(readImage));
+      setAttachments((current) => [...current, ...added]);
+      setAttachmentError(files.length > room ? `Only the first ${room} image${room === 1 ? "" : "s"} were attached.` : null);
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function submit() {
+    if (runActive || sending) return;
+    if (!prompt.trim() && attachments.length === 0) return;
+    if (attachments.length === 0) {
+      onSend([]);
+      return;
+    }
+    setSending(true);
+    try {
+      const saved = await Promise.all(attachments.map(async (attachment) => ({
+        path: await window.desktop.saveAttachment(attachment.preview.replace(/^data:[^,]*,/, "")),
+        labels: attachment.annotations.map((annotation) => annotation.text),
+      })));
+      setAttachments([]);
+      setAttachmentError(null);
+      onSend(saved);
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSending(false);
+    }
   }
 
   useEffect(() => {
@@ -186,9 +252,36 @@ export function TaskComposer({
             {commandsLoading && <div className="command-menu-status">Loading installed skills…</div>}
           </div>
         )}
+        {attachments.length > 0 && (
+          <div className="attachment-row">
+            {attachments.map((attachment, index) => (
+              <div className="attachment-chip" key={attachment.id}>
+                <button type="button" className="attachment-open" onClick={() => setAnnotating(attachment.id)} aria-label={`Annotate image ${index + 1}`}>
+                  <img src={attachment.preview} alt="" />
+                  {attachment.annotations.length > 0 && <span className="attachment-badge">{attachment.annotations.length}</span>}
+                </button>
+                <button
+                  type="button"
+                  className="attachment-remove"
+                  aria-label={`Remove image ${index + 1}`}
+                  onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {attachmentError && <p className="attachment-error" role="status">{attachmentError}</p>}
         <textarea
           ref={textareaRef}
           value={prompt}
+          onPaste={(event) => {
+            const images = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            if (images.length === 0) return;
+            event.preventDefault();
+            void attachPasted(images);
+          }}
           onInput={(event) => {
             onPromptChange(event.currentTarget.value);
             setDismissedPrompt(null);
@@ -215,7 +308,7 @@ export function TaskComposer({
             }
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              onSend();
+              void submit();
             }
           }}
           placeholder={folder ? "Ask Claude to work on anything" : "Ask Claude anything"}
@@ -245,8 +338,8 @@ export function TaskComposer({
             )}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && !prompt.trim()}
-              onClick={runActive ? onCancel : onSend}
+              disabled={!runActive && (sending || (!prompt.trim() && attachments.length === 0))}
+              onClick={runActive ? onCancel : () => void submit()}
               aria-label={runActive ? "Stop task" : "Send task"}
             >
               {runActive ? <span className="stop-glyph" /> : "↑"}
@@ -254,6 +347,17 @@ export function TaskComposer({
           </div>
         </div>
       </div>
+      {editing && (
+        <ImageAnnotator
+          source={editing.source}
+          annotations={editing.annotations}
+          onCancel={() => setAnnotating(null)}
+          onApply={(annotations, rendered) => {
+            setAttachments((current) => current.map((item) => item.id === editing.id ? { ...item, annotations, preview: rendered } : item));
+            setAnnotating(null);
+          }}
+        />
+      )}
     </footer>
   );
 }
