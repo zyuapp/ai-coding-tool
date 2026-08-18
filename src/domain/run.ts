@@ -2,6 +2,10 @@ export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous";
 export type AgentModel = "fable" | "opus" | "sonnet" | "haiku";
 export const DEFAULT_MODEL: AgentModel = "opus";
 
+/** How much reasoning a run asks for. Models that do not offer a level fall back to the nearest one they do. */
+export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
+export const DEFAULT_EFFORT: AgentEffort = "high";
+
 export type Continuation = {
   provider: string;
   value: string;

@@ -1,8 +1,9 @@
-import { Brain, Check, Command, Feather, FileCheck2, Gauge, Hand, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Check, Command, CornerDownRight, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type { QueuedMessage } from "../../application/workspace-state";
 import type { RunAttachment } from "../../domain/task";
 import type { AvailableCommand } from "../../contracts/ipc";
-import type { AgentModel, ExecutionPolicy } from "../../domain/run";
+import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 
@@ -40,6 +41,14 @@ const models: Choice<AgentModel>[] = [
   { value: "opus", label: "Opus", description: "Best for complex reasoning", icon: Brain },
   { value: "sonnet", label: "Sonnet", description: "Balanced speed and capability", icon: Gauge },
   { value: "haiku", label: "Haiku", description: "Fastest for lightweight work", icon: Feather },
+];
+
+const efforts: Choice<AgentEffort>[] = [
+  { value: "low", label: "Low effort", description: "Minimal thinking, fastest replies", icon: SignalLow },
+  { value: "medium", label: "Medium effort", description: "Moderate thinking", icon: SignalMedium },
+  { value: "high", label: "High effort", description: "Deep reasoning", icon: SignalHigh },
+  { value: "xhigh", label: "Extra high effort", description: "Deeper than high, where the model offers it", icon: Signal },
+  { value: "max", label: "Max effort", description: "Everything the model has, slowest", icon: Flame, elevated: true },
 ];
 
 function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange }: {
@@ -84,12 +93,17 @@ export type TaskComposerProps = {
   workspaceId?: string;
   mode: ExecutionPolicy;
   model: AgentModel;
+  effort: AgentEffort;
   contextUsage?: ContextUsage;
   runActive: boolean;
+  queuedMessages: QueuedMessage[];
   onPromptChange: (prompt: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
-  onSend: (attachments: RunAttachment[]) => void;
+  onEffortChange: (effort: AgentEffort) => void;
+  onSend: (attachments: RunAttachment[], steer: boolean) => void;
+  onSteerQueued: (messageId: string) => void;
+  onDropQueued: (messageId: string) => void;
   onCancel: () => void;
 };
 
@@ -99,12 +113,17 @@ export function TaskComposer({
   workspaceId,
   mode,
   model,
+  effort,
   contextUsage,
   runActive,
+  queuedMessages,
   onPromptChange,
   onModeChange,
   onModelChange,
+  onEffortChange,
   onSend,
+  onSteerQueued,
+  onDropQueued,
   onCancel,
 }: TaskComposerProps) {
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -157,11 +176,12 @@ export function TaskComposer({
     }
   }
 
-  async function submit() {
-    if (runActive || sending) return;
+  /** While a run is going the message joins the queue, so only steering needs the run to be active. */
+  async function submit(steer = false) {
+    if (sending || (steer && !runActive)) return;
     if (!prompt.trim() && attachments.length === 0) return;
     if (attachments.length === 0) {
-      onSend([]);
+      onSend([], steer);
       return;
     }
     setSending(true);
@@ -172,7 +192,7 @@ export function TaskComposer({
       })));
       setAttachments([]);
       setAttachmentError(null);
-      onSend(saved);
+      onSend(saved, steer);
     } catch (error) {
       setAttachmentError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -216,6 +236,24 @@ export function TaskComposer({
 
   return (
     <footer className="composer-wrap">
+      {queuedMessages.length > 0 && (
+        <div className="queued-row" role="list" aria-label="Queued messages">
+          {queuedMessages.map((message) => (
+            <div className="queued-message" role="listitem" key={message.id}>
+              <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
+              <p className="queued-text">{message.text}</p>
+              {message.steering ? <span className="queued-state">Steering…</span> : (
+                <span className="queued-actions">
+                  <button type="button" className="queued-steer" onClick={() => onSteerQueued(message.id)}>Steer</button>
+                  <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDropQueued(message.id)}>
+                    <X size={13} />
+                  </button>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="composer">
         {commandMenuOpen && (
           <div className="command-menu" ref={commandMenuRef} id="slash-command-menu" role="listbox" aria-label="Slash commands">
@@ -296,7 +334,12 @@ export function TaskComposer({
               chooseCommand(matchingCommands[selectedCommand]);
               return;
             }
-            if (event.key === "Enter" && !event.shiftKey && !runActive && !sending) {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && runActive && !sending) {
+              event.preventDefault();
+              void submit(true);
+              return;
+            }
+            if (event.key === "Enter" && !event.shiftKey && !sending) {
               event.preventDefault();
               void submit();
             }
@@ -313,6 +356,7 @@ export function TaskComposer({
           <div className="composer-settings" ref={settingsRef}>
             <ChoiceMenu label="Permission mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
             <ChoiceMenu label="Model" heading="Choose a model" choices={models} value={model} onChange={onModelChange} />
+            <ChoiceMenu label="Effort" heading="How hard should Claude think?" choices={efforts} value={effort} onChange={onEffortChange} />
           </div>
           <div className="composer-actions">
             {contextUsage && (

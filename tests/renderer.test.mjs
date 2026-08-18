@@ -351,6 +351,9 @@ test("context usage stays within 100% when the window shrinks below the used tok
     onPromptChange() {},
     onModeChange() {},
     onModelChange() {},
+    queuedMessages: [],
+    onSteerQueued() {},
+    onDropQueued() {},
     onSend() {},
     onCancel() {},
   }));
@@ -383,6 +386,9 @@ test("slash command palette filters skills and supports keyboard selection", asy
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
       onSend: () => { sends += 1; },
       onCancel() {},
     });
@@ -477,6 +483,9 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
       onSend: (attachments) => { sent = attachments; },
       onCancel() {},
     });
@@ -710,7 +719,7 @@ test("workspace hook reopens a legacy project and prevents duplicate submissions
   await view.unmount();
 });
 
-test("the composer offers only model choices, ordered most to least capable", async () => {
+test("the composer offers model and effort choices, ordered most to least capable", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(TaskComposer, {
     prompt: "",
@@ -718,23 +727,34 @@ test("the composer offers only model choices, ordered most to least capable", as
     workspaceId: "workspace-1",
     mode: "confirm",
     model: "opus",
+    effort: "high",
     runActive: false,
     onPromptChange() {},
     onModeChange() {},
     onModelChange() {},
+    onEffortChange() {},
+    queuedMessages: [],
+    onSteerQueued() {},
+    onDropQueued() {},
     onSend() {},
     onCancel() {},
   }));
   await act(async () => {});
 
   const menus = [...view.container.querySelectorAll(".setting-menu summary")].map((item) => item.getAttribute("aria-label"));
-  assert.deepEqual(menus, ["Permission mode", "Model"]);
+  assert.deepEqual(menus, ["Permission mode", "Model", "Effort"]);
   const modelMenu = view.container.querySelectorAll(".setting-menu")[1];
   assert.deepEqual(
     [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
     ["Fable", "Opus", "Sonnet", "Haiku"],
   );
   assert.equal(modelMenu.querySelector(".setting-summary-label").textContent, "Opus");
+  const effortMenu = view.container.querySelectorAll(".setting-menu")[2];
+  assert.deepEqual(
+    [...effortMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
+    ["Low effort", "Medium effort", "High effort", "Extra high effort", "Max effort"],
+  );
+  assert.equal(effortMenu.querySelector(".setting-summary-label").textContent, "High effort");
   await view.unmount();
 });
 

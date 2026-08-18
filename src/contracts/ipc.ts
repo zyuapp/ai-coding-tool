@@ -1,5 +1,5 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
@@ -23,6 +23,7 @@ export type StartRunCommand = {
   workspaceId: WorkspaceId;
   policy: ExecutionPolicy;
   model: AgentModel;
+  effort: AgentEffort;
   continuation?: Continuation;
   forkContinuation?: boolean;
 };
@@ -65,7 +66,16 @@ export type ApprovalDecisionCommand = {
   allow: boolean;
 };
 
-export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand;
+/** Joins a run that is already going, rather than waiting for it to finish. */
+export type SteerRunCommand = {
+  type: "steer";
+  taskId: string;
+  runId: string;
+  messageId: string;
+  prompt: string;
+};
+
+export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand;
 
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
@@ -168,7 +178,9 @@ export type RunEvent =
       title: string;
       description: string;
     })
-  | (RunEventBase & { type: "continuation.updated"; continuation: Continuation });
+  | (RunEventBase & { type: "continuation.updated"; continuation: Continuation })
+  /** A steered message reached the agent, so it is part of this run rather than the next one. */
+  | (RunEventBase & { type: "queued.delivered"; messageId: string });
 
 const MAX_ID_LENGTH = 256;
 const MAX_PROMPT_LENGTH = 1_000_000;
@@ -183,6 +195,10 @@ function isPolicy(value: unknown): value is ExecutionPolicy {
 
 function isModel(value: unknown): value is AgentModel {
   return value === "fable" || value === "opus" || value === "sonnet" || value === "haiku";
+}
+
+function isEffort(value: unknown): value is AgentEffort {
+  return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max";
 }
 
 function isRunChannel(value: unknown): value is RunChannel {
@@ -219,10 +235,11 @@ export function isRunCommand(value: unknown): value is RunCommand {
   }
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
+  if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand {
+export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
   if (command.type === "start") return isStartCommand(command, true);
@@ -230,7 +247,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
@@ -277,5 +294,6 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
+  if (event.type === "queued.delivered") return isString(event.messageId);
   return false;
 }

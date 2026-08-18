@@ -4,7 +4,7 @@ import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } f
 import type { AppCommand } from "../../contracts/commands";
 import type { PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
-import type { AgentModel, ExecutionPolicy } from "../../domain/run";
+import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
@@ -227,7 +227,10 @@ export function useTaskWorkspace() {
       setPrompt: (prompt: string) => dispatch({ type: "view.set-prompt", prompt }),
       setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),
       setModel: (model: AgentModel) => dispatch({ type: "task.set-model", model }),
-      sendPrompt: (attachments: RunAttachment[] = []) => dispatch({ type: "task.send", attachments }),
+      setEffort: (effort: AgentEffort) => dispatch({ type: "task.set-effort", effort }),
+      sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
+      steerQueued: (messageId: string) => dispatch({ type: "task.steer-queued", messageId }),
+      dropQueued: (messageId: string) => dispatch({ type: "task.drop-queued", messageId }),
       saveAutomation: (draft: Omit<AutomationDraft, "taskId">) => dispatch({ type: "automation.save", draft }),
       updateAutomation: (patch: AutomationPatch) => dispatch({ type: "automation.update", patch }),
       deleteAutomation: () => dispatch({ type: "automation.delete" }),

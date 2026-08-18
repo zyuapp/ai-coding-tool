@@ -1,6 +1,6 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 /** Scoped to the running task, so a run can only reach its own automation. */
 export type AutomationBridge = {
@@ -11,6 +11,16 @@ export type AutomationBridge = {
   remove(): Promise<boolean>;
 };
 
+export type SteerMessage = {
+  messageId: string;
+  prompt: string;
+};
+
+/** Messages the user pushed into a run that had already started. Resolves null once the run is over. */
+export type SteerQueue = {
+  next(): Promise<SteerMessage | null>;
+};
+
 export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string; append?: boolean }
   | { type: "usage"; tokens: number; limit: number; model: string }
@@ -19,6 +29,7 @@ export type ProviderEvent =
   | { type: "tool"; intent: ToolIntent }
   | { type: "computer-use.setup-required" }
   | { type: "continuation"; continuation: Continuation }
+  | { type: "steered"; messageId: string }
   | { type: "subagent.started"; id: string; description: string; agentType?: string }
   | { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number }
   | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
@@ -32,9 +43,11 @@ export type ProviderRunInput = {
   computerUse: ComputerUseRunConfig;
   policy: ExecutionPolicy;
   model: AgentModel;
+  effort: AgentEffort;
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;
+  steering: SteerQueue;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;
   emit: (event: ProviderEvent) => void;

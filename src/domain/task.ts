@@ -1,4 +1,4 @@
-import type { AgentModel, Continuation, ExecutionPolicy, Subagent } from "./run.js";
+import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, Subagent } from "./run.js";
 
 export const TASK_STORE_VERSION = 2 as const;
 
@@ -54,6 +54,7 @@ export type Task = {
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   model?: AgentModel;
+  effort?: AgentEffort;
   contextUsage?: ContextUsage;
   messages: TaskMessage[];
   subagents?: Subagent[];
@@ -349,6 +350,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     (value.model === undefined || isAgentModel(value.model)) &&
+    (value.effort === undefined || isAgentEffort(value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&
@@ -419,6 +421,10 @@ function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
 
 function isAgentModel(value: unknown): value is AgentModel {
   return value === "fable" || value === "opus" || value === "sonnet" || value === "haiku";
+}
+
+function isAgentEffort(value: unknown): value is AgentEffort {
+  return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max";
 }
 
 function isContextUsage(value: unknown): value is ContextUsage {

@@ -797,6 +797,58 @@ pre {
   grid-row: 3;
 }
 
+.queued-row {
+  display: flex;
+  max-width: 860px;
+  margin: 0 auto 8px;
+  flex-direction: column;
+  gap: 4px;
+}
+.queued-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: var(--text-control);
+}
+.queued-mark { flex: none; color: var(--quiet); }
+.queued-text {
+  overflow: hidden;
+  flex: 1;
+  margin: 0;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.queued-state { flex: none; padding-right: 6px; color: var(--quiet); font-size: var(--text-meta); }
+.queued-actions { display: flex; flex: none; align-items: center; gap: 4px; }
+.queued-steer {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+.queued-steer:hover { border-color: var(--accent); color: var(--accent); }
+.queued-drop {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--quiet);
+  place-items: center;
+  cursor: pointer;
+}
+.queued-drop:hover { background: var(--surface-raised); color: var(--ink); }
+
 .storage-error {
   position: absolute;
   z-index: 8;

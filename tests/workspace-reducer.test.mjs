@@ -43,6 +43,22 @@ test("a composer send waits for its workspace, then starts the run and clears th
   assert.deepEqual(started.state.pendingRuns, {});
 });
 
+test("the chosen effort sticks to the task and rides along with its runs", () => {
+  const drafted = run(workspace(), [
+    { type: "task.set-effort", effort: "max" },
+    { type: "view.set-prompt", prompt: "Inspect the app" },
+  ]);
+  assert.equal(drafted.draftEffort, "max");
+
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(started.effects[0].command.effort, "max");
+  assert.equal(started.state.tasks[0].effort, "max");
+
+  const lowered = reduce(started.state, { type: "task.set-effort", effort: "low" });
+  assert.equal(lowered.state.tasks[0].effort, "low");
+});
+
 test("a second send is ignored while the first is still resolving", () => {
   const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect" }]);
   const first = reduce(drafted, { type: "task.send", attachments: [] });
@@ -206,4 +222,100 @@ test("the session panel choice is persisted and survives the store loading", () 
 
   const loaded = reduce(restored, { type: "store.loaded", data: { tasks: [], projects: [], lastFolder: null } });
   assert.equal(loaded.state.sessionPanelOpen, true);
+});
+
+/** A task mid-run, which is the only state in which a message can be queued or steered. */
+function running(taskId = "task-a", runId = "run-a", overrides = {}) {
+  return workspace({
+    tasks: [task(taskId)],
+    currentId: taskId,
+    activeRuns: { [taskId]: { taskId, runId, sequence: 0, status: "running" } },
+    runStatuses: { [taskId]: "running" },
+    ...overrides,
+  });
+}
+
+function queueMessage(state, text, steer = false) {
+  return run(state, [{ type: "view.set-prompt", prompt: text }, { type: "task.send", attachments: [], ...(steer ? { steer } : {}) }]);
+}
+
+test("a message typed during a run is queued rather than starting a second run", () => {
+  const queued = reduce(run(running(), [{ type: "view.set-prompt", prompt: "Also run the tests" }]), { type: "task.send", attachments: [] });
+
+  assert.deepEqual(queued.effects, [], "queueing waits for the run instead of resolving a workspace");
+  assert.equal(queued.state.queuedMessages["task-a"].length, 1);
+  assert.equal(queued.state.queuedMessages["task-a"][0].text, "Also run the tests");
+  assert.deepEqual(queued.state.prompts, {}, "the draft clears so the composer is ready for the next one");
+  assert.deepEqual(queued.state.pendingRuns, {});
+});
+
+test("steering hands a queued message to the run it was queued against, and delivery threads it", () => {
+  const queued = queueMessage(running(), "Check the tests too");
+  const [message] = queued.queuedMessages["task-a"];
+  const steered = reduce(queued, { type: "task.steer-queued", messageId: message.id });
+
+  assert.deepEqual(steered.effects, [{
+    type: "send-run-command",
+    command: { type: "steer", taskId: "task-a", runId: "run-a", messageId: message.id, prompt: "Check the tests too" },
+  }]);
+  assert.equal(steered.state.queuedMessages["task-a"][0].steering, true);
+  assert.deepEqual(reduce(steered.state, { type: "task.steer-queued", messageId: message.id }).effects, [], "steering twice sends one command");
+  assert.deepEqual(reduce(steered.state, { type: "task.drop-queued", messageId: message.id }).state.queuedMessages["task-a"].length, 1, "a steered message can no longer be dropped");
+
+  const delivered = reduce(steered.state, {
+    type: "run.event",
+    event: { type: "queued.delivered", taskId: "task-a", runId: "run-a", sequence: 1, messageId: message.id },
+  });
+  assert.deepEqual(delivered.state.queuedMessages, {});
+  assert.equal(delivered.state.tasks[0].messages.at(-1).text, "Check the tests too");
+});
+
+test("command-enter queues the message and steers it in one go", () => {
+  const steered = reduce(run(running(), [{ type: "view.set-prompt", prompt: "Stop reading that file" }]), { type: "task.send", attachments: [], steer: true });
+  const [message] = steered.state.queuedMessages["task-a"];
+
+  assert.equal(message.steering, true);
+  assert.deepEqual(steered.effects, [{
+    type: "send-run-command",
+    command: { type: "steer", taskId: "task-a", runId: "run-a", messageId: message.id, prompt: "Stop reading that file" },
+  }]);
+});
+
+test("a finished run drains everything still queued into one following run", () => {
+  const queued = queueMessage(queueMessage(running(), "Run the tests"), "Then update the README");
+  const finished = reduce(queued, {
+    type: "run.event",
+    event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" },
+  });
+
+  const [resolve] = finished.effects.filter((effect) => effect.type === "resolve-run-workspace");
+  assert.ok(resolve, "the drained queue asks for its workspace the way a send does");
+  assert.equal(finished.state.queuedMessages["task-a"].length, 2, "the messages stay queued until the run actually starts");
+
+  const started = reduce(finished.state, { type: "run.resolved", pendingId: resolve.pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const [start] = started.effects;
+  assert.equal(start.command.prompt, "Run the tests\n\nThen update the README");
+  assert.deepEqual(started.state.queuedMessages, {});
+  assert.equal(started.state.tasks[0].messages.at(-1).text, "Run the tests\n\nThen update the README");
+});
+
+test("stopping a run hands the queue back to the composer instead of speaking for the user", () => {
+  const queued = queueMessage(running(), "Run the tests");
+  const cancelled = reduce(queued, {
+    type: "run.event",
+    event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "cancelled" },
+  });
+
+  assert.deepEqual(cancelled.effects, []);
+  assert.deepEqual(cancelled.state.queuedMessages, {});
+  assert.equal(cancelled.state.prompts["task-a"], "Run the tests");
+});
+
+test("dropping a queued message removes only that one", () => {
+  const queued = queueMessage(queueMessage(running(), "First"), "Second");
+  const [first] = queued.queuedMessages["task-a"];
+  const dropped = reduce(queued, { type: "task.drop-queued", messageId: first.id });
+
+  assert.deepEqual(dropped.effects, []);
+  assert.deepEqual(dropped.state.queuedMessages["task-a"].map((message) => message.text), ["Second"]);
 });

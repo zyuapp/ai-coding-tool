@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, stateFromData, viewPreferences, withPrompt, type PendingRun, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, promptKey, stateFromData, viewPreferences, withPrompt, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -19,10 +19,11 @@ import type {
   ChangedFilesResult,
   RunEvent,
   StartRunCommand,
+  SteerRunCommand,
 } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
-import { DEFAULT_MODEL } from "../domain/run.js";
+import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../domain/run.js";
 import { legacyProjectId, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
@@ -46,7 +47,7 @@ export type WorkspaceEffect =
   | { type: "persist-preferences"; preferences: ViewPreferences }
   | { type: "resolve-run-workspace"; pendingId: string; picker: boolean; workspaceId?: string; root?: string }
   | { type: "start-run"; command: StartRunCommand }
-  | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand }
+  | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
@@ -107,6 +108,16 @@ function withoutPending(state: WorkspaceState, pendingId: string): WorkspaceStat
   return { ...state, pendingRuns };
 }
 
+function queuedFor(state: WorkspaceState, taskId: string): QueuedMessage[] {
+  return state.queuedMessages[taskId] ?? [];
+}
+
+function withQueued(state: WorkspaceState, taskId: string, messages: QueuedMessage[]): WorkspaceState {
+  if (messages.length) return { ...state, queuedMessages: { ...state.queuedMessages, [taskId]: messages } };
+  const { [taskId]: _drained, ...queuedMessages } = state.queuedMessages;
+  return { ...state, queuedMessages };
+}
+
 function startRunCommand(task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
   return {
     type: "start",
@@ -117,6 +128,7 @@ function startRunCommand(task: Task, runId: string, prompt: string, workspaceId:
     workspaceId,
     policy,
     model: task.model ?? DEFAULT_MODEL,
+    effort: task.effort ?? DEFAULT_EFFORT,
     ...(task.continuation ? { continuation: task.continuation } : {}),
   };
 }
@@ -128,6 +140,53 @@ function beginRun(state: WorkspaceState, taskId: string, runId: string): Workspa
     taskId,
     "running",
   );
+}
+
+/** A steered message joined the run, so it leaves the queue and takes its place in the thread. */
+function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: string): WorkspaceState {
+  const queued = queuedFor(state, taskId);
+  const delivered = queued.find((message) => message.id === messageId);
+  if (!delivered) return state;
+  return applyTask(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId, (task) => ({
+    ...task,
+    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments)],
+    updatedAt: now(),
+  }));
+}
+
+/**
+ * A finished run hands its queue on. Messages the user is still waiting on start the next run; a run
+ * the user stopped hands them back to the composer instead of speaking for them.
+ */
+function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): WorkspaceTransition {
+  const queued = queuedFor(state, taskId);
+  if (!queued.length) return settled(state);
+  const drained = withQueued(state, taskId, []);
+  if (status === "cancelled") {
+    const text = [...queued.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
+    return settled(withPrompt(drained, taskId, text));
+  }
+  const task = state.tasks.find((item) => item.id === taskId);
+  if (!task) return settled(drained);
+  const project = projectFor(state, task);
+  const pending: PendingRun = {
+    id: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
+    origin: "composer",
+    taskId,
+    ...(project ? { projectId: project.id } : {}),
+    text: queued.map((message) => message.text).join("\n\n"),
+    prompt: queued.map((message) => message.prompt).join("\n\n"),
+    attachments: queued.flatMap((message) => message.attachments),
+    queuedIds: queued.map((message) => message.id),
+  };
+  return settled(withPending(state, pending), [{
+    type: "resolve-run-workspace",
+    pendingId: pending.id,
+    picker: Boolean(project && !project.workspaceId),
+    ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
+    ...(project ? { root: project.root } : {}),
+  }]);
 }
 
 function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
@@ -230,6 +289,11 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         ? applyTask({ ...state, draftModel: input.model }, state.currentId, (task) => ({ ...task, model: input.model, updatedAt: now() }))
         : { ...state, draftModel: input.model });
 
+    case "task.set-effort":
+      return settled(state.currentId
+        ? applyTask({ ...state, draftEffort: input.effort }, state.currentId, (task) => ({ ...task, effort: input.effort, updatedAt: now() }))
+        : { ...state, draftEffort: input.effort });
+
     case "task.send": {
       const attachments = input.attachments ?? [];
       const draftKey = promptKey(state);
@@ -237,7 +301,16 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const alreadySending = Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
       if ((!text && attachments.length === 0) || alreadySending) return settled(state);
       const task = state.tasks.find((item) => item.id === state.currentId);
-      if (task && state.activeRuns[task.id]) return settled(state);
+      if (task && state.activeRuns[task.id]) {
+        const queued: QueuedMessage = {
+          id: crypto.randomUUID(),
+          text,
+          prompt: promptWithAttachments(text, attachments),
+          attachments: attachments.map((attachment) => attachment.path),
+        };
+        const next = withQueued(withPrompt(state, draftKey, ""), task.id, [...queuedFor(state, task.id), queued]);
+        return input.steer ? apply(next, { type: "task.steer-queued", messageId: queued.id }) : settled(next);
+      }
       const projectId = task?.projectId ?? state.draftProjectId;
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return settled({ ...state, actionError: MISSING_PROJECT_ERROR });
@@ -259,6 +332,27 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
         ...(project ? { root: project.root } : {}),
       }]);
+    }
+
+    case "task.steer-queued": {
+      const taskId = state.currentId;
+      const active = taskId ? state.activeRuns[taskId] : undefined;
+      const queued = taskId ? queuedFor(state, taskId) : [];
+      const message = queued.find((item) => item.id === input.messageId);
+      if (!taskId || !active || !message || message.steering) return settled(state);
+      return settled(
+        withQueued(state, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)),
+        [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: message.prompt } }],
+      );
+    }
+
+    /** A steered message is already on its way to the agent, so only an unsteered one can be dropped. */
+    case "task.drop-queued": {
+      const taskId = state.currentId;
+      const queued = taskId ? queuedFor(state, taskId) : [];
+      const message = queued.find((item) => item.id === input.messageId);
+      if (!taskId || !message || message.steering) return settled(state);
+      return settled(withQueued(state, taskId, queued.filter((item) => item.id !== message.id)));
     }
 
     case "project.open":
@@ -364,10 +458,14 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         ? applyTask(applied, event.taskId, (task) => ({ ...task, attention }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
+      if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
-      return settled(next, finished && project?.workspaceId
+      const environment: WorkspaceEffect[] = finished && project?.workspaceId
         ? [{ type: "refresh-environment", workspaceId: project.workspaceId, taskId: event.taskId, runId: event.runId }]
-        : []);
+        : [];
+      if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, environment);
+      const drained = drainQueue(next, event.taskId, event.status);
+      return settled(drained.state, [...environment, ...drained.effects]);
     }
 
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */
@@ -415,6 +513,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
           title: "Side chat",
           executionPolicy: "plan",
           ...(source.model ? { model: source.model } : {}),
+          ...(source.effort ? { effort: source.effort } : {}),
           messages: [],
           continuationStatus: "none",
           lastChangeSnapshot: { files: [], capturedAt: now() },
@@ -557,6 +656,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
     model: state.draftModel,
+    effort: state.draftEffort,
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },
@@ -567,8 +667,11 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const updated = { ...task, messages: [...task.messages, message], updatedAt: now() };
   const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
   const started = beginRun({ ...state, tasks }, task.id, pending.runId);
+  const drained = pending.queuedIds
+    ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
+    : started;
   return settled(
-    pending.draftKey ? withPrompt(started, pending.draftKey, "") : started,
+    pending.draftKey ? withPrompt(drained, pending.draftKey, "") : drained,
     [{ type: "start-run", command: startRunCommand(updated, pending.runId, pending.prompt, workspace.id) }],
   );
 }
@@ -594,6 +697,7 @@ function startSideRun(state: WorkspaceState, pending: PendingRun, workspace: Wor
         workspaceId: workspace.id,
         policy: "plan",
         model: source.model ?? DEFAULT_MODEL,
+        effort: source.effort ?? DEFAULT_EFFORT,
         continuation: firstTurn ? source.continuation : chat.task.continuation!,
         ...(firstTurn ? { forkContinuation: true } : {}),
       },

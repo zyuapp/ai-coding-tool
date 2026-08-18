@@ -14,6 +14,8 @@ function input(overrides = {}) {
     computerUse: { status: "unavailable", message: "test" },
     policy: "confirm",
     model: "opus",
+    effort: "high",
+    steering: { next: () => new Promise(() => {}) },
     abortController: new AbortController(),
     authorize: async () => "allow",
     emit() {},
@@ -82,10 +84,12 @@ test("Claude query options follow run policy and workspace settings", async () =
   await provider.execute(input({
     projectless: true,
     model: "opus",
+    effort: "xhigh",
     continuation: { provider: "claude", value: "session-1" },
   }));
   assert.deepEqual(capture.options.options.settingSources, ["user"]);
   assert.equal(capture.options.options.model, "opus");
+  assert.equal(capture.options.options.effort, "xhigh");
   assert.equal(capture.options.options.resume, "session-1");
   assert.deepEqual(capture.options.options.betas, ["context-1m-2025-08-07"]);
   assert.equal(capture.options.options.skills, "all");
@@ -320,4 +324,44 @@ test("Claude failures, exceptions, and aborts close the query", async () => {
   abortController.abort();
   const aborted = new ClaudeAgentProvider(queryFactory([]));
   assert.deepEqual(await aborted.execute(input({ abortController })), { status: "cancelled" });
+});
+
+/** Drains the run's input stream alongside its output, the way the SDK does. */
+function streamingQueryFactory(messages, capture = {}) {
+  return (options) => {
+    capture.options = options;
+    capture.sent = [];
+    const draining = (async () => {
+      for await (const message of options.prompt) capture.sent.push(message.message.content);
+    })();
+    return {
+      async *[Symbol.asyncIterator]() {
+        await Promise.race([draining, new Promise((resolve) => setImmediate(resolve))]);
+        for (const message of messages) yield message;
+      },
+      close() {
+        capture.closed = true;
+      },
+    };
+  };
+}
+
+test("a steered message joins the run's input stream and only then counts as delivered", async () => {
+  const capture = {};
+  const emitted = [];
+  const steered = [{ messageId: "message-1", prompt: "check the tests too" }];
+  const steering = { next: async () => steered.shift() ?? null };
+  const provider = new ClaudeAgentProvider(streamingQueryFactory([], capture));
+
+  assert.deepEqual(await provider.execute(input({ steering, emit: (event) => emitted.push(event) })), { status: "succeeded" });
+  assert.deepEqual(capture.sent, ["inspect the app", "check the tests too"]);
+  assert.deepEqual(emitted.filter((event) => event.type === "steered"), [{ type: "steered", messageId: "message-1" }]);
+});
+
+test("a run ends on its turn's result even though its input stream stays open", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }], capture));
+
+  assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
+  assert.equal(capture.closed, true);
 });

@@ -268,20 +268,25 @@ export function App() {
           workspaceId={workspace.currentProject?.workspaceId}
           mode={workspace.policy}
           model={workspace.model}
+          effort={workspace.effort}
           contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
+          queuedMessages={workspace.queuedMessages}
           onPromptChange={workspace.actions.setPrompt}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
-          onSend={(attachments) => {
+          onEffortChange={workspace.actions.setEffort}
+          onSend={(attachments, steer) => {
             if (workspace.prompt.trim() === "/side") {
               workspace.actions.setPrompt("");
               setSelectedSubagent(null);
               addSideChat();
               return;
             }
-            void workspace.actions.sendPrompt(attachments);
+            void workspace.actions.sendPrompt(attachments, steer);
           }}
+          onSteerQueued={workspace.actions.steerQueued}
+          onDropQueued={workspace.actions.dropQueued}
           onCancel={workspace.actions.cancelRun}
         />
       </section>

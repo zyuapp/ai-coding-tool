@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { InternalStartRunCommand, RunEvent } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AutomationBridge, ProviderEvent } from "./agent-provider.mjs";
+import { SteerChannel } from "./steer-channel.mjs";
 
 type ActiveRun = {
   taskId: string;
@@ -9,6 +10,7 @@ type ActiveRun = {
   workspaceRoot: string;
   projectless: boolean;
   abortController: AbortController;
+  steering: SteerChannel;
   sequence: number;
   terminal: boolean;
   approvals: Map<string, { settled: boolean; resolve: (decision: "allow" | "deny") => void }>;
@@ -44,6 +46,7 @@ export class RunCoordinator {
       workspaceRoot: command.workspaceRoot,
       projectless: Boolean(command.projectless),
       abortController: new AbortController(),
+      steering: new SteerChannel(),
       sequence: 0,
       terminal: false,
       approvals: new Map(),
@@ -52,6 +55,13 @@ export class RunCoordinator {
     this.publish(active, { type: "run.started" });
     this.publish(active, { type: "run.status", status: "running" });
     void this.execute(active, command);
+  }
+
+  /** Only the run the message was queued against can take it; anything else leaves it for the next run. */
+  steer(taskId: string, runId: string, messageId: string, prompt: string) {
+    const active = this.runs.get(taskId);
+    if (!active || active.runId !== runId || active.terminal) return false;
+    return active.steering.push({ messageId, prompt });
   }
 
   cancel(taskId: string, runId: string) {
@@ -83,9 +93,11 @@ export class RunCoordinator {
         computerUse: command.computerUse,
         policy: command.policy,
         model: command.model,
+        effort: command.effort,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         automations: this.options.automations?.(command.taskId),
+        steering: active.steering,
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),
@@ -107,6 +119,7 @@ export class RunCoordinator {
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });
     if (event.type === "computer-use.setup-required") this.publish(active, event);
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
+    if (event.type === "steered") this.publish(active, { type: "queued.delivered", messageId: event.messageId });
     if (event.type === "subagent.started") this.publish(active, event);
     if (event.type === "subagent.progress") this.publish(active, event);
     if (event.type === "subagent.activity") this.publish(active, event);
@@ -149,6 +162,7 @@ export class RunCoordinator {
   private finish(active: ActiveRun, status: "succeeded" | "failed" | "cancelled", message?: string) {
     if (active.terminal) return;
     active.terminal = true;
+    active.steering.close();
     this.expireApprovals(active);
     if (this.isCurrent(active)) {
       this.publish(active, { type: "run.status", status, message });

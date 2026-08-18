@@ -15,6 +15,7 @@ const base = (taskId, runId) => ({
   computerUse: { status: "unavailable", message: "test" },
   policy: "confirm",
   model: "opus",
+  effort: "high",
 });
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -285,4 +286,30 @@ test("a new run for the same task supersedes the previous one", async () => {
   assert.equal(events.some((event) => event.runId === "run-first" && event.type === "assistant.delta"), false);
   assert.deepEqual(statuses(events, "run-first"), ["running", "cancelled"]);
   assert.deepEqual(statuses(events, "run-second"), ["running", "succeeded"]);
+});
+
+test("steering only reaches the run it names, and delivery is reported against that run", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-a", "run-a"));
+  await tick();
+  const { input } = provider.runs[0];
+
+  assert.equal(coordinator.steer("task-a", "run-b", "message-1", "later"), false, "a superseded run cannot be steered");
+  assert.equal(coordinator.steer("task-b", "run-a", "message-1", "later"), false, "another task's run cannot be steered");
+  assert.equal(coordinator.steer("task-a", "run-a", "message-1", "check the tests"), true);
+  assert.deepEqual(await input.steering.next(), { messageId: "message-1", prompt: "check the tests" });
+
+  input.emit({ type: "steered", messageId: "message-1" });
+  assert.deepEqual(
+    events.filter((event) => event.type === "queued.delivered").map((event) => ({ runId: event.runId, messageId: event.messageId })),
+    [{ runId: "run-a", messageId: "message-1" }],
+  );
+
+  provider.runs[0].resolve({ status: "succeeded" });
+  await tick();
+  assert.equal(coordinator.steer("task-a", "run-a", "message-2", "too late"), false);
+  assert.equal(await input.steering.next(), null, "a finished run stops waiting for more");
 });

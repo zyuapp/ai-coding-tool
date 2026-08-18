@@ -1,5 +1,5 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
-import type { AgentModel, ExecutionPolicy } from "../domain/run.js";
+import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
 import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
@@ -18,7 +18,11 @@ export type TaskCommand =
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   | { type: "task.set-policy"; policy: ExecutionPolicy }
   | { type: "task.set-model"; model: AgentModel }
-  | { type: "task.send"; attachments?: RunAttachment[] };
+  | { type: "task.set-effort"; effort: AgentEffort }
+  /** While a run is going the message is queued instead; `steer` pushes it into that run straight away. */
+  | { type: "task.send"; attachments?: RunAttachment[]; steer?: boolean }
+  | { type: "task.steer-queued"; messageId: string }
+  | { type: "task.drop-queued"; messageId: string };
 
 export type ProjectCommand =
   | { type: "project.open" }

@@ -1,9 +1,9 @@
-import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type Query, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { contextWindowLimit } from "../../domain/run.js";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
+import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue } from "./agent-provider.mjs";
 import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 
 type QueryFactory = typeof query;
@@ -15,6 +15,23 @@ const computerUseInstructions = `When a requested outcome lives in another appli
 
 async function* idlePrompt() {
   await new Promise<void>(() => {});
+}
+
+function userMessage(prompt: string): SDKUserMessage {
+  return { type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: "" };
+}
+
+/**
+ * The run's input stays open for as long as the turn does, so a steered message can join the turn
+ * instead of waiting for the next one. Each yield only returns once the SDK has taken the message,
+ * which is when it counts as delivered.
+ */
+async function* runInput(prompt: string, steering: SteerQueue, onDelivered: (messageId: string) => void) {
+  yield userMessage(prompt);
+  for (let steer = await steering.next(); steer; steer = await steering.next()) {
+    yield userMessage(steer.prompt);
+    onDelivered(steer.messageId);
+  }
 }
 
 export async function discoverClaudeCommands(workspaceRoot: string, projectless: boolean, queryFactory: QueryFactory = query): Promise<SlashCommand[]> {
@@ -132,7 +149,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       }
       if (input.automations) mcpServers[AUTOMATION_SERVER_NAME] = automationServer(input.automations);
       activeQuery = this.queryFactory({
-        prompt: input.prompt,
+        prompt: runInput(input.prompt, input.steering, (messageId) => input.emit({ type: "steered", messageId })),
         options: {
           cwd: input.workspaceRoot,
           pathToClaudeCodeExecutable: packagedClaudeExecutable(),
@@ -142,6 +159,7 @@ export class ClaudeAgentProvider implements AgentProvider {
           permissionMode: input.channel === "side" ? "plan" : claudePermissionMode(input.policy),
           ...(input.channel === "side" ? { tools: ["Read", "Grep", "Glob"] } : {}),
           model: input.model,
+          effort: input.effort,
           betas: ["context-1m-2025-08-07" as const],
           ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
           systemPrompt: { type: "preset", preset: "claude_code", append: input.automations ? `${computerUseInstructions}\n\n${automationInstructions}` : computerUseInstructions },
@@ -241,8 +259,12 @@ export class ClaudeAgentProvider implements AgentProvider {
             limit: contextWindowLimit(input.model),
             model: message.message.model,
           });
-        } else if (message.type === "result" && (message.subtype !== "success" || message.is_error)) {
-          return { status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") };
+        } else if (message.type === "result") {
+          /** The open input stream keeps the session alive, so the turn's result is what ends the run. */
+          if (message.subtype !== "success" || message.is_error) {
+            return { status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") };
+          }
+          break;
         }
       }
       return { status: input.abortController.signal.aborted ? "cancelled" : "succeeded" };

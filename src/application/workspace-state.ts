@@ -3,7 +3,7 @@ import { backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
-import { DEFAULT_MODEL, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
+import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 
 /**
@@ -25,6 +25,21 @@ export type PendingRun = {
   detail?: string;
   policy?: ExecutionPolicy;
   automationId?: string;
+  /** Queued messages this run is draining, cleared only once the run actually starts. */
+  queuedIds?: string[];
+};
+
+/**
+ * Something the user typed while a run was going. It waits for the run to finish, unless it is
+ * steered into that run first.
+ */
+export type QueuedMessage = {
+  id: string;
+  text: string;
+  prompt: string;
+  attachments: string[];
+  /** Set once steering is on its way to the agent, which is the point of no return. */
+  steering?: boolean;
 };
 
 /** One forked conversation. It holds its own task because nothing about it is ever persisted. */
@@ -47,6 +62,7 @@ export type WorkspaceState = {
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
   draftModel: AgentModel;
+  draftEffort: AgentEffort;
   prompts: Record<string, string>;
   expandedProjects: Set<string>;
   projectsOpen: boolean;
@@ -57,6 +73,7 @@ export type WorkspaceState = {
   computerUseSetup: boolean;
   automations: AutomationView[];
   pendingRuns: Record<string, PendingRun>;
+  queuedMessages: Record<string, QueuedMessage[]>;
   sideChats: SideChat[];
   sideChatSequence: number;
   /** Latest run per task, so a reply from a superseded run can be dropped. */
@@ -77,6 +94,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftProjectId: null,
     draftPolicy: "confirm",
     draftModel: DEFAULT_MODEL,
+    draftEffort: DEFAULT_EFFORT,
     prompts: {},
     expandedProjects: new Set(),
     projectsOpen: true,
@@ -87,6 +105,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     computerUseSetup: false,
     automations: [],
     pendingRuns: {},
+    queuedMessages: {},
     sideChats: [],
     sideChatSequence: 0,
     lastRunIds: {},
@@ -115,6 +134,7 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
     draftProjectId: firstProject,
     draftPolicy: firstTask?.executionPolicy ?? "confirm",
     draftModel: firstTask?.model ?? DEFAULT_MODEL,
+    draftEffort: firstTask?.effort ?? DEFAULT_EFFORT,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
   };
 }
@@ -160,10 +180,12 @@ export function deriveView(state: WorkspaceState) {
     folder: currentProject?.root ?? "",
     policy: currentTask?.executionPolicy ?? state.draftPolicy,
     model: currentTask?.model ?? state.draftModel,
+    effort: currentTask?.effort ?? state.draftEffort,
     prompt: state.prompts[promptKey(state)] ?? "",
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
+    queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? [],
     runningTaskIds: new Set(Object.keys(state.activeRuns)),
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     subagents: currentTask?.subagents ?? [],
