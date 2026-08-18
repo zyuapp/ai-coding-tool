@@ -309,6 +309,7 @@ test("stopping a run hands the queue back to the composer instead of speaking fo
   assert.deepEqual(cancelled.effects, []);
   assert.deepEqual(cancelled.state.queuedMessages, {});
   assert.equal(cancelled.state.prompts["task-a"], "Run the tests");
+  assert.ok(cancelled.state.tasks[0].runEndedAt, "the work the stop cut short knows when it ended");
 });
 
 test("dropping a queued message removes only that one", () => {

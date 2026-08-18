@@ -113,6 +113,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     let next = withRunStatus(withActiveRun(withStreamingTail(withSequence, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
+    next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
     const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
     if (subagents?.some((subagent) => subagent.status === "working")) {
       const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";

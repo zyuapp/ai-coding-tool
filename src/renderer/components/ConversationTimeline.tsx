@@ -36,7 +36,7 @@ function AttachmentViewer({ source, onClose }: { source: string; onClose: () => 
 
 type TimelineGroup =
   | { kind: "message"; id: string; message: TaskMessage }
-  | { kind: "turn"; id: string; steps: TaskMessage[]; final: TaskMessage | null; live: boolean };
+  | { kind: "turn"; id: string; steps: TaskMessage[]; final: TaskMessage | null; endsAt: number | null; live: boolean };
 
 /** A step runs until the next one starts; the newest step of a live turn has not ended yet. */
 type TimedStep = { message: TaskMessage; endsAt: number | null };
@@ -45,11 +45,25 @@ type TurnSegment =
   | { kind: "note"; id: string; message: TaskMessage }
   | { kind: "tools"; id: string; steps: TimedStep[] };
 
+type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number };
+
+function startOf(group: TimelineGroup) {
+  return group.kind === "message" ? group.message.at : (group.steps[0] ?? group.final)?.at ?? null;
+}
+
+/** Only a live turn is still running; anything else ends at the newest moment known to have passed. */
+function endOf(group: TimelineGroup, next: TimelineGroup | undefined, runEndedAt?: number) {
+  if (group.kind !== "turn") return null;
+  if (group.final) return group.final.at;
+  return (next && startOf(next)) ?? (group.live ? null : runEndedAt ?? group.steps.at(-1)?.at ?? null);
+}
+
 /**
  * Assistant text and the tool calls it drives belong to one turn. A turn ending in assistant text is
- * settled; the newest turn of a running task is live and keeps collecting steps.
+ * settled; the newest turn of a running task is live and keeps collecting steps. A turn no answer
+ * closed ends where the next group opens, or where the run it belonged to stopped.
  */
-export function groupTimeline(messages: TaskMessage[], running: boolean, tailMessageId?: string): TimelineGroup[] {
+export function groupTimeline(messages: TaskMessage[], { running, tailMessageId, runEndedAt }: TimelineOptions): TimelineGroup[] {
   const groups: (TimelineGroup | TaskMessage[])[] = [];
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system") {
@@ -69,14 +83,15 @@ export function groupTimeline(messages: TaskMessage[], running: boolean, tailMes
       id: group[0]!.id,
       steps: settled ? group.slice(0, -1) : group,
       final: settled ? group.at(-1)! : null,
+      endsAt: null,
       live: group === liveTurn,
     } satisfies TimelineGroup;
   });
   /** Text can stream before its first block commits, so the turn it belongs to may not exist yet. */
   if (running && tailMessageId && !messages.some((message) => message.id === tailMessageId) && !liveTurn) {
-    timeline.push({ kind: "turn", id: tailMessageId, steps: [], final: null, live: true });
+    timeline.push({ kind: "turn", id: tailMessageId, steps: [], final: null, endsAt: null, live: true });
   }
-  return timeline;
+  return timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) });
 }
 
 function timeSteps(steps: TaskMessage[], turnEndsAt: number | null): TimedStep[] {
@@ -229,7 +244,10 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   /** The answer being read out, whether it is still streaming or has already finished. */
   const answerId = streamingTail?.messageId ?? (lastMessage?.kind === "assistant" ? lastMessage.id : undefined);
   const toolId = lastMessage?.kind === "tool" ? lastMessage.id : undefined;
-  const groups = useMemo(() => groupTimeline(messages, status === "running", streamingTail?.messageId), [messages, status, streamingTail?.messageId]);
+  const groups = useMemo(
+    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentTask?.runEndedAt }),
+    [messages, status, streamingTail?.messageId, currentTask?.runEndedAt],
+  );
   const virtualizer = useVirtualizer({
     count: groups.length,
     getScrollElement: () => scrollContainerRef.current,
@@ -333,7 +351,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                 <article className="message assistant turn">
                   {group.live
                     ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
-                    : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.final?.at ?? null} />}
+                    : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} />}
                   {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} /></div>}
                 </article>
               ) : (

@@ -942,7 +942,7 @@ async function expand(details) {
   });
 }
 
-function timelineView(messages, status, streamingTail) {
+function timelineView(messages, status, streamingTail, runEndedAt) {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
@@ -950,6 +950,7 @@ function timelineView(messages, status, streamingTail) {
   const task = {
     id: "t1", title: "T", executionPolicy: "confirm", messages,
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
     currentTask: task, folder: "/p", status, compacting: false, streamingTail, scrollContainerRef: { current: scroller },
@@ -1010,13 +1011,13 @@ test("timeline groups keep user turns apart and leave a lone answer uncollapsed"
     { kind: "tool", text: "Bash" },
   );
 
-  const settled = groupTimeline(messages, false);
+  const settled = groupTimeline(messages, { running: false });
   assert.deepEqual(settled.map((group) => group.kind), ["message", "turn", "message", "turn"]);
-  assert.deepEqual(settled[1], { kind: "turn", id: "m1", steps: [], final: messages[1], live: false });
+  assert.deepEqual(settled[1], { kind: "turn", id: "m1", steps: [], final: messages[1], endsAt: messages[1].at, live: false });
   assert.equal(settled[3].final, null);
   assert.equal(settled[3].steps.length, 2);
 
-  const running = groupTimeline(messages, true);
+  const running = groupTimeline(messages, { running: true });
   assert.equal(running[1].live, false);
   assert.equal(running[3].live, true);
 });
@@ -1058,6 +1059,29 @@ test("a running turn counts up until its work ends", async (t) => {
   assert.equal(elapsed(), "1m 6s");
   await act(async () => { t.mock.timers.tick(30_000); });
   assert.equal(elapsed(), "1m 6s");
+
+  await view.unmount();
+  t.mock.timers.reset();
+});
+
+test("a stopped turn freezes at the moment its run ended", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "Date"], now: 100_000 });
+  const running = [
+    { id: "l0", at: 40_000, kind: "tool", text: "Bash", detail: "one" },
+    { id: "l1", at: 95_000, kind: "tool", text: "Grep", detail: "two" },
+  ];
+  const view = await mount(timelineView(running, "running"));
+  const elapsed = () => view.container.querySelector(".work-group .work-time").textContent;
+
+  assert.equal(elapsed(), "1m 0s");
+  await view.render(timelineView(running, "stopped", null, 102_000));
+  assert.equal(elapsed(), "1m 2s");
+  await act(async () => { t.mock.timers.tick(30_000); });
+  assert.equal(elapsed(), "1m 2s", "stopping ends the turn even though no answer closed it");
+
+  await view.render(timelineView(running, "stopped", null));
+  await act(async () => { t.mock.timers.tick(30_000); });
+  assert.equal(elapsed(), "55s", "work stored before stops were timed rests on its last step");
 
   await view.unmount();
   t.mock.timers.reset();
@@ -1434,14 +1458,14 @@ test("text committing into a block does not rewind or repeat the reveal", async 
 test("a tail with no committed message yet still gets a live turn to render into", () => {
   const messages = transcript({ kind: "user", text: "Explain this" });
 
-  assert.deepEqual(groupTimeline(messages, true).map((group) => group.kind), ["message"]);
+  assert.deepEqual(groupTimeline(messages, { running: true }).map((group) => group.kind), ["message"]);
 
-  const streaming = groupTimeline(messages, true, "message-1");
+  const streaming = groupTimeline(messages, { running: true, tailMessageId: "message-1" });
   assert.deepEqual(streaming.map((group) => group.kind), ["message", "turn"]);
-  assert.deepEqual(streaming[1], { kind: "turn", id: "message-1", steps: [], final: null, live: true });
+  assert.deepEqual(streaming[1], { kind: "turn", id: "message-1", steps: [], final: null, endsAt: null, live: true });
 
   const answered = transcript({ kind: "user", text: "Explain this" }, { kind: "assistant", text: "Because" });
-  assert.deepEqual(groupTimeline(answered, true, "m1").map((group) => group.kind), ["message", "turn"], "the turn that owns the tail is not duplicated");
+  assert.deepEqual(groupTimeline(answered, { running: true, tailMessageId: "m1" }).map((group) => group.kind), ["message", "turn"], "the turn that owns the tail is not duplicated");
 });
 
 test("a live turn types its newest text and leaves settled turns alone", async () => {

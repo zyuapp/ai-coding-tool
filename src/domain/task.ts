@@ -64,6 +64,8 @@ export type Task = {
   /** Sidebar position. Only the user moves it; run activity never does. */
   sortIndex?: number;
   attention?: TaskAttention;
+  /** When this task's newest run settled. A turn the run left unfinished ends there. */
+  runEndedAt?: number;
   updatedAt: number;
   archivedAt?: number;
 };
@@ -358,6 +360,7 @@ function isTaskBase(value: unknown): value is Task {
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.attention === undefined || isTaskAttention(value.attention)) &&
+    (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
 }
