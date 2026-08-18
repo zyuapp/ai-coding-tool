@@ -77,7 +77,7 @@ export type DesktopAPI = {
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
-  /** Writes base64 PNG bytes to a temporary file and resolves with its absolute path. */
+  /** Writes base64 PNG bytes into the attachments directory and resolves with the absolute path. */
   saveAttachment(data: string): Promise<string>;
   loadTaskStore(): Promise<TaskStoreData | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;

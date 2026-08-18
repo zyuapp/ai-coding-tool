@@ -22,3 +22,14 @@ export function taskTitleFor(text: string, attachments: RunAttachment[]) {
   const source = text || (attachments.length === 1 ? "Screenshot" : `${attachments.length} screenshots`);
   return source.length > 52 ? `${source.slice(0, 49)}…` : source;
 }
+
+export const ATTACHMENT_SCHEME = "attachment";
+
+/** Attachments live in one flat directory, so the file name alone addresses them over the `attachment:` scheme. */
+export function attachmentName(filePath: string) {
+  return filePath.split(/[\\/]/).pop() ?? "";
+}
+
+export function attachmentUrl(filePath: string) {
+  return `${ATTACHMENT_SCHEME}://file/${encodeURIComponent(attachmentName(filePath))}`;
+}

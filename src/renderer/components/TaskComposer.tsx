@@ -178,7 +178,7 @@ export function TaskComposer({
     try {
       const saved = await Promise.all(attachments.map(async (attachment) => ({
         path: await window.desktop.saveAttachment(attachment.preview.replace(/^data:[^,]*,/, "")),
-        labels: attachment.annotations.map((annotation) => annotation.text),
+        labels: attachment.annotations.filter((annotation) => annotation.kind === "box").map((annotation) => annotation.text),
       })));
       setAttachments([]);
       setAttachmentError(null);

@@ -31,8 +31,15 @@ function now() {
   return Date.now();
 }
 
-export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string): TaskMessage {
-  return { id: crypto.randomUUID(), kind, text, ...(detail === undefined ? {} : { detail }), at: now() };
+export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[]): TaskMessage {
+  return {
+    id: crypto.randomUUID(),
+    kind,
+    text,
+    ...(detail === undefined ? {} : { detail }),
+    ...(attachments?.length ? { attachments } : {}),
+    at: now(),
+  };
 }
 
 export function applyTask<T extends RunTransitionState>(state: T, taskId: string, update: (task: Task) => Task): T {

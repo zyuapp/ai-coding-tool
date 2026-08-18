@@ -1,6 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ListCollapse, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, type RefObject } from "react";
+import { ListCollapse, X, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { attachmentUrl } from "../../application/attachments";
 import type { Task } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
 
@@ -9,6 +11,24 @@ function FolderIcon() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3.5 7.5h6l2-2h3.8c1.8 0 2.7 0 3.4.35.62.32 1.13.83 1.45 1.45.35.7.35 1.6.35 3.4v4.4c0 1.8 0 2.7-.35 3.4a3.25 3.25 0 0 1-1.45 1.45c-.7.35-1.6.35-3.4.35H7.5c-1.8 0-2.7 0-3.4-.35a3.25 3.25 0 0 1-1.45-1.45c-.35-.7-.35-1.6-.35-3.4V9.2c0-.95 0-1.42.18-1.78.16-.32.42-.58.74-.74.36-.18.83-.18 1.78-.18Z" />
     </svg>
+  );
+}
+
+function AttachmentViewer({ source, onClose }: { source: string; onClose: () => void }) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="viewer" role="dialog" aria-modal="true" aria-label="Screenshot" onClick={onClose}>
+      <button type="button" className="viewer-close" onClick={onClose} aria-label="Close screenshot"><X size={16} /></button>
+      <img src={source} alt="Attached screenshot" onClick={(event) => event.stopPropagation()} />
+    </div>,
+    document.body,
   );
 }
 
@@ -24,6 +44,7 @@ export type ConversationTimelineProps = {
 export function ConversationTimeline({ currentTask, folder, status, compacting, scrollContainerRef, empty }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
   const pinnedToBottom = useRef(true);
   const virtualizer = useVirtualizer({
     count: messages.length,
@@ -89,7 +110,24 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                 ) : message.kind === "assistant" ? (
                   <div className="message-text markdown-body"><MarkdownMessage>{message.text}</MarkdownMessage></div>
                 ) : (
-                  <div className="message-text">{message.text}</div>
+                  <div className="message-stack">
+                    {message.attachments?.length ? (
+                      <div className="message-attachments">
+                        {message.attachments.map((file, index) => (
+                          <button
+                            type="button"
+                            key={file}
+                            className="message-attachment"
+                            aria-label={`View screenshot ${index + 1}`}
+                            onClick={() => setViewing(attachmentUrl(file))}
+                          >
+                            <img src={attachmentUrl(file)} alt="" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {message.text && <div className="message-text">{message.text}</div>}
+                  </div>
                 )}
               </article>
             </div>
@@ -108,6 +146,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
           <span /> <span /> <span />
         </div>
       )}
+      {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
     </div>
   );
 }

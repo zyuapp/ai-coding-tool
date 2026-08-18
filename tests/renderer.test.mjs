@@ -21,6 +21,7 @@ const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/M
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
+const { drawAnnotations } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 
 test.after(async () => {
@@ -362,6 +363,36 @@ test("slash command palette filters skills and supports keyboard selection", asy
   assert.equal(sends, 1);
   dom.window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   await view.unmount();
+});
+
+function recordingContext() {
+  const calls = { text: [], strokes: 0, fills: 0 };
+  return {
+    calls,
+    measureText: (value) => ({ width: value.length * 7 }),
+    fillText: (value) => calls.text.push(value),
+    strokeRect: () => { calls.strokes += 1; },
+    fillRect: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    stroke: () => {},
+    fill: () => { calls.fills += 1; },
+  };
+}
+
+test("arrows draw without a mark and never renumber the boxes around them", () => {
+  const context = recordingContext();
+  drawAnnotations(context, [
+    { kind: "box", x: 0.1, y: 0.1, width: 0.2, height: 0.2, text: "first" },
+    { kind: "arrow", x: 0.8, y: 0.8, width: -0.3, height: -0.3, text: "" },
+    { kind: "box", x: 0.5, y: 0.5, width: 0.2, height: 0.2, text: "second" },
+  ], 1000, 800);
+
+  assert.deepEqual(context.calls.text, ["1. first", "2. second"]);
+  assert.equal(context.calls.strokes, 2);
+  assert.equal(context.calls.fills, 1);
 });
 
 test("a pasted image becomes an attachment chip and is saved on send", async () => {

@@ -1,8 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
 import { isRunCommand, isRunEvent, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
@@ -12,6 +14,10 @@ import { computerUseForRun, computerUsePermissions, requestComputerUsePermission
 app.setName("Claudex");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
 if (existsSync(legacyUserData)) app.setPath("userData", legacyUserData);
+
+protocol.registerSchemesAsPrivileged([
+  { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
 
 const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
@@ -238,6 +244,11 @@ app.whenReady().then(async () => {
   });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"));
+  protocol.handle(ATTACHMENT_SCHEME, async (request) => {
+    const name = attachmentName(decodeURIComponent(new URL(request.url).pathname));
+    if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
+    return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
+  });
   app.dock?.setIcon(icon);
   startAgent();
   await createWindow();
@@ -325,13 +336,17 @@ ipcMain.on("run:command", handleRunCommand);
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
+function attachmentsDirectory() {
+  return path.join(app.getPath("userData"), "attachments");
+}
+
 ipcMain.handle("attachment:save", async (event, data: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (typeof data !== "string" || data.length === 0 || data.length > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error("Attachment payload is not base64.");
   const bytes = Buffer.from(data, "base64");
   if (bytes.byteLength === 0) throw new Error("Attachment is empty or too large.");
-  const directory = path.join(app.getPath("temp"), "claudex-attachments");
+  const directory = attachmentsDirectory();
   await mkdir(directory, { recursive: true });
   const file = path.join(directory, `${randomUUID()}.png`);
   await writeFile(file, bytes);

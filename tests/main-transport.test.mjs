@@ -24,6 +24,7 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
   const windows = [];
   const agents = [];
   const appListeners = new Map();
+  const protocolHandlers = new Map();
 
   class FakeAgent extends EventEmitter {
     messages = [];
@@ -61,6 +62,8 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
       on: (name, listener) => listeners.set(name, listener),
     },
     utilityProcess: { fork: () => { const agent = new FakeAgent(); agents.push(agent); return agent; } },
+    protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => protocolHandlers.set(scheme, handler) },
+    net: { fetch: async (url) => new Response(url) },
   };
   globalThis.__dirname = path.join(process.cwd(), "dist/main/main");
 
@@ -74,7 +77,7 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, utilityProcess=e.utilityProcess;";
+        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, utilityProcess=e.utilityProcess;";
       },
     }],
   });
@@ -91,6 +94,15 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
   const trusted = { sender: window.webContents };
   const untrusted = { sender: {} };
   const runCommand = listeners.get("run:command");
+  const saved = await handlers.get("attachment:save")(trusted, Buffer.from([1, 2, 3]).toString("base64"));
+  assert.equal(path.dirname(saved), path.join(userData, "attachments"));
+  await assert.rejects(handlers.get("attachment:save")(untrusted, "AQID"));
+  await assert.rejects(handlers.get("attachment:save")(trusted, "not base64!"));
+
+  const serve = protocolHandlers.get("attachment");
+  assert.equal((await serve({ url: `attachment://file/${path.basename(saved)}` })).status, 200);
+  assert.equal((await serve({ url: "attachment://file/%2E%2E%2Fworkspaces.v1.json" })).status, 404);
+
   const projectless = await handlers.get("workspace:projectless")(trusted);
   assert.equal((await handlers.get("workspace:changed-files")(untrusted, projectless.id)).status, "error");
   assert.equal((await handlers.get("workspace:changed-files")(trusted, "")).status, "error");

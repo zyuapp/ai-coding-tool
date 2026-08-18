@@ -9,6 +9,8 @@ export type TaskMessage = {
   kind: TaskMessageKind;
   text: string;
   detail?: string;
+  /** Absolute paths of images sent with this message. The agent reads them from disk; the timeline shows them inline. */
+  attachments?: string[];
   at: number;
 };
 
@@ -372,6 +374,7 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     typeof value.kind === "string" && isMessageKind(value.kind) &&
     typeof value.text === "string" &&
     (value.detail === undefined || typeof value.detail === "string") &&
+    (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
     finiteNumber(value.at);
 }
 

@@ -379,7 +379,8 @@ export function useTaskWorkspace() {
       };
     }
     const runId = crypto.randomUUID();
-    const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", promptText)], updatedAt: now() };
+    const messageAttachments = attachments.map((attachment) => attachment.path);
+    const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", text, undefined, messageAttachments)], updatedAt: now() };
     const nextTasks = current.tasks.some((item) => item.id === task!.id) ? current.tasks.map((item) => item.id === task!.id ? nextTask : item) : [nextTask, ...current.tasks];
     const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, actionError: null };
     runIds.current.set(task.id, runId);
