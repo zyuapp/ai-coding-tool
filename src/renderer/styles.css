@@ -256,7 +256,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-menu-popover.section-menu-popover { width: 224px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 10px; margin: 1px 0 4px; }
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
-.project-tasks.drop-into, .task-list.drop-into { box-shadow: inset 0 0 0 1px #35404e; border-radius: 13px; }
 .task-entry { position: relative; min-width: 0; }
 .task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 .project-task-row {

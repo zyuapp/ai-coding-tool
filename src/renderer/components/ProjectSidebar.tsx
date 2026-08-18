@@ -201,9 +201,9 @@ export function ProjectSidebar({
                   <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${shortFolder(project.root)}`}><SquarePen size={16} /></button>
                 </div>
                 <Droppable droppableId={project.id} type="task">
-                  {(provided, snapshot) => (
+                  {(provided) => (
                     <div
-                      className={`project-tasks ${expanded || dragging ? "" : "collapsed"} ${snapshot.isDraggingOver ? "drop-into" : ""}`}
+                      className={`project-tasks ${expanded || dragging ? "" : "collapsed"}`}
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                     >
@@ -247,7 +247,7 @@ export function ProjectSidebar({
         <Droppable droppableId={RECENTS_DROPPABLE} type="task">
           {(provided, snapshot) => (
             <nav
-              className={`task-list ${recentsOpen || dragging ? "" : "collapsed"} ${snapshot.isDraggingOver ? "drop-into" : ""}`}
+              className={`task-list ${recentsOpen || dragging ? "" : "collapsed"}`}
               aria-label="Project-less tasks"
               ref={provided.innerRef}
               {...provided.droppableProps}
