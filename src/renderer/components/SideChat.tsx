@@ -31,6 +31,7 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
           folder={project?.root ?? ""}
           status={chat.status}
           compacting={chat.compacting}
+          streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
           empty={{
             icon: GitFork,

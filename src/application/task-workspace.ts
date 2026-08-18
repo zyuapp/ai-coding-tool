@@ -21,12 +21,22 @@ export type ApprovalView = {
   input: Record<string, unknown>;
 };
 
+/**
+ * The unfinished end of a streaming message. It stays out of the task so nothing half-written is
+ * persisted, and the next committed block replaces it.
+ */
+export type StreamingTail = {
+  messageId: string;
+  text: string;
+};
+
 /** Runs and their outcomes are keyed by task, so tasks progress independently. */
 export type RunTransitionState = {
   tasks: Task[];
   activeRuns: Record<string, ActiveRun>;
   runStatuses: Record<string, TaskRunStatus>;
   approvals: Record<string, ApprovalView>;
+  streamingTails: Record<string, StreamingTail>;
 };
 
 function now() {
@@ -65,6 +75,13 @@ export function withRunStatus<T extends RunTransitionState>(state: T, taskId: st
   return { ...state, runStatuses } as T;
 }
 
+export function withStreamingTail<T extends RunTransitionState>(state: T, taskId: string, tail: StreamingTail | null): T {
+  if (tail) return { ...state, streamingTails: { ...state.streamingTails, [taskId]: tail } } as T;
+  if (!(taskId in state.streamingTails)) return state;
+  const { [taskId]: _cleared, ...streamingTails } = state.streamingTails;
+  return { ...state, streamingTails } as T;
+}
+
 export function runStatusFor(state: RunTransitionState, taskId: string | null): TaskRunStatus {
   return taskId ? state.runStatuses[taskId] ?? "idle" : "idle";
 }
@@ -88,12 +105,12 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
   const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
 
-  if (event.type === "run.started") return withSequence;
+  if (event.type === "run.started") return withStreamingTail(withSequence, event.taskId, null);
   if (event.type === "run.status") {
     if (event.status === "running" || event.status === "awaiting-approval") {
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
     }
-    let next = withRunStatus(withActiveRun(withSequence, event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
+    let next = withRunStatus(withActiveRun(withStreamingTail(withSequence, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
     const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
@@ -108,8 +125,12 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.message!)], updatedAt: now() }));
     return next;
   }
+  if (event.type === "assistant.tail") {
+    return withStreamingTail(withSequence, event.taskId, event.text ? { messageId: event.messageId, text: event.text } : null);
+  }
   if (event.type === "assistant.delta") {
-    return applyTask(withSequence, event.taskId, (task) => {
+    /** The block being committed is what the tail was showing, so it stops standing in for it. */
+    return applyTask(withStreamingTail(withSequence, event.taskId, null), event.taskId, (task) => {
       const messages = [...task.messages];
       const last = messages.at(-1);
       if (last?.kind === "assistant" && last.id === event.messageId) messages[messages.length - 1] = { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` };

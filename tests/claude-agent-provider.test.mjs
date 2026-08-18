@@ -123,9 +123,13 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
 
   assert.deepEqual(await provider.execute(input({ emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(emitted, [
+    { type: "assistant-tail", messageId, text: "## Fi" },
     { type: "assistant", messageId, text: "## First\n\n", append: true },
+    { type: "assistant-tail", messageId, text: "Paragraph with **bo" },
     { type: "assistant", messageId, text: "Paragraph with **bold**.\n\n", append: true },
+    { type: "assistant-tail", messageId, text: "```ts\nconst x = 1;\n\n" },
     { type: "assistant", messageId, text: "```ts\nconst x = 1;\n\n```\n", append: true },
+    { type: "assistant-tail", messageId, text: "" },
     { type: "usage", tokens: 1, limit: 1_000_000, model: "claude-sonnet" },
   ]);
 });
@@ -179,6 +183,15 @@ test("Claude keeps complex Markdown fences intact across adversarial chunk bound
 
   for (const scenario of cases) {
     const emitted = [];
+    /** What the UI shows is the committed blocks plus the tail, so together they must never lag or repeat. */
+    let committed = "";
+    let chunk = 0;
+    const track = (event) => {
+      if (event.type === "assistant") committed += event.text;
+      if (event.type === "assistant-tail") {
+        assert.equal(committed + event.text, scenario.chunks.slice(0, ++chunk).join(""), `${scenario.name} after chunk ${chunk}`);
+      }
+    };
     const messageId = `complex-${scenario.name}`;
     const fullText = scenario.chunks.join("");
     const messages = [
@@ -188,8 +201,9 @@ test("Claude keeps complex Markdown fences intact across adversarial chunk bound
     ];
 
     const provider = new ClaudeAgentProvider(queryFactory(messages));
-    await provider.execute(input({ emit: (event) => emitted.push(event) }));
+    await provider.execute(input({ emit: (event) => { track(event); emitted.push(event); } }));
     assert.deepEqual(emitted.filter((event) => event.type === "assistant").map((event) => event.text), scenario.expected, scenario.name);
+    assert.equal(chunk, scenario.chunks.length, `${scenario.name} reports a tail for every chunk`);
   }
 });
 

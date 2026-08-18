@@ -23,6 +23,8 @@ export type SteerQueue = {
 
 export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string; append?: boolean }
+  /** The buffered remainder that has not formed a complete block yet, so the UI can type it out. */
+  | { type: "assistant-tail"; messageId: string; text: string }
   | { type: "usage"; tokens: number; limit: number; model: string }
   | { type: "compaction-status"; compacting: boolean; error?: string }
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }

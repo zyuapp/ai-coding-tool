@@ -162,6 +162,8 @@ export type RunEvent =
   | (RunEventBase & { type: "run.started" })
   | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string })
   | (RunEventBase & { type: "assistant.delta"; messageId: string; text: string; append?: boolean })
+  /** Streamed text that is not a complete Markdown block yet. Superseded by the next delta, never stored. */
+  | (RunEventBase & { type: "assistant.tail"; messageId: string; text: string })
   | (RunEventBase & { type: "context.usage"; tokens: number; limit: number; model: string })
   | (RunEventBase & { type: "context.compaction-status"; compacting: boolean; error?: string })
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
@@ -283,6 +285,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "run.started") return true;
   if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000));
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true);
+  if (event.type === "assistant.tail") return isString(event.messageId) && typeof event.text === "string" && event.text.length <= MAX_PROMPT_LENGTH;
   if (event.type === "context.usage") return typeof event.tokens === "number" && Number.isFinite(event.tokens) && event.tokens >= 0 && typeof event.limit === "number" && Number.isFinite(event.limit) && event.limit > 0 && isString(event.model);
   if (event.type === "context.compaction-status") return typeof event.compacting === "boolean" && (event.error === undefined || isString(event.error, 100_000));
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));

@@ -650,6 +650,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .work-steps { padding: 2px 0 10px 13px; border-left: 1px solid var(--line-soft); }
 .work-steps > .work-row:last-child, .work-steps > .work-group:last-child { border-bottom: 0; }
 .work-note { padding: 9px 0; color: #a9a7a3; }
+/** Text that has not formed a Markdown block yet, styled as the paragraph it is about to become. */
+.stream-pending { margin: 0 0 15px; }
+.stream-word { animation: stream-word 180ms ease-out both; }
+@keyframes stream-word { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stream-word { animation: none; } }
 pre {
   margin: 0 0 14px;
   overflow: auto;

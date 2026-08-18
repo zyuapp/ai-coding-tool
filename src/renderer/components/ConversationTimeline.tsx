@@ -3,8 +3,10 @@ import { ListCollapse, X, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
+import type { StreamingTail } from "../../application/task-workspace";
 import type { Task, TaskMessage } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { StreamingText } from "./StreamingText";
 
 function FolderIcon() {
   return (
@@ -47,8 +49,7 @@ type TurnSegment =
  * Assistant text and the tool calls it drives belong to one turn. A turn ending in assistant text is
  * settled; the newest turn of a running task is live and keeps collecting steps.
  */
-export function groupTimeline(messages: TaskMessage[], running: boolean): TimelineGroup[] {
-  const turns: TaskMessage[][] = [];
+export function groupTimeline(messages: TaskMessage[], running: boolean, tailMessageId?: string): TimelineGroup[] {
   const groups: (TimelineGroup | TaskMessage[])[] = [];
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system") {
@@ -57,14 +58,10 @@ export function groupTimeline(messages: TaskMessage[], running: boolean): Timeli
     }
     const open = groups.at(-1);
     if (Array.isArray(open)) open.push(message);
-    else {
-      const turn = [message];
-      turns.push(turn);
-      groups.push(turn);
-    }
+    else groups.push([message]);
   }
-  const liveTurn = running ? turns.at(-1) : undefined;
-  return groups.map((group) => {
+  const liveTurn = running && Array.isArray(groups.at(-1)) ? groups.at(-1) : undefined;
+  const timeline: TimelineGroup[] = groups.map((group) => {
     if (!Array.isArray(group)) return group;
     const settled = group !== liveTurn && group.at(-1)!.kind === "assistant";
     return {
@@ -73,8 +70,13 @@ export function groupTimeline(messages: TaskMessage[], running: boolean): Timeli
       steps: settled ? group.slice(0, -1) : group,
       final: settled ? group.at(-1)! : null,
       live: group === liveTurn,
-    };
+    } satisfies TimelineGroup;
   });
+  /** Text can stream before its first block commits, so the turn it belongs to may not exist yet. */
+  if (running && tailMessageId && !messages.some((message) => message.id === tailMessageId) && !liveTurn) {
+    timeline.push({ kind: "turn", id: tailMessageId, steps: [], final: null, live: true });
+  }
+  return timeline;
 }
 
 function timeSteps(steps: TaskMessage[], turnEndsAt: number | null): TimedStep[] {
@@ -159,10 +161,31 @@ function ToolRun({ steps }: { steps: TimedStep[] }) {
   );
 }
 
-function TurnSegments({ segments }: { segments: TurnSegment[] }) {
-  return segments.map((segment) => segment.kind === "tools"
+/**
+ * A live turn types its newest text out. The tail can arrive before its first block commits, so it
+ * renders under the message id it will belong to and keeps that node once the block lands. The
+ * newest text stays streamed even between tails, because remounting it would replay the whole block.
+ */
+function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[]; tail?: StreamingTail | null; live?: boolean }) {
+  const newest = segments.at(-1);
+  const streamingId = live ? tail?.messageId ?? (newest?.kind === "note" ? newest.message.id : undefined) : undefined;
+  const nodes = segments.map((segment) => segment.kind === "tools"
     ? <ToolRun key={segment.id} steps={segment.steps} />
-    : <div key={segment.id} className="message-text markdown-body work-note"><MarkdownMessage>{segment.message.text}</MarkdownMessage></div>);
+    : (
+      <div key={segment.id} className="message-text markdown-body work-note">
+        {segment.message.id === streamingId
+          ? <StreamingText committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} />
+          : <MarkdownMessage>{segment.message.text}</MarkdownMessage>}
+      </div>
+    ));
+  if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {
+    nodes.push(
+      <div key={streamingId} className="message-text markdown-body work-note">
+        <StreamingText committed="" tail={tail?.text ?? ""} />
+      </div>,
+    );
+  }
+  return nodes;
 }
 
 /** Settled turn: every step, tool calls and interim text alike, folds behind one row. */
@@ -186,16 +209,17 @@ export type ConversationTimelineProps = {
   folder: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
+  streamingTail?: StreamingTail | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   empty?: { icon: LucideIcon; title: string; description: string };
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, scrollContainerRef, empty }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const pinnedToBottom = useRef(true);
-  const groups = useMemo(() => groupTimeline(messages, status === "running"), [messages, status]);
+  const groups = useMemo(() => groupTimeline(messages, status === "running", streamingTail?.messageId), [messages, status, streamingTail?.messageId]);
   const virtualizer = useVirtualizer({
     count: groups.length,
     getScrollElement: () => scrollContainerRef.current,
@@ -258,9 +282,9 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
             >
               {group.kind === "turn" ? (
                 <article className="message assistant turn">
-                  {group.steps.length > 0 && (group.live
-                    ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} />
-                    : <SettledSteps steps={group.steps} endsAt={group.final?.at ?? null} />)}
+                  {group.live
+                    ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
+                    : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.final?.at ?? null} />}
                   {group.final && <div className="message-text markdown-body"><MarkdownMessage>{group.final.text}</MarkdownMessage></div>}
                 </article>
               ) : (

@@ -441,12 +441,13 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const { event } = input;
       const chat = state.sideChats.find((item) => item.id === event.taskId);
       if (chat) {
-        const applied = applyRunEvent({ tasks: [chat.task], activeRuns: state.activeRuns, runStatuses: state.runStatuses, approvals: state.approvals }, event);
+        const applied = applyRunEvent({ tasks: [chat.task], activeRuns: state.activeRuns, runStatuses: state.runStatuses, approvals: state.approvals, streamingTails: state.streamingTails }, event);
         return settled({
           ...withSideChat(state, chat.id, (item) => ({ ...item, task: applied.tasks[0]! })),
           activeRuns: applied.activeRuns,
           runStatuses: applied.runStatuses,
           approvals: applied.approvals,
+          streamingTails: applied.streamingTails,
         });
       }
       const active = state.activeRuns[event.taskId];

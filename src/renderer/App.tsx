@@ -206,7 +206,7 @@ export function App() {
 
         <div className="work-area">
           <div className="conversation" ref={transcriptRef}>
-            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} scrollContainerRef={transcriptRef} />
+            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} streamingTail={workspace.streamingTail} scrollContainerRef={transcriptRef} />
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>

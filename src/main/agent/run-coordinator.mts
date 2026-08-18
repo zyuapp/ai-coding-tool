@@ -14,12 +14,19 @@ type ActiveRun = {
   sequence: number;
   terminal: boolean;
   approvals: Map<string, { settled: boolean; resolve: (decision: "allow" | "deny") => void }>;
+  /** Newest streamed tail, held back until the throttle window opens. */
+  pendingTail?: { messageId: string; text: string };
+  tailTimer?: ReturnType<typeof setTimeout>;
 };
 
 type CoordinatorOptions = {
   isWritePathInside?: (root: string, candidate: string) => boolean | Promise<boolean>;
   automations?: (taskId: string) => AutomationBridge;
+  tailIntervalMs?: number;
 };
+
+/** Tails arrive per token; this is often enough to read as typing without flooding the renderer. */
+const DEFAULT_TAIL_INTERVAL_MS = 40;
 
 type RunEventPayload = RunEvent extends infer Event
   ? Event extends unknown
@@ -112,7 +119,12 @@ export class RunCoordinator {
 
   private handleProviderEvent(active: ActiveRun, event: ProviderEvent) {
     if (!this.isCurrent(active) || active.terminal) return;
-    if (event.type === "assistant") this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text, ...(event.append ? { append: true } : {}) });
+    if (event.type === "assistant") {
+      /** The committed block already contains whatever a waiting tail was holding. */
+      active.pendingTail = undefined;
+      this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text, ...(event.append ? { append: true } : {}) });
+    }
+    if (event.type === "assistant-tail") this.queueTail(active, event.messageId, event.text);
     if (event.type === "usage") this.publish(active, { type: "context.usage", tokens: event.tokens, limit: event.limit, model: event.model });
     if (event.type === "compaction-status") this.publish(active, { type: "context.compaction-status", compacting: event.compacting, ...(event.error === undefined ? {} : { error: event.error }) });
     if (event.type === "compaction") this.publish(active, { type: "context.compacted", trigger: event.trigger, preTokens: event.preTokens, ...(event.postTokens === undefined ? {} : { postTokens: event.postTokens }) });
@@ -124,6 +136,25 @@ export class RunCoordinator {
     if (event.type === "subagent.progress") this.publish(active, event);
     if (event.type === "subagent.activity") this.publish(active, event);
     if (event.type === "subagent.finished") this.publish(active, event);
+  }
+
+  private queueTail(active: ActiveRun, messageId: string, text: string) {
+    active.pendingTail = { messageId, text };
+    if (active.tailTimer) return;
+    this.flushTail(active);
+    active.tailTimer = setTimeout(() => {
+      active.tailTimer = undefined;
+      const pending = active.pendingTail;
+      if (pending) this.queueTail(active, pending.messageId, pending.text);
+    }, this.options.tailIntervalMs ?? DEFAULT_TAIL_INTERVAL_MS);
+    active.tailTimer.unref?.();
+  }
+
+  private flushTail(active: ActiveRun) {
+    const pending = active.pendingTail;
+    if (!pending || active.terminal) return;
+    active.pendingTail = undefined;
+    this.publish(active, { type: "assistant.tail", messageId: pending.messageId, text: pending.text });
   }
 
   private async authorize(active: ActiveRun, intent: ToolIntent): Promise<"allow" | "deny"> {
@@ -162,6 +193,9 @@ export class RunCoordinator {
   private finish(active: ActiveRun, status: "succeeded" | "failed" | "cancelled", message?: string) {
     if (active.terminal) return;
     active.terminal = true;
+    clearTimeout(active.tailTimer);
+    active.tailTimer = undefined;
+    active.pendingTail = undefined;
     active.steering.close();
     this.expireApprovals(active);
     if (this.isCurrent(active)) {

@@ -20,6 +20,7 @@ function state() {
     activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running" } },
     runStatuses: { "task-a": "running" },
     approvals: {},
+    streamingTails: {},
   };
 }
 

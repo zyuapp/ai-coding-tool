@@ -193,6 +193,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
     activeRuns: { "task-v": { taskId: "task-v", runId: "run-v", sequence: 0, status: "running" } },
     runStatuses: { "task-v": "running" },
     approvals: {},
+    streamingTails: {},
   };
   for (const event of events) state = applyRunEvent(state, event);
 
@@ -312,4 +313,70 @@ test("steering only reaches the run it names, and delivery is reported against t
   await tick();
   assert.equal(coordinator.steer("task-a", "run-a", "message-2", "too late"), false);
   assert.equal(await input.steering.next(), null, "a finished run stops waiting for more");
+});
+
+test("a burst of tails collapses to one leading and one trailing update", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event), { tailIntervalMs: 20 });
+
+  coordinator.start(base("task-t", "run-t"));
+  await tick();
+  const { emit } = provider.runs[0].input;
+  for (const text of ["The", "The first", "The first thing", "The first thing to"]) emit({ type: "assistant-tail", messageId: "message-1", text });
+
+  const leading = events.filter((event) => event.type === "assistant.tail");
+  assert.deepEqual(leading.map((event) => event.text), ["The"], "the first tail shows immediately");
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.deepEqual(
+    events.filter((event) => event.type === "assistant.tail").map((event) => event.text),
+    ["The", "The first thing to"],
+    "the newest text still lands once the window closes, so the tail never stalls short",
+  );
+
+  provider.runs[0].resolve({ status: "succeeded" });
+  await tick();
+});
+
+test("a committed block cancels the tail it already contains", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event), { tailIntervalMs: 20 });
+
+  coordinator.start(base("task-c", "run-c"));
+  await tick();
+  const { emit } = provider.runs[0].input;
+  emit({ type: "assistant-tail", messageId: "message-1", text: "Opening" });
+  emit({ type: "assistant-tail", messageId: "message-1", text: "Opening line." });
+  emit({ type: "assistant", messageId: "message-1", text: "Opening line.\n\n", append: true });
+  emit({ type: "assistant-tail", messageId: "message-1", text: "" });
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.deepEqual(
+    events.filter((event) => event.type.startsWith("assistant")).map((event) => [event.type, event.text]),
+    [["assistant.tail", "Opening"], ["assistant.delta", "Opening line.\n\n"], ["assistant.tail", ""]],
+    "no tail lands after the delta that already carries its text",
+  );
+
+  provider.runs[0].resolve({ status: "succeeded" });
+  await tick();
+});
+
+test("a run that ends mid-stream publishes no further tail", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event), { tailIntervalMs: 20 });
+
+  coordinator.start(base("task-e", "run-e"));
+  await tick();
+  const { emit } = provider.runs[0].input;
+  emit({ type: "assistant-tail", messageId: "message-1", text: "Started" });
+  emit({ type: "assistant-tail", messageId: "message-1", text: "Started writing" });
+  provider.runs[0].resolve({ status: "cancelled" });
+  await tick();
+  await new Promise((resolve) => setTimeout(resolve, 40));
+
+  assert.deepEqual(events.filter((event) => event.type === "assistant.tail").map((event) => event.text), ["Started"]);
+  assert.equal(events.at(-1).type, "run.status");
 });

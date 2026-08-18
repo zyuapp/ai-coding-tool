@@ -27,6 +27,7 @@ const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/Task
 const { drawAnnotations, wrapLabel } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
+const { StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 const { ProjectSidebar } = await vite.ssrLoadModule("/src/renderer/components/ProjectSidebar.tsx");
 
@@ -930,7 +931,7 @@ async function expand(details) {
   });
 }
 
-function timelineView(messages, status) {
+function timelineView(messages, status, streamingTail) {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
@@ -940,7 +941,7 @@ function timelineView(messages, status) {
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, folder: "/p", status, compacting: false, scrollContainerRef: { current: scroller },
+    currentTask: task, folder: "/p", status, compacting: false, streamingTail, scrollContainerRef: { current: scroller },
   });
 }
 
@@ -1339,5 +1340,116 @@ test("a collapsed folder is revealed before the drag is measured, not after", as
   } finally {
     dom.window.HTMLElement.prototype.getBoundingClientRect = original;
   }
+  await view.unmount();
+});
+
+/** Waits out the reveal loop, which paces itself against the real clock rather than frame count. */
+async function settle(view, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs;
+  let previous = null;
+  while (Date.now() < deadline) {
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    const current = view.container.textContent;
+    if (current === previous) return view;
+    previous = current;
+  }
+  throw new Error("streamed text never settled");
+}
+
+test("streamed text arrives progressively instead of landing whole", async () => {
+  const tail = "Checking the reducer before anything else.";
+  const view = await mount(React.createElement(StreamingText, { committed: "", tail }));
+
+  const steps = [];
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline && steps.at(-1) !== tail) {
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    const current = view.container.textContent;
+    if (steps.at(-1) !== current) steps.push(current);
+  }
+
+  assert.equal(steps.at(-1), tail);
+  assert.ok(steps.length >= 3, `expected a progressive reveal, saw ${JSON.stringify(steps)}`);
+  assert.ok(steps.every((step) => tail.startsWith(step)), "the reveal only ever grows from the front");
+  await view.unmount();
+});
+
+test("a revealed word keeps its node, so only new words animate in", async () => {
+  const view = await mount(React.createElement(StreamingText, { committed: "", tail: "One two" }));
+  await settle(view);
+  const before = [...view.container.querySelectorAll(".stream-word")].map((node) => node.textContent);
+  const firstNode = view.container.querySelector(".stream-word");
+
+  await view.render(React.createElement(StreamingText, { committed: "", tail: "One two three" }));
+  await settle(view);
+  const after = [...view.container.querySelectorAll(".stream-word")].map((node) => node.textContent);
+
+  assert.deepEqual(before, ["One ", "two"]);
+  assert.deepEqual(after, ["One ", "two ", "three"]);
+  assert.equal(view.container.querySelector(".stream-word"), firstNode, "an already-revealed word is not re-created");
+  await view.unmount();
+});
+
+test("committed blocks render as Markdown while the unfinished tail stays plain", async () => {
+  const view = await mount(React.createElement(StreamingText, { committed: "## Heading\n\n", tail: "Then a **partly" }));
+  await settle(view);
+
+  assert.equal(view.container.querySelector("h2").textContent, "Heading");
+  assert.equal(view.container.querySelector(".stream-pending").textContent, "Then a **partly", "an unclosed emphasis run is not parsed yet");
+  assert.equal(view.container.querySelector("strong"), null);
+
+  await view.render(React.createElement(StreamingText, { committed: "## Heading\n\nThen a **partly** written line.\n\n", tail: "" }));
+  await settle(view);
+  assert.equal(view.container.querySelector("strong").textContent, "partly");
+  assert.equal(view.container.querySelector(".stream-pending"), null);
+  await view.unmount();
+});
+
+test("text committing into a block does not rewind or repeat the reveal", async () => {
+  const view = await mount(React.createElement(StreamingText, { committed: "", tail: "A whole paragraph of text." }));
+  await settle(view);
+  assert.equal(view.container.textContent, "A whole paragraph of text.");
+
+  await view.render(React.createElement(StreamingText, { committed: "A whole paragraph of text.\n\n", tail: "" }));
+  assert.equal(view.container.textContent.trim(), "A whole paragraph of text.", "the same text stays put as it becomes a block");
+  await view.unmount();
+});
+
+test("a tail with no committed message yet still gets a live turn to render into", () => {
+  const messages = transcript({ kind: "user", text: "Explain this" });
+
+  assert.deepEqual(groupTimeline(messages, true).map((group) => group.kind), ["message"]);
+
+  const streaming = groupTimeline(messages, true, "message-1");
+  assert.deepEqual(streaming.map((group) => group.kind), ["message", "turn"]);
+  assert.deepEqual(streaming[1], { kind: "turn", id: "message-1", steps: [], final: null, live: true });
+
+  const answered = transcript({ kind: "user", text: "Explain this" }, { kind: "assistant", text: "Because" });
+  assert.deepEqual(groupTimeline(answered, true, "m1").map((group) => group.kind), ["message", "turn"], "the turn that owns the tail is not duplicated");
+});
+
+test("a live turn types its newest text and leaves settled turns alone", async () => {
+  const messages = transcript({ kind: "user", text: "Explain this" }, { kind: "assistant", text: "First block.\n\n" });
+  const view = await mount(timelineView(messages, "running", { messageId: "m1", text: "Second block still" }));
+  await settle(view);
+
+  assert.equal(view.container.querySelector(".work-note p").textContent, "First block.");
+  assert.equal(view.container.querySelector(".stream-pending").textContent, "Second block still");
+  await view.unmount();
+});
+
+test("a block committing between tails does not replay the text already read", async () => {
+  const streamed = transcript({ kind: "user", text: "Explain this" });
+  const view = await mount(timelineView(streamed, "running", { messageId: "reply-1", text: "The reducer owns every write." }));
+  await settle(view);
+  assert.equal(view.container.querySelector(".stream-pending").textContent, "The reducer owns every write.");
+
+  /** The delta clears the tail before the next one arrives, which is where a remount would rewind. */
+  const committed = [...streamed, { id: "reply-1", at: 2000, kind: "assistant", text: "The reducer owns every write.\n\n" }];
+  await view.render(timelineView(committed, "running", null));
+  assert.match(view.container.textContent, /The reducer owns every write\./);
+
+  await view.render(timelineView(committed, "running", { messageId: "reply-1", text: "Then the" }));
+  assert.match(view.container.textContent, /The reducer owns every write\./, "the committed block stays put while the next tail types on");
   await view.unmount();
 });

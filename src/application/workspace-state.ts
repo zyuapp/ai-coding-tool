@@ -1,4 +1,4 @@
-import { runStatusFor, type ApprovalView, type RunTransitionState, type TaskRunStatus } from "./task-workspace.js";
+import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type TaskRunStatus } from "./task-workspace.js";
 import { backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -52,7 +52,7 @@ export type SideChat = {
   error: string | null;
 };
 
-export type SideChatView = SideChat & { running: boolean; compacting: boolean; status: TaskRunStatus };
+export type SideChatView = SideChat & { running: boolean; compacting: boolean; status: TaskRunStatus; streamingTail: StreamingTail | null };
 
 export type WorkspaceState = {
   tasks: Task[];
@@ -113,6 +113,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     activeRuns: {},
     runStatuses: {},
     approvals: {},
+    streamingTails: {},
     storageError,
     actionError: null,
     writable: storageError === null,
@@ -189,6 +190,7 @@ export function deriveView(state: WorkspaceState) {
     runningTaskIds: new Set(Object.keys(state.activeRuns)),
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     subagents: currentTask?.subagents ?? [],
+    streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
     environment,
@@ -202,7 +204,7 @@ export function deriveView(state: WorkspaceState) {
     openMenu: state.openMenu,
     sideChats: state.sideChats.map((chat): SideChatView => {
       const active = state.activeRuns[chat.id];
-      return { ...chat, running: Boolean(active), compacting: active?.status === "compacting", status: active ? "running" : runStatusFor(state, chat.id) };
+      return { ...chat, running: Boolean(active), compacting: active?.status === "compacting", status: active ? "running" : runStatusFor(state, chat.id), streamingTail: state.streamingTails[chat.id] ?? null };
     }),
   };
 }

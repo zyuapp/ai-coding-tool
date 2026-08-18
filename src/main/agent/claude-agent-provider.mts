@@ -1,6 +1,7 @@
 import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
 import { contextWindowLimit } from "../../domain/run.js";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue } from "./agent-provider.mjs";
@@ -80,35 +81,20 @@ function normalizeToolIntent(toolName: string, input: unknown, toolUseID: string
 }
 
 type MarkdownBuffer = {
+  /** Text the stream has produced but not released yet. */
   text: string;
-  scanned: number;
-  fence?: { marker: string; length: number };
+  scan: BlockScan;
 };
 
+/** Releases whole Markdown blocks and keeps the rest buffered, so a half-written fence never ships. */
 function appendCompleteMarkdown(buffer: MarkdownBuffer, text: string) {
   buffer.text += text;
-  let safeEnd = 0;
-  let lineStart = buffer.scanned;
-  while (lineStart < buffer.text.length) {
-    const newline = buffer.text.indexOf("\n", lineStart);
-    if (newline === -1) break;
-    const line = buffer.text.slice(lineStart, newline);
-    const marker = line.match(/^(?:\s*>\s*)*\s*(?:(?:[-+*]|\d+[.)])\s+)?(`{3,}|~{3,})([\s\S]*)$/);
-    if (!buffer.fence && marker) {
-      buffer.fence = { marker: marker[1]![0]!, length: marker[1]!.length };
-    } else if (buffer.fence && marker && marker[1]![0] === buffer.fence.marker && marker[1]!.length >= buffer.fence.length && !marker[2]!.trim()) {
-      buffer.fence = undefined;
-      safeEnd = newline + 1;
-    } else if (!buffer.fence && line.trim() === "") {
-      safeEnd = newline + 1;
-    }
-    lineStart = newline + 1;
-  }
-  buffer.scanned = lineStart;
-  if (!safeEnd) return "";
-  const complete = buffer.text.slice(0, safeEnd);
-  buffer.text = buffer.text.slice(safeEnd);
-  buffer.scanned -= safeEnd;
+  const scan = scanBlocks(buffer.text, buffer.scan);
+  buffer.scan = scan;
+  if (!scan.safeEnd) return "";
+  const complete = buffer.text.slice(0, scan.safeEnd);
+  buffer.text = buffer.text.slice(scan.safeEnd);
+  buffer.scan = { safeEnd: 0, scanned: scan.scanned - scan.safeEnd, ...(scan.fence ? { fence: scan.fence } : {}) };
   return complete;
 }
 
@@ -218,11 +204,14 @@ export class ClaudeAgentProvider implements AgentProvider {
           });
         } else if (message.type === "stream_event" && !message.parent_tool_use_id && message.event.type === "message_start") {
           activeMainStreamId = message.event.message.id;
-          streamedText.set(activeMainStreamId, { text: "", scanned: 0 });
+          streamedText.set(activeMainStreamId, { text: "", scan: emptyScan() });
         } else if (message.type === "stream_event" && !message.parent_tool_use_id && activeMainStreamId && message.event.type === "content_block_delta" && message.event.delta.type === "text_delta") {
           const buffered = streamedText.get(activeMainStreamId);
-          const complete = buffered ? appendCompleteMarkdown(buffered, message.event.delta.text) : "";
-          if (complete) input.emit({ type: "assistant", messageId: activeMainStreamId, text: complete, append: true });
+          if (buffered) {
+            const complete = appendCompleteMarkdown(buffered, message.event.delta.text);
+            if (complete) input.emit({ type: "assistant", messageId: activeMainStreamId, text: complete, append: true });
+            input.emit({ type: "assistant-tail", messageId: activeMainStreamId, text: buffered.text });
+          }
         } else if (message.type === "assistant") {
           const subagentId = message.parent_tool_use_id ? subagentByToolUse.get(message.parent_tool_use_id) : undefined;
           if (subagentId) {

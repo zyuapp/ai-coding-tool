@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reduce } from "../dist/main/application/workspace-reducer.js";
-import { emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
+import { deriveView, emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 
 function task(id, overrides = {}) {
   return {
@@ -339,4 +339,58 @@ test("a send with no task yet opens the task it creates", () => {
   const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
 
   assert.equal(started.state.currentId, started.state.tasks[0].id);
+});
+
+test("a streaming tail shows outside the task, so nothing half-written is ever stored", () => {
+  const state = running();
+  const event = (sequence, extra) => ({ type: "run.event", event: { taskId: "task-a", runId: "run-a", sequence, ...extra } });
+
+  const streaming = run(state, [
+    event(1, { type: "assistant.tail", messageId: "message-1", text: "The first thing" }),
+    event(2, { type: "assistant.tail", messageId: "message-1", text: "The first thing to check" }),
+  ]);
+  assert.deepEqual(streaming.streamingTails["task-a"], { messageId: "message-1", text: "The first thing to check" });
+  assert.deepEqual(streaming.tasks[0].messages, [], "a tail never becomes a message");
+  assert.equal(streaming.tasks[0], state.tasks[0], "the task is untouched, so persistence has nothing to write");
+
+  const committed = reduce(streaming, event(3, { type: "assistant.delta", messageId: "message-1", text: "The first thing to check is the reducer.\n\n", append: true })).state;
+  assert.equal(committed.streamingTails["task-a"], undefined, "the committed block replaces what the tail was standing in for");
+  assert.equal(committed.tasks[0].messages[0].text, "The first thing to check is the reducer.\n\n");
+
+  const resumed = reduce(committed, event(4, { type: "assistant.tail", messageId: "message-1", text: "Then the" })).state;
+  assert.deepEqual(resumed.streamingTails["task-a"], { messageId: "message-1", text: "Then the" });
+
+  const finished = reduce(resumed, event(5, { type: "run.status", status: "succeeded" })).state;
+  assert.deepEqual(finished.streamingTails, {}, "a finished run leaves no tail behind");
+});
+
+test("an emptied tail clears rather than rendering nothing, and a new run starts clean", () => {
+  const state = running();
+  const event = (sequence, extra) => ({ type: "run.event", event: { taskId: "task-a", runId: "run-a", sequence, ...extra } });
+
+  const cleared = run(state, [
+    event(1, { type: "assistant.tail", messageId: "message-1", text: "Half a sen" }),
+    event(2, { type: "assistant.tail", messageId: "message-1", text: "" }),
+  ]);
+  assert.deepEqual(cleared.streamingTails, {});
+
+  const stale = run(state, [event(1, { type: "assistant.tail", messageId: "message-1", text: "Interrupted" })]);
+  const restarted = reduce(stale, event(2, { type: "run.started" })).state;
+  assert.deepEqual(restarted.streamingTails, {}, "a new run never inherits the previous run's tail");
+});
+
+test("a side chat streams its own tail without disturbing the main thread", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
+  ]);
+  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const { runId } = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).effects[0].command;
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
+
+  const streaming = reduce(started, { type: "run.event", event: { type: "assistant.tail", taskId: "chat-1", runId, sequence: 1, messageId: "message-1", text: "It reduces" } }).state;
+  assert.deepEqual(streaming.streamingTails["chat-1"], { messageId: "message-1", text: "It reduces" });
+  assert.equal(streaming.streamingTails["main-task"], undefined);
+  assert.equal(deriveView(streaming).sideChats[0].streamingTail.text, "It reduces");
 });
