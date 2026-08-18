@@ -27,6 +27,9 @@ export type ChangeSnapshot = {
 
 export type ContinuationStatus = "none" | "available" | "invalid";
 
+/** Why a task wants the user's eyes: it settled, broke, or is blocked on approval. */
+export type TaskAttention = "finished" | "failed" | "approval";
+
 export type ContextUsage = {
   tokens: number;
   limit: number;
@@ -46,6 +49,9 @@ export type Task = {
   continuation?: Continuation;
   continuationStatus: ContinuationStatus;
   lastChangeSnapshot: ChangeSnapshot;
+  /** Sidebar position. Only the user moves it; run activity never does. */
+  sortIndex?: number;
+  attention?: TaskAttention;
   updatedAt: number;
   archivedAt?: number;
 };
@@ -338,8 +344,14 @@ function isTaskBase(value: unknown): value is Task {
     value.messages.every(isTaskMessage) &&
     (value.subagents === undefined || Array.isArray(value.subagents) && value.subagents.every(isSubagent)) &&
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
+    (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
+    (value.attention === undefined || isTaskAttention(value.attention)) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
+}
+
+function isTaskAttention(value: unknown): value is TaskAttention {
+  return value === "finished" || value === "failed" || value === "approval";
 }
 
 function isRecord(value: unknown): value is Record<string, any> {

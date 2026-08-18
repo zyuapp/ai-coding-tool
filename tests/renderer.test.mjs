@@ -558,6 +558,105 @@ test("right panel resizes with the keyboard", async () => {
   await view.unmount();
 });
 
+function seedProjectTasks(tasks) {
+  localStorage.clear();
+  localStorage.setItem("claudex.store.v2", JSON.stringify({
+    tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
+      executionPolicy: "confirm",
+      messages: [],
+      continuationStatus: "none",
+      lastChangeSnapshot: { files: [], capturedAt: 1 },
+      projectId: "project-1",
+      ...task,
+    })) }),
+    projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/project" }] }),
+    lastFolder: JSON.stringify({ version: 2, value: "/project" }),
+  }));
+}
+
+test("sidebar rows hold their position no matter how recently a task ran", async () => {
+  seedProjectTasks([
+    { id: "top", title: "Pinned to the top", sortIndex: 0, updatedAt: 10 },
+    { id: "middle", title: "Busiest task", sortIndex: 1, updatedAt: 900 },
+    { id: "bottom", title: "Quietest task", sortIndex: 2, updatedAt: 400 },
+  ]);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
+  assert.deepEqual(titles(), ["Pinned to the top", "Busiest task", "Quietest task"]);
+  await view.unmount();
+});
+
+test("dragging a row drops it where the pointer lands", async () => {
+  seedProjectTasks([
+    { id: "first", title: "First", sortIndex: 0, updatedAt: 3 },
+    { id: "second", title: "Second", sortIndex: 1, updatedAt: 2 },
+    { id: "third", title: "Third", sortIndex: 2, updatedAt: 1 },
+  ]);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
+  const entry = (id) => view.container.querySelector(`.task-entry[data-task-id="${id}"]`);
+  document.elementFromPoint = () => entry("first");
+
+  await act(async () => { entry("third").dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0, clientY: 300 })); });
+  await act(async () => { entry("third").dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientY: 40 })); });
+  assert.ok(entry("third").className.includes("dragging"));
+
+  await act(async () => { window.dispatchEvent(new MouseEvent("pointermove", { clientY: 40 })); });
+  assert.ok(entry("first").className.includes("drop-after"));
+
+  await act(async () => { window.dispatchEvent(new MouseEvent("pointerup", { clientY: 40 })); });
+  assert.deepEqual(titles(), ["First", "Third", "Second"]);
+  assert.equal(view.container.querySelector(".task-entry.dragging"), null);
+
+  await act(async () => { entry("third").dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, button: 0, clientY: 300 })); });
+  await act(async () => { entry("third").dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientY: 40 })); });
+  await act(async () => { window.dispatchEvent(new Event("blur")); });
+  assert.equal(view.container.querySelector(".task-entry.dragging"), null);
+  assert.deepEqual(titles(), ["First", "Third", "Second"]);
+
+  delete document.elementFromPoint;
+  await view.unmount();
+});
+
+test("an unread row shows why it wants attention until it is opened", async () => {
+  seedProjectTasks([
+    { id: "open", title: "Open task", sortIndex: 0, updatedAt: 2 },
+    { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, attention: "approval" },
+  ]);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  const dot = view.container.querySelector(".task-attention.approval");
+  assert.equal(dot?.getAttribute("aria-label"), "Needs approval");
+
+  const waiting = [...view.container.querySelectorAll(".project-task-row")].find((row) => row.textContent.includes("Waiting task"));
+  await act(async () => { waiting.click(); });
+  assert.equal(view.container.querySelector(".task-attention"), null);
+  await view.unmount();
+});
+
+test("a run that settles out of sight is flagged, and clears when the window comes back", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { workspace.get().actions.setPrompt("Inspect the app"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const start = desktop.sent[0];
+
+  await act(async () => { window.dispatchEvent(new Event("blur")); });
+  await act(async () => {
+    desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 1, status: "succeeded" });
+  });
+  assert.equal(workspace.get().currentTask.attention, "finished");
+
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  assert.equal(workspace.get().currentTask.attention, undefined);
+  await workspace.view.unmount();
+});
+
 test("workspace hook runs a projectless task and scopes events, approvals, and cancellation", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
@@ -731,12 +830,17 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
   assert.notEqual(second.taskId, first.taskId);
   assert.equal(workspace.get().runActive, true);
   assert.deepEqual([...workspace.get().runningTaskIds].sort(), [first.taskId, second.taskId].sort());
+  assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [second.taskId, first.taskId]);
 
   await act(async () => {
     desktop.listener({ type: "assistant.delta", taskId: first.taskId, runId: first.runId, sequence: 1, messageId: "message-1", text: "one" });
     desktop.listener({ type: "assistant.delta", taskId: second.taskId, runId: second.runId, sequence: 1, messageId: "message-2", text: "two" });
   });
   assert.equal(workspace.get().currentTask.messages.at(-1).text, "two");
+  assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [second.taskId, first.taskId]);
+
+  await act(async () => { workspace.get().actions.moveTask(second.taskId, { taskId: first.taskId, place: "after" }); });
+  assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [first.taskId, second.taskId]);
 
   await act(async () => { desktop.listener({ type: "run.status", taskId: second.taskId, runId: second.runId, sequence: 2, status: "succeeded" }); });
   assert.equal(workspace.get().runActive, false);

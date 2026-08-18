@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { promptWithAttachments, taskTitleFor, type RunAttachment } from "../../application/attachments";
+import { backfillSortIndex, moveTask as moveTaskInList, nextSortIndex, orderTasks, type TaskDropTarget } from "../../application/task-order";
 import { applyRunEvent, applyTask, createTaskMessage, runStatusFor, withActiveRun, withRunStatus, type RunTransitionState } from "../../application/task-workspace";
 import type { ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
 import { contextWindowLimit } from "../../domain/run";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
-import type { Project, Task, TaskStoreData } from "../../domain/task";
+import type { Project, Task, TaskAttention, TaskStoreData } from "../../domain/task";
 import { legacyProjectId } from "../../domain/task";
 import type { WorkspaceRecord } from "../../domain/workspace";
 import { createLocalTaskStore } from "./local-task-store";
@@ -37,6 +38,20 @@ function now() {
   return Date.now();
 }
 
+/** A run only earns a dot when it settles on its own; cancelling is the user's own doing. */
+function attentionFor(event: RunEvent): TaskAttention | null {
+  if (event.type === "approval.requested") return "approval";
+  if (event.type !== "run.status") return null;
+  if (event.status === "succeeded") return "finished";
+  if (event.status === "failed") return "failed";
+  return null;
+}
+
+function withoutAttention(state: WorkspaceState, taskId: string | null): WorkspaceState {
+  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.attention)) return state;
+  return applyTask(state, taskId, ({ attention: _seen, ...task }) => task);
+}
+
 function projectFor(state: WorkspaceState, task: Task | undefined) {
   return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
 }
@@ -56,10 +71,11 @@ function stateFromData(data: TaskStoreData, storageError: string | null = null):
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
     : data.projects;
+  const tasks = backfillSortIndex(data.tasks);
   const firstTask = data.tasks[0];
   const firstProject = firstTask?.projectId ?? (firstTask ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
   return {
-    tasks: data.tasks,
+    tasks,
     projects,
     lastFolder: data.lastFolder,
     currentId: firstTask?.id ?? null,
@@ -142,6 +158,21 @@ export function useTaskWorkspace() {
   const submitting = useRef(new Set<string>());
   const persistenceReady = useRef(false);
   const persistenceQueue = useRef(Promise.resolve());
+  const focused = useRef(typeof document === "undefined" || document.hasFocus());
+
+  useEffect(() => {
+    const onFocus = () => {
+      focused.current = true;
+      setStateAndRef((current) => withoutAttention(current, current.currentId));
+    };
+    const onBlur = () => { focused.current = false; };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,6 +182,8 @@ export function useTaskWorkspace() {
         const loaded = stateFromData(data);
         stateRef.current = loaded;
         setState(loaded);
+        const backfill = persistenceDelta({ ...loaded, tasks: data.tasks }, loaded);
+        if (backfill.tasks.length) await window.desktop.persistTaskStore(backfill);
       } else {
         await window.desktop.persistTaskStore(persistenceDelta(null, stateRef.current));
       }
@@ -169,7 +202,11 @@ export function useTaskWorkspace() {
       const active = current.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return;
       const project = projectFor(current, current.tasks.find((task) => task.id === event.taskId));
-      const next = applyRunEvent(current, event);
+      const applied = applyRunEvent(current, event);
+      const attention = attentionFor(event);
+      const next = attention && !(focused.current && current.currentId === event.taskId)
+        ? applyTask(applied, event.taskId, (task) => ({ ...task, attention }))
+        : applied;
       setStateAndRef(event.type === "computer-use.setup-required" ? { ...next, computerUseSetup: true } : next);
       if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed") && project?.workspaceId) void refreshEnvironment(project.workspaceId, event.taskId, event.runId);
     });
@@ -183,9 +220,9 @@ export function useTaskWorkspace() {
   const policy = currentTask?.executionPolicy ?? state.draftPolicy;
   const model = currentTask?.model ?? state.draftModel;
   const contextWindow = currentTask?.contextWindow ?? state.draftContextWindow;
-  const visibleTasks = state.tasks.filter((task) => task.archivedAt === undefined);
-  const orderedTasks = visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt);
-  const recentTasks = orderedTasks.filter((task) => !task.projectId);
+  const visibleTasks = useMemo(() => state.tasks.filter((task) => task.archivedAt === undefined), [state.tasks]);
+  const orderedTasks = useMemo(() => orderTasks(visibleTasks), [visibleTasks]);
+  const recentTasks = useMemo(() => visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt), [visibleTasks]);
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const status = currentRun ? "running" : runStatusFor(state, state.currentId);
   const compacting = currentRun?.status === "compacting";
@@ -267,7 +304,7 @@ export function useTaskWorkspace() {
   function selectTask(taskId: string) {
     const task = stateRef.current.tasks.find((item) => item.id === taskId);
     const project = projectFor(stateRef.current, task);
-    setStateAndRef((current) => ({ ...current, currentId: taskId, draftProjectId: task?.projectId ?? null, lastFolder: project?.root ?? current.lastFolder, actionError: null }));
+    setStateAndRef((current) => withoutAttention({ ...current, currentId: taskId, draftProjectId: task?.projectId ?? null, lastFolder: project?.root ?? current.lastFolder, actionError: null }, taskId));
   }
 
   function archiveTask(taskId: string) {
@@ -277,6 +314,20 @@ export function useTaskWorkspace() {
       tasks: current.tasks.map((task) => task.id === taskId ? { ...task, archivedAt: now() } : task),
       currentId: current.currentId === taskId ? null : current.currentId,
     }));
+  }
+
+  function moveTask(taskId: string, target: TaskDropTarget) {
+    setStateAndRef((current) => {
+      const tasks = moveTaskInList(current.tasks, taskId, target);
+      if (tasks === current.tasks) return current;
+      const projectId = tasks.find((task) => task.id === taskId)?.projectId;
+      return {
+        ...current,
+        tasks,
+        expandedProjects: projectId ? new Set(current.expandedProjects).add(projectId) : current.expandedProjects,
+        openMenu: null,
+      };
+    });
   }
 
   function toggleProject(projectId: string) {
@@ -395,6 +446,7 @@ export function useTaskWorkspace() {
         messages: [],
         continuationStatus: "none",
         lastChangeSnapshot: { files: [], capturedAt: now() },
+        sortIndex: nextSortIndex(current.tasks),
         updatedAt: now(),
       };
     }
@@ -461,6 +513,7 @@ export function useTaskWorkspace() {
       openFolder,
       selectTask,
       archiveTask,
+      moveTask,
       toggleProject,
       removeProject,
       setProjectsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, projectsOpen: open })),

@@ -118,6 +118,7 @@ export function App() {
         onSetOpenMenu={workspace.actions.setOpenMenu}
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
+        onMoveTask={workspace.actions.moveTask}
         onOpenSettings={openSettings}
       />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}

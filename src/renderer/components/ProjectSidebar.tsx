@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Ellipsis, Settings, SquarePen } from "lucide-react";
-import type { Project, Task } from "../../domain/task";
+import type { TaskDropTarget } from "../../application/task-order";
+import type { Project, Task, TaskAttention } from "../../domain/task";
+
+const ATTENTION_LABELS: Record<TaskAttention, string> = {
+  finished: "Finished",
+  failed: "Failed",
+  approval: "Needs approval",
+};
 
 function shortFolder(folder: string) {
   return folder.split("/").filter(Boolean).at(-1) ?? folder;
@@ -42,6 +49,7 @@ export type ProjectSidebarProps = {
   onSetOpenMenu: (menu: string | null) => void;
   onSelectTask: (taskId: string) => void;
   onArchiveTask: (taskId: string) => void;
+  onMoveTask: (taskId: string, target: TaskDropTarget) => void;
   onOpenSettings: () => void;
 };
 
@@ -68,9 +76,62 @@ export function ProjectSidebar({
   onSetOpenMenu,
   onSelectTask,
   onArchiveTask,
+  onMoveTask,
   onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [dropHint, setDropHint] = useState<string | null>(null);
+  const drag = useRef<{ taskId: string; startY: number } | null>(null);
+  const hint = useRef<{ key: string; target: TaskDropTarget } | null>(null);
+  const dropped = useRef(false);
+
+  /** Resolves the row or group under the pointer; drop zones are marked with data attributes. */
+  function hintAt(taskId: string, clientX: number, clientY: number) {
+    const under = document.elementFromPoint(clientX, clientY);
+    const row = under?.closest?.("[data-task-id]");
+    const overId = row?.getAttribute("data-task-id");
+    if (row && overId && overId !== taskId) {
+      const box = row.getBoundingClientRect();
+      const place = clientY < box.top + box.height / 2 ? "before" : "after";
+      return { key: `task:${overId}:${place}`, target: { taskId: overId, place } as TaskDropTarget };
+    }
+    const group = under?.closest?.("[data-project-drop]");
+    const projectId = group?.getAttribute("data-project-drop");
+    if (projectId) return { key: `project:${projectId}`, target: { projectId: projectId === "recents" ? null : projectId } as TaskDropTarget };
+    return null;
+  }
+
+  function endDrag() {
+    drag.current = null;
+    hint.current = null;
+    setDragTaskId(null);
+    setDropHint(null);
+  }
+
+  useEffect(() => {
+    if (!dragTaskId) return;
+    const track = (event: PointerEvent) => {
+      hint.current = hintAt(dragTaskId, event.clientX, event.clientY);
+      setDropHint(hint.current?.key ?? null);
+    };
+    const drop = () => {
+      const target = hint.current?.target;
+      endDrag();
+      dropped.current = true;
+      if (target) onMoveTask(dragTaskId, target);
+    };
+    window.addEventListener("pointermove", track);
+    window.addEventListener("pointerup", drop);
+    window.addEventListener("pointercancel", endDrag);
+    window.addEventListener("blur", endDrag);
+    return () => {
+      window.removeEventListener("pointermove", track);
+      window.removeEventListener("pointerup", drop);
+      window.removeEventListener("pointercancel", endDrag);
+      window.removeEventListener("blur", endDrag);
+    };
+  }, [dragTaskId, onMoveTask]);
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
     const sidebar = target.parentElement;
@@ -78,10 +139,29 @@ export function ProjectSidebar({
   }
 
   const taskRow = (task: Task, className: string, content: React.ReactNode) => (
-    <div className="task-entry" key={task.id}>
+    <div
+      className={`task-entry ${dragTaskId === task.id ? "dragging" : ""} ${dropHint === `task:${task.id}:before` ? "drop-before" : ""} ${dropHint === `task:${task.id}:after` ? "drop-after" : ""}`}
+      key={task.id}
+      data-task-id={task.id}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        drag.current = { taskId: task.id, startY: event.clientY };
+      }}
+      onPointerMove={(event) => {
+        if (drag.current?.taskId !== task.id || dragTaskId) return;
+        if (Math.abs(event.clientY - drag.current.startY) < 5) return;
+        setDragTaskId(task.id);
+      }}
+    >
       <button
         className={className}
-        onClick={() => onSelectTask(task.id)}
+        onClick={() => {
+          if (dropped.current) {
+            dropped.current = false;
+            return;
+          }
+          onSelectTask(task.id);
+        }}
         onContextMenu={(event) => {
           event.preventDefault();
           const row = event.currentTarget.getBoundingClientRect();
@@ -131,12 +211,17 @@ export function ProjectSidebar({
           {projects.map((project) => {
             const projectTasks = orderedTasks.filter((task) => task.projectId === project.id);
             const expanded = expandedProjects.has(project.id);
+            const attentionCount = projectTasks.filter((task) => task.attention).length;
             return (
               <section className="project-group" key={project.id}>
-                <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`}>
+                <div
+                  className={`project-row ${draftProjectId === project.id ? "current" : ""} ${dropHint === `project:${project.id}` ? "drop-into" : ""}`}
+                  data-project-drop={project.id}
+                >
                   <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
                     <span className="folder-icon"><FolderIcon /></span>
                     <span>{shortFolder(project.root)}</span>
+                    {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
                   </button>
                   <div
                     className={`project-menu ${openMenu === `project:${project.id}` ? "open" : ""}`}
@@ -165,7 +250,9 @@ export function ProjectSidebar({
                   <div className="project-tasks">
                     {projectTasks.map((task) => taskRow(task, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
                         <span>{task.title}</span>
-                        {runningTaskIds.has(task.id) && <span className="task-spinner" aria-label="Working" />}
+                        {runningTaskIds.has(task.id)
+                          ? <span className="task-spinner" aria-label="Working" />
+                          : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
                       </>))}
                   </div>
                 )}
@@ -174,7 +261,7 @@ export function ProjectSidebar({
           })}
         </nav>}
 
-        <div className="section-heading recents-heading">
+        <div className={`section-heading recents-heading ${dropHint === "project:recents" ? "drop-into" : ""}`} data-project-drop="recents">
           <button className="section-toggle" onClick={() => onSetRecentsOpen(!recentsOpen)} aria-expanded={recentsOpen}>
             <span>Recents</span><span className="section-chevron" aria-hidden="true" />
           </button>
@@ -202,7 +289,10 @@ export function ProjectSidebar({
           ) : (
             recentTasks.map((task) => taskRow(task, `task-row ${task.id === currentId ? "active" : ""}`, <>
                 <span>{task.title}</span>
-                <small>{formatTime(task.updatedAt)}</small>
+                <small>
+                  {formatTime(task.updatedAt)}
+                  {task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                </small>
               </>))
           )}
         </nav>}
