@@ -131,6 +131,7 @@ export function TaskComposer({
   const commandMenuRef = useRef<HTMLDivElement>(null);
   const [commands, setCommands] = useState<AvailableCommand[]>([]);
   const [commandsLoading, setCommandsLoading] = useState(true);
+  const [commandsToken, setCommandsToken] = useState(0);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
   const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
@@ -225,7 +226,13 @@ export function TaskComposer({
       }
     })();
     return () => { cancelled = true; };
-  }, [workspaceId]);
+  }, [workspaceId, commandsToken]);
+
+  useEffect(() => {
+    const reload = () => setCommandsToken((token) => token + 1);
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, []);
 
   useEffect(() => setSelectedCommand(0), [prompt, commands]);
 
