@@ -233,6 +233,7 @@ export function useTaskWorkspace() {
   const folder = currentProject?.root ?? "";
   const policy = currentTask?.executionPolicy ?? state.draftPolicy;
   const model = currentTask?.model ?? state.draftModel;
+  const automatedTaskIds = useMemo(() => new Set(state.automations.map((automation) => automation.taskId)), [state.automations]);
   const visibleTasks = useMemo(() => state.tasks.filter((task) => task.archivedAt === undefined), [state.tasks]);
   const orderedTasks = useMemo(() => orderTasks(visibleTasks), [visibleTasks]);
   const recentTasks = useMemo(() => visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt), [visibleTasks]);
@@ -593,6 +594,7 @@ export function useTaskWorkspace() {
     approval: visibleApproval,
     subagents: currentTask?.subagents ?? [],
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
+    automatedTaskIds,
     environment: currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null,
     storageError: state.storageError,
     actionError: state.actionError,

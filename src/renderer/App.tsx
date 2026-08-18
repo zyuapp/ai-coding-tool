@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, GitFork, Plus, X } from "lucide-react";
+import { AlarmClock, Bot, GitFork, Plus, X } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
+import { AutomationPanel } from "./components/AutomationPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -105,6 +106,7 @@ export function App() {
         draftProjectId={workspace.currentProject?.id ?? null}
         expandedProjects={workspace.expandedProjects}
         runningTaskIds={workspace.runningTaskIds}
+        automatedTaskIds={workspace.automatedTaskIds}
         projectsOpen={workspace.projectsOpen}
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}
@@ -161,14 +163,12 @@ export function App() {
             environment={workspace.environment}
             hasProject={Boolean(workspace.folder)}
             subagents={workspace.subagents}
-            automation={workspace.automation}
+            automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
               setSelectedSubagent(id);
               openRightTab("agents");
             }}
-            onAutomationUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
-            onAutomationDelete={() => void workspace.actions.deleteAutomation()}
-            onAutomationRunNow={() => void workspace.actions.runAutomationNow()}
+            onOpenAutomations={() => openRightTab("automation")}
           />
         )}
 
@@ -197,6 +197,11 @@ export function App() {
                     {workingSubagents > 0 && <em>{workingSubagents}</em>}
                   </button>
                 )}
+                {activeRightTab === "automation" && (
+                  <button className="active" type="button" role="tab" aria-selected={true} onClick={() => openRightTab("automation")}>
+                    <AlarmClock size={15} aria-hidden="true" /><span>Automation</span>
+                  </button>
+                )}
                 {sideChats.map((chat) => (
                   <div className={`right-dock-chat-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
                     <button type="button" role="tab" aria-selected={activeRightTab === chat.id} onClick={() => setActiveRightTab(chat.id)}><GitFork size={14} aria-hidden="true" /><span>{chat.title}</span></button>
@@ -208,6 +213,7 @@ export function App() {
                 <summary aria-label="Add right panel tab"><Plus size={18} /></summary>
                 <div>
                   <button type="button" onClick={(event) => { openRightTab("agents"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Bot size={16} />Subagents</button>
+                  <button type="button" onClick={(event) => { openRightTab("automation"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><AlarmClock size={16} />Automation</button>
                   <button type="button" disabled={!workspace.currentTask} onClick={(event) => { addSideChat(); event.currentTarget.closest("details")?.removeAttribute("open"); }}><GitFork size={16} />Side chat</button>
                 </div>
               </details>
@@ -224,6 +230,10 @@ export function App() {
                     <Bot size={19} aria-hidden="true" />
                     <span><strong>Subagents</strong><small>View work delegated from this task</small></span>
                   </button>
+                  <button type="button" aria-label="Open Automation panel" onClick={() => openRightTab("automation")}>
+                    <AlarmClock size={19} aria-hidden="true" />
+                    <span><strong>Automation</strong><small>Edit the schedule that repeats this task</small></span>
+                  </button>
                   <button type="button" aria-label="Open Side chat panel" disabled={!workspace.currentTask} onClick={addSideChat}>
                     <GitFork size={19} aria-hidden="true" />
                     <span><strong>Side chat</strong><small>Start a focused conversation from this task</small></span>
@@ -234,6 +244,14 @@ export function App() {
                 {inspectedSubagent ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} /> : (
                   <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />
                 )}
+              </div>
+              <div hidden={activeRightTab !== "automation"}>
+                <AutomationPanel
+                  automation={workspace.automation}
+                  onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
+                  onDelete={() => void workspace.actions.deleteAutomation()}
+                  onRunNow={() => void workspace.actions.runAutomationNow()}
+                />
               </div>
               {workspace.currentTask && sideChats.map((chat) => (
                 <div key={chat.id} hidden={activeRightTab !== chat.id}>

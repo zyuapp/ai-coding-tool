@@ -49,9 +49,15 @@ export function AutomationPanel({ automation, onUpdate, onDelete, onRunNow }: Au
 
   if (!automation) {
     return (
-      <section className="automation-section" aria-label="Automation">
-        <div className="subagent-heading"><span>Automation</span></div>
-        <p className="session-empty">Ask Claude to repeat this task — “run this every morning at 8” — and it appears here.</p>
+      <section className="automation-panel" aria-label="Automation">
+        <header className="agents-panel-heading">
+          <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
+        </header>
+        <div className="agents-panel-empty">
+          <span className="agent-orb"><AlarmClock size={17} /></span>
+          <h2>No automation yet</h2>
+          <p>Ask Claude to repeat this task — “run this every morning at 8” — and it appears here.</p>
+        </div>
       </section>
     );
   }
@@ -59,44 +65,46 @@ export function AutomationPanel({ automation, onUpdate, onDelete, onRunNow }: Au
   const dirty = schedule !== automation.schedule || prompt !== automation.prompt;
 
   return (
-    <section className="automation-section" aria-label="Automation">
-      <div className="subagent-heading">
-        <span>Automation</span>
+    <section className="automation-panel" aria-label="Automation">
+      <header className="agents-panel-heading">
+        <div><h2>Automation</h2><p>Repeat this task on a schedule</p></div>
         <span>{automationStatusLabel(automation, now)}</span>
-      </div>
+      </header>
 
-      <label className="automation-field">
-        <span>Schedule</span>
-        <input
-          value={schedule}
-          aria-label="Automation schedule"
-          spellCheck={false}
-          onInput={(event) => setSchedule(event.currentTarget.value)}
-        />
-      </label>
+      <div className="automation-body">
+        <label className="automation-field">
+          <span>Schedule</span>
+          <input
+            value={schedule}
+            aria-label="Automation schedule"
+            spellCheck={false}
+            onInput={(event) => setSchedule(event.currentTarget.value)}
+          />
+        </label>
 
-      <label className="automation-field">
-        <span>Prompt</span>
-        <textarea
-          value={prompt}
-          rows={3}
-          aria-label="Automation prompt"
-          onInput={(event) => setPrompt(event.currentTarget.value)}
-        />
-      </label>
+        <label className="automation-field">
+          <span>Prompt</span>
+          <textarea
+            value={prompt}
+            rows={10}
+            aria-label="Automation prompt"
+            onInput={(event) => setPrompt(event.currentTarget.value)}
+          />
+        </label>
 
-      <p className="automation-meta">
-        <AlarmClock size={13} aria-hidden="true" />
-        <span>{automation.runCount} {automation.runCount === 1 ? "run" : "runs"} · {lastRunLabel(automation)}</span>
-      </p>
+        <p className="automation-meta">
+          <AlarmClock size={13} aria-hidden="true" />
+          <span>{automation.runCount} {automation.runCount === 1 ? "run" : "runs"} · {lastRunLabel(automation)}</span>
+        </p>
 
-      <div className="automation-actions">
-        <button type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt })}>Save</button>
-        <button type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
-          {automation.paused ? <Play size={14} /> : <Pause size={14} />}
-        </button>
-        <button type="button" onClick={onRunNow} aria-label="Run automation now"><RotateCw size={14} /></button>
-        <button type="button" className="automation-remove" onClick={onDelete} aria-label="Remove automation"><Trash2 size={14} /></button>
+        <div className="automation-actions">
+          <button type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt })}>Save</button>
+          <button type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
+            {automation.paused ? <Play size={14} /> : <Pause size={14} />}
+          </button>
+          <button type="button" onClick={onRunNow} aria-label="Run automation now"><RotateCw size={14} /></button>
+          <button type="button" className="automation-remove" onClick={onDelete} aria-label="Remove automation"><Trash2 size={14} /></button>
+        </div>
       </div>
     </section>
   );

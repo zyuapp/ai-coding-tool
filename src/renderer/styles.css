@@ -500,7 +500,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .right-dock-picker strong { color: #d2d0cb; font-size: var(--text-control); font-weight: 580; }
 .right-dock-picker small { color: #747a82; font-size: var(--text-meta); line-height: 1.35; }
 .right-dock .subagent-inspector { height: 100%; border-left: 0; }
-.agents-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.agents-panel, .automation-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: #d2d0cb; font-size: var(--text-heading); font-weight: 580; }
 .agents-panel-heading p { margin: 4px 0 0; color: #636a73; font-size: var(--text-meta); }
@@ -1009,7 +1009,10 @@ pre {
 .change-counts strong { color: #72c66b; }
 .change-counts em { color: #e06c75; }
 .session-note { margin: 2px 6px 0 34px; color: #656b72; font-size: var(--text-meta); line-height: 1.4; }
-.automation-section { border-top: 1px solid #242a31; padding: 9px 12px 11px; }
+.session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
+.session-row-action:hover { background: #1b2028; }
+.session-count { color: #989ca1; font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
+.automation-body { min-height: 0; overflow: auto; padding: 16px 22px 22px; }
 .automation-field { display: grid; gap: 4px; margin-top: 9px; }
 .automation-field > span { color: #73787f; font-size: var(--text-meta); font-weight: 550; }
 .automation-field input, .automation-field textarea {
@@ -1052,6 +1055,8 @@ pre {
 .automation-actions button:disabled { opacity: 0.45; }
 .automation-actions button:first-child { margin-right: auto; padding: 0 10px; }
 .automation-actions .automation-remove:hover { border-color: #5c3237; color: #e06c75; }
+.task-row-marks { display: flex; align-items: center; gap: 7px; }
+.task-automation { flex: none; color: #7d838b; }
 .subagent-section { border-top: 1px solid #242a31; padding: 9px 12px 10px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #73787f; font-size: var(--text-control); font-weight: 580; }
 .subagent-heading > span:last-child { color: #7695b8; font-size: var(--text-meta); font-weight: 550; }

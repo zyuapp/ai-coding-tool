@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { Ellipsis, Settings, SquarePen } from "lucide-react";
+import { AlarmClock, Ellipsis, Settings, SquarePen } from "lucide-react";
 import type { TaskDropTarget } from "../../application/task-order";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 
@@ -39,6 +39,7 @@ export type ProjectSidebarProps = {
   draftProjectId: string | null;
   expandedProjects: Set<string>;
   runningTaskIds: Set<string>;
+  automatedTaskIds: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
   openMenu: string | null;
@@ -66,6 +67,7 @@ export function ProjectSidebar({
   draftProjectId,
   expandedProjects,
   runningTaskIds,
+  automatedTaskIds,
   projectsOpen,
   recentsOpen,
   openMenu,
@@ -206,9 +208,12 @@ export function ProjectSidebar({
                     >
                       {projectTasks.map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
                           <span>{task.title}</span>
-                          {runningTaskIds.has(task.id)
-                            ? <span className="task-spinner" aria-label="Working" />
-                            : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                          <span className="task-row-marks">
+                            {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
+                            {runningTaskIds.has(task.id)
+                              ? <span className="task-spinner" aria-label="Working" />
+                              : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                          </span>
                         </>))}
                       {provided.placeholder}
                     </div>
@@ -253,6 +258,7 @@ export function ProjectSidebar({
               {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <>
                   <span>{task.title}</span>
                   <small>
+                    {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
                     {formatTime(task.updatedAt)}
                     {task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
                   </small>
