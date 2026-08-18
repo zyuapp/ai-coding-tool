@@ -28,8 +28,7 @@ export type ProjectSidebarProps = {
   currentId: string | null;
   draftProjectId: string | null;
   expandedProjects: Set<string>;
-  status: "idle" | "running" | "stopped";
-  runningTaskId: string | null;
+  runningTaskIds: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
   openMenu: string | null;
@@ -55,8 +54,7 @@ export function ProjectSidebar({
   currentId,
   draftProjectId,
   expandedProjects,
-  status,
-  runningTaskId,
+  runningTaskIds,
   projectsOpen,
   recentsOpen,
   openMenu,
@@ -167,7 +165,7 @@ export function ProjectSidebar({
                   <div className="project-tasks">
                     {projectTasks.map((task) => taskRow(task, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
                         <span>{task.title}</span>
-                        {status === "running" && task.id === runningTaskId && <span className="task-spinner" aria-label="Working" />}
+                        {runningTaskIds.has(task.id) && <span className="task-spinner" aria-label="Working" />}
                       </>))}
                   </div>
                 )}

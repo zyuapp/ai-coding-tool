@@ -17,7 +17,7 @@ async function waitFor(predicate) {
   assert.fail("Timed out waiting for transport state");
 }
 
-test("main transport validates, correlates, cancels, supersedes, and fails runs", async (t) => {
+test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async (t) => {
   const userData = await mkdtemp(path.join(os.tmpdir(), "claudex-main-"));
   const handlers = new Map();
   const listeners = new Map();
@@ -114,8 +114,12 @@ test("main transport validates, correlates, cancels, supersedes, and fails runs"
   await tick();
   assert.equal(agents[0].messages.some((message) => message.runId === "run-cancelled"), false);
 
-  runCommand(trusted, command("old", "run-old"));
-  runCommand(trusted, command("new", "run-new"));
+  runCommand(trusted, command("concurrent-a", "run-concurrent-a"));
+  runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
+  await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0].messages.some((message) => message.runId === runId)));
+
+  runCommand(trusted, command("resubmitted", "run-old"));
+  runCommand(trusted, command("resubmitted", "run-new"));
   await waitFor(() => agents[0].messages.some((message) => message.runId === "run-new"));
   assert.equal(agents[0].messages.some((message) => message.runId === "run-old"), false);
   assert.equal(agents[0].messages.some((message) => message.runId === "run-new"), true);

@@ -163,7 +163,7 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
   if (!trustedSender(event) || !isRunCommand(payload)) return;
   if (payload.type === "start") {
     if (runStates.has(runKey(payload.taskId, payload.runId))) return;
-    for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId), (command) => command.channel === payload.channel)) {
+    for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId), (command) => command.taskId === payload.taskId)) {
       if (runStates.get(oldKey)?.terminal) continue;
       emitSyntheticTerminal(oldCommand, "cancelled", "The run was superseded before it started.");
     }

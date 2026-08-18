@@ -190,9 +190,8 @@ test("Claude subagent events reach correlated renderer state", async () => {
 
   let state = {
     tasks: [{ id: "task-v", title: "Vertical flow", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
-    activeRun: { taskId: "task-v", runId: "run-v", sequence: 0, status: "running" },
-    lastRunStatus: "running",
-    lastRunTaskId: "task-v",
+    activeRuns: { "task-v": { taskId: "task-v", runId: "run-v", sequence: 0, status: "running" } },
+    runStatuses: { "task-v": "running" },
     approvals: {},
   };
   for (const event of events) state = applyRunEvent(state, event);
@@ -209,7 +208,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
     { id: "child-message:text", kind: "text", title: undefined, text: "Reading the renderer" },
     { id: "read-1", kind: "tool", title: "Read", text: JSON.stringify({ file_path: "src/renderer/App.tsx" }, null, 2) },
   ]);
-  assert.equal(state.activeRun, null);
+  assert.equal(state.activeRuns["task-v"], undefined);
 });
 
 test("coordinator forwards every provider event with one ordered sequence", async () => {
@@ -245,4 +244,46 @@ test("coordinator converts a thrown provider error into one failure", async () =
 
   assert.deepEqual(statuses(events, "run-throw"), ["running", "failed"]);
   assert.equal(events.at(-1).message, "provider exploded");
+});
+
+test("runs for different tasks stay live together and each ends on its own", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-1", "run-1"));
+  coordinator.start(base("task-2", "run-2"));
+  await tick();
+  provider.runs[0].input.emit({ type: "assistant", messageId: "message-1", text: "from one" });
+  provider.runs[1].input.emit({ type: "assistant", messageId: "message-2", text: "from two" });
+  provider.runs[0].resolve({ status: "succeeded" });
+  await tick();
+  provider.runs[1].input.emit({ type: "assistant", messageId: "message-2", text: "still going" });
+  provider.runs[1].resolve({ status: "succeeded" });
+  await tick();
+
+  assert.deepEqual(statuses(events, "run-1"), ["running", "succeeded"]);
+  assert.deepEqual(statuses(events, "run-2"), ["running", "succeeded"]);
+  assert.equal(events.filter((event) => event.runId === "run-2" && event.type === "assistant.delta").length, 2);
+  assert.equal(coordinator.cancel("task-2", "run-2"), false);
+});
+
+test("a new run for the same task supersedes the previous one", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-1", "run-first"));
+  await tick();
+  coordinator.start(base("task-1", "run-second"));
+  await tick();
+  provider.runs[0].input.emit({ type: "assistant", messageId: "late", text: "late output" });
+  provider.runs[0].resolve({ status: "succeeded" });
+  provider.runs[1].resolve({ status: "succeeded" });
+  await tick();
+
+  assert.equal(provider.runs[0].input.abortController.signal.aborted, true);
+  assert.equal(events.some((event) => event.runId === "run-first" && event.type === "assistant.delta"), false);
+  assert.deepEqual(statuses(events, "run-first"), ["running", "cancelled"]);
+  assert.deepEqual(statuses(events, "run-second"), ["running", "succeeded"]);
 });

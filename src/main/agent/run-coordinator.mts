@@ -6,7 +6,6 @@ import type { AgentProvider, ProviderEvent } from "./agent-provider.mjs";
 type ActiveRun = {
   taskId: string;
   runId: string;
-  generation: number;
   workspaceRoot: string;
   projectless: boolean;
   abortController: AbortController;
@@ -26,8 +25,8 @@ type RunEventPayload = RunEvent extends infer Event
   : never;
 
 export class RunCoordinator {
-  private current: ActiveRun | null = null;
-  private generation = 0;
+  /** One live run per task; different tasks run concurrently. */
+  private readonly runs = new Map<string, ActiveRun>();
 
   constructor(
     private readonly provider: AgentProvider,
@@ -36,11 +35,11 @@ export class RunCoordinator {
   ) {}
 
   start(command: InternalStartRunCommand) {
-    if (this.current) this.cancelActive(this.current);
+    const previous = this.runs.get(command.taskId);
+    if (previous) this.cancelActive(previous);
     const active: ActiveRun = {
       taskId: command.taskId,
       runId: command.runId,
-      generation: ++this.generation,
       workspaceRoot: command.workspaceRoot,
       projectless: Boolean(command.projectless),
       abortController: new AbortController(),
@@ -48,28 +47,22 @@ export class RunCoordinator {
       terminal: false,
       approvals: new Map(),
     };
-    this.current = active;
+    this.runs.set(command.taskId, active);
     this.publish(active, { type: "run.started" });
     this.publish(active, { type: "run.status", status: "running" });
     void this.execute(active, command);
   }
 
   cancel(taskId: string, runId: string) {
-    const active = this.current;
-    if (!active || active.taskId !== taskId || active.runId !== runId) return false;
+    const active = this.runs.get(taskId);
+    if (!active || active.runId !== runId) return false;
     this.cancelActive(active);
     return true;
   }
 
-  cancelCurrent() {
-    if (!this.current) return false;
-    this.cancelActive(this.current);
-    return true;
-  }
-
   decideApproval(taskId: string, runId: string, approvalId: string, allow: boolean) {
-    const active = this.current;
-    if (!active || active.taskId !== taskId || active.runId !== runId || active.terminal) return false;
+    const active = this.runs.get(taskId);
+    if (!active || active.runId !== runId || active.terminal) return false;
     const pending = active.approvals.get(approvalId);
     if (!pending || pending.settled) return false;
     pending.settled = true;
@@ -77,11 +70,6 @@ export class RunCoordinator {
     pending.resolve(allow ? "allow" : "deny");
     if (!active.terminal && this.isCurrent(active)) this.publish(active, { type: "run.status", status: "running" });
     return true;
-  }
-
-  decideApprovalCurrent(approvalId: string, allow: boolean) {
-    const active = this.current;
-    return active ? this.decideApproval(active.taskId, active.runId, approvalId, allow) : false;
   }
 
   private async execute(active: ActiveRun, command: InternalStartRunCommand) {
@@ -163,7 +151,7 @@ export class RunCoordinator {
     this.expireApprovals(active);
     if (this.isCurrent(active)) {
       this.publish(active, { type: "run.status", status, message });
-      this.current = null;
+      this.runs.delete(active.taskId);
     }
   }
 
@@ -178,7 +166,7 @@ export class RunCoordinator {
   }
 
   private isCurrent(active: ActiveRun) {
-    return this.current?.generation === active.generation && this.current.runId === active.runId;
+    return this.runs.get(active.taskId) === active;
   }
 
   private publish(active: ActiveRun, event: RunEventPayload) {

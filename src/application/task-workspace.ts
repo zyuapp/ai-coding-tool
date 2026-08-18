@@ -9,6 +9,8 @@ export type ActiveRun = {
   status: "running" | "compacting" | "awaiting-approval";
 };
 
+export type TaskRunStatus = "idle" | "running" | "stopped";
+
 export type ApprovalView = {
   approvalId: string;
   taskId: string;
@@ -19,11 +21,11 @@ export type ApprovalView = {
   input: Record<string, unknown>;
 };
 
+/** Runs and their outcomes are keyed by task, so tasks progress independently. */
 export type RunTransitionState = {
   tasks: Task[];
-  activeRun: ActiveRun | null;
-  lastRunStatus: "idle" | "running" | "stopped";
-  lastRunTaskId: string | null;
+  activeRuns: Record<string, ActiveRun>;
+  runStatuses: Record<string, TaskRunStatus>;
   approvals: Record<string, ApprovalView>;
 };
 
@@ -42,6 +44,22 @@ export function createTaskMessage(kind: TaskMessage["kind"], text: string, detai
   };
 }
 
+export function withActiveRun<T extends RunTransitionState>(state: T, taskId: string, run: ActiveRun | null): T {
+  if (run) return { ...state, activeRuns: { ...state.activeRuns, [taskId]: run } } as T;
+  const { [taskId]: _finished, ...activeRuns } = state.activeRuns;
+  return { ...state, activeRuns } as T;
+}
+
+export function withRunStatus<T extends RunTransitionState>(state: T, taskId: string, status: TaskRunStatus): T {
+  if (status !== "idle") return { ...state, runStatuses: { ...state.runStatuses, [taskId]: status } } as T;
+  const { [taskId]: _cleared, ...runStatuses } = state.runStatuses;
+  return { ...state, runStatuses } as T;
+}
+
+export function runStatusFor(state: RunTransitionState, taskId: string | null): TaskRunStatus {
+  return taskId ? state.runStatuses[taskId] ?? "idle" : "idle";
+}
+
 export function applyTask<T extends RunTransitionState>(state: T, taskId: string, update: (task: Task) => Task): T {
   return { ...state, tasks: state.tasks.map((task) => task.id === taskId ? update(task) : task) } as T;
 }
@@ -57,16 +75,16 @@ function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, 
 }
 
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
-  const active = state.activeRun;
-  if (!active || event.taskId !== active.taskId || event.runId !== active.runId || event.sequence <= active.sequence) return state;
-  const withSequence = { ...state, activeRun: { ...active, sequence: event.sequence } } as T;
+  const active = state.activeRuns[event.taskId];
+  if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
+  const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
 
   if (event.type === "run.started") return withSequence;
   if (event.type === "run.status") {
     if (event.status === "running" || event.status === "awaiting-approval") {
-      return { ...withSequence, activeRun: { ...withSequence.activeRun!, status: event.status } } as T;
+      return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
     }
-    let next = { ...withSequence, activeRun: null, lastRunTaskId: event.taskId, lastRunStatus: event.status === "cancelled" ? "stopped" : "idle" } as T;
+    let next = withRunStatus(withActiveRun(withSequence, event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
     const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
@@ -97,13 +115,13 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     }));
   }
   if (event.type === "context.compaction-status") {
-    const activeState = { ...withSequence, activeRun: { ...withSequence.activeRun!, status: event.compacting ? "compacting" as const : "running" as const } } as T;
+    const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.compacting ? "compacting" : "running" });
     return event.error
       ? applyTask(activeState, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.error!)], updatedAt: now() }))
       : activeState;
   }
   if (event.type === "context.compacted") {
-    const activeState = { ...withSequence, activeRun: { ...withSequence.activeRun!, status: "running" as const } } as T;
+    const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "running" });
     return applyTask(activeState, event.taskId, (task) => ({
       ...task,
       messages: [...task.messages, createTaskMessage(

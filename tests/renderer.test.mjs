@@ -668,3 +668,45 @@ test("workspace hook keeps subagents when the task continues", async () => {
   assert.equal(stored.task.subagents[0].description, "Inspect");
   await workspace.view.unmount();
 });
+
+test("workspace hook runs tasks concurrently with per-task composer state", async () => {
+  const desktop = fakeDesktop({ openFolder: async () => ({ id: "workspace-1", kind: "project", root: "/project" }) });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { await workspace.get().actions.openFolder(); });
+  const projectId = workspace.get().currentProject.id;
+  await act(async () => { workspace.get().actions.setPrompt("First"); await workspace.get().actions.sendPrompt(); });
+  const first = desktop.sent[0];
+
+  await act(async () => { workspace.get().actions.newTask(projectId); });
+  assert.equal(workspace.get().runActive, false);
+  assert.equal(workspace.get().prompt, "");
+  await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
+  const second = desktop.sent[1];
+
+  assert.notEqual(second.taskId, first.taskId);
+  assert.equal(workspace.get().runActive, true);
+  assert.deepEqual([...workspace.get().runningTaskIds].sort(), [first.taskId, second.taskId].sort());
+
+  await act(async () => {
+    desktop.listener({ type: "assistant.delta", taskId: first.taskId, runId: first.runId, sequence: 1, messageId: "message-1", text: "one" });
+    desktop.listener({ type: "assistant.delta", taskId: second.taskId, runId: second.runId, sequence: 1, messageId: "message-2", text: "two" });
+  });
+  assert.equal(workspace.get().currentTask.messages.at(-1).text, "two");
+
+  await act(async () => { desktop.listener({ type: "run.status", taskId: second.taskId, runId: second.runId, sequence: 2, status: "succeeded" }); });
+  assert.equal(workspace.get().runActive, false);
+  assert.deepEqual([...workspace.get().runningTaskIds], [first.taskId]);
+
+  await act(async () => { workspace.get().actions.setPrompt("Draft for second"); });
+  await act(async () => { workspace.get().actions.selectTask(first.taskId); });
+  assert.equal(workspace.get().runActive, true);
+  assert.equal(workspace.get().status, "running");
+  assert.equal(workspace.get().prompt, "");
+
+  await act(async () => { workspace.get().actions.setPrompt("Ignored"); await workspace.get().actions.sendPrompt(); });
+  assert.equal(desktop.sent.filter((command) => command.type === "start").length, 2);
+
+  await act(async () => { workspace.get().actions.selectTask(second.taskId); });
+  assert.equal(workspace.get().prompt, "Draft for second");
+  await workspace.view.unmount();
+});

@@ -104,8 +104,7 @@ export function App() {
         currentId={workspace.currentTask?.id ?? null}
         draftProjectId={workspace.currentProject?.id ?? null}
         expandedProjects={workspace.expandedProjects}
-        status={workspace.globalStatus}
-        runningTaskId={workspace.runningTaskId}
+        runningTaskIds={workspace.runningTaskIds}
         projectsOpen={workspace.projectsOpen}
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { promptWithAttachments, taskTitleFor, type RunAttachment } from "../../application/attachments";
-import { applyRunEvent, applyTask, createTaskMessage, type RunTransitionState } from "../../application/task-workspace";
+import { applyRunEvent, applyTask, createTaskMessage, runStatusFor, withActiveRun, withRunStatus, type RunTransitionState } from "../../application/task-workspace";
 import type { ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskStoreData } from "../../domain/task";
@@ -17,7 +17,7 @@ type WorkspaceState = {
   draftPolicy: ExecutionPolicy;
   draftModel: AgentModel;
   draftContextWindow: ContextWindow;
-  prompt: string;
+  prompts: Record<string, string>;
   expandedProjects: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
@@ -40,6 +40,17 @@ function projectFor(state: WorkspaceState, task: Task | undefined) {
   return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
 }
 
+/** Composer drafts live per task, with one draft per project for the not-yet-created task. */
+function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId">) {
+  return state.currentId ?? `draft:${state.draftProjectId ?? ""}`;
+}
+
+function withPrompt(state: WorkspaceState, key: string, prompt: string): WorkspaceState {
+  if (prompt) return { ...state, prompts: { ...state.prompts, [key]: prompt } };
+  const { [key]: _cleared, ...prompts } = state.prompts;
+  return { ...state, prompts };
+}
+
 function stateFromData(data: TaskStoreData, storageError: string | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
@@ -55,16 +66,15 @@ function stateFromData(data: TaskStoreData, storageError: string | null = null):
     draftPolicy: firstTask?.executionPolicy ?? "confirm",
     draftModel: firstTask?.model ?? "default",
     draftContextWindow: firstTask?.contextWindow ?? "default",
-    prompt: "",
+    prompts: {},
     expandedProjects: new Set(firstProject ? [firstProject] : []),
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,
     environment: null,
     computerUseSetup: false,
-    activeRun: null,
-    lastRunStatus: "idle",
-    lastRunTaskId: null,
+    activeRuns: {},
+    runStatuses: {},
     approvals: {},
     storageError,
     actionError: null,
@@ -84,16 +94,15 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
       draftPolicy: "confirm",
       draftModel: "default",
       draftContextWindow: "default",
-      prompt: "",
+      prompts: {},
       expandedProjects: new Set(),
       projectsOpen: true,
       recentsOpen: true,
       openMenu: null,
       environment: null,
       computerUseSetup: false,
-      activeRun: null,
-      lastRunStatus: "idle",
-      lastRunTaskId: null,
+      activeRuns: {},
+      runStatuses: {},
       approvals: {},
       storageError: loaded.errors.join(" "),
       actionError: null,
@@ -129,7 +138,7 @@ export function useTaskWorkspace() {
   const [state, setState] = useState(() => initialState(store));
   const stateRef = useRef(state);
   const runIds = useRef(new Map<string, string>());
-  const submitting = useRef(false);
+  const submitting = useRef(new Set<string>());
   const persistenceReady = useRef(false);
   const persistenceQueue = useRef(Promise.resolve());
 
@@ -156,8 +165,8 @@ export function useTaskWorkspace() {
     if (!("desktop" in window)) return;
     return window.desktop.onAgentEvent((event) => {
       const current = stateRef.current;
-      const active = current.activeRun;
-      if (!active || event.taskId !== active.taskId || event.runId !== active.runId || event.sequence <= active.sequence) return;
+      const active = current.activeRuns[event.taskId];
+      if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return;
       const project = projectFor(current, current.tasks.find((task) => task.id === event.taskId));
       const next = applyRunEvent(current, event);
       setStateAndRef(event.type === "computer-use.setup-required" ? { ...next, computerUseSetup: true } : next);
@@ -176,9 +185,11 @@ export function useTaskWorkspace() {
   const visibleTasks = state.tasks.filter((task) => task.archivedAt === undefined);
   const orderedTasks = visibleTasks.sort((a, b) => b.updatedAt - a.updatedAt);
   const recentTasks = orderedTasks.filter((task) => !task.projectId);
-  const status = state.currentId && (state.activeRun?.taskId === state.currentId || state.lastRunTaskId === state.currentId) ? state.lastRunStatus : "idle";
-  const compacting = state.activeRun?.taskId === state.currentId && state.activeRun.status === "compacting";
-  const visibleApproval = state.activeRun?.status === "awaiting-approval" && state.approvals[state.activeRun.runId]?.taskId === state.currentId ? state.approvals[state.activeRun.runId] : undefined;
+  const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
+  const status = currentRun ? "running" : runStatusFor(state, state.currentId);
+  const compacting = currentRun?.status === "compacting";
+  const visibleApproval = currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] : undefined;
+  const runningTaskIds = useMemo(() => new Set(Object.keys(state.activeRuns)), [state.activeRuns]);
 
   useEffect(() => {
     const workspaceId = currentProject?.workspaceId;
@@ -189,10 +200,10 @@ export function useTaskWorkspace() {
     const taskId = currentTask?.id;
     const runId = taskId ? runIds.current.get(taskId) : undefined;
     void refreshEnvironment(workspaceId, taskId, runId);
-    if (!state.activeRun || state.activeRun.taskId !== taskId) return;
+    if (!currentRun) return;
     const timer = window.setInterval(() => void refreshEnvironment(workspaceId, taskId, runId), 2_000);
     return () => window.clearInterval(timer);
-  }, [currentProject?.workspaceId, currentTask?.id, state.activeRun?.runId]);
+  }, [currentProject?.workspaceId, currentTask?.id, currentRun?.runId]);
 
   function setStateAndRef(next: WorkspaceState | ((state: WorkspaceState) => WorkspaceState)) {
     const previous = stateRef.current;
@@ -233,7 +244,7 @@ export function useTaskWorkspace() {
 
   function newTask(projectId?: string) {
     const project = projectId ? stateRef.current.projects.find((item) => item.id === projectId) : undefined;
-    setStateAndRef((current) => ({ ...current, currentId: null, draftProjectId: projectId ?? null, prompt: "", actionError: null, lastFolder: project?.root ?? current.lastFolder, expandedProjects: projectId ? new Set(current.expandedProjects).add(projectId) : current.expandedProjects }));
+    setStateAndRef((current) => ({ ...current, currentId: null, draftProjectId: projectId ?? null, actionError: null, lastFolder: project?.root ?? current.lastFolder, expandedProjects: projectId ? new Set(current.expandedProjects).add(projectId) : current.expandedProjects }));
   }
 
   async function openFolder() {
@@ -259,7 +270,7 @@ export function useTaskWorkspace() {
   }
 
   function archiveTask(taskId: string) {
-    if (stateRef.current.activeRun?.taskId === taskId) return;
+    if (stateRef.current.activeRuns[taskId]) return;
     setStateAndRef((current) => ({
       ...current,
       tasks: current.tasks.map((task) => task.id === taskId ? { ...task, archivedAt: now() } : task),
@@ -277,8 +288,9 @@ export function useTaskWorkspace() {
   }
 
   function removeProject(projectId: string) {
-    if (stateRef.current.activeRun && stateRef.current.tasks.some((task) => task.id === stateRef.current.activeRun?.taskId && task.projectId === projectId)) {
-      setStateAndRef((current) => ({ ...current, actionError: "Stop the running task before removing this project." }));
+    const current = stateRef.current;
+    if (current.tasks.some((task) => task.projectId === projectId && current.activeRuns[task.id])) {
+      setStateAndRef((state) => ({ ...state, actionError: "Stop the running tasks before removing this project." }));
       return;
     }
     setStateAndRef((current) => {
@@ -323,27 +335,29 @@ export function useTaskWorkspace() {
 
   async function sendPrompt(attachments: RunAttachment[] = []) {
     let current = stateRef.current;
-    const text = current.prompt.trim();
-    if ((!text && attachments.length === 0) || current.activeRun || submitting.current) return;
+    const draftKey = promptKey(current);
+    const text = (current.prompts[draftKey] ?? "").trim();
+    if ((!text && attachments.length === 0) || submitting.current.has(draftKey)) return;
     let task = current.tasks.find((item) => item.id === current.currentId);
+    if (task && current.activeRuns[task.id]) return;
     const projectId = task?.projectId ?? current.draftProjectId;
     let project = projectId ? current.projects.find((item) => item.id === projectId) : undefined;
     if (projectId && !project) {
       setStateAndRef((state) => ({ ...state, actionError: "This task's project is unavailable. Reopen the project folder before running it." }));
       return;
     }
-    submitting.current = true;
+    submitting.current.add(draftKey);
     let workspace: WorkspaceRecord;
     try {
       if (project && !project.workspaceId) {
         const selected = await window.desktop.openFolder();
         if (!selected) {
-          submitting.current = false;
+          submitting.current.delete(draftKey);
           setStateAndRef((state) => ({ ...state, actionError: "Reopen this project folder before running a task." }));
           return;
         }
         if (selected.root !== project.root) {
-          submitting.current = false;
+          submitting.current.delete(draftKey);
           setStateAndRef((state) => ({ ...state, actionError: "Choose the same project folder to continue this task." }));
           return;
         }
@@ -359,7 +373,7 @@ export function useTaskWorkspace() {
         workspace = project?.workspaceId ? { id: project.workspaceId, kind: "project", root: project.root } : await window.desktop.projectlessWorkspace();
       }
     } catch (error) {
-      submitting.current = false;
+      submitting.current.delete(draftKey);
       setStateAndRef((state) => ({ ...state, actionError: error instanceof Error ? error.message : String(error) }));
       return;
     }
@@ -382,24 +396,29 @@ export function useTaskWorkspace() {
     const messageAttachments = attachments.map((attachment) => attachment.path);
     const nextTask = { ...task, messages: [...task.messages, createTaskMessage("user", text, undefined, messageAttachments)], updatedAt: now() };
     const nextTasks = current.tasks.some((item) => item.id === task!.id) ? current.tasks.map((item) => item.id === task!.id ? nextTask : item) : [nextTask, ...current.tasks];
-    const nextState: WorkspaceState = { ...current, tasks: nextTasks, currentId: task.id, prompt: "", activeRun: { taskId: task.id, runId, sequence: 0, status: "running" }, lastRunStatus: "running", lastRunTaskId: task.id, actionError: null };
+    const started = withRunStatus(
+      withActiveRun({ ...current, tasks: nextTasks, currentId: task.id, actionError: null }, task.id, { taskId: task.id, runId, sequence: 0, status: "running" }),
+      task.id,
+      "running",
+    );
     runIds.current.set(task.id, runId);
-    setStateAndRef(nextState);
-    submitting.current = false;
+    setStateAndRef(withPrompt(started, draftKey, ""));
+    submitting.current.delete(draftKey);
     window.desktop.send({ type: "start", channel: "main", taskId: task.id, runId, prompt: promptText, workspaceId: workspace.id, policy: task.executionPolicy, model: task.model ?? "default", contextWindow: task.contextWindow ?? "default", ...(task.continuation ? { continuation: task.continuation } : {}) });
   }
 
   function cancelRun() {
-    const active = stateRef.current.activeRun;
+    const current = stateRef.current;
+    const active = current.currentId ? current.activeRuns[current.currentId] : undefined;
     if (!active) return;
     window.desktop.send({ type: "cancel", taskId: active.taskId, runId: active.runId });
   }
 
   function decideApproval(allow: boolean) {
     const current = stateRef.current;
-    const active = current.activeRun;
+    const active = current.currentId ? current.activeRuns[current.currentId] : undefined;
     const approval = active ? current.approvals[active.runId] : undefined;
-    if (!active || !approval || approval.taskId !== current.currentId) return;
+    if (!active || !approval) return;
     window.desktop.send({ type: "approval", taskId: active.taskId, runId: active.runId, approvalId: approval.approvalId, allow });
     const { [active.runId]: _removed, ...approvals } = current.approvals;
     setStateAndRef((state) => ({ ...state, approvals }));
@@ -416,12 +435,11 @@ export function useTaskWorkspace() {
     policy,
     model,
     contextWindow,
-    prompt: state.prompt,
+    prompt: state.prompts[promptKey(state)] ?? "",
     status,
     compacting,
-    globalStatus: state.lastRunStatus,
-    runActive: Boolean(state.activeRun),
-    runningTaskId: state.activeRun?.taskId ?? null,
+    runActive: Boolean(currentRun),
+    runningTaskIds,
     approval: visibleApproval,
     subagents: currentTask?.subagents ?? [],
     environment: currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null,
@@ -442,7 +460,7 @@ export function useTaskWorkspace() {
       setProjectsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, projectsOpen: open })),
       setRecentsOpen: (open: boolean) => setStateAndRef((current) => ({ ...current, recentsOpen: open })),
       setOpenMenu: (menu: string | null) => setStateAndRef((current) => ({ ...current, openMenu: menu })),
-      setPrompt: (prompt: string) => setStateAndRef((current) => ({ ...current, prompt })),
+      setPrompt: (prompt: string) => setStateAndRef((current) => withPrompt(current, promptKey(current), prompt)),
       setPolicy,
       setModel,
       setContextWindow,

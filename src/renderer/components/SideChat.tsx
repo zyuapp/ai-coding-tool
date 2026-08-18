@@ -23,7 +23,7 @@ function initialState(source: Task): SideState {
     lastChangeSnapshot: { files: [], capturedAt: Date.now() },
     updatedAt: Date.now(),
   };
-  return { tasks: [task], activeRun: null, lastRunStatus: "idle", lastRunTaskId: null, approvals: {}, prompt: "", error: null };
+  return { tasks: [task], activeRuns: {}, runStatuses: {}, approvals: {}, prompt: "", error: null };
 }
 
 export function SideChat({ source, project, title = "Side chat", onClose }: { source: Task; project?: Project; title?: string; onClose: () => void }) {
@@ -43,15 +43,12 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
   useEffect(() => {
     if (!("desktop" in window)) return;
     return window.desktop.onAgentEvent((event: RunEvent) => {
-      const active = stateRef.current.activeRun;
-      if (!active || event.taskId !== active.taskId || event.runId !== active.runId) return;
       update((current) => applyRunEvent(current, event));
     });
   }, []);
 
   useEffect(() => () => {
-    const active = stateRef.current.activeRun;
-    if (active) window.desktop.send({ type: "cancel", taskId: active.taskId, runId: active.runId });
+    for (const active of Object.values(stateRef.current.activeRuns)) window.desktop.send({ type: "cancel", taskId: active.taskId, runId: active.runId });
   }, []);
 
   async function workspace(): Promise<WorkspaceRecord | null> {
@@ -66,7 +63,7 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
   async function send() {
     const current = stateRef.current;
     const text = current.prompt.trim();
-    if (!text || current.activeRun || submitting.current || !source.continuation) return;
+    if (!text || current.activeRuns[current.tasks[0].id] || submitting.current || !source.continuation) return;
     submitting.current = true;
     try {
       const selected = await workspace();
@@ -79,9 +76,8 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
         tasks: [{ ...value.tasks[0], messages: [...value.tasks[0].messages, createTaskMessage("user", text)], updatedAt: Date.now() }],
         prompt: "",
         error: null,
-        activeRun: { taskId: currentTask.id, runId, sequence: 0, status: "running" },
-        lastRunStatus: "running",
-        lastRunTaskId: currentTask.id,
+        activeRuns: { [currentTask.id]: { taskId: currentTask.id, runId, sequence: 0, status: "running" } },
+        runStatuses: { [currentTask.id]: "running" },
       }));
       window.desktop.send({
         type: "start",
@@ -103,7 +99,8 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
     }
   }
 
-  const status = state.activeRun ? "running" : state.lastRunStatus;
+  const activeRun = state.activeRuns[task.id];
+  const status = activeRun ? "running" : state.runStatuses[task.id] ?? "idle";
   return (
     <aside className="side-chat" aria-label="Side chat">
       <header className="side-chat-header">
@@ -118,7 +115,7 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
           currentTask={task}
           folder={project?.root ?? ""}
           status={status}
-          compacting={state.activeRun?.status === "compacting"}
+          compacting={activeRun?.status === "compacting"}
           scrollContainerRef={transcriptRef}
           empty={{
             icon: GitFork,
@@ -146,14 +143,14 @@ export function SideChat({ source, project, title = "Side chat", onClose }: { so
           />
           <button
             type="button"
-            className={`send-button ${state.activeRun ? "running" : ""}`}
-            disabled={!state.activeRun && (!available || !state.prompt.trim())}
-            aria-label={state.activeRun ? "Stop side chat" : "Send side chat message"}
+            className={`send-button ${activeRun ? "running" : ""}`}
+            disabled={!activeRun && (!available || !state.prompt.trim())}
+            aria-label={activeRun ? "Stop side chat" : "Send side chat message"}
             onClick={() => {
-              if (state.activeRun) window.desktop.send({ type: "cancel", taskId: state.activeRun.taskId, runId: state.activeRun.runId });
+              if (activeRun) window.desktop.send({ type: "cancel", taskId: activeRun.taskId, runId: activeRun.runId });
               else void send();
             }}
-          >{state.activeRun ? <span className="stop-glyph" /> : "↑"}</button>
+          >{activeRun ? <span className="stop-glyph" /> : "↑"}</button>
         </div>
         <p>Read-only · closes without saving</p>
       </footer>
