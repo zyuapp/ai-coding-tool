@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AutomationAck, AutomationFire, ComputerUsePermission, DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
+import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
 const api: DesktopAPI = {
@@ -36,6 +37,12 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("automation:fire", handler);
   },
   acknowledgeAutomation: (ack: AutomationAck) => ipcRenderer.send("automation:ack", ack),
+  onThreadRequest: (listener: (request: ThreadRequest) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: ThreadRequest) => listener(payload);
+    ipcRenderer.on("thread:request", handler);
+    return () => ipcRenderer.removeListener("thread:request", handler);
+  },
+  answerThreadRequest: (response: ThreadResponse) => ipcRenderer.send("thread:answer", response),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

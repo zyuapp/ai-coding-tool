@@ -254,6 +254,8 @@ function fakeDesktop(overrides = {}) {
   let listener;
   let automationsChanged;
   let fireAutomation;
+  let threadRequested;
+  const threadAnswers = [];
   let unsubscribed = false;
   return {
     sent,
@@ -263,6 +265,8 @@ function fakeDesktop(overrides = {}) {
     get listener() { return listener; },
     get automationsChanged() { return automationsChanged; },
     get fireAutomation() { return fireAutomation; },
+    threadAnswers,
+    askThreads: (request) => threadRequested(request),
     get unsubscribed() { return unsubscribed; },
     openFolder: async () => null,
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
@@ -285,6 +289,8 @@ function fakeDesktop(overrides = {}) {
     onAutomationsChanged: (next) => { automationsChanged = next; return () => {}; },
     onAutomationFire: (next) => { fireAutomation = next; return () => {}; },
     acknowledgeAutomation: (ack) => acknowledged.push(ack),
+    onThreadRequest: (next) => { threadRequested = next; return () => {}; },
+    answerThreadRequest: (response) => threadAnswers.push(response),
     ...overrides,
   };
 }
@@ -1654,4 +1660,58 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   await act(async () => { button.click(); });
   assert.equal(harness.sentTo.at(-1), harness.bottom, "the button returns to the end");
   await view.unmount();
+});
+
+test("the window answers thread requests from the reducer's own state", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const started = workspace.get().currentTask;
+  assert.ok(started, "a thread exists to ask about");
+
+  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: started.id, op: "list" }); });
+  const listed = desktop.threadAnswers.at(-1);
+  assert.equal(listed.ok, true);
+  assert.deepEqual(listed.result.map((thread) => thread.id), [started.id]);
+
+  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "r2", taskId: started.id, op: "read", threadId: started.id }); });
+  assert.deepEqual(desktop.threadAnswers.at(-1).result.messages.map((message) => message.text), ["Fix the header"]);
+
+  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "r3", taskId: started.id, op: "read", threadId: "ghost" }); });
+  assert.equal(desktop.threadAnswers.at(-1).ok, false);
+  assert.match(desktop.threadAnswers.at(-1).message, /No thread has the ID ghost/);
+
+  await workspace.view.unmount();
+});
+
+test("a thread command reaches the reducer and reports the thread it acted on", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const caller = workspace.get().currentTask;
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: caller.id, op: "command", command: { type: "task.send", text: "Implement item 2" } });
+  });
+  const answer = desktop.threadAnswers.at(-1);
+  assert.equal(answer.ok, true);
+  assert.notEqual(answer.result.thread.id, caller.id, "the send started its own thread");
+  assert.equal(workspace.get().currentTask.id, caller.id, "the user stays where they were");
+  assert.equal(desktop.sent.filter((command) => command.type === "start").length, 2);
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "r2", taskId: caller.id, op: "command", command: { type: "task.archive", taskId: answer.result.thread.id } });
+  });
+  assert.equal(desktop.threadAnswers.at(-1).result.thread.archived, true);
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "r3", taskId: caller.id, op: "command", command: { type: "task.archive", taskId: "ghost" } });
+  });
+  assert.equal(desktop.threadAnswers.at(-1).ok, false);
+
+  await workspace.view.unmount();
 });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isInternalRunCommand, isRunCommand, isRunEvent } from "../dist/main/contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse } from "../dist/main/contracts/ipc.js";
 
 const command = {
   type: "start",
@@ -131,4 +131,37 @@ test("automation responses and acknowledgements are correlated and typed", () =>
   assert.equal(isAutomationAck({ automationId: "automation-1", runId: "run-1", started: true }), true);
   assert.equal(isAutomationAck({ automationId: "automation-1", runId: "run-1" }), false);
   assert.equal(isAutomationAck({ automationId: "automation-1", started: false }), false);
+});
+
+test("the external command surface covers reading and writing threads, and nothing else", () => {
+  assert.equal(isExternalCommand({ type: "task.send", text: "Implement item 1" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", steer: true }), true);
+  assert.equal(isExternalCommand({ type: "task.archive", taskId: "task-1" }), true);
+  assert.equal(isExternalCommand({ type: "task.rename", taskId: "task-1", title: "Release prep" }), true);
+  assert.equal(isExternalCommand({ type: "run.cancel", taskId: "task-1" }), true);
+
+  assert.equal(isExternalCommand({ type: "task.send", text: "Look", attachments: [{ path: "/etc/passwd", labels: [] }] }), false);
+  assert.equal(isExternalCommand({ type: "task.send" }), false);
+  assert.equal(isExternalCommand({ type: "task.archive" }), false);
+  assert.equal(isExternalCommand({ type: "task.set-policy", taskId: "task-1", policy: "root" }), false);
+  assert.equal(isExternalCommand({ type: "task.select", taskId: "task-1" }), false, "the agent does not move the user around");
+  assert.equal(isExternalCommand({ type: "task.clear-archive" }), false);
+  assert.equal(isExternalCommand({ type: "project.remove", projectId: "project-1" }), false);
+  assert.equal(isExternalCommand({ type: "run.decide", allow: true }), false, "the agent does not approve its own actions");
+  assert.equal(isExternalCommand({ type: "view.set-prompt", prompt: "typed" }), false);
+});
+
+test("thread requests carry a caller and a well-formed query", () => {
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list" }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list", project: "all", archived: true, idleForMs: 3600000, limit: 20 }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "read", threadId: "task-2", limit: 5 }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "command", command: { type: "task.archive", taskId: "task-2" } }), true);
+
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", op: "list" }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list", idleForMs: -1 }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "read" }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "command", command: { type: "task.select", taskId: "task-2" } }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "drop" }), false);
+  assert.equal(isThreadResponse({ type: "thread.response", requestId: "r1", ok: true, result: [] }), true);
+  assert.equal(isThreadResponse({ type: "thread.response", requestId: "r1", ok: false }), false);
 });

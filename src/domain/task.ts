@@ -50,6 +50,15 @@ export function clampTitle(text: string) {
   return trimmed.length > TITLE_LIMIT ? `${trimmed.slice(0, TITLE_LIMIT - 3)}…` : trimmed;
 }
 
+export function threadCreatedAt(task: Task): number {
+  return task.createdAt ?? task.messages[0]?.at ?? task.updatedAt;
+}
+
+/** When the thread last did something. `updatedAt` moves on any write, so it cannot answer this. */
+export function threadActivityAt(task: Task): number {
+  return Math.max(threadCreatedAt(task), task.messages.at(-1)?.at ?? 0, task.runEndedAt ?? 0);
+}
+
 export const ARCHIVE_RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
 
 /** Archiving keeps a task recoverable for {@link ARCHIVE_RETENTION_MS}; the next launch drops what outlived that. */
@@ -83,6 +92,8 @@ export type Task = {
   attention?: TaskAttention;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
+  /** Absent on tasks written before threads were timestamped; {@link threadCreatedAt} fills those in. */
+  createdAt?: number;
   updatedAt: number;
   archivedAt?: number;
 };
@@ -379,6 +390,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.attention === undefined || isTaskAttention(value.attention)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
+    (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
 }

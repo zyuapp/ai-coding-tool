@@ -1,4 +1,5 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
+import type { ExternalCommand, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -136,6 +137,9 @@ export type DesktopAPI = {
   onAutomationsChanged(listener: (automations: AutomationView[]) => void): () => void;
   onAutomationFire(listener: (fire: AutomationFire) => void): () => void;
   acknowledgeAutomation(ack: AutomationAck): void;
+  /** The window answers thread requests itself: it is the only process that holds workspace state. */
+  onThreadRequest(listener: (request: ThreadRequest) => void): () => void;
+  answerThreadRequest(response: ThreadResponse): void;
 };
 
 export type AvailableCommand = {
@@ -192,6 +196,10 @@ const MAX_PROMPT_LENGTH = 1_000_000;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
+}
+
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function isPolicy(value: unknown): value is ExecutionPolicy {
@@ -266,6 +274,50 @@ export function isAutomationRequest(value: unknown): value is AutomationRequest 
   if (request.op === "save") return isAutomationDraft({ ...(request.draft as object), taskId: request.taskId });
   if (request.op === "update") return isAutomationPatch(request.patch);
   return false;
+}
+
+/** The command surface open to callers outside the window. Everything else is the user's alone. */
+export function isExternalCommand(value: unknown): value is ExternalCommand {
+  if (!value || typeof value !== "object") return false;
+  const command = value as Record<string, unknown>;
+  const named = command.taskId === undefined || isString(command.taskId);
+  if (command.type === "task.send") {
+    return named
+      && (command.projectId === undefined || isString(command.projectId))
+      && isString(command.text, MAX_PROMPT_LENGTH)
+      && command.attachments === undefined
+      && (command.steer === undefined || typeof command.steer === "boolean");
+  }
+  if (command.type === "task.archive" || command.type === "task.restore") return isString(command.taskId);
+  if (command.type === "task.rename") return isString(command.taskId) && isString(command.title, 1_000);
+  if (command.type === "task.set-policy") return named && isPolicy(command.policy);
+  if (command.type === "task.set-model") return named && isModel(command.model);
+  if (command.type === "task.set-effort") return named && isEffort(command.effort);
+  if (command.type === "run.cancel") return named;
+  return false;
+}
+
+export function isThreadRequest(value: unknown): value is ThreadRequest {
+  if (!value || typeof value !== "object") return false;
+  const request = value as Record<string, unknown>;
+  if (request.type !== "thread.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
+  if (request.op === "list") {
+    return (request.project === undefined || isString(request.project, 4_096))
+      && (request.archived === undefined || typeof request.archived === "boolean")
+      && (request.idleForMs === undefined || isCount(request.idleForMs))
+      && (request.search === undefined || isString(request.search, 1_000))
+      && (request.limit === undefined || isCount(request.limit));
+  }
+  if (request.op === "read") return isString(request.threadId) && (request.limit === undefined || isCount(request.limit));
+  if (request.op === "command") return isExternalCommand(request.command);
+  return false;
+}
+
+export function isThreadResponse(value: unknown): value is ThreadResponse {
+  if (!value || typeof value !== "object") return false;
+  const response = value as Record<string, unknown>;
+  if (response.type !== "thread.response" || !isString(response.requestId)) return false;
+  return response.ok === true || (response.ok === false && isString(response.message, 100_000));
 }
 
 export function isAutomationResponse(value: unknown): value is AutomationResponse {

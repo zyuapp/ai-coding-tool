@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deriveView, emptyWorkspaceState, stateFromData, type WorkspaceState } from "../../application/workspace-state";
+import { resolveScope, threadSummaries, threadSummary, threadTranscript } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
+import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import type { PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
@@ -150,6 +152,53 @@ export function useTaskWorkspace() {
     }
   }
 
+  /**
+   * The window is the only holder of workspace state, so it answers thread requests itself: reads
+   * come from the projection, and writes go through the same reducer the UI dispatches into.
+   */
+  async function answerThreadRequest(request: ThreadRequest): Promise<ThreadResponse> {
+    const requestId = request.requestId;
+    const ok = (result: unknown): ThreadResponse => ({ type: "thread.response", requestId, ok: true, result });
+    const failed = (message: string): ThreadResponse => ({ type: "thread.response", requestId, ok: false, message });
+    try {
+      if (request.op === "list") {
+        const scope = resolveScope(stateRef.current, request.taskId, request.project);
+        if ("error" in scope) return failed(scope.error);
+        return ok(threadSummaries(stateRef.current, {
+          scope,
+          ...(request.archived === undefined ? {} : { archived: request.archived }),
+          ...(request.idleForMs === undefined ? {} : { idleForMs: request.idleForMs }),
+          ...(request.search === undefined ? {} : { search: request.search }),
+          ...(request.limit === undefined ? {} : { limit: request.limit }),
+        }, Date.now()));
+      }
+      if (request.op === "read") {
+        const transcript = threadTranscript(stateRef.current, request.threadId, request.limit);
+        return transcript ? ok(transcript) : failed(`No thread has the ID ${request.threadId}.`);
+      }
+      const { command } = request;
+      const before = stateRef.current;
+      if (command.taskId !== undefined && !before.tasks.some((task) => task.id === command.taskId)) {
+        return failed(`No thread has the ID ${command.taskId}.`);
+      }
+      /** A new thread with no project named belongs where the thread that asked for it lives. */
+      const callerProjectId = before.tasks.find((task) => task.id === request.taskId)?.projectId;
+      const targeted = command.type === "task.send" && command.taskId === undefined && command.projectId === undefined && callerProjectId
+        ? { ...command, projectId: callerProjectId }
+        : command;
+      const known = new Set(before.tasks.map((task) => task.id));
+      await dispatchRef.current(targeted);
+      const after = stateRef.current;
+      const thread = command.taskId
+        ? after.tasks.find((task) => task.id === command.taskId)
+        : after.tasks.find((task) => !known.has(task.id));
+      if (!thread && after.actionError && after.actionError !== before.actionError) return failed(after.actionError);
+      return ok({ thread: thread ? threadSummary(after, thread) : null });
+    } catch (error) {
+      return failed(errorMessage(error));
+    }
+  }
+
   async function reportFailure(work: Promise<unknown>) {
     try {
       await work;
@@ -192,6 +241,13 @@ export function useTaskWorkspace() {
   useEffect(() => {
     if (!("desktop" in window)) return;
     return window.desktop.onAgentEvent((event) => void dispatchRef.current({ type: "run.event", event }));
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    return window.desktop.onThreadRequest((request) => {
+      void answerThreadRequest(request).then((response) => window.desktop.answerThreadRequest(response));
+    });
   }, []);
 
   useEffect(() => {

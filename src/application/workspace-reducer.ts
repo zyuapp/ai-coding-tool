@@ -81,6 +81,12 @@ function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []): Worksp
   return { state, effects };
 }
 
+/** A named task has to exist; an unnamed command falls back to the one the user is looking at. */
+function targetId(state: WorkspaceState, taskId: string | undefined): string | null {
+  if (taskId === undefined) return state.currentId;
+  return state.tasks.some((task) => task.id === taskId) ? taskId : null;
+}
+
 /** A run only earns a dot when it settles on its own; cancelling is the user's own doing. */
 function attentionFor(event: RunEvent): TaskAttention | null {
   if (event.type === "approval.requested") return "approval";
@@ -317,28 +323,34 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       });
     }
 
-    case "task.set-policy":
-      return settled(state.currentId
-        ? applyTask({ ...state, draftPolicy: input.policy }, state.currentId, (task) => ({ ...task, executionPolicy: input.policy, updatedAt: now() }))
-        : { ...state, draftPolicy: input.policy });
+    case "task.set-policy": {
+      const taskId = targetId(state, input.taskId);
+      const drafted = input.taskId === undefined ? { ...state, draftPolicy: input.policy } : state;
+      return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, executionPolicy: input.policy, updatedAt: now() })) : drafted);
+    }
 
-    case "task.set-model":
-      return settled(state.currentId
-        ? applyTask({ ...state, draftModel: input.model }, state.currentId, (task) => ({ ...task, model: input.model, updatedAt: now() }))
-        : { ...state, draftModel: input.model });
+    case "task.set-model": {
+      const taskId = targetId(state, input.taskId);
+      const drafted = input.taskId === undefined ? { ...state, draftModel: input.model } : state;
+      return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, model: input.model, updatedAt: now() })) : drafted);
+    }
 
-    case "task.set-effort":
-      return settled(state.currentId
-        ? applyTask({ ...state, draftEffort: input.effort }, state.currentId, (task) => ({ ...task, effort: input.effort, updatedAt: now() }))
-        : { ...state, draftEffort: input.effort });
+    case "task.set-effort": {
+      const taskId = targetId(state, input.taskId);
+      const drafted = input.taskId === undefined ? { ...state, draftEffort: input.effort } : state;
+      return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, effort: input.effort, updatedAt: now() })) : drafted);
+    }
 
     case "task.send": {
       const attachments = input.attachments ?? [];
-      const draftKey = promptKey(state);
-      const text = (state.prompts[draftKey] ?? "").trim();
-      const alreadySending = Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
+      /** A send that carries its own text is not the composer's: it neither reads nor clears a draft. */
+      const draftKey = input.text === undefined ? input.taskId ?? promptKey(state) : undefined;
+      const text = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
+      const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
       if ((!text && attachments.length === 0) || alreadySending) return settled(state);
-      const task = state.tasks.find((item) => item.id === state.currentId);
+      if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
+      /** Only the composer's own send falls back to the current task; a send with its own text starts a thread. */
+      const task = state.tasks.find((item) => item.id === (input.taskId ?? (draftKey === undefined ? null : state.currentId)));
       if (task && state.activeRuns[task.id]) {
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
@@ -346,10 +358,10 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
           prompt: promptWithAttachments(text, attachments),
           attachments: attachments.map((attachment) => attachment.path),
         };
-        const next = withQueued(withPrompt(state, draftKey, ""), task.id, [...queuedFor(state, task.id), queued]);
-        return input.steer ? apply(next, { type: "task.steer-queued", messageId: queued.id }) : settled(next);
+        const next = withQueued(draftKey === undefined ? state : withPrompt(state, draftKey, ""), task.id, [...queuedFor(state, task.id), queued]);
+        return input.steer ? apply(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
       }
-      const projectId = task?.projectId ?? state.draftProjectId;
+      const projectId = task?.projectId ?? input.projectId ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return settled({ ...state, actionError: MISSING_PROJECT_ERROR });
       const pending: PendingRun = {
@@ -358,7 +370,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         origin: "composer",
         ...(task ? { taskId: task.id } : {}),
         ...(project ? { projectId: project.id } : {}),
-        draftKey,
+        ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: promptWithAttachments(text, attachments),
         attachments: attachments.map((attachment) => attachment.path),
@@ -373,7 +385,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "task.steer-queued": {
-      const taskId = state.currentId;
+      const taskId = targetId(state, input.taskId);
       const active = taskId ? state.activeRuns[taskId] : undefined;
       const queued = taskId ? queuedFor(state, taskId) : [];
       const message = queued.find((item) => item.id === input.messageId);
@@ -386,7 +398,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     /** A steered message is already on its way to the agent, so only an unsteered one can be dropped. */
     case "task.drop-queued": {
-      const taskId = state.currentId;
+      const taskId = targetId(state, input.taskId);
       const queued = taskId ? queuedFor(state, taskId) : [];
       const message = queued.find((item) => item.id === input.messageId);
       if (!taskId || !message || message.steering) return settled(state);
@@ -459,7 +471,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "run.cancel": {
-      const active = state.currentId ? state.activeRuns[state.currentId] : undefined;
+      const taskId = targetId(state, input.taskId);
+      const active = taskId ? state.activeRuns[taskId] : undefined;
       if (!active) return settled(state);
       return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
     }
@@ -602,17 +615,25 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
     }
 
-    case "automation.save":
-      return state.currentId ? settled(state, [{ type: "automation.save", draft: { ...input.draft, taskId: state.currentId } }]) : settled(state);
+    case "automation.save": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? settled(state, [{ type: "automation.save", draft: { ...input.draft, taskId } }]) : settled(state);
+    }
 
-    case "automation.update":
-      return state.currentId ? settled(state, [{ type: "automation.update", taskId: state.currentId, patch: input.patch }]) : settled(state);
+    case "automation.update": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? settled(state, [{ type: "automation.update", taskId, patch: input.patch }]) : settled(state);
+    }
 
-    case "automation.delete":
-      return state.currentId ? settled(state, [{ type: "automation.delete", taskId: state.currentId }]) : settled(state);
+    case "automation.delete": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? settled(state, [{ type: "automation.delete", taskId }]) : settled(state);
+    }
 
-    case "automation.run-now":
-      return state.currentId ? settled(state, [{ type: "automation.run-now", taskId: state.currentId }]) : settled(state);
+    case "automation.run-now": {
+      const taskId = targetId(state, input.taskId);
+      return taskId ? settled(state, [{ type: "automation.run-now", taskId }]) : settled(state);
+    }
 
     case "automations.changed":
       return settled({ ...state, automations: input.automations });
@@ -700,13 +721,15 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },
     sortIndex: nextSortIndex(state.tasks),
+    createdAt: now(),
     updatedAt: now(),
   };
   const message = createTaskMessage("user", pending.text, undefined, pending.attachments);
   const updated = { ...task, messages: [...task.messages, message], updatedAt: now() };
   const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
-  /** Only a task the send just created needs looking at; anything else leaves the user where they are. */
-  const started = beginRun({ ...state, tasks, ...(existing ? {} : { currentId: task.id }) }, task.id, pending.runId);
+  /** Only a task the user's own send just created needs looking at; anything else leaves them where they are. */
+  const focusing = !existing && pending.draftKey !== undefined;
+  const started = beginRun({ ...state, tasks, ...(focusing ? { currentId: task.id } : {}) }, task.id, pending.runId);
   const drained = pending.queuedIds
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;

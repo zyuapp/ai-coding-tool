@@ -472,3 +472,96 @@ test("only a thread the send just created is named, and only from what the user 
   assert.equal(fromImage.state.tasks[0].title, "Screenshot");
   assert.equal(fromImage.effects.some((effect) => effect.type === "suggest-title"), false, "there is no message to name a screenshot-only thread from");
 });
+
+test("a command that names its task acts on that one, whichever task the user is looking at", () => {
+  const state = workspace({
+    tasks: [task("task-a"), task("task-b")],
+    currentId: "task-a",
+    activeRuns: { "task-b": { taskId: "task-b", runId: "run-b", sequence: 0, status: "running" } },
+  });
+
+  const modelled = reduce(state, { type: "task.set-model", taskId: "task-b", model: "haiku" });
+  assert.equal(modelled.state.tasks[1].model, "haiku");
+  assert.equal(modelled.state.tasks[0].model, undefined);
+  assert.equal(modelled.state.draftModel, workspace().draftModel, "naming a task leaves the composer's draft alone");
+
+  assert.deepEqual(reduce(state, { type: "run.cancel", taskId: "task-b" }).effects, [
+    { type: "send-run-command", command: { type: "cancel", taskId: "task-b", runId: "run-b" } },
+  ]);
+  assert.deepEqual(reduce(state, { type: "run.cancel" }).effects, [], "task-a has no run of its own");
+  assert.deepEqual(reduce(state, { type: "automation.delete", taskId: "task-b" }).effects, [{ type: "automation.delete", taskId: "task-b" }]);
+});
+
+test("a command naming a task that does not exist changes nothing", () => {
+  const state = workspace({ tasks: [task("task-a")], currentId: "task-a" });
+
+  for (const command of [
+    { type: "task.set-policy", taskId: "ghost", policy: "autonomous" },
+    { type: "task.send", taskId: "ghost", text: "Ship it" },
+    { type: "automation.run-now", taskId: "ghost" },
+  ]) {
+    const transition = reduce(state, command);
+    assert.equal(transition.state, state, `${command.type} left state alone`);
+    assert.deepEqual(transition.effects, []);
+  }
+});
+
+test("a send that carries its own text starts a thread without touching the draft or the user's place", () => {
+  const drafted = run(workspace({ projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }] }), [
+    { type: "view.set-prompt", prompt: "Half-typed thought" },
+  ]);
+
+  const sending = reduce(drafted, { type: "task.send", projectId: "project-1", text: "Implement item 1" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "workspace-1", kind: "project", root: "/project" } });
+
+  const [start] = started.effects;
+  assert.equal(start.command.prompt, "Implement item 1");
+  assert.equal(started.state.tasks[0].projectId, "project-1");
+  assert.equal(started.state.currentId, null, "an agent's send does not move the user");
+  assert.equal(started.state.prompts["draft:"], "Half-typed thought", "the composer keeps what the user was typing");
+});
+
+test("several sends can start their own threads at once, unlike the composer's one draft", () => {
+  let state = workspace();
+  const pendingIds = [];
+  for (const text of ["Implement 1", "Implement 2", "Implement 3"]) {
+    const sending = reduce(state, { type: "task.send", text });
+    state = sending.state;
+    pendingIds.push(sending.effects[0].pendingId);
+  }
+  assert.equal(Object.keys(state.pendingRuns).length, 3);
+
+  for (const pendingId of pendingIds) {
+    state = reduce(state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
+  }
+  assert.deepEqual(state.tasks.map((item) => item.messages[0].text).sort(), ["Implement 1", "Implement 2", "Implement 3"]);
+  assert.equal(Object.keys(state.activeRuns).length, 3);
+});
+
+test("a send to a running thread queues behind that run rather than the current one", () => {
+  const state = workspace({
+    tasks: [task("task-a"), task("task-b")],
+    currentId: "task-a",
+    activeRuns: { "task-b": { taskId: "task-b", runId: "run-b", sequence: 0, status: "running" } },
+  });
+
+  const queued = reduce(state, { type: "task.send", taskId: "task-b", text: "Also update the README" });
+  assert.deepEqual(queued.effects, []);
+  assert.equal(queued.state.queuedMessages["task-b"].length, 1);
+  assert.equal(queued.state.queuedMessages["task-a"], undefined);
+
+  const steered = reduce(state, { type: "task.send", taskId: "task-b", text: "Stop and read this", steer: true });
+  const [effect] = steered.effects;
+  assert.equal(effect.command.type, "steer");
+  assert.equal(effect.command.taskId, "task-b");
+});
+
+test("a new thread records when it was created", () => {
+  const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+
+  const [created] = started.state.tasks;
+  assert.ok(created.createdAt > 0);
+  assert.ok(created.createdAt <= created.messages[0].at);
+});

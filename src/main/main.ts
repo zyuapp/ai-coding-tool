@@ -5,7 +5,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isRunCommand, isRunEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
@@ -44,9 +45,12 @@ type AutomationDispatchState = {
 };
 
 const AUTOMATION_ACK_TIMEOUT = 30_000;
+/** Shorter than the agent's own wait, so a lost answer still comes back as a tool error. */
+const THREAD_REQUEST_TIMEOUT = 8_000;
 const runStates = new Map<string, RunState>();
 const pendingStarts = new Map<string, StartRunCommand>();
 const automationDispatches = new Map<string, AutomationDispatchState>();
+const threadRequests = new Map<string, ReturnType<typeof setTimeout>>();
 
 function runKey(taskId: string, runId: string) {
   return `${taskId}\u0000${runId}`;
@@ -135,6 +139,25 @@ async function handleAutomationRequest(request: AutomationRequest) {
   agent?.postMessage(response);
 }
 
+/** The window owns workspace state, so thread requests are relayed to it rather than answered here. */
+function handleThreadRequest(request: ThreadRequest) {
+  if (!window || window.isDestroyed()) {
+    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: "The Claudex window is not open." });
+    return;
+  }
+  const timer = setTimeout(() => {
+    threadRequests.delete(request.requestId);
+    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: `Claudex did not answer the thread "${request.op}" request within ${THREAD_REQUEST_TIMEOUT}ms.` });
+  }, THREAD_REQUEST_TIMEOUT);
+  timer.unref?.();
+  threadRequests.set(request.requestId, timer);
+  window.webContents.send("thread:request", request);
+}
+
+function answerThreadRequest(response: ThreadResponse) {
+  agent?.postMessage(response);
+}
+
 function emitSyntheticTerminal(command: StartRunCommand, status: "failed" | "cancelled", message: string) {
   const key = runKey(command.taskId, command.runId);
   const state = runStates.get(key) ?? { taskId: command.taskId, runId: command.runId, lastSequence: 0, terminal: false };
@@ -152,6 +175,7 @@ function startAgent() {
   agent.on("message", (event: unknown) => {
     if (isRunEvent(event)) publishRunEvent(event);
     else if (isAutomationRequest(event)) void handleAutomationRequest(event);
+    else if (isThreadRequest(event)) handleThreadRequest(event);
   });
   agent.on("exit", (code) => {
     agent = null;
@@ -453,6 +477,15 @@ ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
 ipcMain.on("automation:ack", (event, ack: unknown) => {
   if (!trustedSender(event) || !isAutomationAck(ack)) return;
   automationDispatches.get(ack.runId)?.acknowledge?.(ack.started);
+});
+
+ipcMain.on("thread:answer", (event, response: unknown) => {
+  if (!trustedSender(event) || !isThreadResponse(response)) return;
+  const timer = threadRequests.get(response.requestId);
+  if (!timer) return;
+  clearTimeout(timer);
+  threadRequests.delete(response.requestId);
+  answerThreadRequest(response);
 });
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
