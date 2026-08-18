@@ -1,6 +1,7 @@
 import { runStatusFor, type ApprovalView, type RunTransitionState, type TaskRunStatus } from "./task-workspace.js";
 import { backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
+import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import { DEFAULT_MODEL, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, type Project, type Task, type TaskStoreData } from "../domain/task.js";
@@ -50,6 +51,7 @@ export type WorkspaceState = {
   expandedProjects: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
+  sessionPanelOpen: boolean;
   openMenu: string | null;
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
   computerUseSetup: boolean;
@@ -79,6 +81,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     expandedProjects: new Set(),
     projectsOpen: true,
     recentsOpen: true,
+    sessionPanelOpen: false,
     openMenu: null,
     environment: null,
     computerUseSetup: false,
@@ -114,6 +117,11 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
     draftModel: firstTask?.model ?? DEFAULT_MODEL,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
   };
+}
+
+/** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
+export function viewPreferences(state: WorkspaceState): ViewPreferences {
+  return { sessionPanelOpen: state.sessionPanelOpen };
 }
 
 export function projectFor(state: WorkspaceState, task: Task | undefined) {
@@ -168,6 +176,7 @@ export function deriveView(state: WorkspaceState) {
     expandedProjects: state.expandedProjects,
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
+    sessionPanelOpen: state.sessionPanelOpen,
     openMenu: state.openMenu,
     sideChats: state.sideChats.map((chat): SideChatView => {
       const active = state.activeRuns[chat.id];

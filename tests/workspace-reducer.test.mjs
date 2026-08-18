@@ -193,3 +193,17 @@ test("closing a side chat cancels its run, and switching tasks closes every chat
   assert.equal(switched.effects.at(-1).command.type, "cancel");
   assert.equal(switched.state.sideChatSequence, 0);
 });
+
+test("the session panel choice is persisted and survives the store loading", () => {
+  const restored = run(workspace(), [{ type: "preferences.loaded", preferences: { sessionPanelOpen: true } }]);
+  assert.equal(restored.sessionPanelOpen, true);
+
+  const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false } }]);
+  assert.equal(closed.state.sessionPanelOpen, false);
+
+  assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
+
+  const loaded = reduce(restored, { type: "store.loaded", data: { tasks: [], projects: [], lastFolder: null } });
+  assert.equal(loaded.state.sessionPanelOpen, true);
+});

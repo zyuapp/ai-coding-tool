@@ -7,6 +7,7 @@ import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
+import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 
 export type { ApprovalView } from "../../application/task-workspace";
 
@@ -16,7 +17,8 @@ function errorMessage(error: unknown) {
 
 function initialState(store: ReturnType<typeof createLocalTaskStore>): WorkspaceState {
   const loaded = store.load();
-  return loaded.ok ? stateFromData(loaded.data) : emptyWorkspaceState(loaded.errors.join(" "));
+  const stored = loaded.ok ? stateFromData(loaded.data) : emptyWorkspaceState(loaded.errors.join(" "));
+  return reduce(stored, { type: "preferences.loaded", preferences: loadViewPreferences() }).state;
 }
 
 function persistedTask(task: Task): PersistedTask {
@@ -76,6 +78,10 @@ export function useTaskWorkspace() {
 
   async function runEffect(effect: WorkspaceEffect): Promise<void> {
     switch (effect.type) {
+      case "persist-preferences":
+        saveViewPreferences(effect.preferences);
+        return;
+
       case "pick-project":
         try {
           const workspace = await window.desktop.openFolder();
@@ -216,6 +222,7 @@ export function useTaskWorkspace() {
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),
       setProjectsOpen: (open: boolean) => dispatch({ type: "view.set-projects-open", open }),
       setRecentsOpen: (open: boolean) => dispatch({ type: "view.set-recents-open", open }),
+      setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setOpenMenu: (menu: string | null) => dispatch({ type: "view.set-menu", menu }),
       setPrompt: (prompt: string) => dispatch({ type: "view.set-prompt", prompt }),
       setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),

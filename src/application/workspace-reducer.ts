@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, stateFromData, withPrompt, type PendingRun, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, promptKey, stateFromData, viewPreferences, withPrompt, type PendingRun, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -20,6 +20,7 @@ import type {
   RunEvent,
   StartRunCommand,
 } from "../contracts/ipc.js";
+import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { DEFAULT_MODEL } from "../domain/run.js";
 import { legacyProjectId, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
@@ -28,6 +29,7 @@ import type { WorkspaceRecord } from "../domain/workspace.js";
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
   | { type: "store.loaded"; data: TaskStoreData }
+  | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
   | { type: "project.opened"; workspace: WorkspaceRecord }
@@ -41,6 +43,7 @@ export type WorkspaceEvent =
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
   | { type: "pick-project" }
+  | { type: "persist-preferences"; preferences: ViewPreferences }
   | { type: "resolve-run-workspace"; pendingId: string; picker: boolean; workspaceId?: string; root?: string }
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand }
@@ -501,7 +504,10 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "store.loaded":
-      return settled({ ...stateFromData(input.data), automations: state.automations, focused: state.focused });
+      return settled({ ...stateFromData(input.data), automations: state.automations, focused: state.focused, sessionPanelOpen: state.sessionPanelOpen });
+
+    case "preferences.loaded":
+      return settled({ ...state, sessionPanelOpen: input.preferences.sessionPanelOpen });
 
     case "store.failed":
       return settled({ ...state, writable: false, storageError: input.message });
@@ -524,6 +530,12 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "view.set-recents-open":
       return settled({ ...state, recentsOpen: input.open });
+
+    case "view.set-session-panel-open": {
+      if (state.sessionPanelOpen === input.open) return settled(state);
+      const next = { ...state, sessionPanelOpen: input.open };
+      return settled(next, [{ type: "persist-preferences", preferences: viewPreferences(next) }]);
+    }
 
     case "view.set-menu":
       return settled({ ...state, openMenu: input.menu });

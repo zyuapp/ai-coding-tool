@@ -16,26 +16,25 @@ export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sessionPanelOpen, setSessionPanelOpen] = useState(() => window.innerWidth >= 1400);
   const [rightDockOpen, setRightDockOpen] = useState(false);
   const [activeRightTab, setActiveRightTab] = useState("home");
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsVisible = settingsOpen || workspace.computerUseSetup;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
+  /** The right dock takes the same space, so it hides the panel without discarding the choice. */
+  const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
 
   function addSideChat() {
     const chatId = crypto.randomUUID();
     void workspace.dispatch({ type: "side-chat.open", chatId });
     setActiveRightTab(chatId);
-    setSessionPanelOpen(false);
     setRightDockOpen(true);
   }
 
   function openRightTab(id: string) {
     setActiveRightTab(id);
-    setSessionPanelOpen(false);
     setRightDockOpen(true);
   }
 
@@ -49,7 +48,6 @@ export function App() {
   function openSettings() {
     setSettingsOpen(true);
     setSidebarOpen(false);
-    setSessionPanelOpen(false);
     setRightDockOpen(false);
   }
 
@@ -121,21 +119,20 @@ export function App() {
       />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
 
-      <section className={`workspace ${sessionPanelOpen ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`} inert={settingsVisible}>
+      <section className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`} inert={settingsVisible}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
           sidebarOpen={sidebarOpen}
-          sessionPanelOpen={sessionPanelOpen}
+          sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
             setRightDockOpen(false);
-            setSessionPanelOpen((open) => !open);
+            void workspace.actions.setSessionPanelOpen(!sessionPanelVisible);
           }}
           onToggleRightDock={() => {
-            setSessionPanelOpen(false);
             if (!rightDockOpen) {
               setActiveRightTab("home");
               setSelectedSubagent(null);
@@ -154,7 +151,7 @@ export function App() {
           </div>
         </div>
 
-        {sessionPanelOpen && (
+        {sessionPanelVisible && (
           <SessionPanel
             environment={workspace.environment}
             hasProject={Boolean(workspace.folder)}
