@@ -296,7 +296,7 @@ export function TaskComposer({
               chooseCommand(matchingCommands[selectedCommand]);
               return;
             }
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && !event.shiftKey && !runActive && !sending) {
               event.preventDefault();
               void submit();
             }
