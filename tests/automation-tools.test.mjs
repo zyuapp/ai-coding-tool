@@ -101,4 +101,18 @@ test("a failed or undeliverable request rejects instead of hanging the tool call
 
   const undeliverable = new AutomationChannel(() => { throw new Error("port closed"); });
   await assert.rejects(undeliverable.bridgeFor("task-1").read(), /port closed/);
+
+  const silent = new AutomationChannel(() => {}, 20);
+  await assert.rejects(silent.bridgeFor("task-1").read(), /did not answer the automation "read" request/);
+});
+
+test("a settled request stops its own timeout from firing later", async () => {
+  const posted = [];
+  const channel = new AutomationChannel((request) => posted.push(request), 20);
+
+  const answered = channel.bridgeFor("task-1").read();
+  channel.settle({ type: "automation.response", requestId: posted[0].requestId, ok: true, result: view() });
+  assert.equal((await answered).taskId, "task-1");
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
 });

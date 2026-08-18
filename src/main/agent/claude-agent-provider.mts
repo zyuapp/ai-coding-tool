@@ -8,6 +8,8 @@ import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs
 
 type QueryFactory = typeof query;
 const setupToolName = "mcp__claudex-computer-use__request_setup";
+/** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
+const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the claudex-automation tools instead of looping yourself or reaching for cron. An automation runs the same prompt on its own schedule with no user present, so write the prompt to stand alone and carry its own stop condition. When a scheduled run is what is executing and that stop condition is met, call the stop tool; nothing else ends an automation.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails. If only request_setup is available, call it instead of telling the user to install or configure anything.`;
 
@@ -103,7 +105,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     const subagentIds = new Set<string>();
     const subagentByToolUse = new Map<string, string>();
     const canUseTool: CanUseTool = async (toolName, toolInput, options) => {
-      if (toolName === setupToolName) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
+      if (toolName === setupToolName || toolName.startsWith(automationToolPrefix)) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
       if (input.channel === "main" && input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
       const intent = normalizeToolIntent(toolName, toolInput, options.toolUseID);
       const decision = await input.authorize(intent);

@@ -272,6 +272,23 @@ test("Claude messages translate to provider events and normalized tool intents",
   assert.deepEqual(intents, [{ toolId: "tool-2", name: "Bash", input: { command: "pwd" } }]);
 });
 
+test("automation tools bypass approval so a scheduled run can stop itself unattended", async () => {
+  const capture = {};
+  const asked = [];
+  const provider = new ClaudeAgentProvider(queryFactory([], capture));
+  await provider.execute(input({
+    automations: { read: async () => null, list: async () => [], save: async () => ({}), update: async () => ({}), remove: async () => true },
+    authorize: async (intent) => { asked.push(intent.name); return "deny"; },
+  }));
+
+  const { canUseTool } = capture.options.options;
+  for (const name of ["mcp__claudex-automation__schedule", "mcp__claudex-automation__stop", "mcp__claudex-automation__status"]) {
+    assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "allow", name);
+  }
+  assert.equal((await canUseTool("Bash", { command: "pwd" }, { toolUseID: "bash-1" })).behavior, "deny");
+  assert.deepEqual(asked, ["Bash"], "no automation tool ever waited on a human");
+});
+
 test("Claude failures, exceptions, and aborts close the query", async () => {
   const failureCapture = {};
   const failure = new ClaudeAgentProvider(queryFactory([{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["one", "two"] }], failureCapture));
