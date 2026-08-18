@@ -16,6 +16,7 @@ const summary = (overrides = {}) => ({
   createdAt: NOW - 5 * HOUR,
   lastActivityAt: NOW - 4 * HOUR,
   messageCount: 12,
+  attachmentCount: 0,
   ...overrides,
 });
 
@@ -54,6 +55,18 @@ test("listing threads turns minutes into a query and reports each thread on one 
 
   const empty = await toolNamed(fakeBridge({ list: async () => [] }), "list_threads").handler({}, {});
   assert.match(textOf(empty), /No thread matches/);
+});
+
+test("threads with images are asked for by name and say how many messages carry one", async () => {
+  const queries = [];
+  const bridge = fakeBridge({ list: async (query) => { queries.push(query); return [summary({ attachmentCount: 3 })]; } });
+
+  const listed = await toolNamed(bridge, "list_threads").handler({ hasImages: true }, {});
+  assert.deepEqual(queries.at(-1), { attachments: true, limit: 20 });
+  assert.match(textOf(listed), /12 messages · 3 with images · idle 4h/);
+
+  const plain = await toolNamed(fakeBridge(), "list_threads").handler({}, {});
+  assert.doesNotMatch(textOf(plain), /with images/, "a thread without images says nothing about them");
 });
 
 test("reading a thread says what it left out rather than dumping the transcript", async () => {

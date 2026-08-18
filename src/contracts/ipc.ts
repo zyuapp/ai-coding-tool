@@ -304,6 +304,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
       && (request.archived === undefined || typeof request.archived === "boolean")
       && (request.idleForMs === undefined || isCount(request.idleForMs))
       && (request.search === undefined || isString(request.search, 1_000))
+      && (request.attachments === undefined || typeof request.attachments === "boolean")
       && (request.limit === undefined || isCount(request.limit));
   }
   if (request.op === "read") return isString(request.threadId) && (request.limit === undefined || isCount(request.limit));

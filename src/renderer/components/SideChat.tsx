@@ -4,7 +4,7 @@ import type { SideChatView } from "../../application/workspace-state";
 import type { Project, Task } from "../../domain/task";
 import { ConversationTimeline } from "./ConversationTimeline";
 
-export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onClose }: {
+export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onClose, onSelectTask }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
@@ -12,6 +12,7 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
   onSend: () => void;
   onCancel: () => void;
   onClose: () => void;
+  onSelectTask: (taskId: string) => void;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const available = Boolean(source.continuation);
@@ -33,6 +34,7 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
           compacting={chat.compacting}
           streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
+          onSelectTask={onSelectTask}
           empty={{
             icon: GitFork,
             title: available ? "Ask without changing the thread" : "Main context unavailable",

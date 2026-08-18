@@ -101,11 +101,12 @@ function words(text: string, offset: number) {
  * through one running count, so text never jumps when a block commits. `streaming` says more text
  * may still arrive, which is what keeps a half-written block out of the parser.
  */
-export function StreamingText({ id, committed, tail = "", streaming = false }: {
+export function StreamingText({ id, committed, tail = "", streaming = false, onSelectTask }: {
   id: string;
   committed: string;
   tail?: string;
   streaming?: boolean;
+  onSelectTask?: (taskId: string) => void;
 }) {
   const full = committed + tail;
   const revealed = useTypewriter(full, id, streaming);
@@ -116,7 +117,7 @@ export function StreamingText({ id, committed, tail = "", streaming = false }: {
   const pending = text.slice(complete);
   return (
     <>
-      {complete > 0 && <MarkdownMessage>{text.slice(0, complete)}</MarkdownMessage>}
+      {complete > 0 && <MarkdownMessage onSelectTask={onSelectTask}>{text.slice(0, complete)}</MarkdownMessage>}
       {pending && (
         <p className="stream-pending">
           {words(pending, complete).map(({ key, word }) => <span className="stream-word" key={key}>{word}</span>)}

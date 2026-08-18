@@ -44,6 +44,7 @@ export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary 
     createdAt: threadCreatedAt(task),
     lastActivityAt: threadActivityAt(task),
     messageCount: task.messages.length,
+    attachmentCount: task.messages.filter(carriesAttachment).length,
   };
 }
 
@@ -55,6 +56,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
     if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) return false;
     if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) return false;
     if (search && !matches(task, search)) return false;
+    if (filter.attachments && !task.messages.some(carriesAttachment)) return false;
     return true;
   });
   const summaries = matching.map((task) => threadSummary(state, task)).sort((left, right) => right.lastActivityAt - left.lastActivityAt);
@@ -80,6 +82,10 @@ function inScope(task: Task, scope: ProjectScope) {
   if (scope.kind === "all") return true;
   if (scope.kind === "projectless") return task.projectId === undefined;
   return task.projectId === scope.projectId;
+}
+
+function carriesAttachment(message: Task["messages"][number]) {
+  return Boolean(message.attachments?.length);
 }
 
 function matches(task: Task, search: string) {

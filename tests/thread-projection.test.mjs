@@ -71,6 +71,21 @@ test("archived threads stay out until they are asked for, and search reads the t
   assert.equal(threadSummaries(state, { scope: { kind: "all" }, limit: 0 }, NOW).length, 0);
 });
 
+test("threads with images can be picked out, and a listing counts the messages carrying them", () => {
+  const shot = { ...message("look at this", NOW - HOUR), attachments: ["/tmp/shot-1.png", "/tmp/shot-2.png"] };
+  const state = workspace([
+    task("illustrated", { messages: [shot, message("and this", NOW - HOUR / 2), { ...message("one more", NOW), attachments: ["/tmp/shot-3.png"] }] }),
+    task("wordy", { messages: [message("no pictures here", NOW - 2 * HOUR)] }),
+  ]);
+
+  assert.deepEqual(threadSummaries(state, { scope: { kind: "all" }, attachments: true }, NOW).map((thread) => thread.id), ["illustrated"]);
+  assert.deepEqual(threadSummaries(state, { scope: { kind: "all" } }, NOW).map((thread) => thread.id), ["illustrated", "wordy"], "the filter only applies when asked for");
+
+  const [illustrated, wordy] = threadSummaries(state, { scope: { kind: "all" } }, NOW);
+  assert.equal(illustrated.attachmentCount, 2, "messages carrying images, not images");
+  assert.equal(wordy.attachmentCount, 0);
+});
+
 test("a transcript keeps the newest messages and says how many it left behind", () => {
   const messages = Array.from({ length: 5 }, (_item, index) => message(`turn ${index}`, NOW - (5 - index) * HOUR));
   const state = workspace([task("long", { projectId: "project-app", messages })]);

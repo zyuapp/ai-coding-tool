@@ -154,6 +154,8 @@ test("the external command surface covers reading and writing threads, and nothi
 test("thread requests carry a caller and a well-formed query", () => {
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list" }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list", project: "all", archived: true, idleForMs: 3600000, limit: 20 }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list", attachments: true }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list", attachments: "yes" }), false);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "read", threadId: "task-2", limit: 5 }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "wait", threadId: "task-2", timeoutMs: 60_000 }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "wait", threadId: "task-2" }), false);

@@ -214,7 +214,7 @@ export function App() {
 
         <div className="work-area">
           <div className="conversation" ref={transcriptRef}>
-            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} streamingTail={workspace.streamingTail} scrollContainerRef={transcriptRef} />
+            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} streamingTail={workspace.streamingTail} scrollContainerRef={transcriptRef} onSelectTask={workspace.actions.selectTask} />
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>
@@ -302,6 +302,7 @@ export function App() {
                     onSend={() => void workspace.dispatch({ type: "side-chat.send", chatId: chat.id })}
                     onCancel={() => void workspace.dispatch({ type: "side-chat.cancel", chatId: chat.id })}
                     onClose={() => closeRightTab(chat.id)}
+                    onSelectTask={workspace.actions.selectTask}
                   />
                 </div>
               ))}

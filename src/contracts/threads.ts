@@ -13,6 +13,7 @@ export type ThreadListQuery = {
   archived?: boolean;
   idleForMs?: number;
   search?: string;
+  attachments?: boolean;
   limit?: number;
 };
 
@@ -24,6 +25,8 @@ export type ThreadFilter = {
   idleForMs?: number;
   /** Case-insensitive match against the title and the message text. */
   search?: string;
+  /** Keeps only threads where at least one message carries an image. */
+  attachments?: boolean;
   limit?: number;
 };
 
@@ -37,6 +40,8 @@ export type ThreadSummary = {
   createdAt: number;
   lastActivityAt: number;
   messageCount: number;
+  /** How many of those messages carry images. */
+  attachmentCount: number;
 };
 
 export type ThreadMessage = {

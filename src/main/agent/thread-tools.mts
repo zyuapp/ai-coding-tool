@@ -28,6 +28,7 @@ function describe(thread: ThreadSummary, at: number) {
     thread.projectRoot ?? "no project",
     thread.status,
     `${thread.messageCount} messages`,
+    ...(thread.attachmentCount ? [`${thread.attachmentCount} with images`] : []),
     `idle ${elapsed(Math.max(0, at - thread.lastActivityAt))}`,
     ...(thread.archived ? ["archived"] : []),
   ];
@@ -65,12 +66,13 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
   return [
     tool(
       "list_threads",
-      "List the other Claudex threads, newest activity first. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
+      "List the other Claudex threads, newest activity first. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name. When you name one in an answer, link it as [title](claudex://thread/<id>) so the user can open it.",
       {
         project: projectField,
         archived: z.boolean().optional().describe("List archived threads instead of active ones."),
         idleMinutes: z.number().optional().describe("Only threads that have done nothing for at least this many minutes."),
         search: z.string().optional().describe("Only threads whose title or messages contain this text."),
+        hasImages: z.boolean().optional().describe("Only threads where a message carries an image."),
         limit: z.number().optional().describe("How many threads to return. Defaults to 20."),
       },
       async (args) => report(async () => {
@@ -80,6 +82,7 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
           ...(args.archived === undefined ? {} : { archived: args.archived }),
           ...(args.idleMinutes === undefined ? {} : { idleForMs: args.idleMinutes * MINUTE }),
           ...(args.search === undefined ? {} : { search: args.search }),
+          ...(args.hasImages === undefined ? {} : { attachments: args.hasImages }),
           limit: args.limit ?? 20,
         });
         return threads.length ? threads.map((thread) => describe(thread, at)).join("\n") : "No thread matches.";

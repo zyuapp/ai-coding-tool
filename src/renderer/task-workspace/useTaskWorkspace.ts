@@ -191,6 +191,7 @@ export function useTaskWorkspace() {
           ...(request.archived === undefined ? {} : { archived: request.archived }),
           ...(request.idleForMs === undefined ? {} : { idleForMs: request.idleForMs }),
           ...(request.search === undefined ? {} : { search: request.search }),
+          ...(request.attachments === undefined ? {} : { attachments: request.attachments }),
           ...(request.limit === undefined ? {} : { limit: request.limit }),
         }, Date.now()));
       }

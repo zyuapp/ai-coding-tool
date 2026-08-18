@@ -96,6 +96,37 @@ test("assistant markdown preserves nested, quoted, linked, and fenced structures
   await view.unmount();
 });
 
+test("a thread link opens that thread in place, and nothing else under the scheme is a link", async () => {
+  const selected = [];
+  const markdown = [
+    "See [the sidebar work](claudex://thread/task-9) for how it went.",
+    "",
+    "Not [an archive](claudex://archive/task-9) and not [the docs](https://example.com).",
+  ].join("\n");
+  const view = await mount(React.createElement(MarkdownMessage, { onSelectTask: (taskId) => selected.push(taskId) }, markdown));
+
+  const links = [...view.container.querySelectorAll("a")];
+  assert.deepEqual(links.map((link) => link.textContent), ["the sidebar work", "the docs"], "an unknown claudex:// path stays plain text");
+  assert.match(view.container.textContent, /Not an archive and not the docs/);
+
+  await act(async () => { links[0].click(); });
+  assert.deepEqual(selected, ["task-9"]);
+  assert.equal(links[0].target, "", "an in-app link does not open a browser tab");
+
+  await act(async () => { links[1].click(); });
+  assert.deepEqual(selected, ["task-9"], "an ordinary link still just follows its href");
+  assert.equal(links[1].target, "_blank");
+  await view.unmount();
+});
+
+test("a thread link is plain text where no thread can be selected", async () => {
+  const view = await mount(React.createElement(MarkdownMessage, null, "See [the sidebar work](claudex://thread/task-9)."));
+
+  assert.equal(view.container.querySelector("a"), null);
+  assert.match(view.container.textContent, /See the sidebar work\./);
+  await view.unmount();
+});
+
 const subagents = [
   { id: "working", description: "Working agent", status: "working", lastToolName: "Read", totalTokens: 321, startedAt: 1, activity: [] },
   { id: "complete", description: "Complete agent", status: "completed", summary: "Done", startedAt: 1, finishedAt: 2, activity: [] },
