@@ -71,7 +71,29 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   background: #3a414b;
 }
 
-.traffic-space { height: 40px; flex: 0 0 auto; -webkit-app-region: drag; }
+.traffic-space {
+  height: 40px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  -webkit-app-region: drag;
+}
+.thread-nav { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.thread-nav-button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: #666c74;
+  cursor: pointer;
+}
+.thread-nav-button:hover { background: rgba(255, 255, 255, 0.045); color: #aeb0af; }
+.thread-nav-button:disabled { opacity: 0.32; cursor: default; background: transparent; color: #666c74; }
 .new-task-button,
 .folder-button,
 .task-row {

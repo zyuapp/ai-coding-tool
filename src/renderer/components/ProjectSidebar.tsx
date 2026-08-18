@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { AlarmClock, Archive, Ellipsis, Settings, SquarePen } from "lucide-react";
+import { AlarmClock, Archive, ChevronLeft, ChevronRight, Ellipsis, Settings, SquarePen } from "lucide-react";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 
@@ -53,6 +53,10 @@ export type ProjectSidebarProps = {
   recentsOpen: boolean;
   openMenu: string | null;
   settingsOpen: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onGoBack: () => void;
+  onGoForward: () => void;
   onNewTask: (projectId?: string) => void;
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
@@ -82,6 +86,10 @@ export function ProjectSidebar({
   recentsOpen,
   openMenu,
   settingsOpen,
+  canGoBack,
+  canGoForward,
+  onGoBack,
+  onGoForward,
   onNewTask,
   onOpenFolder,
   onToggleProject,
@@ -199,7 +207,16 @@ export function ProjectSidebar({
   return (
     <DragDropContext onBeforeCapture={() => setDragging(true)} onDragEnd={finishDrag}>
     <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`} inert={inactive}>
-      <div className="traffic-space" aria-hidden="true" />
+      <div className="traffic-space">
+        <div className="thread-nav">
+          <button className="thread-nav-button" type="button" aria-label="Go back" disabled={!canGoBack} onClick={onGoBack}>
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+          <button className="thread-nav-button" type="button" aria-label="Go forward" disabled={!canGoForward} onClick={onGoForward}>
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
       <button className="new-task-button" onClick={() => onNewTask()}>
         <span className="new-task-icon" aria-hidden="true">＋</span>
         <span>New task</span>

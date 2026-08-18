@@ -167,6 +167,10 @@ export function App() {
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}
         settingsOpen={settingsVisible}
+        canGoBack={workspace.canGoBack}
+        canGoForward={workspace.canGoForward}
+        onGoBack={() => void workspace.actions.goBack()}
+        onGoForward={() => void workspace.actions.goForward()}
         onNewTask={workspace.actions.newTask}
         onOpenFolder={workspace.actions.openFolder}
         onToggleProject={workspace.actions.toggleProject}
@@ -190,10 +194,6 @@ export function App() {
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
-          canGoBack={workspace.canGoBack}
-          canGoForward={workspace.canGoForward}
-          onGoBack={() => void workspace.actions.goBack()}
-          onGoForward={() => void workspace.actions.goForward()}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
             setRightDockOpen(false);

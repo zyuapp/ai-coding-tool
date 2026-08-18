@@ -240,17 +240,12 @@ test("workspace header keeps session summary and right panel controls separate",
   let sidebarToggles = 0;
   let summaryToggles = 0;
   let rightPanelToggles = 0;
-  let backSteps = 0;
   const view = await mount(React.createElement(WorkspaceHeader, {
     folder: "/project",
     sidebarOpen: false,
     sessionPanelOpen: true,
     rightDockOpen: true,
     workingSubagents: 2,
-    canGoBack: true,
-    canGoForward: false,
-    onGoBack: () => { backSteps += 1; },
-    onGoForward: () => {},
     onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
     onToggleRightDock: () => { rightPanelToggles += 1; },
@@ -267,6 +262,34 @@ test("workspace header keeps session summary and right panel controls separate",
   assert.equal(sidebarToggles, 1);
   assert.equal(summaryToggles, 1);
   assert.equal(rightPanelToggles, 1);
+  await view.unmount();
+});
+
+test("the sidebar steps through visited threads", async () => {
+  let backSteps = 0;
+  const view = await mount(React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects: [],
+    orderedTasks: [],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    settingsOpen: false,
+    canGoBack: true,
+    canGoForward: false,
+    onGoBack: () => { backSteps += 1; },
+    onGoForward() {},
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+  }));
 
   assert.ok(view.container.querySelector('button[aria-label="Go forward"]').disabled, "nothing ahead to go forward to");
   await act(async () => { view.container.querySelector('button[aria-label="Go back"]').click(); });

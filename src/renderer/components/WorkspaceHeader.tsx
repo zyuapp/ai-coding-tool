@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
+import { PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -16,16 +16,12 @@ export type WorkspaceHeaderProps = {
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
   workingSubagents: number;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  onGoBack: () => void;
-  onGoForward: () => void;
   onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
   onToggleRightDock: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, canGoBack, canGoForward, onGoBack, onGoForward, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className="topbar">
       <div className="task-heading">
@@ -37,12 +33,6 @@ export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanel
           onClick={onToggleSidebar}
         >
           <PanelLeft size={19} aria-hidden="true" />
-        </button>
-        <button className="session-toggle" type="button" aria-label="Go back" disabled={!canGoBack} onClick={onGoBack}>
-          <ChevronLeft size={19} aria-hidden="true" />
-        </button>
-        <button className="session-toggle" type="button" aria-label="Go forward" disabled={!canGoForward} onClick={onGoForward}>
-          <ChevronRight size={19} aria-hidden="true" />
         </button>
         <span className="heading-folder"><FolderIcon /></span>
         <div>
