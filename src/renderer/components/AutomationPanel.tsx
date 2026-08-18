@@ -9,8 +9,14 @@ export type AutomationPanelProps = {
   onRunNow: () => void;
 };
 
-export function formatCountdown(nextRunAt: number | null, at: number) {
-  if (nextRunAt === null) return "paused";
+/** Paused and missed both have no next run; only one of them is the user's own doing. */
+export function automationStatusLabel(automation: AutomationView, at: number) {
+  if (automation.paused) return "Paused";
+  if (automation.nextRunAt === null) return "Missed";
+  return formatCountdown(automation.nextRunAt, at);
+}
+
+export function formatCountdown(nextRunAt: number, at: number) {
   const seconds = Math.max(0, Math.round((nextRunAt - at) / 1000));
   if (seconds < 60) return `in ${seconds}s`;
   if (seconds < 3_600) return `in ${Math.round(seconds / 60)}m`;
@@ -56,7 +62,7 @@ export function AutomationPanel({ automation, onUpdate, onDelete, onRunNow }: Au
     <section className="automation-section" aria-label="Automation">
       <div className="subagent-heading">
         <span>Automation</span>
-        <span>{automation.paused ? "Paused" : formatCountdown(automation.nextRunAt, now)}</span>
+        <span>{automationStatusLabel(automation, now)}</span>
       </div>
 
       <label className="automation-field">

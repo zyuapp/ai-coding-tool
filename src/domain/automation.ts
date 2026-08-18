@@ -4,7 +4,8 @@ export const MAX_AUTOMATION_PROMPT = 100_000;
 export const MAX_AUTOMATION_SCHEDULE = 200;
 export const MAX_AUTOMATION_TIMEZONE = 100;
 
-export type AutomationRunStatus = "succeeded" | "failed" | "cancelled" | "skipped";
+/** `missed` is not a run: it marks a one-shot whose moment passed without one. */
+export type AutomationRunStatus = "succeeded" | "failed" | "cancelled" | "skipped" | "missed";
 
 /** A task's recurring prompt. One per task: re-creating replaces the previous one. */
 export type Automation = {
@@ -74,7 +75,7 @@ export function isAutomation(value: unknown): value is Automation {
 }
 
 function isRunStatus(value: unknown): value is AutomationRunStatus {
-  return value === "succeeded" || value === "failed" || value === "cancelled" || value === "skipped";
+  return value === "succeeded" || value === "failed" || value === "cancelled" || value === "skipped" || value === "missed";
 }
 
 export function isAutomationDraft(value: unknown): value is AutomationDraft {
@@ -98,10 +99,14 @@ export function isAutomationPatch(value: unknown): value is AutomationPatch {
     && (patch.paused === undefined || typeof patch.paused === "boolean");
 }
 
-/** A skipped tick is not a run: it leaves the counters alone so "last run" stays truthful. */
+/** A tick that never ran leaves the counters alone so "last run" stays truthful. */
 export function automationAfterRun(automation: Automation, status: AutomationRunStatus, at: number): Automation {
-  if (status === "skipped") return { ...automation, lastStatus: status, updatedAt: at };
+  if (status === "skipped" || status === "missed") return { ...automation, lastStatus: status, updatedAt: at };
   return { ...automation, runCount: automation.runCount + 1, lastRunAt: at, lastStatus: status, updatedAt: at };
+}
+
+export function didRun(status: AutomationRunStatus) {
+  return status !== "skipped" && status !== "missed";
 }
 
 /** A one-shot automation is an ISO 8601 timestamp rather than a cron expression. */

@@ -2,6 +2,7 @@ import { Cron } from "croner";
 import { randomUUID } from "node:crypto";
 import {
   automationAfterRun,
+  didRun,
   isOneShotSchedule,
   scheduleFieldCount,
   type Automation,
@@ -44,7 +45,7 @@ export class AutomationScheduler {
   start() {
     for (const automation of this.store.listAutomations()) {
       this.automations.set(automation.id, automation);
-      this.arm(automation);
+      if (!this.arm(automation)) this.markMissed(automation.id);
     }
     this.notify();
   }
@@ -140,7 +141,7 @@ export class AutomationScheduler {
     this.notify();
   }
 
-  /** Returns false when the stored schedule cannot be armed, which must never throw out of start(). */
+  /** Returns false when the schedule cannot fire again, which must never throw out of start(). */
   private arm(automation: Automation) {
     this.disarm(automation.id);
     let cron: Cron;
@@ -152,6 +153,10 @@ export class AutomationScheduler {
         catch: true,
       }, async () => { await this.fire(automation.id); });
     } catch {
+      return false;
+    }
+    if (!cron.nextRun()) {
+      cron.stop();
       return false;
     }
     this.crons.set(automation.id, cron);
@@ -181,9 +186,26 @@ export class AutomationScheduler {
     const updated = automationAfterRun(current, status, this.now());
     this.automations.set(id, updated);
     this.store.saveAutomation(updated);
-    if (this.crons.get(id)?.nextRun() === null) this.remove(updated.taskId);
-    else this.notify();
+    // A spent schedule is only finished if this tick actually ran; otherwise the moment was missed.
+    if (this.canFireAgain(id)) this.notify();
+    else if (didRun(status)) this.remove(updated.taskId);
+    else this.markMissed(id);
     return status;
+  }
+
+  private canFireAgain(id: string) {
+    const cron = this.crons.get(id);
+    return cron ? cron.nextRun() !== null : false;
+  }
+
+  /** Keeps a one-shot that can no longer fire, plainly marked, so it never disappears unrun. */
+  private markMissed(id: string) {
+    const automation = this.automations.get(id);
+    if (!automation || automation.lastStatus === "missed") return;
+    const missed = automationAfterRun(automation, "missed", this.now());
+    this.automations.set(id, missed);
+    this.store.saveAutomation(missed);
+    this.notify();
   }
 
   private view(automation: Automation): AutomationView {

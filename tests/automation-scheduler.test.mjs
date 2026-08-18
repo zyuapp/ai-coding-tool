@@ -148,6 +148,54 @@ test("a one-shot automation fires at its scheduled time and then retires itself"
   assert.equal(store.rows.size, 0);
 });
 
+test("a one-shot whose moment is skipped is kept and marked missed, not deleted", async (t) => {
+  const store = memoryStore();
+  const when = new Date(Math.ceil((Date.now() + 1_200) / 1_000) * 1_000).toISOString();
+  let declined;
+  const refused = new Promise((resolve) => { declined = resolve; });
+  const scheduler = schedulerFor(t, store, async () => { declined(); return "skipped"; });
+  scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
+
+  await refused;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  const missed = scheduler.forTask("task-1");
+  assert.ok(missed, "a one-shot that never ran is not thrown away");
+  assert.equal(missed.lastStatus, "missed");
+  assert.equal(missed.runCount, 0);
+  assert.equal(missed.nextRunAt, null);
+  assert.equal(store.rows.size, 1, "and it survives a restart so the user can re-arm it");
+});
+
+test("a one-shot missed while the app was closed reloads as missed rather than armed", (t) => {
+  const past = new Date(Date.now() - 60_000).toISOString();
+  const store = memoryStore([
+    { id: "gone", taskId: "task-past", prompt: "ship the release", schedule: past, paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
+  ]);
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+
+  scheduler.start();
+
+  const reloaded = scheduler.forTask("task-past");
+  assert.equal(reloaded.lastStatus, "missed");
+  assert.equal(reloaded.nextRunAt, null);
+  assert.equal(store.rows.get("gone").lastStatus, "missed", "the verdict is written down, not recomputed every launch");
+});
+
+test("re-running a missed one-shot by hand retires it", async (t) => {
+  const past = new Date(Date.now() - 60_000).toISOString();
+  const store = memoryStore([
+    { id: "gone", taskId: "task-past", prompt: "ship the release", schedule: past, paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
+  ]);
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+  scheduler.start();
+
+  assert.equal(await scheduler.runNow("task-past"), "succeeded");
+
+  assert.equal(scheduler.forTask("task-past"), null);
+  assert.equal(store.rows.size, 0);
+});
+
 test("running a one-shot early leaves it armed for its real time", async (t) => {
   const store = memoryStore();
   const when = new Date(Math.floor((Date.now() + 3_600_000) / 1_000) * 1_000).toISOString();

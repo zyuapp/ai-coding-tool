@@ -24,7 +24,7 @@ const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/Task
 const { drawAnnotations } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
-const { AutomationPanel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
+const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -1074,7 +1074,13 @@ test("the automation countdown stays readable at every distance", () => {
   assert.equal(formatCountdown(at + 300_000, at), "in 5m");
   assert.equal(formatCountdown(at + 7_200_000, at), "in 2h");
   assert.equal(formatCountdown(at - 5_000, at), "in 0s");
-  assert.equal(formatCountdown(null, at), "paused");
+});
+
+test("an automation with no next run reads as missed unless the user paused it", () => {
+  const at = Date.parse("2026-08-17T09:00:00Z");
+  assert.equal(automationStatusLabel(automationView({ nextRunAt: at + 60_000 }), at), "in 1m");
+  assert.equal(automationStatusLabel(automationView({ paused: true, nextRunAt: null }), at), "Paused");
+  assert.equal(automationStatusLabel(automationView({ nextRunAt: null, lastStatus: "missed" }), at), "Missed");
 });
 
 test("a scheduled tick runs in the original thread and reports back to the scheduler", async () => {
