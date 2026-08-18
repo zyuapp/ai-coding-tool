@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { emptyScan, scanBlocks } from "../../domain/markdown-stream";
 import { MarkdownMessage } from "./MarkdownMessage";
 
-/** The reveal drains whatever is buffered over this long, so a burst stays quick and a trickle stays smooth. */
-const CATCH_UP_MS = 220;
-const MIN_CHARS_PER_SECOND = 60;
+/** The speed text reads as being typed at, held steady however fast the model bursts. */
+const TYPING_CHARS_PER_SECOND = 220;
+/**
+ * How far behind the stream the reveal may fall before it stops typing at a steady speed and starts
+ * catching up. Bounds the jump when a turn settles, since settled text renders all at once.
+ */
+const MAX_LAG_MS = 800;
 /** Redrawing faster than this costs re-measurement in the virtualized timeline and buys nothing. */
 const FRAME_MS = 33;
 
@@ -14,8 +18,9 @@ function animates() {
 }
 
 /**
- * Paces text onto the screen instead of letting a finished block land at once. The rate follows how
- * far behind the reveal is, so it stays quick under a fast stream and never stalls behind a slow one.
+ * Paces text onto the screen instead of letting a finished block land at once. It types at a steady
+ * speed and only outruns it to keep the backlog inside `MAX_LAG_MS`, so how fast the model bursts
+ * changes how far behind the reveal sits rather than how fast it reads.
  */
 function useTypewriter(text: string) {
   const [revealed, setRevealed] = useState(0);
@@ -38,7 +43,8 @@ function useTypewriter(text: string) {
       const elapsed = Math.min(drawnAt.current ? now - drawnAt.current : FRAME_MS, FRAME_MS * 3);
       if (elapsed >= FRAME_MS) {
         drawnAt.current = now;
-        const perSecond = Math.max(MIN_CHARS_PER_SECOND, (text.length - shown.current) * 1000 / CATCH_UP_MS);
+        const behind = text.length - shown.current;
+        const perSecond = Math.max(TYPING_CHARS_PER_SECOND, behind * 1000 / MAX_LAG_MS);
         shown.current = Math.min(text.length, shown.current + Math.max(1, Math.round(perSecond * elapsed / 1000)));
         setRevealed(shown.current);
       }

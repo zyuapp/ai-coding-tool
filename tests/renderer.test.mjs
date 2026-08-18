@@ -1453,3 +1453,29 @@ test("a block committing between tails does not replay the text already read", a
   assert.match(view.container.textContent, /The reducer owns every write\./, "the committed block stays put while the next tail types on");
   await view.unmount();
 });
+
+/** How long the reveal takes to work through a block that lands in one go. */
+async function revealDuration(tail) {
+  const view = await mount(React.createElement(StreamingText, { committed: "", tail }));
+  const startedAt = Date.now();
+  const deadline = startedAt + 10_000;
+  while (Date.now() < deadline && view.container.textContent !== tail) {
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+  }
+  assert.equal(view.container.textContent, tail, "the reveal never finished");
+  const elapsed = Date.now() - startedAt;
+  await view.unmount();
+  return elapsed;
+}
+
+test("a big block takes proportionally longer to read out than a small one", async () => {
+  const small = await revealDuration("word ".repeat(22).trim());
+  const large = await revealDuration("word ".repeat(400).trim());
+
+  /**
+   * A rate derived from the backlog alone reveals any size in about the same time, so a paragraph
+   * flashes past while a sentence does not. Typing speed has to set the pace instead.
+   */
+  assert.ok(large >= small * 3, `18x the text took ${large}ms against ${small}ms, so a big block still flashes past`);
+  assert.ok(large <= 6000, `a paragraph took ${large}ms to read out, which is a crawl`);
+});
