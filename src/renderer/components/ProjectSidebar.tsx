@@ -149,10 +149,6 @@ export function ProjectSidebar({
     <DragDropContext onBeforeCapture={() => setDragging(true)} onDragEnd={finishDrag}>
     <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`} inert={inactive}>
       <div className="traffic-space" aria-hidden="true" />
-      <div className="brand-row">
-        <strong>Claudex</strong>
-      </div>
-
       <button className="new-task-button" onClick={() => onNewTask()}>
         <span className="new-task-icon" aria-hidden="true">＋</span>
         <span>New task</span>

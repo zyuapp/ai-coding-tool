@@ -72,16 +72,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 
 .traffic-space { height: 40px; flex: 0 0 auto; -webkit-app-region: drag; }
-.brand-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 2px 12px 12px;
-  color: #c9c8c4;
-  -webkit-app-region: drag;
-}
-.brand-row strong { font-size: var(--text-heading); font-weight: 650; letter-spacing: -0.025em; }
-
 .new-task-button,
 .folder-button,
 .task-row {
