@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Ellipsis, Settings, SquarePen } from "lucide-react";
@@ -12,6 +12,15 @@ const ATTENTION_LABELS: Record<TaskAttention, string> = {
   failed: "Failed",
   approval: "Needs approval",
 };
+
+function TaskSpinner() {
+  const ref = useRef<HTMLSpanElement>(null);
+  // Anchor every spinner to the document timeline so rows that mount later stay in phase.
+  useLayoutEffect(() => {
+    for (const animation of ref.current?.getAnimations() ?? []) animation.startTime = 0;
+  }, []);
+  return <span ref={ref} className="task-spinner" aria-label="Working" />;
+}
 
 function shortFolder(folder: string) {
   return folder.split("/").filter(Boolean).at(-1) ?? folder;
@@ -211,7 +220,7 @@ export function ProjectSidebar({
                           <span className="task-row-marks">
                             {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
                             {runningTaskIds.has(task.id)
-                              ? <span className="task-spinner" aria-label="Working" />
+                              ? <TaskSpinner />
                               : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
                           </span>
                         </>))}
