@@ -221,10 +221,12 @@ export function ProjectSidebar({
                     >
                       {projectTasks.map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
                           <span>{task.title}</span>
-                          {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
-                          {runningTaskIds.has(task.id)
-                            ? <TaskSpinner />
-                            : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                          <span className="task-row-marks">
+                            {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
+                            {runningTaskIds.has(task.id)
+                              ? <TaskSpinner />
+                              : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+                          </span>
                         </>))}
                       {provided.placeholder}
                     </div>

@@ -94,11 +94,14 @@ const subagents = [
 
 test("session panel renders Git and subagent states and selects an agent", async () => {
   let selected;
+  let openedAutomations = 0;
   const view = await mount(React.createElement(SessionPanel, {
     environment: { status: "available", files: [" M file"], branch: "main", additions: 4, deletions: 2 },
     hasProject: true,
     subagents,
+    automationCount: 1,
     onSelect: (id) => { selected = id; },
+    onOpenAutomations: () => { openedAutomations += 1; },
   }));
 
   assert.match(view.container.textContent, /\+4−2/);
@@ -107,16 +110,22 @@ test("session panel renders Git and subagent states and selects an agent", async
   await act(async () => { view.container.querySelector('button[aria-label="Open Working agent details"]').click(); });
   assert.equal(selected, "working");
 
+  const automations = view.container.querySelector('button[aria-label="Open Automation panel"]');
+  assert.equal(automations.querySelector(".session-count").textContent, "1", "the card only counts automations");
+  assert.equal(automations.querySelector('input[aria-label="Automation schedule"]'), null, "editing happens in the sliding panel");
+  await act(async () => { automations.click(); });
+  assert.equal(openedAutomations, 1);
+
   for (const [environment, message] of [
     [null, "Reopen the project to inspect Git"],
     [{ status: "unknown", workspaceId: "gone" }, "Workspace is no longer registered"],
     [{ status: "unavailable", reason: "missing" }, "Workspace is missing"],
     [{ status: "error", message: "git failed" }, "git failed"],
   ]) {
-    await view.render(React.createElement(SessionPanel, { environment, hasProject: true, subagents: [], onSelect() {} }));
+    await view.render(React.createElement(SessionPanel, { environment, hasProject: true, subagents: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
     assert.match(view.container.textContent, new RegExp(message));
   }
-  await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], onSelect() {} }));
+  await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Open a project to inspect Git/);
   await view.unmount();
 });
@@ -570,7 +579,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 3);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 3);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 4);
   await view.unmount();
 });
 
@@ -1031,6 +1040,7 @@ test("the automation panel explains itself before an automation exists", async (
   const view = await mount(React.createElement(AutomationPanel, { automation: null, onUpdate() {}, onDelete() {}, onRunNow() {} }));
 
   assert.match(view.container.textContent, /Ask Claude to repeat this task/);
+  assert.match(view.container.textContent, /No automation yet/);
   assert.equal(view.container.querySelector('input[aria-label="Automation schedule"]'), null);
   await view.unmount();
 });
@@ -1202,6 +1212,38 @@ test("archiving a task retires its automation", async () => {
   await workspace.view.unmount();
 });
 
+test("the sidebar marks every task that runs on a schedule", async () => {
+  const task = (id, projectId) => ({
+    id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
+  });
+  const view = await mount(React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects: [{ id: "project-1", root: "/project" }],
+    orderedTasks: [task("scheduled-task", "project-1"), task("plain-task", "project-1")],
+    recentTasks: [task("scheduled-chat"), task("plain-chat")],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(["project-1"]),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(["scheduled-task", "scheduled-chat"]),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    settingsOpen: false,
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+  }));
+
+  const marked = [...view.container.querySelectorAll('[aria-label="Runs on a schedule"]')]
+    .map((icon) => icon.closest("[data-rfd-draggable-id]").getAttribute("data-rfd-draggable-id"));
+
+  assert.deepEqual(marked.sort(), ["scheduled-chat", "scheduled-task"]);
+  await view.unmount();
+});
+
 test("a collapsed folder is revealed before the drag is measured, not after", async () => {
   const task = (id, projectId) => ({
     id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
@@ -1220,6 +1262,7 @@ test("a collapsed folder is revealed before the drag is measured, not after", as
     draftProjectId: null,
     expandedProjects: new Set(["open-project"]),
     runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,

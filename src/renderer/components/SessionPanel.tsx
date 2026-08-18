@@ -1,18 +1,14 @@
-import { Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, XCircle } from "lucide-react";
+import { AlarmClock, Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, XCircle } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
-import type { AutomationPatch, AutomationView } from "../../domain/automation";
 import type { Subagent } from "../../domain/run";
-import { AutomationPanel } from "./AutomationPanel";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
   hasProject: boolean;
   subagents: Subagent[];
-  automation: AutomationView | null;
+  automationCount: number;
   onSelect: (id: string) => void;
-  onAutomationUpdate: (patch: AutomationPatch) => void;
-  onAutomationDelete: () => void;
-  onAutomationRunNow: () => void;
+  onOpenAutomations: () => void;
 };
 
 function statusLabel(status: Subagent["status"]) {
@@ -34,7 +30,7 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   return null;
 }
 
-export function SessionPanel({ environment, hasProject, subagents, automation, onSelect, onAutomationUpdate, onAutomationDelete, onAutomationRunNow }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, subagents, automationCount, onSelect, onOpenAutomations }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
 
@@ -54,14 +50,12 @@ export function SessionPanel({ environment, hasProject, subagents, automation, o
                 {available?.branch && <code title={available.branch}>{available.branch}</code>}
               </div>
               {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
+              <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
+                <span className="session-row-icon"><AlarmClock size={18} /></span>
+                <span>Automations</span>
+                <span className="session-count">{automationCount}</span>
+              </button>
             </div>
-
-            <AutomationPanel
-              automation={automation}
-              onUpdate={onAutomationUpdate}
-              onDelete={onAutomationDelete}
-              onRunNow={onAutomationRunNow}
-            />
 
             <div className="subagent-section">
               <div className="subagent-heading">
