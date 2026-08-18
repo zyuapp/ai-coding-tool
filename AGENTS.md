@@ -1,31 +1,24 @@
 # How we work
 - We are the sole owners of the codebase. No need to make branches for any changes. We are allowed to make quick changes and push them directly to the main branch.
+- I often ask you to make multiple changes on the main branch in different thread so only commit the changes that are requested in the thread.
 
 # Architecture intent
 
-Everything this app can do should be drivable by an agent, not only by a mouse. That is why state is
-shaped the way it is:
+The app has one control path for people and agents.
+- Every interaction is an `AppCommand`.
+- `reduce(state, input)` is the only writer of workspace state.
+- The reducer describes external work as effects.
+- `useTaskWorkspace` performs effects and returns results as `WorkspaceEvent` values.
+- Components display state and dispatch commands. They contain no behaviour.
+- External commands must pass validation before they reach the reducer.
 
-- **Interactions are values.** Every one is a case of `AppCommand` in `src/contracts/commands.ts`.
-  Components never mutate state; they dispatch a command.
-- **One writer.** `reduce(state, input)` in `src/application/workspace-reducer.ts` is the only place
-  workspace state changes. It returns the next state plus the effects it wants performed, and imports
-  nothing from Electron or the DOM, so it can be hosted outside the renderer later.
-- **Effects are data.** `useTaskWorkspace` is the only thing that performs them. Whatever comes back
-  re-enters through the same reducer as a `WorkspaceEvent`.
-- **Layers.** `domain/` types and validators, `application/` state and behaviour, `contracts/`
-  boundary shapes, `main/` services and IPC, `renderer/` React only.
+## Add a feature
+1. Define an `AppCommand` or `WorkspaceEvent`.
+2. Handle it in the reducer.
+3. Return an effect for external work.
+4. Run the effect in `useTaskWorkspace`.
+5. Return the result as a `WorkspaceEvent`.
+6. Test the behaviour in `tests/workspace-reducer.test.mjs`.
+7. Add an `actions` shorthand only when a component needs it.
 
-## Adding a feature
-
-1. Add an `AppCommand` case, or a `WorkspaceEvent` if the outside world is reporting back.
-2. Handle it in `reduce`. Return an effect instead of doing IO there.
-3. Perform the effect in the hook's effect runner and dispatch an event with the result.
-4. Test it against the reducer in `tests/workspace-reducer.test.mjs`, not through React.
-5. Add a shorthand to `actions` only if a component needs one.
-
-Behaviour never belongs in a component or in the hook. If the UI can do something the reducer cannot
-express as a command, an agent will not be able to do it either.
-
-Commands arriving from outside the window — an agent tool, IPC — must be validated at that boundary
-before they reach `reduce`, the way `isRunCommand` guards the run channel.
+If the reducer cannot express a UI action, an agent cannot perform it.
