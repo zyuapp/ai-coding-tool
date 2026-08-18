@@ -1,6 +1,6 @@
 import { runStatusFor } from "./task-workspace.js";
 import { projectFor, type WorkspaceState } from "./workspace-state.js";
-import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript } from "../contracts/threads.js";
+import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
 import { threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
 
 /** Enough of a message to recognise what happened without carrying a whole transcript. */
@@ -18,6 +18,20 @@ export function resolveScope(state: WorkspaceState, callerTaskId: string, projec
   return { kind: "project", projectId: match.id };
 }
 
+/** A thread is working while a run is going, resolving, or still queued behind the one that is. */
+export function threadBusy(state: WorkspaceState, threadId: string): boolean {
+  return Boolean(state.activeRuns[threadId])
+    || Object.values(state.pendingRuns).some((pending) => pending.taskId === threadId)
+    || Boolean(state.queuedMessages[threadId]?.length);
+}
+
+export function threadWaitResult(state: WorkspaceState, threadId: string, timedOut: boolean): ThreadWaitResult | null {
+  const task = state.tasks.find((item) => item.id === threadId);
+  if (!task) return null;
+  const reply = [...task.messages].reverse().find((message) => message.kind === "assistant")?.text ?? null;
+  return { thread: threadSummary(state, task), timedOut, reply };
+}
+
 export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary {
   const project = projectFor(state, task);
   return {
@@ -25,7 +39,7 @@ export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary 
     title: task.title,
     ...(task.projectId ? { projectId: task.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
-    status: state.activeRuns[task.id] ? "running" : runStatusFor(state, task.id),
+    status: threadBusy(state, task.id) ? "running" : runStatusFor(state, task.id),
     archived: task.archivedAt !== undefined,
     createdAt: threadCreatedAt(task),
     lastActivityAt: threadActivityAt(task),

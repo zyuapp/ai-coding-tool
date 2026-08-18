@@ -1,11 +1,13 @@
 import { createSdkMcpServer, tool, type McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
 import type { ThreadBridge } from "./agent-provider.mjs";
 
 export const THREAD_SERVER_NAME = "claudex-threads";
 
 const MINUTE = 60_000;
+const DEFAULT_WAIT_MS = 5 * MINUTE;
 
 const threadIdField = z.string().describe("The ID of the thread, as list_threads reports it.");
 
@@ -91,6 +93,20 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
         limit: z.number().optional().describe("How many of the newest messages to read. Defaults to 30."),
       },
       async (args) => report(async () => transcriptText(await bridge.read(args.threadId, args.limit), now())),
+    ),
+    tool(
+      "wait_for_thread",
+      "Wait until a thread stops working and report what it last said. Use after start_thread or message_thread when the user is waiting on that work; polling read_thread instead just burns turns. A wait that runs out says so, and calling it again keeps waiting.",
+      {
+        threadId: threadIdField,
+        timeoutSeconds: z.number().optional().describe("How long to wait before reporting back regardless. Defaults to 300, and cannot exceed 900."),
+      },
+      async (args) => report(async () => {
+        const timeoutMs = Math.min(args.timeoutSeconds === undefined ? DEFAULT_WAIT_MS : Math.max(0, args.timeoutSeconds) * 1_000, MAX_THREAD_WAIT_MS);
+        const { thread, timedOut, reply } = await bridge.wait(args.threadId, timeoutMs);
+        const heading = timedOut ? `Still working after ${Math.round(timeoutMs / 1_000)}s` : "Finished";
+        return [`${heading}: ${describe(thread, now())}`, ...(reply ? ["", reply] : [])].join("\n");
+      }),
     ),
     tool(
       "start_thread",

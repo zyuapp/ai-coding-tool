@@ -385,14 +385,14 @@ test("reading other threads needs no approval, but starting or stopping one does
   const asked = [];
   const provider = new ClaudeAgentProvider(queryFactory([], capture));
   await provider.execute(input({
-    threads: { list: async () => [], read: async () => ({}), command: async () => ({ thread: null }) },
+    threads: { list: async () => [], read: async () => ({}), wait: async () => ({}), command: async () => ({ thread: null }) },
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
   }));
 
   const { canUseTool, mcpServers, systemPrompt } = capture.options.options;
   assert.equal(mcpServers["claudex-threads"].type, "sdk");
   assert.match(systemPrompt.append, /the claudex-threads tools are the only way to reach them/);
-  for (const name of ["mcp__claudex-threads__list_threads", "mcp__claudex-threads__read_thread"]) {
+  for (const name of ["mcp__claudex-threads__list_threads", "mcp__claudex-threads__read_thread", "mcp__claudex-threads__wait_for_thread"]) {
     assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "allow", name);
   }
   for (const name of ["mcp__claudex-threads__start_thread", "mcp__claudex-threads__archive_thread", "mcp__claudex-threads__stop_thread"]) {

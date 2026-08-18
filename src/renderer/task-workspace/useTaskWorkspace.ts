@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { deriveView, emptyWorkspaceState, stateFromData, type WorkspaceState } from "../../application/workspace-state";
-import { resolveScope, threadSummaries, threadSummary, threadTranscript } from "../../application/thread-projection";
+import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
@@ -12,6 +12,13 @@ import { createLocalTaskStore } from "./local-task-store";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 
 export type { ApprovalView } from "../../application/task-workspace";
+
+/** A tool call held open until the thread it names stops working. */
+type ThreadWaiter = {
+  threadId: string;
+  settle: (state: WorkspaceState) => void;
+  timer: number;
+};
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -57,12 +64,14 @@ export function useTaskWorkspace() {
   const persistenceReady = useRef(false);
   const persistenceQueue = useRef(Promise.resolve());
   const dispatchRef = useRef<(input: WorkspaceInput) => Promise<void>>(null!);
+  const threadWaiters = useRef<ThreadWaiter[]>([]);
 
   function commit(next: WorkspaceState) {
     const previous = stateRef.current;
     if (next === previous) return;
     stateRef.current = next;
     setState(next);
+    releaseThreadWaiters(next);
     if (!persistenceReady.current || !next.writable || next.storageError) return;
     const delta = persistenceDelta(previous, next);
     if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !("lastFolder" in delta)) return;
@@ -152,6 +161,19 @@ export function useTaskWorkspace() {
     }
   }
 
+  /** A thread being waited on has settled, so the waiting tool call can answer. */
+  function releaseThreadWaiters(state: WorkspaceState) {
+    const waiting = threadWaiters.current;
+    if (!waiting.length) return;
+    const settled = waiting.filter((waiter) => !threadBusy(state, waiter.threadId));
+    if (!settled.length) return;
+    threadWaiters.current = waiting.filter((waiter) => !settled.includes(waiter));
+    for (const waiter of settled) {
+      window.clearTimeout(waiter.timer);
+      waiter.settle(state);
+    }
+  }
+
   /**
    * The window is the only holder of workspace state, so it answers thread requests itself: reads
    * come from the projection, and writes go through the same reducer the UI dispatches into.
@@ -175,6 +197,22 @@ export function useTaskWorkspace() {
       if (request.op === "read") {
         const transcript = threadTranscript(stateRef.current, request.threadId, request.limit);
         return transcript ? ok(transcript) : failed(`No thread has the ID ${request.threadId}.`);
+      }
+      if (request.op === "wait") {
+        const waited = threadWaitResult(stateRef.current, request.threadId, false);
+        if (!waited) return failed(`No thread has the ID ${request.threadId}.`);
+        if (!threadBusy(stateRef.current, request.threadId)) return ok(waited);
+        return new Promise<ThreadResponse>((resolve) => {
+          const waiter: ThreadWaiter = {
+            threadId: request.threadId,
+            settle: (state) => resolve(ok(threadWaitResult(state, request.threadId, false))),
+            timer: window.setTimeout(() => {
+              threadWaiters.current = threadWaiters.current.filter((item) => item !== waiter);
+              resolve(ok(threadWaitResult(stateRef.current, request.threadId, true)));
+            }, request.timeoutMs),
+          };
+          threadWaiters.current.push(waiter);
+        });
       }
       const { command } = request;
       const before = stateRef.current;
@@ -245,9 +283,14 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
-    return window.desktop.onThreadRequest((request) => {
+    const stopListening = window.desktop.onThreadRequest((request) => {
       void answerThreadRequest(request).then((response) => window.desktop.answerThreadRequest(response));
     });
+    return () => {
+      stopListening();
+      for (const waiter of threadWaiters.current) window.clearTimeout(waiter.timer);
+      threadWaiters.current = [];
+    };
   }, []);
 
   useEffect(() => {

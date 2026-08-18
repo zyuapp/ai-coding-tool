@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
+import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { ThreadBridge } from "./agent-provider.mjs";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
@@ -16,6 +16,8 @@ type Pending = {
 };
 
 const REQUEST_TIMEOUT = 10_000;
+/** A wait is answered by the window when the thread settles, so it outlasts an ordinary request. */
+const WAIT_SLACK = 10_000;
 
 /** Turns the agent process's one-way port into request/response bridges scoped per task. */
 export class ThreadChannel {
@@ -30,6 +32,7 @@ export class ThreadChannel {
     return {
       list: (query: ThreadListQuery) => this.request({ taskId, op: "list", ...query }) as Promise<ThreadSummary[]>,
       read: (threadId: string, limit?: number) => this.request({ taskId, op: "read", threadId, ...(limit === undefined ? {} : { limit }) }) as Promise<ThreadTranscript>,
+      wait: (threadId: string, timeoutMs: number) => this.request({ taskId, op: "wait", threadId, timeoutMs }, timeoutMs + WAIT_SLACK) as Promise<ThreadWaitResult>,
       command: (command: ExternalCommand) => this.request({ taskId, op: "command", command }) as Promise<ThreadCommandResult>,
     };
   }
@@ -45,13 +48,13 @@ export class ThreadChannel {
   }
 
   /** A lost response has to surface as a tool error; a hung tool call reports nothing at all. */
-  private request(payload: ThreadRequestPayload) {
+  private request(payload: ThreadRequestPayload, timeout = this.timeout) {
     const requestId = randomUUID();
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
-        reject(new Error(`Claudex did not answer the thread "${payload.op}" request within ${this.timeout}ms.`));
-      }, this.timeout);
+        reject(new Error(`Claudex did not answer the thread "${payload.op}" request within ${timeout}ms.`));
+      }, timeout);
       this.pending.set(requestId, { resolve, reject, timer });
       try {
         this.post({ type: "thread.request", requestId, ...payload } as ThreadRequest);

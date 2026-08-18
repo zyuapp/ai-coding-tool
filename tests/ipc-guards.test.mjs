@@ -155,6 +155,9 @@ test("thread requests carry a caller and a well-formed query", () => {
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list" }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "list", project: "all", archived: true, idleForMs: 3600000, limit: 20 }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "read", threadId: "task-2", limit: 5 }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "wait", threadId: "task-2", timeoutMs: 60_000 }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "wait", threadId: "task-2" }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "wait", threadId: "task-2", timeoutMs: 60 * 60_000 }), false, "a wait cannot be held open forever");
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "command", command: { type: "task.archive", taskId: "task-2" } }), true);
 
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", op: "list" }), false);

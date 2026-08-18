@@ -1715,3 +1715,50 @@ test("a thread command reaches the reducer and reports the thread it acted on", 
 
   await workspace.view.unmount();
 });
+
+test("a wait is held open until the thread it names stops working", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const running = workspace.get().currentTask;
+  const runId = desktop.sent.at(-1).runId;
+
+  await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: running.id, op: "wait", threadId: running.id, timeoutMs: 60_000 }); });
+  assert.equal(desktop.threadAnswers.length, 0, "the wait is still open while the run goes");
+
+  await act(async () => {
+    desktop.listener({ type: "assistant.delta", taskId: running.id, runId, sequence: 1, text: "Header fixed." });
+    desktop.listener({ type: "run.status", taskId: running.id, runId, sequence: 2, status: "succeeded" });
+  });
+  await act(async () => {});
+
+  const waited = desktop.threadAnswers.at(-1);
+  assert.equal(waited.ok, true);
+  assert.equal(waited.result.timedOut, false);
+  assert.equal(waited.result.reply, "Header fixed.");
+  assert.equal(waited.result.thread.status, "idle");
+
+  await workspace.view.unmount();
+});
+
+test("a wait on a thread that is already idle answers at once, and an unknown thread fails", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const started = workspace.get().currentTask;
+  const runId = desktop.sent.at(-1).runId;
+  await act(async () => { desktop.listener({ type: "run.status", taskId: started.id, runId, sequence: 1, status: "succeeded" }); });
+
+  await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: started.id, op: "wait", threadId: started.id, timeoutMs: 60_000 }); });
+  assert.equal(desktop.threadAnswers.at(-1).ok, true);
+  assert.equal(desktop.threadAnswers.at(-1).result.timedOut, false);
+
+  await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "r2", taskId: started.id, op: "wait", threadId: "ghost", timeoutMs: 60_000 }); });
+  assert.equal(desktop.threadAnswers.at(-1).ok, false);
+
+  await workspace.view.unmount();
+});

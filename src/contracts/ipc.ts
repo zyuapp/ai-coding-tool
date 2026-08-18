@@ -192,6 +192,8 @@ export type RunEvent =
   | (RunEventBase & { type: "queued.delivered"; messageId: string });
 
 const MAX_ID_LENGTH = 256;
+/** A wait holds a tool call open, so it is bounded rather than left to the caller. */
+export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 const MAX_PROMPT_LENGTH = 1_000_000;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
@@ -305,6 +307,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
       && (request.limit === undefined || isCount(request.limit));
   }
   if (request.op === "read") return isString(request.threadId) && (request.limit === undefined || isCount(request.limit));
+  if (request.op === "wait") return isString(request.threadId) && isCount(request.timeoutMs) && request.timeoutMs <= MAX_THREAD_WAIT_MS;
   if (request.op === "command") return isExternalCommand(request.command);
   return false;
 }

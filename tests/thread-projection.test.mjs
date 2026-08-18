@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveScope, threadSummaries, threadTranscript } from "../dist/main/application/thread-projection.js";
+import { resolveScope, threadBusy, threadSummaries, threadTranscript, threadWaitResult } from "../dist/main/application/thread-projection.js";
 import { emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 
 const HOUR = 60 * 60 * 1000;
@@ -89,4 +89,29 @@ test("a long message is cut short rather than shipped whole", () => {
   const [only] = threadTranscript(state, "noisy").messages;
   assert.equal(only.text.length, 2_001);
   assert.ok(only.text.endsWith("…"));
+});
+
+test("a thread counts as working while a run is going, resolving, or still queued", () => {
+  const tasks = [task("running"), task("resolving"), task("queued"), task("done")];
+  const state = workspace(tasks, {
+    activeRuns: { running: { taskId: "running", runId: "run-1", sequence: 0, status: "running" } },
+    pendingRuns: { "pending-1": { id: "pending-1", runId: "run-2", origin: "composer", taskId: "resolving", text: "go", prompt: "go", attachments: [] } },
+    queuedMessages: { queued: [{ id: "message-1", text: "next", prompt: "next", attachments: [] }] },
+  });
+
+  assert.deepEqual(tasks.map((item) => threadBusy(state, item.id)), [true, true, true, false]);
+  assert.deepEqual(threadSummaries(state, { scope: { kind: "all" } }, NOW).filter((thread) => thread.status === "running").map((thread) => thread.id).sort(), ["queued", "resolving", "running"]);
+});
+
+test("a wait reports the thread and the last thing it said", () => {
+  const state = workspace([task("answered", {
+    messages: [message("do it", NOW - HOUR), message("done", NOW - HOUR / 2, "assistant"), message("Bash", NOW, "tool")],
+  })]);
+
+  const waited = threadWaitResult(state, "answered", false);
+  assert.equal(waited.reply, "done", "a tool message after the reply does not stand in for it");
+  assert.equal(waited.timedOut, false);
+  assert.equal(waited.thread.status, "idle");
+  assert.equal(threadWaitResult(state, "missing", false), null);
+  assert.equal(threadWaitResult(workspace([task("silent")]), "silent", true).reply, null);
 });

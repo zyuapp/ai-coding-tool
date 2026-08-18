@@ -47,6 +47,8 @@ type AutomationDispatchState = {
 const AUTOMATION_ACK_TIMEOUT = 30_000;
 /** Shorter than the agent's own wait, so a lost answer still comes back as a tool error. */
 const THREAD_REQUEST_TIMEOUT = 8_000;
+/** A wait answers when the thread it names settles, so the relay outlives the wait itself. */
+const THREAD_WAIT_SLACK = 5_000;
 const runStates = new Map<string, RunState>();
 const pendingStarts = new Map<string, StartRunCommand>();
 const automationDispatches = new Map<string, AutomationDispatchState>();
@@ -145,10 +147,11 @@ function handleThreadRequest(request: ThreadRequest) {
     answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: "The Claudex window is not open." });
     return;
   }
+  const patience = request.op === "wait" ? request.timeoutMs + THREAD_WAIT_SLACK : THREAD_REQUEST_TIMEOUT;
   const timer = setTimeout(() => {
     threadRequests.delete(request.requestId);
-    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: `Claudex did not answer the thread "${request.op}" request within ${THREAD_REQUEST_TIMEOUT}ms.` });
-  }, THREAD_REQUEST_TIMEOUT);
+    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: `Claudex did not answer the thread "${request.op}" request within ${patience}ms.` });
+  }, patience);
   timer.unref?.();
   threadRequests.set(request.requestId, timer);
   window.webContents.send("thread:request", request);

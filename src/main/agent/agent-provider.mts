@@ -1,5 +1,5 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
-import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
+import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
@@ -7,6 +7,7 @@ import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentSt
 export type ThreadBridge = {
   list(query: ThreadListQuery): Promise<ThreadSummary[]>;
   read(threadId: string, limit?: number): Promise<ThreadTranscript>;
+  wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
   command(command: ExternalCommand): Promise<ThreadCommandResult>;
 };
 

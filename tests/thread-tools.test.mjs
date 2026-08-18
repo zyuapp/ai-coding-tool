@@ -28,6 +28,7 @@ function fakeBridge(overrides = {}) {
       calls.push(["read", threadId, limit]);
       return { thread: summary({ id: threadId }), messages: [{ kind: "user", text: "how do we do it", at: NOW }], omitted: 4 };
     },
+    wait: async (threadId, timeoutMs) => { calls.push(["wait", threadId, timeoutMs]); return { thread: summary({ id: threadId }), timedOut: false, reply: "on branch main" }; },
     command: async (command) => { calls.push(["command", command]); return { thread: summary({ id: command.taskId ?? "task-new" }) }; },
     ...overrides,
   };
@@ -81,6 +82,22 @@ test("starting, messaging, archiving and stopping go through the command surface
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "run.cancel", taskId: "task-4" }]);
 });
 
+test("waiting reports what the thread said, or that it is still going", async () => {
+  const bridge = fakeBridge();
+
+  const finished = await toolNamed(bridge, "wait_for_thread").handler({ threadId: "task-5" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["wait", "task-5", 5 * 60_000], "the default wait is five minutes");
+  assert.match(textOf(finished), /^Finished: Rework the sidebar \[task-5\]/);
+  assert.match(textOf(finished), /on branch main/);
+
+  await toolNamed(bridge, "wait_for_thread").handler({ threadId: "task-5", timeoutSeconds: 4_000 }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["wait", "task-5", 15 * 60_000], "a wait longer than the cap is clamped");
+
+  const patient = fakeBridge({ wait: async () => ({ thread: summary(), timedOut: true, reply: null }) });
+  const running = await toolNamed(patient, "wait_for_thread").handler({ threadId: "task-1", timeoutSeconds: 30 }, {});
+  assert.match(textOf(running), /^Still working after 30s: /);
+});
+
 test("a refused request comes back as a tool error the model can correct", async () => {
   const bridge = fakeBridge({ read: async () => { throw new Error("No thread has the ID ghost."); } });
 
@@ -100,8 +117,13 @@ test("the channel scopes each bridge to the thread that is running and times a l
   channel.settle({ type: "thread.response", requestId: posted[0].requestId, ok: true, result: [summary()] });
   assert.deepEqual((await listing).map((thread) => thread.id), ["task-1"]);
 
+  const waiting = bridge.wait("task-1", 50);
+  assert.equal(posted[1].op, "wait");
+  channel.settle({ type: "thread.response", requestId: posted[1].requestId, ok: true, result: { thread: summary(), timedOut: false, reply: "done" } });
+  assert.equal((await waiting).reply, "done");
+
   const refused = bridge.command({ type: "task.archive", taskId: "task-1" });
-  channel.settle({ type: "thread.response", requestId: posted[1].requestId, ok: false, message: "No thread has the ID task-1." });
+  channel.settle({ type: "thread.response", requestId: posted[2].requestId, ok: false, message: "No thread has the ID task-1." });
   await assert.rejects(refused, /No thread has the ID task-1/);
 
   await assert.rejects(bridge.read("task-1"), /did not answer the thread "read" request/);

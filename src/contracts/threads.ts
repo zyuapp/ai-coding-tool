@@ -68,6 +68,7 @@ export type ThreadRequest = {
 } & (
   | ({ op: "list" } & ThreadListQuery)
   | { op: "read"; threadId: string; limit?: number }
+  | { op: "wait"; threadId: string; timeoutMs: number }
   | { op: "command"; command: ExternalCommand }
 );
 
@@ -75,6 +76,14 @@ export type ThreadResponse = {
   type: "thread.response";
   requestId: string;
 } & ({ ok: true; result: unknown } | { ok: false; message: string });
+
+/** How a thread stood when the wait ended, and what it last said. */
+export type ThreadWaitResult = {
+  thread: ThreadSummary;
+  /** True when the wait ran out with the thread still working. */
+  timedOut: boolean;
+  reply: string | null;
+};
 
 /** What a dispatched command did, so the caller can name the thread it just acted on. */
 export type ThreadCommandResult = {
