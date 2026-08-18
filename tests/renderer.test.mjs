@@ -9,6 +9,10 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http:
 for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
+for (const [name, value] of [["requestAnimationFrame", (fn) => setTimeout(() => fn(Date.now()), 0)], ["cancelAnimationFrame", (id) => clearTimeout(id)]]) {
+  Object.defineProperty(globalThis, name, { configurable: true, value });
+  Object.defineProperty(dom.window, name, { configurable: true, value });
+}
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 dom.window.HTMLElement.prototype.scrollTo = () => {};
 
@@ -25,6 +29,7 @@ const { drawAnnotations } = await vite.ssrLoadModule("/src/renderer/components/I
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
+const { ProjectSidebar } = await vite.ssrLoadModule("/src/renderer/components/ProjectSidebar.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -1175,4 +1180,59 @@ test("archiving a task retires its automation", async () => {
 
   assert.deepEqual(desktop.automationChanges, [{ taskId: first.taskId, deleted: true }]);
   await workspace.view.unmount();
+});
+
+test("a collapsed folder is revealed before the drag is measured, not after", async () => {
+  const task = (id, projectId) => ({
+    id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
+  });
+  const projects = [{ id: "open-project", root: "/open" }, { id: "shut-project", root: "/shut" }];
+  const tasks = [task("open-task", "open-project"), task("shut-task", "shut-project")];
+  const measured = [];
+  const view = await mount(React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects,
+    orderedTasks: tasks,
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(["open-project"]),
+    runningTaskIds: new Set(),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    settingsOpen: false,
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+  }));
+
+  const shutList = () => view.container.querySelector('[data-rfd-droppable-id="shut-project"]');
+  assert.ok(shutList().className.includes("collapsed"), "the folder starts collapsed");
+
+  // The library measures every droppable while lifting; record what it could see.
+  const original = dom.window.HTMLElement.prototype.getBoundingClientRect;
+  dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+    if (this.getAttribute?.("data-rfd-droppable-id") === "shut-project") {
+      measured.push(this.className.includes("collapsed") ? "hidden" : "visible");
+    }
+    return { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON() {} };
+  };
+  try {
+    const handle = view.container.querySelector('[data-rfd-drag-handle-draggable-id="open-task"]');
+    assert.ok(handle, "the open folder's task is draggable");
+    await act(async () => {
+      handle.focus();
+      handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
+    });
+
+    assert.equal(shutList().className.includes("collapsed"), false, "the collapsed folder is revealed for the drag");
+    assert.ok(measured.length > 0, "the library measured the collapsed folder");
+    assert.equal(measured.includes("hidden"), false, `measured while still collapsed: ${measured.join(",")}`);
+  } finally {
+    dom.window.HTMLElement.prototype.getBoundingClientRect = original;
+  }
+  await view.unmount();
 });

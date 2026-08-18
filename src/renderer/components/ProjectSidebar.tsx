@@ -83,7 +83,8 @@ export function ProjectSidebar({
   onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
-  /** Every folder accepts drops mid-drag, so a collapsed one is still a place to drop into. */
+  /** Every folder accepts drops mid-drag, so a collapsed one is still a place to drop into.
+   *  Revealed before capture: a folder measured while `display: none` has no droppable bounds. */
   const [dragging, setDragging] = useState(false);
 
   function finishDrag({ draggableId, source, destination }: DropResult) {
@@ -145,7 +146,7 @@ export function ProjectSidebar({
   );
 
   return (
-    <DragDropContext onDragStart={() => setDragging(true)} onDragEnd={finishDrag}>
+    <DragDropContext onBeforeCapture={() => setDragging(true)} onDragEnd={finishDrag}>
     <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`} inert={inactive}>
       <div className="traffic-space" aria-hidden="true" />
       <div className="brand-row">
