@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { promptWithAttachments, taskTitleFor, type RunAttachment } from "../../application/attachments";
 import { applyRunEvent, applyTask, createTaskMessage, runStatusFor, withActiveRun, withRunStatus, type RunTransitionState } from "../../application/task-workspace";
 import type { ChangedFilesResult, PersistedTask, RunEvent, TaskStoreDelta } from "../../contracts/ipc";
+import { contextWindowLimit } from "../../domain/run";
 import type { AgentModel, ContextWindow, ExecutionPolicy } from "../../domain/run";
 import type { Project, Task, TaskStoreData } from "../../domain/task";
 import { legacyProjectId } from "../../domain/task";
@@ -329,7 +330,12 @@ export function useTaskWorkspace() {
 
   function setContextWindow(nextContextWindow: ContextWindow) {
     setStateAndRef((current) => current.currentId
-      ? applyTask({ ...current, draftContextWindow: nextContextWindow }, current.currentId, (task) => ({ ...task, contextWindow: nextContextWindow, updatedAt: now() }))
+      ? applyTask({ ...current, draftContextWindow: nextContextWindow }, current.currentId, (task) => ({
+        ...task,
+        contextWindow: nextContextWindow,
+        ...(task.contextUsage ? { contextUsage: { ...task.contextUsage, limit: contextWindowLimit(nextContextWindow) } } : {}),
+        updatedAt: now(),
+      }))
       : { ...current, draftContextWindow: nextContextWindow });
   }
 

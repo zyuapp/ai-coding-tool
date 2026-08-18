@@ -1,6 +1,7 @@
 import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type Query, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { contextWindowLimit } from "../../domain/run.js";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 
@@ -232,7 +233,7 @@ export class ClaudeAgentProvider implements AgentProvider {
           input.emit({
             type: "usage",
             tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-            limit: input.contextWindow === "1m" ? 1_000_000 : 200_000,
+            limit: contextWindowLimit(input.contextWindow),
             model: message.message.model,
           });
         } else if (message.type === "result" && (message.subtype !== "success" || message.is_error)) {

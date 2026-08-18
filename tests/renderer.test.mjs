@@ -310,6 +310,33 @@ test("computer-use setup events open settings directly", async () => {
   await view.unmount();
 });
 
+test("context usage stays within 100% when the window shrinks below the used tokens", async () => {
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "",
+    folder: "/project",
+    workspaceId: "workspace-1",
+    mode: "confirm",
+    model: "default",
+    contextWindow: "default",
+    contextUsage: { tokens: 620_000, limit: 200_000, model: "claude-opus-5" },
+    runActive: false,
+    onPromptChange() {},
+    onModeChange() {},
+    onModelChange() {},
+    onContextWindowChange() {},
+    onSend() {},
+    onCancel() {},
+  }));
+  await act(async () => {});
+
+  const usage = view.container.querySelector(".context-usage");
+  assert.equal(usage.getAttribute("aria-label"), "100% of context window used");
+  assert.match(usage.textContent, /100% used \(0% left\)/);
+  assert.match(usage.textContent, /620K \/ 200K tokens used/);
+  await view.unmount();
+});
+
 test("slash command palette filters skills and supports keyboard selection", async () => {
   window.desktop = fakeDesktop({
     commands: async () => ({ status: "available", commands: [
@@ -579,6 +606,23 @@ test("workspace hook reopens a legacy project and prevents duplicate submissions
   assert.equal(desktop.sent[0].workspaceId, "workspace-1");
   assert.deepEqual(desktop.sent[0].continuation, { provider: "claude", value: "session-1" });
   await view.unmount();
+});
+
+test("switching the context window rescales the stored usage limit", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const task = {
+    id: "task-1", title: "Task", projectId: project.id, executionPolicy: "confirm", messages: [],
+    contextWindow: "1m", contextUsage: { tokens: 620_000, limit: 1_000_000, model: "claude-opus-5" },
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task], lastFolder: project.root }) });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+
+  await act(async () => { workspace.get().actions.setContextWindow("default"); });
+
+  assert.deepEqual(workspace.get().currentTask.contextUsage, { tokens: 620_000, limit: 200_000, model: "claude-opus-5" });
+  await workspace.view.unmount();
 });
 
 test("workspace hook removes a project without touching its folder", async () => {

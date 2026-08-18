@@ -45,3 +45,7 @@ export type Run = {
   status: RunStatus;
   sequence: number;
 };
+
+export function contextWindowLimit(contextWindow: ContextWindow) {
+  return contextWindow === "1m" ? 1_000_000 : 200_000;
+}

@@ -130,7 +130,7 @@ export function TaskComposer({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const editing = attachments.find((attachment) => attachment.id === annotating);
-  const contextPercent = contextUsage ? Math.round(contextUsage.tokens / contextUsage.limit * 100) : 0;
+  const contextPercent = contextUsage ? Math.min(Math.round(contextUsage.tokens / contextUsage.limit * 100), 100) : 0;
   const slashQuery = prompt.match(/^\/([^\s]*)$/)?.[1].toLowerCase();
   const appCommand = { name: "side", description: "Open a focused side chat.", argumentHint: "", aliases: [] as string[], kind: "app" as const };
   const matchingCommands = slashQuery === undefined ? [] : [
@@ -328,7 +328,7 @@ export function TaskComposer({
           <div className="composer-actions">
             {contextUsage && (
               <span className="context-usage" tabIndex={0} aria-label={`${contextPercent}% of context window used`} aria-describedby="context-usage-tooltip">
-                <span className="context-usage-ring" aria-hidden="true" style={{ "--context-progress": `${Math.min(contextPercent, 100)}%` } as CSSProperties} />
+                <span className="context-usage-ring" aria-hidden="true" style={{ "--context-progress": `${contextPercent}%` } as CSSProperties} />
                 <span className="context-usage-tooltip" id="context-usage-tooltip" role="tooltip">
                   <span>Context window:</span>
                   <strong>{contextPercent}% used ({100 - contextPercent}% left)</strong>
