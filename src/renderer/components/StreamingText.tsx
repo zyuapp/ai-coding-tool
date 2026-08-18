@@ -1,16 +1,29 @@
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { emptyScan, scanBlocks } from "../../domain/markdown-stream";
 import { MarkdownMessage } from "./MarkdownMessage";
 
-/** The speed text reads as being typed at, held steady however fast the model bursts. */
-const TYPING_CHARS_PER_SECOND = 220;
+/** The speed text reads as being typed at, held steady however fast the model produces it. */
+const TYPING_CHARS_PER_SECOND = 120;
 /**
- * How far behind the stream the reveal may fall before it stops typing at a steady speed and starts
- * catching up. Bounds the jump when a turn settles, since settled text renders all at once.
+ * How far behind the stream the reveal may fall before it gives up its steady speed to catch up.
+ * Generous, because falling behind is the point: it is what lets a burst read as typing.
  */
-const MAX_LAG_MS = 800;
+const MAX_LAG_MS = 15_000;
 /** Redrawing faster than this costs re-measurement in the virtualized timeline and buys nothing. */
 const FRAME_MS = 33;
+
+/**
+ * How much of each message has been read out, kept outside the components so the reveal survives
+ * the node changing hands. A message moves between renderers as it commits and as its turn settles,
+ * and remounting a typewriter would replay text the reader has already seen.
+ */
+const RevealedText = createContext<Map<string, number>>(new Map());
+
+export function RevealedTextProvider({ children }: { children: ReactNode }) {
+  const revealed = useRef<Map<string, number>>(null!);
+  revealed.current ??= new Map();
+  return <RevealedText.Provider value={revealed.current}>{children}</RevealedText.Provider>;
+}
 
 function animates() {
   return typeof requestAnimationFrame === "function"
@@ -19,18 +32,23 @@ function animates() {
 
 /**
  * Paces text onto the screen instead of letting a finished block land at once. It types at a steady
- * speed and only outruns it to keep the backlog inside `MAX_LAG_MS`, so how fast the model bursts
- * changes how far behind the reveal sits rather than how fast it reads.
+ * speed and only outruns it to keep the backlog inside `MAX_LAG_MS`, so how fast the model produces
+ * text changes how far behind the reveal sits rather than how fast it reads.
  */
-function useTypewriter(text: string) {
-  const [revealed, setRevealed] = useState(0);
-  const shown = useRef(0);
+function useTypewriter(text: string, id: string, streaming: boolean) {
+  const revealedText = useContext(RevealedText);
+  const [revealed, setRevealed] = useState(() => revealedText.get(id) ?? (streaming ? 0 : text.length));
+  const shown = useRef(revealed);
   const drawnAt = useRef(0);
 
   useEffect(() => {
-    if (shown.current > text.length || !animates()) {
+    const finish = () => {
       shown.current = text.length;
+      revealedText.set(id, text.length);
       setRevealed(text.length);
+    };
+    if (shown.current > text.length || !animates()) {
+      finish();
       return;
     }
     if (shown.current === text.length) {
@@ -46,13 +64,14 @@ function useTypewriter(text: string) {
         const behind = text.length - shown.current;
         const perSecond = Math.max(TYPING_CHARS_PER_SECOND, behind * 1000 / MAX_LAG_MS);
         shown.current = Math.min(text.length, shown.current + Math.max(1, Math.round(perSecond * elapsed / 1000)));
+        revealedText.set(id, shown.current);
         setRevealed(shown.current);
       }
       if (shown.current < text.length) frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [text]);
+  }, [text, id, revealedText]);
 
   return Math.min(revealed, text.length);
 }
@@ -79,12 +98,21 @@ function words(text: string, offset: number) {
 
 /**
  * The committed part is whole Markdown blocks; the tail is still being written. Both are revealed
- * through one running count, so text never jumps when a block commits.
+ * through one running count, so text never jumps when a block commits. `streaming` says more text
+ * may still arrive, which is what keeps a half-written block out of the parser.
  */
-export function StreamingText({ committed, tail }: { committed: string; tail: string }) {
-  const revealed = useTypewriter(committed + tail);
-  const text = (committed + tail).slice(0, revealed);
-  const complete = useCompleteBlocks(text);
+export function StreamingText({ id, committed, tail = "", streaming = false }: {
+  id: string;
+  committed: string;
+  tail?: string;
+  streaming?: boolean;
+}) {
+  const full = committed + tail;
+  const revealed = useTypewriter(full, id, streaming);
+  const text = full.slice(0, revealed);
+  const blocks = useCompleteBlocks(text);
+  /** Nothing more is coming, so the trailing block is finished and can be parsed. */
+  const complete = !streaming && revealed >= full.length ? full.length : blocks;
   const pending = text.slice(complete);
   return (
     <>

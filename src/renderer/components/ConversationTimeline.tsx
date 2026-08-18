@@ -6,7 +6,7 @@ import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { Task, TaskMessage } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { StreamingText } from "./StreamingText";
+import { RevealedTextProvider, StreamingText } from "./StreamingText";
 
 function FolderIcon() {
   return (
@@ -174,14 +174,14 @@ function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[
     : (
       <div key={segment.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
-          ? <StreamingText committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} />
+          ? <StreamingText id={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
           : <MarkdownMessage>{segment.message.text}</MarkdownMessage>}
       </div>
     ));
   if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {
     nodes.push(
       <div key={streamingId} className="message-text markdown-body work-note">
-        <StreamingText committed="" tail={tail?.text ?? ""} />
+        <StreamingText id={streamingId} committed="" tail={tail?.text ?? ""} streaming />
       </div>,
     );
   }
@@ -255,7 +255,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     };
   }, [currentTask?.id, scrollContainerRef]);
 
-  if (!currentTask?.messages.length) {
+  if (!currentTask?.messages.length && !streamingTail) {
     const EmptyIcon = empty?.icon;
     return (
       <div className="empty-state">
@@ -267,6 +267,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   }
 
   return (
+    <RevealedTextProvider>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => {
@@ -285,7 +286,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                   {group.live
                     ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
                     : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.final?.at ?? null} />}
-                  {group.final && <div className="message-text markdown-body"><MarkdownMessage>{group.final.text}</MarkdownMessage></div>}
+                  {group.final && <div className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} /></div>}
                 </article>
               ) : (
                 <article className={`message ${message!.kind}`}>
@@ -328,5 +329,6 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
     </div>
+    </RevealedTextProvider>
   );
 }

@@ -27,7 +27,7 @@ const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/Task
 const { drawAnnotations, wrapLabel } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
-const { StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
+const { RevealedTextProvider, StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 const { ProjectSidebar } = await vite.ssrLoadModule("/src/renderer/components/ProjectSidebar.tsx");
 
@@ -1343,6 +1343,11 @@ test("a collapsed folder is revealed before the drag is measured, not after", as
   await view.unmount();
 });
 
+/** Each mount gets its own reveal store, the way a timeline does, so tests never share progress. */
+function streaming(props) {
+  return React.createElement(RevealedTextProvider, null, React.createElement(StreamingText, { id: "m1", streaming: true, ...props }));
+}
+
 /** Waits out the reveal loop, which paces itself against the real clock rather than frame count. */
 async function settle(view, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
@@ -1358,7 +1363,7 @@ async function settle(view, timeoutMs = 3000) {
 
 test("streamed text arrives progressively instead of landing whole", async () => {
   const tail = "Checking the reducer before anything else.";
-  const view = await mount(React.createElement(StreamingText, { committed: "", tail }));
+  const view = await mount(streaming({ committed: "", tail }));
 
   const steps = [];
   const deadline = Date.now() + 3000;
@@ -1375,12 +1380,12 @@ test("streamed text arrives progressively instead of landing whole", async () =>
 });
 
 test("a revealed word keeps its node, so only new words animate in", async () => {
-  const view = await mount(React.createElement(StreamingText, { committed: "", tail: "One two" }));
+  const view = await mount(streaming({ committed: "", tail: "One two" }));
   await settle(view);
   const before = [...view.container.querySelectorAll(".stream-word")].map((node) => node.textContent);
   const firstNode = view.container.querySelector(".stream-word");
 
-  await view.render(React.createElement(StreamingText, { committed: "", tail: "One two three" }));
+  await view.render(streaming({ committed: "", tail: "One two three" }));
   await settle(view);
   const after = [...view.container.querySelectorAll(".stream-word")].map((node) => node.textContent);
 
@@ -1391,14 +1396,14 @@ test("a revealed word keeps its node, so only new words animate in", async () =>
 });
 
 test("committed blocks render as Markdown while the unfinished tail stays plain", async () => {
-  const view = await mount(React.createElement(StreamingText, { committed: "## Heading\n\n", tail: "Then a **partly" }));
+  const view = await mount(streaming({ committed: "## Heading\n\n", tail: "Then a **partly" }));
   await settle(view);
 
   assert.equal(view.container.querySelector("h2").textContent, "Heading");
   assert.equal(view.container.querySelector(".stream-pending").textContent, "Then a **partly", "an unclosed emphasis run is not parsed yet");
   assert.equal(view.container.querySelector("strong"), null);
 
-  await view.render(React.createElement(StreamingText, { committed: "## Heading\n\nThen a **partly** written line.\n\n", tail: "" }));
+  await view.render(streaming({ committed: "## Heading\n\nThen a **partly** written line.\n\n", tail: "" }));
   await settle(view);
   assert.equal(view.container.querySelector("strong").textContent, "partly");
   assert.equal(view.container.querySelector(".stream-pending"), null);
@@ -1406,11 +1411,11 @@ test("committed blocks render as Markdown while the unfinished tail stays plain"
 });
 
 test("text committing into a block does not rewind or repeat the reveal", async () => {
-  const view = await mount(React.createElement(StreamingText, { committed: "", tail: "A whole paragraph of text." }));
+  const view = await mount(streaming({ committed: "", tail: "A whole paragraph of text." }));
   await settle(view);
   assert.equal(view.container.textContent, "A whole paragraph of text.");
 
-  await view.render(React.createElement(StreamingText, { committed: "A whole paragraph of text.\n\n", tail: "" }));
+  await view.render(streaming({ committed: "A whole paragraph of text.\n\n", tail: "" }));
   assert.equal(view.container.textContent.trim(), "A whole paragraph of text.", "the same text stays put as it becomes a block");
   await view.unmount();
 });
@@ -1456,7 +1461,7 @@ test("a block committing between tails does not replay the text already read", a
 
 /** How long the reveal takes to work through a block that lands in one go. */
 async function revealDuration(tail) {
-  const view = await mount(React.createElement(StreamingText, { committed: "", tail }));
+  const view = await mount(streaming({ committed: "", tail }));
   const startedAt = Date.now();
   const deadline = startedAt + 10_000;
   while (Date.now() < deadline && view.container.textContent !== tail) {
@@ -1470,12 +1475,52 @@ async function revealDuration(tail) {
 
 test("a big block takes proportionally longer to read out than a small one", async () => {
   const small = await revealDuration("word ".repeat(22).trim());
-  const large = await revealDuration("word ".repeat(400).trim());
+  const large = await revealDuration("word ".repeat(110).trim());
 
   /**
    * A rate derived from the backlog alone reveals any size in about the same time, so a paragraph
    * flashes past while a sentence does not. Typing speed has to set the pace instead.
    */
-  assert.ok(large >= small * 3, `18x the text took ${large}ms against ${small}ms, so a big block still flashes past`);
-  assert.ok(large <= 6000, `a paragraph took ${large}ms to read out, which is a crawl`);
+  assert.ok(large >= small * 3, `5x the text took ${large}ms against ${small}ms, so a big block still flashes past`);
+  assert.ok(large <= 9000, `a paragraph took ${large}ms to read out, which is a crawl`);
+});
+
+test("a turn that settles keeps reading out rather than snapping to the end", async () => {
+  const body = "word ".repeat(80).trim();
+  const messages = transcript({ kind: "user", text: "Explain this" });
+  /** One scroll container across the handover, so the virtualizer is not what changes. */
+  const scroller = document.createElement("div");
+  Object.defineProperty(scroller, "offsetWidth", { value: 860 });
+  Object.defineProperty(scroller, "offsetHeight", { value: 900 });
+  document.body.append(scroller);
+  const scrollContainerRef = { current: scroller };
+  const timeline = (list, status, streamingTail) => React.createElement(ConversationTimeline, {
+    currentTask: { id: "t1", title: "T", executionPolicy: "confirm", messages: list, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
+    folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
+  });
+  const view = await mount(timeline(messages, "running", { messageId: "reply-1", text: body }));
+  const reading = () => view.container.querySelector(".stream-pending")?.textContent.length ?? 0;
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+  const midway = reading();
+  assert.ok(midway > 0 && midway < body.length, `the reveal should be under way and short of ${body.length}, was ${midway}`);
+
+  /** The run ends and the text changes hands to the settled renderer, which is where it used to jump. */
+  const settled = [...messages, { id: "reply-1", at: 2000, kind: "assistant", text: `${body}\n\n` }];
+  await view.render(timeline(settled, "idle", null));
+  assert.ok(reading() >= midway, "settling rewound the reveal");
+  assert.ok(reading() < body.length, `settling jumped straight to ${reading()} characters`);
+
+  await settle(view, 8000);
+  assert.match(view.container.textContent, /word word/, "the settled turn never finished reading out");
+  assert.equal(view.container.querySelector(".stream-pending"), null, "finished text is parsed rather than left plain");
+  await view.unmount();
+});
+
+test("a tail renders before the task has a message of its own to attach to", async () => {
+  const view = await mount(timelineView([], "running", { messageId: "reply-1", text: "Starting on it" }));
+  await settle(view);
+
+  assert.equal(view.container.querySelector(".empty-state"), null, "a live tail is not an empty task");
+  assert.match(view.container.textContent, /Starting on it/);
+  await view.unmount();
 });
