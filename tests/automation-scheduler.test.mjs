@@ -197,6 +197,19 @@ test("stored automations are rearmed on start and broadcast to the panel on ever
   assert.deepEqual(broadcasts.at(-1), []);
 });
 
+test("a stored schedule this build cannot parse is skipped instead of blocking startup", (t) => {
+  const store = memoryStore([
+    { id: "broken", taskId: "task-broken", prompt: "poll", schedule: "nonsense", paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
+    { id: "sound", taskId: "task-sound", prompt: "poll", schedule: HOURLY, paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
+  ]);
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+
+  assert.doesNotThrow(() => scheduler.start());
+
+  assert.equal(scheduler.forTask("task-broken").nextRunAt, null, "the broken automation is never armed");
+  assert.notEqual(scheduler.forTask("task-sound").nextRunAt, null, "and it does not take the others down with it");
+});
+
 test("a paused automation stays paused across a restart", (t) => {
   const store = memoryStore();
   const first = schedulerFor(t, store, async () => "succeeded");

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -77,9 +78,20 @@ test("SQLite automation storage keeps one row per task and drops unreadable rows
   try {
     assert.equal(reopened.listAutomations()[0].prompt, "check whether the PR is approved", "automations survive a restart");
     reopened.saveAutomation({ ...automation, id: "automation-3", taskId: "task-3", schedule: 42 });
-    assert.deepEqual(reopened.listAutomations().map((row) => row.id), ["automation-1"], "a malformed row never reaches the scheduler");
+    assert.deepEqual(reopened.listAutomations().map((row) => row.id), ["automation-1"], "a row with the wrong shape never reaches the scheduler");
   } finally {
     reopened.close();
+  }
+
+  const raw = new DatabaseSync(file);
+  raw.prepare("INSERT INTO automations (id, task_id, data) VALUES (?, ?, ?)").run("automation-4", "task-4", "{not json");
+  raw.close();
+
+  const corrupt = new TaskDatabase(file);
+  try {
+    assert.deepEqual(corrupt.listAutomations().map((row) => row.id), ["automation-1"], "unparseable JSON is skipped rather than thrown");
+  } finally {
+    corrupt.close();
     await rm(directory, { recursive: true });
   }
 });

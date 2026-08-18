@@ -3,6 +3,16 @@ import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import { parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
 
+/** Automations are read while the app boots, so one unreadable row must not take the window with it. */
+function parseAutomationRow(data: string): Automation | null {
+  try {
+    const parsed = JSON.parse(data) as unknown;
+    return isAutomation(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export class TaskDatabase {
   private readonly database: DatabaseSync;
   private closed = false;
@@ -30,8 +40,8 @@ export class TaskDatabase {
   listAutomations(): Automation[] {
     const rows = this.database.prepare("SELECT data FROM automations ORDER BY task_id").all() as Array<{ data: string }>;
     return rows.flatMap(({ data }) => {
-      const parsed = JSON.parse(data) as unknown;
-      return isAutomation(parsed) ? [parsed] : [];
+      const automation = parseAutomationRow(data);
+      return automation ? [automation] : [];
     });
   }
 

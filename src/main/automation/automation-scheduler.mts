@@ -140,15 +140,22 @@ export class AutomationScheduler {
     this.notify();
   }
 
+  /** Returns false when the stored schedule cannot be armed, which must never throw out of start(). */
   private arm(automation: Automation) {
     this.disarm(automation.id);
-    const cron = new Cron(automation.schedule, {
-      protect: true,
-      paused: automation.paused,
-      ...(automation.timezone === undefined ? {} : { timezone: automation.timezone }),
-      catch: true,
-    }, async () => { await this.fire(automation.id); });
+    let cron: Cron;
+    try {
+      cron = new Cron(automation.schedule, {
+        protect: true,
+        paused: automation.paused,
+        ...(automation.timezone === undefined ? {} : { timezone: automation.timezone }),
+        catch: true,
+      }, async () => { await this.fire(automation.id); });
+    } catch {
+      return false;
+    }
     this.crons.set(automation.id, cron);
+    return true;
   }
 
   private disarm(id: string) {
