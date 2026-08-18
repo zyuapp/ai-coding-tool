@@ -713,7 +713,7 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
 });
 
 function transcript(...messages) {
-  return messages.map((message, index) => ({ id: `m${index}`, at: index, ...message }));
+  return messages.map((message, index) => ({ id: `m${index}`, at: index * 1000, ...message }));
 }
 
 async function expand(details) {
@@ -748,12 +748,13 @@ test("a running turn collapses its tool calls behind the newest one", async () =
   const view = await mount(timelineView(messages, "running"));
 
   const run = view.container.querySelector(".work-group");
-  assert.match(run.querySelector("summary").textContent, /Worked\s*Read\s*\+2/);
+  assert.equal(run.querySelector(".work-label").textContent, "Read");
+  assert.equal(run.querySelector(".work-count").textContent, "+2");
   assert.equal(view.container.querySelector(".work-note").textContent, "I'll investigate.");
   assert.equal(view.container.querySelectorAll(".work-steps").length, 0);
 
   await expand(run);
-  assert.deepEqual([...view.container.querySelectorAll(".work-steps .work-row summary")].map((step) => step.textContent), ["WorkedBash", "WorkedGrep", "WorkedRead"]);
+  assert.deepEqual([...view.container.querySelectorAll(".work-steps .work-row .work-label")].map((step) => step.textContent), ["Bash", "Grep", "Read"]);
   await view.unmount();
 });
 
@@ -768,13 +769,15 @@ test("a settled turn folds its steps behind the final answer", async () => {
   const view = await mount(timelineView(messages, "idle"));
 
   const settled = view.container.querySelector(".work-group");
-  assert.match(settled.querySelector("summary").textContent, /Worked\s*3 steps/);
+  assert.equal(settled.querySelector(".work-summary").textContent, "3 steps");
   assert.equal(view.container.querySelector(".message.turn > .message-text").textContent, "Fixed the race.");
   assert.equal(view.container.querySelector(".work-note"), null);
 
   await expand(settled);
   assert.equal(view.container.querySelector(".work-note").textContent, "I'll investigate.");
-  assert.match(view.container.querySelectorAll(".work-group")[1].querySelector("summary").textContent, /Worked\s*Grep\s*\+1/);
+  const run = view.container.querySelectorAll(".work-group")[1];
+  assert.equal(run.querySelector(".work-label").textContent, "Grep");
+  assert.equal(run.querySelector(".work-count").textContent, "+1");
 
   await view.unmount();
 });
@@ -797,4 +800,58 @@ test("timeline groups keep user turns apart and leave a lone answer uncollapsed"
   const running = groupTimeline(messages, true);
   assert.equal(running[1].live, false);
   assert.equal(running[3].live, true);
+});
+
+test("a settled turn times each step it folds away", async () => {
+  const settledMessages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "assistant", text: "Looking." },
+    { kind: "tool", text: "Bash", detail: "one" },
+    { kind: "tool", text: "Grep", detail: "two" },
+    { kind: "assistant", text: "Done." },
+  );
+  const settledView = await mount(timelineView(settledMessages, "idle"));
+
+  const settled = settledView.container.querySelector(".work-group");
+  assert.equal(settled.querySelector(".work-time").textContent, "3s");
+  await expand(settled);
+  const run = settledView.container.querySelectorAll(".work-group")[1];
+  assert.equal(run.querySelector(".work-time").textContent, "2s");
+  await expand(run);
+  assert.deepEqual([...run.querySelectorAll(".work-row .work-time")].map((time) => time.textContent), ["1s", "1s"]);
+  await settledView.unmount();
+});
+
+test("a running turn counts up until its work ends", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "Date"], now: 100_000 });
+  const running = [
+    { id: "l0", at: 40_000, kind: "tool", text: "Bash", detail: "one" },
+    { id: "l1", at: 95_000, kind: "tool", text: "Grep", detail: "two" },
+  ];
+  const view = await mount(timelineView(running, "running"));
+  const elapsed = () => view.container.querySelector(".work-group .work-time").textContent;
+
+  assert.equal(elapsed(), "1m 0s");
+  await act(async () => { t.mock.timers.tick(4_000); });
+  assert.equal(elapsed(), "1m 4s");
+
+  await view.render(timelineView([...running, { id: "l2", at: 106_000, kind: "assistant", text: "Done." }], "idle"));
+  assert.equal(elapsed(), "1m 6s");
+  await act(async () => { t.mock.timers.tick(30_000); });
+  assert.equal(elapsed(), "1m 6s");
+
+  await view.unmount();
+  t.mock.timers.reset();
+});
+
+test("elapsed labels stay readable from seconds to hours", async () => {
+  const { formatElapsed } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
+
+  assert.equal(formatElapsed(-5), "0s");
+  assert.equal(formatElapsed(940), "1s");
+  assert.equal(formatElapsed(59_400), "59s");
+  assert.equal(formatElapsed(60_000), "1m 0s");
+  assert.equal(formatElapsed(3_599_000), "59m 59s");
+  assert.equal(formatElapsed(3_600_000), "1h 0m");
+  assert.equal(formatElapsed(7_500_000), "2h 5m");
 });

@@ -605,8 +605,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .work-row > summary::-webkit-details-marker, .work-group > summary::-webkit-details-marker { display: none; }
 .work-row > summary::after, .work-group > summary::after { content: "›"; color: #555b62; font-size: 18px; transition: transform 140ms ease; }
 .work-row[open] > summary::after, .work-group[open] > summary::after { transform: rotate(90deg); }
-.work-row > summary > span:first-child, .work-group > summary > span:first-child { color: #898d92; }
-.work-row > summary > span:nth-child(2), .work-group > summary > span:nth-child(2) {
+.work-lead { color: #898d92; }
+.work-time { flex: none; color: #6f747a; font-variant-numeric: tabular-nums; }
+.work-summary { color: #6f747a; }
+.work-label {
   min-width: 0;
   overflow: hidden;
   color: #5f646b;
@@ -616,7 +618,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .message.turn { display: flex; flex-direction: column; gap: 17px; }
 .work-group { border-bottom: 1px solid var(--line-soft); }
-.work-group > summary > span.work-summary { color: #6f747a; font-family: inherit; }
 .work-count {
   flex: none;
   border-radius: 999px;

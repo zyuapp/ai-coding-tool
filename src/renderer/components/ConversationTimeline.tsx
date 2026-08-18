@@ -36,9 +36,12 @@ type TimelineGroup =
   | { kind: "message"; id: string; message: TaskMessage }
   | { kind: "turn"; id: string; steps: TaskMessage[]; final: TaskMessage | null; live: boolean };
 
+/** A step runs until the next one starts; the newest step of a live turn has not ended yet. */
+type TimedStep = { message: TaskMessage; endsAt: number | null };
+
 type TurnSegment =
   | { kind: "note"; id: string; message: TaskMessage }
-  | { kind: "tools"; id: string; messages: TaskMessage[] };
+  | { kind: "tools"; id: string; steps: TimedStep[] };
 
 /**
  * Assistant text and the tool calls it drives belong to one turn. A turn ending in assistant text is
@@ -74,18 +77,45 @@ export function groupTimeline(messages: TaskMessage[], running: boolean): Timeli
   });
 }
 
-function toSegments(steps: TaskMessage[]): TurnSegment[] {
+function timeSteps(steps: TaskMessage[], turnEndsAt: number | null): TimedStep[] {
+  return steps.map((message, index) => ({ message, endsAt: steps[index + 1]?.at ?? turnEndsAt }));
+}
+
+function toSegments(steps: TimedStep[]): TurnSegment[] {
   const segments: TurnSegment[] = [];
   for (const step of steps) {
-    if (step.kind !== "tool") {
-      segments.push({ kind: "note", id: step.id, message: step });
+    if (step.message.kind !== "tool") {
+      segments.push({ kind: "note", id: step.message.id, message: step.message });
       continue;
     }
     const open = segments.at(-1);
-    if (open?.kind === "tools") open.messages.push(step);
-    else segments.push({ kind: "tools", id: step.id, messages: [step] });
+    if (open?.kind === "tools") open.steps.push(step);
+    else segments.push({ kind: "tools", id: step.message.id, steps: [step] });
   }
   return segments;
+}
+
+export function formatElapsed(ms: number) {
+  const seconds = Math.round(Math.max(0, ms) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/** Work still in flight has no end yet, so it counts up from its start once a second. */
+function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | null }) {
+  const [end, setEnd] = useState(() => endsAt ?? Date.now());
+  useEffect(() => {
+    if (endsAt !== null) {
+      setEnd(endsAt);
+      return;
+    }
+    setEnd(Date.now());
+    const timer = setInterval(() => setEnd(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [endsAt]);
+  return <span className="work-time">{formatElapsed(end - startedAt)}</span>;
 }
 
 /** Folded work stays out of the DOM until opened, so a long turn costs one row until it is read. */
@@ -99,49 +129,54 @@ function Fold({ className, summary, children }: { className: string; summary: Re
   );
 }
 
-function ToolStep({ message }: { message: TaskMessage }) {
-  return (
-    <Fold className="work-row" summary={<><span>Worked</span><span>{message.text}</span></>}>
-      {() => <pre>{message.detail}</pre>}
-    </Fold>
+function ToolStep({ step }: { step: TimedStep }) {
+  const summary = (
+    <>
+      <span className="work-lead">Worked</span>
+      <Elapsed startedAt={step.message.at} endsAt={step.endsAt} />
+      <span className="work-label">{step.message.text}</span>
+    </>
   );
+  return <Fold className="work-row" summary={summary}>{() => <pre>{step.message.detail}</pre>}</Fold>;
 }
 
 /** Run of tool calls: the newest one stays visible, the rest hide behind a +N counter. */
-function ToolRun({ messages }: { messages: TaskMessage[] }) {
-  if (messages.length === 1) return <ToolStep message={messages[0]!} />;
-  const hidden = messages.length - 1;
+function ToolRun({ steps }: { steps: TimedStep[] }) {
+  if (steps.length === 1) return <ToolStep step={steps[0]!} />;
+  const hidden = steps.length - 1;
   const summary = (
     <>
-      <span>Worked</span>
-      <span>{messages.at(-1)!.text}</span>
+      <span className="work-lead">Worked</span>
+      <Elapsed startedAt={steps[0]!.message.at} endsAt={steps.at(-1)!.endsAt} />
+      <span className="work-label">{steps.at(-1)!.message.text}</span>
       <span className="work-count" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</span>
     </>
   );
   return (
     <Fold className="work-group" summary={summary}>
-      {() => <div className="work-steps">{messages.map((message) => <ToolStep key={message.id} message={message} />)}</div>}
+      {() => <div className="work-steps">{steps.map((step) => <ToolStep key={step.message.id} step={step} />)}</div>}
     </Fold>
   );
 }
 
 function TurnSegments({ segments }: { segments: TurnSegment[] }) {
   return segments.map((segment) => segment.kind === "tools"
-    ? <ToolRun key={segment.id} messages={segment.messages} />
+    ? <ToolRun key={segment.id} steps={segment.steps} />
     : <div key={segment.id} className="message-text markdown-body work-note"><MarkdownMessage>{segment.message.text}</MarkdownMessage></div>);
 }
 
 /** Settled turn: every step, tool calls and interim text alike, folds behind one row. */
-function SettledSteps({ steps }: { steps: TaskMessage[] }) {
+function SettledSteps({ steps, endsAt }: { steps: TaskMessage[]; endsAt: number | null }) {
   const summary = (
     <>
-      <span>Worked</span>
+      <span className="work-lead">Worked</span>
+      <Elapsed startedAt={steps[0]!.at} endsAt={endsAt} />
       <span className="work-summary">{steps.length} step{steps.length === 1 ? "" : "s"}</span>
     </>
   );
   return (
     <Fold className="work-group" summary={summary}>
-      {() => <div className="work-steps"><TurnSegments segments={toSegments(steps)} /></div>}
+      {() => <div className="work-steps"><TurnSegments segments={toSegments(timeSteps(steps, endsAt))} /></div>}
     </Fold>
   );
 }
@@ -224,8 +259,8 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
               {group.kind === "turn" ? (
                 <article className="message assistant turn">
                   {group.steps.length > 0 && (group.live
-                    ? <TurnSegments segments={toSegments(group.steps)} />
-                    : <SettledSteps steps={group.steps} />)}
+                    ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} />
+                    : <SettledSteps steps={group.steps} endsAt={group.final?.at ?? null} />)}
                   {group.final && <div className="message-text markdown-body"><MarkdownMessage>{group.final.text}</MarkdownMessage></div>}
                 </article>
               ) : (
