@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { AlarmClock, Bot, GitFork, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AlarmClock, Bot, GitFork, Plus, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
@@ -12,10 +12,22 @@ import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 
-const DOCK_PANELS = [
-  { id: "agents", title: "Subagents", icon: Bot },
-  { id: "automation", title: "Automation", icon: AlarmClock },
-];
+/** A view in the right dock. Every right dock view is a tab, so adding one means adding an entry to `dockPanels`. */
+type DockPanel = {
+  id: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  badge?: number;
+  /** Runs when the tab closes, for view state the panel owns outside the workspace. */
+  onClose?: () => void;
+  render: () => ReactNode;
+};
+
+/** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
+type DockLauncher = { id: string; title: string; description: string; icon: LucideIcon; disabled?: boolean; open: () => void };
+
+type DockTab = { id: string; title: string; icon: LucideIcon; badge?: number };
 
 export function App() {
   const workspace = useTaskWorkspace();
@@ -46,12 +58,11 @@ export function App() {
   }
 
   function closeRightTab(id: string) {
-    const tabs = [...openPanels, ...workspace.sideChats.map((chat) => chat.id)];
-    const index = tabs.indexOf(id);
+    const index = dockTabs.findIndex((tab) => tab.id === id);
     if (openPanels.includes(id)) setOpenPanels((panels) => panels.filter((panel) => panel !== id));
     else void workspace.dispatch({ type: "side-chat.close", chatId: id });
-    if (id === "agents") setSelectedSubagent(null);
-    if (activeRightTab === id) setActiveRightTab(tabs[index - 1] ?? tabs[index + 1] ?? "home");
+    dockPanels.find((panel) => panel.id === id)?.onClose?.();
+    if (activeRightTab === id) setActiveRightTab(dockTabs[index - 1]?.id ?? dockTabs[index + 1]?.id ?? "home");
   }
 
   function openSettings() {
@@ -97,6 +108,44 @@ export function App() {
       document.removeEventListener("keydown", dismissMenuWithKeyboard);
     };
   }, [workspace.actions]);
+
+  const dockPanels: DockPanel[] = [
+    {
+      id: "agents",
+      title: "Subagents",
+      description: "View work delegated from this task",
+      icon: Bot,
+      badge: workingSubagents,
+      onClose: () => setSelectedSubagent(null),
+      render: () => (inspectedSubagent
+        ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />
+        : <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />),
+    },
+    {
+      id: "automation",
+      title: "Automation",
+      description: "Edit the schedule that repeats this task",
+      icon: AlarmClock,
+      render: () => (
+        <AutomationPanel
+          automation={workspace.automation}
+          onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
+          onDelete={() => void workspace.actions.deleteAutomation()}
+          onRunNow={() => void workspace.actions.runAutomationNow()}
+        />
+      ),
+    },
+  ];
+
+  const dockLaunchers: DockLauncher[] = [
+    ...dockPanels.map(({ id, title, description, icon }) => ({ id, title, description, icon, open: () => openRightTab(id) })),
+    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", icon: GitFork, disabled: !workspace.currentTask, open: addSideChat },
+  ];
+
+  const dockTabs: DockTab[] = [
+    ...dockPanels.filter((panel) => openPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
+    ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork })),
+  ];
 
   return (
     <main className="app-shell">
@@ -195,31 +244,24 @@ export function App() {
             />
             <div className="right-dock-tabs">
               <div role="tablist" aria-label="Right panel tabs">
-                {openPanels.map((id) => {
-                  const panel = DOCK_PANELS.find((entry) => entry.id === id)!;
-                  return (
-                    <div className={`right-dock-tab ${activeRightTab === id ? "active" : ""}`} key={id}>
-                      <button type="button" role="tab" aria-selected={activeRightTab === id} onClick={() => setActiveRightTab(id)}>
-                        <panel.icon size={15} aria-hidden="true" /><span>{panel.title}</span>
-                        {id === "agents" && workingSubagents > 0 && <em>{workingSubagents}</em>}
-                      </button>
-                      <button type="button" aria-label={`Close ${panel.title}`} onClick={() => closeRightTab(id)}><X size={13} /></button>
-                    </div>
-                  );
-                })}
-                {workspace.sideChats.map((chat) => (
-                  <div className={`right-dock-tab ${activeRightTab === chat.id ? "active" : ""}`} key={chat.id}>
-                    <button type="button" role="tab" aria-selected={activeRightTab === chat.id} onClick={() => setActiveRightTab(chat.id)}><GitFork size={14} aria-hidden="true" /><span>{chat.title}</span></button>
-                    <button type="button" aria-label={`Close ${chat.title}`} onClick={() => closeRightTab(chat.id)}><X size={13} /></button>
+                {dockTabs.map((tab) => (
+                  <div className={`right-dock-tab ${activeRightTab === tab.id ? "active" : ""}`} key={tab.id}>
+                    <button type="button" role="tab" aria-selected={activeRightTab === tab.id} onClick={() => setActiveRightTab(tab.id)}>
+                      <tab.icon size={15} aria-hidden="true" /><span>{tab.title}</span>
+                      {tab.badge ? <em>{tab.badge}</em> : null}
+                    </button>
+                    <button type="button" aria-label={`Close ${tab.title}`} onClick={() => closeRightTab(tab.id)}><X size={13} /></button>
                   </div>
                 ))}
               </div>
               <details className="right-dock-add">
                 <summary aria-label="Add right panel tab"><Plus size={18} /></summary>
                 <div>
-                  <button type="button" onClick={(event) => { openRightTab("agents"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><Bot size={16} />Subagents</button>
-                  <button type="button" onClick={(event) => { openRightTab("automation"); event.currentTarget.closest("details")?.removeAttribute("open"); }}><AlarmClock size={16} />Automation</button>
-                  <button type="button" disabled={!workspace.currentTask} onClick={(event) => { addSideChat(); event.currentTarget.closest("details")?.removeAttribute("open"); }}><GitFork size={16} />Side chat</button>
+                  {dockLaunchers.map((launcher) => (
+                    <button key={launcher.id} type="button" disabled={launcher.disabled} onClick={(event) => { launcher.open(); event.currentTarget.closest("details")?.removeAttribute("open"); }}>
+                      <launcher.icon size={16} />{launcher.title}
+                    </button>
+                  ))}
                 </div>
               </details>
               <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => setRightDockOpen(false)}><X size={17} /></button>
@@ -231,33 +273,17 @@ export function App() {
                   <p>Inspect delegated work or start a focused conversation.</p>
                 </header>
                 <div>
-                  <button type="button" aria-label="Open Subagents panel" onClick={() => openRightTab("agents")}>
-                    <Bot size={19} aria-hidden="true" />
-                    <span><strong>Subagents</strong><small>View work delegated from this task</small></span>
-                  </button>
-                  <button type="button" aria-label="Open Automation panel" onClick={() => openRightTab("automation")}>
-                    <AlarmClock size={19} aria-hidden="true" />
-                    <span><strong>Automation</strong><small>Edit the schedule that repeats this task</small></span>
-                  </button>
-                  <button type="button" aria-label="Open Side chat panel" disabled={!workspace.currentTask} onClick={addSideChat}>
-                    <GitFork size={19} aria-hidden="true" />
-                    <span><strong>Side chat</strong><small>Start a focused conversation from this task</small></span>
-                  </button>
+                  {dockLaunchers.map((launcher) => (
+                    <button key={launcher.id} type="button" aria-label={`Open ${launcher.title} panel`} disabled={launcher.disabled} onClick={launcher.open}>
+                      <launcher.icon size={19} aria-hidden="true" />
+                      <span><strong>{launcher.title}</strong><small>{launcher.description}</small></span>
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div hidden={activeRightTab !== "agents"}>
-                {inspectedSubagent ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} /> : (
-                  <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />
-                )}
-              </div>
-              <div hidden={activeRightTab !== "automation"}>
-                <AutomationPanel
-                  automation={workspace.automation}
-                  onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
-                  onDelete={() => void workspace.actions.deleteAutomation()}
-                  onRunNow={() => void workspace.actions.runAutomationNow()}
-                />
-              </div>
+              {dockPanels.map((panel) => (
+                <div key={panel.id} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
+              ))}
               {workspace.currentTask && workspace.sideChats.map((chat) => (
                 <div key={chat.id} hidden={activeRightTab !== chat.id}>
                   <SideChat

@@ -589,21 +589,27 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
   await view.unmount();
 });
 
-test("closing the subagents tab returns to the panel picker", async () => {
+test("every right panel view opens as a closable tab", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
   await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
-  await act(async () => { view.container.querySelector('button[aria-label="Open Subagents panel"]').click(); });
-  await act(async () => { view.container.querySelector('button[aria-label="Close Subagents"]').click(); });
+  const labels = [...view.container.querySelectorAll(".right-dock-picker button")].map((button) => button.getAttribute("aria-label"));
+  assert.ok(labels.length >= 3);
 
-  assert.equal(view.container.querySelector('.right-dock [role="tab"]'), null);
-  assert.equal(view.container.querySelector('[aria-label="Choose a right panel"]').hidden, false);
+  for (const label of labels) {
+    await act(async () => { view.container.querySelector(`.right-dock-picker button[aria-label="${label}"]`).click(); });
+    const tab = [...view.container.querySelectorAll(".right-dock-tab")].find((candidate) => candidate.classList.contains("active"));
+    assert.ok(tab, `${label} opened no tab`);
+    assert.ok(view.container.querySelector(".right-dock-content > div:not([hidden])"), `${label} opened no panel content`);
 
-  await act(async () => { view.container.querySelector('button[aria-label="Open Automation panel"]').click(); });
-  await act(async () => { view.container.querySelector('button[aria-label="Close Automation"]').click(); });
-  assert.equal(view.container.querySelector('.right-dock [role="tab"]'), null);
+    const close = tab.querySelector('button[aria-label^="Close "]');
+    assert.ok(close, `${label} opened a tab that cannot be closed`);
+    await act(async () => { close.click(); });
+    assert.equal(view.container.querySelectorAll(".right-dock-tab").length, 0, `${label} left a tab behind`);
+    assert.equal(view.container.querySelector(".right-dock-picker").hidden, false);
+  }
 
   await view.unmount();
 });

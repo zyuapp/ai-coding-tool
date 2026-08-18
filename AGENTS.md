@@ -22,3 +22,5 @@ The app has one control path for people and agents.
 7. Add an `actions` shorthand only when a component needs it.
 
 If the reducer cannot express a UI action, an agent cannot perform it.
+## Add a right panel view
+Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.
