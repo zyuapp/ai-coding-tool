@@ -1,4 +1,4 @@
-import type { RunAttachment } from "../domain/task.js";
+import { clampTitle, type RunAttachment } from "../domain/task.js";
 
 const ATTACHMENT_HEADING = "Attached screenshots (numbered red boxes mark the areas in question):";
 
@@ -15,8 +15,7 @@ export function promptWithAttachments(text: string, attachments: RunAttachment[]
 }
 
 export function taskTitleFor(text: string, attachments: RunAttachment[]) {
-  const source = text || (attachments.length === 1 ? "Screenshot" : `${attachments.length} screenshots`);
-  return source.length > 52 ? `${source.slice(0, 49)}…` : source;
+  return clampTitle(text || (attachments.length === 1 ? "Screenshot" : `${attachments.length} screenshots`));
 }
 
 export const ATTACHMENT_SCHEME = "attachment";

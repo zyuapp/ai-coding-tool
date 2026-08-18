@@ -173,6 +173,7 @@ export function App() {
         onSetOpenMenu={workspace.actions.setOpenMenu}
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
+        onRenameTask={workspace.actions.renameTask}
         onMoveTask={workspace.actions.moveTask}
         onOpenSettings={openSettings}
       />

@@ -62,6 +62,7 @@ export type ProjectSidebarProps = {
   onSetOpenMenu: (menu: string | null) => void;
   onSelectTask: (taskId: string) => void;
   onArchiveTask: (taskId: string) => void;
+  onRenameTask: (taskId: string, title: string) => void;
   onMoveTask: (taskId: string, target: TaskDropTarget) => void;
   onOpenSettings: () => void;
 };
@@ -90,10 +91,12 @@ export function ProjectSidebar({
   onSetOpenMenu,
   onSelectTask,
   onArchiveTask,
+  onRenameTask,
   onMoveTask,
   onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   /** Every folder accepts drops mid-drag, so a collapsed one is still a place to drop into.
    *  Revealed before capture: a folder measured while `display: none` has no droppable bounds. */
   const [dragging, setDragging] = useState(false);
@@ -106,6 +109,11 @@ export function ProjectSidebar({
       projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
       index: destination.index,
     });
+  }
+
+  function commitRename(taskId: string, value: string) {
+    setRenamingId(null);
+    if (value.trim()) onRenameTask(taskId, value);
   }
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
@@ -128,10 +136,11 @@ export function ProjectSidebar({
           <div
             className={className}
             onClick={() => onSelectTask(task.id)}
+            onDoubleClick={() => setRenamingId(task.id)}
             onContextMenu={(event) => {
               event.preventDefault();
               const row = event.currentTarget.getBoundingClientRect();
-              const menuHeight = 48;
+              const menuHeight = 80;
               setTaskMenuPosition({
                 left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
                 top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
@@ -140,10 +149,30 @@ export function ProjectSidebar({
             }}
             title={task.title}
           >
-            {content}
+            {renamingId === task.id
+              ? <input
+                  className="task-rename"
+                  aria-label={`Rename ${task.title}`}
+                  autoFocus
+                  defaultValue={task.title}
+                  onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  /** The row selects on Enter and dragging claims the arrow and space keys. */
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Enter") commitRename(task.id, event.currentTarget.value);
+                    else if (event.key === "Escape") setRenamingId(null);
+                  }}
+                  onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
+                />
+              : content}
           </div>
           {openMenu === `task:${task.id}` && createPortal(
             <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
+              <button role="menuitem" onClick={() => {
+                setRenamingId(task.id);
+                onSetOpenMenu(null);
+              }}>Rename</button>
               <button role="menuitem" onClick={() => {
                 onArchiveTask(task.id);
                 onSetOpenMenu(null);

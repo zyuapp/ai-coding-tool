@@ -121,6 +121,12 @@ export function useTaskWorkspace() {
         }
         return;
 
+      case "suggest-title": {
+        const title = await window.desktop.suggestTaskTitle(effect.text).catch(() => null);
+        if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
+        return;
+      }
+
       case "automation.save":
         return reportFailure(window.desktop.saveAutomation(effect.draft));
 
@@ -217,6 +223,7 @@ export function useTaskWorkspace() {
       openFolder: () => dispatch({ type: "project.open" }),
       selectTask: (taskId: string) => dispatch({ type: "task.select", taskId }),
       archiveTask: (taskId: string) => dispatch({ type: "task.archive", taskId }),
+      renameTask: (taskId: string, title: string) => dispatch({ type: "task.rename", taskId, title }),
       moveTask: (taskId: string, target: TaskDropTarget) => dispatch({ type: "task.move", taskId, target }),
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),

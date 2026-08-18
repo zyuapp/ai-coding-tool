@@ -42,6 +42,14 @@ export type ContinuationStatus = "none" | "available" | "invalid";
 /** Why a task wants the user's eyes: it settled, broke, or is blocked on approval. */
 export type TaskAttention = "finished" | "failed" | "approval";
 
+const TITLE_LIMIT = 52;
+
+/** One length for every thread title, whoever wrote it: the user, the first message, or the model. */
+export function clampTitle(text: string) {
+  const trimmed = text.trim();
+  return trimmed.length > TITLE_LIMIT ? `${trimmed.slice(0, TITLE_LIMIT - 3)}…` : trimmed;
+}
+
 export type ContextUsage = {
   tokens: number;
   limit: number;
@@ -51,6 +59,8 @@ export type ContextUsage = {
 export type Task = {
   id: string;
   title: string;
+  /** Set once the user names the thread themselves, so a suggested title never replaces it. */
+  titleByUser?: boolean;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
   model?: AgentModel;
@@ -349,6 +359,7 @@ function isTaskBase(value: unknown): value is Task {
   return isRecord(value) &&
     nonEmptyString(value.id) &&
     nonEmptyString(value.title) &&
+    (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
     (value.model === undefined || isAgentModel(value.model)) &&

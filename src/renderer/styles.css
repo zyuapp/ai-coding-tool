@@ -265,6 +265,19 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .project-task-row:hover, .project-task-row.active { background: #20242a; color: #c6c5c1; }
 .project-task-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-rename {
+  width: 100%;
+  min-width: 0;
+  height: 22px;
+  border: 1px solid #3a414b;
+  border-radius: 6px;
+  padding: 0 6px;
+  background: #171a1f;
+  color: #dfddd8;
+  font: inherit;
+  font-size: var(--text-control);
+}
+.task-rename:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
 .task-spinner {
   width: 14px;
   height: 14px;

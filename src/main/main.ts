@@ -379,6 +379,17 @@ ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {
   }
 });
 
+ipcMain.handle("task-title:suggest", async (event, text: unknown) => {
+  if (!trustedSender(event)) return null;
+  if (typeof text !== "string" || !text.trim()) return null;
+  try {
+    const { suggestTaskTitle } = await import("./agent/title-writer.mjs");
+    return await suggestTaskTitle(text);
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle("computer-use:permissions", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return computerUsePermissions();

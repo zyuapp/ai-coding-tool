@@ -395,3 +395,37 @@ test("a side chat streams its own tail without disturbing the main thread", () =
   assert.equal(streaming.streamingTails["main-task"], undefined);
   assert.equal(deriveView(streaming).sideChats[0].streamingTail.text, "It reduces");
 });
+
+test("a new thread asks for a name, and the name the user types outlasts the suggestion", () => {
+  const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const taskId = started.state.tasks[0].id;
+
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, text: "Inspect the app" }]);
+  assert.equal(started.state.tasks[0].title, "Inspect the app", "the typed message titles the thread until a suggestion lands");
+
+  const named = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" }).state;
+  assert.equal(named.tasks[0].title, "App breakage review");
+  assert.equal(named.tasks[0].updatedAt, started.state.tasks[0].updatedAt, "renaming is cosmetic and never reorders recents");
+
+  const renamed = reduce(named, { type: "task.rename", taskId, title: "  Nightly audit  " }).state;
+  assert.equal(renamed.tasks[0].title, "Nightly audit");
+
+  const late = reduce(renamed, { type: "title.suggested", taskId, title: "Something else" }).state;
+  assert.equal(late.tasks[0].title, "Nightly audit");
+  assert.equal(reduce(renamed, { type: "task.rename", taskId, title: "   " }).state, renamed, "an empty name leaves the thread alone");
+});
+
+test("only a thread the send just created is named, and only from what the user typed", () => {
+  const existing = task("task-a", { title: "Inspect the app" });
+  const drafted = run(workspace({ tasks: [existing], currentId: "task-a" }), [{ type: "view.set-prompt", prompt: "Now check the reducer" }]);
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(started.effects.some((effect) => effect.type === "suggest-title"), false);
+
+  const attached = reduce(workspace(), { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] });
+  const fromImage = reduce(attached.state, { type: "run.resolved", pendingId: attached.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(fromImage.state.tasks[0].title, "Screenshot");
+  assert.equal(fromImage.effects.some((effect) => effect.type === "suggest-title"), false, "there is no message to name a screenshot-only thread from");
+});

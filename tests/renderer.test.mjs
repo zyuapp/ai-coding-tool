@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { createServer } from "vite";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader"]) {
+for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader", "innerWidth", "innerHeight"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
 for (const [name, value] of [["requestAnimationFrame", (fn) => setTimeout(() => fn(Date.now()), 0)], ["cancelAnimationFrame", (id) => clearTimeout(id)]]) {
@@ -272,6 +272,7 @@ function fakeDesktop(overrides = {}) {
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
     saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
+    suggestTaskTitle: async () => null,
     loadTaskStore: async () => null,
     persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
@@ -668,6 +669,35 @@ test("sidebar rows hold their position no matter how recently a task ran", async
 
   const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
   assert.deepEqual(titles(), ["Pinned to the top", "Busiest task", "Quietest task"]);
+  await view.unmount();
+});
+
+test("a sidebar row renames itself on a double click, and on the menu's Rename", async () => {
+  seedProjectTasks([{ id: "only", title: "First task", sortIndex: 0, updatedAt: 1 }]);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  const row = () => view.container.querySelector(".project-task-row");
+  const type = async (title, key) => {
+    const input = view.container.querySelector(".task-rename");
+    await act(async () => {
+      setValue.call(input, title);
+      input.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key }));
+    });
+  };
+
+  await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("dblclick", { bubbles: true })); });
+  await type("Nightly audit", "Enter");
+  assert.equal(view.container.querySelector(".task-rename"), null);
+  assert.equal(row().textContent.includes("Nightly audit"), true);
+
+  await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
+  assert.deepEqual([...document.querySelectorAll(".task-context-menu button")].map((button) => button.textContent), ["Rename", "Archive"]);
+  await act(async () => { document.querySelector(".task-context-menu button").click(); });
+  await type("Abandoned edit", "Escape");
+  assert.equal(view.container.querySelector(".task-rename"), null);
+  assert.equal(row().textContent.includes("Nightly audit"), true, "Escape leaves the name the row started with");
   await view.unmount();
 });
 

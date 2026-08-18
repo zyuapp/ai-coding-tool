@@ -24,7 +24,7 @@ import type {
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../domain/run.js";
-import { legacyProjectId, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, legacyProjectId, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
@@ -39,6 +39,7 @@ export type WorkspaceEvent =
   | { type: "run.unresolved"; pendingId: string; message: string }
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
+  | { type: "title.suggested"; taskId: string; title: string }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
@@ -49,6 +50,7 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  | { type: "suggest-title"; taskId: string; text: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }
@@ -266,6 +268,20 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         tasks: state.tasks.map((task) => task.id === input.taskId ? { ...task, archivedAt: now() } : task),
         currentId: state.currentId === input.taskId ? null : state.currentId,
       }, retireAutomations(state, [input.taskId]));
+    }
+
+    case "task.rename": {
+      const title = clampTitle(input.title);
+      if (!title || !state.tasks.some((task) => task.id === input.taskId)) return settled(state);
+      return settled(applyTask(state, input.taskId, (task) => ({ ...task, title, titleByUser: true, updatedAt: now() })));
+    }
+
+    /** A name the user typed outranks a suggested one, whenever the suggestion lands. */
+    case "title.suggested": {
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      const title = clampTitle(input.title);
+      if (!task || task.titleByUser || !title || title === task.title) return settled(state);
+      return settled(applyTask(state, input.taskId, (item) => ({ ...item, title })));
     }
 
     case "task.move": {
@@ -673,9 +689,10 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const drained = pending.queuedIds
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
+  const titling: WorkspaceEffect[] = existing || !pending.text ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text }];
   return settled(
     pending.draftKey ? withPrompt(drained, pending.draftKey, "") : drained,
-    [{ type: "start-run", command: startRunCommand(updated, pending.runId, pending.prompt, workspace.id) }],
+    [{ type: "start-run", command: startRunCommand(updated, pending.runId, pending.prompt, workspace.id) }, ...titling],
   );
 }
 
