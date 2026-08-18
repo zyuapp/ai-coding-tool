@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ListCollapse, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, ListCollapse, X, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
@@ -172,7 +172,7 @@ function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[
   const nodes = segments.map((segment) => segment.kind === "tools"
     ? <ToolRun key={segment.id} steps={segment.steps} />
     : (
-      <div key={segment.id} className="message-text markdown-body work-note">
+      <div key={segment.id} data-message-id={segment.message.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
           ? <StreamingText id={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
           : <MarkdownMessage>{segment.message.text}</MarkdownMessage>}
@@ -180,7 +180,7 @@ function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[
     ));
   if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {
     nodes.push(
-      <div key={streamingId} className="message-text markdown-body work-note">
+      <div key={streamingId} data-message-id={streamingId} className="message-text markdown-body work-note">
         <StreamingText id={streamingId} committed="" tail={tail?.text ?? ""} streaming />
       </div>,
     );
@@ -218,7 +218,17 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
   const pinnedToBottom = useRef(true);
+  /** Set once the reader scrolls for themselves, which stops the transcript taking the view back. */
+  const detached = useRef(false);
+  /** A message whose top is held at the top of the view, rather than following the newest line. */
+  const anchored = useRef<string | null>(null);
+  const restoreScroll = useRef<() => void>(() => {});
+  const lastMessage = messages.at(-1);
+  /** The answer being read out, whether it is still streaming or has already finished. */
+  const answerId = streamingTail?.messageId ?? (lastMessage?.kind === "assistant" ? lastMessage.id : undefined);
+  const toolId = lastMessage?.kind === "tool" ? lastMessage.id : undefined;
   const groups = useMemo(() => groupTimeline(messages, status === "running", streamingTail?.messageId), [messages, status, streamingTail?.messageId]);
   const virtualizer = useVirtualizer({
     count: groups.length,
@@ -237,23 +247,61 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     const timeline = timelineRef.current;
     if (!scroller || !timeline || typeof ResizeObserver === "undefined") return;
     pinnedToBottom.current = true;
+    detached.current = false;
+    anchored.current = null;
+    setAtBottom(true);
     let frame = 0;
     const onScroll = () => {
-      pinnedToBottom.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
+      const bottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
+      pinnedToBottom.current = bottom;
+      if (bottom) detached.current = false;
+      setAtBottom(bottom);
     };
-    const observer = new ResizeObserver(() => {
-      if (!pinnedToBottom.current) return;
+    /** Only a gesture means the reader took over; our own scrolling also fires scroll events. */
+    const onGesture = () => {
+      detached.current = true;
+      anchored.current = null;
+    };
+    const place = () => {
+      const anchor = anchored.current && timeline.querySelector(`[data-message-id="${anchored.current}"]`);
+      if (anchor) {
+        scroller.scrollTo({ top: scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16 });
+        return;
+      }
+      if (pinnedToBottom.current) scroller.scrollTo({ top: scroller.scrollHeight });
+    };
+    restoreScroll.current = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => scroller.scrollTo({ top: scroller.scrollHeight }));
-    });
+      frame = requestAnimationFrame(place);
+    };
+    const observer = new ResizeObserver(() => restoreScroll.current());
     scroller.addEventListener("scroll", onScroll, { passive: true });
+    scroller.addEventListener("wheel", onGesture, { passive: true });
+    scroller.addEventListener("touchmove", onGesture, { passive: true });
     observer.observe(timeline);
     return () => {
       cancelAnimationFrame(frame);
       scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("wheel", onGesture);
+      scroller.removeEventListener("touchmove", onGesture);
       observer.disconnect();
     };
   }, [currentTask?.id, scrollContainerRef]);
+
+  /** An answer is read from its first line, so the view holds its top instead of chasing the last. */
+  useEffect(() => {
+    if (!answerId || detached.current) return;
+    anchored.current = answerId;
+    restoreScroll.current();
+  }, [answerId]);
+
+  /** Work in progress is worth following, so a tool call hands the view back to the newest line. */
+  useEffect(() => {
+    if (!toolId) return;
+    anchored.current = null;
+    if (!detached.current) pinnedToBottom.current = true;
+    restoreScroll.current();
+  }, [toolId]);
 
   if (!currentTask?.messages.length && !streamingTail) {
     const EmptyIcon = empty?.icon;
@@ -286,7 +334,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                   {group.live
                     ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
                     : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.final?.at ?? null} />}
-                  {group.final && <div className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} /></div>}
+                  {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} /></div>}
                 </article>
               ) : (
                 <article className={`message ${message!.kind}`}>
@@ -326,6 +374,23 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         <div className="thinking-row">
           <span /> <span /> <span />
         </div>
+      )}
+      {!atBottom && (
+        <button
+          type="button"
+          className="scroll-to-end"
+          aria-label="Scroll to the latest message"
+          onClick={() => {
+            const scroller = scrollContainerRef.current;
+            if (!scroller) return;
+            detached.current = false;
+            anchored.current = null;
+            pinnedToBottom.current = true;
+            scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+          }}
+        >
+          <ChevronDown size={17} aria-hidden="true" />
+        </button>
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
     </div>

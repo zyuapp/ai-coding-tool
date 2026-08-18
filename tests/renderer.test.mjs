@@ -13,6 +13,17 @@ for (const [name, value] of [["requestAnimationFrame", (fn) => setTimeout(() => 
   Object.defineProperty(globalThis, name, { configurable: true, value });
   Object.defineProperty(dom.window, name, { configurable: true, value });
 }
+/** jsdom has no ResizeObserver, and the transcript's scrolling is driven by one. */
+class ResizeObserverStub {
+  static live = [];
+  constructor(callback) { this.callback = callback; ResizeObserverStub.live.push(this); }
+  observe() {}
+  unobserve() {}
+  disconnect() { ResizeObserverStub.live = ResizeObserverStub.live.filter((observer) => observer !== this); }
+}
+for (const target of [globalThis, dom.window]) {
+  Object.defineProperty(target, "ResizeObserver", { configurable: true, value: ResizeObserverStub });
+}
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 dom.window.HTMLElement.prototype.scrollTo = () => {};
 
@@ -1522,5 +1533,71 @@ test("a tail renders before the task has a message of its own to attach to", asy
 
   assert.equal(view.container.querySelector(".empty-state"), null, "a live tail is not an empty task");
   assert.match(view.container.textContent, /Starting on it/);
+  await view.unmount();
+});
+
+/** A scroll container with the metrics jsdom cannot work out for itself, recording where it is sent. */
+function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
+  const scroller = document.createElement("div");
+  Object.defineProperty(scroller, "offsetWidth", { value: 860 });
+  Object.defineProperty(scroller, "offsetHeight", { value: 900 });
+  Object.defineProperty(scroller, "clientHeight", { configurable: true, value: clientHeight });
+  Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: scrollHeight });
+  document.body.append(scroller);
+  const sentTo = [];
+  scroller.scrollTo = (options) => sentTo.push(options.top);
+  const scrollContainerRef = { current: scroller };
+  const render = (messages, status, streamingTail) => React.createElement(ConversationTimeline, {
+    currentTask: { id: "t1", title: "T", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
+    folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
+  });
+  /** Entries are empty because the transcript's observer only cares that something resized. */
+  const resize = async () => act(async () => {
+    for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  });
+  return { scroller, sentTo, render, resize, bottom: scrollHeight };
+}
+
+test("an answer is read from its top while tool calls still follow the newest line", async () => {
+  const harness = scrollHarness();
+  const working = transcript({ kind: "user", text: "Explain this" }, { kind: "tool", text: "Bash", detail: "one" });
+  const view = await mount(harness.render(working, "running", null));
+  await harness.resize();
+  assert.equal(harness.sentTo.at(-1), harness.bottom, "a tool call follows the newest line");
+
+  harness.sentTo.length = 0;
+  await view.render(harness.render(working, "running", { messageId: "reply-1", text: "Here is what I found." }));
+  await harness.resize();
+  assert.ok(harness.sentTo.length > 0, "the view moved when the answer started");
+  assert.ok(!harness.sentTo.includes(harness.bottom), `the answer snapped to the bottom instead of its top: ${harness.sentTo}`);
+
+  /** More work after an answer is worth following again. */
+  harness.sentTo.length = 0;
+  const resumed = [...working, { id: "reply-1", at: 3000, kind: "assistant", text: "Here is what I found.\n\n" }, { id: "k2", at: 4000, kind: "tool", text: "Read", detail: "two" }];
+  await view.render(harness.render(resumed, "running", null));
+  await harness.resize();
+  assert.equal(harness.sentTo.at(-1), harness.bottom, "a tool call after an answer follows again");
+  await view.unmount();
+});
+
+test("a reader who scrolls away keeps the view, and is offered a way back to the end", async () => {
+  const harness = scrollHarness();
+  const messages = transcript({ kind: "user", text: "Explain this" }, { kind: "assistant", text: "An answer.\n\n" });
+  const view = await mount(harness.render(messages, "idle", null));
+  assert.equal(view.container.querySelector(".scroll-to-end"), null, "hidden while the end is in view");
+
+  /** scrollTop stays at the top, so this scroll event reports a transcript scrolled well away. */
+  await act(async () => { harness.scroller.dispatchEvent(new Event("scroll")); });
+  const button = view.container.querySelector(".scroll-to-end");
+  assert.ok(button, "offered once the end is out of view");
+
+  await act(async () => { harness.scroller.dispatchEvent(new Event("wheel")); });
+  harness.sentTo.length = 0;
+  await harness.resize();
+  assert.deepEqual(harness.sentTo, [], "a transcript the reader scrolled is left where they put it");
+
+  await act(async () => { button.click(); });
+  assert.equal(harness.sentTo.at(-1), harness.bottom, "the button returns to the end");
   await view.unmount();
 });
