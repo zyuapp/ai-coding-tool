@@ -82,7 +82,11 @@ export function SessionPanel({ environment, hasProject, location, runActive, ope
               <div className="session-row">
                 <span className="session-row-icon"><FileDiff size={18} /></span>
                 <span>Changes</span>
-                {available && <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>}
+                {available && (
+                  <span className="change-counts" title={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
+                    <strong>+{available.additions}</strong><em>−{available.deletions}</em>
+                  </span>
+                )}
               </div>
               <div className="session-row">
                 <span className="session-row-icon"><GitBranch size={18} /></span>

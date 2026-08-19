@@ -74,9 +74,30 @@ test("changed files reports exact Git summary including safe untracked line coun
 
   assert.equal(result.status, "available");
   assert.equal(result.branch, "main");
+  assert.equal(result.baseline, null);
   assert.equal(result.additions, 5);
   assert.equal(result.deletions, 0);
   assert.deepEqual(new Set(result.files), new Set([" M tracked.txt", "?? binary.bin", "?? final-newline.txt", "?? large.txt", "?? no-final-newline.txt", "?? outside-link.txt"]));
+});
+
+test("changed files counts committed work against the origin default branch", async (t) => {
+  const root = await repository();
+  const origin = await mkdtemp(path.join(os.tmpdir(), "claudex-origin-"));
+  t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(origin, { recursive: true, force: true })]); });
+  await git(origin, "init", "--bare", "-b", "main");
+  await git(root, "remote", "add", "origin", origin);
+  await git(root, "push", "origin", "main");
+  await writeFile(path.join(root, "tracked.txt"), "one\ntwo\n");
+  await git(root, "commit", "-am", "committed by the thread");
+  await writeFile(path.join(root, "tracked.txt"), "one\ntwo\nthree\n");
+  await writeFile(path.join(root, "untracked.txt"), "four\n");
+
+  const result = await changedFiles("fixture", workspaces(root));
+
+  assert.equal(result.status, "available");
+  assert.equal(result.baseline, "origin/main");
+  assert.equal(result.additions, 3);
+  assert.equal(result.deletions, 0);
 });
 
 test("changed files reports detached HEAD and non-Git failures", async (t) => {

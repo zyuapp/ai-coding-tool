@@ -192,7 +192,8 @@ export type CommandDiscoveryResult =
   | { status: "error"; message: string };
 
 export type ChangedFilesResult =
-  | { status: "available"; files: string[]; branch: string | null; additions: number; deletions: number }
+  /** `baseline` is the ref the counts are measured from, or null when only the working tree is counted. */
+  | { status: "available"; files: string[]; branch: string | null; baseline: string | null; additions: number; deletions: number }
   | { status: "unavailable"; reason: "missing" | "not-directory" | "inaccessible" | "changed" }
   | { status: "unknown"; workspaceId: WorkspaceId }
   | { status: "error"; message: string };
