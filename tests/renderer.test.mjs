@@ -1660,18 +1660,42 @@ test("a revealed word keeps its node, so only new words animate in", async () =>
   await view.unmount();
 });
 
-test("committed blocks render as Markdown while the unfinished tail stays plain", async () => {
+test("half-written markup is held back rather than shown as literal markers", async () => {
   const view = await mount(streaming({ committed: "## Heading\n\n", tail: "Then a **partly" }));
   await settle(view);
 
   assert.equal(view.container.querySelector("h2").textContent, "Heading");
-  assert.equal(view.container.querySelector(".stream-pending").textContent, "Then a **partly", "an unclosed emphasis run is not parsed yet");
+  assert.equal(view.container.textContent, "HeadingThen a", "the unclosed emphasis run waits instead of showing its markers");
   assert.equal(view.container.querySelector("strong"), null);
 
   await view.render(streaming({ committed: "## Heading\n\nThen a **partly** written line.\n\n", tail: "" }));
   await settle(view);
   assert.equal(view.container.querySelector("strong").textContent, "partly");
-  assert.equal(view.container.querySelector(".stream-pending"), null);
+  await view.unmount();
+});
+
+test("a streamed code fence renders as a code block instead of literal backticks", async () => {
+  const view = await mount(streaming({ committed: "", tail: "```ts\nconst reducer = 1;\n" }));
+  await settle(view);
+
+  assert.equal(view.container.querySelector("pre code").textContent.trim(), "const reducer = 1;");
+  assert.doesNotMatch(view.container.textContent, /```/, "the opening fence is never shown as text");
+  await view.unmount();
+});
+
+test("a table waits for its delimiter row instead of showing pipes", async () => {
+  const view = await mount(streaming({ committed: "", tail: "| Channel | Reach |\n" }));
+  await settle(view);
+  assert.equal(view.container.textContent, "", "a header row alone would render as literal pipes");
+
+  await view.render(streaming({ committed: "", tail: "| Channel | Reach |\n| --- | --- |\n| side | tools |\n" }));
+  /** The reveal is still typing through rows that render as nothing, so settling on text cannot see it. */
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline && !view.container.querySelector("table")) {
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+  }
+  assert.equal(view.container.querySelector("table th").textContent, "Channel");
+  assert.doesNotMatch(view.container.textContent, /\|/);
   await view.unmount();
 });
 
@@ -1704,7 +1728,7 @@ test("a live turn types its newest text and leaves settled turns alone", async (
   await settle(view);
 
   assert.equal(view.container.querySelector(".work-note p").textContent, "First block.");
-  assert.equal(view.container.querySelector(".stream-pending").textContent, "Second block still");
+  assert.match(view.container.textContent, /Second block still/);
   await view.unmount();
 });
 
@@ -1712,7 +1736,7 @@ test("a block committing between tails does not replay the text already read", a
   const streamed = transcript({ kind: "user", text: "Explain this" });
   const view = await mount(timelineView(streamed, "running", { messageId: "reply-1", text: "The reducer owns every write." }));
   await settle(view);
-  assert.equal(view.container.querySelector(".stream-pending").textContent, "The reducer owns every write.");
+  assert.match(view.container.textContent, /The reducer owns every write\./);
 
   /** The delta clears the tail before the next one arrives, which is where a remount would rewind. */
   const committed = [...streamed, { id: "reply-1", at: 2000, kind: "assistant", text: "The reducer owns every write.\n\n" }];
@@ -1764,7 +1788,7 @@ test("a turn that settles keeps reading out rather than snapping to the end", as
     folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
   });
   const view = await mount(timeline(messages, "running", { messageId: "reply-1", text: body }));
-  const reading = () => view.container.querySelector(".stream-pending")?.textContent.length ?? 0;
+  const reading = () => [...view.container.querySelectorAll(".stream-word")].reduce((total, node) => total + node.textContent.length, 0);
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
   const midway = reading();
   assert.ok(midway > 0 && midway < body.length, `the reveal should be under way and short of ${body.length}, was ${midway}`);
@@ -1777,7 +1801,7 @@ test("a turn that settles keeps reading out rather than snapping to the end", as
 
   await settle(view, 8000);
   assert.match(view.container.textContent, /word word/, "the settled turn never finished reading out");
-  assert.equal(view.container.querySelector(".stream-pending"), null, "finished text is parsed rather than left plain");
+  assert.equal(view.container.querySelector(".stream-word"), null, "finished text is parsed rather than left mid-reveal");
   await view.unmount();
 });
 
@@ -1955,4 +1979,46 @@ test("a wait on a thread that is already idle answers at once, and an unknown th
   assert.equal(desktop.threadAnswers.at(-1).ok, false);
 
   await workspace.view.unmount();
+});
+
+test("an expanded folder shows ten tasks, and reveals the rest on demand", async () => {
+  seedProjectTasks(Array.from({ length: 13 }, (_, index) => ({
+    id: `task-${index}`,
+    title: `Task ${index}`,
+    sortIndex: index,
+    updatedAt: index,
+  })));
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  const rows = () => view.container.querySelectorAll(".project-task-row");
+  const showMore = () => view.container.querySelector(".project-show-more");
+  assert.equal(rows().length, 10);
+  assert.equal(showMore().textContent, "Show 3 more");
+
+  await act(async () => { showMore().click(); });
+  assert.equal(rows().length, 13);
+  assert.equal(showMore().textContent, "Show less");
+
+  await act(async () => { showMore().click(); });
+  assert.equal(rows().length, 10);
+  await view.unmount();
+});
+
+test("a folder keeps the open task in view past the first ten", async () => {
+  seedProjectTasks(Array.from({ length: 13 }, (_, index) => ({
+    id: `task-${index}`,
+    title: `Task ${index}`,
+    sortIndex: index,
+    updatedAt: index,
+  })));
+  localStorage.setItem("claudex.currentTaskId", JSON.stringify({ version: 2, value: "task-11" }));
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  const titles = [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
+  assert.equal(titles.length, 12);
+  assert.equal(titles.at(-1), "Task 11");
+  assert.equal(view.container.querySelector(".project-show-more").textContent, "Show 1 more");
+  await view.unmount();
 });

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { emptyScan, scanBlocks } from "../../domain/markdown-stream";
+import { emptyScan, repairCut, scanBlocks } from "../../domain/markdown-stream";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 /** The speed text reads as being typed at, held steady however fast the model produces it. */
@@ -86,20 +86,11 @@ function useCompleteBlocks(text: string) {
   return scan.current.safeEnd;
 }
 
-/** Keyed by absolute offset so a word keeps its identity, and only new words animate. */
-function words(text: string, offset: number) {
-  let at = offset;
-  return text.split(/(?<=\s)(?=\S)/).map((word) => {
-    const key = at;
-    at += word.length;
-    return { key, word };
-  });
-}
-
 /**
- * The committed part is whole Markdown blocks; the tail is still being written. Both are revealed
- * through one running count, so text never jumps when a block commits. `streaming` says more text
- * may still arrive, which is what keeps a half-written block out of the parser.
+ * The committed part is whole Markdown blocks; the live part is the block still being written. Both
+ * are revealed through one running count, so text never jumps when a block commits, and the live cut
+ * is repaired so half-written markup is held back rather than shown as literal markers. `streaming`
+ * says more text may still arrive, which is what starts a fresh message from nothing.
  */
 export function StreamingText({ id, committed, tail = "", streaming = false, onSelectTask }: {
   id: string;
@@ -112,17 +103,14 @@ export function StreamingText({ id, committed, tail = "", streaming = false, onS
   const revealed = useTypewriter(full, id, streaming);
   const text = full.slice(0, revealed);
   const blocks = useCompleteBlocks(text);
-  /** Nothing more is coming, so the trailing block is finished and can be parsed. */
-  const complete = !streaming && revealed >= full.length ? full.length : blocks;
-  const pending = text.slice(complete);
+  /** Nothing more is coming and nothing is held back, so the whole answer renders as one document. */
+  if (!streaming && revealed >= full.length) return <MarkdownMessage onSelectTask={onSelectTask}>{full}</MarkdownMessage>;
+  const settled = text.slice(0, blocks);
+  const live = repairCut(text.slice(blocks));
   return (
     <>
-      {complete > 0 && <MarkdownMessage onSelectTask={onSelectTask}>{text.slice(0, complete)}</MarkdownMessage>}
-      {pending && (
-        <p className="stream-pending">
-          {words(pending, complete).map(({ key, word }) => <span className="stream-word" key={key}>{word}</span>)}
-        </p>
-      )}
+      {settled && <MarkdownMessage onSelectTask={onSelectTask}>{settled}</MarkdownMessage>}
+      {live && <MarkdownMessage animate onSelectTask={onSelectTask}>{live}</MarkdownMessage>}
     </>
   );
 }

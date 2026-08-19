@@ -24,10 +24,33 @@ function MarkdownLink({ children, onSelectTask, ...props }: ComponentProps<"a"> 
   return <a {...props} target="_blank" rel="noreferrer">{children}</a>;
 }
 
-export const MarkdownMessage = memo(function MarkdownMessage({ children, onSelectTask }: { children: string; onSelectTask?: (taskId: string) => void }) {
+type HastNode = { type: string; tagName?: string; value?: string; children?: HastNode[] };
+
+/** Splits rendered prose into words so each one can fade in as it is read out. Code keeps its shape. */
+function wordSpans() {
+  const split = (value: string): HastNode[] => value.split(/(?<=\s)(?=\S)/).map((word) => ({
+    type: "element",
+    tagName: "span",
+    properties: { className: ["stream-word"] },
+    children: [{ type: "text", value: word }],
+  } as HastNode));
+  const walk = (node: HastNode) => {
+    if (!node.children || node.tagName === "code" || node.tagName === "pre") return;
+    node.children = node.children.flatMap((child) => {
+      /** Whitespace between structural nodes is not prose, and a span there is invalid inside a table. */
+      if (child.type === "text") return /\S/.test(child.value ?? "") ? split(child.value ?? "") : child;
+      walk(child);
+      return child;
+    });
+  };
+  return walk;
+}
+
+export const MarkdownMessage = memo(function MarkdownMessage({ children, animate, onSelectTask }: { children: string; animate?: boolean; onSelectTask?: (taskId: string) => void }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      rehypePlugins={animate ? [wordSpans] : []}
       skipHtml
       urlTransform={(url) => (CLAUDEX_HREF.test(url) ? url : defaultUrlTransform(url))}
       components={{ pre: MarkdownPre, a: (props) => <MarkdownLink {...props} onSelectTask={onSelectTask} /> }}
