@@ -90,7 +90,7 @@ function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRe
         >
           <Ellipsis size={16} />
         </button>
-        {open && <div className="project-menu-popover session-menu-popover" role="menu">
+        {open && <div className="menu-popover session-menu-popover" role="menu">
           <button role="menuitem" disabled={runActive} onClick={() => {
             onSetOpenMenu(null);
             onSetWorktree(!inWorktree);

@@ -218,7 +218,7 @@ export function ProjectSidebar({
               : <>{content}{taskMarks(task)}</>}
           </div>
           {openMenu === `task:${task.id}` && createPortal(
-            <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
+            <div className="menu-popover context-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
               <button role="menuitem" onClick={() => {
                 setRenamingId(task.id);
                 onSetOpenMenu(null);
@@ -283,7 +283,7 @@ export function ProjectSidebar({
                     }}
                   >
                     <button className="menu-trigger" aria-label={`More options for ${projectName(project.root)}`} aria-expanded={openMenu === `project:${project.id}`} onClick={() => onSetOpenMenu(openMenu === `project:${project.id}` ? null : `project:${project.id}`)}><Ellipsis size={16} /></button>
-                    {openMenu === `project:${project.id}` && <div className="project-menu-popover" role="menu">
+                    {openMenu === `project:${project.id}` && <div className="menu-popover" role="menu">
                       <button role="menuitem" onClick={() => {
                         onNewTask(project.id);
                         onSetOpenMenu(null);
@@ -333,7 +333,7 @@ export function ProjectSidebar({
             }}
           >
             <button className="menu-trigger" aria-label="Recent chat options" aria-expanded={openMenu === "recents"} onClick={() => onSetOpenMenu(openMenu === "recents" ? null : "recents")}><Ellipsis size={16} /></button>
-            {openMenu === "recents" && <div className="project-menu-popover section-menu-popover" role="menu">
+            {openMenu === "recents" && <div className="menu-popover section-menu-popover" role="menu">
               <button role="menuitem" onClick={() => {
                 onNewTask();
                 onSetOpenMenu(null);

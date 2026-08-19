@@ -180,7 +180,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .section-action { width: 35px; height: 34px; display: grid; place-items: center; }
 .add-project { font-size: 20px; font-weight: 300; line-height: 1; }
 .section-action:hover, .section-menu > .menu-trigger:hover { color: #989a98; }
-.section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .folder-button {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 16px;
@@ -213,7 +212,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-main,
 .project-new,
 .project-menu > .menu-trigger,
-.project-menu-popover button,
+.menu-popover button,
 .project-task-row {
   border: 0;
   background: transparent;
@@ -251,7 +250,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-size: var(--text-control);
   letter-spacing: 2px;
 }
-.project-menu-popover {
+.menu-popover {
   position: absolute;
   z-index: 10;
   top: 29px;
@@ -263,10 +262,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   background: #20242a;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.38);
 }
-.project-menu-popover button { width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; font-size: var(--text-control); }
-.project-menu-popover button:hover { background: #2a2f36; }
-.project-menu-popover .danger-menu-item { color: #e16b66; }
-.project-menu-popover.section-menu-popover { width: 224px; }
+.menu-popover button { width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; font-size: var(--text-control); }
+.menu-popover button:hover { background: #2a2f36; }
+.menu-popover .danger-menu-item { color: #e16b66; }
+.section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
 .project-show-more {
@@ -283,7 +282,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .project-show-more:hover { color: #a3a7ad; }
 .task-entry { position: relative; min-width: 0; }
-.task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
+.context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /** The status mark and the archive action share the slot's single cell, so a row keeps
  *  the same center hovered or not, whatever marks precede the slot. */
 .row-slot {

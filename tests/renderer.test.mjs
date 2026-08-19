@@ -894,8 +894,8 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   assert.equal(row().textContent.includes("Nightly audit"), true);
 
   await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  assert.deepEqual([...document.querySelectorAll(".task-context-menu button")].map((button) => button.textContent), ["Rename", "Archive"]);
-  await act(async () => { document.querySelector(".task-context-menu button").click(); });
+  assert.deepEqual([...document.querySelectorAll(".context-menu-popover button")].map((button) => button.textContent), ["Rename", "Archive"]);
+  await act(async () => { document.querySelector(".context-menu-popover button").click(); });
   await type("Abandoned edit", "Escape");
   assert.equal(view.container.querySelector(".task-rename"), null);
   assert.equal(row().textContent.includes("Nightly audit"), true, "Escape leaves the name the row started with");
