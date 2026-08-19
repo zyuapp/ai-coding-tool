@@ -17,6 +17,8 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("run:event", handler);
   },
   changedFiles: (workspaceId: string) => ipcRenderer.invoke("workspace:changed-files", workspaceId),
+  branches: (workspaceId: string) => ipcRenderer.invoke("workspace:branches", workspaceId),
+  checkoutBranch: (workspaceId: string, branch: string) => ipcRenderer.invoke("workspace:checkout-branch", workspaceId, branch),
   createWorktree: (request: CreateWorktreeRequest) => ipcRenderer.invoke("worktree:create", request),
   releaseWorktree: (request: ReleaseWorktreeRequest) => ipcRenderer.invoke("worktree:release", request),
   deleteWorktree: (root: string) => ipcRenderer.invoke("worktree:delete", root),

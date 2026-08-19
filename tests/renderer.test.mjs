@@ -346,6 +346,11 @@ function fakeDesktop(overrides = {}) {
     enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
+    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], current: "main" }),
+    checkoutBranch: async () => {},
+    createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
+    releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
+    deleteWorktree: async () => {},
     saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
     suggestTaskTitle: async () => null,
     loadTaskStore: async () => null,
@@ -2085,4 +2090,57 @@ test("the session panel's thread menu offers the hand-off its location allows, a
   });
   assert.deepEqual(calls.renamed, ["Worktree handoff"]);
   await view.unmount();
+});
+
+test("the start options say where a thread begins, and searching narrows the branches", async () => {
+  const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const chosen = { project: [], branch: [], worktree: [] };
+  const projects = [{ id: "project-a", root: "/repo/claudex" }, { id: "project-b", root: "/repo/just-speak" }];
+  const options = (branch, worktree) => React.createElement(ThreadStartOptions, {
+    projects,
+    projectId: "project-a",
+    workspaceId: "workspace-a",
+    branch,
+    worktree,
+    onSelectProject: (id) => { chosen.project.push(id); },
+    onSelectBranch: (name) => { chosen.branch.push(name); },
+    onSetWorktree: (on) => { chosen.worktree.push(on); },
+  });
+
+  const view = await mount(options(null, false));
+  const project = view.container.querySelector('button[aria-label="Project"]');
+  assert.match(project.textContent, /claudex/, "the project the thread starts in is filled in already");
+  assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
+  assert.equal(view.container.querySelector('.thread-start-check input').checked, false, "a worktree is only ever asked for");
+
+  await act(async () => { project.click(); });
+  const projectOptions = [...view.container.querySelectorAll('[role="option"]')];
+  assert.deepEqual(projectOptions.map((option) => option.textContent), ["claudex", "just-speak"]);
+  await act(async () => { projectOptions[1].click(); });
+  assert.deepEqual(chosen.project, ["project-b"]);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Starting branch"]').click(); });
+  assert.ok(view.container.querySelector('input[aria-label="Search branches"]'), "the branch list is searchable");
+  const branchOptions = [...view.container.querySelectorAll('[role="option"]')];
+  assert.deepEqual(branchOptions.map((option) => option.textContent), ["main", "fix-loader", "feature-x"], "every local branch is offered, newest first");
+  await act(async () => { branchOptions.find((option) => option.textContent === "fix-loader").click(); });
+  assert.deepEqual(chosen.branch, ["fix-loader"]);
+
+  await view.render(options("fix-loader", false));
+  assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /fix-loader/);
+  await act(async () => { view.container.querySelector('.thread-start-check input').click(); });
+  assert.deepEqual(chosen.worktree, [true]);
+  await view.unmount();
+});
+
+test("a branch search keeps what the query names, and everything when it is empty", async () => {
+  const { matchBranches } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+  const branches = ["main", "fix-loader", "feature-x", "Fix-Encoding"];
+
+  assert.deepEqual(matchBranches(branches, ""), branches);
+  assert.deepEqual(matchBranches(branches, "   "), branches, "an empty search is not a filter");
+  assert.deepEqual(matchBranches(branches, "fix"), ["fix-loader", "Fix-Encoding"], "case never decides a match");
+  assert.deepEqual(matchBranches(branches, "load"), ["fix-loader"], "a fragment anywhere in the name is enough");
+  assert.deepEqual(matchBranches(branches, "nope"), []);
 });

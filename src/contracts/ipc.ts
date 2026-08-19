@@ -34,7 +34,13 @@ export type StartRunCommand = {
 export type CreateWorktreeRequest = {
   projectRoot: string;
   carryChanges: boolean;
+  /** Which branch the worktree detaches from. The project's own HEAD when absent. */
+  branch?: string;
 };
+
+export type BranchesResult =
+  | { status: "available"; branches: string[]; current: string | null }
+  | { status: "error"; message: string };
 
 export type ReleaseWorktreeRequest = {
   worktreeId: string;
@@ -143,6 +149,10 @@ export type DesktopAPI = {
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
+  /** The local branches a thread can start from, newest first. */
+  branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
+  /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */
+  checkoutBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
   /** Makes the thread's own checkout, detached at whatever the project has checked out right now. */
   createWorktree(request: CreateWorktreeRequest): Promise<Worktree>;
   /** Force-commits what the worktree still holds so the thread can leave it without losing work. */

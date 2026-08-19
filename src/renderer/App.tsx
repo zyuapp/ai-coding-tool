@@ -6,6 +6,7 @@ import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { AgentsPanel, SessionPanel } from "./components/SessionPanel";
+import { ThreadStartOptions } from "./components/ThreadStartOptions";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
 import { TaskComposer } from "./components/TaskComposer";
@@ -215,7 +216,27 @@ export function App() {
 
         <div className="work-area">
           <div className="conversation" ref={transcriptRef}>
-            <ConversationTimeline currentTask={workspace.currentTask} folder={workspace.folder} status={workspace.status} compacting={workspace.compacting} streamingTail={workspace.streamingTail} scrollContainerRef={transcriptRef} onSelectTask={workspace.actions.selectTask} />
+            <ConversationTimeline
+              currentTask={workspace.currentTask}
+              folder={workspace.folder}
+              status={workspace.status}
+              compacting={workspace.compacting}
+              streamingTail={workspace.streamingTail}
+              scrollContainerRef={transcriptRef}
+              startOptions={!workspace.currentTask && (
+                <ThreadStartOptions
+                  projects={workspace.projects}
+                  projectId={workspace.currentProject?.id ?? null}
+                  {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
+                  branch={workspace.draftBranch}
+                  worktree={workspace.draftWorktree}
+                  onSelectProject={workspace.actions.newTask}
+                  onSelectBranch={workspace.actions.setBranch}
+                  onSetWorktree={workspace.actions.setWorktree}
+                />
+              )}
+              onSelectTask={workspace.actions.selectTask}
+            />
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
         </div>

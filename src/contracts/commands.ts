@@ -28,6 +28,8 @@ export type TaskCommand =
    * only made on the next send; switching back commits whatever the worktree still holds.
    */
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
+  /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
+  | { type: "task.set-branch"; branch: string | null }
   /**
    * While a run is going the message is queued instead; `steer` pushes it into that run straight away.
    * `text` sends that message instead of the composer draft and leaves the draft alone: only the

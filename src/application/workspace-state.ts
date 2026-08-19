@@ -87,6 +87,9 @@ export type WorkspaceState = {
   historyIndex: number;
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
+  /** How the next new thread starts: which branch, and whether it gets a checkout of its own. */
+  draftBranch: string | null;
+  draftWorktree: boolean;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   prompts: Record<string, string>;
@@ -121,6 +124,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     historyIndex: -1,
     draftProjectId: null,
     draftPolicy: "confirm",
+    draftBranch: null,
+    draftWorktree: false,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
@@ -259,6 +264,8 @@ export function deriveView(state: WorkspaceState) {
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktree).map((task) => task.id)),
     location: locationOf(currentTask),
+    draftBranch: state.draftBranch,
+    draftWorktree: state.draftWorktree,
     environment,
     storageError: state.storageError,
     actionError: state.actionError,

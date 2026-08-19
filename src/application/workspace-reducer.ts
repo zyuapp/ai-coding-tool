@@ -52,7 +52,16 @@ export type WorkspaceEvent =
 export type WorkspaceEffect =
   | { type: "pick-project" }
   | { type: "persist-preferences"; preferences: ViewPreferences }
-  | { type: "resolve-run-workspace"; pendingId: string; picker: boolean; workspaceId?: string; root?: string; createWorktree?: { projectRoot: string; carryChanges: boolean } }
+  | {
+      type: "resolve-run-workspace";
+      pendingId: string;
+      picker: boolean;
+      workspaceId?: string;
+      root?: string;
+      createWorktree?: { projectRoot: string; carryChanges: boolean; branch?: string };
+      /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
+      checkout?: { workspaceId: string; branch: string };
+    }
   | { type: "create-worktree"; taskId: string; projectRoot: string }
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "delete-worktree"; taskId: string; root: string }
@@ -226,13 +235,19 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
  * thread has asked for one, and otherwise the project itself. A thread that is moving takes its
  * uncommitted work with it; a thread starting in a worktree begins from a clean checkout.
  */
-function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, wantsWorktree: boolean): WorkspaceEffect {
+function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, wantsWorktree: boolean, branch?: string | null): WorkspaceEffect {
   const worktree = task?.worktree;
   if (worktree) {
     return { type: "resolve-run-workspace", pendingId, picker: false, workspaceId: worktree.workspaceId, root: worktree.root };
   }
   if (wantsWorktree && project?.workspaceId) {
-    return { type: "resolve-run-workspace", pendingId, picker: false, root: project.root, createWorktree: { projectRoot: project.root, carryChanges: Boolean(task) } };
+    return {
+      type: "resolve-run-workspace",
+      pendingId,
+      picker: false,
+      root: project.root,
+      createWorktree: { projectRoot: project.root, carryChanges: Boolean(task), ...(branch ? { branch } : {}) },
+    };
   }
   return {
     type: "resolve-run-workspace",
@@ -240,6 +255,8 @@ function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, proje
     picker: Boolean(project && !project.workspaceId),
     ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
     ...(project ? { root: project.root } : {}),
+    /** Without a checkout of its own, starting from a branch means moving the project onto it. */
+    ...(branch && project?.workspaceId ? { checkout: { workspaceId: project.workspaceId, branch } } : {}),
   };
 }
 
@@ -311,6 +328,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         ...state,
         currentId: null,
         draftProjectId: input.projectId ?? null,
+        draftBranch: null,
+        draftWorktree: false,
         actionError: null,
         lastFolder: project?.root ?? state.lastFolder,
         expandedProjects: input.projectId ? new Set(state.expandedProjects).add(input.projectId) : state.expandedProjects,
@@ -410,7 +429,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     case "task.set-worktree": {
       const taskId = targetId(state, input.taskId);
       const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
-      if (!task) return settled(state);
+      /** With no thread yet the answer is a draft: the checkout is made when the first message goes. */
+      if (!task) return settled(input.taskId === undefined ? { ...state, draftWorktree: input.worktree } : state);
       if (state.activeRuns[task.id]) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
       if (input.worktree) {
         if (task.worktree) return settled(state);
@@ -427,6 +447,10 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         title: task.title,
       }]);
     }
+
+    /** Only a thread yet to be created can be told where to start; an existing one already is. */
+    case "task.set-branch":
+      return settled({ ...state, draftBranch: input.branch, actionError: null });
 
     case "worktree.created": {
       const task = state.tasks.find((item) => item.id === input.taskId);
@@ -504,9 +528,10 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         prompt: promptWithAttachments(text, attachments),
         attachments: attachments.map((attachment) => attachment.path),
       };
-      /** Only a thread being created here can be told to start in a worktree of its own. */
-      const wantsWorktree = task ? Boolean(task.worktreeWanted) : Boolean(input.worktree);
-      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, wantsWorktree)]);
+      /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
+      const wantsWorktree = task ? Boolean(task.worktreeWanted) : (input.worktree ?? state.draftWorktree);
+      const branch = task ? null : state.draftBranch;
+      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, wantsWorktree, branch)]);
     }
 
     case "task.steer-queued": {
@@ -832,7 +857,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
   /** Only a task the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
-  const started = beginRun({ ...state, tasks, ...(focusing ? { currentId: task.id } : {}) }, task.id, pending.runId);
+  const spent = existing ? {} : { draftBranch: null, draftWorktree: false };
+  const started = beginRun({ ...state, tasks, ...spent, ...(focusing ? { currentId: task.id } : {}) }, task.id, pending.runId);
   const drained = pending.queuedIds
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;

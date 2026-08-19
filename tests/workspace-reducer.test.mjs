@@ -956,3 +956,68 @@ test("resolving through the picker still restates a project folder that moved", 
 
   assert.deepEqual(reopened.state.projects, [{ ...PROJECT, workspaceId: "workspace-b" }]);
 });
+
+test("a new thread starts from the branch the draft names, moving the project onto it", () => {
+  const drafted = run(projected(), [
+    { type: "task.set-branch", branch: "feature-x" },
+    { type: "view.set-prompt", prompt: "Pick up the loader work" },
+  ]);
+  assert.equal(deriveView(drafted).draftBranch, "feature-x");
+
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+
+  assert.deepEqual(sending.effects[0].checkout, { workspaceId: "workspace-a", branch: "feature-x" }, "without a worktree the project checkout is what moves");
+  assert.equal(sending.effects[0].createWorktree, undefined);
+});
+
+test("a new thread told to use a worktree detaches it from the branch instead", () => {
+  const drafted = run(projected(), [
+    { type: "task.set-branch", branch: "feature-x" },
+    { type: "task.set-worktree", worktree: true },
+    { type: "view.set-prompt", prompt: "Pick up the loader work" },
+  ]);
+
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+
+  assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false, branch: "feature-x" });
+  assert.equal(sending.effects[0].checkout, undefined, "the project checkout is left where it is");
+});
+
+test("the draft answers belong to the thread being started, and reset once it exists", () => {
+  const drafted = run(projected(), [
+    { type: "task.set-branch", branch: "feature-x" },
+    { type: "task.set-worktree", worktree: true },
+    { type: "view.set-prompt", prompt: "Go" },
+  ]);
+
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const worktree = madeWorktree();
+  const started = reduce(sending.state, {
+    type: "run.resolved",
+    pendingId: sending.effects[0].pendingId,
+    workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root },
+    worktree,
+  });
+
+  assert.equal(started.state.draftBranch, null, "the next new thread starts from a clean slate");
+  assert.equal(started.state.draftWorktree, false);
+
+  /** A message to the thread that now exists uses where it already is, not a stale draft. */
+  const taskId = started.state.tasks[0].id;
+  const settledRun = run(started.state, [
+    { type: "run.event", event: { type: "run.status", taskId, runId: started.effects[0].command.runId, sequence: 1, status: "succeeded" } },
+    { type: "view.set-prompt", taskId, prompt: "More" },
+  ]);
+  const again = reduce(settledRun, { type: "task.send", attachments: [] });
+  assert.equal(again.effects[0].checkout, undefined);
+  assert.equal(again.effects[0].workspaceId, worktree.workspaceId);
+});
+
+test("starting a thread in another project clears the branch chosen for the last one", () => {
+  const drafted = run(projected(), [{ type: "task.set-branch", branch: "feature-x" }]);
+
+  const switched = reduce(drafted, { type: "task.new", projectId: "project-b" });
+
+  assert.equal(switched.state.draftBranch, null, "a branch belongs to the repository it was read from");
+  assert.equal(switched.state.draftWorktree, false);
+});

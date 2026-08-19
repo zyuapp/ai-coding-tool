@@ -48,8 +48,8 @@ async function tryGit(cwd: string, args: string[]) {
   }
 }
 
-export async function headCommit(root: string) {
-  return (await git(root, ["rev-parse", "HEAD"])).trim();
+export async function headCommit(root: string, ref = "HEAD") {
+  return (await git(root, ["rev-parse", ref])).trim();
 }
 
 export async function shortCommit(root: string, commit: string) {
@@ -81,6 +81,22 @@ export async function removeWorktree(repositoryPath: string, worktreePath: strin
 export async function listWorktrees(repositoryPath: string) {
   const output = await git(repositoryPath, ["worktree", "list", "--porcelain"]);
   return output.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
+}
+
+/** Local branches, newest first, with the one the checkout is on. A detached head reports none. */
+export async function listBranches(root: string) {
+  const output = await git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads"]);
+  const branches = output.split("\n").map((line) => line.trim()).filter(Boolean);
+  const current = (await tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]))?.trim() || null;
+  return { branches, current };
+}
+
+/**
+ * Moves the checkout onto `branch`. Never forced: Git refuses when the switch would overwrite
+ * uncommitted work, and that refusal is the answer rather than something to override.
+ */
+export async function checkoutBranch(root: string, branch: string) {
+  await git(root, ["checkout", branch]);
 }
 
 export async function updateRef(root: string, ref: string, commit: string) {

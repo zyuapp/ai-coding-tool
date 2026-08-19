@@ -619,6 +619,81 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   padding-bottom: 11vh;
   text-align: center;
 }
+.thread-start { display: flex; align-items: center; gap: 8px; margin-top: 22px; }
+.thread-start-field { position: relative; }
+/** The empty state gives its buttons a filled pill, which these quieter controls opt out of. */
+.empty-state .thread-start button {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 210px;
+  min-height: 32px;
+  border: 1px solid #2f353d;
+  border-radius: 9px;
+  padding: 0 10px;
+  background: #171b21;
+  color: #b6bac0;
+  font-size: var(--text-control);
+  font-weight: 480;
+}
+.empty-state .thread-start button:hover:not(:disabled) { border-color: #3d444e; background: #1d222a; color: #d6d5d1; }
+.empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
+.thread-start-field > button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-start-field svg { flex: none; color: #7d838b; }
+.thread-start-popover {
+  position: absolute;
+  z-index: 20;
+  top: 37px;
+  left: 0;
+  min-width: 220px;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #343941;
+  border-radius: 10px;
+  padding: 5px;
+  background: #20242a;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  text-align: left;
+}
+.empty-state .thread-start-popover button {
+  width: 100%;
+  max-width: none;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-weight: 450;
+}
+.empty-state .thread-start-popover button:hover { background: #2a2f36; }
+.thread-start-search {
+  width: 100%;
+  margin-bottom: 4px;
+  border: 1px solid #343941;
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: #12161c;
+  color: #d6d5d1;
+  font: inherit;
+  font-size: var(--text-control);
+}
+.thread-start-empty { padding: 8px; color: #656b72; font-size: var(--text-meta); }
+.thread-start-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 4px;
+  color: #b6bac0;
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+.thread-start-check input { accent-color: #6f8fb5; cursor: pointer; }
 .empty-glyph { width: 38px; height: 38px; color: #696e74; }
 .empty-glyph svg { width: 100%; height: 100%; }
 .empty-state h2 { margin: 18px 0 8px; color: #d1cfca; font-size: var(--text-display); font-weight: 560; line-height: 1.25; letter-spacing: -0.025em; }

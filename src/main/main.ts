@@ -544,12 +544,33 @@ function worktreePath(value: unknown) {
   return value;
 }
 
+ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
+  if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
+  try {
+    const resolution = await getWorkspaceService().resolve(worktreePath(workspaceId));
+    if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+    const { listBranches } = await import("./workspace/git.mjs");
+    return { status: "available", ...(await listBranches(resolution.workspace.root)) } as const;
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
+  }
+});
+
+ipcMain.handle("workspace:checkout-branch", async (event, workspaceId: unknown, branch: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const resolution = await getWorkspaceService().resolve(worktreePath(workspaceId));
+  if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+  const { checkoutBranch } = await import("./workspace/git.mjs");
+  await checkoutBranch(resolution.workspace.root, worktreePath(branch));
+});
+
 ipcMain.handle("worktree:create", async (event, request: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   const fields = worktreeRequest(request);
   return getWorktreeService().create({
     projectRoot: worktreePath(fields.projectRoot),
     carryChanges: fields.carryChanges === true,
+    ...(typeof fields.branch === "string" && fields.branch ? { branch: fields.branch } : {}),
   } satisfies CreateWorktreeRequest);
 });
 

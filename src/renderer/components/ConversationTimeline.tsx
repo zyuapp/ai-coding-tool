@@ -227,10 +227,12 @@ export type ConversationTimelineProps = {
   streamingTail?: StreamingTail | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   empty?: { icon: LucideIcon; title: string; description: string };
+  /** Shown under the empty state, where a thread that does not exist yet is set up. */
+  startOptions?: ReactNode;
   onSelectTask?: (taskId: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, onSelectTask }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, onSelectTask }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -329,6 +331,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         <div className="empty-glyph">{EmptyIcon ? <EmptyIcon /> : <FolderIcon />}</div>
         <h2>{empty?.title ?? "Start a task"}</h2>
         <p>{empty?.description ?? (folder ? "Tell Claude what you want to change, investigate, or build in this project." : "Ask a question or start a self-contained task.")}</p>
+        {startOptions}
       </div>
     );
   }

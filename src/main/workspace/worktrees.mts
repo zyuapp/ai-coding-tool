@@ -31,6 +31,8 @@ export type CreateWorktreeRequest = {
   projectRoot: string;
   /** Copies the project checkout's uncommitted work into the new worktree, leaving the original alone. */
   carryChanges: boolean;
+  /** Which branch to detach from. The checkout's own HEAD when absent. */
+  branch?: string;
 };
 
 export type ReleaseWorktreeRequest = {
@@ -64,7 +66,7 @@ export class WorktreeService {
    */
   async create(request: CreateWorktreeRequest): Promise<Worktree> {
     const repository = await repositoryRoot(request.projectRoot);
-    const baseCommit = await headCommit(repository);
+    const baseCommit = await headCommit(repository, request.branch);
     const id = randomBytes(4).toString("hex");
     const root = path.join(this.worktreesRoot, worktreeDirectoryName(repository, id));
     await mkdir(this.worktreesRoot, { recursive: true });

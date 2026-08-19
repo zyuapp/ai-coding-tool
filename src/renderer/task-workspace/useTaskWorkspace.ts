@@ -115,6 +115,8 @@ export function useTaskWorkspace() {
 
       case "resolve-run-workspace":
         try {
+          /** A branch a thread starts from moves the project checkout, so it happens before the run. */
+          if (effect.checkout) await window.desktop.checkoutBranch(effect.checkout.workspaceId, effect.checkout.branch);
           if (effect.createWorktree) {
             const worktree = await window.desktop.createWorktree(effect.createWorktree);
             return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root }, worktree });
@@ -388,6 +390,7 @@ export function useTaskWorkspace() {
       setModel: (model: AgentModel) => dispatch({ type: "task.set-model", model }),
       setEffort: (effort: AgentEffort) => dispatch({ type: "task.set-effort", effort }),
       setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
+      setBranch: (branch: string | null) => dispatch({ type: "task.set-branch", branch }),
       deleteWorktree: () => dispatch({ type: "worktree.delete" }),
       sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
       steerQueued: (messageId: string) => dispatch({ type: "task.steer-queued", messageId }),
