@@ -51,6 +51,8 @@ type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
 function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRename, onSetWorktree, onDeleteWorktree }: LocationRowProps) {
   const [renaming, setRenaming] = useState(false);
   const inWorktree = location.kind === "worktree";
+  /** A thread that has asked for a checkout has not moved yet; the next message is what moves it. */
+  const leaving = location.kind === "pending";
   const open = openMenu === LOCATION_MENU;
 
   function commit(value: string) {
@@ -67,7 +69,7 @@ function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRe
           if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
         }}
       >
-        <span className="session-row-icon">{inWorktree ? <GitBranch size={18} /> : <House size={18} />}</span>
+        <span className="session-row-icon">{inWorktree || leaving ? <GitBranch size={18} /> : <House size={18} />}</span>
         {renaming
           ? <input
               className="session-rename"
@@ -80,7 +82,9 @@ function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRe
               }}
               onBlur={(event) => commit(event.currentTarget.value)}
             />
-          : <span title={inWorktree ? location.worktree.root : "Runs in your project checkout"}>{inWorktree ? "Worktree" : "Local"}</span>}
+          : <span title={inWorktree ? location.worktree.root : leaving ? "A checkout of its own is made when you send the next message" : "Runs in your project checkout"}>
+              {inWorktree ? "Worktree" : leaving ? "Worktree on next message" : "Local"}
+            </span>}
         <button
           className="menu-trigger"
           type="button"
@@ -93,8 +97,8 @@ function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRe
         {open && <div className="menu-popover session-menu-popover" role="menu">
           <button role="menuitem" disabled={runActive} onClick={() => {
             onSetOpenMenu(null);
-            onSetWorktree(!inWorktree);
-          }}>{inWorktree ? "Return to local" : "Hand off to worktree"}</button>
+            onSetWorktree(!(inWorktree || leaving));
+          }}>{inWorktree ? "Return to local" : leaving ? "Stay local" : "Hand off to worktree"}</button>
           <button role="menuitem" onClick={() => {
             onSetOpenMenu(null);
             setRenaming(true);

@@ -9,6 +9,7 @@ import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
+import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 
 export type { ApprovalView } from "../../application/task-workspace";
@@ -114,41 +115,11 @@ export function useTaskWorkspace() {
         return;
 
       case "resolve-run-workspace":
-        try {
-          /** A branch named but not yet in the repository has to exist before anything starts from it. */
-          if (effect.createBranch) await window.desktop.createBranch(effect.createBranch.workspaceId, effect.createBranch.branch);
-          /** A branch a thread starts from moves the project checkout, so it happens before the run. */
-          if (effect.checkout) await window.desktop.checkoutBranch(effect.checkout.workspaceId, effect.checkout.branch);
-          if (effect.createWorktree) {
-            const worktree = await window.desktop.createWorktree(effect.createWorktree);
-            return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root }, worktree });
-          }
-          if (effect.workspaceId) {
-            return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: effect.workspaceId, kind: "project", root: effect.root! } });
-          }
-          if (!effect.picker) {
-            return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: await window.desktop.projectlessWorkspace() });
-          }
-          const selected = await window.desktop.openFolder();
-          if (!selected) return await dispatch({ type: "run.unresolved", pendingId: effect.pendingId, message: WORKSPACE_ERRORS.reopenProject });
-          if (selected.root !== effect.root) return await dispatch({ type: "run.unresolved", pendingId: effect.pendingId, message: WORKSPACE_ERRORS.sameProject });
-          return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: selected });
-        } catch (error) {
-          return await dispatch({ type: "run.unresolved", pendingId: effect.pendingId, message: errorMessage(error) });
-        }
+        return await dispatch(await resolveRunWorkspace(effect, window.desktop));
 
       case "start-run":
       case "send-run-command":
         window.desktop.send(effect.command);
-        return;
-
-      case "create-worktree":
-        try {
-          const worktree = await window.desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: true });
-          await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree });
-        } catch (error) {
-          await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: errorMessage(error) });
-        }
         return;
 
       case "release-worktree":

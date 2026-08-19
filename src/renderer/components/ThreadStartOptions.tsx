@@ -72,8 +72,9 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   }, [workspaceId]);
 
   const branches = result?.status === "available" ? result.branches : [];
+  const current = result?.status === "available" ? result.current : null;
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
-  const selected = branch?.name ?? (result?.status === "available" ? result.current : null);
+  const selected = branch?.name ?? current;
   const matches = matchBranches(branches, query);
   const naming = newBranchName(branches, query);
 
@@ -145,7 +146,8 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
                 onClick={() => {
                   setBranchesOpen(false);
                   setQuery("");
-                  onSelectBranch(name);
+                  /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
+                  onSelectBranch(name === current ? null : name);
                 }}
               >
                 <span>{name}</span>

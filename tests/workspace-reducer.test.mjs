@@ -761,31 +761,48 @@ function send(state, resolution, worktree) {
   return { request: sending.effects[0], ...resolved };
 }
 
-test("asking for a worktree from the panel makes it there and then", () => {
+test("asking for a worktree from the panel records the wish and makes nothing yet", () => {
   const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
 
   const asked = reduce(state, { type: "task.set-worktree", worktree: true });
-  assert.deepEqual(asked.effects, [{ type: "create-worktree", taskId: "task-a", projectRoot: "/repo" }]);
-  assert.equal(deriveView(asked.state).location.kind, "local", "nothing moves until the checkout exists");
+  assert.deepEqual(asked.effects, [], "nothing touches disk until the next message goes");
+  assert.equal(asked.state.tasks[0].worktreeWanted, true);
+  assert.equal(deriveView(asked.state).location.kind, "pending");
 
-  const worktree = madeWorktree();
-  const made = reduce(asked.state, { type: "worktree.created", taskId: "task-a", worktree });
-  assert.deepEqual(made.state.tasks[0].worktree, worktree);
-  assert.equal(deriveView(made.state).location.kind, "worktree");
-  assert.match(made.state.tasks[0].messages.at(-1).text, /Moved into a worktree at \/worktrees\/repo-wt1/);
+  const changedMind = reduce(asked.state, { type: "task.set-worktree", worktree: false });
+  assert.deepEqual(changedMind.effects, [], "a thread that changes its mind has nothing to hand back");
+  assert.equal(changedMind.state.tasks[0].worktreeWanted, undefined);
+  assert.equal(deriveView(changedMind.state).location.kind, "local");
 });
 
-test("a worktree that could not be made leaves the thread where it was", () => {
-  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+test("the wish becomes a checkout on the next message", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
 
-  const failed = run(state, [
-    { type: "task.set-worktree", worktree: true },
-    { type: "worktree.failed", taskId: "task-a", message: "Git is not installed or is not on the PATH." },
-  ]);
+  const asked = reduce(state, { type: "task.set-worktree", worktree: true });
 
-  assert.equal(failed.tasks[0].worktree, undefined);
-  assert.equal(failed.actionError, "Git is not installed or is not on the PATH.");
-  assert.equal(deriveView(failed).location.kind, "local");
+  const worktree = madeWorktree();
+  const made = send(asked.state, { id: worktree.workspaceId, kind: "worktree", root: worktree.root }, worktree);
+  assert.deepEqual(made.request.createWorktree, { projectRoot: "/repo", carryChanges: true });
+  assert.deepEqual(made.state.tasks[0].worktree.root, worktree.root);
+  assert.equal(deriveView(made.state).location.kind, "worktree");
+  assert.match(made.state.tasks[0].messages.at(-2).text, /Moved into a worktree at \/worktrees\/repo-wt1/);
+});
+
+test("a worktree that could not be made leaves the thread where it was, still wanting one", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+
+  const asked = reduce(state, { type: "task.set-worktree", worktree: true });
+  const sending = reduce(asked.state, { type: "task.send", attachments: [] });
+  const failed = reduce(sending.state, {
+    type: "run.unresolved",
+    pendingId: sending.effects[0].pendingId,
+    message: "Git is not installed or is not on the PATH.",
+  });
+
+  assert.equal(failed.state.tasks[0].worktree, undefined);
+  assert.equal(failed.state.actionError, "Git is not installed or is not on the PATH.");
+  assert.equal(deriveView(failed.state).location.kind, "pending", "the answer stands; only the checkout failed");
+  assert.deepEqual(failed.state.projects, [PROJECT], "a run that never resolved leaves the project alone");
 });
 
 test("a thread another thread starts in a worktree gets one on its first run", () => {
@@ -845,9 +862,8 @@ test("a thread that stays in its worktree reuses it and stops forking", () => {
     type: "resolve-run-workspace",
     pendingId: again.request.pendingId,
     picker: false,
-    workspaceId: worktree.workspaceId,
-    root: worktree.root,
-  }, "an existing worktree is resolved, never made again");
+    workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root },
+  }, "an existing worktree is resolved as a worktree, never made again");
   assert.equal(again.effects[0].command.forkContinuation, undefined, "the thread is already there, so its session just continues");
   assert.equal(again.state.tasks[0].messages.filter((message) => message.kind === "system").length, 0);
 });
@@ -875,7 +891,7 @@ test("switching back to local hands the worktree back, and the thread records wh
   assert.equal(released.state.tasks[0].worktreeWanted, undefined);
   assert.equal(deriveView(released.state).location.kind, "local");
   const note = released.state.tasks[0].messages.at(-1);
-  assert.match(note.text, /committed as 1234567/);
+  assert.match(note.text, /committed as 1234567, and the worktree was removed/);
   assert.match(note.detail, /git show refs\/claudex\/wt1/);
 });
 
@@ -949,7 +965,7 @@ test("resolving into a worktree never restates where the project itself is", () 
   assert.equal(deriveView(moved.state).folder, "/repo");
 });
 
-test("resolving through the picker still restates a project folder that moved", () => {
+test("a project with no workspace of its own adopts the one the picker opened for it", () => {
   const state = projected({ projects: [{ ...PROJECT, workspaceId: undefined }], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
 
   const reopened = send(state, { id: "workspace-b", kind: "project", root: "/repo" });
@@ -1039,7 +1055,7 @@ test("the draft answers belong to the thread being started, and reset once it ex
   ]);
   const again = reduce(settledRun, { type: "task.send", attachments: [] });
   assert.equal(again.effects[0].checkout, undefined);
-  assert.equal(again.effects[0].workspaceId, worktree.workspaceId);
+  assert.deepEqual(again.effects[0].workspace, { id: worktree.workspaceId, kind: "worktree", root: worktree.root });
 });
 
 test("starting a thread in another project clears the branch chosen for the last one", () => {
@@ -1049,4 +1065,57 @@ test("starting a thread in another project clears the branch chosen for the last
 
   assert.equal(switched.state.draftBranch, null, "a branch belongs to the repository it was read from");
   assert.equal(switched.state.draftWorktree, false);
+});
+
+test("a thread's second run in its worktree leaves the project row exactly where it was", () => {
+  const worktree = { ...madeWorktree(), enteredAt: 3 };
+  const state = projected({
+    tasks: [task("task-a", { projectId: PROJECT.id, worktree })],
+    currentId: "task-a",
+    prompts: { "task-a": "Again" },
+  });
+
+  const again = send(state, { id: worktree.workspaceId, kind: "worktree", root: worktree.root });
+
+  assert.deepEqual(again.state.projects, [PROJECT], "a run in a worktree never restates where the project is");
+  assert.equal(deriveView(again.state).folder, "/repo");
+  assert.equal(again.effects[0].command.workspaceId, worktree.workspaceId, "and it still happens in the worktree");
+});
+
+test("a project that already has a workspace is never moved by a run that resolves elsewhere", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+
+  const elsewhere = send(state, { id: "workspace-b", kind: "project", root: "/somewhere-else" });
+
+  assert.deepEqual(elsewhere.state.projects, [PROJECT], "only the picker says where a project lives");
+});
+
+test("a thread starting on another branch waits for the runs in that checkout to stop", () => {
+  const state = projected({
+    tasks: [task("task-a", { projectId: PROJECT.id })],
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 1, status: "running" } },
+    draftBranch: { name: "feature-x", create: false },
+    prompts: { "draft:project-a": "Start here" },
+  });
+
+  const refused = reduce(state, { type: "task.send", attachments: [] });
+
+  assert.deepEqual(refused.effects, [], "nothing moves the checkout under a thread that is working in it");
+  assert.equal(refused.state.actionError, WORKSPACE_ERRORS.checkoutRunning);
+  assert.equal(refused.state.tasks.length, 1, "and no thread is created for a send that never started");
+});
+
+test("a thread starting on another branch in a worktree ignores the runs in the project checkout", () => {
+  const state = projected({
+    tasks: [task("task-a", { projectId: PROJECT.id })],
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 1, status: "running" } },
+    draftBranch: { name: "feature-x", create: false },
+    draftWorktree: true,
+    prompts: { "draft:project-a": "Start here" },
+  });
+
+  const sending = reduce(state, { type: "task.send", attachments: [] });
+
+  assert.equal(sending.effects[0].checkout, undefined, "a checkout of its own never moves the project");
+  assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false, branch: "feature-x" });
 });

@@ -337,6 +337,23 @@ async function checkForUpdates() {
   await autoUpdater.checkForUpdates();
 }
 
+/**
+ * Brings the worktrees on disk back in line with the threads that claim them, before the window can
+ * read either. A checkout no thread claims is reaped, and a thread claiming a checkout that is gone
+ * becomes local again, so neither side is left pointing at something that is not there.
+ */
+async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeService) {
+  try {
+    const claimed = database.claimedWorktrees();
+    const { reaped } = await worktrees.reconcile({ claimed, repositories: database.load()?.projects.map((project) => project.root) ?? [] });
+    const missing = claimed.filter((root) => !existsSync(root));
+    const forgotten = database.forgetWorktrees(missing);
+    if (reaped.length || forgotten) console.log(`Reconciled worktrees: reaped ${reaped.length}, released ${forgotten}.`);
+  } catch (error) {
+    console.error("Could not reconcile worktrees:", error);
+  }
+}
+
 app.whenReady().then(async () => {
   const userData = app.getPath("userData");
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
@@ -345,12 +362,11 @@ app.whenReady().then(async () => {
     projectlessRoot: path.join(userData, "projectless"),
   });
   const { WorktreeService: WorktreeServiceConstructor } = await import("./workspace/worktrees.mjs");
-  worktreeService = new WorktreeServiceConstructor({
-    worktreesRoot: path.join(userData, "worktrees"),
-    workspaces: workspaceService,
-  });
+  const worktreesRoot = path.join(userData, "worktrees");
+  worktreeService = new WorktreeServiceConstructor({ worktreesRoot, workspaces: workspaceService });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
-  taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"));
+  taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoot });
+  await reconcileWorktrees(taskDatabase, worktreeService);
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, dispatchAutomation, {
     onChange: (automations) => {

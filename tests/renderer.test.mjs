@@ -2068,6 +2068,12 @@ test("the session panel's thread menu offers the hand-off its location allows, a
   await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[0].click(); });
   assert.deepEqual(calls.worktree, [true]);
 
+  await view.render(panel({ kind: "pending" }, "session:location"));
+  assert.deepEqual(items(view), ["Stay local", "Rename thread"], "a thread still waiting for a checkout has none to delete");
+  assert.match(view.container.querySelector(".session-location-row span:nth-of-type(2)").textContent, /Worktree on next message/);
+  await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[0].click(); });
+  assert.deepEqual(calls.worktree, [true, false], "changing its mind asks for the wish to be dropped");
+
   const worktree = { kind: "worktree", worktree: { id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 } };
   await view.render(panel(worktree, "session:location"));
   assert.deepEqual(items(view), ["Return to local", "Rename thread", "Delete worktree"]);
@@ -2127,6 +2133,11 @@ test("the start options say where a thread begins, and searching narrows the bra
   assert.deepEqual(branchOptions.map((option) => option.textContent), ["main", "fix-loader", "feature-x"], "every local branch is offered, newest first");
   await act(async () => { branchOptions.find((option) => option.textContent === "fix-loader").click(); });
   assert.deepEqual(chosen.branch, ["fix-loader"]);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Starting branch"]').click(); });
+  const reopened = [...view.container.querySelectorAll('[role="option"]')];
+  await act(async () => { reopened.find((option) => option.textContent === "main").click(); });
+  assert.deepEqual(chosen.branch, ["fix-loader", null], "the branch the checkout is already on asks for nothing");
 
   await view.render(options({ name: "fix-loader", create: false }, false));
   assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /fix-loader/);
@@ -2195,4 +2206,61 @@ test("a branch search keeps what the query names, and everything when it is empt
   assert.equal(newBranchName(branches, "  spaced  "), "spaced", "a name is what the query says, trimmed");
   assert.equal(newBranchName(branches, "main"), null, "a branch that exists is picked rather than made");
   assert.equal(newBranchName(branches, "   "), null);
+});
+
+test("resolving a run hands back the workspace the reducer named, kind and all", async () => {
+  const { resolveRunWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/resolve-run-workspace.ts");
+  const worktree = { id: "worktree-1", kind: "worktree", root: "/worktrees/repo-wt1" };
+  const desktop = {
+    createBranch: async () => { throw new Error("no branch should be made"); },
+    checkoutBranch: async () => { throw new Error("nothing should be checked out"); },
+    createWorktree: async () => { throw new Error("the worktree already exists"); },
+    projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/tmp" }),
+    openFolder: async () => { throw new Error("nothing should be picked"); },
+  };
+
+  const resolved = await resolveRunWorkspace({ type: "resolve-run-workspace", pendingId: "pending-1", picker: false, workspace: worktree }, desktop);
+
+  assert.deepEqual(resolved, { type: "run.resolved", pendingId: "pending-1", workspace: worktree }, "a run in a worktree is answered as a worktree, never as a project");
+});
+
+test("resolving a run reports what the branch or the worktree could not do", async () => {
+  const { resolveRunWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/resolve-run-workspace.ts");
+  const calls = [];
+  const desktop = {
+    createBranch: async (workspaceId, branch) => { calls.push(["create", workspaceId, branch]); },
+    checkoutBranch: async () => { throw new Error("Your local changes would be overwritten."); },
+    createWorktree: async () => { throw new Error("unreached"); },
+    projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/tmp" }),
+    openFolder: async () => null,
+  };
+
+  const effect = {
+    type: "resolve-run-workspace",
+    pendingId: "pending-2",
+    picker: false,
+    workspace: { id: "workspace-a", kind: "project", root: "/repo" },
+    createBranch: { workspaceId: "workspace-a", branch: "feature-x" },
+    checkout: { workspaceId: "workspace-a", branch: "feature-x" },
+  };
+  const failed = await resolveRunWorkspace(effect, desktop);
+
+  assert.deepEqual(calls, [["create", "workspace-a", "feature-x"]], "the branch is made before anything tries to start from it");
+  assert.deepEqual(failed, { type: "run.unresolved", pendingId: "pending-2", message: "Your local changes would be overwritten." });
+});
+
+test("resolving a run through the picker insists on the same folder", async () => {
+  const { resolveRunWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/resolve-run-workspace.ts");
+  const desktop = {
+    createBranch: async () => {},
+    checkoutBranch: async () => {},
+    createWorktree: async () => {},
+    projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/tmp" }),
+    openFolder: async () => ({ id: "workspace-b", kind: "project", root: "/elsewhere" }),
+  };
+
+  const wrong = await resolveRunWorkspace({ type: "resolve-run-workspace", pendingId: "pending-3", picker: true, root: "/repo" }, desktop);
+
+  assert.equal(wrong.type, "run.unresolved");
+  assert.match(wrong.message, /same project folder/);
 });

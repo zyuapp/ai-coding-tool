@@ -95,3 +95,55 @@ test("SQLite automation storage keeps one row per task and drops unreadable rows
     await rm(directory, { recursive: true });
   }
 });
+
+test("a project folder inside the app's own worktrees is refused, and the rest of the delta still lands", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const worktreesRoot = path.join(directory, "worktrees");
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoot });
+  const task = {
+    id: "task-1",
+    title: "Worktree work",
+    executionPolicy: "confirm",
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+  };
+  const errors = [];
+  const reportError = console.error;
+  console.error = (...args) => { errors.push(args); };
+  try {
+    database.persist({ projects: [{ id: "project-1", root: "/work" }], lastFolder: "/work", tasks: [{ task, messages: [] }] });
+
+    database.persist({
+      projects: [{ id: "project-1", root: path.join(worktreesRoot, "work-9aefd881") }],
+      lastFolder: path.join(worktreesRoot, "work-9aefd881"),
+      tasks: [{ task: { ...task, updatedAt: 3 }, messages: [
+        { index: 0, message: { id: "user-1", kind: "user", text: "Still saved", at: 1 } },
+      ] }],
+    });
+
+    const loaded = database.load();
+    assert.deepEqual(loaded.projects, [{ id: "project-1", root: "/work" }], "the folder on disk outlives a bad write");
+    assert.equal(loaded.lastFolder, "/work");
+    assert.equal(loaded.tasks[0].updatedAt, 3, "the transcript still saves");
+    assert.deepEqual(loaded.tasks[0].messages.map((message) => message.text), ["Still saved"]);
+    assert.equal(errors.length, 1, "and the refusal is said out loud");
+  } finally {
+    console.error = reportError;
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a project folder that merely starts with the worktrees root's name is still allowed", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const worktreesRoot = path.join(directory, "worktrees");
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoot });
+  try {
+    database.persist({ projects: [{ id: "project-1", root: `${worktreesRoot}-mine` }], tasks: [] });
+    assert.deepEqual(database.load().projects, [{ id: "project-1", root: `${worktreesRoot}-mine` }]);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});

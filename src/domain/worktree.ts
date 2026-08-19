@@ -26,7 +26,7 @@ export function worktreeRef(worktreeId: string) {
 
 const RELEASE_REASONS: Record<WorktreeRelease, string> = {
   "returned-to-local": "returned to local",
-  evicted: "evicted at the worktree limit",
+  evicted: "reaped, no thread claimed it",
 };
 
 export function releaseReason(release: WorktreeRelease) {
@@ -37,11 +37,11 @@ export function releaseReason(release: WorktreeRelease) {
  * The snapshot a worktree is force-committed to before it lets go of its thread. The subject is
  * prefixed so these never read as hand-written work and `git log --grep=claudex` finds them all.
  */
-export function snapshotMessage(title: string, taskId: string, release: WorktreeRelease, ref: string | null) {
+export function snapshotMessage(title: string, taskId: string | null, release: WorktreeRelease, ref: string | null) {
   return [
     `claudex: snapshot "${title}"`,
     "",
-    `Thread ${taskId} · ${releaseReason(release)}`,
+    [taskId ? `Thread ${taskId}` : "No thread", releaseReason(release)].join(" · "),
     ...(ref ? [`Ref ${ref}`] : []),
   ].join("\n");
 }
@@ -53,6 +53,14 @@ export function worktreeDirectoryName(projectRoot: string, worktreeId: string) {
   const name = projectRoot.split("/").filter(Boolean).at(-1) ?? "project";
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, SLUG_LIMIT);
   return `${slug || "project"}-${worktreeId}`;
+}
+
+/**
+ * The id inside a directory the app made, so a checkout found on disk can be snapshotted under the
+ * same ref its thread would have used. A name from anywhere else stands in for itself.
+ */
+export function worktreeIdFromDirectoryName(name: string) {
+  return /-([0-9a-f]{8})$/.exec(name)?.[1] ?? name.replace(/[^A-Za-z0-9-]+/g, "-");
 }
 
 export function isWorktree(value: unknown): value is Worktree {

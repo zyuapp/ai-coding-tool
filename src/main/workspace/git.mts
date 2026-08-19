@@ -78,6 +78,11 @@ export async function removeWorktree(repositoryPath: string, worktreePath: strin
   await tryGit(repositoryPath, ["worktree", "prune"]);
 }
 
+/** Drops registrations whose directory is gone, which is what a checkout removed from outside leaves. */
+export async function pruneWorktrees(repositoryPath: string) {
+  await tryGit(repositoryPath, ["worktree", "prune"]);
+}
+
 export async function listWorktrees(repositoryPath: string) {
   const output = await git(repositoryPath, ["worktree", "list", "--porcelain"]);
   return output.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));

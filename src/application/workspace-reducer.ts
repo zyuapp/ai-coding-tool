@@ -42,8 +42,6 @@ export type WorkspaceEvent =
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
-  | { type: "worktree.created"; taskId: string; worktree: Worktree }
-  | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.deleted"; taskId: string }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult };
@@ -56,7 +54,9 @@ export type WorkspaceEffect =
       type: "resolve-run-workspace";
       pendingId: string;
       picker: boolean;
-      workspaceId?: string;
+      /** Where the run happens, when the reducer already knows. Carried whole so nothing downstream infers its kind. */
+      workspace?: WorkspaceRecord;
+      /** The project folder a picker has to match. */
       root?: string;
       createWorktree?: { projectRoot: string; carryChanges: boolean; branch?: string };
       /** Makes the branch the thread starts from, at the project's own HEAD, before anything reads it. */
@@ -64,7 +64,6 @@ export type WorkspaceEffect =
       /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
       checkout?: { workspaceId: string; branch: string };
     }
-  | { type: "create-worktree"; taskId: string; projectRoot: string }
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "delete-worktree"; taskId: string; root: string }
   | { type: "start-run"; command: StartRunCommand }
@@ -88,6 +87,7 @@ const RUNNING_PROJECT_ERROR = "Stop the running tasks before removing this proje
 const BUSY_AUTOMATION_ERROR = "This task is already running. The automation will run on its next tick.";
 const WORKTREE_PROJECT_ERROR = "Open this thread in a project folder before giving it a worktree.";
 const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
+const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 
 export const WORKSPACE_ERRORS = {
   reopenProject: REOPEN_PROJECT_ERROR,
@@ -95,6 +95,7 @@ export const WORKSPACE_ERRORS = {
   busyAutomation: BUSY_AUTOMATION_ERROR,
   worktreeProject: WORKTREE_PROJECT_ERROR,
   worktreeRunning: WORKTREE_RUNNING_ERROR,
+  checkoutRunning: CHECKOUT_RUNNING_ERROR,
 } as const;
 
 function now() {
@@ -240,7 +241,7 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
 function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, wantsWorktree: boolean, branch?: DraftBranch | null): WorkspaceEffect {
   const worktree = task?.worktree;
   if (worktree) {
-    return { type: "resolve-run-workspace", pendingId, picker: false, workspaceId: worktree.workspaceId, root: worktree.root };
+    return { type: "resolve-run-workspace", pendingId, picker: false, workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root } };
   }
   /** A branch the user named but the repository does not have yet is made before either path reads it. */
   const making = branch?.create && project?.workspaceId
@@ -260,12 +261,21 @@ function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, proje
     type: "resolve-run-workspace",
     pendingId,
     picker: Boolean(project && !project.workspaceId),
-    ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
+    ...(project?.workspaceId ? { workspace: { id: project.workspaceId, kind: "project" as const, root: project.root } } : {}),
     ...(project ? { root: project.root } : {}),
     ...making,
     /** Without a checkout of its own, starting from a branch means moving the project onto it. */
     ...(branch && project?.workspaceId ? { checkout: { workspaceId: project.workspaceId, branch: branch.name } } : {}),
   };
+}
+
+/** Whether a run is going in a checkout, so nothing moves the ground under it. */
+function runsInWorkspace(state: WorkspaceState, workspaceId: string | undefined) {
+  if (!workspaceId) return false;
+  return Object.keys(state.activeRuns).some((taskId) => {
+    const task = state.tasks.find((item) => item.id === taskId);
+    return task ? taskWorkspaceId(state, task) === workspaceId : false;
+  });
 }
 
 /** A thread that has let go of its checkout is local again, and says so in its own timeline. */
@@ -431,8 +441,9 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     /**
-     * Makes the checkout there and then, so the thread is never left saying it will move later.
-     * Turning it off gives the worktree back, which commits whatever it still holds first.
+     * Only records the answer. The checkout is made inside the next send's workspace resolution, so
+     * a thread that changes its mind before sending leaves nothing behind. Turning it off gives back
+     * a checkout the thread already has, which commits whatever it still holds first.
      */
     case "task.set-worktree": {
       const taskId = targetId(state, input.taskId);
@@ -444,9 +455,14 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         if (task.worktree) return settled(state);
         const project = projectFor(state, task);
         if (!project?.workspaceId) return settled({ ...state, actionError: WORKTREE_PROJECT_ERROR });
-        return settled({ ...state, actionError: null }, [{ type: "create-worktree", taskId: task.id, projectRoot: project.root }]);
+        return settled(applyTask({ ...state, actionError: null }, task.id, (item) => ({ ...item, worktreeWanted: true, updatedAt: now() })));
       }
-      if (!task.worktree) return settled(state);
+      /** A wish is dropped where it stands; only a checkout that exists has to be handed back. */
+      if (!task.worktree) {
+        return settled(task.worktreeWanted
+          ? applyTask({ ...state, actionError: null }, task.id, ({ worktreeWanted: _dropped, ...item }) => ({ ...item, updatedAt: now() }))
+          : state);
+      }
       return settled({ ...state, actionError: null }, [{
         type: "release-worktree",
         taskId: task.id,
@@ -464,21 +480,6 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         actionError: null,
       });
 
-    case "worktree.created": {
-      const task = state.tasks.find((item) => item.id === input.taskId);
-      if (!task || task.worktree) return settled(state);
-      const note = createTaskMessage("system", `Moved into a worktree at ${input.worktree.root}`, `Detached at ${input.worktree.baseCommit.slice(0, 7)}`);
-      return settled(applyTask(state, input.taskId, (item) => ({
-        ...item,
-        worktree: input.worktree,
-        messages: [...item.messages, note],
-        updatedAt: now(),
-      })));
-    }
-
-    case "worktree.failed":
-      return settled({ ...state, actionError: input.message });
-
     /** Unlike switching back, this keeps nothing: the checkout and everything loose in it go. */
     case "worktree.delete": {
       const taskId = targetId(state, input.taskId);
@@ -493,8 +494,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (!task?.worktree) return settled(state);
       const { commit, shortCommit, ref } = input.snapshot;
       const text = commit
-        ? `Returned to the project checkout. Uncommitted work was committed as ${shortCommit ?? commit.slice(0, 7)}.`
-        : "Returned to the project checkout. The worktree had nothing uncommitted.";
+        ? `Returned to the project checkout. Uncommitted work was committed as ${shortCommit ?? commit.slice(0, 7)}, and the worktree was removed.`
+        : "Returned to the project checkout. The worktree had nothing uncommitted, and was removed.";
       return settled(clearWorktree(state, task.id, createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)));
     }
 
@@ -543,6 +544,10 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
       const wantsWorktree = task ? Boolean(task.worktreeWanted) : (input.worktree ?? state.draftWorktree);
       const branch = task ? null : state.draftBranch;
+      /** Starting from a branch without a checkout of its own moves the project, so nothing may be running in it. */
+      if (branch && !wantsWorktree && project && runsInWorkspace(state, project.workspaceId)) {
+        return settled({ ...state, actionError: CHECKOUT_RUNNING_ERROR });
+      }
       return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, wantsWorktree, branch)]);
     }
 
@@ -616,10 +621,13 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (!pending) return settled(state);
       let next = withoutPending(state, input.pendingId);
       const project = pending.projectId ? next.projects.find((item) => item.id === pending.projectId) : undefined;
-      /** Only the project's own checkout can restate where the project is; a worktree never does. */
-      const restates = !input.worktree && input.workspace.kind !== "worktree";
-      if (restates && project && (project.workspaceId !== input.workspace.id || project.root !== input.workspace.root)) {
-        next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id, root: input.workspace.root } : item) };
+      /**
+       * A project with no workspace of its own adopts the one the picker just opened for the same
+       * folder. Where a project lives is the picker's to say, so no run ever moves one.
+       */
+      const adopts = project && !project.workspaceId && input.workspace.kind === "project" && input.workspace.root === project.root;
+      if (adopts) {
+        next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id } : item) };
       }
       return pending.origin === "automation"
         ? startAutomationRun(next, pending, input.workspace, input.worktree)

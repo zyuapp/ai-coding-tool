@@ -44,16 +44,25 @@ async function repository() {
   return root;
 }
 
-/** A registry stand-in: the service only needs a workspace id back for the directory it made. */
+/** A registry stand-in, recording what the service registers and forgets. */
 function workspaces() {
   let sequence = 0;
+  const records = new Map();
   return {
-    registerWorktree: async (root) => ({ status: "available", workspace: { id: `workspace-${++sequence}`, kind: "worktree", root } }),
+    records,
+    registerWorktree: async (root) => {
+      const workspace = { id: `workspace-${++sequence}`, kind: "worktree", root };
+      records.set(root, workspace);
+      return { status: "available", workspace };
+    },
+    listWorktrees: async () => [...records.values()],
+    forgetWorktree: async (root) => { records.delete(root); },
   };
 }
 
-async function service() {
-  return new WorktreeService({ worktreesRoot: await temporaryDirectory("worktrees"), workspaces: workspaces() });
+async function service(registry = workspaces()) {
+  const worktreesRoot = await temporaryDirectory("worktrees");
+  return Object.assign(new WorktreeService({ worktreesRoot, workspaces: registry }), { worktreesRoot, registry });
 }
 
 async function exists(target) {
@@ -175,8 +184,9 @@ test("releasing a detached worktree commits its work and keeps it reachable by r
   assert.match(message, /Thread thread-1 · returned to local/);
 
   /** The commit outlives the directory, which is the whole point of the ref. */
-  await worktrees.delete(worktree.root);
-  assert.equal(await exists(worktree.root), false);
+  assert.equal(await exists(worktree.root), false, "a released worktree leaves no directory behind");
+  assert.deepEqual(await listWorktrees(root), [root], "and no registration either");
+  assert.equal(worktrees.registry.records.size, 0, "and no workspace record");
   const preserved = (await git(root, "show", "--format=%H", "-s", snapshot.ref)).stdout.trim();
   assert.equal(preserved, snapshot.commit);
   const files = (await git(root, "show", "--name-only", "--format=", snapshot.commit)).stdout;
@@ -271,4 +281,60 @@ test("worktrees of the same project stay independent", async () => {
   assert.notEqual(first.root, second.root);
   assert.equal(await readFile(path.join(second.root, "tracked.txt"), "utf8"), "one\n");
   assert.equal(await readFile(path.join(root, "tracked.txt"), "utf8"), "one\n");
+});
+
+test("releasing a worktree whose directory is already gone still tidies up after it", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await rm(worktree.root, { recursive: true, force: true });
+
+  const snapshot = await worktrees.release({
+    worktreeId: worktree.id,
+    root: worktree.root,
+    taskId: "thread-5",
+    title: "Removed from underneath",
+    release: "returned-to-local",
+  });
+
+  assert.deepEqual(snapshot, { commit: null, shortCommit: null, ref: null }, "there is nothing left to commit");
+  assert.equal(worktrees.registry.records.size, 0, "the thread is free of it either way");
+});
+
+test("a reconcile reaps the checkouts no thread claims and keeps the ones that are claimed", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const claimed = await worktrees.create({ projectRoot: root, carryChanges: false });
+  const abandoned = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await writeFile(path.join(abandoned.root, "tracked.txt"), "work nobody claims\n");
+
+  const { reaped } = await worktrees.reconcile({ claimed: [claimed.root], repositories: [root] });
+
+  assert.deepEqual(reaped, [abandoned.root]);
+  assert.equal(await exists(claimed.root), true, "a checkout its thread still claims is left alone");
+  assert.equal(await exists(abandoned.root), false);
+  assert.deepEqual(await listWorktrees(root), [root, claimed.root]);
+  const preserved = (await git(root, "show", `refs/claudex/${abandoned.id}:tracked.txt`)).stdout;
+  assert.equal(preserved, "work nobody claims\n", "what it held is committed before it goes");
+});
+
+test("a reconcile forgets registrations whose directory was removed from outside", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await rm(worktree.root, { recursive: true, force: true });
+
+  await worktrees.reconcile({ claimed: [worktree.root], repositories: [root] });
+
+  assert.equal(worktrees.registry.records.size, 0, "the registry never outgrows the disk");
+  assert.deepEqual(await listWorktrees(root), [root], "and neither does git's own list");
+});
+
+test("a reconcile leaves a worktrees root that has never been used alone", async () => {
+  const root = await repository();
+  const worktrees = await service();
+
+  const { reaped } = await worktrees.reconcile({ claimed: [], repositories: [root] });
+
+  assert.deepEqual(reaped, []);
 });

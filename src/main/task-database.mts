@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import path from "node:path";
 import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import { parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
@@ -13,12 +14,21 @@ function parseAutomationRow(data: string): Automation | null {
   }
 }
 
+/** A project folder can never be a checkout the app made for a thread. */
+export function projectRootsAreOwn(projects: Array<{ root: string }>, worktreesRoot: string | undefined) {
+  if (!worktreesRoot) return true;
+  const owned = `${path.resolve(worktreesRoot)}${path.sep}`;
+  return !projects.some((project) => path.resolve(project.root).startsWith(owned));
+}
+
 export class TaskDatabase {
   private readonly database: DatabaseSync;
+  private readonly worktreesRoot: string | undefined;
   private closed = false;
 
-  constructor(path: string) {
-    this.database = new DatabaseSync(path);
+  constructor(file: string, options: { worktreesRoot?: string } = {}) {
+    this.worktreesRoot = options.worktreesRoot;
+    this.database = new DatabaseSync(file);
     this.database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
@@ -88,15 +98,52 @@ export class TaskDatabase {
     return validated.data;
   }
 
+  /** Every task's checkout of its own, so a reconcile can tell a live worktree from an abandoned one. */
+  claimedWorktrees(): string[] {
+    const rows = this.database.prepare("SELECT data FROM tasks").all() as Array<{ data: string }>;
+    return rows.flatMap(({ data }) => {
+      const root = (JSON.parse(data) as { worktree?: { root?: string } }).worktree?.root;
+      return typeof root === "string" && root ? [root] : [];
+    });
+  }
+
+  /** Takes a checkout away from every task that claimed one of `roots`, which no longer exist. */
+  forgetWorktrees(roots: string[]): number {
+    if (!roots.length) return 0;
+    const gone = new Set(roots.map((root) => path.resolve(root)));
+    const rows = this.database.prepare("SELECT id, data FROM tasks").all() as Array<{ id: string; data: string }>;
+    const save = this.database.prepare("UPDATE tasks SET data = ? WHERE id = ?");
+    let changed = 0;
+    for (const row of rows) {
+      const task = JSON.parse(row.data) as { worktree?: { root?: string } };
+      if (!task.worktree?.root || !gone.has(path.resolve(task.worktree.root))) continue;
+      const { worktree: _released, ...rest } = task;
+      save.run(JSON.stringify(rest), row.id);
+      changed += 1;
+    }
+    return changed;
+  }
+
   persist(delta: TaskStoreDelta) {
+    /**
+     * A project row and the last folder are where the user's own directories are recorded, so a
+     * delta that would move either into the app's worktrees is dropped instead of written. The rest
+     * of the delta still lands: losing transcripts is a worse answer than keeping the folder on disk.
+     */
+    const writesProjects = !delta.projects || projectRootsAreOwn(delta.projects, this.worktreesRoot);
+    const writesLastFolder = delta.lastFolder === undefined
+      || projectRootsAreOwn(delta.lastFolder ? [{ root: delta.lastFolder }] : [], this.worktreesRoot);
+    if (!writesProjects || !writesLastFolder) {
+      console.error("Refused to record a folder inside the app's worktrees directory.", { projects: delta.projects, lastFolder: delta.lastFolder });
+    }
     this.database.exec("BEGIN IMMEDIATE");
     try {
-      if (delta.projects) {
+      if (delta.projects && writesProjects) {
         this.database.exec("DELETE FROM projects");
         const insertProject = this.database.prepare("INSERT INTO projects (id, position, data) VALUES (?, ?, ?)");
         delta.projects.forEach((project, index) => insertProject.run(project.id, index, JSON.stringify(project)));
       }
-      if (delta.lastFolder !== undefined) {
+      if (delta.lastFolder !== undefined && writesLastFolder) {
         this.database.prepare("INSERT INTO settings (key, value) VALUES ('lastFolder', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(delta.lastFolder));
       }
       if (delta.removedTasks?.length) {

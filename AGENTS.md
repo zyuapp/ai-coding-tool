@@ -41,8 +41,18 @@ read it from.
 Asking for a worktree only sets `worktreeWanted`. The directory is made on the next send, inside the
 workspace resolution the run already waits on, so a thread that changes its mind leaves nothing
 behind. Worktrees are detached at whatever the project has checked out and never get a branch; the
-thread makes one itself if it wants one. Switching back force-commits what the worktree still holds
-and keeps a detached snapshot reachable under `refs/claudex`; deleting keeps nothing.
+thread makes one itself if it wants one. Switching back force-commits what the worktree still holds,
+keeps a detached snapshot reachable under `refs/claudex`, and then removes the directory; deleting
+keeps nothing at all.
+
+A worktree belongs to exactly one thread, and a thread is the only thing that keeps one alive. On
+every start `reconcileWorktrees` reaps the checkouts under the worktrees root that no task claims —
+snapshotting whatever they still hold first — and takes the claim away from a task whose checkout is
+gone. Nothing else needs an eviction rule, and no cleanup path is reachable only through the UI.
+
+Where a project lives is the picker's to say. A run may fill in a workspace a project does not have
+yet, for the same folder, and may never move one: a project root inside the app's own worktrees is
+refused at the database, not recorded.
 
 Only `git.mts` runs git, and only `WorktreeService` creates, releases, or deletes a checkout.
 
