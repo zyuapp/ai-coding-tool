@@ -46,6 +46,9 @@ export type SideChatCommand =
   | { type: "side-chat.open"; chatId: string }
   | { type: "side-chat.close"; chatId: string }
   | { type: "side-chat.set-prompt"; chatId: string; prompt: string }
+  | { type: "side-chat.set-policy"; chatId: string; policy: ExecutionPolicy }
+  | { type: "side-chat.set-model"; chatId: string; model: AgentModel }
+  | { type: "side-chat.set-effort"; chatId: string; effort: AgentEffort }
   | { type: "side-chat.send"; chatId: string }
   | { type: "side-chat.cancel"; chatId: string };
 

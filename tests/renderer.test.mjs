@@ -450,8 +450,9 @@ test("context usage stays within 100% when the window shrinks below the used tok
   await view.unmount();
 });
 
-test("a side chat shows its own context window and answers its own approval", async () => {
+test("a side chat shows its own context window, settings, and approval", async () => {
   const decisions = [];
+  const policies = [];
   const chatTask = {
     id: "chat-1",
     title: "Side chat",
@@ -481,6 +482,9 @@ test("a side chat shows its own context window and answers its own approval", as
     onSend() {},
     onCancel() {},
     onDecide(allow) { decisions.push(allow); },
+    onPolicyChange(policy) { policies.push(policy); },
+    onModelChange() {},
+    onEffortChange() {},
     onClose() {},
     onSelectTask() {},
   }));
@@ -489,6 +493,12 @@ test("a side chat shows its own context window and answers its own approval", as
   const usage = view.container.querySelector(".context-usage");
   assert.equal(usage.getAttribute("aria-label"), "60% of context window used");
   assert.match(usage.textContent, /120K \/ 200K tokens used/);
+
+  const settings = view.container.querySelectorAll(".composer-settings .setting-menu");
+  assert.equal(settings.length, 3, "permission mode, model, and effort");
+  assert.match(settings[0].textContent, /Plan mode/, "the chat's own policy is selected");
+  await act(async () => { [...settings[0].querySelectorAll(".setting-option")].find((option) => option.textContent.includes("Auto mode")).click(); });
+  assert.deepEqual(policies, ["autonomous"]);
 
   const approval = view.container.querySelector(".approval-card");
   assert.match(approval.textContent, /Run a command/);

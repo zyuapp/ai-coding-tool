@@ -207,7 +207,7 @@ test("Claude keeps complex Markdown fences intact across adversarial chunk bound
   }
 });
 
-test("side chat forks the main continuation and exposes read-only tools", async () => {
+test("side chat forks the main continuation and keeps the tools of its own policy", async () => {
   const capture = {};
   const provider = new ClaudeAgentProvider(queryFactory([], capture));
   await provider.execute(input({
@@ -219,8 +219,8 @@ test("side chat forks the main continuation and exposes read-only tools", async 
 
   assert.equal(capture.options.options.resume, "main-session");
   assert.equal(capture.options.options.forkSession, true);
-  assert.equal(capture.options.options.permissionMode, "plan");
-  assert.deepEqual(capture.options.options.tools, ["Read", "Grep", "Glob"]);
+  assert.equal(capture.options.options.permissionMode, "auto");
+  assert.equal(capture.options.options.tools, undefined, "a side chat is limited by its policy, not by a tool list");
 });
 
 test("Claude receives bundled computer-use MCP or the internal setup tool", async () => {

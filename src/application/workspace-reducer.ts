@@ -568,7 +568,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         task: {
           id: input.chatId,
           title: "Side chat",
-          executionPolicy: "plan",
+          executionPolicy: source.executionPolicy,
           ...(source.model ? { model: source.model } : {}),
           ...(source.effort ? { effort: source.effort } : {}),
           messages: [],
@@ -587,6 +587,15 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "side-chat.set-prompt":
       return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, prompt: input.prompt })));
+
+    case "side-chat.set-policy":
+      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, task: { ...chat.task, executionPolicy: input.policy } })));
+
+    case "side-chat.set-model":
+      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, task: { ...chat.task, model: input.model } })));
+
+    case "side-chat.set-effort":
+      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, task: { ...chat.task, effort: input.effort } })));
 
     case "side-chat.send": {
       const chat = state.sideChats.find((item) => item.id === input.chatId);
@@ -780,9 +789,9 @@ function startSideRun(state: WorkspaceState, pending: PendingRun, workspace: Wor
         runId: pending.runId,
         prompt: pending.prompt,
         workspaceId: workspace.id,
-        policy: "plan",
-        model: source.model ?? DEFAULT_MODEL,
-        effort: source.effort ?? DEFAULT_EFFORT,
+        policy: chat.task.executionPolicy,
+        model: chat.task.model ?? DEFAULT_MODEL,
+        effort: chat.task.effort ?? DEFAULT_EFFORT,
         continuation: firstTurn ? source.continuation : chat.task.continuation!,
         ...(firstTurn ? { forkContinuation: true } : {}),
       },

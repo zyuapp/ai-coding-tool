@@ -194,7 +194,7 @@ test("a run that settles out of focus flags the task and refreshes its project",
 });
 
 test("a side chat forks the source thread once, then continues on its own branch", () => {
-  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const source = task("main-task", { executionPolicy: "autonomous", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
     { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
@@ -205,7 +205,7 @@ test("a side chat forks the source thread once, then continues on its own branch
   const forked = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const first = forked.effects[0].command;
   assert.equal(first.channel, "side");
-  assert.equal(first.policy, "plan");
+  assert.equal(first.policy, "autonomous", "the chat starts from the source thread's policy");
   assert.equal(first.forkContinuation, true);
   assert.deepEqual(first.continuation, { provider: "claude", value: "main-session" });
   assert.equal(forked.state.sideChats[0].prompt, "");
@@ -222,6 +222,35 @@ test("a side chat forks the source thread once, then continues on its own branch
   assert.deepEqual(second.continuation, { provider: "claude", value: "side-session" });
   assert.equal("forkContinuation" in second, false);
   assert.deepEqual(branched.tasks[0].continuation, { provider: "claude", value: "main-session" }, "the main thread never moves");
+});
+
+test("a side chat snapshots the source settings at creation, then owns them", () => {
+  const source = task("main-task", {
+    executionPolicy: "confirm",
+    model: "opus",
+    effort: "high",
+    continuation: { provider: "claude", value: "main-session" },
+    continuationStatus: "available",
+  });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  assert.equal(opened.sideChats[0].task.executionPolicy, "confirm");
+  assert.equal(opened.sideChats[0].task.model, "opus");
+  assert.equal(opened.sideChats[0].task.effort, "high");
+
+  const retuned = run(opened, [
+    { type: "side-chat.set-policy", chatId: "chat-1", policy: "autonomous" },
+    { type: "side-chat.set-model", chatId: "chat-1", model: "haiku" },
+    { type: "side-chat.set-effort", chatId: "chat-1", effort: "low" },
+    { type: "task.set-policy", taskId: "main-task", policy: "allow-edits" },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Fix the typo" },
+  ]);
+  assert.equal(retuned.tasks[0].executionPolicy, "allow-edits", "the main thread keeps its own policy");
+
+  const sending = reduce(retuned, { type: "side-chat.send", chatId: "chat-1" });
+  const command = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).effects[0].command;
+  assert.equal(command.policy, "autonomous");
+  assert.equal(command.model, "haiku");
+  assert.equal(command.effort, "low");
 });
 
 test("a side chat cannot run without a source thread to fork", () => {

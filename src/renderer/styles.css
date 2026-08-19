@@ -1084,15 +1084,13 @@ pre {
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid #4a3033; background: #21181b; color: #d98b8f; font-size: var(--text-control); }
 .side-chat-composer { padding: 10px 14px 14px; border-top: 1px solid var(--line-soft); }
 .side-chat-composer > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
-  align-items: end;
-  gap: 8px;
+  container-type: inline-size;
   border: 1px solid #2a313a;
   border-radius: 14px;
-  padding: 8px;
+  padding: 8px 8px 0;
   background: #151920;
 }
+.side-chat-composer .composer-bar { padding: 0 0 4px; }
 .side-chat-composer > div:focus-within { border-color: #3b4652; }
 .side-chat-composer textarea {
   width: 100%;
@@ -1109,8 +1107,7 @@ pre {
 }
 .side-chat-composer textarea::placeholder { color: #515861; }
 .side-chat-composer textarea:disabled { cursor: not-allowed; }
-.side-chat-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 7px 3px 0; }
-.side-chat-meta p { margin: 0; color: #58606a; font-size: var(--text-meta); }
+.side-chat-note { margin: 7px 3px 0; color: #58606a; font-size: var(--text-meta); }
 .inspector-header {
   display: flex;
   align-items: center;

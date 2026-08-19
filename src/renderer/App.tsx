@@ -302,6 +302,9 @@ export function App() {
                     onSend={() => void workspace.dispatch({ type: "side-chat.send", chatId: chat.id })}
                     onCancel={() => void workspace.dispatch({ type: "side-chat.cancel", chatId: chat.id })}
                     onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
+                    onPolicyChange={(policy) => void workspace.dispatch({ type: "side-chat.set-policy", chatId: chat.id, policy })}
+                    onModelChange={(model) => void workspace.dispatch({ type: "side-chat.set-model", chatId: chat.id, model })}
+                    onEffortChange={(effort) => void workspace.dispatch({ type: "side-chat.set-effort", chatId: chat.id, effort })}
                     onClose={() => closeRightTab(chat.id)}
                     onSelectTask={workspace.actions.selectTask}
                   />

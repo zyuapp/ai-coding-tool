@@ -1,12 +1,14 @@
 import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
+import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
 import type { Project, Task } from "../../domain/task";
 import { ApprovalCard } from "./ApprovalCard";
+import { ComposerSettings } from "./ComposerSettings";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ConversationTimeline } from "./ConversationTimeline";
 
-export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onDecide, onClose, onSelectTask }: {
+export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onClose, onSelectTask }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
@@ -14,6 +16,9 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
   onSend: () => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
+  onPolicyChange: (policy: ExecutionPolicy) => void;
+  onModelChange: (model: AgentModel) => void;
+  onEffortChange: (effort: AgentEffort) => void;
   onClose: () => void;
   onSelectTask: (taskId: string) => void;
 }) {
@@ -40,8 +45,8 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
           onSelectTask={onSelectTask}
           empty={{
             icon: GitFork,
-            title: available ? "Ask without changing the thread" : "Main context unavailable",
-            description: available ? "This conversation starts from the main thread, then continues on its own branch." : "Send a message in the main thread first, then open /side again.",
+            title: available ? "Work from a copy of this thread" : "Main context unavailable",
+            description: available ? "This conversation starts from the main thread's context, then continues on its own branch. It is never saved." : "Send a message in the main thread first, then open /side again.",
           }}
         />
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
@@ -63,18 +68,28 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
               }
             }}
           />
-          <button
-            type="button"
-            className={`send-button ${chat.running ? "running" : ""}`}
-            disabled={!chat.running && (!available || !chat.prompt.trim())}
-            aria-label={chat.running ? "Stop side chat" : "Send side chat message"}
-            onClick={chat.running ? onCancel : onSend}
-          >{chat.running ? <span className="stop-glyph" /> : "↑"}</button>
+          <div className="composer-bar">
+            <ComposerSettings
+              mode={chat.task.executionPolicy}
+              model={chat.task.model ?? DEFAULT_MODEL}
+              effort={chat.task.effort ?? DEFAULT_EFFORT}
+              onModeChange={onPolicyChange}
+              onModelChange={onModelChange}
+              onEffortChange={onEffortChange}
+            />
+            <div className="composer-actions">
+              {chat.task.contextUsage && <ContextUsageMeter usage={chat.task.contextUsage} />}
+              <button
+                type="button"
+                className={`send-button ${chat.running ? "running" : ""}`}
+                disabled={!chat.running && (!available || !chat.prompt.trim())}
+                aria-label={chat.running ? "Stop side chat" : "Send side chat message"}
+                onClick={chat.running ? onCancel : onSend}
+              >{chat.running ? <span className="stop-glyph" /> : "↑"}</button>
+            </div>
+          </div>
         </div>
-        <div className="side-chat-meta">
-          <p>Read-only · closes without saving</p>
-          {chat.task.contextUsage && <ContextUsageMeter usage={chat.task.contextUsage} />}
-        </div>
+        <p className="side-chat-note">Nothing here is saved · closes without a trace</p>
       </footer>
     </aside>
   );
