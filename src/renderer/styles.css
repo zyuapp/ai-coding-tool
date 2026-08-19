@@ -21,6 +21,7 @@
   --text-heading: 17px;
   --text-display: 21px;
   --text-badge: 10px;
+  --row-slot: 22px;
 }
 
 * { box-sizing: border-box; }
@@ -270,13 +271,19 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
 .task-entry { position: relative; min-width: 0; }
 .task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
+/** The status mark and the archive action share the slot's single cell, so a row keeps
+ *  the same center hovered or not, whatever marks precede the slot. */
+.row-slot {
+  flex: none;
+  width: var(--row-slot);
+  height: var(--row-slot);
+  display: grid;
+  place-items: center;
+}
+.row-slot > * { grid-area: 1 / 1; }
 .task-archive {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
   border: 0;
@@ -289,8 +296,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
 .task-archive:hover { background: #353c46; color: #dfddd8; }
-/** The icon sits where the run marks are, so they step aside while the row is hovered. */
-.task-entry:hover .task-row-marks, .task-entry:hover .task-attention { visibility: hidden; }
+.task-entry:hover .task-automation,
+.task-entry:hover .row-slot > :not(.task-archive) { visibility: hidden; }
 .project-task-row {
   width: 100%;
   min-width: 0;
@@ -300,7 +307,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   align-items: center;
   gap: 10px;
   border-radius: 10px;
-  padding: 0 17px 0 36px;
+  padding: 0 8px 0 36px;
   color: #aeadab;
   text-align: left;
   font-size: var(--text-control);
@@ -364,22 +371,26 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .task-list { min-height: 8px; }
 .task-row {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
-  padding: 6px 12px;
+  padding: 6px 8px 6px 12px;
   border-radius: 10px;
   color: #aaa9a6;
 }
 .task-row.active { background: #20242a; color: #dfddd8; }
-.task-row span, .task-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.task-row span { font-size: var(--text-control); line-height: 1.3; }
-.task-row small { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: #686d74; font-size: var(--text-meta); }
-.task-row.active small { color: #85898f; }
+.task-row-text { min-width: 0; }
+.task-row-text > span, .task-row-text > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-row-text > span { font-size: var(--text-control); line-height: 1.3; }
+.task-row-text > small { margin-top: 3px; color: #686d74; font-size: var(--text-meta); }
+.task-row.active .task-row-text > small { color: #85898f; }
 .folder-button > span:nth-child(2),
 .project-main > span:nth-child(2),
 .project-task-row > span:first-child,
-.task-row span,
-.task-row small {
+.task-row-text > span,
+.task-row-text > small {
   text-overflow: clip;
   mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
 }

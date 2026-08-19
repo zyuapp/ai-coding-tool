@@ -129,6 +129,30 @@ export function ProjectSidebar({
     if (sidebar) sidebar.style.width = `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`;
   }
 
+  /** Every task row ends in the same trailing group, and its last cell holds both the
+   *  status mark and the archive action, so the two share one center. */
+  const taskMarks = (task: Task) => (
+    <span className="task-row-marks">
+      {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
+      <span className="row-slot">
+        {runningTaskIds.has(task.id)
+          ? <TaskSpinner />
+          : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
+        <button
+          className="task-archive"
+          type="button"
+          aria-label={`Archive ${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onArchiveTask(task.id);
+          }}
+        >
+          <Archive size={13} aria-hidden="true" />
+        </button>
+      </span>
+    </span>
+  );
+
   const taskRow = (task: Task, index: number, className: string, content: React.ReactNode) => (
     <Draggable draggableId={task.id} index={index} key={task.id}>
       {(provided: DraggableProvided, snapshot) => (
@@ -173,19 +197,8 @@ export function ProjectSidebar({
                   }}
                   onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
                 />
-              : content}
+              : <>{content}{taskMarks(task)}</>}
           </div>
-          {renamingId !== task.id && <button
-            className="task-archive"
-            type="button"
-            aria-label={`Archive ${task.title}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onArchiveTask(task.id);
-            }}
-          >
-            <Archive size={13} aria-hidden="true" />
-          </button>}
           {openMenu === `task:${task.id}` && createPortal(
             <div className="task-context-menu project-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
               <button role="menuitem" onClick={() => {
@@ -272,15 +285,7 @@ export function ProjectSidebar({
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                     >
-                      {projectTasks.map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <>
-                          <span>{task.title}</span>
-                          <span className="task-row-marks">
-                            {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
-                            {runningTaskIds.has(task.id)
-                              ? <TaskSpinner />
-                              : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
-                          </span>
-                        </>))}
+                      {projectTasks.map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
                       {provided.placeholder}
                     </div>
                   )}
@@ -321,14 +326,10 @@ export function ProjectSidebar({
               {...provided.droppableProps}
             >
               {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
-              {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <>
+              {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
                   <span>{task.title}</span>
-                  <small>
-                    {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
-                    {formatTime(task.updatedAt)}
-                    {task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
-                  </small>
-                </>))}
+                  <small>{formatTime(task.updatedAt)}</small>
+                </span>))}
               {provided.placeholder}
             </nav>
           )}

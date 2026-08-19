@@ -26,6 +26,7 @@ for (const target of [globalThis, dom.window]) {
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 dom.window.HTMLElement.prototype.scrollTo = () => {};
+dom.window.Element.prototype.getAnimations = () => [];
 
 const vite = await createServer({ logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
 const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/SessionPanel.tsx");
