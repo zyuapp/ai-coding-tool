@@ -217,7 +217,7 @@ test("a side chat opened from the right panel sends on the side channel and stop
   const view = await mount(React.createElement(App));
 
   await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
-  await act(async () => { view.container.querySelector('summary[aria-label="Add right panel tab"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Add right panel tab"]').click(); });
   await act(async () => { [...view.container.querySelectorAll('.right-dock-add button')].find((button) => button.textContent.includes("Side chat")).click(); });
 
   const textarea = view.container.querySelector('textarea[aria-label="Side chat prompt"]');
@@ -932,7 +932,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
   const view = await mount(React.createElement(App));
 
   await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
-  const add = view.container.querySelector('summary[aria-label="Add right panel tab"]');
+  const add = view.container.querySelector('button[aria-label="Add right panel tab"]');
   await act(async () => { add.click(); });
   await act(async () => { [...view.container.querySelectorAll('.right-dock-add button')].find((button) => button.textContent.includes("Side chat")).click(); });
   await act(async () => { add.click(); });
@@ -2454,6 +2454,30 @@ test("the browser panel drives the page through the workspace and reports where 
 
   await view.unmount();
   assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", null], "an unmounted panel leaves no page drawn over the app");
+});
+
+test("the add menu takes the page off screen so nothing native is drawn over it", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { [...view.container.querySelectorAll(".right-dock-picker button")].find((button) => button.getAttribute("aria-label") === "Open Browser panel").click(); });
+
+  /** jsdom lays nothing out, so the viewport is given a rectangle of its own to report. */
+  const box = { x: 0, y: 50, width: 400, height: 600 };
+  view.container.querySelector(".browser-viewport").getBoundingClientRect = () => box;
+
+  const add = view.container.querySelector('button[aria-label="Add right panel tab"]');
+  await act(async () => { add.click(); });
+  assert.ok(view.container.querySelector('.right-dock-add div[role="menu"]'), "the menu is open");
+  assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", null], "the page is not drawn while the menu hangs over it");
+
+  await act(async () => { add.click(); });
+  assert.equal(view.container.querySelector('.right-dock-add div[role="menu"]'), null);
+  assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", box], "closing the menu draws the page again");
+
+  await view.unmount();
 });
 
 test("a run reads the page through the window and is told when a site is waiting on the user", async () => {

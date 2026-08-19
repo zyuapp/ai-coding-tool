@@ -698,13 +698,15 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .right-dock-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--quiet); cursor: pointer; }
 .right-dock-tab > button:last-child:hover { background: var(--surface-active); color: var(--ink-soft); }
 .right-dock-add { position: relative; flex: 0 0 auto; }
-.right-dock-add summary, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--quiet-strong); cursor: pointer; list-style: none; }
-.right-dock-add summary::-webkit-details-marker { display: none; }
-.right-dock-add summary:hover, .right-dock-add[open] summary, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.right-dock-add > button, .right-dock-hide { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
+.right-dock-add > button:hover, .right-dock-add.open > button, .right-dock-hide:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .right-dock-add > div { position: absolute; z-index: 20; top: 40px; right: 0; width: 174px; display: grid; gap: 3px; border: 1px solid var(--line); border-radius: 11px; padding: 6px; background: var(--surface-menu); box-shadow: var(--shadow-popover); }
-.right-dock-add button { display: flex; align-items: center; gap: 9px; border: 0; border-radius: 7px; padding: 9px 10px; background: transparent; color: var(--ink-dim); text-align: left; cursor: pointer; }
-.right-dock-add button:hover { background: var(--surface-hover); }
-.right-dock-add button:disabled { color: var(--quiet-soft); cursor: default; }
+.right-dock-add > div button { display: flex; align-items: center; gap: 9px; width: 100%; height: auto; border: 0; border-radius: 7px; padding: 9px 10px; background: transparent; color: var(--ink-dim); text-align: left; cursor: pointer; }
+.right-dock-add > div button:hover { background: var(--surface-hover); }
+.right-dock-add > div button:disabled { color: var(--quiet-soft); cursor: default; }
+/** xterm gives its scrollbar and decorations a z-index of their own; isolating the region keeps them
+ *  under the tab strip, whose menu hangs over it. */
+.right-dock-content { isolation: isolate; }
 .right-dock-content, .right-dock-content > div { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .right-dock-content > [hidden] { display: none; }
 .right-dock-picker { display: grid; place-content: center; gap: 24px; padding: 32px; }

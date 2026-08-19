@@ -1,6 +1,5 @@
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
+import type { FitAddon } from "@xterm/addon-fit";
+import type { Terminal } from "@xterm/xterm";
 
 /**
  * The views the terminal panel draws into. They live outside React because a shell outlives the panel:
@@ -13,14 +12,26 @@ import { WebglAddon } from "@xterm/addon-webgl";
 const SCROLLBACK_LINES = 5_000;
 
 type TerminalView = {
-  terminal: Terminal;
-  fit: FitAddon;
   container: HTMLDivElement;
+  terminal: Terminal | null;
+  fit: FitAddon | null;
+  /** What arrived before xterm finished loading, written in order once it has. */
+  pending: string[];
   opened: boolean;
 };
 
 const views = new Map<string, TerminalView>();
 let publishInput: (terminalId: string, data: string) => void = () => undefined;
+let xterm: Promise<{ Terminal: typeof Terminal; FitAddon: typeof FitAddon }> | null = null;
+
+/** xterm is only needed once a shell exists, so it stays out of the startup bundle. */
+function loadXterm() {
+  xterm ??= Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit")]).then(([core, addon]) => ({
+    Terminal: core.Terminal,
+    FitAddon: addon.FitAddon,
+  }));
+  return xterm;
+}
 
 /** Where keystrokes go. Set by the panel, since a view can exist before the panel is mounted. */
 export function onTerminalInput(handler: (terminalId: string, data: string) => void) {
@@ -56,9 +67,23 @@ function terminalTheme(): Record<string, string> {
   };
 }
 
-export function terminalView(terminalId: string): TerminalView {
+/** The record of a view, which exists before xterm does so output has somewhere to wait. */
+function terminalRecord(terminalId: string): TerminalView {
   const existing = views.get(terminalId);
   if (existing) return existing;
+  const container = document.createElement("div");
+  container.className = "terminal-surface";
+  const view: TerminalView = { container, terminal: null, fit: null, pending: [], opened: false };
+  views.set(terminalId, view);
+  return view;
+}
+
+async function terminalView(terminalId: string): Promise<TerminalView> {
+  const view = terminalRecord(terminalId);
+  if (view.terminal) return view;
+  const { Terminal, FitAddon } = await loadXterm();
+  /** Another caller may have raced ahead, or the terminal may be gone by now. */
+  if (view.terminal || views.get(terminalId) !== view) return view;
   const terminal = new Terminal({
     allowProposedApi: true,
     scrollback: SCROLLBACK_LINES,
@@ -68,32 +93,39 @@ export function terminalView(terminalId: string): TerminalView {
   });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
-  const container = document.createElement("div");
-  container.className = "terminal-surface";
-  const view: TerminalView = { terminal, fit, container, opened: false };
-  views.set(terminalId, view);
   terminal.onData((data) => publishInput(terminalId, data));
+  view.terminal = terminal;
+  view.fit = fit;
+  for (const data of view.pending.splice(0)) terminal.write(data);
   return view;
 }
 
 /** Draws the view into its container the first time it is shown; a later show only re-attaches it. */
-export function showTerminalView(terminalId: string, parent: HTMLElement) {
-  const view = terminalView(terminalId);
+export async function showTerminalView(terminalId: string, parent: HTMLElement) {
+  const view = await terminalView(terminalId);
+  if (!view.terminal || views.get(terminalId) !== view) return;
   parent.appendChild(view.container);
-  if (!view.opened) {
-    view.terminal.open(view.container);
-    view.opened = true;
-    try {
-      view.terminal.loadAddon(new WebglAddon());
-    } catch {
-      /** No WebGL here; xterm falls back to its own renderer. */
-    }
+  if (view.opened) return;
+  view.terminal.open(view.container);
+  view.opened = true;
+  try {
+    const { WebglAddon } = await import("@xterm/addon-webgl");
+    view.terminal.loadAddon(new WebglAddon());
+  } catch {
+    /** No WebGL here; xterm falls back to its own renderer. */
   }
-  return view;
+}
+
+/** Sizes an opened view to its container and reports the grid the shell now has. */
+export function fitTerminalView(terminalId: string) {
+  const view = views.get(terminalId);
+  if (!view?.terminal || !view.fit || !view.opened) return null;
+  view.fit.fit();
+  return { cols: view.terminal.cols, rows: view.terminal.rows };
 }
 
 export function focusTerminalView(terminalId: string) {
-  views.get(terminalId)?.terminal.focus();
+  views.get(terminalId)?.terminal?.focus();
 }
 
 export function hideTerminalView(terminalId: string) {
@@ -105,10 +137,18 @@ export function disposeTerminalView(terminalId: string) {
   if (!view) return;
   views.delete(terminalId);
   view.container.remove();
-  view.terminal.dispose();
+  view.terminal?.dispose();
 }
 
 /** Output goes to every view, shown or not, so switching tabs never shows a terminal missing lines. */
 if (typeof window !== "undefined" && "desktop" in window) {
-  window.desktop.onTerminalData(({ terminalId, data }) => terminalView(terminalId).terminal.write(data));
+  window.desktop.onTerminalData(({ terminalId, data }) => {
+    const view = terminalRecord(terminalId);
+    if (view.terminal) {
+      view.terminal.write(data);
+      return;
+    }
+    view.pending.push(data);
+    void terminalView(terminalId);
+  });
 }

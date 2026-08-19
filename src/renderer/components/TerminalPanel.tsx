@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { TerminalSession } from "../../domain/terminal";
-import { focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
+import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
 export type TerminalPanelProps = {
   terminal: TerminalSession;
@@ -26,15 +26,17 @@ export function TerminalPanel({ terminal, visible, onInput, onResize }: Terminal
   useEffect(() => {
     const element = viewport.current;
     if (!element || !visible) return;
-    const view = showTerminalView(terminal.id, element);
-    view.terminal.focus();
     const measure = () => {
       const box = element.getBoundingClientRect();
       if (box.width < 1 || box.height < 1) return;
-      view.fit.fit();
-      resized.current(terminal.id, view.terminal.cols, view.terminal.rows);
+      const size = fitTerminalView(terminal.id);
+      if (size) resized.current(terminal.id, size.cols, size.rows);
     };
-    measure();
+    /** xterm arrives asynchronously, so the first focus and fit wait for the view to be drawn. */
+    void showTerminalView(terminal.id, element).then(() => {
+      focusTerminalView(terminal.id);
+      measure();
+    });
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => {

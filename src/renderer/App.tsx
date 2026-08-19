@@ -36,6 +36,9 @@ type DockLauncher = { id: string; title: string; description: string; command: s
 
 type DockTab = { id: string; title: string; icon: LucideIcon; badge?: number };
 
+/** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
+const ADD_TAB_MENU = "dock-add";
+
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -45,6 +48,12 @@ export function App() {
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const rightDockOpen = workspace.dockOpen;
   const activeRightTab = workspace.dockTab;
+  const addMenuOpen = workspace.openMenu === ADD_TAB_MENU;
+  /**
+   * The page is a native view drawn over the panel, above every element whatever its z-index, so the
+   * add menu hangs over it only while the page is taken off screen.
+   */
+  const browserPageVisible = rightDockOpen && !settingsVisible && !addMenuOpen;
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
@@ -306,16 +315,25 @@ export function App() {
                   </div>
                 ))}
               </div>
-              <details className="right-dock-add">
-                <summary aria-label="Add right panel tab"><Plus size={18} /></summary>
-                <div>
-                  {dockLaunchers.map((launcher) => (
-                    <button key={launcher.id} type="button" disabled={launcher.disabled} onClick={(event) => { launcher.open(); event.currentTarget.closest("details")?.removeAttribute("open"); }}>
-                      <launcher.icon size={16} />{launcher.title}
-                    </button>
-                  ))}
-                </div>
-              </details>
+              <div className={`right-dock-add ${addMenuOpen ? "open" : ""}`.trimEnd()} data-popover-menu>
+                <button
+                  type="button"
+                  aria-label="Add right panel tab"
+                  aria-expanded={addMenuOpen}
+                  onClick={() => workspace.actions.setOpenMenu(addMenuOpen ? null : ADD_TAB_MENU)}
+                >
+                  <Plus size={18} />
+                </button>
+                {addMenuOpen && (
+                  <div role="menu">
+                    {dockLaunchers.map((launcher) => (
+                      <button key={launcher.id} type="button" role="menuitem" disabled={launcher.disabled} onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}>
+                        <launcher.icon size={16} />{launcher.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => void workspace.actions.setDockOpen(false)}><X size={17} /></button>
             </div>
             <div className="right-dock-content">
@@ -342,7 +360,7 @@ export function App() {
                   <BrowserPanel
                     tab={browserTab}
                     approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}
-                    visible={rightDockOpen && !settingsVisible}
+                    visible={browserPageVisible}
                     onOpen={(url) => void workspace.actions.openBrowser(url)}
                     onGo={(delta) => void workspace.actions.goInBrowser(delta)}
                     onReload={() => void workspace.actions.reloadBrowser()}
