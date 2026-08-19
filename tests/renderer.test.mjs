@@ -324,6 +324,7 @@ function fakeDesktop(overrides = {}) {
   const automationChanges = [];
   const browserCalls = [];
   let browserEvent;
+  let closeTabShortcut;
   let listener;
   let automationsChanged;
   let fireAutomation;
@@ -373,6 +374,7 @@ function fakeDesktop(overrides = {}) {
     answerThreadRequest: (response) => threadAnswers.push(response),
     browserCalls,
     get browserEvent() { return browserEvent; },
+    get closeTabShortcut() { return closeTabShortcut; },
     openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
     navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
     browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },
@@ -387,6 +389,8 @@ function fakeDesktop(overrides = {}) {
     },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
+    onCloseTab: (next) => { closeTabShortcut = next; return () => {}; },
+    closeWindow: () => { browserCalls.push(["close-window"]); },
     ...overrides,
   };
 }
@@ -2465,4 +2469,38 @@ test("a run reads the page through the window and is told when a site is waiting
   assert.deepEqual(desktop.threadAnswers.at(-1).result, { kind: "awaiting-approval", url: "https://dash.example.com/" });
 
   await harness.view.unmount();
+});
+
+test("⌘W closes the page in front, then the panel, and only then the window", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { [...view.container.querySelectorAll(".right-dock-picker button")].find((button) => button.getAttribute("aria-label") === "Open Browser panel").click(); });
+
+  const address = view.container.querySelector('.browser-bar input[aria-label="Address"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  await act(async () => {
+    setValue.call(address, "example.com");
+    address.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "example.com" }));
+  });
+  await act(async () => { address.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+  assert.equal(view.container.querySelectorAll(".browser-tab").length, 1);
+
+  await act(async () => { window.desktop.closeTabShortcut(); });
+  assert.equal(view.container.querySelectorAll(".browser-tab").length, 0, "the page goes first");
+  assert.equal(view.container.querySelector(".browser-panel") !== null, true);
+
+  await act(async () => { window.desktop.closeTabShortcut(); });
+  assert.equal(view.container.querySelectorAll('.right-dock-tab').length, 0, "then the panel holding it");
+
+  await act(async () => { window.desktop.closeTabShortcut(); });
+  assert.equal(view.container.querySelector(".right-dock").hidden, true, "then the dock");
+
+  assert.deepEqual(window.desktop.browserCalls.filter(([name]) => name === "close-window"), []);
+  await act(async () => { window.desktop.closeTabShortcut(); });
+  assert.deepEqual(window.desktop.browserCalls.filter(([name]) => name === "close-window"), [["close-window"]], "with nothing in front, ⌘W is the window's");
+
+  await view.unmount();
 });

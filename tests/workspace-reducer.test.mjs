@@ -1335,3 +1335,71 @@ test("a side chat is the dock tab it opens, and closing it gives the dock back i
   const closed = reduce(opened, { type: "side-chat.close", chatId: "chat-1" });
   assert.equal(closed.state.dockTab, "browser");
 });
+
+test("closing a tab takes what is in front, and only then the window", () => {
+  const base = { ...workspace(), tasks: [task("task-1")], currentId: "task-1" };
+
+  assert.deepEqual(reduce(base, { type: "view.close-tab" }).effects, [{ type: "close-window" }], "nothing is in front of a bare window");
+
+  const settings = reduce(base, { type: "view.set-settings-open", open: true });
+  const shut = reduce(settings.state, { type: "view.close-tab" });
+  assert.equal(shut.state.settingsOpen, false);
+  assert.deepEqual(shut.effects, [], "settings closing is not the window closing");
+
+  const asked = reduce({ ...base, computerUseSetup: true }, { type: "view.close-tab" });
+  assert.equal(asked.state.computerUseSetup, false, "the settings computer use opened close the same way");
+
+  const browsing = run(base, [
+    { type: "view.open-dock-panel", panel: "agents" },
+    { type: "browser.open", url: "https://one.example" },
+    { type: "browser.open", url: "https://two.example", newTab: true },
+  ]);
+  const [first, second] = browsing.browserTabs;
+
+  const closedPage = reduce(browsing, { type: "view.close-tab" });
+  assert.deepEqual(closedPage.state.browserTabs.map((tab) => tab.id), [first.id], "the page in front goes before the panel holding it");
+  assert.equal(closedPage.effects.some((effect) => effect.type === "browser.close" && effect.tabId === second.id), true);
+
+  const closedLast = reduce(closedPage.state, { type: "view.close-tab" });
+  assert.deepEqual(closedLast.state.browserTabs, []);
+
+  const closedPanel = reduce(closedLast.state, { type: "view.close-tab" });
+  assert.deepEqual(closedPanel.state.dockPanels, ["agents"], "an empty browser panel is the next thing in front");
+  assert.equal(closedPanel.state.dockTab, "agents");
+
+  const closedAgents = reduce(closedPanel.state, { type: "view.close-tab" });
+  assert.deepEqual(closedAgents.state.dockPanels, []);
+  assert.equal(closedAgents.state.dockTab, "home");
+
+  const closedDock = reduce(closedAgents.state, { type: "view.close-tab" });
+  assert.equal(closedDock.state.dockOpen, false, "the picker showing means the dock itself is what is in front");
+  assert.deepEqual(closedDock.effects, []);
+
+  assert.deepEqual(reduce(closedDock.state, { type: "view.close-tab" }).effects, [{ type: "close-window" }]);
+});
+
+test("a side chat in front closes on ⌘W without taking the thread with it", () => {
+  const state = run({ ...workspace(), tasks: [task("task-1")], currentId: "task-1" }, [
+    { type: "view.open-dock-panel", panel: "agents" },
+    { type: "side-chat.open", chatId: "chat-1" },
+  ]);
+  assert.equal(state.dockTab, "chat-1");
+
+  const closed = reduce(state, { type: "view.close-tab" });
+  assert.deepEqual(closed.state.sideChats, []);
+  assert.equal(closed.state.tasks.some((item) => item.id === "chat-1"), false, "a side chat's thread goes with it");
+  assert.equal(closed.state.dockTab, "agents");
+});
+
+test("opening settings puts the dock away, and closing them forgets the computer use ask", () => {
+  const opened = run({ ...workspace(), tasks: [task("task-1")], currentId: "task-1", computerUseSetup: true }, [
+    { type: "view.open-dock-panel", panel: "agents" },
+    { type: "view.set-settings-open", open: true },
+  ]);
+  assert.equal(opened.dockOpen, false);
+  assert.equal(deriveView(opened).settingsOpen, true);
+
+  const closed = reduce(opened, { type: "view.set-settings-open", open: false });
+  assert.equal(closed.state.computerUseSetup, false);
+  assert.equal(deriveView(closed.state).settingsOpen, false);
+});

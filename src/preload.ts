@@ -66,6 +66,12 @@ const api: DesktopAPI = {
     ipcRenderer.on("browser:event", handler);
     return () => ipcRenderer.removeListener("browser:event", handler);
   },
+  onCloseTab: (listener: () => void) => {
+    const handler = () => listener();
+    ipcRenderer.on("window:close-tab", handler);
+    return () => ipcRenderer.removeListener("window:close-tab", handler);
+  },
+  closeWindow: () => ipcRenderer.send("window:close"),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

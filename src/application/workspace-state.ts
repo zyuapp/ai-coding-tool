@@ -100,6 +100,7 @@ export type WorkspaceState = {
   projectsOpen: boolean;
   recentsOpen: boolean;
   sessionPanelOpen: boolean;
+  settingsOpen: boolean;
   /** The right dock: whether it is showing, which panels are open as tabs, and which tab is on top. */
   dockOpen: boolean;
   dockPanels: string[];
@@ -149,6 +150,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     projectsOpen: true,
     recentsOpen: true,
     sessionPanelOpen: false,
+    settingsOpen: false,
     dockOpen: false,
     dockPanels: [],
     dockTab: DOCK_PICKER,
@@ -312,6 +314,8 @@ export function deriveView(state: WorkspaceState) {
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
     sessionPanelOpen: state.sessionPanelOpen,
+    /** Asking for computer use opens settings whether or not the user did. */
+    settingsOpen: state.settingsOpen || state.computerUseSetup,
     dockOpen: state.dockOpen,
     dockPanels: state.dockPanels,
     dockTab: state.dockTab,

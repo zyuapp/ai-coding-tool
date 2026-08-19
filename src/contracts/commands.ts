@@ -94,6 +94,13 @@ export type ViewCommand =
   | { type: "view.set-projects-open"; open: boolean }
   | { type: "view.set-recents-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
+  | { type: "view.set-settings-open"; open: boolean }
+  /**
+   * Closes whatever is in front, the way ⌘W does everywhere else on the desktop: settings, then the
+   * page the browser panel is showing, then the dock tab, then the dock. Only with nothing left in
+   * front of it does the window itself go.
+   */
+  | { type: "view.close-tab" }
   /** The right dock: which panels are open as tabs, and which of them is showing. */
   | { type: "view.set-dock-open"; open: boolean }
   | { type: "view.open-dock-panel"; panel: string }

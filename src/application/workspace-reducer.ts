@@ -91,7 +91,9 @@ export type WorkspaceEffect =
   | { type: "browser.close"; tabId: string }
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }
-  | { type: "browser.clear-data" };
+  | { type: "browser.clear-data" }
+  /** Nothing was left in front of the window, so ⌘W means what it always means. */
+  | { type: "close-window" };
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -953,6 +955,20 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (state.sessionPanelOpen === input.open) return settled(state);
       const next = { ...state, sessionPanelOpen: input.open };
       return settled(next, [{ type: "persist-preferences", preferences: viewPreferences(next) }]);
+    }
+
+    case "view.set-settings-open":
+      return settled({ ...state, settingsOpen: input.open, ...(input.open ? { dockOpen: false } : { computerUseSetup: false }) });
+
+    case "view.close-tab": {
+      if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
+      if (!state.dockOpen) return settled(state, [{ type: "close-window" }]);
+      const page = state.dockTab === BROWSER_PANEL ? activeBrowserTab(state) : undefined;
+      if (page) return apply(state, { type: "browser.close-tab", tabId: page.id });
+      if (state.dockTab === DOCK_PICKER) return settled({ ...state, dockOpen: false });
+      return apply(state, state.sideChats.some((chat) => chat.id === state.dockTab)
+        ? { type: "side-chat.close", chatId: state.dockTab }
+        : { type: "view.close-dock-panel", panel: state.dockTab });
     }
 
     case "view.set-dock-open":

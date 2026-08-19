@@ -23,8 +23,6 @@ type DockPanel = {
   command: string;
   icon: LucideIcon;
   badge?: number;
-  /** Runs when the tab closes, for view state the panel owns outside the workspace. */
-  onClose?: () => void;
   render: () => ReactNode;
 };
 
@@ -38,8 +36,7 @@ export function App() {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const settingsVisible = settingsOpen || workspace.computerUseSetup;
+  const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const rightDockOpen = workspace.dockOpen;
   const activeRightTab = workspace.dockTab;
@@ -58,18 +55,15 @@ export function App() {
   function closeRightTab(id: string) {
     if (workspace.dockPanels.includes(id)) void workspace.actions.closeDockPanel(id);
     else void workspace.dispatch({ type: "side-chat.close", chatId: id });
-    dockPanels.find((panel) => panel.id === id)?.onClose?.();
   }
 
   function openSettings() {
-    setSettingsOpen(true);
     setSidebarOpen(false);
-    void workspace.actions.setDockOpen(false);
+    void workspace.actions.setSettingsOpen(true);
   }
 
   function closeSettings() {
-    setSettingsOpen(false);
-    workspace.actions.dismissComputerUseSetup();
+    void workspace.actions.setSettingsOpen(false);
   }
 
   function resizeRightDock(target: HTMLElement, clientX: number) {
@@ -87,6 +81,10 @@ export function App() {
   useEffect(() => {
     setSelectedSubagent(null);
   }, [workspace.currentTask?.id]);
+
+  useEffect(() => {
+    if (!workspace.dockPanels.includes("agents")) setSelectedSubagent(null);
+  }, [workspace.dockPanels]);
 
   useEffect(() => {
     function dismissMenu(event: PointerEvent) {
@@ -114,7 +112,6 @@ export function App() {
       command: "subagents",
       icon: Bot,
       badge: workingSubagents,
-      onClose: () => setSelectedSubagent(null),
       render: () => (inspectedSubagent
         ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />
         : <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />),

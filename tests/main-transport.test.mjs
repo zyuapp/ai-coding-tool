@@ -73,3 +73,30 @@ test("thread requests are relayed to the window and only its answers reach the a
   const answered = agents[0].messages.filter((message) => message.type === "thread.response");
   assert.deepEqual(answered.map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
 });
+
+test("⌘W is taken from the window's menu and handed to whatever is in front", async (t) => {
+  const { window, listeners, trusted, untrusted } = await startMainProcess(t, "claudex-close-");
+
+  const beforeInput = window.webContents.listeners.get("before-input-event");
+  const press = (input) => {
+    let prevented = false;
+    beforeInput({ preventDefault: () => { prevented = true; } }, { type: "keyDown", key: "w", meta: true, control: false, alt: false, shift: false, ...input });
+    return prevented;
+  };
+
+  assert.equal(press({}), true, "the window must not act on ⌘W before the app has");
+  assert.equal(window.webContents.sent.filter((message) => message.channel === "window:close-tab").length, 1);
+
+  assert.equal(press({ shift: true }), false, "⇧⌘W stays the window's own");
+  assert.equal(press({ key: "t" }), false);
+  assert.equal(press({ meta: false }), false);
+  assert.equal(press({ type: "keyUp" }), false);
+  assert.equal(window.webContents.sent.filter((message) => message.channel === "window:close-tab").length, 1);
+
+  let closed = 0;
+  window.close = () => { closed += 1; };
+  listeners.get("window:close")(untrusted);
+  assert.equal(closed, 0, "only the window's own renderer may close it");
+  listeners.get("window:close")(trusted);
+  assert.equal(closed, 1);
+});

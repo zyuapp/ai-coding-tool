@@ -164,6 +164,11 @@ function handleThreadRequest(request: ThreadRequest) {
   window.webContents.send("thread:request", request);
 }
 
+/** The window decides what ⌘W closes, because it is the only side that knows what is in front. */
+function requestCloseTab() {
+  if (window && !window.isDestroyed()) window.webContents.send("window:close-tab");
+}
+
 function answerThreadRequest(response: ThreadResponse) {
   agent?.postMessage(response);
 }
@@ -308,8 +313,17 @@ async function createWindow() {
       sandbox: true,
     },
   });
-  browser.startBrowserHost(window, (event: BrowserPageEvent) => {
-    if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
+  browser.startBrowserHost(window, {
+    onPage: (event: BrowserPageEvent) => {
+      if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
+    },
+    onCloseTab: requestCloseTab,
+  });
+  /** The window owns no menu shortcut the app wants back; preventing it here is what frees ⌘W. */
+  window.webContents.on("before-input-event", (event, input) => {
+    if (!browser.isCloseTab(input)) return;
+    event.preventDefault();
+    requestCloseTab();
   });
   window.on("closed", () => browser.stopBrowserHost());
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
@@ -542,6 +556,11 @@ ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
 ipcMain.on("automation:ack", (event, ack: unknown) => {
   if (!trustedSender(event) || !isAutomationAck(ack)) return;
   automationDispatches.get(ack.runId)?.acknowledge?.(ack.started);
+});
+
+ipcMain.on("window:close", (event) => {
+  if (!trustedSender(event)) return;
+  window?.close();
 });
 
 ipcMain.on("thread:answer", (event, response: unknown) => {

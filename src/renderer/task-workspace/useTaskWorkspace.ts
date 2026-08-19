@@ -214,6 +214,10 @@ export function useTaskWorkspace() {
 
       case "browser.clear-data":
         return reportFailure(window.desktop.clearBrowserData());
+
+      case "close-window":
+        window.desktop.closeWindow();
+        return;
     }
   }
 
@@ -372,6 +376,11 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
+    return window.desktop.onCloseTab(() => void dispatchRef.current({ type: "view.close-tab" }));
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
     void window.desktop.listAutomations()
       .then((automations) => dispatchRef.current({ type: "automations.changed", automations }))
       .catch((error) => dispatchRef.current({ type: "action.failed", message: errorMessage(error) }));
@@ -432,6 +441,8 @@ export function useTaskWorkspace() {
       decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),
       dismissComputerUseSetup: () => dispatch({ type: "view.dismiss-computer-use-setup" }),
       setDockOpen: (open: boolean) => dispatch({ type: "view.set-dock-open", open }),
+      setSettingsOpen: (open: boolean) => dispatch({ type: "view.set-settings-open", open }),
+      closeTab: () => dispatch({ type: "view.close-tab" }),
       openDockPanel: (panel: string) => dispatch({ type: "view.open-dock-panel", panel }),
       closeDockPanel: (panel: string) => dispatch({ type: "view.close-dock-panel", panel }),
       selectDockTab: (tab: string) => dispatch({ type: "view.select-dock-tab", tab }),

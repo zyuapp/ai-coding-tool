@@ -197,6 +197,9 @@ export type DesktopAPI = {
   readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
   clearBrowserData(): Promise<void>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
+  /** ⌘W anywhere in the app, including inside a page, so the window only closes with nothing in front of it. */
+  onCloseTab(listener: () => void): () => void;
+  closeWindow(): void;
 };
 
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */

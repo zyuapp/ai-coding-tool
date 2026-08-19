@@ -42,7 +42,13 @@ export async function startMainProcess(t, prefix) {
 
   class FakeWindow {
     static getAllWindows() { return windows; }
-    webContents = { sent: [], send: (channel, event) => this.webContents.sent.push({ channel, event }) };
+    webContents = {
+      sent: [],
+      listeners: new Map(),
+      send: (channel, event) => this.webContents.sent.push({ channel, event }),
+      on: (name, listener) => this.webContents.listeners.set(name, listener),
+      getZoomFactor: () => 1,
+    };
     contentView = { addChildView() {}, removeChildView() {} };
     constructor(options) { this.options = options; windows.push(this); }
     isDestroyed() { return false; }
