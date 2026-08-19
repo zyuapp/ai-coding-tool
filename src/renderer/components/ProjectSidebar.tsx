@@ -240,8 +240,8 @@ export function ProjectSidebar({
                   <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
                     <span className="folder-icon"><FolderIcon /></span>
                     <span>{shortFolder(project.root)}</span>
-                    {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
                   </button>
+                  {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
                   <div
                     className={`project-menu ${openMenu === `project:${project.id}` ? "open" : ""}`}
                     data-popover-menu

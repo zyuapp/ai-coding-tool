@@ -223,10 +223,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   min-width: 0;
   height: 32px;
   display: grid;
-  grid-template-columns: 25px minmax(0, 1fr) auto;
+  grid-template-columns: 19px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
-  padding: 0 0 0 11px;
+  padding: 0 0 0 10px;
   text-align: left;
   font-size: var(--text-control);
   letter-spacing: -0.012em;
@@ -300,7 +300,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   align-items: center;
   gap: 10px;
   border-radius: 10px;
-  padding: 0 17px 0 42px;
+  padding: 0 17px 0 36px;
   color: #aeadab;
   text-align: left;
   font-size: var(--text-control);
@@ -339,9 +339,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-attention.failed { background: var(--danger); }
 .task-attention.approval { background: var(--accent); }
 .project-attention-count {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
   min-width: 18px;
   height: 18px;
-  margin-right: 4px;
   padding: 0 5px;
   border-radius: 9px;
   display: grid;
@@ -351,6 +354,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-size: var(--text-badge);
   font-variant-numeric: tabular-nums;
 }
+.project-row:hover .project-attention-count,
+.project-row:has(.project-menu.open) .project-attention-count { visibility: hidden; }
 .task-entry.is-dragging > .project-task-row,
 .task-entry.is-dragging > .task-row {
   background: #262b33;
