@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { reduce, WORKSPACE_ERRORS } from "../dist/main/application/workspace-reducer.js";
-import { deriveView, emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
+import { deriveView, dockFor, dockOwner, emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 import { threadSummaries } from "../dist/main/application/thread-projection.js";
+
+/** The dock a thread was left in: the one on screen unless a thread is named. */
+function dock(state, owner) {
+  return dockFor(state, owner ?? dockOwner(state));
+}
 
 function task(id, overrides = {}) {
   return {
@@ -306,7 +311,7 @@ test("a side chat cannot run without a source thread to fork", () => {
   assert.deepEqual(reduce(opened, { type: "task.send", taskId: "chat-1" }).effects, []);
 });
 
-test("closing a side chat cancels its run, and switching tasks closes every chat", () => {
+test("closing a side chat cancels its run, and leaving the thread leaves the chat in its dock", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source, task("other")], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
@@ -322,9 +327,10 @@ test("closing a side chat cancels its run, and switching tasks closes every chat
   assert.equal(closed.state.activeRuns["chat-1"], undefined);
 
   const switched = reduce(running, { type: "task.select", taskId: "other" });
-  assert.deepEqual(switched.state.sideChats, []);
-  assert.equal(switched.effects.at(-1).command.type, "cancel");
-  assert.equal(switched.state.sideChatSequence, 0);
+  assert.deepEqual(switched.state.sideChats.map((chat) => chat.id), ["chat-1"], "a fork belongs to the thread it was taken from");
+  assert.equal(switched.state.activeRuns["chat-1"].runId, runId, "so its run carries on while the user is elsewhere");
+  assert.deepEqual(deriveView(switched.state).sideChats, [], "the thread the user landed on draws its own dock, which has no fork in it");
+  assert.deepEqual(deriveView(reduce(switched.state, { type: "task.select", taskId: "main-task" }).state).sideChats.map((chat) => chat.id), ["chat-1"]);
 });
 
 test("the session panel choice is persisted and survives the store loading", () => {
@@ -332,7 +338,7 @@ test("the session panel choice is persisted and survives the store loading", () 
   assert.equal(restored.sessionPanelOpen, true);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false, browserTabs: [], browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
@@ -1149,32 +1155,32 @@ test("a dropped thread moves without unfolding the sidebar the user folded", () 
 
 test("the user's own page visit opens a dock tab of its own and allows that origin from then on", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/claudex" });
-  const [tab] = opened.state.browserTabs;
+  const [tab] = dock(opened.state).browserTabs;
 
   assert.equal(tab.url, "https://github.com/zyuapp/claudex");
   assert.equal(tab.loading, true);
-  assert.equal(opened.state.browserTabId, tab.id);
+  assert.equal(dock(opened.state).browserTabId, tab.id);
   assert.deepEqual(opened.state.browserOrigins, ["https://github.com"]);
-  assert.equal(opened.state.dockOpen, true, "a page has to land somewhere the user can see it");
-  assert.equal(opened.state.dockTab, tab.id, "a page is a tab in the dock, not a tab inside a panel");
+  assert.equal(dock(opened.state).open, true, "a page has to land somewhere the user can see it");
+  assert.equal(dock(opened.state).tab, tab.id, "a page is a tab in the dock, not a tab inside a panel");
   assert.deepEqual(opened.effects.filter((effect) => effect.type.startsWith("browser")), [
     { type: "browser.open", tabId: tab.id, url: "https://github.com/zyuapp/claudex" },
     { type: "browser.show", tabId: tab.id },
   ]);
 
   const navigated = reduce(opened.state, { type: "browser.open", url: "https://github.com/zyuapp/claudex/pulls" });
-  assert.equal(navigated.state.browserTabs.length, 1, "the tab on screen is reused");
+  assert.equal(dock(navigated.state).browserTabs.length, 1, "the tab on screen is reused");
   assert.deepEqual(navigated.effects[0], { type: "browser.navigate", tabId: tab.id, url: "https://github.com/zyuapp/claudex/pulls" });
 
   const another = reduce(navigated.state, { type: "browser.open", url: "https://example.com", newTab: true });
-  assert.equal(another.state.browserTabs.length, 2);
+  assert.equal(dock(another.state).browserTabs.length, 2);
   assert.deepEqual(another.state.browserOrigins, ["https://github.com", "https://example.com"]);
 });
 
 test("a page the browser cannot open is refused rather than opened blank", () => {
   const refused = reduce(workspace(), { type: "browser.open", url: "file:///etc/passwd" });
 
-  assert.deepEqual(refused.state.browserTabs, []);
+  assert.deepEqual(dock(refused.state).browserTabs, []);
   assert.deepEqual(refused.effects, []);
   assert.match(refused.state.actionError, /not a page the browser can open/);
 });
@@ -1186,19 +1192,19 @@ test("a run has to be allowed an origin the user has never visited, and then nev
   const withTask = { ...state, tasks: [task("task-1")], currentId: "task-1" };
 
   const asked = reduce(withTask, { type: "browser.open", taskId: "task-1", url: "https://dash.example.com/metrics" });
-  const [blank] = asked.state.browserTabs;
+  const [blank] = dock(asked.state).browserTabs;
   assert.equal(blank.url, "", "the ask gets a tab of its own to be shown in, and loads nothing into it");
   assert.deepEqual(asked.state.browserApproval, { url: "https://dash.example.com/metrics", taskId: "task-1", tabId: blank.id });
-  assert.equal(asked.state.dockTab, blank.id, "the ask is shown where the page would have been");
+  assert.equal(dock(asked.state).tab, blank.id, "the ask is shown where the page would have been");
 
   const blocked = reduce(asked.state, { type: "browser.decide", allow: false });
   assert.equal(blocked.state.browserApproval, null);
   assert.deepEqual(blocked.state.browserOrigins, []);
-  assert.deepEqual(blocked.state.browserTabs, [], "a tab that only carried the ask goes with it");
+  assert.deepEqual(dock(blocked.state).browserTabs, [], "a tab that only carried the ask goes with it");
 
   const allowed = reduce(asked.state, { type: "browser.decide", allow: true });
   assert.deepEqual(allowed.state.browserOrigins, ["https://dash.example.com"]);
-  assert.equal(allowed.state.browserTabs[0].url, "https://dash.example.com/metrics");
+  assert.equal(dock(allowed.state).browserTabs[0].url, "https://dash.example.com/metrics");
   assert.equal(allowed.state.browserApproval, null);
 
   const again = reduce(allowed.state, { type: "browser.open", taskId: "task-1", url: "https://dash.example.com/other" });
@@ -1212,18 +1218,18 @@ test("a thread trusted to act without asking browses without asking", () => {
   const opened = reduce(state, { type: "browser.open", taskId: "task-1", url: "https://example.com" });
 
   assert.equal(opened.state.browserApproval, null);
-  assert.equal(opened.state.browserTabs[0].url, "https://example.com/");
+  assert.equal(dock(opened.state).browserTabs[0].url, "https://example.com/");
   assert.deepEqual(opened.state.browserOrigins, [], "acting without asking is not the user saying yes");
 });
 
 test("closing a browser tab hands the panel its neighbour", () => {
   const first = reduce(workspace(), { type: "browser.open", url: "https://one.example" });
   const second = reduce(first.state, { type: "browser.open", url: "https://two.example", newTab: true });
-  const [one, two] = second.state.browserTabs;
+  const [one, two] = dock(second.state).browserTabs;
 
   const closed = reduce(second.state, { type: "browser.close-tab", tabId: two.id });
-  assert.deepEqual(closed.state.browserTabs.map((tab) => tab.id), [one.id]);
-  assert.equal(closed.state.browserTabId, one.id);
+  assert.deepEqual(dock(closed.state).browserTabs.map((tab) => tab.id), [one.id]);
+  assert.equal(dock(closed.state).browserTabId, one.id);
   assert.deepEqual(closed.effects.filter((effect) => effect.type.startsWith("browser")), [
     { type: "browser.close", tabId: two.id },
     { type: "browser.open", tabId: one.id, url: "https://one.example/" },
@@ -1231,21 +1237,21 @@ test("closing a browser tab hands the panel its neighbour", () => {
   ]);
 
   const empty = reduce(closed.state, { type: "browser.close-tab", tabId: one.id });
-  assert.equal(empty.state.browserTabId, null);
+  assert.equal(dock(empty.state).browserTabId, null);
   assert.deepEqual(empty.effects.filter((effect) => effect.type === "browser.show"), [{ type: "browser.show", tabId: null }]);
 });
 
 test("what a page reports is the only thing that writes the tab record", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "https://example.com" });
-  const [tab] = opened.state.browserTabs;
+  const [tab] = dock(opened.state).browserTabs;
 
   const updated = reduce(opened.state, {
     type: "browser.updated",
     page: { tabId: tab.id, url: "https://example.com/welcome", title: "Welcome", loading: false, canGoBack: true },
   });
 
-  assert.deepEqual(updated.state.browserTabs[0], { ...tab, url: "https://example.com/welcome", title: "Welcome", loading: false, canGoBack: true });
-  assert.deepEqual(updated.effects.at(-1).preferences.browserTabs, ["https://example.com/welcome"]);
+  assert.deepEqual(dock(updated.state).browserTabs[0], { ...tab, url: "https://example.com/welcome", title: "Welcome", loading: false, canGoBack: true });
+  assert.deepEqual(updated.effects.at(-1).preferences.browserTabs, { draft: ["https://example.com/welcome"] }, "a page is remembered under the thread whose dock holds it");
 
   const stray = reduce(updated.state, { type: "browser.updated", page: { tabId: "gone", title: "Nowhere" } });
   assert.equal(stray.state, updated.state);
@@ -1253,25 +1259,26 @@ test("what a page reports is the only thing that writes the tab record", () => {
 
 test("a page that fails keeps saying so until the tab lands somewhere else", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "https://example.com/missing" });
-  const tabId = opened.state.browserTabs[0].id;
+  const tabId = dock(opened.state).browserTabs[0].id;
 
   const failed = run(opened.state, [
     { type: "browser.updated", page: { tabId, loading: false, error: "ERR_NAME_NOT_RESOLVED (https://example.com/missing)" } },
     { type: "browser.updated", page: { tabId, loading: false, url: "https://example.com/missing", title: "" } },
   ]);
-  assert.match(failed.browserTabs[0].error, /ERR_NAME_NOT_RESOLVED/, "the load settling is not the failure being over");
+  assert.match(dock(failed).browserTabs[0].error, /ERR_NAME_NOT_RESOLVED/, "the load settling is not the failure being over");
 
   const landed = reduce(failed, { type: "browser.updated", page: { tabId, loading: false, url: "https://example.com/", title: "Example" } });
-  assert.equal(landed.state.browserTabs[0].error, undefined);
+  assert.equal(dock(landed.state).browserTabs[0].error, undefined);
 });
 
 test("acting in the browser needs a page, and clearing the session takes back every allowed site", () => {
-  const empty = reduce(workspace(), { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "3" } });
+  const browsing = { ...workspace(), tasks: [task("task-1")], currentId: "task-1" };
+  const empty = reduce(browsing, { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "3" } });
   assert.match(empty.state.actionError, /no page open/);
 
-  const opened = reduce(workspace(), { type: "browser.open", url: "https://example.com" });
+  const opened = reduce(browsing, { type: "browser.open", url: "https://example.com" });
   const clicked = reduce(opened.state, { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "3" } });
-  assert.deepEqual(clicked.effects, [{ type: "browser.act", tabId: opened.state.browserTabs[0].id, action: { kind: "click", ref: "3" } }]);
+  assert.deepEqual(clicked.effects, [{ type: "browser.act", tabId: dock(opened.state).browserTabs[0].id, action: { kind: "click", ref: "3" } }]);
 
   const cleared = reduce(opened.state, { type: "browser.clear-data" });
   assert.deepEqual(cleared.state.browserOrigins, []);
@@ -1287,39 +1294,39 @@ test("a terminal opens in the thread's own checkout and takes a dock tab of its 
   };
 
   const opened = reduce(state, { type: "terminal.open" });
-  const [terminal] = opened.state.terminals;
+  const [terminal] = dock(opened.state).terminals;
 
   assert.equal(terminal.cwd, "/repo");
   assert.equal(terminal.title, "repo");
   assert.equal(terminal.taskId, "task-1");
   assert.equal(terminal.status, "running");
-  assert.equal(opened.state.terminalId, terminal.id);
-  assert.equal(opened.state.dockOpen, true, "a shell has to land somewhere the user can see it");
-  assert.equal(opened.state.dockTab, terminal.id, "a shell is a tab in the dock, not a tab inside a panel");
+  assert.equal(dock(opened.state).terminalId, terminal.id);
+  assert.equal(dock(opened.state).open, true, "a shell has to land somewhere the user can see it");
+  assert.equal(dock(opened.state).tab, terminal.id, "a shell is a tab in the dock, not a tab inside a panel");
   assert.deepEqual(opened.effects, [{ type: "terminal.start", terminalId: terminal.id, cwd: "/repo" }]);
 
   const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktree: { id: "w1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 } })] };
-  assert.equal(reduce(inWorktree, { type: "terminal.open" }).state.terminals[0].cwd, "/worktrees/repo-w1");
+  assert.equal(dock(reduce(inWorktree, { type: "terminal.open" }).state).terminals[0].cwd, "/worktrees/repo-w1");
 });
 
 test("a terminal needs a folder to start in", () => {
   const refused = reduce(workspace(), { type: "terminal.open" });
 
-  assert.deepEqual(refused.state.terminals, []);
+  assert.deepEqual(dock(refused.state).terminals, []);
   assert.deepEqual(refused.effects, []);
   assert.equal(refused.state.actionError, WORKSPACE_ERRORS.terminalFolder);
 });
 
 test("what a shell reports is the only thing that writes the terminal record, and its output is never state", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
-  const [terminal] = opened.state.terminals;
+  const [terminal] = dock(opened.state).terminals;
 
   const named = reduce(opened.state, { type: "terminal.updated", update: { terminalId: terminal.id, title: "npm run dev" } });
-  assert.equal(named.state.terminals[0].title, "npm run dev");
+  assert.equal(dock(named.state).terminals[0].title, "npm run dev");
 
   const exited = reduce(named.state, { type: "terminal.updated", update: { terminalId: terminal.id, status: "exited", exitCode: 1 } });
-  assert.equal(exited.state.terminals[0].status, "exited");
-  assert.equal(exited.state.terminals[0].exitCode, 1);
+  assert.equal(dock(exited.state).terminals[0].status, "exited");
+  assert.equal(dock(exited.state).terminals[0].exitCode, 1);
   assert.deepEqual(exited.effects, [], "a record change asks for no work");
 
   const stray = reduce(exited.state, { type: "terminal.updated", update: { terminalId: "gone", title: "Nowhere" } });
@@ -1330,7 +1337,7 @@ test("what a shell reports is the only thing that writes the terminal record, an
 
 test("typing and resizing a terminal ask for work without touching state", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
-  const [terminal] = opened.state.terminals;
+  const [terminal] = dock(opened.state).terminals;
 
   const typed = reduce(opened.state, { type: "terminal.input", terminalId: terminal.id, data: "ls\r" });
   assert.equal(typed.state, opened.state);
@@ -1344,31 +1351,31 @@ test("typing and resizing a terminal ask for work without touching state", () =>
 test("closing a terminal hands the panel its neighbour and kills only the shell that went", () => {
   const first = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
   const second = reduce(first.state, { type: "terminal.open" });
-  const [one, two] = second.state.terminals;
+  const [one, two] = dock(second.state).terminals;
 
   const closed = reduce(second.state, { type: "terminal.close", terminalId: two.id });
-  assert.deepEqual(closed.state.terminals.map((terminal) => terminal.id), [one.id]);
-  assert.equal(closed.state.terminalId, one.id);
+  assert.deepEqual(dock(closed.state).terminals.map((terminal) => terminal.id), [one.id]);
+  assert.equal(dock(closed.state).terminalId, one.id);
   assert.deepEqual(closed.effects, [{ type: "terminal.close", terminalId: two.id }]);
 
   const empty = reduce(closed.state, { type: "terminal.close", terminalId: one.id });
-  assert.equal(empty.state.terminalId, null);
-  assert.deepEqual(empty.state.terminals, []);
+  assert.equal(dock(empty.state).terminalId, null);
+  assert.deepEqual(dock(empty.state).terminals, []);
 });
 
 test("⌘W closes the terminal in front, then the dock behind it", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
-  const [terminal] = opened.state.terminals;
+  const [terminal] = dock(opened.state).terminals;
 
   const closedShell = reduce(opened.state, { type: "view.close-tab" });
-  assert.deepEqual(closedShell.state.terminals, []);
+  assert.deepEqual(dock(closedShell.state).terminals, []);
   assert.deepEqual(closedShell.effects, [{ type: "terminal.close", terminalId: terminal.id }]);
-  assert.equal(closedShell.state.dockTab, "home", "nothing is left in the dock but the picker");
+  assert.equal(dock(closedShell.state).tab, "home", "nothing is left in the dock but the picker");
 
-  assert.equal(reduce(closedShell.state, { type: "view.close-tab" }).state.dockOpen, false);
+  assert.equal(dock(reduce(closedShell.state, { type: "view.close-tab" }).state).open, false);
 });
 
-test("the dock remembers which panels are open, and a thread switch keeps the pages and shells", () => {
+test("every thread keeps a dock of its own, panels, pages and shells alike", () => {
   const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
 
   const opened = run(state, [
@@ -1376,39 +1383,58 @@ test("the dock remembers which panels are open, and a thread switch keeps the pa
     { type: "browser.open", url: "https://one.example" },
     { type: "terminal.open" },
   ]);
-  const [page] = opened.browserTabs;
-  const [shell] = opened.terminals;
-  assert.deepEqual(opened.dockPanels, ["agents"], "only a panel there is one of is a panel");
-  assert.equal(opened.dockTab, shell.id);
-  assert.equal(opened.dockOpen, true);
+  const [page] = dock(opened).browserTabs;
+  const [shell] = dock(opened).terminals;
+  assert.deepEqual(dock(opened).panels, ["agents"], "only a panel there is one of is a panel");
+  assert.equal(dock(opened).tab, shell.id);
+  assert.equal(dock(opened).open, true);
 
   const switched = reduce(opened, { type: "task.select", taskId: "task-2" });
-  assert.deepEqual(switched.state.dockPanels, [], "a panel about the thread goes with the thread");
-  assert.deepEqual(switched.state.browserTabs.map((tab) => tab.id), [page.id], "a page outlives the thread that was showing it");
-  assert.deepEqual(switched.state.terminals.map((terminal) => terminal.id), [shell.id], "so does a shell");
-  assert.equal(switched.state.dockTab, shell.id, "and the one in front keeps showing");
+  assert.deepEqual(dock(switched.state).panels, [], "the thread the user lands on opens its own dock, which is empty");
+  assert.deepEqual(dock(switched.state).browserTabs, []);
+  assert.deepEqual(dock(switched.state).terminals, []);
+  assert.deepEqual(switched.effects.at(-1), { type: "browser.show", tabId: null }, "and the panel stops drawing the page it was showing");
 
-  const closed = reduce(switched.state, { type: "terminal.close", terminalId: shell.id });
-  assert.equal(closed.state.dockTab, page.id, "closing a tab hands the dock its neighbour");
+  const back = reduce(switched.state, { type: "task.select", taskId: "task-1" });
+  assert.deepEqual(dock(back.state).panels, ["agents"], "the dock a thread was left in comes back as it was");
+  assert.deepEqual(dock(back.state).browserTabs.map((tab) => tab.id), [page.id]);
+  assert.deepEqual(dock(back.state).terminals.map((terminal) => terminal.id), [shell.id]);
+  assert.equal(dock(back.state).tab, shell.id, "and the one in front keeps showing");
+
+  const closed = reduce(back.state, { type: "terminal.close", terminalId: shell.id });
+  assert.equal(dock(closed.state).tab, page.id, "closing a tab hands the dock its neighbour");
 
   const empty = reduce(closed.state, { type: "browser.close-tab", tabId: page.id });
-  assert.equal(empty.state.dockTab, "home");
+  assert.equal(dock(empty.state).tab, "agents", "the panel this thread opened is what is left");
 
   const hidden = reduce(empty.state, { type: "view.set-dock-open", open: false });
-  assert.equal(hidden.state.dockOpen, false);
+  assert.equal(dock(hidden.state).open, false);
+});
+
+test("a run drives its own thread's dock, whichever thread the user is looking at", () => {
+  const state = { ...workspace(), tasks: [task("task-1"), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
+
+  const opened = reduce(state, { type: "browser.open", taskId: "task-2", url: "https://two.example" });
+  assert.deepEqual(dock(opened.state).browserTabs, [], "the dock on screen belongs to the thread the user is reading");
+  assert.equal(dock(opened.state, "task-2").browserTabs[0].url, "https://two.example/");
+  assert.equal(dock(opened.state, "task-2").open, true, "the run's own dock is the one that opens");
+
+  const shown = reduce(opened.state, { type: "task.select", taskId: "task-2" });
+  assert.equal(dock(shown.state).tab, dock(opened.state, "task-2").browserTabs[0].id, "landing on that thread shows what its run opened");
+  assert.equal(shown.effects.at(-1).type, "browser.show");
 });
 
 test("a restored page waits for the panel to show it before it loads", () => {
   const restored = reduce(workspace(), {
     type: "preferences.loaded",
-    preferences: { sessionPanelOpen: false, browserTabs: ["https://example.com/docs", "not a url"], browserOrigins: ["https://example.com"] },
+    preferences: { sessionPanelOpen: false, browserTabs: { draft: ["https://example.com/docs", "not a url"] }, browserOrigins: ["https://example.com"] },
   });
 
-  assert.deepEqual(restored.state.browserTabs.map((tab) => tab.url), ["https://example.com/docs"]);
-  assert.equal(restored.state.browserTabs[0].loading, false);
+  assert.deepEqual(dock(restored.state).browserTabs.map((tab) => tab.url), ["https://example.com/docs"]);
+  assert.equal(dock(restored.state).browserTabs[0].loading, false);
   assert.deepEqual(restored.effects, [], "restoring records loads nothing on its own");
 
-  const tabId = restored.state.browserTabs[0].id;
+  const tabId = dock(restored.state).browserTabs[0].id;
   const shown = reduce(restored.state, { type: "view.select-dock-tab", tab: tabId });
   assert.deepEqual(shown.effects, [
     { type: "browser.open", tabId, url: "https://example.com/docs" },
@@ -1416,7 +1442,7 @@ test("a restored page waits for the panel to show it before it loads", () => {
   ]);
 
   const kept = reduce(shown.state, { type: "store.loaded", data: { tasks: [], projects: [], lastFolder: null } });
-  assert.deepEqual(kept.state.browserTabs, shown.state.browserTabs, "loading the store does not drop the window's pages");
+  assert.deepEqual(dock(kept.state).browserTabs, dock(shown.state).browserTabs, "loading the store does not drop the window's pages");
   assert.deepEqual(kept.state.browserOrigins, ["https://example.com"]);
 });
 
@@ -1427,11 +1453,11 @@ test("a side chat is the dock tab it opens, and closing it gives the dock back i
     { type: "view.open-dock-panel", panel: "browser" },
     { type: "side-chat.open", chatId: "chat-1" },
   ]);
-  assert.equal(opened.dockTab, "chat-1");
-  assert.equal(opened.dockOpen, true);
+  assert.equal(dock(opened).tab, "chat-1");
+  assert.equal(dock(opened).open, true);
 
   const closed = reduce(opened, { type: "side-chat.close", chatId: "chat-1" });
-  assert.equal(closed.state.dockTab, "browser");
+  assert.equal(dock(closed.state).tab, "browser");
 });
 
 test("closing a tab takes what is in front, and only then the window", () => {
@@ -1452,23 +1478,23 @@ test("closing a tab takes what is in front, and only then the window", () => {
     { type: "browser.open", url: "https://one.example" },
     { type: "browser.open", url: "https://two.example", newTab: true },
   ]);
-  const [first, second] = browsing.browserTabs;
+  const [first, second] = dock(browsing).browserTabs;
 
   const closedPage = reduce(browsing, { type: "view.close-tab" });
-  assert.deepEqual(closedPage.state.browserTabs.map((tab) => tab.id), [first.id], "the page in front is what ⌘W takes");
+  assert.deepEqual(dock(closedPage.state).browserTabs.map((tab) => tab.id), [first.id], "the page in front is what ⌘W takes");
   assert.equal(closedPage.effects.some((effect) => effect.type === "browser.close" && effect.tabId === second.id), true);
-  assert.equal(closedPage.state.dockTab, first.id, "and the dock lands on its neighbour");
+  assert.equal(dock(closedPage.state).tab, first.id, "and the dock lands on its neighbour");
 
   const closedLast = reduce(closedPage.state, { type: "view.close-tab" });
-  assert.deepEqual(closedLast.state.browserTabs, []);
-  assert.equal(closedLast.state.dockTab, "agents", "the panel behind the pages is the next thing in front");
+  assert.deepEqual(dock(closedLast.state).browserTabs, []);
+  assert.equal(dock(closedLast.state).tab, "agents", "the panel behind the pages is the next thing in front");
 
   const closedAgents = reduce(closedLast.state, { type: "view.close-tab" });
-  assert.deepEqual(closedAgents.state.dockPanels, []);
-  assert.equal(closedAgents.state.dockTab, "home");
+  assert.deepEqual(dock(closedAgents.state).panels, []);
+  assert.equal(dock(closedAgents.state).tab, "home");
 
   const closedDock = reduce(closedAgents.state, { type: "view.close-tab" });
-  assert.equal(closedDock.state.dockOpen, false, "the picker showing means the dock itself is what is in front");
+  assert.equal(dock(closedDock.state).open, false, "the picker showing means the dock itself is what is in front");
   assert.deepEqual(closedDock.effects, []);
 
   assert.deepEqual(reduce(closedDock.state, { type: "view.close-tab" }).effects, [{ type: "close-window" }]);
@@ -1479,12 +1505,12 @@ test("a side chat in front closes on ⌘W without taking the thread with it", ()
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "side-chat.open", chatId: "chat-1" },
   ]);
-  assert.equal(state.dockTab, "chat-1");
+  assert.equal(dock(state).tab, "chat-1");
 
   const closed = reduce(state, { type: "view.close-tab" });
   assert.deepEqual(closed.state.sideChats, []);
   assert.equal(closed.state.tasks.some((item) => item.id === "chat-1"), false, "a side chat's thread goes with it");
-  assert.equal(closed.state.dockTab, "agents");
+  assert.equal(dock(closed.state).tab, "agents");
 });
 
 test("opening settings puts the dock away, and closing them forgets the computer use ask", () => {
@@ -1492,7 +1518,7 @@ test("opening settings puts the dock away, and closing them forgets the computer
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "view.set-settings-open", open: true },
   ]);
-  assert.equal(opened.dockOpen, false);
+  assert.equal(dock(opened).open, false);
   assert.equal(deriveView(opened).settingsOpen, true);
 
   const closed = reduce(opened, { type: "view.set-settings-open", open: false });

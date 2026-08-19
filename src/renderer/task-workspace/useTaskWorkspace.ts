@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { browserTarget, deriveView, emptyWorkspaceState, sideChatIds, stateFromData, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
+import { browserTarget, deriveView, dockFor, dockOwner, emptyWorkspaceState, sideChatIds, stateFromData, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
 import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
@@ -331,16 +331,19 @@ export function useTaskWorkspace() {
       if (request.op === "browser") {
         const state = stateRef.current;
         if (state.browserApproval?.taskId === request.taskId) return ok({ kind: "awaiting-approval", url: state.browserApproval.url });
-        if (request.read.op === "tabs") return ok({ kind: "tabs", tabs: state.browserTabs });
-        const tab = browserTarget(state, request.read.tabId);
+        /** A run reaches its own thread's dock, whichever dock the user has on screen. */
+        const dock = dockFor(state, dockOwner(state, request.taskId));
+        if (request.read.op === "tabs") return ok({ kind: "tabs", tabs: dock.browserTabs });
+        const tab = browserTarget(dock, request.read.tabId);
         if (!tab) return ok({ kind: "no-tab" });
         const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs);
         return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
       }
       if (request.op === "terminal") {
         const state = stateRef.current;
-        if (request.read.op === "terminals") return ok({ kind: "terminals", terminals: state.terminals });
-        const terminal = terminalTarget(state, request.read.terminalId, request.taskId);
+        const dock = dockFor(state, dockOwner(state, request.taskId));
+        if (request.read.op === "terminals") return ok({ kind: "terminals", terminals: dock.terminals });
+        const terminal = terminalTarget(dock, request.read.terminalId, request.taskId);
         if (!terminal) return ok({ kind: "no-terminal" });
         const text = await window.desktop.readTerminal(terminal.id, {
           lines: terminalLineLimit(request.read.lines),

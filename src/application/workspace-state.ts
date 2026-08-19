@@ -81,6 +81,22 @@ export function sideChatIds(state: Pick<WorkspaceState, "sideChats">) {
 /** The branch a thread is to start from. `create` names one the repository does not have yet. */
 export type DraftBranch = { name: string; create: boolean };
 
+/**
+ * One thread's right dock: whether it is showing, which panels are open as tabs, which tab is on top,
+ * and the pages and shells that thread opened. A page and a shell belong to the thread that asked for
+ * one, so a run drives its own dock and never the dock of whichever thread the user is looking at.
+ * Only the records live here. What a page holds and what a shell has printed never become state.
+ */
+export type ThreadDock = {
+  open: boolean;
+  panels: string[];
+  tab: string;
+  browserTabs: BrowserTab[];
+  browserTabId: string | null;
+  terminals: TerminalSession[];
+  terminalId: string | null;
+};
+
 export type WorkspaceState = {
   tasks: Task[];
   projects: Project[];
@@ -102,26 +118,11 @@ export type WorkspaceState = {
   recentsOpen: boolean;
   sessionPanelOpen: boolean;
   settingsOpen: boolean;
-  /** The right dock: whether it is showing, which panels are open as tabs, and which tab is on top. */
-  dockOpen: boolean;
-  dockPanels: string[];
-  dockTab: string;
-  /**
-   * The browser panel. One session serves the whole app, so its tabs belong to the window rather than
-   * to a thread, and survive moving between threads and projects.
-   */
-  browserTabs: BrowserTab[];
-  browserTabId: string | null;
+  /** One dock per thread, keyed by thread id, so moving between threads leaves each one as it was. */
+  docks: Record<string, ThreadDock>;
   /** The origins a run may reach without asking. Visiting a site adds it. */
   browserOrigins: string[];
   browserApproval: BrowserApproval | null;
-  /**
-   * The terminal panel. A shell outlives the thread that opened it, so these belong to the window
-   * too; each keeps the thread it was opened for, which is what an unnamed read resolves against.
-   * Only the record lives here. What a shell has printed never becomes state.
-   */
-  terminals: TerminalSession[];
-  terminalId: string | null;
   openMenu: string | null;
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
   computerUseSetup: boolean;
@@ -159,15 +160,9 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     recentsOpen: true,
     sessionPanelOpen: false,
     settingsOpen: false,
-    dockOpen: false,
-    dockPanels: [],
-    dockTab: DOCK_PICKER,
-    browserTabs: [],
-    browserTabId: null,
+    docks: {},
     browserOrigins: [],
     browserApproval: null,
-    terminals: [],
-    terminalId: null,
     openMenu: null,
     environment: null,
     computerUseSetup: false,
@@ -213,9 +208,16 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
 
 /** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
 export function viewPreferences(state: WorkspaceState): ViewPreferences {
+  /** Only a thread that will still be there reopens its pages, so a dock nothing owns stops being written. */
+  const browserTabs: Record<string, string[]> = {};
+  for (const [owner, dock] of Object.entries(state.docks)) {
+    if (owner !== DRAFT_DOCK && !state.tasks.some((task) => task.id === owner)) continue;
+    const urls = dock.browserTabs.map((tab) => tab.url).filter(Boolean);
+    if (urls.length) browserTabs[owner] = urls;
+  }
   return {
     sessionPanelOpen: state.sessionPanelOpen,
-    browserTabs: state.browserTabs.map((tab) => tab.url).filter(Boolean),
+    browserTabs,
     browserOrigins: state.browserOrigins,
   };
 }
@@ -223,57 +225,104 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
 /** The dock tab that offers the panels, shown whenever no panel is on top. */
 export const DOCK_PICKER = "home";
 
+/** The dock the app shows while no thread is current, so a draft has a dock of its own too. */
+export const DRAFT_DOCK = "draft";
+
+export const EMPTY_DOCK: ThreadDock = {
+  open: false,
+  panels: [],
+  tab: DOCK_PICKER,
+  browserTabs: [],
+  browserTabId: null,
+  terminals: [],
+  terminalId: null,
+};
+
+/**
+ * Whose dock a command belongs in: the thread it names, else the one the user is looking at. A side
+ * chat is a tab within its source thread's dock, so its own commands land in that same dock.
+ */
+export function dockOwner(state: Pick<WorkspaceState, "currentId" | "sideChats">, taskId?: string | null): string {
+  const id = taskId ?? state.currentId;
+  if (!id) return DRAFT_DOCK;
+  return state.sideChats.find((chat) => chat.id === id)?.sourceTaskId ?? id;
+}
+
+export function dockFor(state: Pick<WorkspaceState, "docks">, owner: string): ThreadDock {
+  return state.docks[owner] ?? EMPTY_DOCK;
+}
+
+export function withDock(state: WorkspaceState, owner: string, patch: Partial<ThreadDock>): WorkspaceState {
+  return { ...state, docks: { ...state.docks, [owner]: { ...dockFor(state, owner), ...patch } } };
+}
+
+/** Which dock holds a page or a shell, for the events and commands that only name its id. */
+export function ownerOfBrowserTab(state: WorkspaceState, tabId: string): string | undefined {
+  return Object.keys(state.docks).find((owner) => state.docks[owner].browserTabs.some((tab) => tab.id === tabId));
+}
+
+export function ownerOfTerminal(state: WorkspaceState, terminalId: string): string | undefined {
+  return Object.keys(state.docks).find((owner) => state.docks[owner].terminals.some((terminal) => terminal.id === terminalId));
+}
+
+/** The forks a dock draws as tabs: the ones taken from the thread that owns it. */
+export function dockSideChats(state: Pick<WorkspaceState, "sideChats">, owner: string) {
+  return state.sideChats.filter((chat) => chat.sourceTaskId === owner);
+}
+
 /**
  * What a dock tab is showing. A page and a shell are tabs in their own right rather than tabs within
- * a panel, so `dockTab` names one of them directly and there is one strip in the app, not two.
+ * a panel, so `tab` names one of them directly and there is one strip in the app, not two.
  */
-export function dockTabKind(state: WorkspaceState, tab: string) {
-  if (state.browserTabs.some((page) => page.id === tab)) return "browser" as const;
-  if (state.terminals.some((terminal) => terminal.id === tab)) return "terminal" as const;
-  if (state.sideChats.some((chat) => chat.id === tab)) return "side-chat" as const;
-  return state.dockPanels.includes(tab) ? "panel" as const : "picker" as const;
+export function dockTabKind(state: WorkspaceState, owner: string, tab: string) {
+  const dock = dockFor(state, owner);
+  if (dock.browserTabs.some((page) => page.id === tab)) return "browser" as const;
+  if (dock.terminals.some((terminal) => terminal.id === tab)) return "terminal" as const;
+  if (dockSideChats(state, owner).some((chat) => chat.id === tab)) return "side-chat" as const;
+  return dock.panels.includes(tab) ? "panel" as const : "picker" as const;
 }
 
 /** Every tab in the dock, in the order the strip draws them. */
-export function dockTabIds(state: WorkspaceState) {
+export function dockTabIds(state: WorkspaceState, owner: string) {
+  const dock = dockFor(state, owner);
   return [
-    ...state.dockPanels,
-    ...state.browserTabs.map((page) => page.id),
-    ...state.terminals.map((terminal) => terminal.id),
-    ...state.sideChats.map((chat) => chat.id),
+    ...dock.panels,
+    ...dock.browserTabs.map((page) => page.id),
+    ...dock.terminals.map((terminal) => terminal.id),
+    ...dockSideChats(state, owner).map((chat) => chat.id),
   ];
 }
 
 /** Which tab takes over when `tab` closes: its neighbour on the left, else on the right, else the picker. */
-export function dockTabAfterClosing(state: WorkspaceState, tab: string) {
-  const tabs = dockTabIds(state);
+export function dockTabAfterClosing(state: WorkspaceState, owner: string, tab: string) {
+  const tabs = dockTabIds(state, owner);
   const index = tabs.indexOf(tab);
-  if (index === -1) return state.dockTab;
+  if (index === -1) return dockFor(state, owner).tab;
   const remaining = tabs.filter((id) => id !== tab);
   return remaining[index - 1] ?? remaining[index] ?? DOCK_PICKER;
 }
 
-export function activeBrowserTab(state: Pick<WorkspaceState, "browserTabs" | "browserTabId">) {
-  return state.browserTabs.find((tab) => tab.id === state.browserTabId);
+export function activeBrowserTab(dock: ThreadDock) {
+  return dock.browserTabs.find((tab) => tab.id === dock.browserTabId);
 }
 
-/** Which tab a browser command acts on: the one it names, else the one the panel is showing. */
-export function browserTarget(state: WorkspaceState, tabId: string | undefined) {
-  return tabId === undefined ? activeBrowserTab(state) : state.browserTabs.find((tab) => tab.id === tabId);
+/** Which tab a browser command acts on: the one it names, else the one that dock is showing. */
+export function browserTarget(dock: ThreadDock, tabId: string | undefined) {
+  return tabId === undefined ? activeBrowserTab(dock) : dock.browserTabs.find((tab) => tab.id === tabId);
 }
 
-export function activeTerminal(state: Pick<WorkspaceState, "terminals" | "terminalId">) {
-  return state.terminals.find((terminal) => terminal.id === state.terminalId);
+export function activeTerminal(dock: ThreadDock) {
+  return dock.terminals.find((terminal) => terminal.id === dock.terminalId);
 }
 
 /**
  * Which terminal a read acts on: the one it names, else the one the asking thread opened, else the
- * one the panel is showing. A thread with a shell of its own never reads somebody else's by accident.
+ * one its dock is showing. A thread with a shell of its own never reads somebody else's by accident.
  */
-export function terminalTarget(state: WorkspaceState, terminalId: string | undefined, taskId?: string) {
-  if (terminalId !== undefined) return state.terminals.find((terminal) => terminal.id === terminalId);
-  const own = taskId === undefined ? undefined : [...state.terminals].reverse().find((terminal) => terminal.taskId === taskId);
-  return own ?? activeTerminal(state);
+export function terminalTarget(dock: ThreadDock, terminalId: string | undefined, taskId?: string) {
+  if (terminalId !== undefined) return dock.terminals.find((terminal) => terminal.id === terminalId);
+  const own = taskId === undefined ? undefined : [...dock.terminals].reverse().find((terminal) => terminal.taskId === taskId);
+  return own ?? activeTerminal(dock);
 }
 
 /** Where a new shell starts: the thread's own checkout, else its project, else the last folder opened. */
@@ -344,6 +393,8 @@ export function deriveView(state: WorkspaceState) {
     ? taskWorkspaceId(state, currentTask)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
   const environment = workspaceId && state.environment?.workspaceId === workspaceId ? state.environment.result : null;
+  const owner = dockOwner(state);
+  const dock = dockFor(state, owner);
   return {
     tasks: listedTasks,
     projects: state.projects,
@@ -381,18 +432,18 @@ export function deriveView(state: WorkspaceState) {
     sessionPanelOpen: state.sessionPanelOpen,
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
-    dockOpen: state.dockOpen,
-    dockPanels: state.dockPanels,
-    dockTab: state.dockTab,
-    browserTabs: state.browserTabs,
+    dockOpen: dock.open,
+    dockPanels: dock.panels,
+    dockTab: dock.tab,
+    browserTabs: dock.browserTabs,
     browserApproval: state.browserApproval,
     browserOrigins: state.browserOrigins,
-    terminals: state.terminals,
+    terminals: dock.terminals,
     terminalFolder: terminalFolder(state),
     openMenu: state.openMenu,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
-    sideChats: state.sideChats.flatMap((chat): SideChatView[] => {
+    sideChats: dockSideChats(state, owner).flatMap((chat): SideChatView[] => {
       const task = state.tasks.find((item) => item.id === chat.id);
       if (!task) return [];
       const active = state.activeRuns[chat.id];

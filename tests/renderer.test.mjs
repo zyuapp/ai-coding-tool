@@ -2566,26 +2566,29 @@ test("a run reads the page through the window and is told when a site is waiting
   const desktop = fakeDesktop();
   const harness = await mountWorkspace(desktop);
 
+  await act(async () => { await harness.get().dispatch({ type: "view.set-prompt", prompt: "look at the dashboard" }); });
+  await act(async () => { await harness.get().dispatch({ type: "task.send" }); });
+  const taskId = harness.get().currentTask.id;
   await act(async () => { await harness.get().dispatch({ type: "browser.open", url: "https://example.com" }); });
   const tabId = harness.get().browserTabs[0].id;
 
-  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "read-1", taskId: "task-1", op: "browser", read: { op: "tabs" } }); });
+  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "read-1", taskId, op: "browser", read: { op: "tabs" } }); });
   assert.deepEqual(desktop.threadAnswers.at(-1).result.tabs.map((tab) => tab.id), [tabId]);
 
+  /** A page belongs to the thread whose dock holds it, so no other thread reads it. */
+  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "read-2", taskId: "elsewhere", op: "browser", read: { op: "tabs" } }); });
+  assert.deepEqual(desktop.threadAnswers.at(-1).result.tabs, []);
+
   await act(async () => {
-    await desktop.askThreads({ type: "thread.request", requestId: "read-2", taskId: "task-1", op: "browser", read: { op: "snapshot", timeoutMs: 5_000, textLimit: 500 } });
+    await desktop.askThreads({ type: "thread.request", requestId: "read-3", taskId, op: "browser", read: { op: "snapshot", timeoutMs: 5_000, textLimit: 500 } });
   });
   assert.deepEqual(desktop.browserCalls.at(-1), ["read", tabId, 500, 5_000]);
   assert.equal(desktop.threadAnswers.at(-1).result.snapshot.title, "Example");
 
   /** A run asking for a site nobody has allowed is answered with the ask, not with a page. */
+  await act(async () => { await harness.get().dispatch({ type: "browser.open", taskId, url: "https://dash.example.com" }); });
   await act(async () => {
-    await harness.get().dispatch({ type: "task.send", text: "look at the dashboard", attachments: [] });
-  });
-  const askingTaskId = harness.get().tasks[0].id;
-  await act(async () => { await harness.get().dispatch({ type: "browser.open", taskId: askingTaskId, url: "https://dash.example.com" }); });
-  await act(async () => {
-    await desktop.askThreads({ type: "thread.request", requestId: "read-3", taskId: askingTaskId, op: "browser", read: { op: "snapshot", timeoutMs: 1_000 } });
+    await desktop.askThreads({ type: "thread.request", requestId: "read-4", taskId, op: "browser", read: { op: "snapshot", timeoutMs: 1_000 } });
   });
   assert.deepEqual(desktop.threadAnswers.at(-1).result, { kind: "awaiting-approval", url: "https://dash.example.com/" });
 

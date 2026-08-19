@@ -6,7 +6,7 @@ export function loadViewPreferences(): ViewPreferences {
   const stored = readViewPreferences(localStorage);
   return {
     sessionPanelOpen: stored.sessionPanelOpen ?? window.innerWidth >= 1400,
-    browserTabs: stored.browserTabs ?? [],
+    browserTabs: stored.browserTabs ?? {},
     browserOrigins: stored.browserOrigins ?? [],
   };
 }

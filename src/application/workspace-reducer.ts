@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { browserTarget, dockTabAfterClosing, dockTabKind, DOCK_PICKER, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -166,26 +166,17 @@ function retireAutomations(state: WorkspaceState, taskIds: Iterable<string>): Wo
 const BROWSER_URL_ERROR = "That is not a page the browser can open.";
 const BROWSER_TAB_ERROR = "The browser has no page open to act on.";
 
-/** Brings a tab to the front, so a page or a shell nobody asked to see still lands somewhere visible. */
-function showDockTab(state: WorkspaceState, tab: string): WorkspaceState {
-  return { ...state, dockOpen: true, dockTab: tab };
+/** Brings a tab to the front of its own dock, so a page or a shell nobody asked to see still lands somewhere. */
+function showDockTab(state: WorkspaceState, owner: string, tab: string): WorkspaceState {
+  return withDock(state, owner, { open: true, tab });
 }
 
-/**
- * A thread switch clears the dock back to the picker. A page and a shell belong to the window rather
- * than to a thread, so their tabs stay, and one of them showing keeps showing.
- */
-function resetDock(state: WorkspaceState): WorkspaceState {
-  const kind = dockTabKind(state, state.dockTab);
-  return { ...state, dockPanels: [], dockTab: kind === "browser" || kind === "terminal" ? state.dockTab : DOCK_PICKER };
+function withBrowserTabs(state: WorkspaceState, owner: string, browserTabs: BrowserTab[]): WorkspaceState {
+  return withDock(state, owner, { browserTabs });
 }
 
-function withBrowserTabs(state: WorkspaceState, tabs: BrowserTab[]): WorkspaceState {
-  return { ...state, browserTabs: tabs };
-}
-
-function patchBrowserTab(state: WorkspaceState, tabId: string, patch: Partial<BrowserTab>): WorkspaceState {
-  return withBrowserTabs(state, state.browserTabs.map((tab) => tab.id === tabId ? { ...tab, ...patch } : tab));
+function patchBrowserTab(state: WorkspaceState, owner: string, tabId: string, patch: Partial<BrowserTab>): WorkspaceState {
+  return withBrowserTabs(state, owner, dockFor(state, owner).browserTabs.map((tab) => tab.id === tabId ? { ...tab, ...patch } : tab));
 }
 
 function persistView(state: WorkspaceState): WorkspaceEffect[] {
@@ -196,21 +187,21 @@ function persistView(state: WorkspaceState): WorkspaceEffect[] {
  * Loads the page, in the tab named or a new one. The origin is remembered when the user is the one
  * asking, which is what lets a run reach a site the user has already signed into.
  */
-function loadBrowserPage(state: WorkspaceState, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean): WorkspaceTransition {
+function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean): WorkspaceTransition {
   const origin = browserOrigin(url);
   const allowing = byUser && origin && !state.browserOrigins.includes(origin);
   const remembered = allowing ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
-  const target = newTab ? undefined : browserTarget(remembered, tabId);
+  const target = newTab ? undefined : browserTarget(dockFor(remembered, owner), tabId);
   const cleared = { ...remembered, browserApproval: null, actionError: null };
   if (target) {
-    const navigating = patchBrowserTab(showDockTab(cleared, target.id), target.id, { url, loading: true, error: undefined });
-    return settled({ ...navigating, browserTabId: target.id }, [
+    const navigating = withDock(patchBrowserTab(showDockTab(cleared, owner, target.id), owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
+    return settled(navigating, [
       { type: "browser.navigate", tabId: target.id, url },
       ...persistView(navigating),
     ]);
   }
   const tab: BrowserTab = { id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
-  const opened = { ...withBrowserTabs(showDockTab(cleared, tab.id), [...cleared.browserTabs, tab]), browserTabId: tab.id };
+  const opened = withDock(showDockTab(cleared, owner, tab.id), owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
   return settled(opened, [
     { type: "browser.open", tabId: tab.id, url },
     { type: "browser.show", tabId: tab.id },
@@ -219,9 +210,9 @@ function loadBrowserPage(state: WorkspaceState, url: string, tabId: string | und
 }
 
 /** A page waiting for an address. It is a dock tab of its own from the moment it exists. */
-function withBlankTab(state: WorkspaceState) {
+function withBlankTab(state: WorkspaceState, owner: string) {
   const tab: BrowserTab = { id: crypto.randomUUID(), url: "", title: "", loading: false, canGoBack: false, canGoForward: false };
-  const opened = { ...withBrowserTabs(showDockTab(state, tab.id), [...state.browserTabs, tab]), browserTabId: tab.id };
+  const opened = withDock(showDockTab(state, owner, tab.id), owner, { browserTabs: [...dockFor(state, owner).browserTabs, tab], browserTabId: tab.id });
   return { state: opened, tab };
 }
 
@@ -229,10 +220,10 @@ function withBlankTab(state: WorkspaceState) {
  * Puts the navigation to the user. The ask always names the tab it would load in — a blank one when
  * the run wanted a new page — so it is shown in that tab rather than needing a panel of its own.
  */
-function askToBrowse(state: WorkspaceState, url: string, taskId: string, tabId: string | undefined, newTab: boolean): WorkspaceTransition {
-  const target = newTab ? undefined : browserTarget(state, tabId);
-  if (target) return settled({ ...showDockTab(state, target.id), browserApproval: { url, taskId, tabId: target.id } });
-  const { state: opened, tab } = withBlankTab(state);
+function askToBrowse(state: WorkspaceState, owner: string, url: string, taskId: string, tabId: string | undefined, newTab: boolean): WorkspaceTransition {
+  const target = newTab ? undefined : browserTarget(dockFor(state, owner), tabId);
+  if (target) return settled({ ...showDockTab(state, owner, target.id), browserApproval: { url, taskId, tabId: target.id } });
+  const { state: opened, tab } = withBlankTab(state, owner);
   return settled({ ...opened, browserApproval: { url, taskId, tabId: tab.id } }, [
     { type: "browser.open", tabId: tab.id },
     { type: "browser.show", tabId: tab.id },
@@ -240,18 +231,23 @@ function askToBrowse(state: WorkspaceState, url: string, taskId: string, tabId: 
 }
 
 /** Closing a page hands the dock its neighbour, and the panel whichever page that turns out to be. */
-function closeBrowserTab(state: WorkspaceState, tabId: string | undefined, options: { onlyIfBlank?: boolean } = {}): WorkspaceTransition {
-  const index = state.browserTabs.findIndex((tab) => tab.id === tabId);
+function closeBrowserTab(state: WorkspaceState, owner: string, tabId: string | undefined, options: { onlyIfBlank?: boolean } = {}): WorkspaceTransition {
+  const dock = dockFor(state, owner);
+  const index = dock.browserTabs.findIndex((tab) => tab.id === tabId);
   if (index === -1) return settled(state);
-  if (options.onlyIfBlank && state.browserTabs[index].url) return settled(state);
-  const dockTab = state.dockTab === tabId ? dockTabAfterClosing(state, tabId) : state.dockTab;
-  const browserTabs = state.browserTabs.filter((tab) => tab.id !== tabId);
-  const next = state.browserTabId === tabId ? browserTabs[index - 1] ?? browserTabs[index] ?? null : browserTabs.find((tab) => tab.id === state.browserTabId) ?? null;
-  const closed = { ...withBrowserTabs(state, browserTabs), browserTabId: next?.id ?? null, dockTab };
-  const showing = browserTabs.find((tab) => tab.id === dockTab);
+  if (options.onlyIfBlank && dock.browserTabs[index].url) return settled(state);
+  const tab = dock.tab === tabId ? dockTabAfterClosing(state, owner, tabId) : dock.tab;
+  const browserTabs = dock.browserTabs.filter((page) => page.id !== tabId);
+  const next = dock.browserTabId === tabId ? browserTabs[index - 1] ?? browserTabs[index] ?? null : browserTabs.find((page) => page.id === dock.browserTabId) ?? null;
+  const closed = withDock(state, owner, { browserTabs, browserTabId: next?.id ?? null, tab });
+  const showing = browserTabs.find((page) => page.id === tab);
+  /** Only the dock on screen owns the panel, so closing a page in a dock behind it changes nothing there. */
+  const shows = owner === dockOwner(state)
+    ? showing ? browserEffectsForTab(closed, owner, showing.id) : [{ type: "browser.show" as const, tabId: null }]
+    : [];
   return settled(closed, [
     { type: "browser.close", tabId: tabId! },
-    ...(showing ? browserEffectsForTab(closed, showing.id) : [{ type: "browser.show" as const, tabId: null }]),
+    ...shows,
     ...persistView(closed),
   ]);
 }
@@ -268,10 +264,43 @@ function browserAllowed(state: WorkspaceState, taskId: string, url: string) {
 }
 
 /** Bringing a page to the front is what gives a restored one its view, and only then. */
-function browserEffectsForTab(state: WorkspaceState, dockTab: string): WorkspaceEffect[] {
-  const tab = state.browserTabs.find((page) => page.id === dockTab);
+function browserEffectsForTab(state: WorkspaceState, owner: string, dockTab: string): WorkspaceEffect[] {
+  const tab = dockFor(state, owner).browserTabs.find((page) => page.id === dockTab);
   if (!tab) return [];
   return [{ type: "browser.open", tabId: tab.id, ...(tab.url ? { url: tab.url } : {}) }, { type: "browser.show", tabId: tab.id }];
+}
+
+/**
+ * Which page the panel draws once the dock on screen changes. One panel serves every dock, so the
+ * thread the user lands on hands it its own page, or takes the page away when it has none.
+ */
+function shownPageEffects(state: WorkspaceState): WorkspaceEffect[] {
+  const owner = dockOwner(state);
+  const dock = dockFor(state, owner);
+  const effects = browserEffectsForTab(state, owner, dock.tab);
+  return effects.length ? effects : [{ type: "browser.show", tabId: null }];
+}
+
+/** The dock a draft was composed in belongs to the thread that send creates, pages, shells and all. */
+function handOverDraftDock(state: WorkspaceState, taskId: string): WorkspaceState {
+  const { [DRAFT_DOCK]: draft, ...docks } = state.docks;
+  return draft ? { ...state, docks: { ...docks, [taskId]: draft } } : state;
+}
+
+/** A thread that is gone for good takes its dock with it: its pages close and its shells stop. */
+function disposeDocks(state: WorkspaceState, owners: Iterable<string>): WorkspaceTransition {
+  const docks = { ...state.docks };
+  const effects: WorkspaceEffect[] = [];
+  let emptied = false;
+  for (const owner of owners) {
+    const dock = docks[owner];
+    if (!dock) continue;
+    effects.push(...dock.browserTabs.map((tab): WorkspaceEffect => ({ type: "browser.close", tabId: tab.id })));
+    effects.push(...dock.terminals.map((terminal): WorkspaceEffect => ({ type: "terminal.close", terminalId: terminal.id })));
+    delete docks[owner];
+    emptied = true;
+  }
+  return emptied ? { state: { ...state, docks }, effects } : settled(state);
 }
 
 function withPending(state: WorkspaceState, pending: PendingRun): WorkspaceState {
@@ -467,7 +496,10 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       automations: next.automations.filter((automation) => !closed.has(automation.taskId)),
       tasks: next.tasks.filter((task) => !closed.has(task.id)),
       sideChats: next.sideChats.filter((chat) => !closed.has(chat.id)),
-      dockTab: closed.has(next.dockTab) ? dockTabAfterClosing(next, next.dockTab) : next.dockTab,
+      docks: Object.fromEntries(Object.entries(next.docks).map(([owner, dock]): [string, ThreadDock] => [
+        owner,
+        closed.has(dock.tab) ? { ...dock, tab: dockTabAfterClosing(next, owner, dock.tab) } : dock,
+      ])),
       pendingRuns: Object.fromEntries(Object.entries(next.pendingRuns).filter(([, pending]) => !(pending.taskId && closed.has(pending.taskId)))),
     },
     effects,
@@ -484,9 +516,8 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
     : transition.state;
-  if (!landed.sideChats.length) return { ...transition, state: resetDock(landed) };
-  const closed = closeSideChats(landed, landed.sideChats);
-  return { state: resetDock({ ...closed.state, sideChatSequence: 0 }), effects: [...transition.effects, ...closed.effects] };
+  /** The dock the thread was left in comes back as it was; only the panel's own page has to follow. */
+  return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed)] };
 }
 
 function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
@@ -538,13 +569,20 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "task.clear-archive": {
-      const tasks = state.tasks.filter((task) => task.archivedAt === undefined);
-      if (tasks.length === state.tasks.length) return settled(state);
-      return settled({
-        ...state,
-        tasks,
-        currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
-      });
+      if (state.tasks.every((task) => task.archivedAt === undefined)) return settled(state);
+      const discarded = new Set(state.tasks.filter((task) => task.archivedAt !== undefined).map((task) => task.id));
+      /** A fork of a thread that is gone has nowhere left to be shown, so it goes with it. */
+      const forks = closeSideChats(state, state.sideChats.filter((chat) => discarded.has(chat.sourceTaskId)));
+      const disposed = disposeDocks(forks.state, discarded);
+      const tasks = disposed.state.tasks.filter((task) => !discarded.has(task.id));
+      return {
+        state: {
+          ...disposed.state,
+          tasks,
+          currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
+        },
+        effects: [...forks.effects, ...disposed.effects],
+      };
     }
 
     case "task.rename": {
@@ -884,14 +922,13 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         createdAt: now(),
         updatedAt: now(),
       };
-      return settled({
+      const opened: WorkspaceState = {
         ...state,
         tasks: [...state.tasks, task],
         sideChats: [...state.sideChats, { id: input.chatId, sourceTaskId: source.id, error: null }],
         sideChatSequence: sequence,
-        dockOpen: true,
-        dockTab: input.chatId,
-      });
+      };
+      return settled(showDockTab(opened, source.id, input.chatId));
     }
 
     case "side-chat.close": {
@@ -953,25 +990,24 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         automations: state.automations,
         focused: state.focused,
         sessionPanelOpen: state.sessionPanelOpen,
-        dockOpen: state.dockOpen,
-        dockPanels: state.dockPanels,
-        dockTab: state.dockTab,
-        browserTabs: state.browserTabs,
-        browserTabId: state.browserTabId,
+        docks: state.docks,
         browserOrigins: state.browserOrigins,
       });
 
     case "preferences.loaded": {
       /** A restored page keeps its record and gets its view back when the panel first shows it. */
-      const browserTabs = (input.preferences.browserTabs ?? []).flatMap((url): BrowserTab[] => {
-        const loadable = browserUrl(url);
-        return loadable ? [{ id: crypto.randomUUID(), url: loadable, title: "", loading: false, canGoBack: false, canGoForward: false }] : [];
-      });
+      const docks = { ...state.docks };
+      for (const [owner, urls] of Object.entries(input.preferences.browserTabs ?? {})) {
+        const browserTabs = urls.flatMap((url): BrowserTab[] => {
+          const loadable = browserUrl(url);
+          return loadable ? [{ id: crypto.randomUUID(), url: loadable, title: "", loading: false, canGoBack: false, canGoForward: false }] : [];
+        });
+        if (browserTabs.length) docks[owner] = { ...dockFor(state, owner), browserTabs, browserTabId: browserTabs[0].id };
+      }
       return settled({
         ...state,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
-        browserTabs,
-        browserTabId: browserTabs[0]?.id ?? null,
+        docks,
         browserOrigins: input.preferences.browserOrigins ?? [],
       });
     }
@@ -1025,91 +1061,106 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled(next, [{ type: "persist-preferences", preferences: viewPreferences(next) }]);
     }
 
-    case "view.set-settings-open":
-      return settled({ ...state, settingsOpen: input.open, ...(input.open ? { dockOpen: false } : { computerUseSetup: false }) });
-
-    case "view.close-tab": {
-      if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
-      if (!state.dockOpen) return settled(state, [{ type: "close-window" }]);
-      const kind = dockTabKind(state, state.dockTab);
-      if (kind === "picker") return settled({ ...state, dockOpen: false });
-      if (kind === "browser") return apply(state, { type: "browser.close-tab", tabId: state.dockTab });
-      if (kind === "terminal") return apply(state, { type: "terminal.close", terminalId: state.dockTab });
-      return apply(state, kind === "side-chat"
-        ? { type: "side-chat.close", chatId: state.dockTab }
-        : { type: "view.close-dock-panel", panel: state.dockTab });
+    case "view.set-settings-open": {
+      const owner = dockOwner(state);
+      const settings = { ...state, settingsOpen: input.open, ...(input.open ? {} : { computerUseSetup: false }) };
+      return settled(input.open ? withDock(settings, owner, { open: false }) : settings);
     }
 
-    case "view.set-dock-open":
-      return settled(state.dockOpen === input.open ? state : { ...state, dockOpen: input.open });
+    case "view.close-tab": {
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
+      if (!dock.open) return settled(state, [{ type: "close-window" }]);
+      const kind = dockTabKind(state, owner, dock.tab);
+      if (kind === "picker") return settled(withDock(state, owner, { open: false }));
+      if (kind === "browser") return apply(state, { type: "browser.close-tab", tabId: dock.tab });
+      if (kind === "terminal") return apply(state, { type: "terminal.close", terminalId: dock.tab });
+      return apply(state, kind === "side-chat"
+        ? { type: "side-chat.close", chatId: dock.tab }
+        : { type: "view.close-dock-panel", panel: dock.tab });
+    }
+
+    case "view.set-dock-open": {
+      const owner = dockOwner(state);
+      return settled(dockFor(state, owner).open === input.open ? state : withDock(state, owner, { open: input.open }));
+    }
 
     case "view.open-dock-panel": {
-      const dockPanels = state.dockPanels.includes(input.panel) ? state.dockPanels : [...state.dockPanels, input.panel];
-      const opened = { ...state, dockOpen: true, dockPanels, dockTab: input.panel };
-      return settled(opened, browserEffectsForTab(opened, input.panel));
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      const panels = dock.panels.includes(input.panel) ? dock.panels : [...dock.panels, input.panel];
+      const opened = withDock(state, owner, { open: true, panels, tab: input.panel });
+      return settled(opened, browserEffectsForTab(opened, owner, input.panel));
     }
 
     case "view.close-dock-panel": {
-      if (!state.dockPanels.includes(input.panel)) return settled(state);
-      const dockTab = state.dockTab === input.panel ? dockTabAfterClosing(state, input.panel) : state.dockTab;
-      const closed = { ...state, dockPanels: state.dockPanels.filter((panel) => panel !== input.panel), dockTab };
-      return settled(closed, browserEffectsForTab(closed, dockTab));
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      if (!dock.panels.includes(input.panel)) return settled(state);
+      const tab = dock.tab === input.panel ? dockTabAfterClosing(state, owner, input.panel) : dock.tab;
+      const closed = withDock(state, owner, { panels: dock.panels.filter((panel) => panel !== input.panel), tab });
+      return settled(closed, browserEffectsForTab(closed, owner, tab));
     }
 
     case "view.select-dock-tab": {
-      const kind = dockTabKind(state, input.tab);
-      const selected = {
-        ...state,
-        dockTab: input.tab,
-        dockOpen: true,
+      const owner = dockOwner(state);
+      const kind = dockTabKind(state, owner, input.tab);
+      const selected = withDock(state, owner, {
+        tab: input.tab,
+        open: true,
         ...(kind === "browser" ? { browserTabId: input.tab } : {}),
         ...(kind === "terminal" ? { terminalId: input.tab } : {}),
-      };
-      return settled(selected, browserEffectsForTab(selected, input.tab));
+      });
+      return settled(selected, browserEffectsForTab(selected, owner, input.tab));
     }
 
     case "browser.open": {
+      const owner = dockOwner(state, input.taskId);
       const url = browserUrl(input.url);
       if (!url) return settled({ ...state, actionError: BROWSER_URL_ERROR });
       const byUser = input.taskId === undefined;
-      if (!byUser && !browserAllowed(state, input.taskId!, url)) return askToBrowse(state, url, input.taskId!, input.tabId, input.newTab === true);
-      return loadBrowserPage(state, url, input.tabId, input.newTab === true, byUser);
+      if (!byUser && !browserAllowed(state, input.taskId!, url)) return askToBrowse(state, owner, url, input.taskId!, input.tabId, input.newTab === true);
+      return loadBrowserPage(state, owner, url, input.tabId, input.newTab === true, byUser);
     }
 
     case "browser.new-tab": {
-      const { state: opened, tab } = withBlankTab(state);
+      const { state: opened, tab } = withBlankTab(state, dockOwner(state));
       return settled(opened, [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }]);
     }
 
     case "browser.decide": {
       const approval = state.browserApproval;
       if (!approval) return settled(state);
+      const owner = dockOwner(state, approval.taskId);
       /** A blank tab only existed to carry the ask, so blocking takes it away again. */
-      if (!input.allow) return closeBrowserTab({ ...state, browserApproval: null }, approval.tabId, { onlyIfBlank: true });
+      if (!input.allow) return closeBrowserTab({ ...state, browserApproval: null }, owner, approval.tabId, { onlyIfBlank: true });
       const origin = browserOrigin(approval.url);
       const allowed = origin ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
-      return loadBrowserPage(allowed, approval.url, approval.tabId, approval.tabId === undefined, false);
+      return loadBrowserPage(allowed, owner, approval.url, approval.tabId, approval.tabId === undefined, false);
     }
 
     case "browser.select-tab": {
-      const tab = state.browserTabs.find((item) => item.id === input.tabId);
+      const owner = ownerOfBrowserTab(state, input.tabId) ?? dockOwner(state, input.taskId);
+      const tab = dockFor(state, owner).browserTabs.find((item) => item.id === input.tabId);
       if (!tab) return settled(state);
-      return settled({ ...showDockTab(state, tab.id), browserTabId: tab.id }, browserEffectsForTab(state, tab.id));
+      return settled(withDock(showDockTab(state, owner, tab.id), owner, { browserTabId: tab.id }), browserEffectsForTab(state, owner, tab.id));
     }
 
     case "browser.close-tab":
-      return closeBrowserTab(state, input.tabId);
+      return closeBrowserTab(state, ownerOfBrowserTab(state, input.tabId) ?? dockOwner(state, input.taskId), input.tabId);
 
     case "browser.go":
     case "browser.reload":
     case "browser.act": {
-      const target = browserTarget(state, input.tabId);
+      const owner = (input.tabId ? ownerOfBrowserTab(state, input.tabId) : undefined) ?? dockOwner(state, input.taskId);
+      const target = browserTarget(dockFor(state, owner), input.tabId);
       if (!target) return settled({ ...state, actionError: BROWSER_TAB_ERROR });
       if (input.type === "browser.act") return settled(state, [{ type: "browser.act", tabId: target.id, action: input.action }]);
       const effect: WorkspaceEffect = input.type === "browser.go"
         ? { type: "browser.history", tabId: target.id, delta: input.delta }
         : { type: "browser.reload", tabId: target.id };
-      return settled(patchBrowserTab(state, target.id, { loading: true, error: undefined }), [effect]);
+      return settled(patchBrowserTab(state, owner, target.id, { loading: true, error: undefined }), [effect]);
     }
 
     case "browser.clear-data": {
@@ -1118,6 +1169,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "terminal.open": {
+      const owner = dockOwner(state);
       const cwd = input.cwd ?? terminalFolder(state);
       if (!cwd) return settled({ ...state, actionError: TERMINAL_FOLDER_ERROR });
       const terminal: TerminalSession = {
@@ -1127,24 +1179,33 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         taskId: state.currentId,
         status: "running",
       };
-      const opened = showDockTab({ ...state, terminals: [...state.terminals, terminal], terminalId: terminal.id, actionError: null }, terminal.id);
+      const dock = dockFor(state, owner);
+      const opened = withDock({ ...state, actionError: null }, owner, {
+        open: true,
+        tab: terminal.id,
+        terminals: [...dock.terminals, terminal],
+        terminalId: terminal.id,
+      });
       return settled(opened, [{ type: "terminal.start", terminalId: terminal.id, cwd }]);
     }
 
     case "terminal.select": {
-      if (!state.terminals.some((terminal) => terminal.id === input.terminalId)) return settled(state);
-      return settled({ ...showDockTab(state, input.terminalId), terminalId: input.terminalId });
+      const owner = ownerOfTerminal(state, input.terminalId);
+      if (!owner) return settled(state);
+      return settled(withDock(showDockTab(state, owner, input.terminalId), owner, { terminalId: input.terminalId }));
     }
 
     case "terminal.close": {
-      const index = state.terminals.findIndex((terminal) => terminal.id === input.terminalId);
-      if (index === -1) return settled(state);
-      const dockTab = state.dockTab === input.terminalId ? dockTabAfterClosing(state, input.terminalId) : state.dockTab;
-      const terminals = state.terminals.filter((terminal) => terminal.id !== input.terminalId);
-      const next = state.terminalId === input.terminalId
+      const owner = ownerOfTerminal(state, input.terminalId);
+      if (!owner) return settled(state);
+      const dock = dockFor(state, owner);
+      const index = dock.terminals.findIndex((terminal) => terminal.id === input.terminalId);
+      const tab = dock.tab === input.terminalId ? dockTabAfterClosing(state, owner, input.terminalId) : dock.tab;
+      const terminals = dock.terminals.filter((terminal) => terminal.id !== input.terminalId);
+      const next = dock.terminalId === input.terminalId
         ? terminals[index - 1] ?? terminals[index] ?? null
-        : terminals.find((terminal) => terminal.id === state.terminalId) ?? null;
-      return settled({ ...state, terminals, terminalId: next?.id ?? null, dockTab }, [{ type: "terminal.close", terminalId: input.terminalId }]);
+        : terminals.find((terminal) => terminal.id === dock.terminalId) ?? null;
+      return settled(withDock(state, owner, { terminals, terminalId: next?.id ?? null, tab }), [{ type: "terminal.close", terminalId: input.terminalId }]);
     }
 
     /** Keystrokes and the size the shell believes it has. Neither is state, so only the effect happens. */
@@ -1156,20 +1217,21 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "terminal.updated": {
       const { terminalId, ...patch } = input.update;
-      if (!state.terminals.some((terminal) => terminal.id === terminalId)) return settled(state);
-      return settled({
-        ...state,
-        terminals: state.terminals.map((terminal) => terminal.id === terminalId ? { ...terminal, ...patch } : terminal),
-      });
+      const owner = ownerOfTerminal(state, terminalId);
+      if (!owner) return settled(state);
+      return settled(withDock(state, owner, {
+        terminals: dockFor(state, owner).terminals.map((terminal) => terminal.id === terminalId ? { ...terminal, ...patch } : terminal),
+      }));
     }
 
     case "browser.updated": {
       const { tabId, ...patch } = input.page;
-      const current = state.browserTabs.find((tab) => tab.id === tabId);
-      if (!current) return settled(state);
+      const owner = ownerOfBrowserTab(state, tabId);
+      const current = owner ? dockFor(state, owner).browserTabs.find((tab) => tab.id === tabId) : undefined;
+      if (!owner || !current) return settled(state);
       /** Landing on a different page clears the error the page before it left behind. */
       const clearing = current.error !== undefined && patch.error === undefined && patch.url !== undefined && patch.url !== current.url;
-      const updated = patchBrowserTab(state, tabId, clearing ? { ...patch, error: undefined } : patch);
+      const updated = patchBrowserTab(state, owner, tabId, clearing ? { ...patch, error: undefined } : patch);
       return settled(updated, patch.url === undefined ? [] : persistView(updated));
     }
 
@@ -1229,7 +1291,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** Only a task the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
   const spent = existing ? {} : { draftBranch: null, draftWorktree: false };
-  const started = beginRun({ ...state, tasks, ...spent, ...(focusing ? { currentId: task.id } : {}) }, task.id, pending.runId);
+  const owning = focusing ? handOverDraftDock(state, task.id) : state;
+  const started = beginRun({ ...owning, tasks, ...spent, ...(focusing ? { currentId: task.id } : {}) }, task.id, pending.runId);
   const drained = pending.queuedIds
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;

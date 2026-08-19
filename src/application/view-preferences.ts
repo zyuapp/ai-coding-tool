@@ -10,6 +10,17 @@ function urlList(value: unknown): string[] | undefined {
   return value.filter((item): item is string => typeof item === "string" && item.length > 0 && item.length <= 8_192).slice(0, MAX_REMEMBERED);
 }
 
+/** The pages a thread's dock reopens. A thread whose entry is unreadable simply reopens none. */
+function urlsByThread(value: unknown): Record<string, string[]> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const threads: Record<string, string[]> = {};
+  for (const [owner, urls] of Object.entries(value as Record<string, unknown>).slice(0, MAX_REMEMBERED)) {
+    const list = urlList(urls);
+    if (list?.length) threads[owner] = list;
+  }
+  return threads;
+}
+
 /** Anything unreadable reports no preference, so the caller's default decides. */
 export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPreferences> {
   try {
@@ -17,7 +28,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     if (raw === null) return {};
     const value = JSON.parse(raw) as Record<string, unknown>;
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    const browserTabs = urlList(value.browserTabs);
+    const browserTabs = urlsByThread(value.browserTabs);
     const browserOrigins = urlList(value.browserOrigins);
     return {
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
