@@ -44,6 +44,81 @@ test("SQLite task storage appends and updates messages without rewriting the tra
   }
 });
 
+test("SQLite task storage keeps subagent activity in rows of its own", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "claudex-subagent-database-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const database = new TaskDatabase(file);
+  const task = {
+    id: "task-1",
+    title: "Delegate",
+    executionPolicy: "confirm",
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+  };
+  const subagent = { id: "agent-1", description: "Explore", status: "working", startedAt: 1 };
+  try {
+    database.persist({
+      tasks: [{
+        task,
+        messages: [],
+        subagents: [{ index: 0, subagent }],
+        activity: [{ subagentId: "agent-1", index: 0, item: { id: "activity-1", kind: "text", text: "Reading", at: 1 } }],
+      }],
+    });
+    database.persist({
+      tasks: [{
+        task: { ...task, updatedAt: 3 },
+        messages: [],
+        subagents: [{ index: 0, subagent: { ...subagent, status: "completed", finishedAt: 4 } }],
+        activity: [{ subagentId: "agent-1", index: 1, item: { id: "activity-2", kind: "tool", title: "Grep", text: "hits", at: 2 } }],
+      }],
+    });
+
+    const loaded = database.load();
+    assert.deepEqual(loaded.tasks[0].subagents[0].activity.map((item) => item.id), ["activity-1", "activity-2"]);
+    assert.equal(loaded.tasks[0].subagents[0].status, "completed");
+    assert.equal(JSON.parse(new DatabaseSync(file).prepare("SELECT data FROM tasks WHERE id = 'task-1'").get().data).subagents, undefined);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("SQLite task storage lifts subagents out of tasks written before they had rows", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "claudex-subagent-migration-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const legacy = new TaskDatabase(file);
+  const task = {
+    id: "task-1",
+    title: "Delegate",
+    executionPolicy: "confirm",
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+    subagents: [{
+      id: "agent-1",
+      description: "Explore",
+      status: "completed",
+      startedAt: 1,
+      finishedAt: 2,
+      activity: [{ id: "activity-1", kind: "text", text: "Reading", at: 1 }],
+    }],
+  };
+  legacy.persist({ tasks: [{ task, messages: [] }] });
+  legacy.close();
+
+  const database = new TaskDatabase(file);
+  try {
+    const loaded = database.load();
+    assert.deepEqual(loaded.tasks[0].subagents, task.subagents);
+    assert.equal(JSON.parse(new DatabaseSync(file).prepare("SELECT data FROM tasks WHERE id = 'task-1'").get().data).subagents, undefined);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true });
+  }
+});
+
 test("SQLite automation storage keeps one row per task and drops unreadable rows", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "claudex-automation-database-"));
   const file = path.join(directory, "tasks.sqlite");

@@ -2,7 +2,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type Automa
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
-import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -11,10 +11,16 @@ import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
 
-export type PersistedTask = Omit<Task, "messages">;
+export type PersistedTask = Omit<Task, "messages" | "subagents">;
+export type PersistedSubagent = Omit<Subagent, "activity">;
 
 export type TaskStoreDelta = {
-  tasks: Array<{ task: PersistedTask; messages: Array<{ index: number; message: TaskMessage }> }>;
+  tasks: Array<{
+    task: PersistedTask;
+    messages: Array<{ index: number; message: TaskMessage }>;
+    subagents?: Array<{ index: number; subagent: PersistedSubagent }>;
+    activity?: Array<{ subagentId: string; index: number; item: SubagentActivity }>;
+  }>;
   removedTasks?: string[];
   projects?: Project[];
   lastFolder?: string | null;

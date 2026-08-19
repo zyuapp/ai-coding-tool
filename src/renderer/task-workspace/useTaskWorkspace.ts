@@ -4,10 +4,10 @@ import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscr
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
-import type { PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
+import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import { terminalLineLimit } from "../../domain/terminal";
-import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
+import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivity } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
@@ -37,8 +37,30 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
 }
 
 function persistedTask(task: Task): PersistedTask {
-  const { messages: _messages, ...record } = task;
+  const { messages: _messages, subagents: _subagents, ...record } = task;
   return record;
+}
+
+function persistedSubagent(subagent: Subagent): PersistedSubagent {
+  const { activity: _activity, ...record } = subagent;
+  return record;
+}
+
+/** Only the subagents and activity items the last write did not already hold. */
+function subagentDelta(before: Task | undefined, task: Task) {
+  const previous = new Map((before?.subagents ?? []).map((subagent) => [subagent.id, subagent]));
+  const subagents: Array<{ index: number; subagent: PersistedSubagent }> = [];
+  const activity: Array<{ subagentId: string; index: number; item: SubagentActivity }> = [];
+  (task.subagents ?? []).forEach((subagent, index) => {
+    const stored = previous.get(subagent.id);
+    if (stored === subagent) return;
+    subagents.push({ index, subagent: persistedSubagent(subagent) });
+    subagent.activity.forEach((item, position) => {
+      if (stored?.activity[position] === item) return;
+      activity.push({ subagentId: subagent.id, index: position, item });
+    });
+  });
+  return { subagents, activity };
 }
 
 /** A side chat's thread never reaches the store, so it is filtered out on both sides of the delta. */
@@ -59,7 +81,13 @@ function persistenceDelta(previous: WorkspaceState | null, next: WorkspaceState)
       const before = previousTasks.get(task.id);
       if (before === task) return [];
       const messages = task.messages.flatMap((message, index) => before?.messages[index] === message ? [] : [{ index, message }]);
-      return [{ task: persistedTask(task), messages }];
+      const { subagents, activity } = subagentDelta(before, task);
+      return [{
+        task: persistedTask(task),
+        messages,
+        ...(subagents.length ? { subagents } : {}),
+        ...(activity.length ? { activity } : {}),
+      }];
     }),
     ...(!previous || previous.projects !== next.projects ? { projects: next.projects } : {}),
     ...(!previous || previous.lastFolder !== next.lastFolder ? { lastFolder: next.lastFolder } : {}),

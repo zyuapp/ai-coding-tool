@@ -1251,8 +1251,9 @@ test("workspace hook keeps subagents when the task continues", async () => {
 
   assert.equal(workspace.get().subagents[0].description, "Inspect");
   await act(async () => {});
-  const stored = desktop.persisted.flatMap((delta) => delta.tasks).findLast((change) => change.task.subagents?.length);
-  assert.equal(stored.task.subagents[0].description, "Inspect");
+  const stored = desktop.persisted.flatMap((delta) => delta.tasks).findLast((change) => change.subagents?.length);
+  assert.equal(stored.subagents[0].subagent.description, "Inspect");
+  assert.equal(stored.task.subagents, undefined);
   await workspace.view.unmount();
 });
 
