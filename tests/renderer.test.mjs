@@ -1824,7 +1824,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   await view.unmount();
 });
 
-test("a collapsed folder is revealed before the drag is measured, not after", async () => {
+test("a collapsed folder takes a drop as a strip the drag can measure, still folded", async () => {
   const task = (id, projectId) => ({
     id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
@@ -1872,9 +1872,10 @@ test("a collapsed folder is revealed before the drag is measured, not after", as
       handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
     });
 
-    assert.equal(shutList().className.includes("collapsed"), false, "the collapsed folder is revealed for the drag");
+    assert.equal(shutList().className.includes("collapsed"), false, "the folded folder becomes a drop strip");
     assert.ok(measured.length > 0, "the library measured the collapsed folder");
     assert.equal(measured.includes("hidden"), false, `measured while still collapsed: ${measured.join(",")}`);
+    assert.equal(shutList().querySelectorAll("[data-rfd-draggable-id]").length, 0, "the folder takes the drop without showing what it holds");
   } finally {
     dom.window.HTMLElement.prototype.getBoundingClientRect = original;
   }

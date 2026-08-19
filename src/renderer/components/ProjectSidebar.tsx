@@ -105,15 +105,15 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  /** Every folder accepts drops mid-drag, so a collapsed one is still a place to drop into.
-   *  Revealed before capture: a folder measured while `display: none` has no droppable bounds. */
+  /** A folded row becomes a thin drop strip for the length of a drag, so a collapsed folder is a
+   *  place to drop into without unfolding. Set before capture: a `display: none` droppable has no
+   *  bounds for the library to measure. */
   const [dragging, setDragging] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
 
-  /** A folder shows its first ten tasks, and enough more to keep the open one in view.
-   *  A drag reveals the rest, so every position in the folder is a place to drop into. */
+  /** A folder shows its first ten tasks, and enough more to keep the open one in view. */
   function visibleCount(projectTasks: Task[], projectId: string) {
-    if (dragging || showAllTasks.has(projectId)) return projectTasks.length;
+    if (showAllTasks.has(projectId)) return projectTasks.length;
     const current = projectTasks.findIndex((task) => task.id === currentId);
     return Math.max(PROJECT_TASK_LIMIT, current + 1);
   }
@@ -287,16 +287,16 @@ export function ProjectSidebar({
                 <Droppable droppableId={project.id} type="task">
                   {(provided) => (
                     <div
-                      className={`project-tasks ${expanded || dragging ? "" : "collapsed"}`}
+                      className={`project-tasks ${expanded ? "" : dragging ? "drop-strip" : "collapsed"}`}
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                     >
-                      {projectTasks.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
+                      {expanded && projectTasks.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
                       {provided.placeholder}
                     </div>
                   )}
                 </Droppable>
-                {expanded && !dragging && (hidden > 0 || showAllTasks.has(project.id)) && <button
+                {expanded && (hidden > 0 || showAllTasks.has(project.id)) && <button
                   className="project-show-more"
                   type="button"
                   onClick={() => toggleShowAll(project.id)}
@@ -325,13 +325,13 @@ export function ProjectSidebar({
         <Droppable droppableId={RECENTS_DROPPABLE} type="task">
           {(provided, snapshot) => (
             <nav
-              className={`task-list ${recentsOpen || dragging ? "" : "collapsed"}`}
+              className={`task-list ${recentsOpen ? "" : dragging ? "drop-strip" : "collapsed"}`}
               aria-label="Project-less tasks"
               ref={provided.innerRef}
               {...provided.droppableProps}
             >
-              {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
-              {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
+              {recentsOpen && recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
+              {recentsOpen && recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
                   <span>{task.title}</span>
                   <small>{formatTime(task.updatedAt)}</small>
                 </span>))}

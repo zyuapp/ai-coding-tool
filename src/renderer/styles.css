@@ -395,6 +395,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
+/** A folded row keeps bounds a drag can measure and land in, without showing what it holds. */
+.project-tasks.drop-strip, .task-list.drop-strip { display: block; min-height: 12px; }
 .project-show-more {
   height: 24px;
   display: block;
