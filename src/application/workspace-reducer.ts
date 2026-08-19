@@ -269,6 +269,14 @@ function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, proje
   };
 }
 
+/**
+ * Whether a thread is working, counting the moment between a send and the checkout it resolves to.
+ * A run that has not started yet still has an answer on its way about where it will happen.
+ */
+function threadBusy(state: WorkspaceState, taskId: string) {
+  return Boolean(state.activeRuns[taskId]) || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId);
+}
+
 /** Whether a run is going in a checkout, so nothing moves the ground under it. */
 function runsInWorkspace(state: WorkspaceState, workspaceId: string | undefined) {
   if (!workspaceId) return false;
@@ -450,7 +458,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
       /** With no thread yet the answer is a draft: the checkout is made when the first message goes. */
       if (!task) return settled(input.taskId === undefined ? { ...state, draftWorktree: input.worktree } : state);
-      if (state.activeRuns[task.id]) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
+      if (threadBusy(state, task.id)) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
       if (input.worktree) {
         if (task.worktree) return settled(state);
         const project = projectFor(state, task);
@@ -485,7 +493,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const taskId = targetId(state, input.taskId);
       const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
       if (!task?.worktree) return settled(state);
-      if (state.activeRuns[task.id]) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
+      if (threadBusy(state, task.id)) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
       return settled({ ...state, actionError: null }, [{ type: "delete-worktree", taskId: task.id, root: task.worktree.root }]);
     }
 
@@ -691,7 +699,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const { fire } = input;
       const decline: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
       const task = state.tasks.find((item) => item.id === fire.taskId);
-      if (!task || task.archivedAt !== undefined || state.activeRuns[fire.taskId]) return settled(state, decline);
+      /** A send still resolving is a run too, and two of them would make two checkouts. */
+      if (!task || task.archivedAt !== undefined || threadBusy(state, fire.taskId)) return settled(state, decline);
       const project = projectFor(state, task);
       if (task.projectId && !project?.workspaceId) return settled(state, decline);
       const pending: PendingRun = {

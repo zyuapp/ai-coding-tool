@@ -39,6 +39,7 @@ export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary 
     title: task.title,
     ...(task.projectId ? { projectId: task.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
+    ...(task.worktree ? { worktreeRoot: task.worktree.root } : {}),
     status: threadBusy(state, task.id) ? "running" : runStatusFor(state, task.id),
     archived: task.archivedAt !== undefined,
     createdAt: threadCreatedAt(task),

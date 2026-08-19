@@ -121,14 +121,19 @@ export class WorktreeService {
       if (!entry.isDirectory()) continue;
       const root = path.join(this.worktreesRoot, entry.name);
       if (claimed.has(root)) continue;
-      await this.release({
-        worktreeId: worktreeIdFromDirectoryName(entry.name),
-        root,
-        taskId: null,
-        title: entry.name,
-        release: "evicted",
-      });
-      reaped.push(root);
+      /** One directory that cannot be read is not a reason to leave every other one behind. */
+      try {
+        await this.release({
+          worktreeId: worktreeIdFromDirectoryName(entry.name),
+          root,
+          taskId: null,
+          title: entry.name,
+          release: "evicted",
+        });
+        reaped.push(root);
+      } catch (error) {
+        console.error(`Could not reap the worktree at ${root}:`, error);
+      }
     }
     /** A registration outlives its directory whenever one is removed from outside the app. */
     for (const record of await this.workspaces.listWorktrees()) {

@@ -345,7 +345,15 @@ async function checkForUpdates() {
 async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeService) {
   try {
     const claimed = database.claimedWorktrees();
-    const { reaped } = await worktrees.reconcile({ claimed, repositories: database.load()?.projects.map((project) => project.root) ?? [] });
+    /** A store too damaged to read still must not stop the checkouts on disk from being tidied. */
+    const repositories = (() => {
+      try {
+        return database.load()?.projects.map((project) => project.root) ?? [];
+      } catch {
+        return [];
+      }
+    })();
+    const { reaped } = await worktrees.reconcile({ claimed, repositories });
     const missing = claimed.filter((root) => !existsSync(root));
     const forgotten = database.forgetWorktrees(missing);
     if (reaped.length || forgotten) console.log(`Reconciled worktrees: reaped ${reaped.length}, released ${forgotten}.`);

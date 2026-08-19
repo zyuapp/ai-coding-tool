@@ -25,7 +25,8 @@ function elapsed(ms: number) {
 function describe(thread: ThreadSummary, at: number) {
   const parts = [
     `${thread.title} [${thread.id}]`,
-    thread.projectRoot ?? "no project",
+    thread.worktreeRoot ?? thread.projectRoot ?? "no project",
+    ...(thread.worktreeRoot ? ["worktree"] : []),
     thread.status,
     `${thread.messageCount} messages`,
     ...(thread.attachmentCount ? [`${thread.attachmentCount} with images`] : []),

@@ -130,3 +130,14 @@ test("a wait reports the thread and the last thing it said", () => {
   assert.equal(threadWaitResult(state, "missing", false), null);
   assert.equal(threadWaitResult(workspace([task("silent")]), "silent", true).reply, null);
 });
+
+test("a thread in a worktree reports the checkout it actually works in", () => {
+  const worktree = { id: "wt1", root: "/worktrees/app-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
+  const state = workspace([task("task-a", { projectId: "project-app", worktree }), task("task-b", { projectId: "project-app" })]);
+
+  const [inWorktree, local] = threadSummaries(state, { scope: { kind: "all" } }, NOW).sort((left, right) => left.id.localeCompare(right.id));
+
+  assert.equal(inWorktree.worktreeRoot, "/worktrees/app-wt1");
+  assert.equal(inWorktree.projectRoot, "/code/app", "it still belongs to its project");
+  assert.equal(local.worktreeRoot, undefined);
+});

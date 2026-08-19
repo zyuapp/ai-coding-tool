@@ -1119,3 +1119,27 @@ test("a thread starting on another branch in a worktree ignores the runs in the 
   assert.equal(sending.effects[0].checkout, undefined, "a checkout of its own never moves the project");
   assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false, branch: "feature-x" });
 });
+
+test("a thread cannot change where it works while a send is still finding its checkout", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+
+  const asked = reduce(state, { type: "task.set-worktree", worktree: true });
+  const sending = reduce(asked.state, { type: "task.send", attachments: [] });
+  const changedMind = reduce(sending.state, { type: "task.set-worktree", worktree: false });
+
+  assert.deepEqual(changedMind.effects, [], "the checkout being made is not abandoned half way");
+  assert.equal(changedMind.state.actionError, WORKSPACE_ERRORS.worktreeRunning);
+  assert.equal(changedMind.state.tasks[0].worktreeWanted, true);
+});
+
+test("an automation waits for a send that is still finding its checkout", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id, worktreeWanted: true })], currentId: "task-a", prompts: { "task-a": "Go" } });
+
+  const sending = reduce(state, { type: "task.send", attachments: [] });
+  const fired = reduce(sending.state, {
+    type: "automation.fired",
+    fire: { automationId: "automation-1", taskId: "task-a", runId: "run-b", runNumber: 2, prompt: "Tick" },
+  });
+
+  assert.deepEqual(fired.effects, [{ type: "automation.ack", ack: { automationId: "automation-1", runId: "run-b", started: false } }], "two runs would make two checkouts");
+});

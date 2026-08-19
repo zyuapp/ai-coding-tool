@@ -35,6 +35,8 @@ export type ThreadSummary = {
   title: string;
   projectId?: string;
   projectRoot?: string;
+  /** The checkout of its own the thread works in, when it has one. */
+  worktreeRoot?: string;
   status: "idle" | "running" | "stopped";
   archived: boolean;
   createdAt: number;
