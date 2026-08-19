@@ -946,10 +946,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   line-height: 1.7;
 }
 .message.system {
-  border-left: 2px solid var(--danger);
+  border-left: 2px solid var(--line-mid);
   padding: 2px 0 2px 13px;
-  color: var(--danger-soft);
+  color: var(--muted);
 }
+.message.system.error { border-left-color: var(--danger); color: var(--danger-soft); }
+.message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-content); }
 .markdown-body { min-width: 0; white-space: normal; overflow-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }

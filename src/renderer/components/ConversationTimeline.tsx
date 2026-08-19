@@ -7,6 +7,7 @@ import type { StreamingTail } from "../../application/task-workspace";
 import type { Task, TaskMessage } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { RevealedTextProvider, StreamingText } from "./StreamingText";
+import { SystemNotice } from "./SystemNotice";
 
 function FolderIcon() {
   return (
@@ -358,8 +359,10 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                     : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} onSelectTask={onSelectTask} />}
                   {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} onSelectTask={onSelectTask} /></div>}
                 </article>
+              ) : message!.kind === "system" ? (
+                <SystemNotice message={message!} />
               ) : (
-                <article className={`message ${message!.kind}`}>
+                <article className="message user">
                   <div className="message-stack">
                     {message!.attachments?.length ? (
                       <div className="message-attachments">
@@ -376,7 +379,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                         ))}
                       </div>
                     ) : null}
-                    {message!.kind === "user" && message!.detail && <div className="message-origin">{message!.detail}</div>}
+                    {message!.detail && <div className="message-origin">{message!.detail}</div>}
                     {message!.text && <div className="message-text">{message!.text}</div>}
                   </div>
                 </article>

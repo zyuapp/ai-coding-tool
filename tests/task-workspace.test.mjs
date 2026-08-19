@@ -149,6 +149,14 @@ test("terminal runs finalize only working subagents", () => {
   }
 });
 
+test("only a failure is toned as one; a compaction notice is not", () => {
+  const failed = applyRunEvent(state(), { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "failed", message: "provider failed" });
+  assert.equal(failed.tasks[0].messages.at(-1).tone, "error");
+
+  const compacted = applyRunEvent(state(), { type: "context.compacted", taskId: "task-a", runId: "run-a", sequence: 1, trigger: "auto", preTokens: 120_000, postTokens: 40_000 });
+  assert.equal(compacted.tasks[0].messages.at(-1).tone, undefined);
+});
+
 test("subagent progress can arrive first and duplicate activity is ignored", () => {
   const progressed = applyRunEvent(state(), {
     type: "subagent.progress", taskId: "task-a", runId: "run-a", sequence: 1,

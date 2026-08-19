@@ -63,6 +63,10 @@ export function createTaskMessage(kind: TaskMessage["kind"], text: string, detai
   };
 }
 
+export function createFailureMessage(text: string): TaskMessage {
+  return { ...createTaskMessage("system", text), tone: "error" };
+}
+
 export function withActiveRun<T extends RunTransitionState>(state: T, taskId: string, run: ActiveRun | null): T {
   if (run) return { ...state, activeRuns: { ...state.activeRuns, [taskId]: run } } as T;
   const { [taskId]: _finished, ...activeRuns } = state.activeRuns;
@@ -123,7 +127,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
         updatedAt: now(),
       }));
     }
-    if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.message!)], updatedAt: now() }));
+    if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.message!)], updatedAt: now() }));
     return next;
   }
   if (event.type === "assistant.tail") {
@@ -148,7 +152,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "context.compaction-status") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.compacting ? "compacting" : "running" });
     return event.error
-      ? applyTask(activeState, event.taskId, (task) => ({ ...task, messages: [...task.messages, createTaskMessage("system", event.error!)], updatedAt: now() }))
+      ? applyTask(activeState, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.error!)], updatedAt: now() }))
       : activeState;
   }
   if (event.type === "context.compacted") {

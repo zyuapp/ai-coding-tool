@@ -10,6 +10,8 @@ export type TaskMessage = {
   kind: TaskMessageKind;
   text: string;
   detail?: string;
+  /** A system message is a neutral notice unless it reports a failure. */
+  tone?: "error";
   /** Absolute paths of images sent with this message. The agent reads them from disk; the timeline shows them inline. */
   attachments?: string[];
   at: number;
@@ -450,6 +452,7 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     typeof value.kind === "string" && isMessageKind(value.kind) &&
     typeof value.text === "string" &&
     (value.detail === undefined || typeof value.detail === "string") &&
+    (value.tone === undefined || value.tone === "error") &&
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
     finiteNumber(value.at);
 }
