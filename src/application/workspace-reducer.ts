@@ -42,6 +42,8 @@ export type WorkspaceEvent =
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
+  | { type: "worktree.created"; taskId: string; worktree: Worktree }
+  | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.deleted"; taskId: string }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult };
@@ -64,6 +66,7 @@ export type WorkspaceEffect =
       /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
       checkout?: { workspaceId: string; branch: string };
     }
+  | { type: "create-worktree"; taskId: string; projectRoot: string }
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "delete-worktree"; taskId: string; root: string }
   | { type: "start-run"; command: StartRunCommand }
@@ -230,7 +233,7 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     attachments: next.attachments,
     queuedIds: [next.id],
   };
-  return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, Boolean(task.worktreeWanted))]);
+  return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, false)]);
 }
 
 /**
@@ -288,7 +291,7 @@ function runsInWorkspace(state: WorkspaceState, workspaceId: string | undefined)
 
 /** A thread that has let go of its checkout is local again, and says so in its own timeline. */
 function clearWorktree(state: WorkspaceState, taskId: string, note: ReturnType<typeof createTaskMessage>): WorkspaceState {
-  return applyTask(state, taskId, ({ worktree: _released, worktreeWanted: _cleared, ...task }) => ({
+  return applyTask(state, taskId, ({ worktree: _released, ...task }) => ({
     ...task,
     messages: [...task.messages, note],
     updatedAt: now(),
@@ -444,9 +447,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     /**
-     * Only records the answer. The checkout is made inside the next send's workspace resolution, so
-     * a thread that changes its mind before sending leaves nothing behind. Turning it off gives back
-     * a checkout the thread already has, which commits whatever it still holds first.
+     * Moves the thread there and then, so it is never left saying it will move later. Turning it
+     * off hands the checkout back: what it still holds is committed first, and the directory goes.
      */
     case "task.set-worktree": {
       const taskId = targetId(state, input.taskId);
@@ -458,14 +460,9 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         if (task.worktree) return settled(state);
         const project = projectFor(state, task);
         if (!project?.workspaceId) return settled({ ...state, actionError: WORKTREE_PROJECT_ERROR });
-        return settled(applyTask({ ...state, actionError: null }, task.id, (item) => ({ ...item, worktreeWanted: true, updatedAt: now() })));
+        return settled({ ...state, actionError: null }, [{ type: "create-worktree", taskId: task.id, projectRoot: project.root }]);
       }
-      /** A wish is dropped where it stands; only a checkout that exists has to be handed back. */
-      if (!task.worktree) {
-        return settled(task.worktreeWanted
-          ? applyTask({ ...state, actionError: null }, task.id, ({ worktreeWanted: _dropped, ...item }) => ({ ...item, updatedAt: now() }))
-          : state);
-      }
+      if (!task.worktree) return settled(state);
       return settled({ ...state, actionError: null }, [{
         type: "release-worktree",
         taskId: task.id,
@@ -491,6 +488,21 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (threadBusy(state, task.id)) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
       return settled({ ...state, actionError: null }, [{ type: "delete-worktree", taskId: task.id, root: task.worktree.root }]);
     }
+
+    case "worktree.created": {
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      if (!task || task.worktree) return settled(state);
+      const note = createTaskMessage("system", `Moved into a worktree at ${input.worktree.root}`, `Detached at ${input.worktree.baseCommit.slice(0, 7)}`);
+      return settled(applyTask(state, input.taskId, (item) => ({
+        ...item,
+        worktree: input.worktree,
+        messages: [...item.messages, note],
+        updatedAt: now(),
+      })));
+    }
+
+    case "worktree.failed":
+      return settled({ ...state, actionError: input.message });
 
     case "worktree.released": {
       const task = state.tasks.find((item) => item.id === input.taskId);
@@ -545,7 +557,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         attachments: attachments.map((attachment) => attachment.path),
       };
       /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
-      const wantsWorktree = task ? Boolean(task.worktreeWanted) : (input.worktree ?? state.draftWorktree);
+      /** Only a thread yet to exist can start in a checkout of its own; one that exists already moved. */
+      const wantsWorktree = task ? false : (input.worktree ?? state.draftWorktree);
       const branch = task ? null : state.draftBranch;
       /** Starting from a branch without a checkout of its own moves the project, so nothing may be running in it. */
       if (branch && !wantsWorktree && project && runsInWorkspace(state, project.workspaceId)) {
@@ -711,7 +724,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         ...(fire.policy ? { policy: fire.policy } : {}),
         automationId: fire.automationId,
       };
-      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, Boolean(task.worktreeWanted))]);
+      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, false)]);
     }
 
     case "side-chat.open": {

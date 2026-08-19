@@ -257,12 +257,14 @@ export function App() {
             }}
             onOpenAutomations={() => openRightTab("automation")}
             onSetWorktree={(worktree) => {
+              /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */
+              const holding = workspace.environment?.status === "available" ? workspace.environment.files.length : 0;
               const question = worktree
-                ? "Give this thread a worktree? Your next message makes it a checkout of its own, and it works there from then on."
-                : workspace.location.kind === "pending"
-                  ? "Keep this thread in your project checkout? Nothing has been made yet."
-                  : "Return this thread to your project checkout? Anything uncommitted is committed first, then the worktree is removed.";
-              if (window.confirm(question)) void workspace.actions.setWorktree(worktree);
+                ? "Give this thread a worktree? It moves into a checkout of its own and works there from now on."
+                : holding
+                  ? `Return this thread to your project checkout? Its ${holding} uncommitted ${holding === 1 ? "change is" : "changes are"} committed first so nothing is lost, then the worktree is removed.`
+                  : null;
+              if (question === null || window.confirm(question)) void workspace.actions.setWorktree(worktree);
             }}
           />
         )}

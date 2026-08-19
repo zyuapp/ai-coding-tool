@@ -2065,15 +2065,12 @@ test("the session panel's thread menu offers the hand-off its location allows, a
   await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[0].click(); });
   assert.deepEqual(calls.worktree, [true]);
 
-  await view.render(panel({ kind: "pending" }, "session:location"));
-  assert.deepEqual(items(view), ["Stay local"], "a thread still waiting for a checkout has none to delete");
-  assert.match(view.container.querySelector(".session-location-row span:nth-of-type(2)").textContent, /Worktree on next message/);
-  await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[0].click(); });
-  assert.deepEqual(calls.worktree, [true, false], "changing its mind asks for the wish to be dropped");
-
   const worktree = { kind: "worktree", worktree: { id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 } };
   await view.render(panel(worktree, "session:location"));
   assert.deepEqual(items(view), ["Return to local"]);
+  assert.match(view.container.querySelector(".session-location-row span:nth-of-type(2)").textContent, /Worktree/);
+  await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[0].click(); });
+  assert.deepEqual(calls.worktree, [true, false]);
 
   await view.render(panel(worktree, "session:location", true));
   assert.equal(view.container.querySelector('[role="menuitem"]').disabled, true, "a running thread cannot change where it works");

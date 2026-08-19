@@ -45,8 +45,6 @@ type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
 /** One entry: it says where the thread works, and its menu carries the only move it has. */
 function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktree }: LocationRowProps) {
   const inWorktree = location.kind === "worktree";
-  /** A thread that has asked for a checkout has not moved yet; the next message is what moves it. */
-  const leaving = location.kind === "pending";
   const open = openMenu === LOCATION_MENU;
 
   return (
@@ -58,10 +56,8 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
           if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
         }}
       >
-        <span className="session-row-icon">{inWorktree || leaving ? <GitBranch size={18} /> : <House size={18} />}</span>
-        <span title={inWorktree ? location.worktree.root : leaving ? "A checkout of its own is made when you send the next message" : "Runs in your project checkout"}>
-          {inWorktree ? "Worktree" : leaving ? "Worktree on next message" : "Local"}
-        </span>
+        <span className="session-row-icon">{inWorktree ? <GitBranch size={18} /> : <House size={18} />}</span>
+        <span title={inWorktree ? location.worktree.root : "Runs in your project checkout"}>{inWorktree ? "Worktree" : "Local"}</span>
         <button
           className="menu-trigger"
           type="button"
@@ -74,8 +70,8 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
         {open && <div className="menu-popover session-menu-popover" role="menu">
           <button role="menuitem" disabled={runActive} onClick={() => {
             onSetOpenMenu(null);
-            onSetWorktree(!(inWorktree || leaving));
-          }}>{inWorktree ? "Return to local" : leaving ? "Stay local" : "Hand off to worktree"}</button>
+            onSetWorktree(!inWorktree);
+          }}>{inWorktree ? "Return to local" : "Hand off to worktree"}</button>
         </div>}
       </div>
     </div>

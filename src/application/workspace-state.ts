@@ -30,10 +30,9 @@ export type PendingRun = {
   queuedIds?: string[];
 };
 
-/** Where a thread's runs happen, and whether a checkout of its own is still on its way. */
+/** Where a thread's runs happen. */
 export type ThreadLocation =
   | { kind: "local" }
-  | { kind: "pending" }
   | { kind: "worktree"; worktree: Worktree };
 
 /**
@@ -194,9 +193,7 @@ export function taskWorkspaceId(state: WorkspaceState, task: Task | undefined) {
 }
 
 export function locationOf(task: Task | undefined): ThreadLocation {
-  if (task?.worktree) return { kind: "worktree", worktree: task.worktree };
-  if (task?.worktreeWanted) return { kind: "pending" };
-  return { kind: "local" };
+  return task?.worktree ? { kind: "worktree", worktree: task.worktree } : { kind: "local" };
 }
 
 /** Composer drafts live per task, with one draft per project for the not-yet-created task. */

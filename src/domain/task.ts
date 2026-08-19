@@ -101,7 +101,6 @@ export type Task = {
   /** The checkout this thread's runs happen in. Absent while it runs in the project itself. */
   worktree?: Worktree;
   /** Set once the user asks for a worktree; the worktree itself is made on the next send. */
-  worktreeWanted?: boolean;
   /** Absent on tasks written before threads were timestamped; {@link threadCreatedAt} fills those in. */
   createdAt?: number;
   updatedAt: number;
@@ -400,7 +399,6 @@ function isTaskBase(value: unknown): value is Task {
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.attention === undefined || isTaskAttention(value.attention)) &&
     (value.worktree === undefined || isWorktree(value.worktree)) &&
-    (value.worktreeWanted === undefined || typeof value.worktreeWanted === "boolean") &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&

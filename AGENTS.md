@@ -38,12 +38,12 @@ the sidebar, and its transcript. `resolveWorkspaceEffect` is the only place that
 checkout a run happens in, and `taskWorkspaceId` is the only place the panel and the environment
 read it from.
 
-Asking for a worktree only sets `worktreeWanted`. The directory is made on the next send, inside the
-workspace resolution the run already waits on, so a thread that changes its mind leaves nothing
-behind. Worktrees are detached at whatever the project has checked out and never get a branch; the
-thread makes one itself if it wants one. Switching back force-commits what the worktree still holds,
-keeps a detached snapshot reachable under `refs/claudex`, and then removes the directory; deleting
-keeps nothing at all.
+Asking for a worktree moves the thread there and then, carrying its uncommitted work across; a
+thread yet to exist is the only one that waits, since its checkout is made by its first message.
+Worktrees are detached at whatever the project has checked out and never get a branch; the thread
+makes one itself if it wants one. Switching back always removes the directory, and only work that
+would otherwise be lost is worth stopping for: a worktree holding uncommitted changes is
+force-committed first and kept reachable under `refs/claudex`, and a clean one just goes.
 
 A worktree belongs to exactly one thread, and a thread is the only thing that keeps one alive. On
 every start `reconcileWorktrees` reaps the checkouts under the worktrees root that no task claims —
