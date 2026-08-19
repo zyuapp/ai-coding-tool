@@ -32,6 +32,7 @@ dom.window.Element.prototype.getAnimations = () => [];
 const vite = await createServer({ logLevel: "silent", server: { middlewareMode: true }, appType: "custom", ssr: { noExternal: [/^@xterm\//] } });
 const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/SessionPanel.tsx");
 const { SubagentInspector } = await vite.ssrLoadModule("/src/renderer/components/SubagentInspector.tsx");
+const { AgentsPanel, matchSubagents } = await vite.ssrLoadModule("/src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/WorkspaceHeader.tsx");
 const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/MarkdownMessage.tsx");
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
@@ -173,6 +174,56 @@ test("session panel renders Git and subagent states and selects an agent", async
   await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Open a project to inspect Git/);
   await view.unmount();
+});
+
+test("the subagents panel windows a large roster, leads with failures, and filters it", async () => {
+  const many = Array.from({ length: 1000 }, (_, index) => ({
+    id: `agent-${index}`,
+    description: `Agent ${index}`,
+    status: index === 700 ? "failed" : index % 3 === 0 ? "working" : "completed",
+    ...(index % 3 === 0 ? { lastToolName: "Grep" } : {}),
+    startedAt: index,
+    activity: [],
+  }));
+  /** jsdom measures every row at nothing, which would fit the whole roster on one screen. */
+  Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+    configurable: true,
+    get() { return this.classList?.contains("subagent-row") ? 51 : 0; },
+  });
+  const view = await mount(React.createElement(AgentsPanel, { subagents: many, onSelect() {} }));
+  const list = view.container.querySelector(".agents-panel-list");
+  Object.defineProperty(list, "offsetWidth", { value: 360 });
+  Object.defineProperty(list, "offsetHeight", { value: 720 });
+  await act(async () => { for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer); });
+
+  const rows = view.container.querySelectorAll(".subagent-row").length;
+  assert.ok(rows > 0 && rows < 80, `a windowed list should draw a screenful, drew ${rows}`);
+  assert.match(view.container.querySelector(".subagent-group").textContent, /Failed/);
+  assert.match(view.container.textContent, /Agent 700/);
+
+  await act(async () => { view.container.querySelector('.agent-status-strip button.failed').click(); });
+  assert.deepEqual(
+    [...view.container.querySelectorAll(".subagent-list strong")].map((node) => node.textContent),
+    ["Agent 700"],
+  );
+
+  delete window.HTMLElement.prototype.offsetHeight;
+  await view.unmount();
+});
+
+test("the subagent search keeps what the query names, and the status keeps its own", async () => {
+  const subagents = [
+    { id: "a", description: "Explore renderer", status: "completed", startedAt: 1, activity: [] },
+    { id: "b", description: "Fix loader", status: "working", lastToolName: "Grep", startedAt: 2, activity: [] },
+    { id: "c", description: "Audit deps", status: "failed", startedAt: 3, activity: [] },
+  ];
+
+  assert.deepEqual(matchSubagents(subagents, null, "").map((subagent) => subagent.id), ["c", "b", "a"], "failures are read first");
+  assert.deepEqual(matchSubagents(subagents, null, "   ").map((subagent) => subagent.id), ["c", "b", "a"], "an empty search is not a filter");
+  assert.deepEqual(matchSubagents(subagents, "working", "").map((subagent) => subagent.id), ["b"]);
+  assert.deepEqual(matchSubagents(subagents, null, "LOADER").map((subagent) => subagent.id), ["b"], "case never decides a match");
+  assert.deepEqual(matchSubagents(subagents, null, "grep").map((subagent) => subagent.id), ["b"], "the tool a subagent is using is searchable");
+  assert.deepEqual(matchSubagents(subagents, "failed", "loader"), []);
 });
 
 test("subagent inspector renders activity and closes", async () => {

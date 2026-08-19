@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AlarmClock, Bot, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
@@ -6,7 +6,8 @@ import { BrowserPanel } from "./components/BrowserPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { AgentsPanel, SessionPanel } from "./components/SessionPanel";
+import { SessionPanel } from "./components/SessionPanel";
+import { AgentsPanel } from "./components/SubagentList";
 import { ThreadStartOptions } from "./components/ThreadStartOptions";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
@@ -120,10 +121,10 @@ export function App() {
     };
   }, [workspace.actions]);
 
-  function inspectSubagent(id: string) {
+  const inspectSubagent = useCallback((id: string) => {
     setSelectedSubagent(id);
     void workspace.actions.inspectSubagent(id);
-  }
+  }, [workspace.actions]);
 
   const dockPanels: DockPanel[] = [
     {
@@ -277,6 +278,7 @@ export function App() {
               inspectSubagent(id);
               openRightTab("agents");
             }}
+            onOpenAgents={() => openRightTab("agents")}
             onOpenAutomations={() => openRightTab("automation")}
             onSetWorktree={(worktree) => {
               /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */

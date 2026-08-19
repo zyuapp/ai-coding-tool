@@ -1,8 +1,9 @@
-import { AlarmClock, Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, House, XCircle } from "lucide-react";
+import { AlarmClock, FileDiff, GitBranch, House } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { Subagent } from "../../domain/run";
 import { PopoverMenu } from "./PopoverMenu";
+import { orderSubagents, SubagentRow } from "./SubagentList";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -14,6 +15,7 @@ export type SessionPanelProps = {
   subagents: Subagent[];
   automationCount: number;
   onSelect: (id: string) => void;
+  onOpenAgents: () => void;
   onOpenAutomations: () => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSetWorktree: (worktree: boolean) => void;
@@ -21,15 +23,8 @@ export type SessionPanelProps = {
 
 export const LOCATION_MENU = "session:location";
 
-function statusLabel(status: Subagent["status"]) {
-  return status === "working" ? "Working" : status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Stopped";
-}
-
-function StatusIcon({ status }: { status: Subagent["status"] }) {
-  if (status === "working") return <CircleDot className="agent-working-icon" size={16} />;
-  if (status === "completed") return <CheckCircle2 size={16} />;
-  return <XCircle size={16} />;
-}
+/** The sidebar carries the few that want reading; the whole roster lives in the Subagents panel. */
+const SIDEBAR_LIMIT = 6;
 
 function environmentMessage(environment: ChangedFilesResult | null, hasProject: boolean) {
   if (!hasProject) return "Open a project to inspect Git";
@@ -69,9 +64,10 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
   );
 }
 
-export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, automationCount, onSelect, onOpenAutomations, onSetOpenMenu, onSetWorktree }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, automationCount, onSelect, onOpenAgents, onOpenAutomations, onSetOpenMenu, onSetWorktree }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
+  const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
 
   return (
     <aside className="session-panel" aria-label="Session panel">
@@ -110,47 +106,14 @@ export function SessionPanel({ environment, hasProject, location, runActive, ope
                 <p className="session-empty">No subagents this session</p>
               ) : (
                 <div className="subagent-list" aria-live="polite">
-                  {subagents.map((subagent) => (
-                    <button key={subagent.id} onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
-                      <span className={`agent-orb ${subagent.status}`}><Bot size={15} /></span>
-                      <span><strong>{subagent.description}</strong><small>{subagent.lastToolName ? `Using ${subagent.lastToolName}` : statusLabel(subagent.status)}</small></span>
-                      <StatusIcon status={subagent.status} />
-                    </button>
-                  ))}
+                  {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
+                  {subagents.length > shown.length && (
+                    <button className="subagent-more" type="button" onClick={onOpenAgents}>View all {subagents.length}</button>
+                  )}
                 </div>
               )}
             </div>
       </div>
     </aside>
-  );
-}
-
-export function AgentsPanel({ subagents, onSelect }: Pick<SessionPanelProps, "subagents" | "onSelect">) {
-  const working = subagents.filter((subagent) => subagent.status === "working").length;
-
-  return (
-    <section className="agents-panel" aria-label="Agents">
-      <header className="agents-panel-heading">
-        <div><h2>Subagents</h2><p>Work delegated from this task</p></div>
-        {working > 0 && <span>{working} working</span>}
-      </header>
-      {subagents.length === 0 ? (
-        <div className="agents-panel-empty">
-          <span className="agent-orb"><Bot size={17} /></span>
-          <h2>No subagents yet</h2>
-          <p>Subagents created by the main task will appear here.</p>
-        </div>
-      ) : (
-        <div className="subagent-list agents-panel-list" aria-live="polite">
-          {subagents.map((subagent) => (
-            <button key={subagent.id} onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
-              <span className={`agent-orb ${subagent.status}`}><Bot size={15} /></span>
-              <span><strong>{subagent.description}</strong><small>{subagent.lastToolName ? `Using ${subagent.lastToolName}` : statusLabel(subagent.status)}</small></span>
-              <StatusIcon status={subagent.status} />
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }

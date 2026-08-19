@@ -1,24 +1,48 @@
-import { Bot, CheckCircle2, CircleDot, Wrench, X, XCircle } from "lucide-react";
-import type { Subagent } from "../../domain/run";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Bot, Wrench, X } from "lucide-react";
+import type { Subagent, SubagentActivity } from "../../domain/run";
+import { statusLabel, StatusIcon } from "./SubagentList";
 
-function statusLabel(status: Subagent["status"]) {
-  return status === "working" ? "Working" : status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Stopped";
-}
+/** How much of a log opens with the subagent. The rest is read backwards, a window at a time. */
+const TAIL = 60;
 
-function StatusIcon({ status }: { status: Subagent["status"] }) {
-  if (status === "working") return <CircleDot className="agent-working-icon" size={16} />;
-  if (status === "completed") return <CheckCircle2 size={16} />;
-  return <XCircle size={16} />;
+/** Above this many rows the log is windowed; a short log is cheaper drawn whole. */
+const VIRTUALIZE_ABOVE = 50;
+
+function activityItem(item: SubagentActivity) {
+  return item.kind === "tool" ? (
+    <details className="agent-tool">
+      <summary><Wrench size={14} />{item.title ?? "Tool"}</summary>
+      <pre>{item.text}</pre>
+    </details>
+  ) : (
+    <p className="agent-text">{item.text}</p>
+  );
 }
 
 export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; onClose: () => void }) {
+  const [limit, setLimit] = useState(TAIL);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const shown = useMemo(() => subagent.activity.slice(Math.max(0, subagent.activity.length - limit)), [subagent.activity, limit]);
+  const earlier = subagent.activity.length - shown.length;
+  const virtual = shown.length > VIRTUALIZE_ABOVE;
+  const virtualizer = useVirtualizer({
+    count: shown.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 40,
+    getItemKey: (index) => shown[index]?.id ?? index,
+    overscan: 8,
+    initialRect: { width: 360, height: 720 },
+  });
+
   return (
     <aside className="subagent-inspector" aria-label={`${subagent.description} details`}>
       <header className="inspector-header">
         <span>Subagent</span>
         <button type="button" aria-label="Close subagent details" onClick={onClose}><X size={18} /></button>
       </header>
-      <div className="inspector-scroll">
+      <div className="inspector-scroll" ref={scrollRef}>
         <div className="agent-detail-heading">
           <span className={`agent-orb ${subagent.status}`}><Bot size={17} /></span>
           <div>
@@ -36,16 +60,30 @@ export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; o
           </div>
         )}
         <div className="agent-activity" aria-live="polite">
-          {subagent.activity.length === 0 ? (
+          {earlier > 0 && (
+            <button className="agent-activity-earlier" type="button" onClick={() => setLimit(limit + TAIL)}>
+              Load earlier ({earlier})
+            </button>
+          )}
+          {shown.length === 0 ? (
             <p className="session-empty">Waiting for activity…</p>
-          ) : subagent.activity.map((item) => item.kind === "tool" ? (
-            <details className="agent-tool" key={item.id}>
-              <summary><Wrench size={14} />{item.title ?? "Tool"}</summary>
-              <pre>{item.text}</pre>
-            </details>
           ) : (
-            <p className="agent-text" key={item.id}>{item.text}</p>
-          ))}
+            <div className="agent-activity-items" style={virtual ? { height: virtualizer.getTotalSize() } : undefined}>
+              {virtual
+                ? virtualizer.getVirtualItems().map((row) => (
+                  <div
+                    className="agent-activity-row"
+                    key={row.key}
+                    data-index={row.index}
+                    ref={virtualizer.measureElement}
+                    style={{ transform: `translateY(${row.start}px)` }}
+                  >
+                    {activityItem(shown[row.index]!)}
+                  </div>
+                ))
+                : shown.map((item) => <div className="agent-activity-row static" key={item.id}>{activityItem(item)}</div>)}
+            </div>
+          )}
         </div>
       </div>
     </aside>
