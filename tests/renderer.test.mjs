@@ -348,6 +348,7 @@ function fakeDesktop(overrides = {}) {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], current: "main" }),
     checkoutBranch: async () => {},
+    createBranch: async () => {},
     createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
     releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
     deleteWorktree: async () => {},
@@ -2104,7 +2105,7 @@ test("the start options say where a thread begins, and searching narrows the bra
     branch,
     worktree,
     onSelectProject: (id) => { chosen.project.push(id); },
-    onSelectBranch: (name) => { chosen.branch.push(name); },
+    onSelectBranch: (name, create) => { chosen.branch.push(create ? { name, create } : name); },
     onSetWorktree: (on) => { chosen.worktree.push(on); },
   });
 
@@ -2127,15 +2128,61 @@ test("the start options say where a thread begins, and searching narrows the bra
   await act(async () => { branchOptions.find((option) => option.textContent === "fix-loader").click(); });
   assert.deepEqual(chosen.branch, ["fix-loader"]);
 
-  await view.render(options("fix-loader", false));
+  await view.render(options({ name: "fix-loader", create: false }, false));
   assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /fix-loader/);
   await act(async () => { view.container.querySelector('.thread-start-check input').click(); });
   assert.deepEqual(chosen.worktree, [true]);
   await view.unmount();
 });
 
+test("a branch the repository does not have is offered as one to create", async () => {
+  const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const chosen = [];
+  const options = (branch) => React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/claudex" }],
+    projectId: "project-a",
+    workspaceId: "workspace-a",
+    branch,
+    worktree: false,
+    onSelectProject() {},
+    onSelectBranch: (name, create) => { chosen.push({ name, create }); },
+    onSetWorktree() {},
+  });
+
+  const view = await mount(options(null));
+  await act(async () => { view.container.querySelector('button[aria-label="Starting branch"]').click(); });
+  const search = view.container.querySelector('input[aria-label="Search branches"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  const type = async (text) => {
+    await act(async () => {
+      setValue.call(search, text);
+      search.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+    });
+  };
+
+  await type("main");
+  assert.equal(
+    [...view.container.querySelectorAll('[role="option"]')].some((option) => /Create branch/.test(option.textContent)),
+    false,
+    "a name the repository already has is a branch to pick, not one to make",
+  );
+
+  await type("loader-fix");
+  const creating = [...view.container.querySelectorAll('[role="option"]')].find((option) => /Create branch/.test(option.textContent));
+  assert.match(creating.textContent, /loader-fix/);
+  await act(async () => { creating.click(); });
+  assert.deepEqual(chosen, [{ name: "loader-fix", create: true }]);
+
+  await view.render(options({ name: "loader-fix", create: true }));
+  const trigger = view.container.querySelector('button[aria-label="Starting branch"]');
+  assert.match(trigger.textContent, /loader-fix/);
+  assert.match(trigger.textContent, /new/, "a branch yet to exist says so");
+  await view.unmount();
+});
+
 test("a branch search keeps what the query names, and everything when it is empty", async () => {
-  const { matchBranches } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+  const { matchBranches, newBranchName } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   const branches = ["main", "fix-loader", "feature-x", "Fix-Encoding"];
 
   assert.deepEqual(matchBranches(branches, ""), branches);
@@ -2143,4 +2190,9 @@ test("a branch search keeps what the query names, and everything when it is empt
   assert.deepEqual(matchBranches(branches, "fix"), ["fix-loader", "Fix-Encoding"], "case never decides a match");
   assert.deepEqual(matchBranches(branches, "load"), ["fix-loader"], "a fragment anywhere in the name is enough");
   assert.deepEqual(matchBranches(branches, "nope"), []);
+
+  assert.equal(newBranchName(branches, "nope"), "nope");
+  assert.equal(newBranchName(branches, "  spaced  "), "spaced", "a name is what the query says, trimmed");
+  assert.equal(newBranchName(branches, "main"), null, "a branch that exists is picked rather than made");
+  assert.equal(newBranchName(branches, "   "), null);
 });

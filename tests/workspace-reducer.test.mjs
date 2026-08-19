@@ -962,7 +962,7 @@ test("a new thread starts from the branch the draft names, moving the project on
     { type: "task.set-branch", branch: "feature-x" },
     { type: "view.set-prompt", prompt: "Pick up the loader work" },
   ]);
-  assert.equal(deriveView(drafted).draftBranch, "feature-x");
+  assert.deepEqual(deriveView(drafted).draftBranch, { name: "feature-x", create: false });
 
   const sending = reduce(drafted, { type: "task.send", attachments: [] });
 
@@ -981,6 +981,35 @@ test("a new thread told to use a worktree detaches it from the branch instead", 
 
   assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false, branch: "feature-x" });
   assert.equal(sending.effects[0].checkout, undefined, "the project checkout is left where it is");
+});
+
+test("a branch the repository does not have yet is made before the thread starts from it", () => {
+  const drafted = run(projected(), [
+    { type: "task.set-branch", branch: "loader-fix", create: true },
+    { type: "view.set-prompt", prompt: "Pick up the loader work" },
+  ]);
+  assert.deepEqual(deriveView(drafted).draftBranch, { name: "loader-fix", create: true });
+
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+
+  assert.deepEqual(sending.effects[0].createBranch, { workspaceId: "workspace-a", branch: "loader-fix" });
+  assert.deepEqual(sending.effects[0].checkout, { workspaceId: "workspace-a", branch: "loader-fix" }, "the project checkout then moves onto it");
+
+  const worktreed = reduce(run(drafted, [{ type: "task.set-worktree", worktree: true }]), { type: "task.send", attachments: [] });
+
+  assert.deepEqual(worktreed.effects[0].createBranch, { workspaceId: "workspace-a", branch: "loader-fix" });
+  assert.deepEqual(worktreed.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false, branch: "loader-fix" });
+});
+
+test("a branch already in the repository is started from without being made", () => {
+  const drafted = run(projected(), [
+    { type: "task.set-branch", branch: "feature-x" },
+    { type: "view.set-prompt", prompt: "Go" },
+  ]);
+
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+
+  assert.equal(sending.effects[0].createBranch, undefined);
 });
 
 test("the draft answers belong to the thread being started, and reset once it exists", () => {

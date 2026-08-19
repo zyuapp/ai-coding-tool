@@ -564,6 +564,14 @@ ipcMain.handle("workspace:checkout-branch", async (event, workspaceId: unknown, 
   await checkoutBranch(resolution.workspace.root, worktreePath(branch));
 });
 
+ipcMain.handle("workspace:create-branch", async (event, workspaceId: unknown, branch: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const resolution = await getWorkspaceService().resolve(worktreePath(workspaceId));
+  if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+  const { createBranch } = await import("./workspace/git.mjs");
+  await createBranch(resolution.workspace.root, worktreePath(branch));
+});
+
 ipcMain.handle("worktree:create", async (event, request: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   const fields = worktreeRequest(request);

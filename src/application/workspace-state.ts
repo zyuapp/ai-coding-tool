@@ -77,6 +77,9 @@ export function sideChatIds(state: Pick<WorkspaceState, "sideChats">) {
   return new Set(state.sideChats.map((chat) => chat.id));
 }
 
+/** The branch a thread is to start from. `create` names one the repository does not have yet. */
+export type DraftBranch = { name: string; create: boolean };
+
 export type WorkspaceState = {
   tasks: Task[];
   projects: Project[];
@@ -88,7 +91,7 @@ export type WorkspaceState = {
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
   /** How the next new thread starts: which branch, and whether it gets a checkout of its own. */
-  draftBranch: string | null;
+  draftBranch: DraftBranch | null;
   draftWorktree: boolean;
   draftModel: AgentModel;
   draftEffort: AgentEffort;

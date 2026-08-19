@@ -1,5 +1,6 @@
-import { Check, ChevronDown, FolderGit2, GitBranch } from "lucide-react";
+import { Check, ChevronDown, FolderGit2, GitBranch, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { DraftBranch } from "../../application/workspace-state";
 import type { BranchesResult } from "../../contracts/ipc";
 import { projectName, type Project } from "../../domain/task";
 
@@ -8,12 +9,22 @@ export type ThreadStartOptionsProps = {
   projectId: string | null;
   /** The project's registered workspace, which is what the branches are read from. */
   workspaceId?: string;
-  branch: string | null;
+  branch: DraftBranch | null;
   worktree: boolean;
   onSelectProject: (projectId: string) => void;
-  onSelectBranch: (branch: string | null) => void;
+  /** `create` names a branch the repository does not have yet, made when the thread starts. */
+  onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
 };
+
+/**
+ * The branch a typed query would make: what the user typed, once it is a name no branch already has.
+ * Whitespace is never a branch name, so a query that is only spaces asks for nothing.
+ */
+export function newBranchName(branches: string[], query: string) {
+  const name = query.trim();
+  return name && !branches.includes(name) ? name : null;
+}
 
 /** Which branches a typed query keeps, matched loosely so a fragment of a name is enough. */
 export function matchBranches(branches: string[], query: string) {
@@ -62,8 +73,9 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
 
   const branches = result?.status === "available" ? result.branches : [];
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
-  const selected = branch ?? (result?.status === "available" ? result.current : null);
+  const selected = branch?.name ?? (result?.status === "available" ? result.current : null);
   const matches = matchBranches(branches, query);
+  const naming = newBranchName(branches, query);
 
   if (!project) return null;
 
@@ -97,6 +109,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         <button type="button" aria-label="Starting branch" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
           <GitBranch size={15} />
           <span>{selected ?? (result?.status === "error" ? "No branches" : "Current branch")}</span>
+          {branch?.create && <small>new</small>}
           <ChevronDown size={14} />
         </button>
         {branchesOpen && <div className="thread-start-popover">
@@ -106,10 +119,24 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
             placeholder="Search branches"
             autoFocus
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onInput={(event) => setQuery(event.currentTarget.value)}
           />
           <div role="listbox" aria-label="Branches">
-            {matches.length === 0 && <p className="thread-start-empty">{result ? "No branch matches" : "Reading branches…"}</p>}
+            {naming && (
+              <button
+                role="option"
+                aria-selected={false}
+                onClick={() => {
+                  setBranchesOpen(false);
+                  setQuery("");
+                  onSelectBranch(naming, true);
+                }}
+              >
+                <span>Create branch “{naming}”</span>
+                <Plus size={14} />
+              </button>
+            )}
+            {matches.length === 0 && !naming && <p className="thread-start-empty">{result ? "No branch matches" : "Reading branches…"}</p>}
             {matches.map((name) => (
               <button
                 key={name}

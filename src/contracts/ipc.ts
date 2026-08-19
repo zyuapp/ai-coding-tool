@@ -153,6 +153,8 @@ export type DesktopAPI = {
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
   /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */
   checkoutBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
+  /** Makes a branch at the checkout's own HEAD, without moving onto it. */
+  createBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
   /** Makes the thread's own checkout, detached at whatever the project has checked out right now. */
   createWorktree(request: CreateWorktreeRequest): Promise<Worktree>;
   /** Force-commits what the worktree still holds so the thread can leave it without losing work. */

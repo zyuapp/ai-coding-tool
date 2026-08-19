@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, viewPreferences, withPrompt, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, viewPreferences, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -59,6 +59,8 @@ export type WorkspaceEffect =
       workspaceId?: string;
       root?: string;
       createWorktree?: { projectRoot: string; carryChanges: boolean; branch?: string };
+      /** Makes the branch the thread starts from, at the project's own HEAD, before anything reads it. */
+      createBranch?: { workspaceId: string; branch: string };
       /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
       checkout?: { workspaceId: string; branch: string };
     }
@@ -235,18 +237,23 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
  * thread has asked for one, and otherwise the project itself. A thread that is moving takes its
  * uncommitted work with it; a thread starting in a worktree begins from a clean checkout.
  */
-function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, wantsWorktree: boolean, branch?: string | null): WorkspaceEffect {
+function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, wantsWorktree: boolean, branch?: DraftBranch | null): WorkspaceEffect {
   const worktree = task?.worktree;
   if (worktree) {
     return { type: "resolve-run-workspace", pendingId, picker: false, workspaceId: worktree.workspaceId, root: worktree.root };
   }
+  /** A branch the user named but the repository does not have yet is made before either path reads it. */
+  const making = branch?.create && project?.workspaceId
+    ? { createBranch: { workspaceId: project.workspaceId, branch: branch.name } }
+    : {};
   if (wantsWorktree && project?.workspaceId) {
     return {
       type: "resolve-run-workspace",
       pendingId,
       picker: false,
       root: project.root,
-      createWorktree: { projectRoot: project.root, carryChanges: Boolean(task), ...(branch ? { branch } : {}) },
+      ...making,
+      createWorktree: { projectRoot: project.root, carryChanges: Boolean(task), ...(branch ? { branch: branch.name } : {}) },
     };
   }
   return {
@@ -255,8 +262,9 @@ function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, proje
     picker: Boolean(project && !project.workspaceId),
     ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
     ...(project ? { root: project.root } : {}),
+    ...making,
     /** Without a checkout of its own, starting from a branch means moving the project onto it. */
-    ...(branch && project?.workspaceId ? { checkout: { workspaceId: project.workspaceId, branch } } : {}),
+    ...(branch && project?.workspaceId ? { checkout: { workspaceId: project.workspaceId, branch: branch.name } } : {}),
   };
 }
 
@@ -450,7 +458,11 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     /** Only a thread yet to be created can be told where to start; an existing one already is. */
     case "task.set-branch":
-      return settled({ ...state, draftBranch: input.branch, actionError: null });
+      return settled({
+        ...state,
+        draftBranch: input.branch === null ? null : { name: input.branch, create: Boolean(input.create) },
+        actionError: null,
+      });
 
     case "worktree.created": {
       const task = state.tasks.find((item) => item.id === input.taskId);

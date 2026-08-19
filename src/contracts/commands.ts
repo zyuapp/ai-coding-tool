@@ -29,7 +29,7 @@ export type TaskCommand =
    */
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
-  | { type: "task.set-branch"; branch: string | null }
+  | { type: "task.set-branch"; branch: string | null; create?: boolean }
   /**
    * While a run is going the message is queued instead; `steer` pushes it into that run straight away.
    * `text` sends that message instead of the composer draft and leaves the draft alone: only the

@@ -91,6 +91,11 @@ export async function listBranches(root: string) {
   return { branches, current };
 }
 
+/** Makes `branch` at the checkout's HEAD. Git refuses a name the repository already has. */
+export async function createBranch(root: string, branch: string) {
+  await git(root, ["branch", branch]);
+}
+
 /**
  * Moves the checkout onto `branch`. Never forced: Git refuses when the switch would overwrite
  * uncommitted work, and that refusal is the answer rather than something to override.
