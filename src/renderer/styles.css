@@ -1109,7 +1109,8 @@ pre {
 }
 .side-chat-composer textarea::placeholder { color: #515861; }
 .side-chat-composer textarea:disabled { cursor: not-allowed; }
-.side-chat-composer > p { margin: 7px 3px 0; color: #58606a; font-size: var(--text-meta); }
+.side-chat-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 7px 3px 0; }
+.side-chat-meta p { margin: 0; color: #58606a; font-size: var(--text-meta); }
 .inspector-header {
   display: flex;
   align-items: center;

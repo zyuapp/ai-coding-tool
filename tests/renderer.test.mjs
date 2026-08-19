@@ -42,6 +42,7 @@ const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/r
 const { RevealedTextProvider, StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 const { ProjectSidebar } = await vite.ssrLoadModule("/src/renderer/components/ProjectSidebar.tsx");
+const { SideChat } = await vite.ssrLoadModule("/src/renderer/components/SideChat.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -446,6 +447,53 @@ test("context usage stays within 100% when the window shrinks below the used tok
   assert.equal(usage.getAttribute("aria-label"), "100% of context window used");
   assert.match(usage.textContent, /100% used \(0% left\)/);
   assert.match(usage.textContent, /620K \/ 200K tokens used/);
+  await view.unmount();
+});
+
+test("a side chat shows its own context window and answers its own approval", async () => {
+  const decisions = [];
+  const chatTask = {
+    id: "chat-1",
+    title: "Side chat",
+    executionPolicy: "plan",
+    messages: [],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 1,
+    contextUsage: { tokens: 120_000, limit: 200_000, model: "claude-opus-5" },
+  };
+  const view = await mount(React.createElement(SideChat, {
+    chat: {
+      id: "chat-1",
+      title: "Chat 1",
+      sourceTaskId: "main-task",
+      prompt: "",
+      error: null,
+      task: chatTask,
+      running: true,
+      compacting: false,
+      status: "running",
+      streamingTail: null,
+      approval: { approvalId: "approval-1", taskId: "chat-1", runId: "run-1", title: "Run a command", description: "ls", toolName: "Bash", input: { command: "ls" } },
+    },
+    source: { ...chatTask, id: "main-task", title: "Main", continuation: { provider: "claude", value: "main-session" } },
+    onPrompt() {},
+    onSend() {},
+    onCancel() {},
+    onDecide(allow) { decisions.push(allow); },
+    onClose() {},
+    onSelectTask() {},
+  }));
+  await act(async () => {});
+
+  const usage = view.container.querySelector(".context-usage");
+  assert.equal(usage.getAttribute("aria-label"), "60% of context window used");
+  assert.match(usage.textContent, /120K \/ 200K tokens used/);
+
+  const approval = view.container.querySelector(".approval-card");
+  assert.match(approval.textContent, /Run a command/);
+  await act(async () => { [...approval.querySelectorAll("button")].at(-1).click(); });
+  assert.deepEqual(decisions, [true]);
   await view.unmount();
 });
 

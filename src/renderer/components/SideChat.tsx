@@ -3,6 +3,7 @@ import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
 import type { Project, Task } from "../../domain/task";
 import { ApprovalCard } from "./ApprovalCard";
+import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ConversationTimeline } from "./ConversationTimeline";
 
 export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onDecide, onClose, onSelectTask }: {
@@ -70,7 +71,10 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
             onClick={chat.running ? onCancel : onSend}
           >{chat.running ? <span className="stop-glyph" /> : "↑"}</button>
         </div>
-        <p>Read-only · closes without saving</p>
+        <div className="side-chat-meta">
+          <p>Read-only · closes without saving</p>
+          {chat.task.contextUsage && <ContextUsageMeter usage={chat.task.contextUsage} />}
+        </div>
       </footer>
     </aside>
   );

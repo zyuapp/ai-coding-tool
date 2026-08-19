@@ -1,10 +1,11 @@
 import { Brain, Check, Command, CornerDownRight, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, X, Zap, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
 import type { RunAttachment } from "../../domain/task";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
+import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 
 const MAX_ATTACHMENTS = 6;
@@ -140,7 +141,6 @@ export function TaskComposer({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const editing = attachments.find((attachment) => attachment.id === annotating);
-  const contextPercent = contextUsage ? Math.min(Math.round(contextUsage.tokens / contextUsage.limit * 100), 100) : 0;
   const slashQuery = prompt.match(/^\/([^\s]*)$/)?.[1].toLowerCase();
   const appCommand = { name: "side", description: "Open a focused side chat.", argumentHint: "", aliases: [] as string[], kind: "app" as const };
   const matchingCommands = slashQuery === undefined ? [] : [
@@ -366,16 +366,7 @@ export function TaskComposer({
             <ChoiceMenu label="Effort" heading="How hard should Claude think?" choices={efforts} value={effort} onChange={onEffortChange} />
           </div>
           <div className="composer-actions">
-            {contextUsage && (
-              <span className="context-usage" tabIndex={0} aria-label={`${contextPercent}% of context window used`} aria-describedby="context-usage-tooltip">
-                <span className="context-usage-ring" aria-hidden="true" style={{ "--context-progress": `${contextPercent}%` } as CSSProperties} />
-                <span className="context-usage-tooltip" id="context-usage-tooltip" role="tooltip">
-                  <span>Context window:</span>
-                  <strong>{contextPercent}% used ({100 - contextPercent}% left)</strong>
-                  <span className="context-usage-tokens">{contextUsage.tokens.toLocaleString("en-US", { notation: "compact" })} / {contextUsage.limit.toLocaleString("en-US", { notation: "compact" })} tokens used</span>
-                </span>
-              </span>
-            )}
+            {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
               disabled={!runActive && (sending || (!prompt.trim() && attachments.length === 0))}
