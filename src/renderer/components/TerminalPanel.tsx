@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Plus, SquareTerminal, X } from "lucide-react";
 import type { TerminalSession } from "../../domain/terminal";
-import { disposeTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
+import { disposeTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
 export type TerminalPanelProps = {
   terminals: TerminalSession[];
@@ -18,8 +18,16 @@ export type TerminalPanelProps = {
 export function TerminalPanel({ terminals, terminal, visible, onOpen, onSelect, onClose, onInput, onResize }: TerminalPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const drawn = useRef<string[]>([]);
+  /**
+   * Held in a ref rather than named as a dependency: showing a view moves its element into the
+   * viewport, and re-running that for a callback the parent rebuilt each render would take the
+   * keyboard off the terminal on every unrelated re-render.
+   */
+  const resized = useRef(onResize);
 
   useEffect(() => onTerminalInput(onInput), [onInput]);
+
+  useEffect(() => { resized.current = onResize; }, [onResize]);
 
   /** A view outlives the panel, so a terminal that is gone is the one thing that takes its view with it. */
   useEffect(() => {
@@ -37,7 +45,7 @@ export function TerminalPanel({ terminals, terminal, visible, onOpen, onSelect, 
       const box = element.getBoundingClientRect();
       if (box.width < 1 || box.height < 1) return;
       view.fit.fit();
-      onResize(terminal.id, view.terminal.cols, view.terminal.rows);
+      resized.current(terminal.id, view.terminal.cols, view.terminal.rows);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -46,7 +54,7 @@ export function TerminalPanel({ terminals, terminal, visible, onOpen, onSelect, 
       observer.disconnect();
       hideTerminalView(terminal.id);
     };
-  }, [terminal?.id, visible, onResize]);
+  }, [terminal?.id, visible]);
 
   return (
     <section className="terminal-panel" aria-label="Terminal">
@@ -70,7 +78,8 @@ export function TerminalPanel({ terminals, terminal, visible, onOpen, onSelect, 
         </p>
       )}
 
-      <div className="terminal-viewport" ref={viewport}>
+      {/** The viewport is wider than the rows it holds, so a click in the margin still means the shell. */}
+      <div className="terminal-viewport" ref={viewport} onMouseDown={() => terminal && focusTerminalView(terminal.id)}>
         {!terminal && (
           <div className="terminal-empty">
             <span className="agent-orb"><SquareTerminal size={17} /></span>

@@ -92,6 +92,10 @@ export function showTerminalView(terminalId: string, parent: HTMLElement) {
   return view;
 }
 
+export function focusTerminalView(terminalId: string) {
+  views.get(terminalId)?.terminal.focus();
+}
+
 export function hideTerminalView(terminalId: string) {
   views.get(terminalId)?.container.remove();
 }
