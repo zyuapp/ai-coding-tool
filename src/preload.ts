@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AutomationAck, AutomationFire, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent } from "./contracts/ipc";
+import type { AutomationAck, AutomationFire, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent } from "./contracts/ipc";
+import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
@@ -50,6 +51,21 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("thread:request", handler);
   },
   answerThreadRequest: (response: ThreadResponse) => ipcRenderer.send("thread:answer", response),
+  openBrowserTab: (tabId: string, url?: string) => ipcRenderer.invoke("browser:open", tabId, url),
+  navigateBrowser: (tabId: string, url: string) => ipcRenderer.invoke("browser:navigate", tabId, url),
+  browserHistory: (tabId: string, delta: -1 | 1) => ipcRenderer.invoke("browser:history", tabId, delta),
+  reloadBrowser: (tabId: string) => ipcRenderer.invoke("browser:reload", tabId),
+  closeBrowserTab: (tabId: string) => ipcRenderer.invoke("browser:close", tabId),
+  showBrowserTab: (tabId: string | null) => ipcRenderer.invoke("browser:show", tabId),
+  setBrowserBounds: (bounds: BrowserBounds | null) => ipcRenderer.invoke("browser:bounds", bounds),
+  actInBrowser: (tabId: string, action: BrowserAction) => ipcRenderer.invoke("browser:act", tabId, action),
+  readBrowserPage: (tabId: string, textLimit: number, timeoutMs: number) => ipcRenderer.invoke("browser:read", tabId, textLimit, timeoutMs),
+  clearBrowserData: () => ipcRenderer.invoke("browser:clear"),
+  onBrowserEvent: (listener: (event: BrowserPageEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: BrowserPageEvent) => listener(payload);
+    ipcRenderer.on("browser:event", handler);
+    return () => ipcRenderer.removeListener("browser:event", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

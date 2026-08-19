@@ -1,5 +1,5 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
-import type { ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
@@ -9,6 +9,12 @@ export type ThreadBridge = {
   read(threadId: string, limit?: number): Promise<ThreadTranscript>;
   wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
   command(command: ExternalCommand): Promise<ThreadCommandResult>;
+};
+
+/** The browser panel, driven as the thread that is running: writes are commands, reads are the page. */
+export type BrowserBridge = {
+  command(write: BrowserWrite): Promise<void>;
+  read(read: BrowserRead): Promise<BrowserReadResult>;
 };
 
 /** Scoped to the running task, so a run can only reach its own automation. */
@@ -59,6 +65,7 @@ export type ProviderRunInput = {
   forkContinuation?: boolean;
   automations?: AutomationBridge;
   threads?: ThreadBridge;
+  browser?: BrowserBridge;
   steering: SteerQueue;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;

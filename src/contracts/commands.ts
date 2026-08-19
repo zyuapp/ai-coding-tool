@@ -1,4 +1,5 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
+import type { BrowserAction } from "../domain/browser.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
 import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
 
@@ -8,7 +9,7 @@ import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | ViewCommand;
+export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | ViewCommand;
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =
@@ -67,6 +68,25 @@ export type AutomationCommand =
   | { type: "automation.delete"; taskId?: string }
   | { type: "automation.run-now"; taskId?: string };
 
+/**
+ * The browser panel, which holds one session for the whole app rather than one per project or thread.
+ * A command carrying a `taskId` is a run asking; the user's own commands carry none, and visiting a
+ * site is the consent that lets a run reach that origin afterwards.
+ */
+export type BrowserCommand =
+  | { type: "browser.open"; taskId?: string; url: string; tabId?: string; newTab?: boolean }
+  /** An empty tab, waiting for an address. Only the user opens one; a run always names a page. */
+  | { type: "browser.new-tab" }
+  | { type: "browser.close-tab"; taskId?: string; tabId: string }
+  | { type: "browser.select-tab"; taskId?: string; tabId: string }
+  | { type: "browser.go"; taskId?: string; tabId?: string; delta: -1 | 1 }
+  | { type: "browser.reload"; taskId?: string; tabId?: string }
+  | { type: "browser.act"; taskId?: string; tabId?: string; action: BrowserAction }
+  /** Answers the navigation a run is waiting on. Allowing it also allows that origin from now on. */
+  | { type: "browser.decide"; allow: boolean }
+  /** Signs the whole app out: cookies, storage, and caches for every site. */
+  | { type: "browser.clear-data" };
+
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
@@ -74,6 +94,11 @@ export type ViewCommand =
   | { type: "view.set-projects-open"; open: boolean }
   | { type: "view.set-recents-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
+  /** The right dock: which panels are open as tabs, and which of them is showing. */
+  | { type: "view.set-dock-open"; open: boolean }
+  | { type: "view.open-dock-panel"; panel: string }
+  | { type: "view.close-dock-panel"; panel: string }
+  | { type: "view.select-dock-tab"; tab: string }
   | { type: "view.set-menu"; menu: string | null }
   /** Moves the visit cursor without recording a visit, so the trail behind and ahead survives. */
   | { type: "view.go-back" }

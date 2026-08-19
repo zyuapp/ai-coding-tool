@@ -19,6 +19,7 @@ const coordinatorOptions = {
   isWritePathInside,
   automations: (taskId: string) => automations.bridgeFor(taskId),
   threads: (taskId: string) => threads.bridgeFor(taskId),
+  browser: (taskId: string) => threads.browserFor(taskId),
 };
 const coordinators = {
   main: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), coordinatorOptions),

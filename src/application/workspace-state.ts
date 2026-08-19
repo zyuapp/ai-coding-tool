@@ -3,6 +3,7 @@ import { backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
+import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 import type { Worktree } from "../domain/worktree.js";
@@ -99,6 +100,19 @@ export type WorkspaceState = {
   projectsOpen: boolean;
   recentsOpen: boolean;
   sessionPanelOpen: boolean;
+  /** The right dock: whether it is showing, which panels are open as tabs, and which tab is on top. */
+  dockOpen: boolean;
+  dockPanels: string[];
+  dockTab: string;
+  /**
+   * The browser panel. One session serves the whole app, so its tabs belong to the window rather than
+   * to a thread, and survive moving between threads and projects.
+   */
+  browserTabs: BrowserTab[];
+  browserTabId: string | null;
+  /** The origins a run may reach without asking. Visiting a site adds it. */
+  browserOrigins: string[];
+  browserApproval: BrowserApproval | null;
   openMenu: string | null;
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
   computerUseSetup: boolean;
@@ -135,6 +149,13 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     projectsOpen: true,
     recentsOpen: true,
     sessionPanelOpen: false,
+    dockOpen: false,
+    dockPanels: [],
+    dockTab: DOCK_PICKER,
+    browserTabs: [],
+    browserTabId: null,
+    browserOrigins: [],
+    browserApproval: null,
     openMenu: null,
     environment: null,
     computerUseSetup: false,
@@ -180,7 +201,25 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
 
 /** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
 export function viewPreferences(state: WorkspaceState): ViewPreferences {
-  return { sessionPanelOpen: state.sessionPanelOpen };
+  return {
+    sessionPanelOpen: state.sessionPanelOpen,
+    browserTabs: state.browserTabs.map((tab) => tab.url).filter(Boolean),
+    browserOrigins: state.browserOrigins,
+  };
+}
+
+/** The dock tab that offers the panels, shown whenever no panel is on top. */
+export const DOCK_PICKER = "home";
+export const BROWSER_PANEL = "browser";
+
+export function activeBrowserTab(state: Pick<WorkspaceState, "browserTabs" | "browserTabId">) {
+  return state.browserTabs.find((tab) => tab.id === state.browserTabId);
+}
+
+/** Which tab a browser command acts on: the one it names, else the one the panel is showing. */
+export function browserTarget(state: WorkspaceState, tabId: string | undefined) {
+  const named = tabId === undefined ? activeBrowserTab(state) : state.browserTabs.find((tab) => tab.id === tabId);
+  return named;
 }
 
 export function projectFor(state: WorkspaceState, task: Task | undefined) {
@@ -274,6 +313,13 @@ export function deriveView(state: WorkspaceState) {
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
     sessionPanelOpen: state.sessionPanelOpen,
+    dockOpen: state.dockOpen,
+    dockPanels: state.dockPanels,
+    dockTab: state.dockTab,
+    browserTabs: state.browserTabs,
+    browserTab: activeBrowserTab(state),
+    browserApproval: state.browserApproval,
+    browserOrigins: state.browserOrigins,
     openMenu: state.openMenu,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,

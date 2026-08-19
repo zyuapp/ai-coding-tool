@@ -170,3 +170,32 @@ test("thread requests carry a caller and a well-formed query", () => {
   assert.equal(isThreadResponse({ type: "thread.response", requestId: "r1", ok: true, result: [] }), true);
   assert.equal(isThreadResponse({ type: "thread.response", requestId: "r1", ok: false }), false);
 });
+
+test("the browser surface a run may drive names the thread, a tab, and nothing else", () => {
+  assert.equal(isExternalCommand({ type: "browser.open", taskId: "task-1", url: "https://example.com" }), true);
+  assert.equal(isExternalCommand({ type: "browser.open", taskId: "task-1", url: "https://example.com", tabId: "tab-1", newTab: true }), true);
+  assert.equal(isExternalCommand({ type: "browser.go", taskId: "task-1", delta: -1 }), true);
+  assert.equal(isExternalCommand({ type: "browser.reload", taskId: "task-1" }), true);
+  assert.equal(isExternalCommand({ type: "browser.close-tab", taskId: "task-1", tabId: "tab-1" }), true);
+  assert.equal(isExternalCommand({ type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "4" } }), true);
+  assert.equal(isExternalCommand({ type: "browser.act", taskId: "task-1", action: { kind: "type", ref: "4", text: "hello", submit: true } }), true);
+
+  assert.equal(isExternalCommand({ type: "browser.open", url: "https://example.com" }), false, "a page loads as the thread that asked or not at all");
+  assert.equal(isExternalCommand({ type: "browser.go", taskId: "task-1", delta: 2 }), false);
+  assert.equal(isExternalCommand({ type: "browser.act", taskId: "task-1", action: { kind: "scroll", ref: "4" } }), false);
+  assert.equal(isExternalCommand({ type: "browser.close-tab", taskId: "task-1" }), false);
+  assert.equal(isExternalCommand({ type: "browser.decide", taskId: "task-1", allow: true }), false, "the browser's own approval is the user's");
+  assert.equal(isExternalCommand({ type: "browser.clear-data", taskId: "task-1" }), false, "a run cannot sign the user out");
+  assert.equal(isExternalCommand({ type: "browser.new-tab", taskId: "task-1" }), false);
+});
+
+test("a page read is bounded, and anything else on the browser channel is refused", () => {
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "tabs" } }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot", timeoutMs: 5_000 } }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot", tabId: "tab-1", textLimit: 500, timeoutMs: 0 } }), true);
+
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot" } }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot", timeoutMs: 10 * 60 * 1_000 } }), false, "a read cannot hold a tool call open for ever");
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot" } }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser" }), false);
+});

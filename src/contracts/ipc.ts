@@ -1,5 +1,6 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { ExternalCommand, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserRead, ExternalCommand, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
@@ -181,6 +182,32 @@ export type DesktopAPI = {
   /** The window answers thread requests itself: it is the only process that holds workspace state. */
   onThreadRequest(listener: (request: ThreadRequest) => void): () => void;
   answerThreadRequest(response: ThreadResponse): void;
+  /** The browser panel's pages live in main; the window owns the record of them and their geometry. */
+  openBrowserTab(tabId: string, url?: string): Promise<void>;
+  navigateBrowser(tabId: string, url: string): Promise<void>;
+  browserHistory(tabId: string, delta: -1 | 1): Promise<void>;
+  reloadBrowser(tabId: string): Promise<void>;
+  closeBrowserTab(tabId: string): Promise<void>;
+  /** Which tab the panel is showing. */
+  showBrowserTab(tabId: string | null): Promise<void>;
+  /** Where the panel is, in window coordinates. Null while the panel is not on screen. */
+  setBrowserBounds(bounds: BrowserBounds | null): Promise<void>;
+  actInBrowser(tabId: string, action: BrowserAction): Promise<string>;
+  /** Waits for the tab to stop loading, then reads the page. Null when that tab is gone. */
+  readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
+  clearBrowserData(): Promise<void>;
+  onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
+};
+
+/** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
+export type BrowserPageEvent = {
+  tabId: string;
+  url?: string;
+  title?: string;
+  loading?: boolean;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  error?: string;
 };
 
 export type AvailableCommand = {
@@ -236,6 +263,8 @@ export type RunEvent =
 const MAX_ID_LENGTH = 256;
 /** A wait holds a tool call open, so it is bounded rather than left to the caller. */
 export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
+/** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
+export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
 const MAX_PROMPT_LENGTH = 1_000_000;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
@@ -335,6 +364,49 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
   }
   if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "run.cancel") return named;
+  if (typeof command.type === "string" && command.type.startsWith("browser.")) return isBrowserCommand(command);
+  return false;
+}
+
+const MAX_URL_LENGTH = 8_192;
+
+export function isBrowserAction(value: unknown): value is BrowserAction {
+  if (!value || typeof value !== "object") return false;
+  const action = value as Record<string, unknown>;
+  if (action.kind === "click") return isString(action.ref);
+  if (action.kind === "type") {
+    return isString(action.ref)
+      && typeof action.text === "string" && action.text.length <= MAX_PROMPT_LENGTH
+      && (action.submit === undefined || typeof action.submit === "boolean");
+  }
+  return false;
+}
+
+export function isBrowserBounds(value: unknown): value is BrowserBounds {
+  if (!value || typeof value !== "object") return false;
+  const box = value as Record<string, unknown>;
+  return [box.x, box.y, box.width, box.height].every((side) => typeof side === "number" && Number.isFinite(side));
+}
+
+export function isBrowserRead(value: unknown): value is BrowserRead {
+  if (!value || typeof value !== "object") return false;
+  const read = value as Record<string, unknown>;
+  if (read.op === "tabs") return true;
+  if (read.op !== "snapshot") return false;
+  return (read.tabId === undefined || isString(read.tabId))
+    && (read.textLimit === undefined || isCount(read.textLimit))
+    && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
+}
+
+/** A run drives the browser as itself, so every browser command names the thread that asked. */
+function isBrowserCommand(command: Record<string, unknown>) {
+  if (!isString(command.taskId)) return false;
+  const tabbed = command.tabId === undefined || isString(command.tabId);
+  if (command.type === "browser.open") return tabbed && isString(command.url, MAX_URL_LENGTH) && (command.newTab === undefined || typeof command.newTab === "boolean");
+  if (command.type === "browser.close-tab" || command.type === "browser.select-tab") return isString(command.tabId);
+  if (command.type === "browser.go") return tabbed && (command.delta === 1 || command.delta === -1);
+  if (command.type === "browser.reload") return tabbed;
+  if (command.type === "browser.act") return tabbed && isBrowserAction(command.action);
   return false;
 }
 
@@ -353,6 +425,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "read") return isString(request.threadId) && (request.limit === undefined || isCount(request.limit));
   if (request.op === "wait") return isString(request.threadId) && isCount(request.timeoutMs) && request.timeoutMs <= MAX_THREAD_WAIT_MS;
   if (request.op === "command") return isExternalCommand(request.command);
+  if (request.op === "browser") return isBrowserRead(request.read);
   return false;
 }
 

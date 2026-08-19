@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AlarmClock, Bot, GitFork, Plus, X, type LucideIcon } from "lucide-react";
+import { AlarmClock, Bot, GitFork, Globe, Plus, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
+import { BrowserPanel } from "./components/BrowserPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -36,42 +37,34 @@ export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [rightDockOpen, setRightDockOpen] = useState(false);
-  const [activeRightTab, setActiveRightTab] = useState("home");
-  const [openPanels, setOpenPanels] = useState<string[]>([]);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsVisible = settingsOpen || workspace.computerUseSetup;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
+  const rightDockOpen = workspace.dockOpen;
+  const activeRightTab = workspace.dockTab;
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
 
   function addSideChat() {
-    const chatId = crypto.randomUUID();
-    void workspace.dispatch({ type: "side-chat.open", chatId });
-    setActiveRightTab(chatId);
-    setRightDockOpen(true);
+    void workspace.dispatch({ type: "side-chat.open", chatId: crypto.randomUUID() });
   }
 
   function openRightTab(id: string) {
-    setOpenPanels((panels) => (panels.includes(id) ? panels : [...panels, id]));
-    setActiveRightTab(id);
-    setRightDockOpen(true);
+    void workspace.actions.openDockPanel(id);
   }
 
   function closeRightTab(id: string) {
-    const index = dockTabs.findIndex((tab) => tab.id === id);
-    if (openPanels.includes(id)) setOpenPanels((panels) => panels.filter((panel) => panel !== id));
+    if (workspace.dockPanels.includes(id)) void workspace.actions.closeDockPanel(id);
     else void workspace.dispatch({ type: "side-chat.close", chatId: id });
     dockPanels.find((panel) => panel.id === id)?.onClose?.();
-    if (activeRightTab === id) setActiveRightTab(dockTabs[index - 1]?.id ?? dockTabs[index + 1]?.id ?? "home");
   }
 
   function openSettings() {
     setSettingsOpen(true);
     setSidebarOpen(false);
-    setRightDockOpen(false);
+    void workspace.actions.setDockOpen(false);
   }
 
   function closeSettings() {
@@ -92,8 +85,6 @@ export function App() {
   }, [workspace.currentTask?.id, workspace.subagents, selectedSubagent]);
 
   useEffect(() => {
-    setActiveRightTab("home");
-    setOpenPanels([]);
     setSelectedSubagent(null);
   }, [workspace.currentTask?.id]);
 
@@ -129,6 +120,28 @@ export function App() {
         : <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />),
     },
     {
+      id: "browser",
+      title: "Browser",
+      description: "Browse in one session the whole app shares",
+      command: "browser",
+      icon: Globe,
+      render: () => (
+        <BrowserPanel
+          tabs={workspace.browserTabs}
+          tab={workspace.browserTab}
+          approval={workspace.browserApproval}
+          visible={rightDockOpen && activeRightTab === "browser" && !settingsVisible}
+          onOpen={(url, newTab) => void workspace.actions.openBrowser(url, newTab)}
+          onNewTab={() => void workspace.actions.newBrowserTab()}
+          onSelectTab={(tabId) => void workspace.actions.selectBrowserTab(tabId)}
+          onCloseTab={(tabId) => void workspace.actions.closeBrowserTab(tabId)}
+          onGo={(delta) => void workspace.actions.goInBrowser(delta)}
+          onReload={() => void workspace.actions.reloadBrowser()}
+          onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
+        />
+      ),
+    },
+    {
       id: "automation",
       title: "Automation",
       description: "Edit the schedule that repeats this task",
@@ -156,7 +169,7 @@ export function App() {
     .map(({ command, description, open }) => ({ name: command, description, run: open }));
 
   const dockTabs: DockTab[] = [
-    ...dockPanels.filter((panel) => openPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
+    ...dockPanels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork })),
   ];
 
@@ -207,16 +220,12 @@ export function App() {
           workingSubagents={workingSubagents}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           onToggleSessionPanel={() => {
-            setRightDockOpen(false);
+            void workspace.actions.setDockOpen(false);
             void workspace.actions.setSessionPanelOpen(!sessionPanelVisible);
           }}
           onToggleRightDock={() => {
-            if (!rightDockOpen) {
-              setActiveRightTab("home");
-              setOpenPanels([]);
-              setSelectedSubagent(null);
-            }
-            setRightDockOpen((open) => !open);
+            if (!rightDockOpen) setSelectedSubagent(null);
+            void workspace.actions.setDockOpen(!rightDockOpen);
           }}
         />
         {(workspace.storageError || workspace.actionError) && (
@@ -299,7 +308,7 @@ export function App() {
               <div role="tablist" aria-label="Right panel tabs">
                 {dockTabs.map((tab) => (
                   <div className={`right-dock-tab ${activeRightTab === tab.id ? "active" : ""}`} key={tab.id}>
-                    <button type="button" role="tab" aria-selected={activeRightTab === tab.id} onClick={() => setActiveRightTab(tab.id)}>
+                    <button type="button" role="tab" aria-selected={activeRightTab === tab.id} onClick={() => void workspace.actions.selectDockTab(tab.id)}>
                       <tab.icon size={15} aria-hidden="true" /><span>{tab.title}</span>
                       {tab.badge ? <em>{tab.badge}</em> : null}
                     </button>
@@ -317,7 +326,7 @@ export function App() {
                   ))}
                 </div>
               </details>
-              <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => setRightDockOpen(false)}><X size={17} /></button>
+              <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => void workspace.actions.setDockOpen(false)}><X size={17} /></button>
             </div>
             <div className="right-dock-content">
               <div className="right-dock-picker" hidden={activeRightTab !== "home"} aria-label="Choose a right panel">
@@ -381,7 +390,16 @@ export function App() {
           onCancel={workspace.actions.cancelRun}
         />
       </section>
-      {settingsVisible && <SettingsPanel onClose={closeSettings} archivedTasks={workspace.archivedTasks} onRestoreTask={workspace.actions.restoreTask} onClearArchive={workspace.actions.clearArchive} />}
+      {settingsVisible && (
+        <SettingsPanel
+          onClose={closeSettings}
+          archivedTasks={workspace.archivedTasks}
+          allowedOrigins={workspace.browserOrigins}
+          onRestoreTask={workspace.actions.restoreTask}
+          onClearArchive={workspace.actions.clearArchive}
+          onClearBrowserData={() => void workspace.actions.clearBrowserData()}
+        />
+      )}
     </main>
   );
 }

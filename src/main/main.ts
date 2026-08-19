@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -14,6 +14,7 @@ import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } 
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
+import * as browser from "./browser-host.js";
 
 app.setName("Claudex");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
@@ -149,7 +150,11 @@ function handleThreadRequest(request: ThreadRequest) {
     answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: "The Claudex window is not open." });
     return;
   }
-  const patience = request.op === "wait" ? request.timeoutMs + THREAD_WAIT_SLACK : THREAD_REQUEST_TIMEOUT;
+  const patience = request.op === "wait"
+    ? request.timeoutMs + THREAD_WAIT_SLACK
+    : request.op === "browser" && request.read.op === "snapshot"
+      ? request.read.timeoutMs + THREAD_WAIT_SLACK
+      : THREAD_REQUEST_TIMEOUT;
   const timer = setTimeout(() => {
     threadRequests.delete(request.requestId);
     answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: `Claudex did not answer the thread "${request.op}" request within ${patience}ms.` });
@@ -303,6 +308,10 @@ async function createWindow() {
       sandbox: true,
     },
   });
+  browser.startBrowserHost(window, (event: BrowserPageEvent) => {
+    if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
+  });
+  window.on("closed", () => browser.stopBrowserHost());
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
 }
 
@@ -542,6 +551,74 @@ ipcMain.on("thread:answer", (event, response: unknown) => {
   clearTimeout(timer);
   threadRequests.delete(response.requestId);
   answerThreadRequest(response);
+});
+
+const MAX_URL_LENGTH = 8_192;
+
+function browserTabId(value: unknown) {
+  if (typeof value !== "string" || !value || value.length > 256) throw new Error("Invalid browser tab ID.");
+  return value;
+}
+
+function browserPageUrl(value: unknown) {
+  if (typeof value !== "string" || !value || value.length > MAX_URL_LENGTH) throw new Error("Invalid page URL.");
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("The browser panel only opens web pages.");
+  return value;
+}
+
+ipcMain.handle("browser:open", (event, tabId: unknown, url: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.openTab(browserTabId(tabId), url === undefined ? undefined : browserPageUrl(url));
+});
+
+ipcMain.handle("browser:navigate", (event, tabId: unknown, url: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.navigate(browserTabId(tabId), browserPageUrl(url));
+});
+
+ipcMain.handle("browser:history", (event, tabId: unknown, delta: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (delta !== 1 && delta !== -1) throw new Error("Invalid history step.");
+  browser.goHistory(browserTabId(tabId), delta);
+});
+
+ipcMain.handle("browser:reload", (event, tabId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.reload(browserTabId(tabId));
+});
+
+ipcMain.handle("browser:close", (event, tabId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.closeTab(browserTabId(tabId));
+});
+
+ipcMain.handle("browser:show", (event, tabId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.showTab(tabId === null ? null : browserTabId(tabId));
+});
+
+ipcMain.handle("browser:bounds", (event, bounds: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (bounds !== null && !isBrowserBounds(bounds)) throw new Error("Invalid panel bounds.");
+  browser.setBounds(bounds);
+});
+
+ipcMain.handle("browser:act", (event, tabId: unknown, action: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!isBrowserAction(action)) throw new Error("Invalid browser action.");
+  return browser.act(browserTabId(tabId), action);
+});
+
+ipcMain.handle("browser:read", (event, tabId: unknown, textLimit: unknown, timeoutMs: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof textLimit !== "number" || typeof timeoutMs !== "number") throw new Error("Invalid page read.");
+  return browser.readPage(browserTabId(tabId), textLimit, timeoutMs);
+});
+
+ipcMain.handle("browser:clear", (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return browser.clearData();
 });
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;

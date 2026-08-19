@@ -1,10 +1,10 @@
-import { Archive, ArrowLeft, Check, Gauge, MonitorCog } from "lucide-react";
+import { Archive, ArrowLeft, Check, Gauge, Globe, MonitorCog } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import { UsageSettings } from "./UsageSettings";
 
-type SettingsSection = "computer-use" | "usage" | "archive";
+type SettingsSection = "computer-use" | "usage" | "browser" | "archive";
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -15,13 +15,17 @@ function daysLeft(archivedAt: number) {
 export type SettingsPanelProps = {
   onClose: () => void;
   archivedTasks: Task[];
+  /** How many sites a run may open without asking, which clearing the session takes back. */
+  allowedOrigins: string[];
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
+  onClearBrowserData: () => void;
 };
 
-export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearArchive }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, archivedTasks, allowedOrigins, onRestoreTask, onClearArchive, onClearBrowserData }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("computer-use");
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [permissions, setPermissions] = useState<ComputerUsePermissions | null>(null);
   const [busy, setBusy] = useState<ComputerUsePermission | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +88,10 @@ export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearAr
             <Gauge size={17} aria-hidden="true" />
             <span>Usage</span>
           </button>
+          <button className={section === "browser" ? "active" : ""} type="button" aria-current={section === "browser" ? "page" : undefined} onClick={() => setSection("browser")}>
+            <Globe size={17} aria-hidden="true" />
+            <span>Browser</span>
+          </button>
           <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => setSection("archive")}>
             <Archive size={17} aria-hidden="true" />
             <span>Archived threads</span>
@@ -99,6 +107,48 @@ export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearAr
         </div>
 
         <UsageSettings />
+      </main>
+      )}
+
+      {section === "browser" && (
+      <main className="settings-main">
+        <div className="settings-page-heading">
+          <h2>Browser</h2>
+          <p>The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere Claudex works.</p>
+        </div>
+
+        <section className="settings-group" aria-labelledby="browser-session-heading">
+          <div className="settings-group-heading">
+            <div>
+              <h3 id="browser-session-heading">Session</h3>
+              <p>Signing out clears every cookie, cache, and stored login, and takes back the sites Claude may open on its own.</p>
+            </div>
+            <div className="settings-group-action">
+              <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
+              {confirmingSignOut
+                ? <>
+                    <button className="danger" type="button" onClick={() => {
+                      onClearBrowserData();
+                      setConfirmingSignOut(false);
+                    }}>Sign out of everything</button>
+                    <button type="button" onClick={() => setConfirmingSignOut(false)}>Cancel</button>
+                  </>
+                : <button type="button" onClick={() => setConfirmingSignOut(true)}>Clear browser data</button>}
+            </div>
+          </div>
+
+          {allowedOrigins.length === 0
+            ? <p className="settings-empty">Claude has to ask before it opens any site.</p>
+            : allowedOrigins.map((origin) => (
+              <div className="setting-row" key={origin}>
+                <span className="setting-status granted"><Check size={13} /></span>
+                <div>
+                  <strong>{origin}</strong>
+                  <p>Claude can open this site without asking.</p>
+                </div>
+              </div>
+            ))}
+        </section>
       </main>
       )}
 

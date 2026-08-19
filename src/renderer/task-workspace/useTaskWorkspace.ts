@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deriveView, emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
+import { browserTarget, deriveView, emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
 import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
@@ -13,6 +13,9 @@ import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 
 export type { ApprovalView } from "../../application/task-workspace";
+
+/** How much page text a read returns when the caller does not say. */
+const DEFAULT_PAGE_TEXT = 4_000;
 
 /** A tool call held open until the thread it names stops working. */
 type ThreadWaiter = {
@@ -187,6 +190,30 @@ export function useTaskWorkspace() {
       case "automation.ack":
         window.desktop.acknowledgeAutomation(effect.ack);
         return;
+
+      case "browser.open":
+        return reportFailure(window.desktop.openBrowserTab(effect.tabId, effect.url));
+
+      case "browser.navigate":
+        return reportFailure(window.desktop.navigateBrowser(effect.tabId, effect.url));
+
+      case "browser.history":
+        return reportFailure(window.desktop.browserHistory(effect.tabId, effect.delta));
+
+      case "browser.reload":
+        return reportFailure(window.desktop.reloadBrowser(effect.tabId));
+
+      case "browser.close":
+        return reportFailure(window.desktop.closeBrowserTab(effect.tabId));
+
+      case "browser.show":
+        return reportFailure(window.desktop.showBrowserTab(effect.tabId));
+
+      case "browser.act":
+        return reportFailure(window.desktop.actInBrowser(effect.tabId, effect.action));
+
+      case "browser.clear-data":
+        return reportFailure(window.desktop.clearBrowserData());
     }
   }
 
@@ -244,8 +271,23 @@ export function useTaskWorkspace() {
           threadWaiters.current.push(waiter);
         });
       }
+      if (request.op === "browser") {
+        const state = stateRef.current;
+        if (state.browserApproval?.taskId === request.taskId) return ok({ kind: "awaiting-approval", url: state.browserApproval.url });
+        if (request.read.op === "tabs") return ok({ kind: "tabs", tabs: state.browserTabs });
+        const tab = browserTarget(state, request.read.tabId);
+        if (!tab) return ok({ kind: "no-tab" });
+        const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs);
+        return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
+      }
       const { command } = request;
       const before = stateRef.current;
+      /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
+      if (command.type.startsWith("browser.")) {
+        await dispatchRef.current(command);
+        const acted = stateRef.current;
+        return acted.actionError && acted.actionError !== before.actionError ? failed(acted.actionError) : ok({ thread: null });
+      }
       if (command.taskId !== undefined && !before.tasks.some((task) => task.id === command.taskId)) {
         return failed(`No thread has the ID ${command.taskId}.`);
       }
@@ -325,6 +367,11 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
+    return window.desktop.onBrowserEvent((page) => void dispatchRef.current({ type: "browser.updated", page }));
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
     void window.desktop.listAutomations()
       .then((automations) => dispatchRef.current({ type: "automations.changed", automations }))
       .catch((error) => dispatchRef.current({ type: "action.failed", message: errorMessage(error) }));
@@ -384,6 +431,18 @@ export function useTaskWorkspace() {
       cancelRun: () => dispatch({ type: "run.cancel" }),
       decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),
       dismissComputerUseSetup: () => dispatch({ type: "view.dismiss-computer-use-setup" }),
+      setDockOpen: (open: boolean) => dispatch({ type: "view.set-dock-open", open }),
+      openDockPanel: (panel: string) => dispatch({ type: "view.open-dock-panel", panel }),
+      closeDockPanel: (panel: string) => dispatch({ type: "view.close-dock-panel", panel }),
+      selectDockTab: (tab: string) => dispatch({ type: "view.select-dock-tab", tab }),
+      openBrowser: (url: string, newTab = false) => dispatch({ type: "browser.open", url, ...(newTab ? { newTab } : {}) }),
+      newBrowserTab: () => dispatch({ type: "browser.new-tab" }),
+      selectBrowserTab: (tabId: string) => dispatch({ type: "browser.select-tab", tabId }),
+      closeBrowserTab: (tabId: string) => dispatch({ type: "browser.close-tab", tabId }),
+      goInBrowser: (delta: -1 | 1) => dispatch({ type: "browser.go", delta }),
+      reloadBrowser: () => dispatch({ type: "browser.reload" }),
+      decideBrowser: (allow: boolean) => dispatch({ type: "browser.decide", allow }),
+      clearBrowserData: () => dispatch({ type: "browser.clear-data" }),
     },
   };
 }

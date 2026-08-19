@@ -43,9 +43,31 @@ export async function startMainProcess(t, prefix) {
   class FakeWindow {
     static getAllWindows() { return windows; }
     webContents = { sent: [], send: (channel, event) => this.webContents.sent.push({ channel, event }) };
+    contentView = { addChildView() {}, removeChildView() {} };
     constructor(options) { this.options = options; windows.push(this); }
     isDestroyed() { return false; }
+    on() {}
     async loadFile() {}
+  }
+
+  class FakeWebContentsView {
+    webContents = {
+      on() {},
+      once() {},
+      off() {},
+      setWindowOpenHandler() {},
+      close() {},
+      reload() {},
+      isLoading: () => false,
+      getURL: () => "",
+      getTitle: () => "",
+      navigationHistory: { canGoBack: () => false, canGoForward: () => false, goBack() {}, goForward() {} },
+      async loadURL() {},
+      async executeJavaScript() { return ""; },
+    };
+    constructor(options) { this.options = options; }
+    setBounds() {}
+    setVisible() {}
   }
 
   globalThis.__claudexElectron = {
@@ -67,6 +89,8 @@ export async function startMainProcess(t, prefix) {
     utilityProcess: { fork: () => { const agent = new FakeAgent(); agents.push(agent); return agent; } },
     protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => protocolHandlers.set(scheme, handler) },
     net: { fetch: async (url) => new Response(url) },
+    session: { fromPartition: () => ({ setUserAgent() {}, async clearStorageData() {}, async clearCache() {} }) },
+    WebContentsView: FakeWebContentsView,
   };
   globalThis.__dirname = path.join(process.cwd(), "dist/main/main");
 
@@ -80,7 +104,7 @@ export async function startMainProcess(t, prefix) {
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, utilityProcess=e.utilityProcess;";
+        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, session=e.session, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
       },
     }],
   });

@@ -1,4 +1,5 @@
 import type { AppCommand } from "./commands.js";
+import type { BrowserSnapshot, BrowserTab } from "../domain/browser.js";
 import type { TaskMessageKind } from "../domain/task.js";
 
 /** Which threads a query covers: everything, one project, or the threads that belong to no project. */
@@ -61,11 +62,30 @@ export type ThreadTranscript = {
 
 /**
  * The commands anything outside the window may dispatch. Starting a thread (in the project checkout
- * or in a worktree of its own), continuing, archiving and stopping one is allowed; moving the user
- * around the app, changing how much a thread is allowed to do, moving a thread between checkouts
- * once it exists, removing projects, and answering approvals are not.
+ * or in a worktree of its own), continuing, archiving and stopping one is allowed, as is driving the
+ * browser panel; moving the user around the app, changing how much a thread is allowed to do, moving
+ * a thread between checkouts once it exists, removing projects, clearing the browser session, and
+ * answering approvals — the browser's own included — are not.
  */
-export type ExternalCommand = Extract<AppCommand, { type: "task.send" | "task.archive" | "run.cancel" }>;
+export type ExternalCommand = Extract<AppCommand, {
+  type: "task.send" | "task.archive" | "run.cancel" | "browser.open" | "browser.close-tab" | "browser.select-tab" | "browser.go" | "browser.reload" | "browser.act";
+}>;
+
+/** A run drives the browser as the thread it is, so the channel names the thread, not the caller. */
+type WithoutTask<T> = T extends unknown ? Omit<T, "taskId"> : never;
+export type BrowserWrite = WithoutTask<Extract<ExternalCommand, { type: `browser.${string}` }>>;
+
+/** What a caller may read about the browser panel. A snapshot waits for the tab to settle first. */
+export type BrowserRead =
+  | { op: "tabs" }
+  | { op: "snapshot"; tabId?: string; textLimit?: number; timeoutMs: number };
+
+/** A snapshot of the tab, or the navigation the user has yet to answer instead. */
+export type BrowserReadResult =
+  | { kind: "tabs"; tabs: BrowserTab[] }
+  | { kind: "snapshot"; snapshot: BrowserSnapshot }
+  | { kind: "awaiting-approval"; url: string }
+  | { kind: "no-tab" };
 
 /** Thread tool calls travel from the agent process to the window and back. */
 export type ThreadRequest = {
@@ -78,6 +98,7 @@ export type ThreadRequest = {
   | { op: "read"; threadId: string; limit?: number }
   | { op: "wait"; threadId: string; timeoutMs: number }
   | { op: "command"; command: ExternalCommand }
+  | { op: "browser"; read: BrowserRead }
 );
 
 export type ThreadResponse = {

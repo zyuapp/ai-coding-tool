@@ -6,6 +6,7 @@ import { contextWindowLimit } from "../../domain/run.js";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue } from "./agent-provider.mjs";
 import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
+import { browserServer, BROWSER_SERVER_NAME } from "./browser-tools.mjs";
 import { withheldTools } from "./channel-tools.mjs";
 import { threadServer, THREAD_SERVER_NAME } from "./thread-tools.mjs";
 
@@ -16,6 +17,10 @@ const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
 /** Reading the workspace changes nothing, so it needs no approval; starting or stopping a run does. */
 const threadToolPrefix = `mcp__${THREAD_SERVER_NAME}__`;
 const readOnlyThreadTools = new Set([`${threadToolPrefix}list_threads`, `${threadToolPrefix}read_thread`, `${threadToolPrefix}wait_for_thread`]);
+/** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
+const browserToolPrefix = `mcp__${BROWSER_SERVER_NAME}__`;
+const readOnlyBrowserTools = new Set([`${browserToolPrefix}browser_read`, `${browserToolPrefix}browser_tabs`]);
+const browserInstructions = `The Claudex browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the claudex-browser tools rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read. Open a page, read it, then act on the refs that read hands you — a ref is stale as soon as the page changes. The user sees the same tabs you drive, so leave their pages alone and close only the tabs you opened. An origin the user has never visited waits on their approval before it loads; say what you need it for instead of retrying.`;
 const threadInstructions = `Claudex holds the user's other threads, and the claudex-threads tools are the only way to reach them. Read them with list_threads and read_thread when the user points at other, recent, or related work instead of guessing from memory. Start a thread per piece of work when the user asks for several things to run side by side, and give each one a prompt that stands alone: a new thread inherits none of this conversation. Wait on a thread you started with wait_for_thread rather than polling read_thread. Archiving or stopping a thread throws away work in progress, so only do it when the user asked for it. When you name another thread in an answer, link it as [title](claudex://thread/<id>) so the user can open it from your message.`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the claudex-automation tools instead of looping yourself or reaching for cron. An automation runs the same prompt on its own schedule with no user present, so write the prompt to stand alone and carry its own stop condition. When a scheduled run is what is executing and that stop condition is met, call the stop tool; nothing else ends an automation.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails. If only request_setup is available, call it instead of telling the user to install or configure anything.`;
@@ -121,7 +126,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     const subagentIds = new Set<string>();
     const subagentByToolUse = new Map<string, string>();
     const canUseTool: CanUseTool = async (toolName, toolInput, options) => {
-      if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName)) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
+      if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
       if (input.channel === "main" && input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return { behavior: "allow", updatedInput: toolInput, toolUseID: options.toolUseID };
       const intent = normalizeToolIntent(toolName, toolInput, options.toolUseID);
       const decision = await input.authorize(intent);
@@ -148,6 +153,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       }
       if (input.automations) mcpServers[AUTOMATION_SERVER_NAME] = automationServer(input.automations);
       if (input.threads) mcpServers[THREAD_SERVER_NAME] = threadServer(input.threads);
+      if (input.browser) mcpServers[BROWSER_SERVER_NAME] = browserServer(input.browser);
       activeQuery = this.queryFactory({
         prompt: runInput(input.prompt, input.steering, (messageId) => input.emit({ type: "steered", messageId })),
         options: {
@@ -161,7 +167,7 @@ export class ClaudeAgentProvider implements AgentProvider {
           effort: input.effort,
           betas: ["context-1m-2025-08-07" as const],
           ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-          systemPrompt: { type: "preset", preset: "claude_code", append: [computerUseInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : [])].join("\n\n") },
+          systemPrompt: { type: "preset", preset: "claude_code", append: [computerUseInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : [])].join("\n\n") },
           settingSources: input.projectless ? ["user"] : ["user", "project", "local"],
           skills: "all",
           forwardSubagentText: true,

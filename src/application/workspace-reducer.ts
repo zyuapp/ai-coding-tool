@@ -9,12 +9,13 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, viewPreferences, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { activeBrowserTab, browserTarget, BROWSER_PANEL, DOCK_PICKER, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, viewPreferences, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
   AutomationAck,
   AutomationFire,
+  BrowserPageEvent,
   CancelRunCommand,
   ChangedFilesResult,
   RunEvent,
@@ -23,6 +24,7 @@ import type {
 } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
+import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../domain/run.js";
 import { clampTitle, legacyProjectId, type Project, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -46,7 +48,9 @@ export type WorkspaceEvent =
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.deleted"; taskId: string }
-  | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult };
+  | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
+  /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
+  | { type: "browser.updated"; page: BrowserPageEvent };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -77,7 +81,17 @@ export type WorkspaceEffect =
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }
   | { type: "automation.run-now"; taskId: string }
-  | { type: "automation.ack"; ack: AutomationAck };
+  | { type: "automation.ack"; ack: AutomationAck }
+  /** The browser panel's pages. `open` is idempotent: a tab that already has a view keeps it. */
+  | { type: "browser.open"; tabId: string; url?: string }
+  | { type: "browser.navigate"; tabId: string; url: string }
+  | { type: "browser.history"; tabId: string; delta: -1 | 1 }
+  | { type: "browser.reload"; tabId: string }
+  | { type: "browser.act"; tabId: string; action: BrowserAction }
+  | { type: "browser.close"; tabId: string }
+  /** Which tab the panel shows. Where it shows is the panel's own to report. */
+  | { type: "browser.show"; tabId: string | null }
+  | { type: "browser.clear-data" };
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -133,6 +147,82 @@ function withoutAttention(state: WorkspaceState, taskId: string | null): Workspa
 function retireAutomations(state: WorkspaceState, taskIds: Iterable<string>): WorkspaceEffect[] {
   const scheduled = new Set(state.automations.map((automation) => automation.taskId));
   return [...taskIds].filter((taskId) => scheduled.has(taskId)).map((taskId) => ({ type: "automation.delete" as const, taskId }));
+}
+
+const BROWSER_URL_ERROR = "That is not a page the browser can open.";
+const BROWSER_TAB_ERROR = "The browser has no page open to act on.";
+
+/** Brings the browser panel to the front, so a page nobody asked to see still lands somewhere visible. */
+function showBrowserPanel(state: WorkspaceState): WorkspaceState {
+  return {
+    ...state,
+    dockOpen: true,
+    dockPanels: state.dockPanels.includes(BROWSER_PANEL) ? state.dockPanels : [...state.dockPanels, BROWSER_PANEL],
+    dockTab: BROWSER_PANEL,
+  };
+}
+
+/** A thread switch clears the dock back to the picker, except for the browser: its pages outlive threads. */
+function resetDock(state: WorkspaceState): WorkspaceState {
+  const dockPanels: string[] = state.dockPanels.filter((panel) => panel === BROWSER_PANEL);
+  return { ...state, dockPanels, dockTab: dockPanels.includes(state.dockTab) ? state.dockTab : DOCK_PICKER };
+}
+
+function withBrowserTabs(state: WorkspaceState, tabs: BrowserTab[]): WorkspaceState {
+  return { ...state, browserTabs: tabs };
+}
+
+function patchBrowserTab(state: WorkspaceState, tabId: string, patch: Partial<BrowserTab>): WorkspaceState {
+  return withBrowserTabs(state, state.browserTabs.map((tab) => tab.id === tabId ? { ...tab, ...patch } : tab));
+}
+
+function persistView(state: WorkspaceState): WorkspaceEffect[] {
+  return [{ type: "persist-preferences", preferences: viewPreferences(state) }];
+}
+
+/**
+ * Loads the page, in the tab named or a new one. The origin is remembered when the user is the one
+ * asking, which is what lets a run reach a site the user has already signed into.
+ */
+function loadBrowserPage(state: WorkspaceState, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean): WorkspaceTransition {
+  const origin = browserOrigin(url);
+  const allowing = byUser && origin && !state.browserOrigins.includes(origin);
+  const remembered = allowing ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
+  const target = newTab ? undefined : browserTarget(remembered, tabId);
+  const shown = showBrowserPanel({ ...remembered, browserApproval: null, actionError: null });
+  if (target) {
+    const navigating = patchBrowserTab(shown, target.id, { url, loading: true, error: undefined });
+    return settled({ ...navigating, browserTabId: target.id }, [
+      { type: "browser.navigate", tabId: target.id, url },
+      ...persistView(navigating),
+    ]);
+  }
+  const tab: BrowserTab = { id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
+  const opened = { ...withBrowserTabs(shown, [...shown.browserTabs, tab]), browserTabId: tab.id };
+  return settled(opened, [
+    { type: "browser.open", tabId: tab.id, url },
+    { type: "browser.show", tabId: tab.id },
+    ...persistView(opened),
+  ]);
+}
+
+/**
+ * Whether a run may load this page without asking. One session serves the whole app, so a run browses
+ * with every login the user has: an origin the user has never visited is theirs to allow, unless the
+ * thread is already trusted to act without asking.
+ */
+function browserAllowed(state: WorkspaceState, taskId: string, url: string) {
+  const origin = browserOrigin(url);
+  if (origin && state.browserOrigins.includes(origin)) return true;
+  return state.tasks.find((task) => task.id === taskId)?.executionPolicy === "autonomous";
+}
+
+/** Bringing the browser tab to the front is what gives a restored page its view, and only then. */
+function browserEffectsForTab(state: WorkspaceState, dockTab: string): WorkspaceEffect[] {
+  if (dockTab !== BROWSER_PANEL) return [];
+  const tab = activeBrowserTab(state);
+  if (!tab) return [];
+  return [{ type: "browser.open", tabId: tab.id, ...(tab.url ? { url: tab.url } : {}) }, { type: "browser.show", tabId: tab.id }];
 }
 
 function withPending(state: WorkspaceState, pending: PendingRun): WorkspaceState {
@@ -328,6 +418,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       automations: next.automations.filter((automation) => !closed.has(automation.taskId)),
       tasks: next.tasks.filter((task) => !closed.has(task.id)),
       sideChats: next.sideChats.filter((chat) => !closed.has(chat.id)),
+      dockTab: closed.has(next.dockTab) ? next.dockPanels[next.dockPanels.length - 1] ?? DOCK_PICKER : next.dockTab,
       pendingRuns: Object.fromEntries(Object.entries(next.pendingRuns).filter(([, pending]) => !(pending.taskId && closed.has(pending.taskId)))),
     },
     effects,
@@ -344,9 +435,9 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
     : transition.state;
-  if (!landed.sideChats.length) return { ...transition, state: landed };
+  if (!landed.sideChats.length) return { ...transition, state: resetDock(landed) };
   const closed = closeSideChats(landed, landed.sideChats);
-  return { state: { ...closed.state, sideChatSequence: 0 }, effects: [...transition.effects, ...closed.effects] };
+  return { state: resetDock({ ...closed.state, sideChatSequence: 0 }), effects: [...transition.effects, ...closed.effects] };
 }
 
 function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
@@ -749,6 +840,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         tasks: [...state.tasks, task],
         sideChats: [...state.sideChats, { id: input.chatId, sourceTaskId: source.id, error: null }],
         sideChatSequence: sequence,
+        dockOpen: true,
+        dockTab: input.chatId,
       });
     }
 
@@ -806,10 +899,33 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "store.loaded":
-      return settled({ ...stateFromData(input.data), automations: state.automations, focused: state.focused, sessionPanelOpen: state.sessionPanelOpen });
+      return settled({
+        ...stateFromData(input.data),
+        automations: state.automations,
+        focused: state.focused,
+        sessionPanelOpen: state.sessionPanelOpen,
+        dockOpen: state.dockOpen,
+        dockPanels: state.dockPanels,
+        dockTab: state.dockTab,
+        browserTabs: state.browserTabs,
+        browserTabId: state.browserTabId,
+        browserOrigins: state.browserOrigins,
+      });
 
-    case "preferences.loaded":
-      return settled({ ...state, sessionPanelOpen: input.preferences.sessionPanelOpen });
+    case "preferences.loaded": {
+      /** A restored page keeps its record and gets its view back when the panel first shows it. */
+      const browserTabs = (input.preferences.browserTabs ?? []).flatMap((url): BrowserTab[] => {
+        const loadable = browserUrl(url);
+        return loadable ? [{ id: crypto.randomUUID(), url: loadable, title: "", loading: false, canGoBack: false, canGoForward: false }] : [];
+      });
+      return settled({
+        ...state,
+        sessionPanelOpen: input.preferences.sessionPanelOpen,
+        browserTabs,
+        browserTabId: browserTabs[0]?.id ?? null,
+        browserOrigins: input.preferences.browserOrigins ?? [],
+      });
+    }
 
     case "store.failed":
       return settled({ ...state, writable: false, storageError: input.message });
@@ -837,6 +953,105 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (state.sessionPanelOpen === input.open) return settled(state);
       const next = { ...state, sessionPanelOpen: input.open };
       return settled(next, [{ type: "persist-preferences", preferences: viewPreferences(next) }]);
+    }
+
+    case "view.set-dock-open":
+      return settled(state.dockOpen === input.open ? state : { ...state, dockOpen: input.open });
+
+    case "view.open-dock-panel": {
+      const dockPanels = state.dockPanels.includes(input.panel) ? state.dockPanels : [...state.dockPanels, input.panel];
+      const opened = { ...state, dockOpen: true, dockPanels, dockTab: input.panel };
+      return settled(opened, browserEffectsForTab(opened, input.panel));
+    }
+
+    case "view.close-dock-panel": {
+      if (!state.dockPanels.includes(input.panel)) return settled(state);
+      const index = [...state.dockPanels, ...state.sideChats.map((chat) => chat.id)].indexOf(input.panel);
+      const dockPanels = state.dockPanels.filter((panel) => panel !== input.panel);
+      const tabs = [...dockPanels, ...state.sideChats.map((chat) => chat.id)];
+      const dockTab = state.dockTab === input.panel ? tabs[index - 1] ?? tabs[index] ?? DOCK_PICKER : state.dockTab;
+      const closed = { ...state, dockPanels, dockTab };
+      return settled(closed, browserEffectsForTab(closed, dockTab));
+    }
+
+    case "view.select-dock-tab": {
+      const selected = { ...state, dockTab: input.tab, dockOpen: true };
+      return settled(selected, browserEffectsForTab(selected, input.tab));
+    }
+
+    case "browser.open": {
+      const url = browserUrl(input.url);
+      if (!url) return settled({ ...state, actionError: BROWSER_URL_ERROR });
+      const byUser = input.taskId === undefined;
+      if (!byUser && !browserAllowed(state, input.taskId!, url)) {
+        return settled(showBrowserPanel({
+          ...state,
+          browserApproval: { url, taskId: input.taskId!, ...(input.tabId && !input.newTab ? { tabId: input.tabId } : {}) },
+        }));
+      }
+      return loadBrowserPage(state, url, input.tabId, input.newTab === true, byUser);
+    }
+
+    case "browser.new-tab": {
+      const tab: BrowserTab = { id: crypto.randomUUID(), url: "", title: "", loading: false, canGoBack: false, canGoForward: false };
+      const opened = { ...withBrowserTabs(showBrowserPanel(state), [...state.browserTabs, tab]), browserTabId: tab.id };
+      return settled(opened, [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }]);
+    }
+
+    case "browser.decide": {
+      const approval = state.browserApproval;
+      if (!approval) return settled(state);
+      if (!input.allow) return settled({ ...state, browserApproval: null });
+      const origin = browserOrigin(approval.url);
+      const allowed = origin ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
+      return loadBrowserPage(allowed, approval.url, approval.tabId, approval.tabId === undefined, false);
+    }
+
+    case "browser.select-tab": {
+      const tab = state.browserTabs.find((item) => item.id === input.tabId);
+      if (!tab) return settled(state);
+      return settled({ ...state, browserTabId: tab.id }, [
+        { type: "browser.open", tabId: tab.id, ...(tab.url ? { url: tab.url } : {}) },
+        { type: "browser.show", tabId: tab.id },
+      ]);
+    }
+
+    case "browser.close-tab": {
+      const index = state.browserTabs.findIndex((tab) => tab.id === input.tabId);
+      if (index === -1) return settled(state);
+      const browserTabs = state.browserTabs.filter((tab) => tab.id !== input.tabId);
+      const next = state.browserTabId === input.tabId ? browserTabs[index - 1] ?? browserTabs[index] ?? null : state.browserTabs.find((tab) => tab.id === state.browserTabId) ?? null;
+      const closed = { ...withBrowserTabs(state, browserTabs), browserTabId: next?.id ?? null };
+      return settled(closed, [
+        { type: "browser.close", tabId: input.tabId },
+        ...(next ? [{ type: "browser.open" as const, tabId: next.id, ...(next.url ? { url: next.url } : {}) }] : []),
+        { type: "browser.show", tabId: next?.id ?? null },
+        ...persistView(closed),
+      ]);
+    }
+
+    case "browser.go":
+    case "browser.reload":
+    case "browser.act": {
+      const target = browserTarget(state, input.tabId);
+      if (!target) return settled({ ...state, actionError: BROWSER_TAB_ERROR });
+      if (input.type === "browser.act") return settled(state, [{ type: "browser.act", tabId: target.id, action: input.action }]);
+      const effect: WorkspaceEffect = input.type === "browser.go"
+        ? { type: "browser.history", tabId: target.id, delta: input.delta }
+        : { type: "browser.reload", tabId: target.id };
+      return settled(patchBrowserTab(state, target.id, { loading: true, error: undefined }), [effect]);
+    }
+
+    case "browser.clear-data": {
+      const cleared = { ...state, browserOrigins: [] };
+      return settled(cleared, [{ type: "browser.clear-data" }, ...persistView(cleared)]);
+    }
+
+    case "browser.updated": {
+      const { tabId, ...patch } = input.page;
+      if (!state.browserTabs.some((tab) => tab.id === tabId)) return settled(state);
+      const updated = patchBrowserTab(state, tabId, patch);
+      return settled(updated, patch.url === undefined ? [] : persistView(updated));
     }
 
     case "view.set-menu":

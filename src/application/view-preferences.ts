@@ -3,6 +3,13 @@ import type { ViewPreferences } from "../contracts/preferences.js";
 
 export const VIEW_PREFERENCES_KEY = "claudex.view-preferences.v1";
 
+const MAX_REMEMBERED = 50;
+
+function urlList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0 && item.length <= 8_192).slice(0, MAX_REMEMBERED);
+}
+
 /** Anything unreadable reports no preference, so the caller's default decides. */
 export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPreferences> {
   try {
@@ -10,7 +17,13 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     if (raw === null) return {};
     const value = JSON.parse(raw) as Record<string, unknown>;
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    return typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {};
+    const browserTabs = urlList(value.browserTabs);
+    const browserOrigins = urlList(value.browserOrigins);
+    return {
+      ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
+      ...(browserTabs ? { browserTabs } : {}),
+      ...(browserOrigins ? { browserOrigins } : {}),
+    };
   } catch {
     return {};
   }

@@ -70,8 +70,29 @@ withheld by surface. A side chat reaches everything the main channel does except
 because it must not leave a schedule behind. Change what a surface can do by editing that table, and
 grant a write there only if closing the chat also undoes it.
 
+## The browser panel
+The panel holds a real browser, and one session serves the whole app: a login the user makes in it is
+there for every thread, every project, and the next launch. That session is `persist:browser` in
+`browser-host.ts`, which is the only place a page, a view, or the partition is touched.
+
+State splits by who owns what. The reducer owns the record of the tabs — url, title, loading, which
+one is showing — and main owns the pages themselves, so nothing draws or navigates except through a
+`browser.*` effect. Pages report back as `browser.updated`, the one writer of a tab record. Geometry
+is the panel's alone: `BrowserPanel` reports its rectangle, and null bounds mean the page is not on
+screen. Tabs are restored as records at startup and only load once the panel first shows them.
+
+A run reaches it on the thread request channel, as itself: writes are `browser.*` commands on
+`ExternalCommand`, and a page read is `op: "browser"`, answered by the window from the projection or
+from main. Because the run browses with every login the user has, an origin the user has never
+visited waits for them to allow it, unless the thread may already act without asking. Visiting a site
+is that consent, and clearing the session takes every allowance back.
+
 ## Add a right panel view
 Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.
+
+Which tabs are open and which one is showing is workspace state, not the view's, so a run can open a
+panel the same way the user does. A thread switch clears the dock back to the picker and keeps only
+the browser, whose pages belong to the window rather than to a thread.
 
 ## Colour
 `src/renderer/styles.css` draws every colour from a token in the `:root` block at the top of the

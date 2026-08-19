@@ -322,6 +322,8 @@ function fakeDesktop(overrides = {}) {
   const persisted = [];
   const acknowledged = [];
   const automationChanges = [];
+  const browserCalls = [];
+  let browserEvent;
   let listener;
   let automationsChanged;
   let fireAutomation;
@@ -369,6 +371,22 @@ function fakeDesktop(overrides = {}) {
     acknowledgeAutomation: (ack) => acknowledged.push(ack),
     onThreadRequest: (next) => { threadRequested = next; return () => {}; },
     answerThreadRequest: (response) => threadAnswers.push(response),
+    browserCalls,
+    get browserEvent() { return browserEvent; },
+    openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
+    navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
+    browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },
+    reloadBrowser: async (tabId) => { browserCalls.push(["reload", tabId]); },
+    closeBrowserTab: async (tabId) => { browserCalls.push(["close", tabId]); },
+    showBrowserTab: async (tabId) => { browserCalls.push(["show", tabId]); },
+    setBrowserBounds: async (bounds) => { browserCalls.push(["bounds", bounds]); },
+    actInBrowser: async (tabId, action) => { browserCalls.push(["act", tabId, action]); return "Clicked"; },
+    readBrowserPage: async (tabId, textLimit, timeoutMs) => {
+      browserCalls.push(["read", tabId, textLimit, timeoutMs]);
+      return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
+    },
+    clearBrowserData: async () => { browserCalls.push(["clear"]); },
+    onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
     ...overrides,
   };
 }
@@ -388,7 +406,7 @@ test("computer-use settings refresh permissions", async () => {
     ][checks++],
     restartForComputerUse: () => { restarted = true; },
   });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {} }));
   await act(async () => {});
   assert.match(view.container.textContent, /Accessibility/);
   assert.match(view.container.textContent, /Setup required/);
@@ -420,7 +438,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
   };
   let answer = windows;
   window.desktop = fakeDesktop({ planUsage: async () => answer });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.textContent, /Max plan/);
@@ -442,7 +460,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
 
 test("a usage read that rejects reports instead of breaking the panel", async () => {
   window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.querySelector(".settings-error").textContent, /Untrusted IPC sender/);
@@ -903,7 +921,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 4);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 5);
   await view.unmount();
 });
 
@@ -2384,4 +2402,67 @@ test("resolving a run through the picker insists on the same folder", async () =
 
   assert.equal(wrong.type, "run.unresolved");
   assert.match(wrong.message, /same project folder/);
+});
+
+test("the browser panel drives the page through the workspace and reports where it is drawn", async () => {
+  seedTaskWithSubagent();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { [...view.container.querySelectorAll(".right-dock-picker button")].find((button) => button.getAttribute("aria-label") === "Open Browser panel").click(); });
+
+  const address = view.container.querySelector('.browser-bar input[aria-label="Address"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  await act(async () => {
+    setValue.call(address, "example.com/docs");
+    address.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "example.com/docs" }));
+  });
+  await act(async () => { address.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+
+  const opened = window.desktop.browserCalls.find(([name]) => name === "open");
+  assert.equal(opened[2], "https://example.com/docs");
+  assert.deepEqual(window.desktop.browserCalls.find(([name]) => name === "show").slice(0, 1), ["show"]);
+  assert.ok(window.desktop.browserCalls.some(([name]) => name === "bounds"), "the panel reports its rectangle to main");
+
+  await act(async () => {
+    window.desktop.browserEvent({ tabId: opened[1], url: "https://example.com/docs", title: "Docs", loading: false, canGoBack: true });
+  });
+  assert.match(view.container.querySelector(".browser-tab.active").textContent, /Docs/);
+
+  await act(async () => { view.container.querySelector('.browser-bar button[aria-label="Back"]').click(); });
+  assert.deepEqual(window.desktop.browserCalls.at(-1), ["history", opened[1], -1]);
+
+  await view.unmount();
+  assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", null], "an unmounted panel leaves no page drawn over the app");
+});
+
+test("a run reads the page through the window and is told when a site is waiting on the user", async () => {
+  const desktop = fakeDesktop();
+  const harness = await mountWorkspace(desktop);
+
+  await act(async () => { await harness.get().dispatch({ type: "browser.open", url: "https://example.com" }); });
+  const tabId = harness.get().browserTabs[0].id;
+
+  await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "read-1", taskId: "task-1", op: "browser", read: { op: "tabs" } }); });
+  assert.deepEqual(desktop.threadAnswers.at(-1).result.tabs.map((tab) => tab.id), [tabId]);
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "read-2", taskId: "task-1", op: "browser", read: { op: "snapshot", timeoutMs: 5_000, textLimit: 500 } });
+  });
+  assert.deepEqual(desktop.browserCalls.at(-1), ["read", tabId, 500, 5_000]);
+  assert.equal(desktop.threadAnswers.at(-1).result.snapshot.title, "Example");
+
+  /** A run asking for a site nobody has allowed is answered with the ask, not with a page. */
+  await act(async () => {
+    await harness.get().dispatch({ type: "task.send", text: "look at the dashboard", attachments: [] });
+  });
+  const askingTaskId = harness.get().tasks[0].id;
+  await act(async () => { await harness.get().dispatch({ type: "browser.open", taskId: askingTaskId, url: "https://dash.example.com" }); });
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "read-3", taskId: askingTaskId, op: "browser", read: { op: "snapshot", timeoutMs: 1_000 } });
+  });
+  assert.deepEqual(desktop.threadAnswers.at(-1).result, { kind: "awaiting-approval", url: "https://dash.example.com/" });
+
+  await harness.view.unmount();
 });
