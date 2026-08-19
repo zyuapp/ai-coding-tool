@@ -418,16 +418,11 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled(applyTask(state, input.taskId, (item) => ({ ...item, title })));
     }
 
+    /** A drag reveals every folder so it can be dropped into, so the drop leaves the folding alone. */
     case "task.move": {
       const tasks = moveTaskInList(state.tasks, input.taskId, input.target);
       if (tasks === state.tasks) return settled(state);
-      const projectId = tasks.find((task) => task.id === input.taskId)?.projectId;
-      return settled({
-        ...state,
-        tasks,
-        expandedProjects: projectId ? new Set(state.expandedProjects).add(projectId) : state.expandedProjects,
-        openMenu: null,
-      });
+      return settled({ ...state, tasks, openMenu: null });
     }
 
     case "task.set-policy": {

@@ -1143,3 +1143,15 @@ test("an automation waits for a send that is still finding its checkout", () => 
 
   assert.deepEqual(fired.effects, [{ type: "automation.ack", ack: { automationId: "automation-1", runId: "run-b", started: false } }], "two runs would make two checkouts");
 });
+
+test("a dropped thread moves without unfolding the sidebar the user folded", () => {
+  const state = workspace({
+    projects: [{ id: "project-1", root: "/project" }],
+    tasks: [task("task-a"), task("task-b", { projectId: "project-1" })],
+    expandedProjects: new Set(),
+  });
+
+  const moved = reduce(state, { type: "task.move", taskId: "task-a", target: { projectId: "project-1", index: 0 } });
+  assert.equal(moved.state.tasks.find((item) => item.id === "task-a").projectId, "project-1");
+  assert.deepEqual([...moved.state.expandedProjects], []);
+});
