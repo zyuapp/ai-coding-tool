@@ -6,6 +6,7 @@ import { contextWindowLimit } from "../../domain/run.js";
 import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue } from "./agent-provider.mjs";
 import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
+import { withheldTools } from "./channel-tools.mjs";
 import { threadServer, THREAD_SERVER_NAME } from "./thread-tools.mjs";
 
 type QueryFactory = typeof query;
@@ -145,7 +146,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         options: {
           cwd: input.workspaceRoot,
           pathToClaudeCodeExecutable: packagedClaudeExecutable(),
-          disallowedTools: ["AskUserQuestion"],
+          disallowedTools: withheldTools(input.channel),
           resume: continuation,
           ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
           permissionMode: claudePermissionMode(input.policy),

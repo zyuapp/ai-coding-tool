@@ -207,6 +207,31 @@ test("Claude keeps complex Markdown fences intact across adversarial chunk bound
   }
 });
 
+test("the channel tool table is the only thing a side chat is short of", async () => {
+  const automations = { list: async () => [], read: async () => null, save: async () => ({}), update: async () => ({}), remove: async () => true };
+  const threads = { list: async () => [], read: async () => null, start: async () => ({}), message: async () => ({}), wait: async () => ({}), stop: async () => true, archive: async () => true };
+
+  const main = {};
+  await new ClaudeAgentProvider(queryFactory([], main)).execute(input({ automations, threads }));
+  const side = {};
+  await new ClaudeAgentProvider(queryFactory([], side)).execute(input({ channel: "side", automations, threads }));
+
+  assert.deepEqual(main.options.options.disallowedTools, ["AskUserQuestion"]);
+  assert.deepEqual(side.options.options.disallowedTools, [
+    "AskUserQuestion",
+    "mcp__claudex-automation__schedule",
+    "mcp__claudex-automation__update",
+    "mcp__claudex-automation__stop",
+  ], "a side chat reads automations but never writes one");
+
+  assert.deepEqual(
+    Object.keys(side.options.options.mcpServers ?? {}).sort(),
+    Object.keys(main.options.options.mcpServers ?? {}).sort(),
+    "every other server a run gets, a side chat gets",
+  );
+  assert.equal(side.options.options.tools, undefined, "no tool allowlist narrows a side chat");
+});
+
 test("side chat forks the main continuation and keeps the tools of its own policy", async () => {
   const capture = {};
   const provider = new ClaudeAgentProvider(queryFactory([], capture));

@@ -236,6 +236,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
     next = withPrompt(withQueued(withRunStatus(withActiveRun(next, chat.id, null), chat.id, "idle"), chat.id, []), chat.id, "");
   }
   const closed = new Set(closing.map((chat) => chat.id));
+  /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
   effects.push(...retireAutomations(next, closed));
   return {
     state: {
@@ -619,14 +620,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return taskId ? settled(state, [{ type: "automation.run-now", taskId }]) : settled(state);
     }
 
-    case "automations.changed": {
-      if (!state.storeLoaded) return settled({ ...state, automations: input.automations });
-      const orphaned = input.automations.filter((automation) => !state.tasks.some((task) => task.id === automation.taskId));
-      return settled(
-        { ...state, automations: input.automations.filter((automation) => !orphaned.includes(automation)) },
-        orphaned.map((automation) => ({ type: "automation.delete" as const, taskId: automation.taskId })),
-      );
-    }
+    case "automations.changed":
+      return settled({ ...state, automations: input.automations });
 
     case "view.refresh-environment": {
       const currentTask = state.tasks.find((task) => task.id === state.currentId);
@@ -652,14 +647,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled(applyTask(next, input.taskId, (task) => ({ ...task, lastChangeSnapshot: { files, capturedAt: now() }, updatedAt: now() })));
     }
 
-    case "store.loaded": {
-      const loaded = { ...stateFromData(input.data), automations: state.automations, focused: state.focused, sessionPanelOpen: state.sessionPanelOpen, storeLoaded: true };
-      const orphaned = loaded.automations.filter((automation) => !loaded.tasks.some((task) => task.id === automation.taskId));
-      return settled(
-        { ...loaded, automations: loaded.automations.filter((automation) => !orphaned.includes(automation)) },
-        orphaned.map((automation) => ({ type: "automation.delete" as const, taskId: automation.taskId })),
-      );
-    }
+    case "store.loaded":
+      return settled({ ...stateFromData(input.data), automations: state.automations, focused: state.focused, sessionPanelOpen: state.sessionPanelOpen });
 
     case "preferences.loaded":
       return settled({ ...state, sessionPanelOpen: input.preferences.sessionPanelOpen });
@@ -759,12 +748,8 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   if (!task || task.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
   const message = createTaskMessage("user", pending.text, pending.detail);
   const withMessage = applyTask(state, taskId, (item) => ({ ...item, messages: [...item.messages, message], updatedAt: now() }));
-  const command = {
-    ...startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy),
-    ...sideChannelFor(state, task),
-  };
   return settled(beginRun(withMessage, taskId, pending.runId), [
-    { type: "start-run", command },
+    { type: "start-run", command: startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy) },
     ...ack(pending, true),
   ]);
 }
