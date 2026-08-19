@@ -270,18 +270,18 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
 .project-show-more {
-  width: 100%;
-  height: 26px;
+  height: 24px;
   display: block;
-  margin-bottom: 2px;
-  border-radius: 10px;
+  border: 0;
   padding: 0 8px 0 36px;
-  color: #7c8189;
+  background: transparent;
+  color: #6b7079;
   text-align: left;
   font-size: var(--text-meta);
   letter-spacing: -0.012em;
+  cursor: pointer;
 }
-.project-show-more:hover { background: rgba(255, 255, 255, 0.045); color: #c6c5c1; }
+.project-show-more:hover { color: #a3a7ad; }
 .task-entry { position: relative; min-width: 0; }
 .task-context-menu { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /** The status mark and the archive action share the slot's single cell, so a row keeps
