@@ -218,8 +218,7 @@ export function activeBrowserTab(state: Pick<WorkspaceState, "browserTabs" | "br
 
 /** Which tab a browser command acts on: the one it names, else the one the panel is showing. */
 export function browserTarget(state: WorkspaceState, tabId: string | undefined) {
-  const named = tabId === undefined ? activeBrowserTab(state) : state.browserTabs.find((tab) => tab.id === tabId);
-  return named;
+  return tabId === undefined ? activeBrowserTab(state) : state.browserTabs.find((tab) => tab.id === tabId);
 }
 
 export function projectFor(state: WorkspaceState, task: Task | undefined) {

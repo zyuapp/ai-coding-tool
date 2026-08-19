@@ -1049,8 +1049,11 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "browser.updated": {
       const { tabId, ...patch } = input.page;
-      if (!state.browserTabs.some((tab) => tab.id === tabId)) return settled(state);
-      const updated = patchBrowserTab(state, tabId, patch);
+      const current = state.browserTabs.find((tab) => tab.id === tabId);
+      if (!current) return settled(state);
+      /** Landing on a different page clears the error the page before it left behind. */
+      const clearing = current.error !== undefined && patch.error === undefined && patch.url !== undefined && patch.url !== current.url;
+      const updated = patchBrowserTab(state, tabId, clearing ? { ...patch, error: undefined } : patch);
       return settled(updated, patch.url === undefined ? [] : persistView(updated));
     }
 

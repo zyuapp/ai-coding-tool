@@ -1250,6 +1250,20 @@ test("what a page reports is the only thing that writes the tab record", () => {
   assert.equal(stray.state, updated.state);
 });
 
+test("a page that fails keeps saying so until the tab lands somewhere else", () => {
+  const opened = reduce(workspace(), { type: "browser.open", url: "https://example.com/missing" });
+  const tabId = opened.state.browserTabs[0].id;
+
+  const failed = run(opened.state, [
+    { type: "browser.updated", page: { tabId, loading: false, error: "ERR_NAME_NOT_RESOLVED (https://example.com/missing)" } },
+    { type: "browser.updated", page: { tabId, loading: false, url: "https://example.com/missing", title: "" } },
+  ]);
+  assert.match(failed.browserTabs[0].error, /ERR_NAME_NOT_RESOLVED/, "the load settling is not the failure being over");
+
+  const landed = reduce(failed, { type: "browser.updated", page: { tabId, loading: false, url: "https://example.com/", title: "Example" } });
+  assert.equal(landed.state.browserTabs[0].error, undefined);
+});
+
 test("acting in the browser needs a page, and clearing the session takes back every allowed site", () => {
   const empty = reduce(workspace(), { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "3" } });
   assert.match(empty.state.actionError, /no page open/);
