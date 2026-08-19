@@ -535,6 +535,12 @@ ipcMain.handle("task-store:persist", (event, delta) => {
   taskDatabase.persist(delta);
 });
 
+ipcMain.handle("subagent-activity:load", (event, taskId: string, subagentId: string) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!taskDatabase) throw new Error("Task database is not ready.");
+  return taskDatabase.subagentActivity(taskId, subagentId);
+});
+
 ipcMain.on("run:command", handleRunCommand);
 
 ipcMain.handle("automation:list", (event) => {

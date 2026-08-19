@@ -134,17 +134,10 @@ export class TaskDatabase {
       values.push(JSON.parse(row.data) as TaskMessage);
       messages.set(row.task_id, values);
     }
-    const activity = new Map<string, SubagentActivity[]>();
-    for (const row of this.database.prepare("SELECT task_id, subagent_id, data FROM subagent_activity ORDER BY task_id, subagent_id, position").all() as Array<{ task_id: string; subagent_id: string; data: string }>) {
-      const key = `${row.task_id}\u0000${row.subagent_id}`;
-      const values = activity.get(key) ?? [];
-      values.push(JSON.parse(row.data) as SubagentActivity);
-      activity.set(key, values);
-    }
     const subagents = new Map<string, Subagent[]>();
-    for (const row of this.database.prepare("SELECT task_id, id, data FROM subagents ORDER BY task_id, position").all() as Array<{ task_id: string; id: string; data: string }>) {
+    for (const row of this.database.prepare("SELECT task_id, id, data FROM subagents ORDER BY task_id, position").all() as Array<{ task_id: string; data: string }>) {
       const values = subagents.get(row.task_id) ?? [];
-      values.push({ ...JSON.parse(row.data) as Omit<Subagent, "activity">, activity: activity.get(`${row.task_id}\u0000${row.id}`) ?? [] });
+      values.push({ ...JSON.parse(row.data) as Omit<Subagent, "activity">, activity: [] });
       subagents.set(row.task_id, values);
     }
     const tasks = taskRows
@@ -164,6 +157,14 @@ export class TaskDatabase {
     const validated = parseTaskStore(serializeTaskStore(data));
     if (!validated.ok) throw new Error(validated.errors.join(" "));
     return validated.data;
+  }
+
+  /** A subagent's activity, read only when someone opens it: a session's logs never all fit in the window. */
+  subagentActivity(taskId: string, subagentId: string): SubagentActivity[] {
+    const rows = this.database
+      .prepare("SELECT data FROM subagent_activity WHERE task_id = ? AND subagent_id = ? ORDER BY position")
+      .all(taskId, subagentId) as Array<{ data: string }>;
+    return rows.map(({ data }) => JSON.parse(data) as SubagentActivity);
   }
 
   /** Every task's checkout of its own, so a reconcile can tell a live worktree from an abandoned one. */

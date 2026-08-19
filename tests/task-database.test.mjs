@@ -76,8 +76,9 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
     });
 
     const loaded = database.load();
-    assert.deepEqual(loaded.tasks[0].subagents[0].activity.map((item) => item.id), ["activity-1", "activity-2"]);
+    assert.deepEqual(loaded.tasks[0].subagents[0].activity, []);
     assert.equal(loaded.tasks[0].subagents[0].status, "completed");
+    assert.deepEqual(database.subagentActivity("task-1", "agent-1").map((item) => item.id), ["activity-1", "activity-2"]);
     assert.equal(JSON.parse(new DatabaseSync(file).prepare("SELECT data FROM tasks WHERE id = 'task-1'").get().data).subagents, undefined);
   } finally {
     database.close();
@@ -111,7 +112,8 @@ test("SQLite task storage lifts subagents out of tasks written before they had r
   const database = new TaskDatabase(file);
   try {
     const loaded = database.load();
-    assert.deepEqual(loaded.tasks[0].subagents, task.subagents);
+    assert.deepEqual(loaded.tasks[0].subagents, [{ ...task.subagents[0], activity: [] }]);
+    assert.deepEqual(database.subagentActivity("task-1", "agent-1"), task.subagents[0].activity);
     assert.equal(JSON.parse(new DatabaseSync(file).prepare("SELECT data FROM tasks WHERE id = 'task-1'").get().data).subagents, undefined);
   } finally {
     database.close();

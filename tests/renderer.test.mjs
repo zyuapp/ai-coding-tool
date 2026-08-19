@@ -362,6 +362,7 @@ function fakeDesktop(overrides = {}) {
     saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
     suggestTaskTitle: async () => null,
     loadTaskStore: async () => null,
+    loadSubagentActivity: async () => [],
     persistTaskStore: async (delta) => { persisted.push(delta); },
     send: (command) => sent.push(command),
     onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },
@@ -1165,6 +1166,35 @@ test("the composer offers model and effort choices, ordered most to least capabl
   );
   assert.equal(effortMenu.querySelector(".setting-summary-label").textContent, "High effort");
   await view.unmount();
+});
+
+test("workspace hook reads a stored subagent's activity only when it is opened", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const task = {
+    id: "task-1", title: "Task", projectId: project.id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    subagents: [{ id: "agent-1", description: "Explore", status: "completed", startedAt: 1, finishedAt: 2, activity: [] }],
+  };
+  const asked = [];
+  const desktop = fakeDesktop({
+    loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task], lastFolder: project.root }),
+    loadSubagentActivity: async (taskId, subagentId) => {
+      asked.push([taskId, subagentId]);
+      return [{ id: "activity-1", kind: "text", text: "Reading", at: 1 }];
+    },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+  assert.deepEqual(asked, []);
+
+  await act(async () => { await workspace.get().actions.inspectSubagent("agent-1"); });
+  assert.deepEqual(asked, [["task-1", "agent-1"]]);
+  assert.deepEqual(workspace.get().subagents[0].activity.map((item) => item.id), ["activity-1"]);
+
+  await act(async () => { await workspace.get().actions.inspectSubagent("agent-1"); });
+  assert.equal(asked.length, 1);
+  assert.ok(desktop.persisted.flatMap((delta) => delta.tasks).every((change) => !change.activity));
+  await workspace.view.unmount();
 });
 
 test("workspace hook removes a project without touching its folder", async () => {

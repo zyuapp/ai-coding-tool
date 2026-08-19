@@ -178,6 +178,8 @@ export type DesktopAPI = {
   suggestTaskTitle(text: string, attachments: string[]): Promise<string | null>;
   loadTaskStore(): Promise<TaskStoreData | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
+  /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
+  loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
   listAutomations(): Promise<AutomationView[]>;
   saveAutomation(draft: AutomationDraft): Promise<AutomationView>;
   updateAutomation(taskId: string, patch: AutomationPatch): Promise<AutomationView>;

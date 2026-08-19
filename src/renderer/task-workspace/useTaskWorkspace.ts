@@ -108,13 +108,13 @@ export function useTaskWorkspace() {
   const dispatchRef = useRef<(input: WorkspaceInput) => Promise<void>>(null!);
   const threadWaiters = useRef<ThreadWaiter[]>([]);
 
-  function commit(next: WorkspaceState) {
+  function commit(next: WorkspaceState, persist = true) {
     const previous = stateRef.current;
     if (next === previous) return;
     stateRef.current = next;
     setState(next);
     releaseThreadWaiters(next);
-    if (!persistenceReady.current || !next.writable || next.storageError) return;
+    if (!persist || !persistenceReady.current || !next.writable || next.storageError) return;
     const delta = persistenceDelta(previous, next);
     if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !("lastFolder" in delta)) return;
     persistenceQueue.current = persistenceQueue.current
@@ -127,7 +127,7 @@ export function useTaskWorkspace() {
 
   function dispatch(input: WorkspaceInput): Promise<void> {
     const transition = reduce(stateRef.current, input);
-    commit(transition.state);
+    commit(transition.state, input.type !== "subagent.activity.loaded");
     return Promise.all(transition.effects.map(runEffect)).then(() => undefined);
   }
   dispatchRef.current = dispatch;
@@ -136,6 +136,15 @@ export function useTaskWorkspace() {
     switch (effect.type) {
       case "persist-preferences":
         saveViewPreferences(effect.preferences);
+        return;
+
+      case "load-subagent-activity":
+        try {
+          const activity = await window.desktop.loadSubagentActivity(effect.taskId, effect.subagentId);
+          if (activity.length) await dispatch({ type: "subagent.activity.loaded", taskId: effect.taskId, subagentId: effect.subagentId, activity });
+        } catch (error) {
+          await dispatch({ type: "action.failed", message: errorMessage(error) });
+        }
         return;
 
       case "pick-project":
@@ -482,6 +491,7 @@ export function useTaskWorkspace() {
       setProjectsOpen: (open: boolean) => dispatch({ type: "view.set-projects-open", open }),
       setRecentsOpen: (open: boolean) => dispatch({ type: "view.set-recents-open", open }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
+      inspectSubagent: (subagentId: string) => dispatch({ type: "view.inspect-subagent", subagentId }),
       setOpenMenu: (menu: string | null) => dispatch({ type: "view.set-menu", menu }),
       goBack: () => dispatch({ type: "view.go-back" }),
       goForward: () => dispatch({ type: "view.go-forward" }),

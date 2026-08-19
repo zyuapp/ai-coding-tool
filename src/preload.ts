@@ -30,6 +30,7 @@ const api: DesktopAPI = {
   suggestTaskTitle: (text: string, attachments: string[]) => ipcRenderer.invoke("task-title:suggest", text, attachments),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
+  loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),
   listAutomations: () => ipcRenderer.invoke("automation:list"),
   saveAutomation: (draft: AutomationDraft) => ipcRenderer.invoke("automation:save", draft),
   updateAutomation: (taskId: string, patch: AutomationPatch) => ipcRenderer.invoke("automation:update", taskId, patch),

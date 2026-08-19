@@ -120,6 +120,11 @@ export function App() {
     };
   }, [workspace.actions]);
 
+  function inspectSubagent(id: string) {
+    setSelectedSubagent(id);
+    void workspace.actions.inspectSubagent(id);
+  }
+
   const dockPanels: DockPanel[] = [
     {
       id: "agents",
@@ -130,7 +135,7 @@ export function App() {
       badge: workingSubagents,
       render: () => (inspectedSubagent
         ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />
-        : <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />),
+        : <AgentsPanel subagents={workspace.subagents} onSelect={inspectSubagent} />),
     },
     {
       id: "automation",
@@ -269,7 +274,7 @@ export function App() {
             subagents={workspace.subagents}
             automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
-              setSelectedSubagent(id);
+              inspectSubagent(id);
               openRightTab("agents");
             }}
             onOpenAutomations={() => openRightTab("automation")}

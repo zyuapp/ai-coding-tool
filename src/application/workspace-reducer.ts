@@ -26,7 +26,7 @@ import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
-import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../domain/run.js";
+import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import { clampTitle, legacyProjectId, type Project, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
@@ -53,7 +53,8 @@ export type WorkspaceEvent =
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
   | { type: "browser.updated"; page: BrowserPageEvent }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
-  | { type: "terminal.updated"; update: TerminalUpdate };
+  | { type: "terminal.updated"; update: TerminalUpdate }
+  | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -80,6 +81,7 @@ export type WorkspaceEffect =
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }
+  | { type: "load-subagent-activity"; taskId: string; subagentId: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }
@@ -995,6 +997,27 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "view.set-recents-open":
       return settled({ ...state, recentsOpen: input.open });
+
+    case "view.inspect-subagent": {
+      const taskId = targetId(state, input.taskId);
+      const task = state.tasks.find((candidate) => candidate.id === taskId);
+      const subagent = task?.subagents?.find((candidate) => candidate.id === input.subagentId);
+      return subagent && !subagent.activity.length
+        ? settled(state, [{ type: "load-subagent-activity", taskId: task!.id, subagentId: subagent.id }])
+        : settled(state);
+    }
+
+    case "subagent.activity.loaded": {
+      const task = state.tasks.find((candidate) => candidate.id === input.taskId);
+      if (!task?.subagents?.some((subagent) => subagent.id === input.subagentId)) return settled(state);
+      const stored = new Set(input.activity.map((item) => item.id));
+      return settled(applyTask(state, input.taskId, (target) => ({
+        ...target,
+        subagents: target.subagents?.map((subagent) => subagent.id === input.subagentId
+          ? { ...subagent, activity: [...input.activity, ...subagent.activity.filter((item) => !stored.has(item.id))] }
+          : subagent),
+      })));
+    }
 
     case "view.set-session-panel-open": {
       if (state.sessionPanelOpen === input.open) return settled(state);

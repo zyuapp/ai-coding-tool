@@ -107,6 +107,8 @@ export type ViewCommand =
   | { type: "view.set-projects-open"; open: boolean }
   | { type: "view.set-recents-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
+  /** Opening a subagent's detail, which is when its activity is read out of the store. */
+  | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
   | { type: "view.set-settings-open"; open: boolean }
   /**
    * Closes whatever is in front, the way ⌘W does everywhere else on the desktop: settings, then the
