@@ -1,5 +1,4 @@
 import { AlarmClock, Bot, CheckCircle2, CircleDot, Ellipsis, FileDiff, GitBranch, House, XCircle } from "lucide-react";
-import { useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { Subagent } from "../../domain/run";
@@ -10,17 +9,13 @@ export type SessionPanelProps = {
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   location?: ThreadLocation;
   runActive: boolean;
-  /** The thread's name, which its own menu can change. */
-  title: string;
   openMenu: string | null;
   subagents: Subagent[];
   automationCount: number;
   onSelect: (id: string) => void;
   onOpenAutomations: () => void;
   onSetOpenMenu: (menu: string | null) => void;
-  onRename: (title: string) => void;
   onSetWorktree: (worktree: boolean) => void;
-  onDeleteWorktree: () => void;
 };
 
 export const LOCATION_MENU = "session:location";
@@ -45,20 +40,14 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
 }
 
 type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
-  & Pick<SessionPanelProps, "runActive" | "title" | "openMenu" | "onSetOpenMenu" | "onRename" | "onSetWorktree" | "onDeleteWorktree">;
+  & Pick<SessionPanelProps, "runActive" | "openMenu" | "onSetOpenMenu" | "onSetWorktree">;
 
-/** One entry: it says where the thread works, and its menu carries what can be done to the thread. */
-function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRename, onSetWorktree, onDeleteWorktree }: LocationRowProps) {
-  const [renaming, setRenaming] = useState(false);
+/** One entry: it says where the thread works, and its menu carries the only move it has. */
+function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktree }: LocationRowProps) {
   const inWorktree = location.kind === "worktree";
   /** A thread that has asked for a checkout has not moved yet; the next message is what moves it. */
   const leaving = location.kind === "pending";
   const open = openMenu === LOCATION_MENU;
-
-  function commit(value: string) {
-    if (value.trim()) onRename(value);
-    setRenaming(false);
-  }
 
   return (
     <div className="session-location">
@@ -70,21 +59,9 @@ function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRe
         }}
       >
         <span className="session-row-icon">{inWorktree || leaving ? <GitBranch size={18} /> : <House size={18} />}</span>
-        {renaming
-          ? <input
-              className="session-rename"
-              aria-label="Rename thread"
-              autoFocus
-              defaultValue={title}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") commit(event.currentTarget.value);
-                else if (event.key === "Escape") setRenaming(false);
-              }}
-              onBlur={(event) => commit(event.currentTarget.value)}
-            />
-          : <span title={inWorktree ? location.worktree.root : leaving ? "A checkout of its own is made when you send the next message" : "Runs in your project checkout"}>
-              {inWorktree ? "Worktree" : leaving ? "Worktree on next message" : "Local"}
-            </span>}
+        <span title={inWorktree ? location.worktree.root : leaving ? "A checkout of its own is made when you send the next message" : "Runs in your project checkout"}>
+          {inWorktree ? "Worktree" : leaving ? "Worktree on next message" : "Local"}
+        </span>
         <button
           className="menu-trigger"
           type="button"
@@ -99,21 +76,13 @@ function LocationRow({ location, runActive, title, openMenu, onSetOpenMenu, onRe
             onSetOpenMenu(null);
             onSetWorktree(!(inWorktree || leaving));
           }}>{inWorktree ? "Return to local" : leaving ? "Stay local" : "Hand off to worktree"}</button>
-          <button role="menuitem" onClick={() => {
-            onSetOpenMenu(null);
-            setRenaming(true);
-          }}>Rename thread</button>
-          {inWorktree && <button className="danger-menu-item" role="menuitem" disabled={runActive} onClick={() => {
-            onSetOpenMenu(null);
-            onDeleteWorktree();
-          }}>Delete worktree</button>}
         </div>}
       </div>
     </div>
   );
 }
 
-export function SessionPanel({ environment, hasProject, location, runActive, title, openMenu, subagents, automationCount, onSelect, onOpenAutomations, onSetOpenMenu, onRename, onSetWorktree, onDeleteWorktree }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, automationCount, onSelect, onOpenAutomations, onSetOpenMenu, onSetWorktree }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
 
@@ -122,7 +91,7 @@ export function SessionPanel({ environment, hasProject, location, runActive, tit
       <div className="session-card">
         <h2 className="session-title">Session</h2>
             <div className="session-environment">
-              {location && hasProject && <LocationRow location={location} runActive={runActive} title={title} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onRename={onRename} onSetWorktree={onSetWorktree} onDeleteWorktree={onDeleteWorktree} />}
+              {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetWorktree={onSetWorktree} />}
               <div className="session-row">
                 <span className="session-row-icon"><FileDiff size={18} /></span>
                 <span>Changes</span>

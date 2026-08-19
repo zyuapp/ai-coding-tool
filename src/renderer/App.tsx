@@ -247,12 +247,8 @@ export function App() {
             hasProject={Boolean(workspace.folder)}
             {...(workspace.currentTask ? { location: workspace.location } : {})}
             runActive={workspace.runActive}
-            title={workspace.currentTask?.title ?? ""}
             openMenu={workspace.openMenu}
             onSetOpenMenu={workspace.actions.setOpenMenu}
-            onRename={(title) => {
-              if (workspace.currentTask) void workspace.actions.renameTask(workspace.currentTask.id, title);
-            }}
             subagents={workspace.subagents}
             automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
@@ -267,9 +263,6 @@ export function App() {
                   ? "Keep this thread in your project checkout? Nothing has been made yet."
                   : "Return this thread to your project checkout? Anything uncommitted is committed first, then the worktree is removed.";
               if (window.confirm(question)) void workspace.actions.setWorktree(worktree);
-            }}
-            onDeleteWorktree={() => {
-              if (window.confirm("Delete this worktree? Anything uncommitted in it is lost.")) void workspace.actions.deleteWorktree();
             }}
           />
         )}
