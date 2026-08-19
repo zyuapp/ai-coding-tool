@@ -233,7 +233,12 @@ export function App() {
               openRightTab("agents");
             }}
             onOpenAutomations={() => openRightTab("automation")}
-            onSetWorktree={workspace.actions.setWorktree}
+            onSetWorktree={(worktree) => {
+              const question = worktree
+                ? "Give this thread a worktree? It gets its own checkout and works there from now on."
+                : "Return this thread to your project checkout? Anything uncommitted in the worktree is committed first.";
+              if (window.confirm(question)) void workspace.actions.setWorktree(worktree);
+            }}
             onDeleteWorktree={() => {
               if (window.confirm("Delete this worktree? Anything uncommitted in it is lost.")) void workspace.actions.deleteWorktree();
             }}
@@ -329,7 +334,6 @@ export function App() {
           mode={workspace.policy}
           model={workspace.model}
           effort={workspace.effort}
-          {...(workspace.currentProject ? { worktree: { on: workspace.location.kind !== "local", onChange: workspace.actions.setWorktree } } : {})}
           contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
           queuedMessages={workspace.queuedMessages}

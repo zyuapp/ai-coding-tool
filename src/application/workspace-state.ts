@@ -87,7 +87,6 @@ export type WorkspaceState = {
   historyIndex: number;
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
-  draftWorktree: boolean;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   prompts: Record<string, string>;
@@ -122,7 +121,6 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     historyIndex: -1,
     draftProjectId: null,
     draftPolicy: "confirm",
-    draftWorktree: false,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
@@ -187,9 +185,9 @@ export function taskWorkspaceId(state: WorkspaceState, task: Task | undefined) {
   return task?.worktree?.workspaceId ?? projectFor(state, task)?.workspaceId;
 }
 
-export function locationOf(task: Task | undefined, draftWorktree: boolean): ThreadLocation {
+export function locationOf(task: Task | undefined): ThreadLocation {
   if (task?.worktree) return { kind: "worktree", worktree: task.worktree };
-  if (task ? task.worktreeWanted : draftWorktree) return { kind: "pending" };
+  if (task?.worktreeWanted) return { kind: "pending" };
   return { kind: "local" };
 }
 
@@ -260,7 +258,7 @@ export function deriveView(state: WorkspaceState) {
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktree).map((task) => task.id)),
-    location: locationOf(currentTask, state.draftWorktree),
+    location: locationOf(currentTask),
     environment,
     storageError: state.storageError,
     actionError: state.actionError,

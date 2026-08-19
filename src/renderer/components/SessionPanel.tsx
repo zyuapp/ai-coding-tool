@@ -36,30 +36,36 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   return null;
 }
 
-function LocationRow({ location, hasProject, runActive, onSetWorktree, onDeleteWorktree }: Required<Pick<SessionPanelProps, "location">> & Pick<SessionPanelProps, "hasProject" | "runActive" | "onSetWorktree" | "onDeleteWorktree">) {
+/** One entry, like the rows around it: it says where the thread works, and clicking it moves it. */
+function LocationRow({ location, runActive, onSetWorktree, onDeleteWorktree }: Required<Pick<SessionPanelProps, "location">> & Pick<SessionPanelProps, "runActive" | "onSetWorktree" | "onDeleteWorktree">) {
   const inWorktree = location.kind === "worktree";
   return (
     <div className="session-location">
-      <div className="session-row">
+      <button
+        className="session-row session-row-action"
+        type="button"
+        disabled={runActive}
+        title={inWorktree ? location.worktree.root : "Runs in your project checkout"}
+        aria-label={inWorktree ? "Return this thread to the project checkout" : "Give this thread a worktree"}
+        onClick={() => onSetWorktree(!inWorktree)}
+      >
         <span className="session-row-icon">{inWorktree ? <GitBranch size={18} /> : <House size={18} />}</span>
-        <span>Location</span>
-        <span className="session-location-value">
-          {location.kind === "worktree" ? "Worktree" : location.kind === "pending" ? "On next message" : "Local"}
-        </span>
-      </div>
-      {location.kind === "worktree" && <p className="session-note" title={location.worktree.root}>{location.worktree.root}</p>}
-      {hasProject && (
-        <div className="session-location-actions">
-          <button type="button" onClick={() => onSetWorktree(location.kind === "local")} disabled={runActive}>
-            {location.kind === "local" ? "Move to worktree" : "Switch to local"}
-          </button>
-          {inWorktree && (
-            <button type="button" className="session-danger" onClick={onDeleteWorktree} disabled={runActive} aria-label="Delete worktree">
-              <Trash2 size={15} />
-            </button>
-          )}
-        </div>
-      )}
+        <span>{inWorktree ? "Worktree" : "Local"}</span>
+        {inWorktree && (
+          <span
+            className="session-worktree-delete"
+            role="button"
+            tabIndex={0}
+            aria-label="Delete worktree"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeleteWorktree();
+            }}
+          >
+            <Trash2 size={14} />
+          </span>
+        )}
+      </button>
     </div>
   );
 }
@@ -73,7 +79,7 @@ export function SessionPanel({ environment, hasProject, location, runActive, sub
       <div className="session-card">
         <h2 className="session-title">Session</h2>
             <div className="session-environment">
-              {location && <LocationRow location={location} hasProject={hasProject} runActive={runActive} onSetWorktree={onSetWorktree} onDeleteWorktree={onDeleteWorktree} />}
+              {location && hasProject && <LocationRow location={location} runActive={runActive} onSetWorktree={onSetWorktree} onDeleteWorktree={onDeleteWorktree} />}
               <div className="session-row">
                 <span className="session-row-icon"><FileDiff size={18} /></span>
                 <span>Changes</span>

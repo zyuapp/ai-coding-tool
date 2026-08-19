@@ -138,6 +138,15 @@ export function useTaskWorkspace() {
         window.desktop.send(effect.command);
         return;
 
+      case "create-worktree":
+        try {
+          const worktree = await window.desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: true });
+          await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree });
+        } catch (error) {
+          await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: errorMessage(error) });
+        }
+        return;
+
       case "release-worktree":
         try {
           const snapshot = await window.desktop.releaseWorktree({

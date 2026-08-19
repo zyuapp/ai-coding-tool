@@ -11,6 +11,8 @@ export type Worktree = {
   baseCommit: string;
   createdAt: number;
   lastUsedAt: number;
+  /** Set by the first run that happens here. Before that the thread's session has yet to fork. */
+  enteredAt?: number;
 };
 
 /** Why a worktree let go of its thread. A snapshot commit records this in its message. */
@@ -61,7 +63,8 @@ export function isWorktree(value: unknown): value is Worktree {
     && nonEmptyString(worktree.workspaceId)
     && nonEmptyString(worktree.baseCommit)
     && finiteNumber(worktree.createdAt)
-    && finiteNumber(worktree.lastUsedAt);
+    && finiteNumber(worktree.lastUsedAt)
+    && (worktree.enteredAt === undefined || finiteNumber(worktree.enteredAt));
 }
 
 function nonEmptyString(value: unknown): value is string {

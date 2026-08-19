@@ -761,31 +761,49 @@ function send(state, resolution, worktree) {
   return { request: sending.effects[0], ...resolved };
 }
 
-test("a worktree is only asked for on the send, so changing your mind costs nothing", () => {
-  const wanted = run(projected(), [{ type: "task.set-worktree", worktree: true }]);
-  assert.equal(wanted.draftWorktree, true);
-  assert.equal(deriveView(wanted).location.kind, "pending", "the thread says a worktree is on its way");
+test("asking for a worktree from the panel makes it there and then", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
 
-  const abandoned = run(wanted, [{ type: "task.set-worktree", worktree: false }]);
-  const sending = reduce(run(abandoned, [{ type: "view.set-prompt", prompt: "Look around" }]), { type: "task.send", attachments: [] });
-  assert.equal(sending.effects[0].createWorktree, undefined, "nothing was ever made to clean up");
-});
-
-test("a new thread that asked for a worktree starts in one, from a clean checkout", () => {
-  const drafted = run(projected(), [
-    { type: "task.set-worktree", worktree: true },
-    { type: "view.set-prompt", prompt: "Rename the dock tabs" },
-  ]);
+  const asked = reduce(state, { type: "task.set-worktree", worktree: true });
+  assert.deepEqual(asked.effects, [{ type: "create-worktree", taskId: "task-a", projectRoot: "/repo" }]);
+  assert.equal(deriveView(asked.state).location.kind, "local", "nothing moves until the checkout exists");
 
   const worktree = madeWorktree();
-  const { request, state, effects } = send(drafted, { id: worktree.workspaceId, kind: "worktree", root: worktree.root }, worktree);
+  const made = reduce(asked.state, { type: "worktree.created", taskId: "task-a", worktree });
+  assert.deepEqual(made.state.tasks[0].worktree, worktree);
+  assert.equal(deriveView(made.state).location.kind, "worktree");
+  assert.match(made.state.tasks[0].messages.at(-1).text, /Moved into a worktree at \/worktrees\/repo-wt1/);
+});
 
-  assert.deepEqual(request.createWorktree, { projectRoot: "/repo", carryChanges: false }, "a thread with no history has nothing to carry");
-  const [started] = effects;
-  assert.equal(started.command.workspaceId, worktree.workspaceId, "the run happens in the worktree, not the project");
-  assert.equal(started.command.forkContinuation, undefined, "a thread with no session has nothing to fork");
-  assert.deepEqual(state.tasks[0].worktree, { ...worktree, lastUsedAt: state.tasks[0].worktree.lastUsedAt });
-  assert.equal(deriveView(state).location.kind, "worktree");
+test("a worktree that could not be made leaves the thread where it was", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+
+  const failed = run(state, [
+    { type: "task.set-worktree", worktree: true },
+    { type: "worktree.failed", taskId: "task-a", message: "Git is not installed or is not on the PATH." },
+  ]);
+
+  assert.equal(failed.tasks[0].worktree, undefined);
+  assert.equal(failed.actionError, "Git is not installed or is not on the PATH.");
+  assert.equal(deriveView(failed).location.kind, "local");
+});
+
+test("a thread another thread starts in a worktree gets one on its first run", () => {
+  const drafted = projected();
+
+  const sending = reduce(drafted, { type: "task.send", text: "Refactor the loader", projectId: PROJECT.id, worktree: true });
+  assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false }, "a thread with no history has nothing to carry");
+
+  const worktree = madeWorktree();
+  const started = reduce(sending.state, {
+    type: "run.resolved",
+    pendingId: sending.effects[0].pendingId,
+    workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root },
+    worktree,
+  });
+  assert.equal(started.effects[0].command.workspaceId, worktree.workspaceId, "the run happens in the worktree, not the project");
+  assert.equal(started.effects[0].command.forkContinuation, undefined, "a thread with no session has nothing to fork");
+  assert.equal(started.state.tasks[0].worktree.root, worktree.root);
 });
 
 test("a thread already talking carries its work into the worktree and forks its session", () => {
@@ -811,7 +829,7 @@ test("a thread already talking carries its work into the worktree and forks its 
 });
 
 test("a thread that stays in its worktree reuses it and stops forking", () => {
-  const worktree = madeWorktree();
+  const worktree = { ...madeWorktree(), enteredAt: 3 };
   const existing = task("task-a", {
     projectId: PROJECT.id,
     worktree,
@@ -921,10 +939,20 @@ test("a thread in a worktree reports that checkout's changes, not the project's"
   assert.deepEqual(refreshing.effects, [{ type: "refresh-environment", workspaceId: worktree.workspaceId, taskId: "task-a" }]);
 });
 
-test("a thread another thread starts can be given a worktree of its own", () => {
-  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+test("resolving into a worktree never restates where the project itself is", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id, worktreeWanted: true })], currentId: "task-a", prompts: { "task-a": "Go" } });
 
-  const sending = reduce(state, { type: "task.send", text: "Refactor the loader", projectId: PROJECT.id, worktree: true });
+  const worktree = madeWorktree();
+  const moved = send(state, { id: worktree.workspaceId, kind: "worktree", root: worktree.root }, worktree);
 
-  assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false });
+  assert.deepEqual(moved.state.projects, [PROJECT], "the project keeps its own folder and workspace");
+  assert.equal(deriveView(moved.state).folder, "/repo");
+});
+
+test("resolving through the picker still restates a project folder that moved", () => {
+  const state = projected({ projects: [{ ...PROJECT, workspaceId: undefined }], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+
+  const reopened = send(state, { id: "workspace-b", kind: "project", root: "/repo" });
+
+  assert.deepEqual(reopened.state.projects, [{ ...PROJECT, workspaceId: "workspace-b" }]);
 });

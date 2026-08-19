@@ -1,4 +1,4 @@
-import { Brain, Check, ClipboardList, Feather, FileCheck2, Flame, Gauge, GitBranch, Hand, House, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Check, ClipboardList, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 
@@ -62,14 +62,10 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
   </details>;
 }
 
-/** Absent where a checkout of its own makes no sense, as in a thread with no project folder. */
-export type WorktreeChoice = { on: boolean; onChange: (worktree: boolean) => void };
-
-export function ComposerSettings({ mode, model, effort, worktree, onModeChange, onModelChange, onEffortChange }: {
+export function ComposerSettings({ mode, model, effort, onModeChange, onModelChange, onEffortChange }: {
   mode: ExecutionPolicy;
   model: AgentModel;
   effort: AgentEffort;
-  worktree?: WorktreeChoice;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
@@ -91,20 +87,6 @@ export function ComposerSettings({ mode, model, effort, worktree, onModeChange, 
       <ChoiceMenu label="Permission mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
       <ChoiceMenu label="Model" heading="Choose a model" choices={models} value={model} onChange={onModelChange} />
       <ChoiceMenu label="Effort" heading="How hard should Claude think?" choices={efforts} value={effort} onChange={onEffortChange} />
-      {worktree && (
-        <button
-          className={`setting-toggle ${worktree.on ? "on" : ""}`}
-          type="button"
-          role="switch"
-          aria-checked={worktree.on}
-          aria-label="Run in a worktree"
-          title={worktree.on ? "Runs in a worktree of its own" : "Runs in the project checkout"}
-          onClick={() => worktree.onChange(!worktree.on)}
-        >
-          <span className="setting-summary-icon" aria-hidden="true">{worktree.on ? <GitBranch size={16} /> : <House size={16} />}</span>
-          <span className="setting-summary-label">{worktree.on ? "Worktree" : "Local"}</span>
-        </button>
-      )}
     </div>
   );
 }

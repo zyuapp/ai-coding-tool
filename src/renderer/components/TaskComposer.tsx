@@ -5,7 +5,7 @@ import type { RunAttachment } from "../../domain/task";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
-import { ComposerSettings, type WorktreeChoice } from "./ComposerSettings";
+import { ComposerSettings } from "./ComposerSettings";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 
@@ -51,8 +51,6 @@ export type TaskComposerProps = {
   mode: ExecutionPolicy;
   model: AgentModel;
   effort: AgentEffort;
-  /** Absent where a worktree makes no sense, which hides the toggle rather than disabling it. */
-  worktree?: WorktreeChoice;
   contextUsage?: ContextUsage;
   runActive: boolean;
   queuedMessages: QueuedMessage[];
@@ -75,7 +73,6 @@ export function TaskComposer({
   mode,
   model,
   effort,
-  worktree,
   contextUsage,
   runActive,
   queuedMessages,
@@ -311,7 +308,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} model={model} effort={effort} {...(worktree ? { worktree } : {})} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
+          <ComposerSettings mode={mode} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
