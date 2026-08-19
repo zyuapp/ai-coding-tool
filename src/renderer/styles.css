@@ -487,21 +487,29 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-heading > div { min-width: 0; }
 .task-heading h1 {
   max-width: min(720px, 58vw);
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   margin: 0;
-  overflow: hidden;
   color: #d5d3ce;
   font-size: var(--text-heading);
   font-weight: 590;
   letter-spacing: -0.018em;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Both crumbs shrink, so a long project and a long title each give ground before the row clips. */
+.task-heading h1 > span { overflow: hidden; text-overflow: ellipsis; }
+.heading-project { flex: 0 1 auto; min-width: 4ch; color: #83868a; font-weight: 500; }
+.heading-separator { flex: none; color: #4f5459; font-weight: 400; }
+.heading-thread { flex: 0 1 auto; min-width: 6ch; }
 .task-heading p {
   max-width: min(720px, 58vw);
   margin: 4px 0 0;
   overflow: hidden;
   color: #62676e;
-  font: var(--text-meta)/1.2 ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: var(--text-meta);
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

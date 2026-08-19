@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Archive, ChevronLeft, ChevronRight, Ellipsis, Settings, SquarePen } from "lucide-react";
+import { projectName } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 
@@ -21,10 +22,6 @@ function TaskSpinner() {
     for (const animation of ref.current?.getAnimations() ?? []) animation.startTime = 0;
   }, []);
   return <span ref={ref} className="task-spinner" aria-label="Working" />;
-}
-
-function shortFolder(folder: string) {
-  return folder.split("/").filter(Boolean).at(-1) ?? folder;
 }
 
 function formatTime(value: number) {
@@ -272,7 +269,7 @@ export function ProjectSidebar({
                 <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`}>
                   <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
                     <span className="folder-icon"><FolderIcon /></span>
-                    <span>{shortFolder(project.root)}</span>
+                    <span>{projectName(project.root)}</span>
                   </button>
                   {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
                   <div
@@ -282,7 +279,7 @@ export function ProjectSidebar({
                       if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
                     }}
                   >
-                    <button className="menu-trigger" aria-label={`More options for ${shortFolder(project.root)}`} aria-expanded={openMenu === `project:${project.id}`} onClick={() => onSetOpenMenu(openMenu === `project:${project.id}` ? null : `project:${project.id}`)}><Ellipsis size={16} /></button>
+                    <button className="menu-trigger" aria-label={`More options for ${projectName(project.root)}`} aria-expanded={openMenu === `project:${project.id}`} onClick={() => onSetOpenMenu(openMenu === `project:${project.id}` ? null : `project:${project.id}`)}><Ellipsis size={16} /></button>
                     {openMenu === `project:${project.id}` && <div className="project-menu-popover" role="menu">
                       <button role="menuitem" onClick={() => {
                         onNewTask(project.id);
@@ -296,7 +293,7 @@ export function ProjectSidebar({
                     </div>
                     }
                   </div>
-                  <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${shortFolder(project.root)}`}><SquarePen size={16} /></button>
+                  <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project.root)}`}><SquarePen size={16} /></button>
                 </div>
                 <Droppable droppableId={project.id} type="task">
                   {(provided) => (

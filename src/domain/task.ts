@@ -50,6 +50,11 @@ export function clampTitle(text: string) {
   return trimmed.length > TITLE_LIMIT ? `${trimmed.slice(0, TITLE_LIMIT - 3)}…` : trimmed;
 }
 
+/** How a project folder is named everywhere in the UI: its last path segment. */
+export function projectName(root: string) {
+  return root.split("/").filter(Boolean).at(-1) ?? root;
+}
+
 export function threadCreatedAt(task: Task): number {
   return task.createdAt ?? task.messages[0]?.at ?? task.updatedAt;
 }

@@ -1,4 +1,5 @@
 import { PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
+import { projectName } from "../../domain/task";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -36,8 +37,14 @@ export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanel
         </button>
         <span className="heading-folder"><FolderIcon /></span>
         <div>
-          <h1>{currentTask?.title ?? "New task"}</h1>
-          <p title={folder}>{folder || "Choose a project folder to begin"}</p>
+          <h1 title={folder || undefined}>
+            {folder && <>
+              <span className="heading-project">{projectName(folder)}</span>
+              <span className="heading-separator" aria-hidden="true">/</span>
+            </>}
+            <span className="heading-thread">{currentTask?.title ?? "New task"}</span>
+          </h1>
+          {!folder && <p>Choose a project folder to begin</p>}
         </div>
       </div>
       <div className="workspace-controls">
