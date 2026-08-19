@@ -72,3 +72,16 @@ grant a write there only if closing the chat also undoes it.
 
 ## Add a right panel view
 Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.
+
+## Colour
+`src/renderer/styles.css` draws every colour from a token in the `:root` block at the top of the
+file. A rule names a token and never writes a hex, an `rgb()`, or a named colour. A theme is a second
+block that redefines the same names, so a literal in a rule is a hole a theme cannot reach.
+
+Take an existing token before adding one. They cover surfaces, lines, a ten-step text ladder from
+`--ink` to `--quiet-soft`, the accent, info, success, danger, and alert families, and the shadows and
+scrims. A new token is named for the role it plays, not the colour it currently holds.
+
+Components carry a class, never a colour: the only inline styles are geometry a stylesheet cannot
+know. Colour outside the stylesheet follows the tokens too — the window background in `main.ts`
+tracks `--canvas`, and Mermaid reads the root `color-scheme` rather than naming a theme.

@@ -28,7 +28,13 @@ export function MermaidBlock({ source }: { source: string }) {
     let cancelled = false;
     void import("mermaid").then(async ({ default: mermaid }) => {
       if (!initialized) {
-        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "dark", fontFamily: "ui-sans-serif, system-ui, sans-serif" });
+        const scheme = getComputedStyle(document.documentElement).colorScheme;
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: scheme === "light" ? "default" : "dark",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+        });
         initialized = true;
       }
       try {

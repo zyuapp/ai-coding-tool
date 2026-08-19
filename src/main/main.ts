@@ -284,6 +284,9 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
   postCommand(payload);
 }
 
+/** The renderer's --canvas, so the window does not flash a different colour before it paints. */
+const CANVAS = "#0e1117";
+
 async function createWindow() {
   window = new BrowserWindow({
     width: 1240,
@@ -291,7 +294,7 @@ async function createWindow() {
     minWidth: 820,
     minHeight: 620,
     titleBarStyle: "hiddenInset",
-    backgroundColor: "#f7f6f2",
+    backgroundColor: CANVAS,
     icon,
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
