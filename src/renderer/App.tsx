@@ -18,6 +18,8 @@ type DockPanel = {
   id: string;
   title: string;
   description: string;
+  /** The name that opens this view from the composer, without its `/`. */
+  command: string;
   icon: LucideIcon;
   badge?: number;
   /** Runs when the tab closes, for view state the panel owns outside the workspace. */
@@ -26,7 +28,7 @@ type DockPanel = {
 };
 
 /** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
-type DockLauncher = { id: string; title: string; description: string; icon: LucideIcon; disabled?: boolean; open: () => void };
+type DockLauncher = { id: string; title: string; description: string; command: string; icon: LucideIcon; disabled?: boolean; open: () => void };
 
 type DockTab = { id: string; title: string; icon: LucideIcon; badge?: number };
 
@@ -118,6 +120,7 @@ export function App() {
       id: "agents",
       title: "Subagents",
       description: "View work delegated from this task",
+      command: "subagents",
       icon: Bot,
       badge: workingSubagents,
       onClose: () => setSelectedSubagent(null),
@@ -129,6 +132,7 @@ export function App() {
       id: "automation",
       title: "Automation",
       description: "Edit the schedule that repeats this task",
+      command: "automation",
       icon: AlarmClock,
       render: () => (
         <AutomationPanel
@@ -142,9 +146,14 @@ export function App() {
   ];
 
   const dockLaunchers: DockLauncher[] = [
-    ...dockPanels.map(({ id, title, description, icon }) => ({ id, title, description, icon, open: () => openRightTab(id) })),
-    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", icon: GitFork, disabled: !workspace.currentTask, open: addSideChat },
+    ...dockPanels.map(({ id, title, description, command, icon }) => ({ id, title, description, command, icon, open: () => openRightTab(id) })),
+    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentTask, open: addSideChat },
   ];
+
+  /** The `/` menu is the dock registry, so a view added there is reachable from the composer too. */
+  const composerActions = dockLaunchers
+    .filter((launcher) => !launcher.disabled)
+    .map(({ command, description, open }) => ({ name: command, description, run: open }));
 
   const dockTabs: DockTab[] = [
     ...dockPanels.filter((panel) => openPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
@@ -361,19 +370,12 @@ export function App() {
           contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
           queuedMessages={workspace.queuedMessages}
+          actions={composerActions}
           onPromptChange={workspace.actions.setPrompt}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
           onEffortChange={workspace.actions.setEffort}
-          onSend={(attachments, steer) => {
-            if (workspace.prompt.trim() === "/side") {
-              workspace.actions.setPrompt("");
-              setSelectedSubagent(null);
-              addSideChat();
-              return;
-            }
-            void workspace.actions.sendPrompt(attachments, steer);
-          }}
+          onSend={(attachments, steer) => void workspace.actions.sendPrompt(attachments, steer)}
           onSteerQueued={workspace.actions.steerQueued}
           onDropQueued={workspace.actions.dropQueued}
           onCancel={workspace.actions.cancelRun}

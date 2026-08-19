@@ -1,5 +1,5 @@
 import { Command, CornerDownRight, Sparkles, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
 import type { RunAttachment } from "../../domain/task";
 import type { AvailableCommand } from "../../contracts/ipc";
@@ -10,6 +10,31 @@ import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 
 const MAX_ATTACHMENTS = 6;
+
+/** An entry in the `/` menu that the app performs itself instead of sending. */
+export type ComposerAction = { name: string; description: string; run: () => void };
+
+type MenuEntry = {
+  name: string;
+  description: string;
+  argumentHint: string;
+  aliases: string[];
+  kind: "app" | "skill";
+  run?: () => void;
+};
+
+/**
+ * The `/word` the caret sits in. A `/` only starts one after whitespace, which is what keeps paths
+ * and URLs from opening the menu.
+ */
+function commandTokenAt(text: string, caret: number) {
+  const query = text.slice(0, caret).match(/(?:^|\s)\/([^\s/]*)$/)?.[1];
+  return query === undefined ? null : { query: query.toLowerCase(), start: caret - query.length - 1 };
+}
+
+function commandMatches(entry: MenuEntry, query: string) {
+  return entry.name.toLowerCase().startsWith(query) || entry.aliases.some((alias) => alias.toLowerCase().startsWith(query));
+}
 
 type Attachment = {
   id: string;
@@ -44,8 +69,10 @@ export type TaskComposerProps = {
   prompt: string;
   folder: string;
   workspaceId?: string;
-  /** Where the composer sits. A side chat has no draft of its own to fork, so it offers no `/side`. */
+  /** Where the composer sits. */
   surface?: "main" | "side";
+  /** Runnable `/` entries. A surface that performs none, as a side chat does, passes none. */
+  actions?: ComposerAction[];
   /** Set while the thread cannot take a message at all, as a side chat cannot before its fork exists. */
   disabled?: boolean;
   mode: ExecutionPolicy;
@@ -69,6 +96,7 @@ export function TaskComposer({
   folder,
   workspaceId,
   surface = "main",
+  actions = [],
   disabled = false,
   mode,
   model,
@@ -92,31 +120,46 @@ export function TaskComposer({
   const [commandsToken, setCommandsToken] = useState(0);
   const [selectedCommand, setSelectedCommand] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
+  const [caret, setCaret] = useState(0);
+  const [pendingCaret, setPendingCaret] = useState<number | null>(null);
   const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const editing = attachments.find((attachment) => attachment.id === annotating);
-  const slashQuery = prompt.match(/^\/([^\s]*)$/)?.[1].toLowerCase();
-  const appCommand = { name: "side", description: "Open a focused side chat.", argumentHint: "", aliases: [] as string[], kind: "app" as const };
-  const matchingCommands = slashQuery === undefined ? [] : [
-    ...(surface === "main" ? [appCommand] : []),
-    ...commands.filter((command) => command.name !== "side").map((command) => ({ ...command, kind: "skill" as const })),
-  ].filter((command) => command.name.toLowerCase().startsWith(slashQuery) || command.aliases?.some((alias) => alias.toLowerCase().startsWith(slashQuery)));
-  const commandMenuOpen = inputFocused && slashQuery !== undefined && dismissedPrompt !== prompt;
+  const token = commandTokenAt(prompt, Math.min(caret, prompt.length));
+  /** An action discards the draft, so it is only offered while the command is the whole draft. */
+  const actionsOffered = token !== null && token.start === 0 && prompt.slice(1 + token.query.length).trim() === "";
+  const menuEntries: MenuEntry[] = [
+    ...(actionsOffered ? actions.map((action) => ({ ...action, argumentHint: "", aliases: [], kind: "app" as const })) : []),
+    ...commands
+      .filter((command) => !actions.some((action) => action.name === command.name))
+      .map((command) => ({ ...command, aliases: command.aliases ?? [], kind: "skill" as const })),
+  ];
+  const matchingCommands = token === null ? [] : menuEntries.filter((entry) => commandMatches(entry, token.query));
+  const commandMenuOpen = inputFocused && token !== null && dismissedPrompt !== prompt;
 
   function shortDescription(description: string) {
     const firstSentence = description.split(/(?<=[.!?])\s/, 1)[0].replace(/\s+\([^)]*\)$/, "");
     return firstSentence.length > 110 ? `${firstSentence.slice(0, 107).trimEnd()}…` : firstSentence;
   }
 
-  function chooseCommand(command: (typeof matchingCommands)[number]) {
-    const nextPrompt = `/${command.name}${command.argumentHint ? " " : ""}`;
+  function chooseCommand(entry: MenuEntry) {
+    if (entry.run) {
+      onPromptChange("");
+      setDismissedPrompt(null);
+      setCaret(0);
+      entry.run();
+      return;
+    }
+    if (!token) return;
+    const inserted = `/${entry.name}${entry.argumentHint ? " " : ""}`;
+    const nextPrompt = prompt.slice(0, token.start) + inserted + prompt.slice(token.start + 1 + token.query.length);
     onPromptChange(nextPrompt);
     setDismissedPrompt(nextPrompt);
     setInputFocused(true);
-    textareaRef.current?.focus();
+    setPendingCaret(token.start + inserted.length);
   }
 
   async function attachPasted(files: File[]) {
@@ -182,6 +225,14 @@ export function TaskComposer({
   }, []);
 
   useEffect(() => setSelectedCommand(0), [prompt, commands]);
+
+  useLayoutEffect(() => {
+    if (pendingCaret === null) return;
+    textareaRef.current?.focus();
+    textareaRef.current?.setSelectionRange(pendingCaret, pendingCaret);
+    setCaret(pendingCaret);
+    setPendingCaret(null);
+  }, [pendingCaret]);
 
   useEffect(() => {
     if (!commandMenuOpen) return;
@@ -265,9 +316,14 @@ export function TaskComposer({
             void attachPasted(images);
           }}
           onInput={(event) => {
-            onPromptChange(event.currentTarget.value);
-            setDismissedPrompt(null);
+            const { value, selectionStart } = event.currentTarget;
+            const inputType = (event.nativeEvent as InputEvent).inputType;
+            onPromptChange(value);
+            setCaret(selectionStart);
+            /** Pasted text is not typing, so a `/` it carries must not open the menu. */
+            setDismissedPrompt(inputType === "insertFromPaste" || inputType === "insertFromDrop" ? value : null);
           }}
+          onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onFocus={() => setInputFocused(true)}
           onBlur={(event) => {
             if (!commandMenuRef.current?.contains(event.relatedTarget as Node)) setInputFocused(false);

@@ -584,7 +584,7 @@ test("a side chat composes with everything the main composer has", async () => {
   await view.unmount();
 });
 
-test("slash command palette filters skills and supports keyboard selection", async () => {
+test("a slash action runs at once and clears the draft", async () => {
   window.desktop = fakeDesktop({
     commands: async () => ({ status: "available", commands: [
       { name: "security-scan", description: "Scan the repository for security issues. Extra details are hidden.", argumentHint: "" },
@@ -592,6 +592,7 @@ test("slash command palette filters skills and supports keyboard selection", asy
     ] }),
   });
   let sends = 0;
+  let opened = 0;
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
     return React.createElement(TaskComposer, {
@@ -601,6 +602,7 @@ test("slash command palette filters skills and supports keyboard selection", asy
       mode: "confirm",
       model: "opus",
       runActive: false,
+      actions: [{ name: "side", description: "Open a focused side chat.", run: () => { opened += 1; } }],
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},
@@ -633,11 +635,66 @@ test("slash command palette filters skills and supports keyboard selection", asy
   await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })); });
 
   await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
-  assert.equal(textarea.value, "/side");
+  assert.equal(opened, 1, "choosing an action performs it");
+  assert.equal(textarea.value, "", "the action takes its own name out of the draft");
   assert.equal(view.container.querySelector(".command-menu"), null);
   await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
-  assert.equal(sends, 1);
+  assert.equal(sends, 0, "an emptied draft has nothing to send");
   dom.window.HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  await view.unmount();
+});
+
+test("a skill completes anywhere in the draft, where an action is not offered", async () => {
+  window.desktop = fakeDesktop({
+    commands: async () => ({ status: "available", commands: [
+      { name: "security-scan", description: "Scan the repository for security issues.", argumentHint: "" },
+    ] }),
+  });
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      mode: "confirm",
+      model: "opus",
+      runActive: false,
+      actions: [{ name: "side", description: "Open a focused side chat.", run() {} }],
+      onPromptChange: setPrompt,
+      onModeChange() {},
+      onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
+      onSend() {},
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  textarea.attachEvent = () => {};
+  textarea.detachEvent = () => {};
+  const type = async (value, inputType = "insertText") => {
+    await act(async () => {
+      textarea.focus();
+      setValue.call(textarea, value);
+      textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType }));
+      textarea.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  };
+
+  await type("look at this /s");
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/security-scan"], "a half-written draft offers skills alone");
+
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
+  assert.equal(textarea.value, "look at this /security-scan", "the completion replaces the token it grew from");
+
+  await type("src/s");
+  assert.equal(view.container.querySelector(".command-menu"), null, "a path is not a command");
+
+  await type("/s", "insertFromPaste");
+  assert.equal(view.container.querySelector(".command-menu"), null, "pasted text is not typing");
   await view.unmount();
 });
 
