@@ -222,11 +222,36 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
 
 /** The dock tab that offers the panels, shown whenever no panel is on top. */
 export const DOCK_PICKER = "home";
-export const BROWSER_PANEL = "browser";
-export const TERMINAL_PANEL = "terminal";
 
-/** The panels whose contents belong to the window rather than to a thread, so a thread switch keeps them. */
-export const WINDOW_PANELS = [BROWSER_PANEL, TERMINAL_PANEL];
+/**
+ * What a dock tab is showing. A page and a shell are tabs in their own right rather than tabs within
+ * a panel, so `dockTab` names one of them directly and there is one strip in the app, not two.
+ */
+export function dockTabKind(state: WorkspaceState, tab: string) {
+  if (state.browserTabs.some((page) => page.id === tab)) return "browser" as const;
+  if (state.terminals.some((terminal) => terminal.id === tab)) return "terminal" as const;
+  if (state.sideChats.some((chat) => chat.id === tab)) return "side-chat" as const;
+  return state.dockPanels.includes(tab) ? "panel" as const : "picker" as const;
+}
+
+/** Every tab in the dock, in the order the strip draws them. */
+export function dockTabIds(state: WorkspaceState) {
+  return [
+    ...state.dockPanels,
+    ...state.browserTabs.map((page) => page.id),
+    ...state.terminals.map((terminal) => terminal.id),
+    ...state.sideChats.map((chat) => chat.id),
+  ];
+}
+
+/** Which tab takes over when `tab` closes: its neighbour on the left, else on the right, else the picker. */
+export function dockTabAfterClosing(state: WorkspaceState, tab: string) {
+  const tabs = dockTabIds(state);
+  const index = tabs.indexOf(tab);
+  if (index === -1) return state.dockTab;
+  const remaining = tabs.filter((id) => id !== tab);
+  return remaining[index - 1] ?? remaining[index] ?? DOCK_PICKER;
+}
 
 export function activeBrowserTab(state: Pick<WorkspaceState, "browserTabs" | "browserTabId">) {
   return state.browserTabs.find((tab) => tab.id === state.browserTabId);
@@ -249,6 +274,13 @@ export function terminalTarget(state: WorkspaceState, terminalId: string | undef
   if (terminalId !== undefined) return state.terminals.find((terminal) => terminal.id === terminalId);
   const own = taskId === undefined ? undefined : [...state.terminals].reverse().find((terminal) => terminal.taskId === taskId);
   return own ?? activeTerminal(state);
+}
+
+/** Where a new shell starts: the thread's own checkout, else its project, else the last folder opened. */
+export function terminalFolder(state: WorkspaceState): string | null {
+  const task = state.tasks.find((item) => item.id === state.currentId);
+  const draft = state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.root : undefined;
+  return taskWorkspaceRoot(state, task) ?? draft ?? state.lastFolder;
 }
 
 export function projectFor(state: WorkspaceState, task: Task | undefined) {
@@ -353,11 +385,10 @@ export function deriveView(state: WorkspaceState) {
     dockPanels: state.dockPanels,
     dockTab: state.dockTab,
     browserTabs: state.browserTabs,
-    browserTab: activeBrowserTab(state),
     browserApproval: state.browserApproval,
     browserOrigins: state.browserOrigins,
     terminals: state.terminals,
-    terminal: activeTerminal(state),
+    terminalFolder: terminalFolder(state),
     openMenu: state.openMenu,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,

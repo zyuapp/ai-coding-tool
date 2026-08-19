@@ -112,11 +112,19 @@ Views outlive the panel. `terminal-views.ts` holds them outside React, because a
 while its tab is closed, and a build's output must survive the panel being put away.
 
 ## Add a right panel view
-Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.
+Everything in the right panel is a closable tab in one strip. There are no tabs within a tab: a page,
+a shell and a side chat are each a dock tab of their own, named by their own id.
+
+A view there is only ever one of is a `DockPanel` entry in `dockPanels` in `App.tsx`. A view the user
+opens more than one of is a `DockLauncher` instead, whose `open` dispatches the command that makes
+one — `browser.new-tab`, `terminal.open`, `side-chat.open` — and whose records the strip and the
+content region are drawn from. The picker and the add menu are the launcher list, so one entry
+reaches both. Do not render a right panel view outside those two lists.
 
 Which tabs are open and which one is showing is workspace state, not the view's, so a run can open a
-panel the same way the user does. A thread switch clears the dock back to the picker and keeps only
-the browser, whose pages belong to the window rather than to a thread.
+panel the same way the user does. `dockTabKind` says what a tab id is and `dockTabAfterClosing` says
+which tab takes over, so closing behaves the same however the tab was opened. A thread switch clears
+the panels about that thread and keeps the pages and shells, which belong to the window.
 
 ## Colour
 `src/renderer/styles.css` draws every colour from a token in the `:root` block at the top of the

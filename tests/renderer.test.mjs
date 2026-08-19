@@ -940,7 +940,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 6);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 4);
   await view.unmount();
 });
 
@@ -950,7 +950,7 @@ test("every right panel view opens as a closable tab", async () => {
   const view = await mount(React.createElement(App));
 
   await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
-  const labels = [...view.container.querySelectorAll(".right-dock-picker button")].map((button) => button.getAttribute("aria-label"));
+  const labels = [...view.container.querySelectorAll(".right-dock-picker button:not([disabled])")].map((button) => button.getAttribute("aria-label"));
   assert.ok(labels.length >= 3);
 
   for (const label of labels) {
@@ -2440,14 +2440,14 @@ test("the browser panel drives the page through the workspace and reports where 
   await act(async () => { address.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
 
   const opened = window.desktop.browserCalls.find(([name]) => name === "open");
-  assert.equal(opened[2], "https://example.com/docs");
+  assert.deepEqual(window.desktop.browserCalls.find(([name]) => name === "navigate"), ["navigate", opened[1], "https://example.com/docs"], "the blank tab the launcher made is the one that loads");
   assert.deepEqual(window.desktop.browserCalls.find(([name]) => name === "show").slice(0, 1), ["show"]);
   assert.ok(window.desktop.browserCalls.some(([name]) => name === "bounds"), "the panel reports its rectangle to main");
 
   await act(async () => {
     window.desktop.browserEvent({ tabId: opened[1], url: "https://example.com/docs", title: "Docs", loading: false, canGoBack: true });
   });
-  assert.match(view.container.querySelector(".browser-tab.active").textContent, /Docs/);
+  assert.match(view.container.querySelector(".right-dock-tab.active").textContent, /Docs/, "a page names its own dock tab");
 
   await act(async () => { view.container.querySelector('.browser-bar button[aria-label="Back"]').click(); });
   assert.deepEqual(window.desktop.browserCalls.at(-1), ["history", opened[1], -1]);
@@ -2486,7 +2486,7 @@ test("a run reads the page through the window and is told when a site is waiting
   await harness.view.unmount();
 });
 
-test("⌘W closes the page in front, then the panel, and only then the window", async () => {
+test("⌘W closes the page in front, then the dock, and only then the window", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
@@ -2501,14 +2501,11 @@ test("⌘W closes the page in front, then the panel, and only then the window", 
     address.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "example.com" }));
   });
   await act(async () => { address.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
-  assert.equal(view.container.querySelectorAll(".browser-tab").length, 1);
+  assert.equal(view.container.querySelectorAll(".right-dock-tab").length, 1);
 
   await act(async () => { window.desktop.closeTabShortcut(); });
-  assert.equal(view.container.querySelectorAll(".browser-tab").length, 0, "the page goes first");
-  assert.equal(view.container.querySelector(".browser-panel") !== null, true);
-
-  await act(async () => { window.desktop.closeTabShortcut(); });
-  assert.equal(view.container.querySelectorAll('.right-dock-tab').length, 0, "then the panel holding it");
+  assert.equal(view.container.querySelectorAll(".right-dock-tab").length, 0, "the page is the tab, so it goes first");
+  assert.equal(view.container.querySelector(".browser-panel"), null);
 
   await act(async () => { window.desktop.closeTabShortcut(); });
   assert.equal(view.container.querySelector(".right-dock").hidden, true, "then the dock");

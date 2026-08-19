@@ -14,8 +14,12 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
+import { browserTabTitle } from "../domain/browser";
 
-/** A view in the right dock. Every right dock view is a tab, so adding one means adding an entry to `dockPanels`. */
+/**
+ * A view in the right dock that there is only ever one of. Pages, shells and side chats are tabs of
+ * their own instead: they are opened by a launcher below and drawn from the workspace's own records.
+ */
 type DockPanel = {
   id: string;
   title: string;
@@ -55,6 +59,8 @@ export function App() {
 
   function closeRightTab(id: string) {
     if (workspace.dockPanels.includes(id)) void workspace.actions.closeDockPanel(id);
+    else if (workspace.browserTabs.some((tab) => tab.id === id)) void workspace.actions.closeBrowserTab(id);
+    else if (workspace.terminals.some((terminal) => terminal.id === id)) void workspace.actions.closeTerminal(id);
     else void workspace.dispatch({ type: "side-chat.close", chatId: id });
   }
 
@@ -118,47 +124,6 @@ export function App() {
         : <AgentsPanel subagents={workspace.subagents} onSelect={setSelectedSubagent} />),
     },
     {
-      id: "browser",
-      title: "Browser",
-      description: "Browse in one session the whole app shares",
-      command: "browser",
-      icon: Globe,
-      render: () => (
-        <BrowserPanel
-          tabs={workspace.browserTabs}
-          tab={workspace.browserTab}
-          approval={workspace.browserApproval}
-          visible={rightDockOpen && activeRightTab === "browser" && !settingsVisible}
-          onOpen={(url, newTab) => void workspace.actions.openBrowser(url, newTab)}
-          onNewTab={() => void workspace.actions.newBrowserTab()}
-          onSelectTab={(tabId) => void workspace.actions.selectBrowserTab(tabId)}
-          onCloseTab={(tabId) => void workspace.actions.closeBrowserTab(tabId)}
-          onGo={(delta) => void workspace.actions.goInBrowser(delta)}
-          onReload={() => void workspace.actions.reloadBrowser()}
-          onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
-        />
-      ),
-    },
-    {
-      id: "terminal",
-      title: "Terminal",
-      description: "Run a shell here and let Claude read what it prints",
-      command: "terminal",
-      icon: SquareTerminal,
-      render: () => (
-        <TerminalPanel
-          terminals={workspace.terminals}
-          terminal={workspace.terminal}
-          visible={rightDockOpen && activeRightTab === "terminal" && !settingsVisible}
-          onOpen={() => void workspace.actions.openTerminal()}
-          onSelect={(terminalId) => void workspace.actions.selectTerminal(terminalId)}
-          onClose={(terminalId) => void workspace.actions.closeTerminal(terminalId)}
-          onInput={(terminalId, data) => void workspace.actions.sendToTerminal(terminalId, data)}
-          onResize={(terminalId, cols, rows) => void workspace.actions.resizeTerminal(terminalId, cols, rows)}
-        />
-      ),
-    },
-    {
       id: "automation",
       title: "Automation",
       description: "Edit the schedule that repeats this task",
@@ -175,8 +140,11 @@ export function App() {
     },
   ];
 
+  /** One click opens the thing itself: a launcher makes a tab rather than a panel that holds tabs. */
   const dockLaunchers: DockLauncher[] = [
     ...dockPanels.map(({ id, title, description, command, icon }) => ({ id, title, description, command, icon, open: () => openRightTab(id) })),
+    { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() },
+    { id: "terminal", title: "Terminal", description: "Run a shell here and let Claude read what it prints", command: "terminal", icon: SquareTerminal, disabled: !workspace.terminalFolder, open: () => void workspace.actions.openTerminal() },
     { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentTask, open: addSideChat },
   ];
 
@@ -185,8 +153,13 @@ export function App() {
     .filter((launcher) => !launcher.disabled)
     .map(({ command, description, open }) => ({ name: command, description, run: open }));
 
+  const browserTab = workspace.browserTabs.find((tab) => tab.id === activeRightTab);
+  const shownTerminal = workspace.terminals.find((terminal) => terminal.id === activeRightTab);
+
   const dockTabs: DockTab[] = [
     ...dockPanels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
+    ...workspace.browserTabs.map((tab) => ({ id: tab.id, title: browserTabTitle(tab), icon: Globe })),
+    ...workspace.terminals.map((terminal) => ({ id: terminal.id, title: terminal.title, icon: SquareTerminal })),
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork })),
   ];
 
@@ -363,6 +336,30 @@ export function App() {
               {dockPanels.map((panel) => (
                 <div key={panel.id} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
               ))}
+              {/** A page is a native view main draws over the panel, so only the one on top is ever drawn. */}
+              {browserTab && (
+                <div>
+                  <BrowserPanel
+                    tab={browserTab}
+                    approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}
+                    visible={rightDockOpen && !settingsVisible}
+                    onOpen={(url) => void workspace.actions.openBrowser(url)}
+                    onGo={(delta) => void workspace.actions.goInBrowser(delta)}
+                    onReload={() => void workspace.actions.reloadBrowser()}
+                    onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
+                  />
+                </div>
+              )}
+              {shownTerminal && (
+                <div>
+                  <TerminalPanel
+                    terminal={shownTerminal}
+                    visible={rightDockOpen && !settingsVisible}
+                    onInput={(terminalId, data) => void workspace.actions.sendToTerminal(terminalId, data)}
+                    onResize={(terminalId, cols, rows) => void workspace.actions.resizeTerminal(terminalId, cols, rows)}
+                  />
+                </div>
+              )}
               {workspace.currentTask && workspace.sideChats.map((chat) => (
                 <div key={chat.id} hidden={activeRightTab !== chat.id}>
                   <SideChat

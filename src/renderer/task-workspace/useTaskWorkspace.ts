@@ -12,6 +12,7 @@ import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
+import { disposeTerminalView } from "./terminal-views";
 
 export type { ApprovalView } from "../../application/task-workspace";
 
@@ -225,7 +226,9 @@ export function useTaskWorkspace() {
       case "terminal.resize":
         return reportFailure(window.desktop.resizeTerminal(effect.terminalId, effect.cols, effect.rows));
 
+      /** The view outlives the panel, so the shell going is the only thing that takes it away. */
       case "terminal.close":
+        disposeTerminalView(effect.terminalId);
         return reportFailure(window.desktop.closeTerminal(effect.terminalId));
 
       case "close-window":

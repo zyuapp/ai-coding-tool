@@ -1147,7 +1147,7 @@ test("a dropped thread moves without unfolding the sidebar the user folded", () 
   assert.deepEqual([...moved.state.expandedProjects], []);
 });
 
-test("the user's own page visit opens the browser panel and allows that origin from then on", () => {
+test("the user's own page visit opens a dock tab of its own and allows that origin from then on", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/claudex" });
   const [tab] = opened.state.browserTabs;
 
@@ -1156,7 +1156,7 @@ test("the user's own page visit opens the browser panel and allows that origin f
   assert.equal(opened.state.browserTabId, tab.id);
   assert.deepEqual(opened.state.browserOrigins, ["https://github.com"]);
   assert.equal(opened.state.dockOpen, true, "a page has to land somewhere the user can see it");
-  assert.equal(opened.state.dockTab, "browser");
+  assert.equal(opened.state.dockTab, tab.id, "a page is a tab in the dock, not a tab inside a panel");
   assert.deepEqual(opened.effects.filter((effect) => effect.type.startsWith("browser")), [
     { type: "browser.open", tabId: tab.id, url: "https://github.com/zyuapp/claudex" },
     { type: "browser.show", tabId: tab.id },
@@ -1186,14 +1186,15 @@ test("a run has to be allowed an origin the user has never visited, and then nev
   const withTask = { ...state, tasks: [task("task-1")], currentId: "task-1" };
 
   const asked = reduce(withTask, { type: "browser.open", taskId: "task-1", url: "https://dash.example.com/metrics" });
-  assert.deepEqual(asked.state.browserTabs, [], "nothing loads while the user has not answered");
-  assert.deepEqual(asked.effects, []);
-  assert.deepEqual(asked.state.browserApproval, { url: "https://dash.example.com/metrics", taskId: "task-1" });
-  assert.equal(asked.state.dockTab, "browser", "the ask is shown where the page would have been");
+  const [blank] = asked.state.browserTabs;
+  assert.equal(blank.url, "", "the ask gets a tab of its own to be shown in, and loads nothing into it");
+  assert.deepEqual(asked.state.browserApproval, { url: "https://dash.example.com/metrics", taskId: "task-1", tabId: blank.id });
+  assert.equal(asked.state.dockTab, blank.id, "the ask is shown where the page would have been");
 
   const blocked = reduce(asked.state, { type: "browser.decide", allow: false });
   assert.equal(blocked.state.browserApproval, null);
   assert.deepEqual(blocked.state.browserOrigins, []);
+  assert.deepEqual(blocked.state.browserTabs, [], "a tab that only carried the ask goes with it");
 
   const allowed = reduce(asked.state, { type: "browser.decide", allow: true });
   assert.deepEqual(allowed.state.browserOrigins, ["https://dash.example.com"]);
@@ -1277,7 +1278,7 @@ test("acting in the browser needs a page, and clearing the session takes back ev
   assert.equal(cleared.effects[0].type, "browser.clear-data");
 });
 
-test("a terminal opens in the thread's own checkout and shows the panel it landed in", () => {
+test("a terminal opens in the thread's own checkout and takes a dock tab of its own", () => {
   const state = {
     ...workspace(),
     projects: [{ id: "project-1", root: "/repo" }],
@@ -1294,7 +1295,7 @@ test("a terminal opens in the thread's own checkout and shows the panel it lande
   assert.equal(terminal.status, "running");
   assert.equal(opened.state.terminalId, terminal.id);
   assert.equal(opened.state.dockOpen, true, "a shell has to land somewhere the user can see it");
-  assert.equal(opened.state.dockTab, "terminal");
+  assert.equal(opened.state.dockTab, terminal.id, "a shell is a tab in the dock, not a tab inside a panel");
   assert.deepEqual(opened.effects, [{ type: "terminal.start", terminalId: terminal.id, cwd: "/repo" }]);
 
   const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktree: { id: "w1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 } })] };
@@ -1355,39 +1356,45 @@ test("closing a terminal hands the panel its neighbour and kills only the shell 
   assert.deepEqual(empty.state.terminals, []);
 });
 
-test("⌘W closes the terminal in front before the panel holding it", () => {
+test("⌘W closes the terminal in front, then the dock behind it", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
   const [terminal] = opened.state.terminals;
 
   const closedShell = reduce(opened.state, { type: "view.close-tab" });
   assert.deepEqual(closedShell.state.terminals, []);
-  assert.deepEqual(closedShell.state.dockPanels, ["terminal"], "the panel stays until nothing is left in it");
+  assert.deepEqual(closedShell.effects, [{ type: "terminal.close", terminalId: terminal.id }]);
+  assert.equal(closedShell.state.dockTab, "home", "nothing is left in the dock but the picker");
 
-  const closedPanel = reduce(closedShell.state, { type: "view.close-tab" });
-  assert.deepEqual(closedPanel.state.dockPanels, []);
-  assert.equal(terminal.status, "running");
+  assert.equal(reduce(closedShell.state, { type: "view.close-tab" }).state.dockOpen, false);
 });
 
-test("the dock remembers which panels are open, and a thread switch keeps only the browser", () => {
-  const state = { ...workspace(), tasks: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
+test("the dock remembers which panels are open, and a thread switch keeps the pages and shells", () => {
+  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
 
   const opened = run(state, [
     { type: "view.open-dock-panel", panel: "agents" },
-    { type: "view.open-dock-panel", panel: "browser" },
+    { type: "browser.open", url: "https://one.example" },
+    { type: "terminal.open" },
   ]);
-  assert.deepEqual(opened.dockPanels, ["agents", "browser"]);
-  assert.equal(opened.dockTab, "browser");
+  const [page] = opened.browserTabs;
+  const [shell] = opened.terminals;
+  assert.deepEqual(opened.dockPanels, ["agents"], "only a panel there is one of is a panel");
+  assert.equal(opened.dockTab, shell.id);
   assert.equal(opened.dockOpen, true);
 
   const switched = reduce(opened, { type: "task.select", taskId: "task-2" });
-  assert.deepEqual(switched.state.dockPanels, ["browser"], "the browser's pages outlive the thread that was showing them");
-  assert.equal(switched.state.dockTab, "browser");
+  assert.deepEqual(switched.state.dockPanels, [], "a panel about the thread goes with the thread");
+  assert.deepEqual(switched.state.browserTabs.map((tab) => tab.id), [page.id], "a page outlives the thread that was showing it");
+  assert.deepEqual(switched.state.terminals.map((terminal) => terminal.id), [shell.id], "so does a shell");
+  assert.equal(switched.state.dockTab, shell.id, "and the one in front keeps showing");
 
-  const closed = reduce(switched.state, { type: "view.close-dock-panel", panel: "browser" });
-  assert.deepEqual(closed.state.dockPanels, []);
-  assert.equal(closed.state.dockTab, "home");
+  const closed = reduce(switched.state, { type: "terminal.close", terminalId: shell.id });
+  assert.equal(closed.state.dockTab, page.id, "closing a tab hands the dock its neighbour");
 
-  const hidden = reduce(closed.state, { type: "view.set-dock-open", open: false });
+  const empty = reduce(closed.state, { type: "browser.close-tab", tabId: page.id });
+  assert.equal(empty.state.dockTab, "home");
+
+  const hidden = reduce(empty.state, { type: "view.set-dock-open", open: false });
   assert.equal(hidden.state.dockOpen, false);
 });
 
@@ -1401,8 +1408,8 @@ test("a restored page waits for the panel to show it before it loads", () => {
   assert.equal(restored.state.browserTabs[0].loading, false);
   assert.deepEqual(restored.effects, [], "restoring records loads nothing on its own");
 
-  const shown = reduce(restored.state, { type: "view.open-dock-panel", panel: "browser" });
   const tabId = restored.state.browserTabs[0].id;
+  const shown = reduce(restored.state, { type: "view.select-dock-tab", tab: tabId });
   assert.deepEqual(shown.effects, [
     { type: "browser.open", tabId, url: "https://example.com/docs" },
     { type: "browser.show", tabId },
@@ -1448,17 +1455,15 @@ test("closing a tab takes what is in front, and only then the window", () => {
   const [first, second] = browsing.browserTabs;
 
   const closedPage = reduce(browsing, { type: "view.close-tab" });
-  assert.deepEqual(closedPage.state.browserTabs.map((tab) => tab.id), [first.id], "the page in front goes before the panel holding it");
+  assert.deepEqual(closedPage.state.browserTabs.map((tab) => tab.id), [first.id], "the page in front is what ⌘W takes");
   assert.equal(closedPage.effects.some((effect) => effect.type === "browser.close" && effect.tabId === second.id), true);
+  assert.equal(closedPage.state.dockTab, first.id, "and the dock lands on its neighbour");
 
   const closedLast = reduce(closedPage.state, { type: "view.close-tab" });
   assert.deepEqual(closedLast.state.browserTabs, []);
+  assert.equal(closedLast.state.dockTab, "agents", "the panel behind the pages is the next thing in front");
 
-  const closedPanel = reduce(closedLast.state, { type: "view.close-tab" });
-  assert.deepEqual(closedPanel.state.dockPanels, ["agents"], "an empty browser panel is the next thing in front");
-  assert.equal(closedPanel.state.dockTab, "agents");
-
-  const closedAgents = reduce(closedPanel.state, { type: "view.close-tab" });
+  const closedAgents = reduce(closedLast.state, { type: "view.close-tab" });
   assert.deepEqual(closedAgents.state.dockPanels, []);
   assert.equal(closedAgents.state.dockTab, "home");
 

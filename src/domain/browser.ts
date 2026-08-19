@@ -74,6 +74,16 @@ export function browserOrigin(url: string): string | null {
   }
 }
 
+/** What a tab calls itself: the page's own title, else the site it is on, else that it is waiting. */
+export function browserTabTitle(tab: Pick<BrowserTab, "title" | "url">) {
+  if (tab.title) return tab.title;
+  try {
+    return new URL(tab.url).host || "New tab";
+  } catch {
+    return "New tab";
+  }
+}
+
 /** How a tab reads in a list, for a caller that has no screen. */
 export function describeTab(tab: BrowserTab) {
   const parts = [`${tab.title || tab.url || "Blank tab"} [${tab.id}]`, tab.url, ...(tab.loading ? ["loading"] : []), ...(tab.error ? [tab.error] : [])];
