@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { AlarmClock, Archive, ChevronLeft, ChevronRight, Ellipsis, GitBranch, Settings, SquarePen } from "lucide-react";
+import { AlarmClock, Archive, ChevronLeft, ChevronRight, GitBranch, Settings, SquarePen } from "lucide-react";
 import { projectName } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
+import { ContextMenu, PopoverMenu } from "./PopoverMenu";
 
 const RECENTS_DROPPABLE = "recents";
 const PROJECT_TASK_LIMIT = 10;
@@ -217,19 +217,14 @@ export function ProjectSidebar({
                 />
               : <>{content}{taskMarks(task)}</>}
           </div>
-          {openMenu === `task:${task.id}` && createPortal(
-            <div className="menu-popover context-menu-popover" data-popover-menu role="menu" style={taskMenuPosition}>
-              <button role="menuitem" onClick={() => {
-                setRenamingId(task.id);
-                onSetOpenMenu(null);
-              }}>Rename</button>
-              <button role="menuitem" onClick={() => {
-                onArchiveTask(task.id);
-                onSetOpenMenu(null);
-              }}>Archive</button>
-            </div>,
-            document.body,
-          )}
+          {openMenu === `task:${task.id}` && <ContextMenu
+            position={taskMenuPosition}
+            onSetOpenMenu={onSetOpenMenu}
+            items={[
+              { label: "Rename", onSelect: () => setRenamingId(task.id) },
+              { label: "Archive", onSelect: () => onArchiveTask(task.id) },
+            ]}
+          />}
         </div>
       )}
     </Draggable>
@@ -275,27 +270,18 @@ export function ProjectSidebar({
                     <span>{projectName(project.root)}</span>
                   </button>
                   {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
-                  <div
-                    className={`project-menu ${openMenu === `project:${project.id}` ? "open" : ""}`}
-                    data-popover-menu
-                    onBlur={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
-                    }}
-                  >
-                    <button className="menu-trigger" aria-label={`More options for ${projectName(project.root)}`} aria-expanded={openMenu === `project:${project.id}`} onClick={() => onSetOpenMenu(openMenu === `project:${project.id}` ? null : `project:${project.id}`)}><Ellipsis size={16} /></button>
-                    {openMenu === `project:${project.id}` && <div className="menu-popover" role="menu">
-                      <button role="menuitem" onClick={() => {
-                        onNewTask(project.id);
-                        onSetOpenMenu(null);
-                      }}>New task</button>
-                      <button role="menuitem" onClick={() => {
-                        onToggleProject(project.id);
-                        onSetOpenMenu(null);
-                      }}>{expanded ? "Collapse" : "Expand"}</button>
-                      <button className="danger-menu-item" role="menuitem" onClick={() => onRemoveProject(project.id)}>Remove</button>
-                    </div>
-                    }
-                  </div>
+                  <PopoverMenu
+                    id={`project:${project.id}`}
+                    openMenu={openMenu}
+                    onSetOpenMenu={onSetOpenMenu}
+                    label={`More options for ${projectName(project.root)}`}
+                    className="project-menu"
+                    items={[
+                      { label: "New task", onSelect: () => onNewTask(project.id) },
+                      { label: expanded ? "Collapse" : "Expand", onSelect: () => onToggleProject(project.id) },
+                      { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
+                    ]}
+                  />
                   <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project.root)}`}><SquarePen size={16} /></button>
                 </div>
                 <Droppable droppableId={project.id} type="task">
@@ -325,22 +311,15 @@ export function ProjectSidebar({
           <button className="section-toggle" onClick={() => onSetRecentsOpen(!recentsOpen)} aria-expanded={recentsOpen}>
             <span>Recents</span><span className="section-chevron" aria-hidden="true" />
           </button>
-          <div
-            className={`section-menu ${openMenu === "recents" ? "open" : ""}`}
-            data-popover-menu
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
-            }}
-          >
-            <button className="menu-trigger" aria-label="Recent chat options" aria-expanded={openMenu === "recents"} onClick={() => onSetOpenMenu(openMenu === "recents" ? null : "recents")}><Ellipsis size={16} /></button>
-            {openMenu === "recents" && <div className="menu-popover section-menu-popover" role="menu">
-              <button role="menuitem" onClick={() => {
-                onNewTask();
-                onSetOpenMenu(null);
-              }}>New chat</button>
-            </div>
-            }
-          </div>
+          <PopoverMenu
+            id="recents"
+            openMenu={openMenu}
+            onSetOpenMenu={onSetOpenMenu}
+            label="Recent chat options"
+            className="section-menu"
+            popoverClassName="section-menu-popover"
+            items={[{ label: "New chat", onSelect: () => onNewTask() }]}
+          />
           <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
         </div>
         <Droppable droppableId={RECENTS_DROPPABLE} type="task">

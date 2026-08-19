@@ -1,7 +1,8 @@
-import { AlarmClock, Bot, CheckCircle2, CircleDot, Ellipsis, FileDiff, GitBranch, House, XCircle } from "lucide-react";
+import { AlarmClock, Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, House, XCircle } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { Subagent } from "../../domain/run";
+import { PopoverMenu } from "./PopoverMenu";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
@@ -45,35 +46,25 @@ type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
 /** One entry: it says where the thread works, and its menu carries the only move it has. */
 function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktree }: LocationRowProps) {
   const inWorktree = location.kind === "worktree";
-  const open = openMenu === LOCATION_MENU;
 
   return (
     <div className="session-location">
-      <div
-        className={`session-row session-location-row ${open ? "open" : ""}`}
-        data-popover-menu
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
-        }}
+      <PopoverMenu
+        id={LOCATION_MENU}
+        openMenu={openMenu}
+        onSetOpenMenu={onSetOpenMenu}
+        label="Thread options"
+        className="session-row session-location-row"
+        popoverClassName="session-menu-popover"
+        items={[{
+          label: inWorktree ? "Return to local" : "Hand off to worktree",
+          disabled: runActive,
+          onSelect: () => onSetWorktree(!inWorktree),
+        }]}
       >
         <span className="session-row-icon">{inWorktree ? <GitBranch size={18} /> : <House size={18} />}</span>
         <span title={inWorktree ? location.worktree.root : "Runs in your project checkout"}>{inWorktree ? "Worktree" : "Local"}</span>
-        <button
-          className="menu-trigger"
-          type="button"
-          aria-label="Thread options"
-          aria-expanded={open}
-          onClick={() => onSetOpenMenu(open ? null : LOCATION_MENU)}
-        >
-          <Ellipsis size={16} />
-        </button>
-        {open && <div className="menu-popover session-menu-popover" role="menu">
-          <button role="menuitem" disabled={runActive} onClick={() => {
-            onSetOpenMenu(null);
-            onSetWorktree(!inWorktree);
-          }}>{inWorktree ? "Return to local" : "Hand off to worktree"}</button>
-        </div>}
-      </div>
+      </PopoverMenu>
     </div>
   );
 }

@@ -1562,6 +1562,51 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
   await view.unmount();
 });
 
+test("a folder's menu opens on its trigger and every choice closes it", async () => {
+  const opened = [];
+  const removed = [];
+  const sidebar = (openMenu) => React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects: [{ id: "project-1", root: "/project" }],
+    orderedTasks: [],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(["project-1"]),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    worktreeTaskIds: new Set(),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu,
+    settingsOpen: false,
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {},
+    onRemoveProject: (id) => { removed.push(id); },
+    onSetProjectsOpen() {}, onSetRecentsOpen() {},
+    onSetOpenMenu: (menu) => { opened.push(menu); },
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+  });
+
+  const view = await mount(sidebar(null));
+  const trigger = () => view.container.querySelector('[aria-label="More options for project"]');
+  assert.equal(trigger().getAttribute("aria-expanded"), "false");
+  assert.equal(view.container.querySelector(".project-menu .menu-popover"), null, "a shut menu renders no list");
+
+  await act(async () => { trigger().click(); });
+  assert.deepEqual(opened, ["project:project-1"], "the trigger names the menu it opens");
+
+  await view.render(sidebar("project:project-1"));
+  assert.equal(trigger().getAttribute("aria-expanded"), "true");
+  const items = [...view.container.querySelectorAll(".project-menu .menu-popover button")];
+  assert.deepEqual(items.map((item) => item.textContent), ["New task", "Collapse", "Remove"]);
+
+  await act(async () => { items[2].click(); });
+  assert.deepEqual(removed, ["project-1"]);
+  assert.equal(opened.at(-1), null, "choosing an item closes the menu without the item saying so");
+  await view.unmount();
+});
+
 test("a collapsed folder is revealed before the drag is measured, not after", async () => {
   const task = (id, projectId) => ({
     id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
