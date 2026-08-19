@@ -2031,3 +2031,58 @@ test("a folder keeps the open task in view past the first ten", async () => {
   assert.equal(view.container.querySelector(".project-show-more").textContent, "Show 1 more");
   await view.unmount();
 });
+
+test("the session panel's thread menu offers the hand-off its location allows, and renames in place", async () => {
+  const calls = { worktree: [], deleted: 0, renamed: [], menu: [] };
+  const panel = (location, openMenu, runActive = false) => React.createElement(SessionPanel, {
+    environment: { status: "available", files: [], branch: "main", additions: 0, deletions: 0 },
+    hasProject: true,
+    location,
+    runActive,
+    title: "Worktree support",
+    openMenu,
+    subagents: [],
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onSetOpenMenu: (menu) => { calls.menu.push(menu); },
+    onRename: (title) => { calls.renamed.push(title); },
+    onSetWorktree: (worktree) => { calls.worktree.push(worktree); },
+    onDeleteWorktree: () => { calls.deleted += 1; },
+  });
+  const items = (view) => [...view.container.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent);
+
+  const view = await mount(panel({ kind: "local" }, null));
+  assert.equal(view.container.querySelector('[role="menu"]'), null, "the menu stays shut until asked for");
+  await act(async () => { view.container.querySelector('button[aria-label="Thread options"]').click(); });
+  assert.deepEqual(calls.menu, ["session:location"]);
+
+  await view.render(panel({ kind: "local" }, "session:location"));
+  assert.deepEqual(items(view), ["Hand off to worktree", "Rename thread"], "a local thread cannot return or delete");
+  await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[0].click(); });
+  assert.deepEqual(calls.worktree, [true]);
+
+  const worktree = { kind: "worktree", worktree: { id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 } };
+  await view.render(panel(worktree, "session:location"));
+  assert.deepEqual(items(view), ["Return to local", "Rename thread", "Delete worktree"]);
+  await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[2].click(); });
+  assert.equal(calls.deleted, 1);
+
+  await view.render(panel(worktree, "session:location", true));
+  const [moving, renaming, deleting] = view.container.querySelectorAll('[role="menuitem"]');
+  assert.equal(moving.disabled, true, "a running thread cannot change where it works");
+  assert.equal(deleting.disabled, true);
+  assert.equal(renaming.disabled, false, "naming a thread never touches its checkout");
+
+  await view.render(panel({ kind: "local" }, "session:location"));
+  await act(async () => { view.container.querySelectorAll('[role="menuitem"]')[1].click(); });
+  await view.render(panel({ kind: "local" }, null));
+  const input = view.container.querySelector('input[aria-label="Rename thread"]');
+  assert.equal(input.value, "Worktree support", "the input starts from the name the thread already has");
+  await act(async () => {
+    input.value = "Worktree handoff";
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
+  assert.deepEqual(calls.renamed, ["Worktree handoff"]);
+  await view.unmount();
+});

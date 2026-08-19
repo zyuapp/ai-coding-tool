@@ -1172,10 +1172,23 @@ pre {
 .change-counts em { color: #e06c75; }
 .session-note { margin: 2px 6px 0 34px; color: #656b72; font-size: var(--text-meta); line-height: 1.4; }
 .session-location { border-bottom: 1px solid #242a31; margin-bottom: 4px; padding-bottom: 4px; }
-.session-location .session-row { grid-template-columns: 22px minmax(0, 1fr) auto; }
-.session-location button:disabled { opacity: 0.45; cursor: default; }
-.session-worktree-delete { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #7d838b; }
-.session-worktree-delete:hover { background: #2a1a1c; color: #e06c75; }
+.session-location-row { position: relative; grid-template-columns: 22px minmax(0, 1fr) 22px; }
+.session-location-row .menu-trigger { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #7d838b; opacity: 0; }
+.session-location-row:hover .menu-trigger, .session-location-row.open .menu-trigger { opacity: 1; }
+.session-location-row .menu-trigger:hover { background: #262b33; color: #cac9c5; }
+.session-menu-popover { top: 30px; right: 0; width: 176px; }
+.session-menu-popover button:disabled { opacity: 0.4; cursor: default; }
+.session-menu-popover button:disabled:hover { background: transparent; }
+.session-rename {
+  min-width: 0;
+  border: 1px solid #3a4049;
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: #12161c;
+  color: #d6d5d1;
+  font: inherit;
+  font-size: var(--text-control);
+}
 .session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: #1b2028; }
 .session-count { color: #989ca1; font-size: var(--text-meta); font-variant-numeric: tabular-nums; }

@@ -226,6 +226,12 @@ export function App() {
             hasProject={Boolean(workspace.folder)}
             {...(workspace.currentTask ? { location: workspace.location } : {})}
             runActive={workspace.runActive}
+            title={workspace.currentTask?.title ?? ""}
+            openMenu={workspace.openMenu}
+            onSetOpenMenu={workspace.actions.setOpenMenu}
+            onRename={(title) => {
+              if (workspace.currentTask) void workspace.actions.renameTask(workspace.currentTask.id, title);
+            }}
             subagents={workspace.subagents}
             automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
