@@ -544,7 +544,7 @@ test("a new thread asks for a name, and the name the user types outlasts the sug
   const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const taskId = started.state.tasks[0].id;
 
-  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, text: "Inspect the app" }]);
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, text: "Inspect the app", attachments: [] }]);
   assert.equal(started.state.tasks[0].title, "Inspect the app", "the typed message titles the thread until a suggestion lands");
 
   const named = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" }).state;
@@ -559,7 +559,7 @@ test("a new thread asks for a name, and the name the user types outlasts the sug
   assert.equal(reduce(renamed, { type: "task.rename", taskId, title: "   " }).state, renamed, "an empty name leaves the thread alone");
 });
 
-test("only a thread the send just created is named, and only from what the user typed", () => {
+test("only a thread the send just created is named, from what the user typed and any screenshots", () => {
   const existing = task("task-a", { title: "Inspect the app" });
   const drafted = run(workspace({ tasks: [existing], currentId: "task-a" }), [{ type: "view.set-prompt", prompt: "Now check the reducer" }]);
   const sending = reduce(drafted, { type: "task.send", attachments: [] });
@@ -569,7 +569,11 @@ test("only a thread the send just created is named, and only from what the user 
   const attached = reduce(workspace(), { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] });
   const fromImage = reduce(attached.state, { type: "run.resolved", pendingId: attached.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.equal(fromImage.state.tasks[0].title, "Screenshot");
-  assert.equal(fromImage.effects.some((effect) => effect.type === "suggest-title"), false, "there is no message to name a screenshot-only thread from");
+  assert.deepEqual(
+    fromImage.effects.filter((effect) => effect.type === "suggest-title"),
+    [{ type: "suggest-title", taskId: fromImage.state.tasks[0].id, text: "", attachments: ["/tmp/shot.png"] }],
+    "a screenshot-only thread is named from the screenshot",
+  );
 });
 
 test("a command that names its task acts on that one, whichever task the user is looking at", () => {

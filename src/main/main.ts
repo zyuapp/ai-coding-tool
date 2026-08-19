@@ -406,12 +406,16 @@ ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {
   }
 });
 
-ipcMain.handle("task-title:suggest", async (event, text: unknown) => {
+ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: unknown) => {
   if (!trustedSender(event)) return null;
-  if (typeof text !== "string" || !text.trim()) return null;
+  if (typeof text !== "string") return null;
+  const images = (Array.isArray(attachments) ? attachments : [])
+    .map((item) => typeof item === "string" ? savedAttachmentPath(item) : null)
+    .filter((file): file is string => file !== null);
+  if (!text.trim() && images.length === 0) return null;
   try {
     const { suggestTaskTitle } = await import("./agent/title-writer.mjs");
-    return await suggestTaskTitle(text);
+    return await suggestTaskTitle(text, images);
   } catch {
     return null;
   }
@@ -495,6 +499,14 @@ const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 function attachmentsDirectory() {
   return path.join(app.getPath("userData"), "attachments");
+}
+
+/** A renderer may only name files this app wrote into the attachments directory; anything else is null. */
+function savedAttachmentPath(file: string) {
+  const name = attachmentName(file);
+  if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return null;
+  const saved = path.join(attachmentsDirectory(), name);
+  return path.resolve(file) === saved ? saved : null;
 }
 
 ipcMain.handle("attachment:save", async (event, data: unknown) => {

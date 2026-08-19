@@ -18,7 +18,7 @@ const api: DesktopAPI = {
   },
   changedFiles: (workspaceId: string) => ipcRenderer.invoke("workspace:changed-files", workspaceId),
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
-  suggestTaskTitle: (text: string) => ipcRenderer.invoke("task-title:suggest", text),
+  suggestTaskTitle: (text: string, attachments: string[]) => ipcRenderer.invoke("task-title:suggest", text, attachments),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   listAutomations: () => ipcRenderer.invoke("automation:list"),

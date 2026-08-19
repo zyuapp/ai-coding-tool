@@ -50,7 +50,7 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
-  | { type: "suggest-title"; taskId: string; text: string }
+  | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId: string }
@@ -734,7 +734,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const drained = pending.queuedIds
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
-  const titling: WorkspaceEffect[] = existing || !pending.text ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text }];
+  const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text, attachments: pending.attachments }];
   const command = { ...startRunCommand(updated, pending.runId, pending.prompt, workspace.id), ...sideChannelFor(state, updated) };
   return settled(
     pending.draftKey ? withPrompt(drained, pending.draftKey, "") : drained,

@@ -125,8 +125,8 @@ export type DesktopAPI = {
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
   /** Writes base64 PNG bytes into the attachments directory and resolves with the absolute path. */
   saveAttachment(data: string): Promise<string>;
-  /** Names a thread from its first message, off the agent's run path. Null when no name came back. */
-  suggestTaskTitle(text: string): Promise<string | null>;
+  /** Names a thread from its first message and any screenshots it carries, off the agent's run path. Null when no name came back. */
+  suggestTaskTitle(text: string, attachments: string[]): Promise<string | null>;
   loadTaskStore(): Promise<TaskStoreData | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   listAutomations(): Promise<AutomationView[]>;

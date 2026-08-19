@@ -144,7 +144,7 @@ export function useTaskWorkspace() {
         return;
 
       case "suggest-title": {
-        const title = await window.desktop.suggestTaskTitle(effect.text).catch(() => null);
+        const title = await window.desktop.suggestTaskTitle(effect.text, effect.attachments).catch(() => null);
         if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
         return;
       }
