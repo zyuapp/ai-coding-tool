@@ -1,5 +1,5 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
@@ -15,6 +15,11 @@ export type ThreadBridge = {
 export type BrowserBridge = {
   command(write: BrowserWrite): Promise<void>;
   read(read: BrowserRead): Promise<BrowserReadResult>;
+};
+
+/** The terminal panel, which a run may only read: the shell is the user's, and a run has Bash of its own. */
+export type TerminalBridge = {
+  read(read: TerminalRead): Promise<TerminalReadResult>;
 };
 
 /** Scoped to the running task, so a run can only reach its own automation. */
@@ -66,6 +71,7 @@ export type ProviderRunInput = {
   automations?: AutomationBridge;
   threads?: ThreadBridge;
   browser?: BrowserBridge;
+  terminal?: TerminalBridge;
   steering: SteerQueue;
   abortController: AbortController;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;

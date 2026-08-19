@@ -7,6 +7,7 @@ import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue } from "./agent-provider.mjs";
 import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { browserServer, BROWSER_SERVER_NAME } from "./browser-tools.mjs";
+import { terminalServer, TERMINAL_SERVER_NAME } from "./terminal-tools.mjs";
 import { withheldTools } from "./channel-tools.mjs";
 import { threadServer, THREAD_SERVER_NAME } from "./thread-tools.mjs";
 
@@ -154,6 +155,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       if (input.automations) mcpServers[AUTOMATION_SERVER_NAME] = automationServer(input.automations);
       if (input.threads) mcpServers[THREAD_SERVER_NAME] = threadServer(input.threads);
       if (input.browser) mcpServers[BROWSER_SERVER_NAME] = browserServer(input.browser);
+      if (input.terminal) mcpServers[TERMINAL_SERVER_NAME] = terminalServer(input.terminal);
       activeQuery = this.queryFactory({
         prompt: runInput(input.prompt, input.steering, (messageId) => input.emit({ type: "steered", messageId })),
         options: {

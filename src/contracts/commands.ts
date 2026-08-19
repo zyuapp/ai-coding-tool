@@ -9,7 +9,7 @@ import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | ViewCommand;
+export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | TerminalCommand | ViewCommand;
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =
@@ -86,6 +86,19 @@ export type BrowserCommand =
   | { type: "browser.decide"; allow: boolean }
   /** Signs the whole app out: cookies, storage, and caches for every site. */
   | { type: "browser.clear-data" };
+
+/**
+ * The terminal panel. Every command here is the user's own: a run may read what a shell has printed
+ * but never drives one, so none of these appear in `ExternalCommand`.
+ */
+export type TerminalCommand =
+  /** A shell in the current thread's checkout, or in `cwd` when one is named. */
+  | { type: "terminal.open"; cwd?: string }
+  | { type: "terminal.select"; terminalId: string }
+  | { type: "terminal.close"; terminalId: string }
+  /** Keystrokes on their way to the shell, and the size it believes it has. Neither changes state. */
+  | { type: "terminal.input"; terminalId: string; data: string }
+  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =

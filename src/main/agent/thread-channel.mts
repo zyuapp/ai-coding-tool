@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
-import type { BrowserBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
 type ThreadRequestPayload = ThreadRequest extends infer Request
@@ -47,6 +47,13 @@ export class ThreadChannel {
         { taskId, op: "browser", read },
         read.op === "snapshot" ? read.timeoutMs + WAIT_SLACK : this.timeout,
       ) as Promise<BrowserReadResult>,
+    };
+  }
+
+  /** The thread is stamped on here, so an unnamed read resolves to that thread's own terminal. */
+  terminalFor(taskId: string): TerminalBridge {
+    return {
+      read: (read: TerminalRead) => this.request({ taskId, op: "terminal", read }) as Promise<TerminalReadResult>,
     };
   }
 

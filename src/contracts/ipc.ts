@@ -1,6 +1,7 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, ExternalCommand, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
@@ -197,10 +198,37 @@ export type DesktopAPI = {
   readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
   clearBrowserData(): Promise<void>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
+  /** The terminal panel's shells live in main; the window owns the record of them. */
+  startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
+  /** What the user typed. Nothing outside the window reaches this: a run may read a terminal, never drive one. */
+  writeTerminal(terminalId: string, data: string): Promise<void>;
+  resizeTerminal(terminalId: string, cols: number, rows: number): Promise<void>;
+  closeTerminal(terminalId: string): Promise<void>;
+  /** The lines the terminal holds, cooked to plain text. Null when that terminal is gone. */
+  readTerminal(terminalId: string, options: TerminalReadOptions): Promise<TerminalText | null>;
+  /** Output, coalesced and delivered straight to the view. It is never workspace state. */
+  onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
+  onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
   /** ⌘W anywhere in the app, including inside a page, so the window only closes with nothing in front of it. */
   onCloseTab(listener: () => void): () => void;
   closeWindow(): void;
 };
+
+export type TerminalStartOptions = { cwd: string };
+
+export type TerminalReadOptions = { lines: number; match?: string };
+
+/** What main holds for a terminal: its lines, with no escape sequences left in them. The record is the window's. */
+export type TerminalText = {
+  lines: string[];
+  /** How many lines the terminal holds that the limit left out. */
+  omitted: number;
+  /** Set when a filter was applied, counting the lines it kept. */
+  matched?: number;
+};
+
+/** A flush of everything the shell printed since the last one. */
+export type TerminalDataEvent = { terminalId: string; data: string };
 
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
 export type BrowserPageEvent = {
@@ -401,6 +429,16 @@ export function isBrowserRead(value: unknown): value is BrowserRead {
     && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
 }
 
+export function isTerminalRead(value: unknown): value is TerminalRead {
+  if (!value || typeof value !== "object") return false;
+  const read = value as Record<string, unknown>;
+  if (read.op === "terminals") return true;
+  if (read.op !== "snapshot") return false;
+  return (read.terminalId === undefined || isString(read.terminalId))
+    && (read.lines === undefined || isCount(read.lines))
+    && (read.match === undefined || isString(read.match, 1_000));
+}
+
 /** A run drives the browser as itself, so every browser command names the thread that asked. */
 function isBrowserCommand(command: Record<string, unknown>) {
   if (!isString(command.taskId)) return false;
@@ -429,6 +467,7 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "wait") return isString(request.threadId) && isCount(request.timeoutMs) && request.timeoutMs <= MAX_THREAD_WAIT_MS;
   if (request.op === "command") return isExternalCommand(request.command);
   if (request.op === "browser") return isBrowserRead(request.read);
+  if (request.op === "terminal") return isTerminalRead(request.read);
   return false;
 }
 

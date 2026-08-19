@@ -1277,6 +1277,97 @@ test("acting in the browser needs a page, and clearing the session takes back ev
   assert.equal(cleared.effects[0].type, "browser.clear-data");
 });
 
+test("a terminal opens in the thread's own checkout and shows the panel it landed in", () => {
+  const state = {
+    ...workspace(),
+    projects: [{ id: "project-1", root: "/repo" }],
+    tasks: [task("task-1", { projectId: "project-1" })],
+    currentId: "task-1",
+  };
+
+  const opened = reduce(state, { type: "terminal.open" });
+  const [terminal] = opened.state.terminals;
+
+  assert.equal(terminal.cwd, "/repo");
+  assert.equal(terminal.title, "repo");
+  assert.equal(terminal.taskId, "task-1");
+  assert.equal(terminal.status, "running");
+  assert.equal(opened.state.terminalId, terminal.id);
+  assert.equal(opened.state.dockOpen, true, "a shell has to land somewhere the user can see it");
+  assert.equal(opened.state.dockTab, "terminal");
+  assert.deepEqual(opened.effects, [{ type: "terminal.start", terminalId: terminal.id, cwd: "/repo" }]);
+
+  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktree: { id: "w1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 } })] };
+  assert.equal(reduce(inWorktree, { type: "terminal.open" }).state.terminals[0].cwd, "/worktrees/repo-w1");
+});
+
+test("a terminal needs a folder to start in", () => {
+  const refused = reduce(workspace(), { type: "terminal.open" });
+
+  assert.deepEqual(refused.state.terminals, []);
+  assert.deepEqual(refused.effects, []);
+  assert.equal(refused.state.actionError, WORKSPACE_ERRORS.terminalFolder);
+});
+
+test("what a shell reports is the only thing that writes the terminal record, and its output is never state", () => {
+  const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
+  const [terminal] = opened.state.terminals;
+
+  const named = reduce(opened.state, { type: "terminal.updated", update: { terminalId: terminal.id, title: "npm run dev" } });
+  assert.equal(named.state.terminals[0].title, "npm run dev");
+
+  const exited = reduce(named.state, { type: "terminal.updated", update: { terminalId: terminal.id, status: "exited", exitCode: 1 } });
+  assert.equal(exited.state.terminals[0].status, "exited");
+  assert.equal(exited.state.terminals[0].exitCode, 1);
+  assert.deepEqual(exited.effects, [], "a record change asks for no work");
+
+  const stray = reduce(exited.state, { type: "terminal.updated", update: { terminalId: "gone", title: "Nowhere" } });
+  assert.equal(stray.state, exited.state);
+
+  assert.equal(JSON.stringify(exited.state).includes("output"), false);
+});
+
+test("typing and resizing a terminal ask for work without touching state", () => {
+  const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
+  const [terminal] = opened.state.terminals;
+
+  const typed = reduce(opened.state, { type: "terminal.input", terminalId: terminal.id, data: "ls\r" });
+  assert.equal(typed.state, opened.state);
+  assert.deepEqual(typed.effects, [{ type: "terminal.write", terminalId: terminal.id, data: "ls\r" }]);
+
+  const resized = reduce(opened.state, { type: "terminal.resize", terminalId: terminal.id, cols: 120, rows: 40 });
+  assert.equal(resized.state, opened.state);
+  assert.deepEqual(resized.effects, [{ type: "terminal.resize", terminalId: terminal.id, cols: 120, rows: 40 }]);
+});
+
+test("closing a terminal hands the panel its neighbour and kills only the shell that went", () => {
+  const first = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
+  const second = reduce(first.state, { type: "terminal.open" });
+  const [one, two] = second.state.terminals;
+
+  const closed = reduce(second.state, { type: "terminal.close", terminalId: two.id });
+  assert.deepEqual(closed.state.terminals.map((terminal) => terminal.id), [one.id]);
+  assert.equal(closed.state.terminalId, one.id);
+  assert.deepEqual(closed.effects, [{ type: "terminal.close", terminalId: two.id }]);
+
+  const empty = reduce(closed.state, { type: "terminal.close", terminalId: one.id });
+  assert.equal(empty.state.terminalId, null);
+  assert.deepEqual(empty.state.terminals, []);
+});
+
+test("⌘W closes the terminal in front before the panel holding it", () => {
+  const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
+  const [terminal] = opened.state.terminals;
+
+  const closedShell = reduce(opened.state, { type: "view.close-tab" });
+  assert.deepEqual(closedShell.state.terminals, []);
+  assert.deepEqual(closedShell.state.dockPanels, ["terminal"], "the panel stays until nothing is left in it");
+
+  const closedPanel = reduce(closedShell.state, { type: "view.close-tab" });
+  assert.deepEqual(closedPanel.state.dockPanels, []);
+  assert.equal(terminal.status, "running");
+});
+
 test("the dock remembers which panels are open, and a thread switch keeps only the browser", () => {
   const state = { ...workspace(), tasks: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
 

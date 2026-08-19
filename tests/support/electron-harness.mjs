@@ -103,8 +103,10 @@ export async function startMainProcess(t, prefix) {
   const vite = await createServer({
     logLevel: "silent",
     appType: "custom",
-    resolve: { alias: { electron: "virtual:fake-electron" } },
+    /** xterm's `module` field points at a file it does not ship, so its real ESM build is named here. */
+    resolve: { alias: { electron: "virtual:fake-electron", "@xterm/headless": "@xterm/headless/lib-headless/xterm-headless.mjs" } },
     server: { middlewareMode: true },
+    ssr: { external: ["@lydell/node-pty"] },
     plugins: [{
       name: "fake-electron",
       enforce: "pre",

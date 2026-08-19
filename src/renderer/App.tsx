@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AlarmClock, Bot, GitFork, Globe, Plus, X, type LucideIcon } from "lucide-react";
+import { AlarmClock, Bot, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
@@ -10,6 +10,7 @@ import { AgentsPanel, SessionPanel } from "./components/SessionPanel";
 import { ThreadStartOptions } from "./components/ThreadStartOptions";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
+import { TerminalPanel } from "./components/TerminalPanel";
 import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
@@ -135,6 +136,25 @@ export function App() {
           onGo={(delta) => void workspace.actions.goInBrowser(delta)}
           onReload={() => void workspace.actions.reloadBrowser()}
           onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
+        />
+      ),
+    },
+    {
+      id: "terminal",
+      title: "Terminal",
+      description: "Run a shell here and let Claude read what it prints",
+      command: "terminal",
+      icon: SquareTerminal,
+      render: () => (
+        <TerminalPanel
+          terminals={workspace.terminals}
+          terminal={workspace.terminal}
+          visible={rightDockOpen && activeRightTab === "terminal" && !settingsVisible}
+          onOpen={() => void workspace.actions.openTerminal()}
+          onSelect={(terminalId) => void workspace.actions.selectTerminal(terminalId)}
+          onClose={(terminalId) => void workspace.actions.closeTerminal(terminalId)}
+          onInput={(terminalId, data) => void workspace.actions.sendToTerminal(terminalId, data)}
+          onResize={(terminalId, cols, rows) => void workspace.actions.resizeTerminal(terminalId, cols, rows)}
         />
       ),
     },

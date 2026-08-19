@@ -199,3 +199,17 @@ test("a page read is bounded, and anything else on the browser channel is refuse
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot" } }), false);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser" }), false);
 });
+
+test("the terminal channel carries reads and nothing else", () => {
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "terminal", read: { op: "terminals" } }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "terminal", read: { op: "snapshot" } }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "terminal", read: { op: "snapshot", terminalId: "terminal-1", lines: 200, match: "error" } }), true);
+
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "terminal", read: { op: "snapshot", lines: -1 } }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "terminal", read: { op: "write", data: "rm -rf /" } }), false, "a run reads a terminal and never drives one");
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "terminal" }), false);
+
+  assert.equal(isExternalCommand({ type: "terminal.open", taskId: "task-1" }), false, "the terminal is the user's own");
+  assert.equal(isExternalCommand({ type: "terminal.input", taskId: "task-1", terminalId: "terminal-1", data: "ls\r" }), false);
+  assert.equal(isExternalCommand({ type: "terminal.close", taskId: "task-1", terminalId: "terminal-1" }), false);
+});

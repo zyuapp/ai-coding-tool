@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { activeBrowserTab, browserTarget, BROWSER_PANEL, DOCK_PICKER, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, viewPreferences, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { activeBrowserTab, activeTerminal, browserTarget, BROWSER_PANEL, DOCK_PICKER, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, taskWorkspaceRoot, TERMINAL_PANEL, viewPreferences, WINDOW_PANELS, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -25,6 +25,7 @@ import type {
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
+import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../domain/run.js";
 import { clampTitle, legacyProjectId, type Project, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -50,7 +51,9 @@ export type WorkspaceEvent =
   | { type: "worktree.deleted"; taskId: string }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
-  | { type: "browser.updated"; page: BrowserPageEvent };
+  | { type: "browser.updated"; page: BrowserPageEvent }
+  /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
+  | { type: "terminal.updated"; update: TerminalUpdate };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -92,6 +95,11 @@ export type WorkspaceEffect =
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }
   | { type: "browser.clear-data" }
+  /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
+  | { type: "terminal.start"; terminalId: string; cwd: string }
+  | { type: "terminal.write"; terminalId: string; data: string }
+  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
+  | { type: "terminal.close"; terminalId: string }
   /** Nothing was left in front of the window, so ⌘W means what it always means. */
   | { type: "close-window" };
 
@@ -105,6 +113,7 @@ const MISSING_PROJECT_ERROR = "This task's project is unavailable. Reopen the pr
 const RUNNING_PROJECT_ERROR = "Stop the running tasks before removing this project.";
 const BUSY_AUTOMATION_ERROR = "This task is already running. The automation will run on its next tick.";
 const WORKTREE_PROJECT_ERROR = "Open this thread in a project folder before giving it a worktree.";
+const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a terminal.";
 const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 
@@ -113,6 +122,7 @@ export const WORKSPACE_ERRORS = {
   sameProject: SAME_PROJECT_ERROR,
   busyAutomation: BUSY_AUTOMATION_ERROR,
   worktreeProject: WORKTREE_PROJECT_ERROR,
+  terminalFolder: TERMINAL_FOLDER_ERROR,
   worktreeRunning: WORKTREE_RUNNING_ERROR,
   checkoutRunning: CHECKOUT_RUNNING_ERROR,
 } as const;
@@ -164,10 +174,27 @@ function showBrowserPanel(state: WorkspaceState): WorkspaceState {
   };
 }
 
-/** A thread switch clears the dock back to the picker, except for the browser: its pages outlive threads. */
+/** A thread switch clears the dock back to the picker, keeping the panels whose contents outlive threads. */
 function resetDock(state: WorkspaceState): WorkspaceState {
-  const dockPanels: string[] = state.dockPanels.filter((panel) => panel === BROWSER_PANEL);
+  const dockPanels: string[] = state.dockPanels.filter((panel) => WINDOW_PANELS.includes(panel));
   return { ...state, dockPanels, dockTab: dockPanels.includes(state.dockTab) ? state.dockTab : DOCK_PICKER };
+}
+
+/** Brings the terminal panel to the front, so a shell nobody asked to see still lands somewhere visible. */
+function showTerminalPanel(state: WorkspaceState): WorkspaceState {
+  return {
+    ...state,
+    dockOpen: true,
+    dockPanels: state.dockPanels.includes(TERMINAL_PANEL) ? state.dockPanels : [...state.dockPanels, TERMINAL_PANEL],
+    dockTab: TERMINAL_PANEL,
+  };
+}
+
+/** Where a new shell starts: the thread's own checkout, else its project, else the last folder opened. */
+function terminalCwd(state: WorkspaceState): string | null {
+  const task = state.tasks.find((item) => item.id === state.currentId);
+  const draft = state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.root : undefined;
+  return taskWorkspaceRoot(state, task) ?? draft ?? state.lastFolder;
 }
 
 function withBrowserTabs(state: WorkspaceState, tabs: BrowserTab[]): WorkspaceState {
@@ -965,6 +992,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (!state.dockOpen) return settled(state, [{ type: "close-window" }]);
       const page = state.dockTab === BROWSER_PANEL ? activeBrowserTab(state) : undefined;
       if (page) return apply(state, { type: "browser.close-tab", tabId: page.id });
+      const shell = state.dockTab === TERMINAL_PANEL ? activeTerminal(state) : undefined;
+      if (shell) return apply(state, { type: "terminal.close", terminalId: shell.id });
       if (state.dockTab === DOCK_PICKER) return settled({ ...state, dockOpen: false });
       return apply(state, state.sideChats.some((chat) => chat.id === state.dockTab)
         ? { type: "side-chat.close", chatId: state.dockTab }
@@ -1061,6 +1090,51 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     case "browser.clear-data": {
       const cleared = { ...state, browserOrigins: [] };
       return settled(cleared, [{ type: "browser.clear-data" }, ...persistView(cleared)]);
+    }
+
+    case "terminal.open": {
+      const cwd = input.cwd ?? terminalCwd(state);
+      if (!cwd) return settled({ ...state, actionError: TERMINAL_FOLDER_ERROR });
+      const terminal: TerminalSession = {
+        id: crypto.randomUUID(),
+        title: terminalTitle(cwd),
+        cwd,
+        taskId: state.currentId,
+        status: "running",
+      };
+      const opened = showTerminalPanel({ ...state, terminals: [...state.terminals, terminal], terminalId: terminal.id, actionError: null });
+      return settled(opened, [{ type: "terminal.start", terminalId: terminal.id, cwd }]);
+    }
+
+    case "terminal.select": {
+      if (!state.terminals.some((terminal) => terminal.id === input.terminalId)) return settled(state);
+      return settled({ ...state, terminalId: input.terminalId });
+    }
+
+    case "terminal.close": {
+      const index = state.terminals.findIndex((terminal) => terminal.id === input.terminalId);
+      if (index === -1) return settled(state);
+      const terminals = state.terminals.filter((terminal) => terminal.id !== input.terminalId);
+      const next = state.terminalId === input.terminalId
+        ? terminals[index - 1] ?? terminals[index] ?? null
+        : terminals.find((terminal) => terminal.id === state.terminalId) ?? null;
+      return settled({ ...state, terminals, terminalId: next?.id ?? null }, [{ type: "terminal.close", terminalId: input.terminalId }]);
+    }
+
+    /** Keystrokes and the size the shell believes it has. Neither is state, so only the effect happens. */
+    case "terminal.input":
+      return settled(state, [{ type: "terminal.write", terminalId: input.terminalId, data: input.data }]);
+
+    case "terminal.resize":
+      return settled(state, [{ type: "terminal.resize", terminalId: input.terminalId, cols: input.cols, rows: input.rows }]);
+
+    case "terminal.updated": {
+      const { terminalId, ...patch } = input.update;
+      if (!state.terminals.some((terminal) => terminal.id === terminalId)) return settled(state);
+      return settled({
+        ...state,
+        terminals: state.terminals.map((terminal) => terminal.id === terminalId ? { ...terminal, ...patch } : terminal),
+      });
     }
 
     case "browser.updated": {

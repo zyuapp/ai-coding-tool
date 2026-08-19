@@ -8,6 +8,7 @@ import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js
 import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
+import { terminalLineLimit } from "../domain/terminal.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
@@ -15,6 +16,7 @@ import type { AutomationScheduler } from "./automation/automation-scheduler.mjs"
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import * as browser from "./browser-host.js";
+import * as terminal from "./terminal-host.js";
 
 app.setName("Claudex");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
@@ -319,13 +321,24 @@ async function createWindow() {
     },
     onCloseTab: requestCloseTab,
   });
+  terminal.startTerminalHost({
+    onData: (event) => {
+      if (window && !window.isDestroyed()) window.webContents.send("terminal:data", event);
+    },
+    onUpdate: (update) => {
+      if (window && !window.isDestroyed()) window.webContents.send("terminal:event", update);
+    },
+  });
   /** The window owns no menu shortcut the app wants back; preventing it here is what frees ⌘W. */
   window.webContents.on("before-input-event", (event, input) => {
     if (!browser.isCloseTab(input)) return;
     event.preventDefault();
     requestCloseTab();
   });
-  window.on("closed", () => browser.stopBrowserHost());
+  window.on("closed", () => {
+    browser.stopBrowserHost();
+    terminal.stopTerminalHost();
+  });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
 }
 
@@ -638,6 +651,50 @@ ipcMain.handle("browser:read", (event, tabId: unknown, textLimit: unknown, timeo
 ipcMain.handle("browser:clear", (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return browser.clearData();
+});
+
+const MAX_TERMINAL_INPUT = 64 * 1024;
+const MAX_TERMINAL_DIMENSION = 1_000;
+
+function terminalId(value: unknown) {
+  if (typeof value !== "string" || !value || value.length > 256) throw new Error("Invalid terminal ID.");
+  return value;
+}
+
+function terminalDimension(value: unknown) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > MAX_TERMINAL_DIMENSION) throw new Error("Invalid terminal size.");
+  return value;
+}
+
+ipcMain.handle("terminal:start", (event, id: unknown, options: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const cwd = (options as { cwd?: unknown } | null)?.cwd;
+  if (typeof cwd !== "string" || !cwd) throw new Error("Invalid terminal folder.");
+  terminal.startTerminal(terminalId(id), cwd);
+});
+
+ipcMain.handle("terminal:write", (event, id: unknown, data: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof data !== "string" || data.length > MAX_TERMINAL_INPUT) throw new Error("Invalid terminal input.");
+  terminal.writeTerminal(terminalId(id), data);
+});
+
+ipcMain.handle("terminal:resize", (event, id: unknown, cols: unknown, rows: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  terminal.resizeTerminal(terminalId(id), terminalDimension(cols), terminalDimension(rows));
+});
+
+ipcMain.handle("terminal:close", (event, id: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  terminal.closeTerminal(terminalId(id));
+});
+
+ipcMain.handle("terminal:read", (event, id: unknown, options: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const read = options as { lines?: unknown; match?: unknown } | null;
+  if (typeof read?.lines !== "number" || !Number.isFinite(read.lines)) throw new Error("Invalid terminal read.");
+  if (read.match !== undefined && typeof read.match !== "string") throw new Error("Invalid terminal filter.");
+  return terminal.readTerminal(terminalId(id), { lines: terminalLineLimit(read.lines), ...(read.match ? { match: read.match } : {}) });
 });
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;

@@ -1,5 +1,6 @@
 import type { AppCommand } from "./commands.js";
 import type { BrowserSnapshot, BrowserTab } from "../domain/browser.js";
+import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
 import type { TaskMessageKind } from "../domain/task.js";
 
 /** Which threads a query covers: everything, one project, or the threads that belong to no project. */
@@ -87,6 +88,19 @@ export type BrowserReadResult =
   | { kind: "awaiting-approval"; url: string }
   | { kind: "no-tab" };
 
+/**
+ * What a caller may read about the terminal panel. There is no write to match it: the panel holds the
+ * user's own shell, and a run that wants to run something has Bash of its own.
+ */
+export type TerminalRead =
+  | { op: "terminals" }
+  | { op: "snapshot"; terminalId?: string; lines?: number; match?: string };
+
+export type TerminalReadResult =
+  | { kind: "terminals"; terminals: TerminalSession[] }
+  | { kind: "snapshot"; snapshot: TerminalSnapshot }
+  | { kind: "no-terminal" };
+
 /** Thread tool calls travel from the agent process to the window and back. */
 export type ThreadRequest = {
   type: "thread.request";
@@ -99,6 +113,7 @@ export type ThreadRequest = {
   | { op: "wait"; threadId: string; timeoutMs: number }
   | { op: "command"; command: ExternalCommand }
   | { op: "browser"; read: BrowserRead }
+  | { op: "terminal"; read: TerminalRead }
 );
 
 export type ThreadResponse = {

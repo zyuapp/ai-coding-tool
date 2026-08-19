@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { browserTarget, deriveView, emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
+import { browserTarget, deriveView, emptyWorkspaceState, sideChatIds, stateFromData, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
 import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import type { PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
+import { terminalLineLimit } from "../../domain/terminal";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
@@ -215,6 +216,18 @@ export function useTaskWorkspace() {
       case "browser.clear-data":
         return reportFailure(window.desktop.clearBrowserData());
 
+      case "terminal.start":
+        return reportFailure(window.desktop.startTerminal(effect.terminalId, { cwd: effect.cwd }));
+
+      case "terminal.write":
+        return reportFailure(window.desktop.writeTerminal(effect.terminalId, effect.data));
+
+      case "terminal.resize":
+        return reportFailure(window.desktop.resizeTerminal(effect.terminalId, effect.cols, effect.rows));
+
+      case "terminal.close":
+        return reportFailure(window.desktop.closeTerminal(effect.terminalId));
+
       case "close-window":
         window.desktop.closeWindow();
         return;
@@ -283,6 +296,19 @@ export function useTaskWorkspace() {
         if (!tab) return ok({ kind: "no-tab" });
         const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs);
         return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
+      }
+      if (request.op === "terminal") {
+        const state = stateRef.current;
+        if (request.read.op === "terminals") return ok({ kind: "terminals", terminals: state.terminals });
+        const terminal = terminalTarget(state, request.read.terminalId, request.taskId);
+        if (!terminal) return ok({ kind: "no-terminal" });
+        const text = await window.desktop.readTerminal(terminal.id, {
+          lines: terminalLineLimit(request.read.lines),
+          ...(request.read.match ? { match: request.read.match } : {}),
+        });
+        if (!text) return ok({ kind: "no-terminal" });
+        const { taskId: _thread, id: _id, ...record } = terminal;
+        return ok({ kind: "snapshot", snapshot: { terminalId: terminal.id, ...record, ...text } });
       }
       const { command } = request;
       const before = stateRef.current;
@@ -376,6 +402,11 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
+    return window.desktop.onTerminalEvent((update) => void dispatchRef.current({ type: "terminal.updated", update }));
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
     return window.desktop.onCloseTab(() => void dispatchRef.current({ type: "view.close-tab" }));
   }, []);
 
@@ -454,6 +485,11 @@ export function useTaskWorkspace() {
       reloadBrowser: () => dispatch({ type: "browser.reload" }),
       decideBrowser: (allow: boolean) => dispatch({ type: "browser.decide", allow }),
       clearBrowserData: () => dispatch({ type: "browser.clear-data" }),
+      openTerminal: () => dispatch({ type: "terminal.open" }),
+      selectTerminal: (terminalId: string) => dispatch({ type: "terminal.select", terminalId }),
+      closeTerminal: (terminalId: string) => dispatch({ type: "terminal.close", terminalId }),
+      sendToTerminal: (terminalId: string, data: string) => dispatch({ type: "terminal.input", terminalId, data }),
+      resizeTerminal: (terminalId: string, cols: number, rows: number) => dispatch({ type: "terminal.resize", terminalId, cols, rows }),
     },
   };
 }

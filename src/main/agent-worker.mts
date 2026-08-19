@@ -20,6 +20,7 @@ const coordinatorOptions = {
   automations: (taskId: string) => automations.bridgeFor(taskId),
   threads: (taskId: string) => threads.bridgeFor(taskId),
   browser: (taskId: string) => threads.browserFor(taskId),
+  terminal: (taskId: string) => threads.terminalFor(taskId),
 };
 const coordinators = {
   main: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), coordinatorOptions),

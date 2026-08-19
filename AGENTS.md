@@ -87,6 +87,30 @@ from main. Because the run browses with every login the user has, an origin the 
 visited waits for them to allow it, unless the thread may already act without asking. Visiting a site
 is that consent, and clearing the session takes every allowance back.
 
+## The terminal panel
+The panel holds the user's own login shell, in the folder the thread works in. `terminal-host.ts` is
+the only place a pseudo-terminal is created, written to, or killed.
+
+A run may read a terminal and may never drive one: `op: "terminal"` is a read, there is no matching
+write, and no `terminal.*` command appears in `ExternalCommand`. A run that wants to run something has
+Bash of its own, so the only thing granting it the user's shell would add is the chance to type into a
+session it cannot see. Reads are pull-only — nothing attaches terminal output to a run by itself.
+
+Output is never workspace state. The reducer owns the record of a terminal — title, folder, the thread
+it was opened for, whether its shell is alive — and everything printed travels main → view on its own
+channel. A growing string in state would re-render the app per chunk and land in the transcript.
+
+Main is the read source, not the view: a read must not depend on the panel being mounted. Every flush
+is fed to a headless terminal in main and to the view from the same trimmed text, so what a run reads
+is what the user sees rather than a second, drifting copy. That flush is also where the cost is kept
+down — output is coalesced on a timer rather than forwarded per chunk, and a flush past its ceiling
+keeps its tail and says how much it dropped. Reads are bounded again on the way out: a small default
+line count, a hard ceiling, and a `match` filter applied in main so a hunt for one error never returns
+the whole buffer.
+
+Views outlive the panel. `terminal-views.ts` holds them outside React, because a shell keeps printing
+while its tab is closed, and a build's output must survive the panel being put away.
+
 ## Add a right panel view
 Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.
 

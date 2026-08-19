@@ -104,6 +104,25 @@
   --alert-line: #ff8a82;
   --alert-ink: #fff;
 
+  /* Terminal: the sixteen colours a shell addresses by name, plus what it draws behind them */
+  --terminal-selection: #33465c;
+  --ansi-black: #2a2f36;
+  --ansi-red: #e06c75;
+  --ansi-green: #72c66b;
+  --ansi-yellow: #d9a760;
+  --ansi-blue: #6f9ed6;
+  --ansi-magenta: #c58fd6;
+  --ansi-cyan: #63bfba;
+  --ansi-white: #c7d2dd;
+  --ansi-bright-black: #565c65;
+  --ansi-bright-red: #ef8b93;
+  --ansi-bright-green: #97d891;
+  --ansi-bright-yellow: #e8c088;
+  --ansi-bright-blue: #93bbe8;
+  --ansi-bright-magenta: #d9aee7;
+  --ansi-bright-cyan: #8ad6d1;
+  --ansi-bright-white: #e6e4df;
+
   /* Shadows and scrims */
   --shadow-menu: 0 12px 30px rgba(0, 0, 0, 0.38);
   --shadow-popover: 0 16px 40px rgba(0, 0, 0, 0.42);
@@ -124,6 +143,7 @@
   --text-display: 21px;
   --text-badge: 10px;
   --row-slot: 22px;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   color: var(--ink);
@@ -700,7 +720,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .right-dock-picker strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 580; }
 .right-dock-picker small { color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.35; }
 .right-dock .subagent-inspector { height: 100%; border-left: 0; }
-.agents-panel, .automation-panel, .browser-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.agents-panel, .automation-panel, .browser-panel, .terminal-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 
 /*
  * The page itself is a native view main draws over `.browser-viewport`, so nothing here may sit on
@@ -739,6 +759,32 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .browser-empty h2 { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
 .browser-empty p { max-width: 300px; margin: 0; color: var(--quiet); font-size: var(--text-control); line-height: 1.5; }
 .browser-error { position: absolute; inset: auto 12px 12px; margin: 0; border: 1px solid var(--danger-line); border-radius: 9px; padding: 9px 11px; background: var(--danger-surface); color: var(--danger-soft); font-size: var(--text-meta); }
+/** The tab strip is the browser's, so a shell and a page read the same way in the dock. */
+.terminal-tabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line-soft); padding: 6px 8px; overflow-x: auto; scrollbar-width: none; }
+.terminal-tabs::-webkit-scrollbar { display: none; }
+.terminal-tab { width: 172px; min-width: 0; flex: 0 0 auto; display: flex; align-items: center; border: 1px solid transparent; border-radius: 8px; color: var(--quiet-strong); }
+.terminal-tab:hover { background: var(--surface-hover); color: var(--ink-faint); }
+.terminal-tab.active { border-color: var(--line); background: var(--surface-active); color: var(--ink-soft); }
+.terminal-tab.exited { color: var(--quiet-soft); }
+.terminal-tab > [role="tab"] { min-width: 0; flex: 1; display: flex; align-items: center; gap: 7px; border: 0; padding: 6px 4px 6px 9px; background: transparent; color: inherit; cursor: pointer; }
+.terminal-tab > [role="tab"] > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-control); }
+.terminal-tab > button:last-child { width: 22px; height: 22px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; margin-right: 3px; background: transparent; color: var(--quiet); cursor: pointer; }
+.terminal-tab > button:last-child:hover { background: var(--surface-active); color: var(--ink-soft); }
+.terminal-new { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
+.terminal-new:hover { background: var(--surface-hover); color: var(--ink-dim); }
+
+.terminal-status { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line-soft); margin: 0; padding: 7px 11px; color: var(--quiet); font: var(--text-meta)/1.3 var(--mono); }
+.terminal-status span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.terminal-status em { flex: 0 0 auto; color: var(--danger-soft); font-style: normal; }
+
+.terminal-viewport { position: relative; min-height: 0; flex: 1; padding: 8px 4px 8px 10px; background: var(--code-surface); }
+.terminal-surface { width: 100%; height: 100%; }
+.terminal-empty { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; padding: 24px 24px 10vh; text-align: center; }
+.terminal-empty h2 { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
+.terminal-empty p { max-width: 310px; margin: 0; color: var(--quiet); font-size: var(--text-control); line-height: 1.5; }
+.terminal-empty button { margin-top: 18px; border: 1px solid var(--line); border-radius: 9px; padding: 7px 13px; background: var(--control-soft); color: var(--ink-dim); font-size: var(--text-control); cursor: pointer; }
+.terminal-empty button:hover { background: var(--surface-hover); }
+
 .agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
 .agents-panel-heading p { margin: 4px 0 0; color: var(--quiet); font-size: var(--text-meta); }

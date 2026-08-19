@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { InternalStartRunCommand, RunEvent } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AutomationBridge, ProviderEvent, BrowserBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { AgentProvider, AutomationBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
 type ActiveRun = {
@@ -24,6 +24,7 @@ type CoordinatorOptions = {
   automations?: (taskId: string) => AutomationBridge;
   threads?: (taskId: string) => ThreadBridge;
   browser?: (taskId: string) => BrowserBridge;
+  terminal?: (taskId: string) => TerminalBridge;
   tailIntervalMs?: number;
 };
 
@@ -108,6 +109,7 @@ export class RunCoordinator {
         automations: this.options.automations?.(command.taskId),
         threads: this.options.threads?.(command.taskId),
         browser: this.options.browser?.(command.taskId),
+        terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),

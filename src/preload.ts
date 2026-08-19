@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AutomationAck, AutomationFire, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent } from "./contracts/ipc";
+import type { AutomationAck, AutomationFire, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
+import type { TerminalUpdate } from "./domain/terminal";
 import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
@@ -65,6 +66,21 @@ const api: DesktopAPI = {
     const handler = (_event: Electron.IpcRendererEvent, payload: BrowserPageEvent) => listener(payload);
     ipcRenderer.on("browser:event", handler);
     return () => ipcRenderer.removeListener("browser:event", handler);
+  },
+  startTerminal: (terminalId: string, options: TerminalStartOptions) => ipcRenderer.invoke("terminal:start", terminalId, options),
+  writeTerminal: (terminalId: string, data: string) => ipcRenderer.invoke("terminal:write", terminalId, data),
+  resizeTerminal: (terminalId: string, cols: number, rows: number) => ipcRenderer.invoke("terminal:resize", terminalId, cols, rows),
+  closeTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:close", terminalId),
+  readTerminal: (terminalId: string, options: TerminalReadOptions) => ipcRenderer.invoke("terminal:read", terminalId, options),
+  onTerminalData: (listener: (event: TerminalDataEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: TerminalDataEvent) => listener(payload);
+    ipcRenderer.on("terminal:data", handler);
+    return () => ipcRenderer.removeListener("terminal:data", handler);
+  },
+  onTerminalEvent: (listener: (update: TerminalUpdate) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: TerminalUpdate) => listener(payload);
+    ipcRenderer.on("terminal:event", handler);
+    return () => ipcRenderer.removeListener("terminal:event", handler);
   },
   onCloseTab: (listener: () => void) => {
     const handler = () => listener();

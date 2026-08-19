@@ -4,6 +4,7 @@ import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
+import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 import type { Worktree } from "../domain/worktree.js";
@@ -114,6 +115,13 @@ export type WorkspaceState = {
   /** The origins a run may reach without asking. Visiting a site adds it. */
   browserOrigins: string[];
   browserApproval: BrowserApproval | null;
+  /**
+   * The terminal panel. A shell outlives the thread that opened it, so these belong to the window
+   * too; each keeps the thread it was opened for, which is what an unnamed read resolves against.
+   * Only the record lives here. What a shell has printed never becomes state.
+   */
+  terminals: TerminalSession[];
+  terminalId: string | null;
   openMenu: string | null;
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
   computerUseSetup: boolean;
@@ -158,6 +166,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     browserTabId: null,
     browserOrigins: [],
     browserApproval: null,
+    terminals: [],
+    terminalId: null,
     openMenu: null,
     environment: null,
     computerUseSetup: false,
@@ -213,6 +223,10 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
 /** The dock tab that offers the panels, shown whenever no panel is on top. */
 export const DOCK_PICKER = "home";
 export const BROWSER_PANEL = "browser";
+export const TERMINAL_PANEL = "terminal";
+
+/** The panels whose contents belong to the window rather than to a thread, so a thread switch keeps them. */
+export const WINDOW_PANELS = [BROWSER_PANEL, TERMINAL_PANEL];
 
 export function activeBrowserTab(state: Pick<WorkspaceState, "browserTabs" | "browserTabId">) {
   return state.browserTabs.find((tab) => tab.id === state.browserTabId);
@@ -223,8 +237,27 @@ export function browserTarget(state: WorkspaceState, tabId: string | undefined) 
   return tabId === undefined ? activeBrowserTab(state) : state.browserTabs.find((tab) => tab.id === tabId);
 }
 
+export function activeTerminal(state: Pick<WorkspaceState, "terminals" | "terminalId">) {
+  return state.terminals.find((terminal) => terminal.id === state.terminalId);
+}
+
+/**
+ * Which terminal a read acts on: the one it names, else the one the asking thread opened, else the
+ * one the panel is showing. A thread with a shell of its own never reads somebody else's by accident.
+ */
+export function terminalTarget(state: WorkspaceState, terminalId: string | undefined, taskId?: string) {
+  if (terminalId !== undefined) return state.terminals.find((terminal) => terminal.id === terminalId);
+  const own = taskId === undefined ? undefined : [...state.terminals].reverse().find((terminal) => terminal.taskId === taskId);
+  return own ?? activeTerminal(state);
+}
+
 export function projectFor(state: WorkspaceState, task: Task | undefined) {
   return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
+}
+
+/** The folder a thread works in: its own checkout once it has one, otherwise its project's. */
+export function taskWorkspaceRoot(state: WorkspaceState, task: Task | undefined) {
+  return task?.worktree?.root ?? projectFor(state, task)?.root;
 }
 
 /** Where a thread's runs happen: its own checkout once it has one, otherwise its project's. */
@@ -323,6 +356,8 @@ export function deriveView(state: WorkspaceState) {
     browserTab: activeBrowserTab(state),
     browserApproval: state.browserApproval,
     browserOrigins: state.browserOrigins,
+    terminals: state.terminals,
+    terminal: activeTerminal(state),
     openMenu: state.openMenu,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,

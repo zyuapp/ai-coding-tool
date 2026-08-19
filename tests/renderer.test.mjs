@@ -28,7 +28,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 dom.window.HTMLElement.prototype.scrollTo = () => {};
 dom.window.Element.prototype.getAnimations = () => [];
 
-const vite = await createServer({ logLevel: "silent", server: { middlewareMode: true }, appType: "custom" });
+/** xterm ships a broken `module` field, so it is bundled here the way the real build bundles it. */
+const vite = await createServer({ logLevel: "silent", server: { middlewareMode: true }, appType: "custom", ssr: { noExternal: [/^@xterm\//] } });
 const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/SessionPanel.tsx");
 const { SubagentInspector } = await vite.ssrLoadModule("/src/renderer/components/SubagentInspector.tsx");
 const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/WorkspaceHeader.tsx");
@@ -323,7 +324,9 @@ function fakeDesktop(overrides = {}) {
   const acknowledged = [];
   const automationChanges = [];
   const browserCalls = [];
+  const terminalCalls = [];
   let browserEvent;
+  let terminalEvent;
   let closeTabShortcut;
   let listener;
   let automationsChanged;
@@ -389,6 +392,18 @@ function fakeDesktop(overrides = {}) {
     },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
+    terminalCalls,
+    get terminalEvent() { return terminalEvent; },
+    startTerminal: async (terminalId, options) => { terminalCalls.push(["start", terminalId, options]); },
+    writeTerminal: async (terminalId, data) => { terminalCalls.push(["write", terminalId, data]); },
+    resizeTerminal: async (terminalId, cols, rows) => { terminalCalls.push(["resize", terminalId, cols, rows]); },
+    closeTerminal: async (terminalId) => { terminalCalls.push(["close", terminalId]); },
+    readTerminal: async (terminalId, options) => {
+      terminalCalls.push(["read", terminalId, options]);
+      return { lines: ["ready in 412 ms"], omitted: 0 };
+    },
+    onTerminalData: () => () => {},
+    onTerminalEvent: (next) => { terminalEvent = next; return () => {}; },
     onCloseTab: (next) => { closeTabShortcut = next; return () => {}; },
     closeWindow: () => { browserCalls.push(["close-window"]); },
     ...overrides,
@@ -925,7 +940,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 5);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 6);
   await view.unmount();
 });
 
