@@ -18,6 +18,16 @@ type Attachment = {
   annotations: Annotation[];
 };
 
+function composerPlaceholder(surface: "main" | "side", folder: string, disabled: boolean) {
+  if (surface === "side") return disabled ? "Main context required" : "Ask a side question";
+  return folder ? "Ask Claude to work on anything" : "Ask Claude anything";
+}
+
+function sendLabel(surface: "main" | "side", runActive: boolean) {
+  if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
+  return runActive ? "Stop task" : "Send task";
+}
+
 function readImage(file: File) {
   return new Promise<Attachment>((resolve, reject) => {
     const reader = new FileReader();
@@ -34,6 +44,10 @@ export type TaskComposerProps = {
   prompt: string;
   folder: string;
   workspaceId?: string;
+  /** Where the composer sits. A side chat has no draft of its own to fork, so it offers no `/side`. */
+  surface?: "main" | "side";
+  /** Set while the thread cannot take a message at all, as a side chat cannot before its fork exists. */
+  disabled?: boolean;
   mode: ExecutionPolicy;
   model: AgentModel;
   effort: AgentEffort;
@@ -54,6 +68,8 @@ export function TaskComposer({
   prompt,
   folder,
   workspaceId,
+  surface = "main",
+  disabled = false,
   mode,
   model,
   effort,
@@ -85,7 +101,7 @@ export function TaskComposer({
   const slashQuery = prompt.match(/^\/([^\s]*)$/)?.[1].toLowerCase();
   const appCommand = { name: "side", description: "Open a focused side chat.", argumentHint: "", aliases: [] as string[], kind: "app" as const };
   const matchingCommands = slashQuery === undefined ? [] : [
-    appCommand,
+    ...(surface === "main" ? [appCommand] : []),
     ...commands.filter((command) => command.name !== "side").map((command) => ({ ...command, kind: "skill" as const })),
   ].filter((command) => command.name.toLowerCase().startsWith(slashQuery) || command.aliases?.some((alias) => alias.toLowerCase().startsWith(slashQuery)));
   const commandMenuOpen = inputFocused && slashQuery !== undefined && dismissedPrompt !== prompt;
@@ -120,7 +136,7 @@ export function TaskComposer({
 
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
-    if (sending || (steer && !runActive)) return;
+    if (sending || disabled || (steer && !runActive)) return;
     if (!prompt.trim() && attachments.length === 0) return;
     if (attachments.length === 0) {
       onSend([], steer);
@@ -173,9 +189,9 @@ export function TaskComposer({
   }, [commandMenuOpen, selectedCommand]);
 
   return (
-    <footer className="composer-wrap">
+    <footer className={`composer-wrap ${surface}`}>
       {queuedMessages.length > 0 && (
-        <div className="queued-row" role="list" aria-label="Queued messages">
+        <div className="queued-row" role="list" aria-label={surface === "side" ? "Queued side chat messages" : "Queued messages"}>
           {queuedMessages.map((message) => (
             <div className="queued-message" role="listitem" key={message.id}>
               <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
@@ -282,8 +298,9 @@ export function TaskComposer({
               void submit();
             }
           }}
-          placeholder={folder ? "Ask Claude to work on anything" : "Ask Claude anything"}
-          aria-label="Task prompt"
+          disabled={disabled}
+          placeholder={composerPlaceholder(surface, folder, disabled)}
+          aria-label={surface === "side" ? "Side chat prompt" : "Task prompt"}
           aria-autocomplete="list"
           aria-controls={commandMenuOpen ? "slash-command-menu" : undefined}
           aria-expanded={commandMenuOpen}
@@ -296,9 +313,9 @@ export function TaskComposer({
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && (sending || (!prompt.trim() && attachments.length === 0))}
+              disabled={!runActive && (disabled || sending || (!prompt.trim() && attachments.length === 0))}
               onClick={runActive ? onCancel : () => void submit()}
-              aria-label={runActive ? "Stop task" : "Send task"}
+              aria-label={sendLabel(surface, runActive)}
             >
               {runActive ? <span className="stop-glyph" /> : "↑"}
             </button>

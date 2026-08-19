@@ -31,5 +31,14 @@ the `ExternalCommand` surface, checked by `isThreadRequest` before they reach th
 that surface by naming the command in `ExternalCommand` and its guard, and expose it as a tool;
 a command that no tool calls does not belong there.
 
+## Side chats
+A side chat is an ordinary task that is never saved and never listed. `state.sideChats` only records
+which task ids are forks and where they came from; the thread itself lives in `state.tasks`, so every
+task command — send, queue, steer, cancel, approve, change the model — reaches it with the chat id as
+its `taskId`. The renderer shares one `TaskComposer`, given `surface="side"`.
+
+Do not add a `side-chat.*` command for something a task command already does, and do not fork the
+composer. A feature added to the main thread should reach a side chat without being written twice.
+
 ## Add a right panel view
 Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.

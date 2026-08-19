@@ -233,6 +233,11 @@ test("a side chat opened from the right panel sends on the side channel and stop
   assert.deepEqual(start.continuation, { provider: "claude", value: "main-session" });
   assert.equal(textarea.value, "");
 
+  assert.ok(
+    desktop.persisted.every((delta) => (delta.tasks ?? []).every((entry) => entry.task.id !== start.taskId)),
+    "a side chat's thread never reaches the store",
+  );
+
   await act(async () => { view.container.querySelector('button[aria-label="Stop side chat"]').click(); });
   assert.deepEqual(desktop.sent.at(-1), { type: "cancel", taskId: start.taskId, runId: start.runId });
   await view.unmount();
@@ -450,7 +455,12 @@ test("context usage stays within 100% when the window shrinks below the used tok
   await view.unmount();
 });
 
-test("a side chat shows its own context window, settings, and approval", async () => {
+test("a side chat composes with everything the main composer has", async () => {
+  window.desktop = fakeDesktop({
+    commands: async () => ({ status: "available", commands: [
+      { name: "security-scan", description: "Scan the repository for security issues.", argumentHint: "" },
+    ] }),
+  });
   const decisions = [];
   const policies = [];
   const chatTask = {
@@ -463,7 +473,7 @@ test("a side chat shows its own context window, settings, and approval", async (
     updatedAt: 1,
     contextUsage: { tokens: 120_000, limit: 200_000, model: "claude-opus-5" },
   };
-  const view = await mount(React.createElement(SideChat, {
+  const sideChatProps = (prompt, onPrompt) => ({
     chat: {
       id: "chat-1",
       title: "Chat 1",
@@ -475,19 +485,29 @@ test("a side chat shows its own context window, settings, and approval", async (
       compacting: false,
       status: "running",
       streamingTail: null,
+      queuedMessages: [],
+      running: true,
       approval: { approvalId: "approval-1", taskId: "chat-1", runId: "run-1", title: "Run a command", description: "ls", toolName: "Bash", input: { command: "ls" } },
+      prompt,
     },
     source: { ...chatTask, id: "main-task", title: "Main", continuation: { provider: "claude", value: "main-session" } },
-    onPrompt() {},
+    onPrompt,
     onSend() {},
     onCancel() {},
     onDecide(allow) { decisions.push(allow); },
     onPolicyChange(policy) { policies.push(policy); },
     onModelChange() {},
     onEffortChange() {},
+    onSteerQueued() {},
+    onDropQueued() {},
     onClose() {},
     onSelectTask() {},
-  }));
+  });
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(SideChat, sideChatProps(prompt, setPrompt));
+  }
+  const view = await mount(React.createElement(Harness));
   await act(async () => {});
 
   const usage = view.container.querySelector(".context-usage");
@@ -504,6 +524,15 @@ test("a side chat shows its own context window, settings, and approval", async (
   assert.match(approval.textContent, /Run a command/);
   await act(async () => { [...approval.querySelectorAll("button")].at(-1).click(); });
   assert.deepEqual(decisions, [true]);
+
+  const textarea = view.container.querySelector('textarea[aria-label="Side chat prompt"]');
+  assert.ok(view.container.querySelector(".composer-wrap.side .composer"), "the side chat uses the shared composer");
+
+  const paste = new dom.window.Event("paste", { bubbles: true });
+  paste.clipboardData = { files: [new dom.window.File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] };
+  await act(async () => { textarea.dispatchEvent(paste); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a side chat takes a pasted image");
   await view.unmount();
 });
 
@@ -607,6 +636,49 @@ test("a long note wraps onto several chip lines instead of running off the image
 test("a word wider than the chip is split rather than overflowing it", () => {
   const context = recordingContext();
   assert.deepEqual(wrapLabel(context, "aaaaaaaaaa bb", 35), ["aaaaa", "aaaaa", "bb"]);
+});
+
+test("the side surface keeps the slash palette but never offers to fork a fork", async () => {
+  window.desktop = fakeDesktop({
+    commands: async () => ({ status: "available", commands: [
+      { name: "security-scan", description: "Scan the repository for security issues.", argumentHint: "" },
+    ] }),
+  });
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      surface: "side",
+      mode: "confirm",
+      model: "opus",
+      runActive: false,
+      onPromptChange: setPrompt,
+      onModeChange() {},
+      onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
+      onSend() {},
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Side chat prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  textarea.attachEvent = () => {};
+  textarea.detachEvent = () => {};
+  await act(async () => {
+    textarea.focus();
+    setValue.call(textarea, "/s");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: "/s" }));
+    textarea.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/security-scan"]);
+  assert.equal(view.container.querySelector('button[aria-label="Send side chat message"]').disabled, false);
+  await view.unmount();
 });
 
 test("a pasted image becomes an attachment chip and is saved on send", async () => {

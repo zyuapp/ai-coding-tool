@@ -41,16 +41,14 @@ export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
   | { type: "run.decide"; allow: boolean; taskId?: string };
 
-/** A side chat forks the current task's thread and is discarded when it closes. */
+/**
+ * A side chat forks the current thread and is discarded when it closes. Its thread is an ordinary
+ * task, so everything else it does — sending, queueing, steering, cancelling, changing its model —
+ * travels on the task commands above with the chat id as the `taskId`.
+ */
 export type SideChatCommand =
   | { type: "side-chat.open"; chatId: string }
-  | { type: "side-chat.close"; chatId: string }
-  | { type: "side-chat.set-prompt"; chatId: string; prompt: string }
-  | { type: "side-chat.set-policy"; chatId: string; policy: ExecutionPolicy }
-  | { type: "side-chat.set-model"; chatId: string; model: AgentModel }
-  | { type: "side-chat.set-effort"; chatId: string; effort: AgentEffort }
-  | { type: "side-chat.send"; chatId: string }
-  | { type: "side-chat.cancel"; chatId: string };
+  | { type: "side-chat.close"; chatId: string };
 
 export type AutomationCommand =
   | { type: "automation.save"; taskId?: string; draft: Omit<AutomationDraft, "taskId"> }
@@ -60,7 +58,7 @@ export type AutomationCommand =
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
-  | { type: "view.set-prompt"; prompt: string }
+  | { type: "view.set-prompt"; taskId?: string; prompt: string }
   | { type: "view.toggle-project"; projectId: string }
   | { type: "view.set-projects-open"; open: boolean }
   | { type: "view.set-recents-open"; open: boolean }

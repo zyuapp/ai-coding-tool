@@ -141,6 +141,22 @@ function startRunCommand(task: Task, runId: string, prompt: string, workspaceId:
   };
 }
 
+/** A side chat's first turn forks the source thread; every turn after resumes its own branch. */
+function sideChannelFor(state: WorkspaceState, task: Task): Partial<StartRunCommand> {
+  if (!state.sideChats.some((chat) => chat.id === task.id)) return {};
+  if (task.continuation) return { channel: "side" };
+  const continuation = forkableContinuation(state, task.id);
+  return continuation ? { channel: "side", continuation, forkContinuation: true } : { channel: "side" };
+}
+
+/** The continuation a side chat starts from: its own once it has one, the source thread's before that. */
+function forkableContinuation(state: WorkspaceState, taskId: string) {
+  const chat = state.sideChats.find((item) => item.id === taskId);
+  if (!chat) return undefined;
+  const task = state.tasks.find((item) => item.id === taskId);
+  return task?.continuation ?? state.tasks.find((item) => item.id === chat.sourceTaskId)?.continuation;
+}
+
 /** Records the run against the task and marks it the task's latest, so stale replies can be dropped. */
 function beginRun(state: WorkspaceState, taskId: string, runId: string): WorkspaceState {
   return withRunStatus(
@@ -206,7 +222,7 @@ function withSideChat(state: WorkspaceState, chatId: string, update: (chat: Side
   return { ...state, sideChats: state.sideChats.map((chat) => chat.id === chatId ? update(chat) : chat) };
 }
 
-/** Side chats own their run state, so closing one has to cancel it rather than leave it orphaned. */
+/** Closing a side chat discards the thread itself, so its run, queue, and draft go with it. */
 function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTransition {
   const effects: WorkspaceEffect[] = [];
   let next = state;
@@ -217,12 +233,13 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       const { [active.runId]: _abandoned, ...approvals } = next.approvals;
       next = { ...next, approvals };
     }
-    next = withRunStatus(withActiveRun(next, chat.id, null), chat.id, "idle");
+    next = withPrompt(withQueued(withRunStatus(withActiveRun(next, chat.id, null), chat.id, "idle"), chat.id, []), chat.id, "");
   }
   const closed = new Set(closing.map((chat) => chat.id));
   return {
     state: {
       ...next,
+      tasks: next.tasks.filter((task) => !closed.has(task.id)),
       sideChats: next.sideChats.filter((chat) => !closed.has(chat.id)),
       pendingRuns: Object.fromEntries(Object.entries(next.pendingRuns).filter(([, pending]) => !(pending.taskId && closed.has(pending.taskId)))),
     },
@@ -353,6 +370,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
       if ((!text && attachments.length === 0) || alreadySending) return settled(state);
       if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
+      /** A side chat has nothing to say until the thread it forks from has a session to fork. */
+      if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
       /** Only the composer's own send falls back to the current task; a send with its own text starts a thread. */
       const task = state.tasks.find((item) => item.id === (input.taskId ?? (draftKey === undefined ? null : state.currentId)));
       if (task && state.activeRuns[task.id]) {
@@ -461,8 +480,9 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (project && (project.workspaceId !== input.workspace.id || project.root !== input.workspace.root)) {
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id, root: input.workspace.root } : item) };
       }
-      if (pending.origin === "automation") return startAutomationRun(next, pending, input.workspace);
-      return pending.origin === "side" ? startSideRun(next, pending, input.workspace) : startComposerRun(next, pending, input.workspace);
+      return pending.origin === "automation"
+        ? startAutomationRun(next, pending, input.workspace)
+        : startComposerRun(next, pending, input.workspace);
     }
 
     case "run.unresolved": {
@@ -470,7 +490,10 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (!pending) return settled(state);
       const next = withoutPending(state, input.pendingId);
       if (pending.origin === "automation") return settled(next, ack(pending, false));
-      if (pending.origin === "side") return settled(withSideChat(next, pending.taskId!, (chat) => ({ ...chat, error: input.message })));
+      /** A side chat lives in the dock, so its failure belongs there and not in the main thread's banner. */
+      if (pending.taskId && next.sideChats.some((chat) => chat.id === pending.taskId)) {
+        return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })));
+      }
       return settled({ ...next, actionError: input.message });
     }
 
@@ -495,17 +518,6 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "run.event": {
       const { event } = input;
-      const chat = state.sideChats.find((item) => item.id === event.taskId);
-      if (chat) {
-        const applied = applyRunEvent({ tasks: [chat.task], activeRuns: state.activeRuns, runStatuses: state.runStatuses, approvals: state.approvals, streamingTails: state.streamingTails }, event);
-        return settled({
-          ...withSideChat(state, chat.id, (item) => ({ ...item, task: applied.tasks[0]! })),
-          activeRuns: applied.activeRuns,
-          runStatuses: applied.runStatuses,
-          approvals: applied.approvals,
-          streamingTails: applied.streamingTails,
-        });
-      }
       const active = state.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const project = projectFor(state, state.tasks.find((task) => task.id === event.taskId));
@@ -559,74 +571,30 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const source = state.tasks.find((task) => task.id === state.currentId);
       if (!source) return settled(state);
       const sequence = state.sideChatSequence + 1;
-      const chat: SideChat = {
+      const task: Task = {
         id: input.chatId,
         title: `Chat ${sequence}`,
-        sourceTaskId: source.id,
-        prompt: "",
-        error: null,
-        task: {
-          id: input.chatId,
-          title: "Side chat",
-          executionPolicy: source.executionPolicy,
-          ...(source.model ? { model: source.model } : {}),
-          ...(source.effort ? { effort: source.effort } : {}),
-          messages: [],
-          continuationStatus: "none",
-          lastChangeSnapshot: { files: [], capturedAt: now() },
-          updatedAt: now(),
-        },
+        ...(source.projectId ? { projectId: source.projectId } : {}),
+        executionPolicy: source.executionPolicy,
+        ...(source.model ? { model: source.model } : {}),
+        ...(source.effort ? { effort: source.effort } : {}),
+        messages: [],
+        continuationStatus: "none",
+        lastChangeSnapshot: { files: [], capturedAt: now() },
+        createdAt: now(),
+        updatedAt: now(),
       };
-      return settled({ ...state, sideChats: [...state.sideChats, chat], sideChatSequence: sequence });
+      return settled({
+        ...state,
+        tasks: [...state.tasks, task],
+        sideChats: [...state.sideChats, { id: input.chatId, sourceTaskId: source.id, error: null }],
+        sideChatSequence: sequence,
+      });
     }
 
     case "side-chat.close": {
       const chat = state.sideChats.find((item) => item.id === input.chatId);
       return chat ? closeSideChats(state, [chat]) : settled(state);
-    }
-
-    case "side-chat.set-prompt":
-      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, prompt: input.prompt })));
-
-    case "side-chat.set-policy":
-      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, task: { ...chat.task, executionPolicy: input.policy } })));
-
-    case "side-chat.set-model":
-      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, task: { ...chat.task, model: input.model } })));
-
-    case "side-chat.set-effort":
-      return settled(withSideChat(state, input.chatId, (chat) => ({ ...chat, task: { ...chat.task, effort: input.effort } })));
-
-    case "side-chat.send": {
-      const chat = state.sideChats.find((item) => item.id === input.chatId);
-      const text = chat?.prompt.trim();
-      const source = chat ? state.tasks.find((task) => task.id === chat.sourceTaskId) : undefined;
-      const sending = Object.values(state.pendingRuns).some((pending) => pending.taskId === input.chatId);
-      if (!chat || !text || !source?.continuation || sending || state.activeRuns[chat.id]) return settled(state);
-      const project = projectFor(state, source);
-      const pending: PendingRun = {
-        id: crypto.randomUUID(),
-        runId: crypto.randomUUID(),
-        origin: "side",
-        taskId: chat.id,
-        ...(project ? { projectId: project.id } : {}),
-        text,
-        prompt: text,
-        attachments: [],
-      };
-      return settled(withPending(withSideChat(state, chat.id, (item) => ({ ...item, error: null })), pending), [{
-        type: "resolve-run-workspace",
-        pendingId: pending.id,
-        picker: Boolean(project && !project.workspaceId),
-        ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
-        ...(project ? { root: project.root } : {}),
-      }]);
-    }
-
-    case "side-chat.cancel": {
-      const active = state.activeRuns[input.chatId];
-      if (!active) return settled(state);
-      return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
     }
 
     case "automation.save": {
@@ -689,7 +657,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled({ ...state, actionError: input.message });
 
     case "view.set-prompt":
-      return settled(withPrompt(state, promptKey(state), input.prompt));
+      return settled(withPrompt(state, input.taskId ?? promptKey(state), input.prompt));
 
     case "view.toggle-project": {
       const expandedProjects = new Set(state.expandedProjects);
@@ -764,38 +732,10 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
   const titling: WorkspaceEffect[] = existing || !pending.text ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text }];
+  const command = { ...startRunCommand(updated, pending.runId, pending.prompt, workspace.id), ...sideChannelFor(state, updated) };
   return settled(
     pending.draftKey ? withPrompt(drained, pending.draftKey, "") : drained,
-    [{ type: "start-run", command: startRunCommand(updated, pending.runId, pending.prompt, workspace.id) }, ...titling],
-  );
-}
-
-/** A side chat forks the source thread on its first turn, then continues on its own branch. */
-function startSideRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
-  const chat = state.sideChats.find((item) => item.id === pending.taskId);
-  const source = chat ? state.tasks.find((task) => task.id === chat.sourceTaskId) : undefined;
-  if (!chat || !source?.continuation || state.activeRuns[chat.id]) return settled(state);
-  const firstTurn = !chat.task.continuation;
-  const task = { ...chat.task, messages: [...chat.task.messages, createTaskMessage("user", pending.text)], updatedAt: now() };
-  const next = withSideChat(state, chat.id, (item) => ({ ...item, task, prompt: "", error: null }));
-  return settled(
-    withRunStatus(withActiveRun(next, chat.id, { taskId: chat.id, runId: pending.runId, sequence: 0, status: "running" }), chat.id, "running"),
-    [{
-      type: "start-run",
-      command: {
-        type: "start",
-        channel: "side",
-        taskId: chat.id,
-        runId: pending.runId,
-        prompt: pending.prompt,
-        workspaceId: workspace.id,
-        policy: chat.task.executionPolicy,
-        model: chat.task.model ?? DEFAULT_MODEL,
-        effort: chat.task.effort ?? DEFAULT_EFFORT,
-        continuation: firstTurn ? source.continuation : chat.task.continuation!,
-        ...(firstTurn ? { forkContinuation: true } : {}),
-      },
-    }],
+    [{ type: "start-run", command }, ...titling],
   );
 }
 

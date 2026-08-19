@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deriveView, emptyWorkspaceState, stateFromData, type WorkspaceState } from "../../application/workspace-state";
+import { deriveView, emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
 import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
@@ -35,13 +35,21 @@ function persistedTask(task: Task): PersistedTask {
   return record;
 }
 
+/** A side chat's thread never reaches the store, so it is filtered out on both sides of the delta. */
+function persistedTasks(state: WorkspaceState | null) {
+  if (!state) return [];
+  const forked = sideChatIds(state);
+  return state.tasks.filter((task) => !forked.has(task.id));
+}
+
 function persistenceDelta(previous: WorkspaceState | null, next: WorkspaceState): TaskStoreDelta {
-  const previousTasks = new Map(previous?.tasks.map((task) => [task.id, task]));
-  const nextIds = new Set(next.tasks.map((task) => task.id));
+  const previousTasks = new Map(persistedTasks(previous).map((task) => [task.id, task]));
+  const nextTasks = persistedTasks(next);
+  const nextIds = new Set(nextTasks.map((task) => task.id));
   const removedTasks = [...previousTasks.keys()].filter((id) => !nextIds.has(id));
   return {
     ...(removedTasks.length ? { removedTasks } : {}),
-    tasks: next.tasks.flatMap((task) => {
+    tasks: nextTasks.flatMap((task) => {
       const before = previousTasks.get(task.id);
       if (before === task) return [];
       const messages = task.messages.flatMap((message, index) => before?.messages[index] === message ? [] : [{ index, message }]);

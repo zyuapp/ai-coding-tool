@@ -13,7 +13,7 @@ import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStore
 export type PendingRun = {
   id: string;
   runId: string;
-  origin: "composer" | "automation" | "side";
+  origin: "composer" | "automation";
   taskId?: string;
   projectId?: string;
   /** Composer only: which draft to clear once the run starts. */
@@ -42,17 +42,33 @@ export type QueuedMessage = {
   steering?: boolean;
 };
 
-/** One forked conversation. It holds its own task because nothing about it is ever persisted. */
+/**
+ * One forked conversation. Its thread is an ordinary task in `tasks`, so everything keyed by a task
+ * id — drafts, queued messages, approvals, steering — reaches it too. This record only marks the
+ * task as one that is never persisted and never listed.
+ */
 export type SideChat = {
   id: string;
-  title: string;
   sourceTaskId: string;
-  task: Task;
-  prompt: string;
   error: string | null;
 };
 
-export type SideChatView = SideChat & { running: boolean; compacting: boolean; status: TaskRunStatus; streamingTail: StreamingTail | null; approval?: ApprovalView };
+export type SideChatView = SideChat & {
+  title: string;
+  task: Task;
+  prompt: string;
+  running: boolean;
+  compacting: boolean;
+  status: TaskRunStatus;
+  streamingTail: StreamingTail | null;
+  queuedMessages: QueuedMessage[];
+  approval?: ApprovalView;
+};
+
+/** The ids of every thread that only lives for this session. */
+export function sideChatIds(state: Pick<WorkspaceState, "sideChats">) {
+  return new Set(state.sideChats.map((chat) => chat.id));
+}
 
 export type WorkspaceState = {
   tasks: Task[];
@@ -192,14 +208,16 @@ export function deriveView(state: WorkspaceState) {
   const currentProject = currentTask
     ? projectFor(state, currentTask)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-  const visibleTasks = state.tasks.filter((task) => task.archivedAt === undefined);
+  const forked = sideChatIds(state);
+  const listedTasks = state.tasks.filter((task) => !forked.has(task.id));
+  const visibleTasks = listedTasks.filter((task) => task.archivedAt === undefined);
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const environment = currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null;
   return {
-    tasks: state.tasks,
+    tasks: listedTasks,
     projects: state.projects,
     orderedTasks: orderTasks(visibleTasks),
-    archivedTasks: state.tasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
+    archivedTasks: listedTasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
     recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt),
     currentTask,
     currentProject,
@@ -229,17 +247,23 @@ export function deriveView(state: WorkspaceState) {
     openMenu: state.openMenu,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
-    sideChats: state.sideChats.map((chat): SideChatView => {
+    sideChats: state.sideChats.flatMap((chat): SideChatView[] => {
+      const task = state.tasks.find((item) => item.id === chat.id);
+      if (!task) return [];
       const active = state.activeRuns[chat.id];
       const approval = active?.status === "awaiting-approval" ? state.approvals[active.runId] as ApprovalView | undefined : undefined;
-      return {
+      return [{
         ...chat,
+        title: task.title,
+        task,
+        prompt: state.prompts[chat.id] ?? "",
         running: Boolean(active),
         compacting: active?.status === "compacting",
         status: active ? "running" : runStatusFor(state, chat.id),
         streamingTail: state.streamingTails[chat.id] ?? null,
+        queuedMessages: state.queuedMessages[chat.id] ?? [],
         ...(approval ? { approval } : {}),
-      };
+      }];
     }),
   };
 }

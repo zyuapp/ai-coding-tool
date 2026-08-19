@@ -1,5 +1,5 @@
 import { runStatusFor } from "./task-workspace.js";
-import { projectFor, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
 import { threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
 
@@ -51,7 +51,9 @@ export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary 
 /** Newest activity first, so a limit keeps the threads worth looking at. */
 export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at: number): ThreadSummary[] {
   const search = filter.search?.trim().toLowerCase();
+  const forked = sideChatIds(state);
   const matching = state.tasks.filter((task) => {
+    if (forked.has(task.id)) return false;
     if (!inScope(task, filter.scope)) return false;
     if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) return false;
     if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) return false;

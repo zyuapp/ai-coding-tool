@@ -298,13 +298,15 @@ export function App() {
                     chat={chat}
                     source={workspace.currentTask!}
                     project={workspace.currentProject}
-                    onPrompt={(prompt) => void workspace.dispatch({ type: "side-chat.set-prompt", chatId: chat.id, prompt })}
-                    onSend={() => void workspace.dispatch({ type: "side-chat.send", chatId: chat.id })}
-                    onCancel={() => void workspace.dispatch({ type: "side-chat.cancel", chatId: chat.id })}
+                    onPrompt={(prompt) => void workspace.dispatch({ type: "view.set-prompt", taskId: chat.id, prompt })}
+                    onSend={(attachments, steer) => void workspace.dispatch({ type: "task.send", taskId: chat.id, attachments, steer })}
+                    onCancel={() => void workspace.dispatch({ type: "run.cancel", taskId: chat.id })}
                     onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
-                    onPolicyChange={(policy) => void workspace.dispatch({ type: "side-chat.set-policy", chatId: chat.id, policy })}
-                    onModelChange={(model) => void workspace.dispatch({ type: "side-chat.set-model", chatId: chat.id, model })}
-                    onEffortChange={(effort) => void workspace.dispatch({ type: "side-chat.set-effort", chatId: chat.id, effort })}
+                    onPolicyChange={(policy) => void workspace.dispatch({ type: "task.set-policy", taskId: chat.id, policy })}
+                    onModelChange={(model) => void workspace.dispatch({ type: "task.set-model", taskId: chat.id, model })}
+                    onEffortChange={(effort) => void workspace.dispatch({ type: "task.set-effort", taskId: chat.id, effort })}
+                    onSteerQueued={(messageId) => void workspace.dispatch({ type: "task.steer-queued", taskId: chat.id, messageId })}
+                    onDropQueued={(messageId) => void workspace.dispatch({ type: "task.drop-queued", taskId: chat.id, messageId })}
                     onClose={() => closeRightTab(chat.id)}
                     onSelectTask={workspace.actions.selectTask}
                   />

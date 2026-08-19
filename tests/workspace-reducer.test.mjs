@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { reduce } from "../dist/main/application/workspace-reducer.js";
 import { deriveView, emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
+import { threadSummaries } from "../dist/main/application/thread-projection.js";
 
 function task(id, overrides = {}) {
   return {
@@ -197,31 +198,31 @@ test("a side chat forks the source thread once, then continues on its own branch
   const source = task("main-task", { executionPolicy: "autonomous", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "What does this do?" },
   ]);
-  assert.equal(opened.sideChats[0].title, "Chat 1");
+  assert.equal(deriveView(opened).sideChats[0].title, "Chat 1");
 
-  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1" });
   const forked = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const first = forked.effects[0].command;
   assert.equal(first.channel, "side");
   assert.equal(first.policy, "autonomous", "the chat starts from the source thread's policy");
   assert.equal(first.forkContinuation, true);
   assert.deepEqual(first.continuation, { provider: "claude", value: "main-session" });
-  assert.equal(forked.state.sideChats[0].prompt, "");
-  assert.equal(forked.state.sideChats[0].task.messages[0].text, "What does this do?");
+  assert.equal(deriveView(forked.state).sideChats[0].prompt, "");
+  assert.equal(deriveView(forked.state).sideChats[0].task.messages[0].text, "What does this do?");
 
   const branched = run(forked.state, [
     { type: "run.event", event: { type: "continuation.updated", taskId: "chat-1", runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "side-session" } } },
     { type: "run.event", event: { type: "run.status", taskId: "chat-1", runId: first.runId, sequence: 2, status: "succeeded" } },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Follow up" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "Follow up" },
   ]);
-  const resending = reduce(branched, { type: "side-chat.send", chatId: "chat-1" });
+  const resending = reduce(branched, { type: "task.send", taskId: "chat-1" });
   const second = reduce(resending.state, { type: "run.resolved", pendingId: resending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).effects[0].command;
 
   assert.deepEqual(second.continuation, { provider: "claude", value: "side-session" });
   assert.equal("forkContinuation" in second, false);
-  assert.deepEqual(branched.tasks[0].continuation, { provider: "claude", value: "main-session" }, "the main thread never moves");
+  assert.deepEqual(branched.tasks.find((task) => task.id === "main-task").continuation, { provider: "claude", value: "main-session" }, "the main thread never moves");
 });
 
 test("a side chat snapshots the source settings at creation, then owns them", () => {
@@ -233,41 +234,70 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
     continuationStatus: "available",
   });
   const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
-  assert.equal(opened.sideChats[0].task.executionPolicy, "confirm");
-  assert.equal(opened.sideChats[0].task.model, "opus");
-  assert.equal(opened.sideChats[0].task.effort, "high");
+  assert.equal(deriveView(opened).sideChats[0].task.executionPolicy, "confirm");
+  assert.equal(deriveView(opened).sideChats[0].task.model, "opus");
+  assert.equal(deriveView(opened).sideChats[0].task.effort, "high");
 
   const retuned = run(opened, [
-    { type: "side-chat.set-policy", chatId: "chat-1", policy: "autonomous" },
-    { type: "side-chat.set-model", chatId: "chat-1", model: "haiku" },
-    { type: "side-chat.set-effort", chatId: "chat-1", effort: "low" },
+    { type: "task.set-policy", taskId: "chat-1", policy: "autonomous" },
+    { type: "task.set-model", taskId: "chat-1", model: "haiku" },
+    { type: "task.set-effort", taskId: "chat-1", effort: "low" },
     { type: "task.set-policy", taskId: "main-task", policy: "allow-edits" },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Fix the typo" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "Fix the typo" },
   ]);
-  assert.equal(retuned.tasks[0].executionPolicy, "allow-edits", "the main thread keeps its own policy");
+  assert.equal(retuned.tasks.find((task) => task.id === "main-task").executionPolicy, "allow-edits", "the main thread keeps its own policy");
 
-  const sending = reduce(retuned, { type: "side-chat.send", chatId: "chat-1" });
+  const sending = reduce(retuned, { type: "task.send", taskId: "chat-1" });
   const command = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).effects[0].command;
   assert.equal(command.policy, "autonomous");
   assert.equal(command.model, "haiku");
   assert.equal(command.effort, "low");
 });
 
+test("a side chat is a thread in every way but being saved or listed", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "Read the reducer" },
+  ]);
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1", attachments: [{ path: "/tmp/shot.png", labels: ["here"] }] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const { runId } = started.effects[0].command;
+  assert.match(started.effects[0].command.prompt, /shot\.png/, "a side chat sends its attachments");
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [], "a side chat keeps the name the dock gave it");
+
+  const queued = reduce(started.state, { type: "task.send", taskId: "chat-1", text: "And the state file" });
+  assert.deepEqual(queued.state.queuedMessages["chat-1"].map((message) => message.text), ["And the state file"], "queueing reaches a side chat");
+  const steered = reduce(queued.state, { type: "task.steer-queued", taskId: "chat-1", messageId: queued.state.queuedMessages["chat-1"][0].id });
+  assert.equal(steered.effects[0].command.type, "steer");
+
+  const view = deriveView(steered.state);
+  assert.deepEqual(view.tasks.map((item) => item.id), ["main-task"], "the chat is never listed beside real threads");
+  assert.deepEqual(view.orderedTasks.map((item) => item.id), ["main-task"]);
+  assert.deepEqual(threadSummaries(steered.state, { scope: { kind: "all" } }, 2).map((thread) => thread.id), ["main-task"], "and an agent never sees it");
+
+  const closed = reduce(steered.state, { type: "side-chat.close", chatId: "chat-1" }).state;
+  assert.deepEqual(closed.tasks.map((item) => item.id), ["main-task"], "closing takes the thread with it");
+  assert.equal(closed.queuedMessages["chat-1"], undefined);
+  assert.equal(closed.prompts["chat-1"], undefined);
+  assert.equal(deriveView(closed).sideChats.length, 0);
+});
+
 test("a side chat cannot run without a source thread to fork", () => {
   const opened = run(workspace({ tasks: [task("main-task")], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Ask" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "Ask" },
   ]);
-  assert.deepEqual(reduce(opened, { type: "side-chat.send", chatId: "chat-1" }).effects, []);
+  assert.deepEqual(reduce(opened, { type: "task.send", taskId: "chat-1" }).effects, []);
 });
 
 test("closing a side chat cancels its run, and switching tasks closes every chat", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source, task("other")], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "Ask" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "Ask" },
   ]);
-  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1" });
   const running = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
   const runId = running.activeRuns["chat-1"].runId;
 
@@ -456,9 +486,9 @@ test("a side chat streams its own tail without disturbing the main thread", () =
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "What does this do?" },
   ]);
-  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1" });
   const { runId } = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).effects[0].command;
   const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
 
@@ -472,9 +502,9 @@ test("a side chat answers its own approval without the main thread in the way", 
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
-    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
+    { type: "view.set-prompt", taskId: "chat-1", prompt: "What does this do?" },
   ]);
-  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1" });
   const resolved = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const { runId } = resolved.effects[0].command;
 

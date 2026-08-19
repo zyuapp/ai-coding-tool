@@ -1009,7 +1009,7 @@ pre {
 .side-chat {
   min-width: 0;
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr) auto;
+  grid-template-rows: 72px minmax(0, 1fr) auto auto;
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: #11151b;
@@ -1082,32 +1082,11 @@ pre {
 .side-chat-transcript .message.user .message-text { max-width: 88%; padding: 9px 13px; }
 .side-chat-transcript .message-text { font-size: var(--text-content); }
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid #4a3033; background: #21181b; color: #d98b8f; font-size: var(--text-control); }
-.side-chat-composer { padding: 10px 14px 14px; border-top: 1px solid var(--line-soft); }
-.side-chat-composer > div {
-  container-type: inline-size;
-  border: 1px solid #2a313a;
-  border-radius: 14px;
-  padding: 8px 8px 0;
-  background: #151920;
-}
-.side-chat-composer .composer-bar { padding: 0 0 4px; }
-.side-chat-composer > div:focus-within { border-color: #3b4652; }
-.side-chat-composer textarea {
-  width: 100%;
-  min-height: 48px;
-  max-height: 150px;
-  resize: none;
-  border: 0;
-  outline: 0;
-  padding: 4px 5px;
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--text-content);
-  line-height: 1.5;
-}
-.side-chat-composer textarea::placeholder { color: #515861; }
-.side-chat-composer textarea:disabled { cursor: not-allowed; }
-.side-chat-note { margin: 7px 3px 0; color: #58606a; font-size: var(--text-meta); }
+.composer-wrap.side { padding: 10px 14px 0; background: none; }
+.composer-wrap.side .composer { border-radius: 14px; box-shadow: none; }
+.composer-wrap.side .queued-row { grid-column: auto; grid-row: auto; }
+.composer-wrap.side textarea:disabled { cursor: not-allowed; }
+.side-chat-note { margin: 7px 17px 12px; color: #58606a; font-size: var(--text-meta); }
 .inspector-header {
   display: flex;
   align-items: center;
