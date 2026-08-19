@@ -3,6 +3,7 @@ import type { ExternalCommand, ThreadRequest, ThreadResponse } from "./threads.j
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
+import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
 
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
@@ -28,6 +29,25 @@ export type StartRunCommand = {
   effort: AgentEffort;
   continuation?: Continuation;
   forkContinuation?: boolean;
+};
+
+export type CreateWorktreeRequest = {
+  projectRoot: string;
+  carryChanges: boolean;
+};
+
+export type ReleaseWorktreeRequest = {
+  worktreeId: string;
+  root: string;
+  taskId: string;
+  title: string;
+  release: WorktreeRelease;
+};
+
+export type WorktreeSnapshotResult = {
+  commit: string | null;
+  shortCommit: string | null;
+  ref: string | null;
 };
 
 export type ComputerUsePermissions = {
@@ -123,6 +143,12 @@ export type DesktopAPI = {
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
+  /** Makes the thread's own checkout, detached at whatever the project has checked out right now. */
+  createWorktree(request: CreateWorktreeRequest): Promise<Worktree>;
+  /** Force-commits what the worktree still holds so the thread can leave it without losing work. */
+  releaseWorktree(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshotResult>;
+  /** Discards the checkout and everything uncommitted in it. */
+  deleteWorktree(root: string): Promise<void>;
   /** Writes base64 PNG bytes into the attachments directory and resolves with the absolute path. */
   saveAttachment(data: string): Promise<string>;
   /** Names a thread from its first message and any screenshots it carries, off the agent's run path. Null when no name came back. */
@@ -262,7 +288,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && command.channel === "side" && isContinuation(command.continuation)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation)));
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
@@ -288,7 +314,8 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       && (command.projectId === undefined || isString(command.projectId))
       && isString(command.text, MAX_PROMPT_LENGTH)
       && command.attachments === undefined
-      && (command.steer === undefined || typeof command.steer === "boolean");
+      && (command.steer === undefined || typeof command.steer === "boolean")
+      && (command.worktree === undefined || typeof command.worktree === "boolean");
   }
   if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "run.cancel") return named;

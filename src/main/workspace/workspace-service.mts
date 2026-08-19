@@ -36,6 +36,10 @@ export class WorkspaceService {
     return this.register("project", root);
   }
 
+  async registerWorktree(root: string) {
+    return this.register("worktree", root);
+  }
+
   async getProjectless() {
     await this.ready;
     await mkdir(this.projectlessRoot, { recursive: true });
@@ -130,7 +134,7 @@ function isRegistryFile(value: unknown): value is RegistryFile {
 function isWorkspaceRecord(value: unknown): value is WorkspaceRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const workspace = value as Record<string, unknown>;
-  return typeof workspace.id === "string" && workspace.id.length > 0 && typeof workspace.root === "string" && workspace.root.length > 0 && (workspace.kind === "project" || workspace.kind === "projectless");
+  return typeof workspace.id === "string" && workspace.id.length > 0 && typeof workspace.root === "string" && workspace.root.length > 0 && (workspace.kind === "project" || workspace.kind === "projectless" || workspace.kind === "worktree");
 }
 
 async function preserveCorruptRegistry(registryPath: string, content: string) {

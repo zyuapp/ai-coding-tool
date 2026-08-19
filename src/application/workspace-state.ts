@@ -5,6 +5,7 @@ import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
+import type { Worktree } from "../domain/worktree.js";
 
 /**
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
@@ -28,6 +29,12 @@ export type PendingRun = {
   /** Queued messages this run is draining, cleared only once the run actually starts. */
   queuedIds?: string[];
 };
+
+/** Where a thread's runs happen, and whether a checkout of its own is still on its way. */
+export type ThreadLocation =
+  | { kind: "local" }
+  | { kind: "pending" }
+  | { kind: "worktree"; worktree: Worktree };
 
 /**
  * Something the user typed while a run was going. It waits for the run to finish, unless it is
@@ -80,6 +87,7 @@ export type WorkspaceState = {
   historyIndex: number;
   draftProjectId: string | null;
   draftPolicy: ExecutionPolicy;
+  draftWorktree: boolean;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   prompts: Record<string, string>;
@@ -114,6 +122,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     historyIndex: -1,
     draftProjectId: null,
     draftPolicy: "confirm",
+    draftWorktree: false,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
@@ -173,6 +182,17 @@ export function projectFor(state: WorkspaceState, task: Task | undefined) {
   return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
 }
 
+/** Where a thread's runs happen: its own checkout once it has one, otherwise its project's. */
+export function taskWorkspaceId(state: WorkspaceState, task: Task | undefined) {
+  return task?.worktree?.workspaceId ?? projectFor(state, task)?.workspaceId;
+}
+
+export function locationOf(task: Task | undefined, draftWorktree: boolean): ThreadLocation {
+  if (task?.worktree) return { kind: "worktree", worktree: task.worktree };
+  if (task ? task.worktreeWanted : draftWorktree) return { kind: "pending" };
+  return { kind: "local" };
+}
+
 /** Composer drafts live per task, with one draft per project for the not-yet-created task. */
 export function promptKey(state: Pick<WorkspaceState, "currentId" | "draftProjectId">) {
   return state.currentId ?? `draft:${state.draftProjectId ?? ""}`;
@@ -212,7 +232,10 @@ export function deriveView(state: WorkspaceState) {
   const listedTasks = state.tasks.filter((task) => !forked.has(task.id));
   const visibleTasks = listedTasks.filter((task) => task.archivedAt === undefined);
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
-  const environment = currentProject?.workspaceId && state.environment?.workspaceId === currentProject.workspaceId ? state.environment.result : null;
+  const workspaceId = currentTask
+    ? taskWorkspaceId(state, currentTask)
+    : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
+  const environment = workspaceId && state.environment?.workspaceId === workspaceId ? state.environment.result : null;
   return {
     tasks: listedTasks,
     projects: state.projects,
@@ -236,6 +259,8 @@ export function deriveView(state: WorkspaceState) {
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
+    worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktree).map((task) => task.id)),
+    location: locationOf(currentTask, state.draftWorktree),
     environment,
     storageError: state.storageError,
     actionError: state.actionError,

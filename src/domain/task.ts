@@ -1,4 +1,5 @@
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, Subagent } from "./run.js";
+import { isWorktree, type Worktree } from "./worktree.js";
 
 export const TASK_STORE_VERSION = 2 as const;
 
@@ -97,6 +98,10 @@ export type Task = {
   attention?: TaskAttention;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
+  /** The checkout this thread's runs happen in. Absent while it runs in the project itself. */
+  worktree?: Worktree;
+  /** Set once the user asks for a worktree; the worktree itself is made on the next send. */
+  worktreeWanted?: boolean;
   /** Absent on tasks written before threads were timestamped; {@link threadCreatedAt} fills those in. */
   createdAt?: number;
   updatedAt: number;
@@ -394,6 +399,8 @@ function isTaskBase(value: unknown): value is Task {
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.attention === undefined || isTaskAttention(value.attention)) &&
+    (value.worktree === undefined || isWorktree(value.worktree)) &&
+    (value.worktreeWanted === undefined || typeof value.worktreeWanted === "boolean") &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&

@@ -163,6 +163,7 @@ export function App() {
         expandedProjects={workspace.expandedProjects}
         runningTaskIds={workspace.runningTaskIds}
         automatedTaskIds={workspace.automatedTaskIds}
+        worktreeTaskIds={workspace.worktreeTaskIds}
         projectsOpen={workspace.projectsOpen}
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}
@@ -223,6 +224,8 @@ export function App() {
           <SessionPanel
             environment={workspace.environment}
             hasProject={Boolean(workspace.folder)}
+            {...(workspace.currentTask ? { location: workspace.location } : {})}
+            runActive={workspace.runActive}
             subagents={workspace.subagents}
             automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
@@ -230,6 +233,10 @@ export function App() {
               openRightTab("agents");
             }}
             onOpenAutomations={() => openRightTab("automation")}
+            onSetWorktree={workspace.actions.setWorktree}
+            onDeleteWorktree={() => {
+              if (window.confirm("Delete this worktree? Anything uncommitted in it is lost.")) void workspace.actions.deleteWorktree();
+            }}
           />
         )}
 
@@ -322,6 +329,7 @@ export function App() {
           mode={workspace.policy}
           model={workspace.model}
           effort={workspace.effort}
+          {...(workspace.currentProject ? { worktree: { on: workspace.location.kind !== "local", onChange: workspace.actions.setWorktree } } : {})}
           contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
           queuedMessages={workspace.queuedMessages}

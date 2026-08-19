@@ -1,14 +1,20 @@
-import { AlarmClock, Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, XCircle } from "lucide-react";
+import { AlarmClock, Bot, CheckCircle2, CircleDot, FileDiff, GitBranch, House, Trash2, XCircle } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
+import type { ThreadLocation } from "../../application/workspace-state";
 import type { Subagent } from "../../domain/run";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
   hasProject: boolean;
+  /** Absent until a thread exists; a draft has nowhere to move yet. */
+  location?: ThreadLocation;
+  runActive: boolean;
   subagents: Subagent[];
   automationCount: number;
   onSelect: (id: string) => void;
   onOpenAutomations: () => void;
+  onSetWorktree: (worktree: boolean) => void;
+  onDeleteWorktree: () => void;
 };
 
 function statusLabel(status: Subagent["status"]) {
@@ -30,7 +36,35 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   return null;
 }
 
-export function SessionPanel({ environment, hasProject, subagents, automationCount, onSelect, onOpenAutomations }: SessionPanelProps) {
+function LocationRow({ location, hasProject, runActive, onSetWorktree, onDeleteWorktree }: Required<Pick<SessionPanelProps, "location">> & Pick<SessionPanelProps, "hasProject" | "runActive" | "onSetWorktree" | "onDeleteWorktree">) {
+  const inWorktree = location.kind === "worktree";
+  return (
+    <div className="session-location">
+      <div className="session-row">
+        <span className="session-row-icon">{inWorktree ? <GitBranch size={18} /> : <House size={18} />}</span>
+        <span>Location</span>
+        <span className="session-location-value">
+          {location.kind === "worktree" ? "Worktree" : location.kind === "pending" ? "On next message" : "Local"}
+        </span>
+      </div>
+      {location.kind === "worktree" && <p className="session-note" title={location.worktree.root}>{location.worktree.root}</p>}
+      {hasProject && (
+        <div className="session-location-actions">
+          <button type="button" onClick={() => onSetWorktree(location.kind === "local")} disabled={runActive}>
+            {location.kind === "local" ? "Move to worktree" : "Switch to local"}
+          </button>
+          {inWorktree && (
+            <button type="button" className="session-danger" onClick={onDeleteWorktree} disabled={runActive} aria-label="Delete worktree">
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SessionPanel({ environment, hasProject, location, runActive, subagents, automationCount, onSelect, onOpenAutomations, onSetWorktree, onDeleteWorktree }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
 
@@ -39,6 +73,7 @@ export function SessionPanel({ environment, hasProject, subagents, automationCou
       <div className="session-card">
         <h2 className="session-title">Session</h2>
             <div className="session-environment">
+              {location && <LocationRow location={location} hasProject={hasProject} runActive={runActive} onSetWorktree={onSetWorktree} onDeleteWorktree={onDeleteWorktree} />}
               <div className="session-row">
                 <span className="session-row-icon"><FileDiff size={18} /></span>
                 <span>Changes</span>

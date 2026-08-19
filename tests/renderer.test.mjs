@@ -285,6 +285,7 @@ test("the sidebar steps through visited threads", async () => {
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(),
+    worktreeTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,
@@ -1520,7 +1521,7 @@ test("archiving a task retires its automation", async () => {
   await workspace.view.unmount();
 });
 
-test("the sidebar marks every task that runs on a schedule", async () => {
+test("the sidebar marks the threads that run on a schedule and the ones with their own checkout", async () => {
   const task = (id, projectId) => ({
     id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
@@ -1536,6 +1537,7 @@ test("the sidebar marks every task that runs on a schedule", async () => {
     expandedProjects: new Set(["project-1"]),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(["scheduled-task", "scheduled-chat"]),
+    worktreeTaskIds: new Set(["plain-task"]),
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,
@@ -1545,10 +1547,12 @@ test("the sidebar marks every task that runs on a schedule", async () => {
     onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
   }));
 
-  const marked = [...view.container.querySelectorAll('[aria-label="Runs on a schedule"]')]
-    .map((icon) => icon.closest("[data-rfd-draggable-id]").getAttribute("data-rfd-draggable-id"));
+  const marks = (label) => [...view.container.querySelectorAll(`[aria-label="${label}"]`)]
+    .map((icon) => icon.closest("[data-rfd-draggable-id]").getAttribute("data-rfd-draggable-id"))
+    .sort();
 
-  assert.deepEqual(marked.sort(), ["scheduled-chat", "scheduled-task"]);
+  assert.deepEqual(marks("Runs on a schedule"), ["scheduled-chat", "scheduled-task"]);
+  assert.deepEqual(marks("Works in a worktree"), ["plain-task"], "a thread with its own checkout is marked wherever it is listed");
   await view.unmount();
 });
 
@@ -1571,6 +1575,7 @@ test("a collapsed folder is revealed before the drag is measured, not after", as
     expandedProjects: new Set(["open-project"]),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(),
+    worktreeTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,
     openMenu: null,

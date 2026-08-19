@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AutomationAck, AutomationFire, ComputerUsePermission, DesktopAPI, RunCommand, RunEvent } from "./contracts/ipc";
+import type { AutomationAck, AutomationFire, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent } from "./contracts/ipc";
 import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
@@ -17,6 +17,9 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("run:event", handler);
   },
   changedFiles: (workspaceId: string) => ipcRenderer.invoke("workspace:changed-files", workspaceId),
+  createWorktree: (request: CreateWorktreeRequest) => ipcRenderer.invoke("worktree:create", request),
+  releaseWorktree: (request: ReleaseWorktreeRequest) => ipcRenderer.invoke("worktree:release", request),
+  deleteWorktree: (root: string) => ipcRenderer.invoke("worktree:delete", root),
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
   suggestTaskTitle: (text: string, attachments: string[]) => ipcRenderer.invoke("task-title:suggest", text, attachments),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),

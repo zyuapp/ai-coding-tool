@@ -1,4 +1,4 @@
-export type WorkspaceKind = "project" | "projectless";
+export type WorkspaceKind = "project" | "projectless" | "worktree";
 
 export type WorkspaceRecord = {
   id: string;

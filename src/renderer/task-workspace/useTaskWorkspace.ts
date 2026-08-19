@@ -115,6 +115,10 @@ export function useTaskWorkspace() {
 
       case "resolve-run-workspace":
         try {
+          if (effect.createWorktree) {
+            const worktree = await window.desktop.createWorktree(effect.createWorktree);
+            return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root }, worktree });
+          }
           if (effect.workspaceId) {
             return await dispatch({ type: "run.resolved", pendingId: effect.pendingId, workspace: { id: effect.workspaceId, kind: "project", root: effect.root! } });
           }
@@ -132,6 +136,30 @@ export function useTaskWorkspace() {
       case "start-run":
       case "send-run-command":
         window.desktop.send(effect.command);
+        return;
+
+      case "release-worktree":
+        try {
+          const snapshot = await window.desktop.releaseWorktree({
+            worktreeId: effect.worktreeId,
+            root: effect.root,
+            taskId: effect.taskId,
+            title: effect.title,
+            release: "returned-to-local",
+          });
+          await dispatch({ type: "worktree.released", taskId: effect.taskId, snapshot });
+        } catch (error) {
+          await dispatch({ type: "action.failed", message: errorMessage(error) });
+        }
+        return;
+
+      case "delete-worktree":
+        try {
+          await window.desktop.deleteWorktree(effect.root);
+          await dispatch({ type: "worktree.deleted", taskId: effect.taskId });
+        } catch (error) {
+          await dispatch({ type: "action.failed", message: errorMessage(error) });
+        }
         return;
 
       case "refresh-environment":
@@ -323,7 +351,7 @@ export function useTaskWorkspace() {
     if (!currentRunId) return;
     const timer = window.setInterval(() => void dispatchRef.current({ type: "view.refresh-environment" }), 2_000);
     return () => window.clearInterval(timer);
-  }, [view.currentProject?.workspaceId, view.currentTask?.id, currentRunId]);
+  }, [view.currentProject?.workspaceId, view.currentTask?.worktree?.workspaceId, view.currentTask?.id, currentRunId]);
 
   return {
     ...view,
@@ -350,6 +378,8 @@ export function useTaskWorkspace() {
       setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),
       setModel: (model: AgentModel) => dispatch({ type: "task.set-model", model }),
       setEffort: (effort: AgentEffort) => dispatch({ type: "task.set-effort", effort }),
+      setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
+      deleteWorktree: () => dispatch({ type: "worktree.delete" }),
       sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
       steerQueued: (messageId: string) => dispatch({ type: "task.steer-queued", messageId }),
       dropQueued: (messageId: string) => dispatch({ type: "task.drop-queued", messageId }),

@@ -5,10 +5,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type ComputerUsePermission, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
+import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
@@ -26,6 +27,7 @@ const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
 let workspaceService: WorkspaceService | null = null;
+let worktreeService: WorktreeService | null = null;
 let taskDatabase: TaskDatabase | null = null;
 let automationScheduler: AutomationScheduler | null = null;
 let quitting = false;
@@ -196,6 +198,11 @@ function getWorkspaceService() {
   return workspaceService;
 }
 
+function getWorktreeService() {
+  if (!worktreeService) throw new Error("Worktree service is not ready.");
+  return worktreeService;
+}
+
 async function resolveStart(command: StartRunCommand) {
   const [resolution, computerUse] = await Promise.all([getWorkspaceService().resolve(command.workspaceId), computerUseForRun()]);
   if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
@@ -336,6 +343,11 @@ app.whenReady().then(async () => {
   workspaceService = new WorkspaceServiceConstructor({
     registryPath: path.join(userData, "workspaces.v1.json"),
     projectlessRoot: path.join(userData, "projectless"),
+  });
+  const { WorktreeService: WorktreeServiceConstructor } = await import("./workspace/worktrees.mjs");
+  worktreeService = new WorktreeServiceConstructor({
+    worktreesRoot: path.join(userData, "worktrees"),
+    workspaces: workspaceService,
   });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"));
@@ -520,6 +532,43 @@ ipcMain.handle("attachment:save", async (event, data: unknown) => {
   const file = path.join(directory, `${randomUUID()}.png`);
   await writeFile(file, bytes);
   return file;
+});
+
+function worktreeRequest(value: unknown) {
+  if (!value || typeof value !== "object") throw new Error("Invalid worktree request.");
+  return value as Record<string, unknown>;
+}
+
+function worktreePath(value: unknown) {
+  if (typeof value !== "string" || !value || value.length > 4_096) throw new Error("Invalid worktree path.");
+  return value;
+}
+
+ipcMain.handle("worktree:create", async (event, request: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const fields = worktreeRequest(request);
+  return getWorktreeService().create({
+    projectRoot: worktreePath(fields.projectRoot),
+    carryChanges: fields.carryChanges === true,
+  } satisfies CreateWorktreeRequest);
+});
+
+ipcMain.handle("worktree:release", async (event, request: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const fields = worktreeRequest(request);
+  const release = fields.release === "evicted" ? "evicted" : "returned-to-local";
+  return getWorktreeService().release({
+    worktreeId: worktreePath(fields.worktreeId),
+    root: worktreePath(fields.root),
+    taskId: worktreePath(fields.taskId),
+    title: typeof fields.title === "string" ? fields.title : "",
+    release,
+  } satisfies ReleaseWorktreeRequest);
+});
+
+ipcMain.handle("worktree:delete", async (event, root: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  await getWorktreeService().delete(worktreePath(root));
 });
 
 ipcMain.handle("workspace:changed-files", async (event, workspaceId: unknown) => {

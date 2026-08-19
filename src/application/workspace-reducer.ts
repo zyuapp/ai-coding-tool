@@ -9,7 +9,7 @@ import {
   withActiveRun,
   withRunStatus,
 } from "./task-workspace.js";
-import { projectFor, promptKey, reachableVisit, recordVisit, stateFromData, viewPreferences, withPrompt, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, viewPreferences, withPrompt, type PendingRun, type QueuedMessage, type SideChat, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -24,8 +24,10 @@ import type {
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../domain/run.js";
-import { clampTitle, legacyProjectId, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, legacyProjectId, type Project, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
+import type { Worktree } from "../domain/worktree.js";
+import type { WorktreeSnapshotResult } from "../contracts/ipc.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
@@ -35,18 +37,22 @@ export type WorkspaceEvent =
   | { type: "action.failed"; message: string }
   | { type: "project.opened"; workspace: WorkspaceRecord }
   | { type: "run.event"; event: RunEvent }
-  | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord }
+  | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord; worktree?: Worktree }
   | { type: "run.unresolved"; pendingId: string; message: string }
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
+  | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
+  | { type: "worktree.deleted"; taskId: string }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
   | { type: "pick-project" }
   | { type: "persist-preferences"; preferences: ViewPreferences }
-  | { type: "resolve-run-workspace"; pendingId: string; picker: boolean; workspaceId?: string; root?: string }
+  | { type: "resolve-run-workspace"; pendingId: string; picker: boolean; workspaceId?: string; root?: string; createWorktree?: { projectRoot: string; carryChanges: boolean } }
+  | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
+  | { type: "delete-worktree"; taskId: string; root: string }
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
@@ -66,11 +72,15 @@ const SAME_PROJECT_ERROR = "Choose the same project folder to continue this task
 const MISSING_PROJECT_ERROR = "This task's project is unavailable. Reopen the project folder before running it.";
 const RUNNING_PROJECT_ERROR = "Stop the running tasks before removing this project.";
 const BUSY_AUTOMATION_ERROR = "This task is already running. The automation will run on its next tick.";
+const WORKTREE_PROJECT_ERROR = "Open this thread in a project folder before giving it a worktree.";
+const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 
 export const WORKSPACE_ERRORS = {
   reopenProject: REOPEN_PROJECT_ERROR,
   sameProject: SAME_PROJECT_ERROR,
   busyAutomation: BUSY_AUTOMATION_ERROR,
+  worktreeProject: WORKTREE_PROJECT_ERROR,
+  worktreeRunning: WORKTREE_RUNNING_ERROR,
 } as const;
 
 function now() {
@@ -205,13 +215,38 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     attachments: next.attachments,
     queuedIds: [next.id],
   };
-  return settled(withPending(state, pending), [{
+  return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, Boolean(task.worktreeWanted))]);
+}
+
+/**
+ * Where a run happens: the thread's own checkout once it has one, a checkout made on the way if the
+ * thread has asked for one, and otherwise the project itself. A thread that is moving takes its
+ * uncommitted work with it; a thread starting in a worktree begins from a clean checkout.
+ */
+function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, wantsWorktree: boolean): WorkspaceEffect {
+  const worktree = task?.worktree;
+  if (worktree) {
+    return { type: "resolve-run-workspace", pendingId, picker: false, workspaceId: worktree.workspaceId, root: worktree.root };
+  }
+  if (wantsWorktree && project?.workspaceId) {
+    return { type: "resolve-run-workspace", pendingId, picker: false, root: project.root, createWorktree: { projectRoot: project.root, carryChanges: Boolean(task) } };
+  }
+  return {
     type: "resolve-run-workspace",
-    pendingId: pending.id,
+    pendingId,
     picker: Boolean(project && !project.workspaceId),
     ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
     ...(project ? { root: project.root } : {}),
-  }]);
+  };
+}
+
+/** A thread that has let go of its checkout is local again, and says so in its own timeline. */
+function clearWorktree(state: WorkspaceState, taskId: string, note: ReturnType<typeof createTaskMessage>): WorkspaceState {
+  return applyTask(state, taskId, ({ worktree: _released, worktreeWanted: _cleared, ...task }) => ({
+    ...task,
+    messages: [...task.messages, note],
+    updatedAt: now(),
+  }));
 }
 
 function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
@@ -365,6 +400,57 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, effort: input.effort, updatedAt: now() })) : drafted);
     }
 
+    /**
+     * Only records the answer: the checkout itself is made on the next send, so a thread that asks
+     * for one and changes its mind costs nothing. Turning it off gives the worktree back, which
+     * commits whatever it still holds first.
+     */
+    case "task.set-worktree": {
+      const taskId = targetId(state, input.taskId);
+      const drafted = input.taskId === undefined ? { ...state, draftWorktree: input.worktree } : state;
+      const task = taskId ? drafted.tasks.find((item) => item.id === taskId) : undefined;
+      if (!task) return settled(drafted);
+      if (state.activeRuns[task.id]) return settled({ ...drafted, actionError: WORKTREE_RUNNING_ERROR });
+      if (input.worktree && !task.projectId) return settled({ ...drafted, actionError: WORKTREE_PROJECT_ERROR });
+      const answered = Boolean(task.worktreeWanted) === input.worktree;
+      const holding = Boolean(task.worktree) && !input.worktree;
+      if (answered && !holding) return settled(drafted);
+      const marked = applyTask(drafted, task.id, (item) => ({ ...item, worktreeWanted: input.worktree, updatedAt: now() }));
+      if (input.worktree || !task.worktree) return settled({ ...marked, actionError: null });
+      return settled({ ...marked, actionError: null }, [{
+        type: "release-worktree",
+        taskId: task.id,
+        worktreeId: task.worktree.id,
+        root: task.worktree.root,
+        title: task.title,
+      }]);
+    }
+
+    /** Unlike switching back, this keeps nothing: the checkout and everything loose in it go. */
+    case "worktree.delete": {
+      const taskId = targetId(state, input.taskId);
+      const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
+      if (!task?.worktree) return settled(state);
+      if (state.activeRuns[task.id]) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
+      return settled({ ...state, actionError: null }, [{ type: "delete-worktree", taskId: task.id, root: task.worktree.root }]);
+    }
+
+    case "worktree.released": {
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      if (!task?.worktree) return settled(state);
+      const { commit, shortCommit, ref } = input.snapshot;
+      const text = commit
+        ? `Returned to the project checkout. Uncommitted work was committed as ${shortCommit ?? commit.slice(0, 7)}.`
+        : "Returned to the project checkout. The worktree had nothing uncommitted.";
+      return settled(clearWorktree(state, task.id, createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)));
+    }
+
+    case "worktree.deleted": {
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      if (!task?.worktree) return settled(state);
+      return settled(clearWorktree(state, task.id, createTaskMessage("system", "Worktree deleted. Back on the project checkout.")));
+    }
+
     case "task.send": {
       const attachments = input.attachments ?? [];
       /** A send that carries its own text is not the composer's: it neither reads nor clears a draft. */
@@ -401,13 +487,9 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         prompt: promptWithAttachments(text, attachments),
         attachments: attachments.map((attachment) => attachment.path),
       };
-      return settled(withPending(state, pending), [{
-        type: "resolve-run-workspace",
-        pendingId: pending.id,
-        picker: Boolean(project && !project.workspaceId),
-        ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
-        ...(project ? { root: project.root } : {}),
-      }]);
+      /** An existing thread keeps its own answer; only a thread being created here reads the draft. */
+      const wantsWorktree = task ? Boolean(task.worktreeWanted) : (input.worktree ?? state.draftWorktree);
+      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, wantsWorktree)]);
     }
 
     case "task.steer-queued": {
@@ -484,8 +566,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id, root: input.workspace.root } : item) };
       }
       return pending.origin === "automation"
-        ? startAutomationRun(next, pending, input.workspace)
-        : startComposerRun(next, pending, input.workspace);
+        ? startAutomationRun(next, pending, input.workspace, input.worktree)
+        : startComposerRun(next, pending, input.workspace, input.worktree);
     }
 
     case "run.unresolved": {
@@ -523,7 +605,6 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const { event } = input;
       const active = state.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
-      const project = projectFor(state, state.tasks.find((task) => task.id === event.taskId));
       const applied = applyRunEvent(state, event);
       const attention = attentionFor(event);
       let next = attention && !(state.focused && state.currentId === event.taskId)
@@ -532,8 +613,9 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
-      const environment: WorkspaceEffect[] = finished && project?.workspaceId
-        ? [{ type: "refresh-environment", workspaceId: project.workspaceId, taskId: event.taskId, runId: event.runId }]
+      const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));
+      const environment: WorkspaceEffect[] = finished && workspaceId
+        ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, environment);
       const drained = drainQueue(next, event.taskId, event.status);
@@ -561,13 +643,7 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         ...(fire.policy ? { policy: fire.policy } : {}),
         automationId: fire.automationId,
       };
-      return settled(withPending(state, pending), [{
-        type: "resolve-run-workspace",
-        pendingId: pending.id,
-        picker: false,
-        ...(project?.workspaceId ? { workspaceId: project.workspaceId } : {}),
-        ...(project ? { root: project.root } : {}),
-      }]);
+      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, Boolean(task.worktreeWanted))]);
     }
 
     case "side-chat.open": {
@@ -628,12 +704,13 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const currentProject = currentTask
         ? projectFor(state, currentTask)
         : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-      if (!currentProject?.workspaceId) return settled(state.environment === null ? state : { ...state, environment: null });
+      const workspaceId = currentTask ? taskWorkspaceId(state, currentTask) : currentProject?.workspaceId;
+      if (!workspaceId) return settled(state.environment === null ? state : { ...state, environment: null });
       const taskId = currentTask?.id;
       const runId = taskId ? state.lastRunIds[taskId] : undefined;
       return settled(state, [{
         type: "refresh-environment",
-        workspaceId: currentProject.workspaceId,
+        workspaceId,
         ...(taskId ? { taskId } : {}),
         ...(runId ? { runId } : {}),
       }]);
@@ -708,9 +785,11 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
   }
 }
 
-function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: Worktree): WorkspaceTransition {
   const existing = pending.taskId ? state.tasks.find((item) => item.id === pending.taskId) : undefined;
   if (pending.taskId && (!existing || state.activeRuns[pending.taskId])) return settled(state);
+  /** The thread is walking into a checkout it was not in, so its session forks rather than moves. */
+  const entering = Boolean(worktree && existing?.worktree?.root !== worktree.root);
   const task: Task = existing ?? {
     id: crypto.randomUUID(),
     title: taskTitleFor(pending.text, pending.attachments.map((path) => ({ path, labels: [] }))),
@@ -726,7 +805,11 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     updatedAt: now(),
   };
   const message = createTaskMessage("user", pending.text, undefined, pending.attachments);
-  const updated = { ...task, messages: [...task.messages, message], updatedAt: now() };
+  const arrival = entering && worktree ? [createTaskMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`)] : [];
+  /** Every run through a worktree touches it, which is what an eviction rule would sort on. */
+  const entered = worktree ?? task.worktree;
+  const located = entered ? { ...task, worktree: { ...entered, lastUsedAt: now() }, worktreeWanted: true } : task;
+  const updated = { ...located, messages: [...located.messages, ...arrival, message], updatedAt: now() };
   const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
   /** Only a task the user's own send just created needs looking at; anything else leaves them where they are. */
   const focusing = !existing && pending.draftKey !== undefined;
@@ -735,19 +818,29 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ? withQueued(started, task.id, queuedFor(started, task.id).filter((message) => !pending.queuedIds!.includes(message.id)))
     : started;
   const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text, attachments: pending.attachments }];
-  const command = { ...startRunCommand(updated, pending.runId, pending.prompt, workspace.id), ...sideChannelFor(state, updated) };
+  const command = {
+    ...startRunCommand(updated, pending.runId, pending.prompt, workspace.id),
+    ...(entering && updated.continuation ? { forkContinuation: true as const } : {}),
+    ...sideChannelFor(state, updated),
+  };
   return settled(
     pending.draftKey ? withPrompt(drained, pending.draftKey, "") : drained,
     [{ type: "start-run", command }, ...titling],
   );
 }
 
-function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: Worktree): WorkspaceTransition {
   const taskId = pending.taskId!;
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task || task.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
   const message = createTaskMessage("user", pending.text, pending.detail);
-  const withMessage = applyTask(state, taskId, (item) => ({ ...item, messages: [...item.messages, message], updatedAt: now() }));
+  const entered = worktree ?? task.worktree;
+  const withMessage = applyTask(state, taskId, (item) => ({
+    ...item,
+    ...(entered ? { worktree: { ...entered, lastUsedAt: now() }, worktreeWanted: true } : {}),
+    messages: [...item.messages, message],
+    updatedAt: now(),
+  }));
   return settled(beginRun(withMessage, taskId, pending.runId), [
     { type: "start-run", command: startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy) },
     ...ack(pending, true),

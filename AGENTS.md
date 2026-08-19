@@ -31,6 +31,21 @@ the `ExternalCommand` surface, checked by `isThreadRequest` before they reach th
 that surface by naming the command in `ExternalCommand` and its guard, and expose it as a tool;
 a command that no tool calls does not belong there.
 
+## Where a thread works
+A thread runs in its project checkout until it is given a worktree of its own. `Task.worktree`
+records that checkout, so nothing else about the thread changes: it keeps its project, its place in
+the sidebar, and its transcript. `resolveWorkspaceEffect` is the only place that decides which
+checkout a run happens in, and `taskWorkspaceId` is the only place the panel and the environment
+read it from.
+
+Asking for a worktree only sets `worktreeWanted`. The directory is made on the next send, inside the
+workspace resolution the run already waits on, so a thread that changes its mind leaves nothing
+behind. Worktrees are detached at whatever the project has checked out and never get a branch; the
+thread makes one itself if it wants one. Switching back force-commits what the worktree still holds
+and keeps a detached snapshot reachable under `refs/claudex`; deleting keeps nothing.
+
+Only `git.mts` runs git, and only `WorktreeService` creates, releases, or deletes a checkout.
+
 ## Side chats
 A side chat is an ordinary task that is never saved and never listed. `state.sideChats` only records
 which task ids are forks and where they came from; the thread itself lives in `state.tasks`, so every

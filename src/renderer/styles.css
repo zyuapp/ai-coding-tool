@@ -310,6 +310,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
 .task-archive:hover { background: #353c46; color: #dfddd8; }
 .task-entry:hover .task-automation,
+.task-entry:hover .task-worktree,
 .task-entry:hover .row-slot > :not(.task-archive) { visibility: hidden; }
 .project-task-row {
   width: 100%;
@@ -1170,6 +1171,24 @@ pre {
 .change-counts strong { color: #72c66b; }
 .change-counts em { color: #e06c75; }
 .session-note { margin: 2px 6px 0 34px; color: #656b72; font-size: var(--text-meta); line-height: 1.4; }
+.session-location { border-bottom: 1px solid #242a31; padding-bottom: 8px; margin-bottom: 4px; }
+.session-location-value { color: #989ca1; font-size: var(--text-meta); }
+.session-location-actions { display: flex; gap: 6px; margin: 6px 6px 0 34px; }
+.session-location-actions button {
+  min-height: 26px;
+  border: 1px solid #303640;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: none;
+  color: #b6bac0;
+  font: inherit;
+  font-size: var(--text-meta);
+  cursor: pointer;
+}
+.session-location-actions button:hover:not(:disabled) { background: #1b2028; color: #d6d5d1; }
+.session-location-actions button:disabled { opacity: 0.4; cursor: default; }
+.session-location-actions .session-danger { display: grid; place-items: center; padding: 0 8px; color: #b2666d; }
+.session-location-actions .session-danger:hover:not(:disabled) { border-color: #6d3b40; background: #2a1a1c; color: #e06c75; }
 .session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: #1b2028; }
 .session-count { color: #989ca1; font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
@@ -1218,6 +1237,7 @@ pre {
 .automation-actions .automation-remove:hover { border-color: #5c3237; color: #e06c75; }
 .task-row-marks { display: flex; align-items: center; gap: 7px; }
 .task-automation { flex: none; color: #7d838b; }
+.task-worktree { flex: none; color: #7695b8; }
 .subagent-section { border-top: 1px solid #242a31; padding: 9px 12px 10px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #73787f; font-size: var(--text-control); font-weight: 580; }
 .subagent-heading > span:last-child { color: #7695b8; font-size: var(--text-meta); font-weight: 550; }
@@ -1613,6 +1633,22 @@ pre {
   list-style: none;
 }
 .setting-menu > summary::-webkit-details-marker { display: none; }
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 15px;
+  padding: 0 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.setting-toggle:hover { background: #1c2129; color: #aaa9a6; }
+.setting-toggle.on { background: #1b2733; color: #8fb3d9; }
+.setting-toggle.on:hover { background: #203040; }
 .setting-menu > summary:hover, .setting-menu[open] > summary { background: #1c2129; color: #aaa9a6; }
 .setting-summary-icon { width: 16px; display: grid; place-items: center; }
 .setting-popover {

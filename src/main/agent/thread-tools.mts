@@ -113,13 +113,14 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
     ),
     tool(
       "start_thread",
-      "Start a new Claudex thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own.",
+      "Start a new Claudex thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. Pass worktree to give it an isolated checkout, which is what you want when it edits the same files as this thread.",
       {
         prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
         projectId: z.string().optional().describe("Which project the thread belongs to. Defaults to this thread's project."),
+        worktree: z.boolean().optional().describe("Run the new thread in its own git worktree, detached at whatever the project has checked out, so its edits never touch the project checkout."),
       },
       async (args) => report(async () => {
-        const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.projectId ? { projectId: args.projectId } : {}) });
+        const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.projectId ? { projectId: args.projectId } : {}), ...(args.worktree ? { worktree: true } : {}) });
         return thread ? `Started ${describe(thread, now())}` : "The thread did not start.";
       }),
     ),
