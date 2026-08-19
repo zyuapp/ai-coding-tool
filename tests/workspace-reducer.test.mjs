@@ -398,22 +398,30 @@ test("command-enter queues the message and steers it in one go", () => {
   }]);
 });
 
-test("a finished run drains everything still queued into one following run", () => {
+test("a finished run drains its queue one message at a time, each getting its own run", () => {
   const queued = queueMessage(queueMessage(running(), "Run the tests"), "Then update the README");
-  const finished = reduce(queued, {
-    type: "run.event",
-    event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" },
-  });
 
-  const [resolve] = finished.effects.filter((effect) => effect.type === "resolve-run-workspace");
-  assert.ok(resolve, "the drained queue asks for its workspace the way a send does");
-  assert.equal(finished.state.queuedMessages["task-a"].length, 2, "the messages stay queued until the run actually starts");
+  /** Settles the run the task has going and starts whatever the queue hands on next. */
+  const drain = (state, runId) => {
+    const finished = reduce(state, {
+      type: "run.event",
+      event: { type: "run.status", taskId: "task-a", runId, sequence: 1, status: "succeeded" },
+    });
+    const [resolve] = finished.effects.filter((effect) => effect.type === "resolve-run-workspace");
+    assert.ok(resolve, "the drained queue asks for its workspace the way a send does");
+    assert.equal(finished.state.queuedMessages["task-a"].length, 2 - Number(runId !== "run-a"), "a message stays queued until its own run starts");
+    return reduce(finished.state, { type: "run.resolved", pendingId: resolve.pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  };
 
-  const started = reduce(finished.state, { type: "run.resolved", pendingId: resolve.pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
-  const [start] = started.effects;
-  assert.equal(start.command.prompt, "Run the tests\n\nThen update the README");
-  assert.deepEqual(started.state.queuedMessages, {});
-  assert.equal(started.state.tasks[0].messages.at(-1).text, "Run the tests\n\nThen update the README");
+  const first = drain(queued, "run-a");
+  assert.equal(first.effects[0].command.prompt, "Run the tests", "the second message is not spoken for by the first");
+  assert.equal(first.state.tasks[0].messages.at(-1).text, "Run the tests");
+  assert.deepEqual(first.state.queuedMessages["task-a"].map((message) => message.text), ["Then update the README"], "the rest waits for this run to finish");
+
+  const second = drain(first.state, first.effects[0].command.runId);
+  assert.equal(second.effects[0].command.prompt, "Then update the README");
+  assert.equal(second.state.tasks[0].messages.at(-1).text, "Then update the README");
+  assert.deepEqual(second.state.queuedMessages, {});
 });
 
 test("stopping a run hands the queue back to the composer instead of speaking for the user", () => {
