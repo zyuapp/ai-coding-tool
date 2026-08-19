@@ -2012,13 +2012,17 @@ test("a folder keeps the open task in view past the first ten", async () => {
     sortIndex: index,
     updatedAt: index,
   })));
-  localStorage.setItem("claudex.currentTaskId", JSON.stringify({ version: 2, value: "task-11" }));
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
-  const titles = [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
-  assert.equal(titles.length, 12);
-  assert.equal(titles.at(-1), "Task 11");
+  const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
+  await act(async () => { view.container.querySelector(".project-show-more").click(); });
+  const eleventh = [...view.container.querySelectorAll(".project-task-row")].find((row) => row.textContent.startsWith("Task 11"));
+  await act(async () => { eleventh.click(); });
+  await act(async () => { view.container.querySelector(".project-show-more").click(); });
+
+  assert.equal(titles().length, 12);
+  assert.equal(titles().at(-1), "Task 11");
   assert.equal(view.container.querySelector(".project-show-more").textContent, "Show 1 more");
   await view.unmount();
 });

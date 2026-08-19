@@ -6,6 +6,7 @@ import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 
 const RECENTS_DROPPABLE = "recents";
+const PROJECT_TASK_LIMIT = 10;
 
 const ATTENTION_LABELS: Record<TaskAttention, string> = {
   finished: "Finished",
@@ -108,6 +109,23 @@ export function ProjectSidebar({
   /** Every folder accepts drops mid-drag, so a collapsed one is still a place to drop into.
    *  Revealed before capture: a folder measured while `display: none` has no droppable bounds. */
   const [dragging, setDragging] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
+
+  /** A folder shows its first ten tasks, and enough more to keep the open one in view.
+   *  A drag reveals the rest, so every position in the folder is a place to drop into. */
+  function visibleCount(projectTasks: Task[], projectId: string) {
+    if (dragging || showAllTasks.has(projectId)) return projectTasks.length;
+    const current = projectTasks.findIndex((task) => task.id === currentId);
+    return Math.max(PROJECT_TASK_LIMIT, current + 1);
+  }
+
+  function toggleShowAll(projectId: string) {
+    setShowAllTasks((shown) => {
+      const next = new Set(shown);
+      if (!next.delete(projectId)) next.add(projectId);
+      return next;
+    });
+  }
 
   function finishDrag({ draggableId, source, destination }: DropResult) {
     setDragging(false);
@@ -247,6 +265,8 @@ export function ProjectSidebar({
             const projectTasks = orderedTasks.filter((task) => task.projectId === project.id);
             const expanded = expandedProjects.has(project.id);
             const attentionCount = projectTasks.filter((task) => task.attention).length;
+            const shown = visibleCount(projectTasks, project.id);
+            const hidden = projectTasks.length - shown;
             return (
               <section className="project-group" key={project.id}>
                 <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`}>
@@ -285,11 +305,17 @@ export function ProjectSidebar({
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                     >
-                      {projectTasks.map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
+                      {projectTasks.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
                       {provided.placeholder}
                     </div>
                   )}
                 </Droppable>
+                {expanded && !dragging && (hidden > 0 || showAllTasks.has(project.id)) && <button
+                  className="project-show-more"
+                  type="button"
+                  onClick={() => toggleShowAll(project.id)}
+                  aria-expanded={showAllTasks.has(project.id)}
+                >{hidden > 0 ? `Show ${hidden} more` : "Show less"}</button>}
               </section>
             );
           })}
