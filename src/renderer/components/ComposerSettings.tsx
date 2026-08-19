@@ -1,13 +1,13 @@
-import { Brain, Check, ClipboardList, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
+import { Brain, Check, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon; elevated?: boolean };
 
+// ExecutionPolicy still accepts "plan"; it is left out of the picker because nobody uses it.
 const modes: Choice<ExecutionPolicy>[] = [
   { value: "autonomous", label: "Auto mode", description: "Only ask for potentially unsafe actions", icon: Zap, elevated: true },
   { value: "allow-edits", label: "Allow all edit", description: "Apply file edits without asking", icon: FileCheck2 },
-  { value: "plan", label: "Plan mode", description: "Read and plan without changing files", icon: ClipboardList },
   { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files", icon: Hand },
 ];
 
