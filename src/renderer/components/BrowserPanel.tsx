@@ -63,7 +63,7 @@ export function BrowserPanel({ tabs, tab, approval, visible, onOpen, onNewTab, o
       <div className="browser-tabs" role="tablist" aria-label="Browser tabs">
         {tabs.map((item) => (
           <div className={`browser-tab ${item.id === tab?.id ? "active" : ""}`} key={item.id}>
-            <button type="button" role="tab" aria-selected={item.id === tab?.id} onClick={() => onSelectTab(item.id)}>
+            <button type="button" role="tab" title={item.title || item.url} aria-selected={item.id === tab?.id} onClick={() => onSelectTab(item.id)}>
               <Globe size={13} aria-hidden="true" />
               <span>{item.title || hostOf(item.url) || "New tab"}</span>
             </button>

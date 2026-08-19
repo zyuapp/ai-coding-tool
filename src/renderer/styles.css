@@ -708,7 +708,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
  */
 .browser-tabs { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line-soft); padding: 6px 8px; overflow-x: auto; scrollbar-width: none; }
 .browser-tabs::-webkit-scrollbar { display: none; }
-.browser-tab { flex: 0 1 150px; display: flex; align-items: center; border: 1px solid transparent; border-radius: 8px; color: var(--quiet-strong); }
+/** Every tab is the same width whatever the page calls itself; the strip scrolls once they fill it. */
+.browser-tab { width: 172px; min-width: 0; flex: 0 0 auto; display: flex; align-items: center; border: 1px solid transparent; border-radius: 8px; color: var(--quiet-strong); }
 .browser-tab:hover { background: var(--surface-hover); color: var(--ink-faint); }
 .browser-tab.active { border-color: var(--line); background: var(--surface-active); color: var(--ink-soft); }
 .browser-tab > [role="tab"] { min-width: 0; flex: 1; display: flex; align-items: center; gap: 7px; border: 0; padding: 6px 4px 6px 9px; background: transparent; color: inherit; cursor: pointer; }
