@@ -283,6 +283,42 @@ test("a side chat is a thread in every way but being saved or listed", () => {
   assert.equal(deriveView(closed).sideChats.length, 0);
 });
 
+test("an automation a side chat scheduled is retired with the chat, and orphans are swept at load", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "automations.changed", automations: [
+      { id: "automation-1", taskId: "chat-1", schedule: "0 8 * * *", prompt: "Check the deploy", paused: false, createdAt: 1, updatedAt: 1, runCount: 0, nextRunAt: 2 },
+      { id: "automation-2", taskId: "main-task", schedule: "0 9 * * *", prompt: "Daily report", paused: false, createdAt: 1, updatedAt: 1, runCount: 0, nextRunAt: 2 },
+    ] },
+  ]);
+  assert.equal(opened.automations.length, 2, "the chat is a real thread while it is open, so its automation stands");
+
+  const closed = reduce(opened, { type: "side-chat.close", chatId: "chat-1" });
+  assert.deepEqual(closed.effects.filter((effect) => effect.type === "automation.delete"), [{ type: "automation.delete", taskId: "chat-1" }]);
+  assert.deepEqual(closed.state.automations.map((automation) => automation.taskId), ["main-task"]);
+
+  /** Quitting with the chat open leaves a row in the automation store that no thread can answer. */
+  const restarted = reduce(workspace({ automations: opened.automations }), {
+    type: "store.loaded",
+    data: { tasks: [source], projects: [], lastFolder: null },
+  });
+  assert.deepEqual(restarted.effects.filter((effect) => effect.type === "automation.delete"), [{ type: "automation.delete", taskId: "chat-1" }]);
+  assert.deepEqual(restarted.state.automations.map((automation) => automation.taskId), ["main-task"]);
+});
+
+test("an automation that fires on an open side chat runs on the side chat's own channel", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const fired = reduce(opened, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "chat-1", runId: "run-a", runNumber: 1, prompt: "Check the deploy" } });
+  const started = reduce(fired.state, { type: "run.resolved", pendingId: fired.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const command = started.effects.find((effect) => effect.type === "start-run").command;
+
+  assert.equal(command.channel, "side");
+  assert.equal(command.forkContinuation, true);
+  assert.deepEqual(command.continuation, { provider: "claude", value: "main-session" });
+});
+
 test("a side chat cannot run without a source thread to fork", () => {
   const opened = run(workspace({ tasks: [task("main-task")], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },

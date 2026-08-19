@@ -91,6 +91,8 @@ export type WorkspaceState = {
   environment: { workspaceId: string; result: ChangedFilesResult } | null;
   computerUseSetup: boolean;
   automations: AutomationView[];
+  /** Set once the task store has answered, so an automation is only judged an orphan against real tasks. */
+  storeLoaded: boolean;
   pendingRuns: Record<string, PendingRun>;
   queuedMessages: Record<string, QueuedMessage[]>;
   sideChats: SideChat[];
@@ -125,6 +127,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     environment: null,
     computerUseSetup: false,
     automations: [],
+    storeLoaded: false,
     pendingRuns: {},
     queuedMessages: {},
     sideChats: [],

@@ -14,17 +14,15 @@ type ParentPort = {
 const parentPort = (process as typeof process & { parentPort: ParentPort }).parentPort;
 const automations = new AutomationChannel((request) => parentPort.postMessage(request));
 const threads = new ThreadChannel((request) => parentPort.postMessage(request));
-/** An automation outlives its thread, and a side chat does not, so side runs get every tool but that one. */
+/** Both channels get the same tools; a side chat's automations are retired when its thread closes. */
+const coordinatorOptions = {
+  isWritePathInside,
+  automations: (taskId: string) => automations.bridgeFor(taskId),
+  threads: (taskId: string) => threads.bridgeFor(taskId),
+};
 const coordinators = {
-  main: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), {
-    isWritePathInside,
-    automations: (taskId) => automations.bridgeFor(taskId),
-    threads: (taskId) => threads.bridgeFor(taskId),
-  }),
-  side: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), {
-    isWritePathInside,
-    threads: (taskId) => threads.bridgeFor(taskId),
-  }),
+  main: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), coordinatorOptions),
+  side: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), coordinatorOptions),
 };
 
 parentPort.on("message", ({ data }) => {

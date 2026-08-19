@@ -40,5 +40,9 @@ its `taskId`. The renderer shares one `TaskComposer`, given `surface="side"`.
 Do not add a `side-chat.*` command for something a task command already does, and do not fork the
 composer. A feature added to the main thread should reach a side chat without being written twice.
 
+A side chat runs with every tool the main channel has, automations included. Anything a chat schedules
+is retired when the chat closes, and an automation whose thread is missing is swept once the store has
+loaded, so nothing it created can outlive it.
+
 ## Add a right panel view
 Every view in the right panel is a closable tab. Add one `DockPanel` entry to `dockPanels` in `App.tsx`; the tab strip, the picker, the add menu, and the content region all derive from that entry. Do not render a right panel view outside the registry.
