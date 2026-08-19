@@ -1153,6 +1153,16 @@ pre {
 .settings-restart { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--info-line); padding: 15px 0; }
 .settings-restart p { margin: 0; color: var(--info-soft); font-size: var(--text-control); }
 .settings-privacy { margin-top: 18px; color: var(--quiet); font-size: var(--text-meta); }
+.settings-group-action .usage-plan { border-radius: 999px; padding: 5px 9px; background: var(--info-surface-soft); color: var(--info-soft); font-size: var(--text-meta); font-weight: 600; }
+.settings-group-action button svg { margin-right: 6px; vertical-align: -2px; }
+.usage-windows { display: grid; gap: 26px; border-top: 1px solid var(--line); padding: 22px 0; }
+.usage-window strong { color: var(--ink-dim); font-size: var(--text-control); font-weight: 570; }
+.usage-window p { margin: 9px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); }
+.usage-window-bar { display: flex; align-items: center; gap: 14px; margin-top: 11px; }
+.usage-window-track { flex: 1 1 auto; height: 12px; overflow: hidden; border-radius: 4px; background: var(--meter-track); }
+.usage-window-fill { display: block; height: 100%; border-radius: 4px; background: var(--info); }
+.usage-window-fill.high { background: var(--accent); }
+.usage-window-share { flex: 0 0 auto; min-width: 84px; color: var(--ink-faint); font-size: var(--text-control); }
 
 .composer-wrap {
   position: relative;

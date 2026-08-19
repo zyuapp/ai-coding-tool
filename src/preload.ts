@@ -10,6 +10,7 @@ const api: DesktopAPI = {
   computerUsePermissions: () => ipcRenderer.invoke("computer-use:permissions"),
   enableComputerUse: (permission: ComputerUsePermission) => ipcRenderer.invoke("computer-use:enable", permission),
   restartForComputerUse: () => ipcRenderer.send("computer-use:restart"),
+  planUsage: () => ipcRenderer.invoke("usage:plan"),
   send: (command: RunCommand) => ipcRenderer.send("run:command", command),
   onAgentEvent: (listener: (event: RunEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: RunEvent) => listener(payload);

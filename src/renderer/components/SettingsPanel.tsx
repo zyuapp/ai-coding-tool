@@ -1,9 +1,10 @@
-import { Archive, ArrowLeft, Check, MonitorCog } from "lucide-react";
+import { Archive, ArrowLeft, Check, Gauge, MonitorCog } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
+import { UsageSettings } from "./UsageSettings";
 
-type SettingsSection = "computer-use" | "archive";
+type SettingsSection = "computer-use" | "usage" | "archive";
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -79,6 +80,10 @@ export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearAr
             <MonitorCog size={17} aria-hidden="true" />
             <span>Computer use</span>
           </button>
+          <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => setSection("usage")}>
+            <Gauge size={17} aria-hidden="true" />
+            <span>Usage</span>
+          </button>
           <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => setSection("archive")}>
             <Archive size={17} aria-hidden="true" />
             <span>Archived threads</span>
@@ -86,7 +91,18 @@ export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearAr
         </nav>
       </aside>
 
-      {section === "archive" ? (
+      {section === "usage" && (
+      <main className="settings-main">
+        <div className="settings-page-heading">
+          <h2>Usage</h2>
+          <p>What Claude has spent of the limits your plan resets on a clock.</p>
+        </div>
+
+        <UsageSettings />
+      </main>
+      )}
+
+      {section === "archive" && (
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Archived threads</h2>
@@ -129,7 +145,9 @@ export function SettingsPanel({ onClose, archivedTasks, onRestoreTask, onClearAr
             ))}
         </section>
       </main>
-      ) : (
+      )}
+
+      {section === "computer-use" && (
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Computer use</h2>

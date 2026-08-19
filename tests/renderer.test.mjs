@@ -343,6 +343,7 @@ function fakeDesktop(overrides = {}) {
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
     commands: async () => ({ status: "available", commands: [] }),
     computerUsePermissions: async () => ({ accessibility: true, screenRecording: true }),
+    planUsage: async () => ({ status: "not-applicable" }),
     enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
@@ -405,6 +406,46 @@ test("computer-use settings refresh permissions", async () => {
   assert.match(view.container.textContent, /Restart Claudex/);
   await act(async () => { view.container.querySelector(".settings-restart button").click(); });
   assert.equal(restarted, true);
+  await view.unmount();
+});
+
+test("the usage section draws a bar per plan window, and reports a reader that cannot answer", async () => {
+  const windows = {
+    status: "available",
+    subscription: "max",
+    windows: [
+      { id: "five_hour", label: "Current session", utilization: 17, resetsAt: "2026-08-18T08:19:00Z" },
+      { id: "model:Fable", label: "Current week (Fable)", utilization: 96, resetsAt: null },
+    ],
+  };
+  let answer = windows;
+  window.desktop = fakeDesktop({ planUsage: async () => answer });
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {} }));
+  await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
+
+  assert.match(view.container.textContent, /Max plan/);
+  assert.match(view.container.textContent, /Current session/);
+  assert.match(view.container.textContent, /17% used/);
+  assert.match(view.container.textContent, /96% used/);
+  const fills = view.container.querySelectorAll(".usage-window-fill");
+  assert.equal(fills.length, 2);
+  assert.equal(fills[0].style.width, "17%");
+  assert.equal(fills[0].classList.contains("high"), false);
+  assert.equal(fills[1].classList.contains("high"), true);
+
+  answer = { status: "unavailable", message: "This build of the Claude SDK does not report plan usage." };
+  await act(async () => { view.container.querySelector(".settings-group-action button").click(); });
+  assert.equal(view.container.querySelectorAll(".usage-window-fill").length, 0);
+  assert.match(view.container.querySelector(".settings-error").textContent, /does not report plan usage/);
+  await view.unmount();
+});
+
+test("a usage read that rejects reports instead of breaking the panel", async () => {
+  window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {} }));
+  await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
+
+  assert.match(view.container.querySelector(".settings-error").textContent, /Untrusted IPC sender/);
   await view.unmount();
 });
 

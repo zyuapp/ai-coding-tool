@@ -471,6 +471,16 @@ ipcMain.handle("computer-use:enable", async (event, permission: ComputerUsePermi
   return requestComputerUsePermission(permission);
 });
 
+ipcMain.handle("usage:plan", async (event) => {
+  if (!trustedSender(event)) return { status: "unavailable", message: "Untrusted IPC sender." } as const;
+  try {
+    const { readPlanUsage } = await import("./agent/plan-usage.mjs");
+    return await readPlanUsage();
+  } catch (error) {
+    return { status: "unavailable", message: error instanceof Error ? error.message : String(error) } as const;
+  }
+});
+
 ipcMain.on("computer-use:restart", (event) => {
   if (!trustedSender(event)) return;
   app.relaunch();

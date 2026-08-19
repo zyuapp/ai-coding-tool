@@ -1,6 +1,7 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { ExternalCommand, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { PlanUsage } from "../domain/plan-usage.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
@@ -145,6 +146,8 @@ export type DesktopAPI = {
   commands(workspaceId: WorkspaceId): Promise<CommandDiscoveryResult>;
   computerUsePermissions(): Promise<ComputerUsePermissions>;
   enableComputerUse(permission: ComputerUsePermission): Promise<ComputerUsePermissions>;
+  /** The plan's rate-limit windows. Never rejects: a provider that cannot answer says why instead. */
+  planUsage(): Promise<PlanUsage>;
   restartForComputerUse(): void;
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
