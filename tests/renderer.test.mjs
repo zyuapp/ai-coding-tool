@@ -473,7 +473,7 @@ test("a side chat composes with everything the main composer has", async () => {
   const chatTask = {
     id: "chat-1",
     title: "Side chat",
-    executionPolicy: "plan",
+    executionPolicy: "allow-edits",
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -523,7 +523,7 @@ test("a side chat composes with everything the main composer has", async () => {
 
   const settings = view.container.querySelectorAll(".composer-settings .setting-menu");
   assert.equal(settings.length, 3, "permission mode, model, and effort");
-  assert.match(settings[0].textContent, /Plan mode/, "the chat's own policy is selected");
+  assert.match(settings[0].textContent, /Allow all edit/, "the chat's own policy is selected, not the first one on offer");
   await act(async () => { [...settings[0].querySelectorAll(".setting-option")].find((option) => option.textContent.includes("Auto mode")).click(); });
   assert.deepEqual(policies, ["autonomous"]);
 
