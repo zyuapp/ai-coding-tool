@@ -328,6 +328,28 @@ test("Claude messages translate to provider events and normalized tool intents",
   assert.deepEqual(intents, [{ toolId: "tool-2", name: "Bash", input: { command: "pwd" } }]);
 });
 
+test("a skill invocation is named after the skill it runs", async () => {
+  const emitted = [];
+  const provider = new ClaudeAgentProvider(queryFactory([
+    {
+      type: "assistant",
+      uuid: "message-1",
+      message: {
+        model: "claude-sonnet",
+        usage: { input_tokens: 1 },
+        content: [
+          { type: "tool_use", id: "skill-1", name: "Skill", input: { skill: "quality-check", args: "--report-only" } },
+          { type: "tool_use", id: "skill-2", name: "Skill", input: {} },
+        ],
+      },
+    },
+    { type: "result", subtype: "success", is_error: false, result: "done" },
+  ]));
+
+  await provider.execute(input({ emit: (event) => emitted.push(event) }));
+  assert.deepEqual(emitted.filter((event) => event.type === "tool").map((event) => event.intent.name), ["Skill: quality-check", "Skill"]);
+});
+
 test("automation tools bypass approval so a scheduled run can stop itself unattended", async () => {
   const capture = {};
   const asked = [];

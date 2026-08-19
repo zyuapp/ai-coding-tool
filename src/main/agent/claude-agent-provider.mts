@@ -81,9 +81,16 @@ function writePathFor(toolName: string, input: unknown) {
   return typeof value === "string" ? value : undefined;
 }
 
+/** Every skill runs through one tool, so the name carries the skill that was asked for. */
+function toolDisplayName(toolName: string, input: unknown) {
+  if (toolName !== "Skill" || !input || typeof input !== "object") return toolName;
+  const skill = (input as Record<string, unknown>).skill;
+  return typeof skill === "string" && skill ? `Skill: ${skill}` : toolName;
+}
+
 function normalizeToolIntent(toolName: string, input: unknown, toolUseID: string): ToolIntent {
   const writePath = writePathFor(toolName, input);
-  return { toolId: toolUseID, name: toolName, input, ...(writePath === undefined ? {} : { writePath }) };
+  return { toolId: toolUseID, name: toolDisplayName(toolName, input), input, ...(writePath === undefined ? {} : { writePath }) };
 }
 
 type MarkdownBuffer = {
@@ -225,7 +232,7 @@ export class ClaudeAgentProvider implements AgentProvider {
               if (block.type === "text" && block.text.trim()) {
                 input.emit({ type: "subagent.activity", id: subagentId, activityId: `${message.uuid}:text`, kind: "text", text: block.text });
               } else if (block.type === "tool_use") {
-                input.emit({ type: "subagent.activity", id: subagentId, activityId: block.id, kind: "tool", title: block.name, text: JSON.stringify(block.input, null, 2) });
+                input.emit({ type: "subagent.activity", id: subagentId, activityId: block.id, kind: "tool", title: toolDisplayName(block.name, block.input), text: JSON.stringify(block.input, null, 2) });
               }
             }
             continue;
