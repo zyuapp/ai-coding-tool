@@ -807,6 +807,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-weight: 560;
 }
 .subagent-more {
+  display: block;
+  width: 100%;
   border: 0;
   border-radius: 9px;
   padding: 7px 8px;
