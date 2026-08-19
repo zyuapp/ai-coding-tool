@@ -301,6 +301,7 @@ export function App() {
                     onPrompt={(prompt) => void workspace.dispatch({ type: "side-chat.set-prompt", chatId: chat.id, prompt })}
                     onSend={() => void workspace.dispatch({ type: "side-chat.send", chatId: chat.id })}
                     onCancel={() => void workspace.dispatch({ type: "side-chat.cancel", chatId: chat.id })}
+                    onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
                     onClose={() => closeRightTab(chat.id)}
                     onSelectTask={workspace.actions.selectTask}
                   />

@@ -439,6 +439,31 @@ test("a side chat streams its own tail without disturbing the main thread", () =
   assert.equal(deriveView(streaming).sideChats[0].streamingTail.text, "It reduces");
 });
 
+test("a side chat answers its own approval without the main thread in the way", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+    { type: "side-chat.set-prompt", chatId: "chat-1", prompt: "What does this do?" },
+  ]);
+  const sending = reduce(opened, { type: "side-chat.send", chatId: "chat-1" });
+  const resolved = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const { runId } = resolved.effects[0].command;
+
+  const asking = run(resolved.state, [
+    { type: "run.event", event: { type: "approval.requested", taskId: "chat-1", runId, sequence: 1, approvalId: "approval-1", title: "Run a command", description: "ls", intent: { name: "Bash", input: { command: "ls" } } } },
+    { type: "run.event", event: { type: "run.status", taskId: "chat-1", runId, sequence: 2, status: "awaiting-approval" } },
+  ]);
+  const view = deriveView(asking);
+  assert.equal(view.sideChats[0].approval.approvalId, "approval-1");
+  assert.equal(view.approval, undefined, "the main thread shows nothing");
+
+  assert.deepEqual(reduce(asking, { type: "run.decide", allow: true }).effects, [], "the main thread cannot answer for the side chat");
+
+  const decided = reduce(asking, { type: "run.decide", allow: true, taskId: "chat-1" });
+  assert.deepEqual(decided.effects, [{ type: "send-run-command", command: { type: "approval", taskId: "chat-1", runId, approvalId: "approval-1", allow: true } }]);
+  assert.equal(deriveView(decided.state).sideChats[0].approval, undefined);
+});
+
 test("a new thread asks for a name, and the name the user types outlasts the suggestion", () => {
   const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
   const sending = reduce(drafted, { type: "task.send", attachments: [] });

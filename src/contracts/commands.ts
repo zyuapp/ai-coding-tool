@@ -39,7 +39,7 @@ export type ProjectCommand =
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
-  | { type: "run.decide"; allow: boolean };
+  | { type: "run.decide"; allow: boolean; taskId?: string };
 
 /** A side chat forks the current task's thread and is discarded when it closes. */
 export type SideChatCommand =

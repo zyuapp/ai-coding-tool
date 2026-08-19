@@ -482,7 +482,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "run.decide": {
-      const active = state.currentId ? state.activeRuns[state.currentId] : undefined;
+      const taskId = input.taskId ?? state.currentId;
+      const active = taskId ? state.activeRuns[taskId] : undefined;
       const approval = active ? state.approvals[active.runId] : undefined;
       if (!active || !approval) return settled(state);
       const { [active.runId]: _decided, ...approvals } = state.approvals;

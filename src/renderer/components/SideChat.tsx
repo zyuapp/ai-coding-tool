@@ -2,15 +2,17 @@ import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
 import type { Project, Task } from "../../domain/task";
+import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 
-export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onClose, onSelectTask }: {
+export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onDecide, onClose, onSelectTask }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
   onPrompt: (prompt: string) => void;
   onSend: () => void;
   onCancel: () => void;
+  onDecide: (allow: boolean) => void;
   onClose: () => void;
   onSelectTask: (taskId: string) => void;
 }) {
@@ -41,6 +43,7 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
             description: available ? "This conversation starts from the main thread, then continues on its own branch." : "Send a message in the main thread first, then open /side again.",
           }}
         />
+        {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
       {chat.error && <p className="side-chat-error" role="alert">{chat.error}</p>}
       <footer className="side-chat-composer">

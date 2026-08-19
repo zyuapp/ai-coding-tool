@@ -52,7 +52,7 @@ export type SideChat = {
   error: string | null;
 };
 
-export type SideChatView = SideChat & { running: boolean; compacting: boolean; status: TaskRunStatus; streamingTail: StreamingTail | null };
+export type SideChatView = SideChat & { running: boolean; compacting: boolean; status: TaskRunStatus; streamingTail: StreamingTail | null; approval?: ApprovalView };
 
 export type WorkspaceState = {
   tasks: Task[];
@@ -231,7 +231,15 @@ export function deriveView(state: WorkspaceState) {
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: state.sideChats.map((chat): SideChatView => {
       const active = state.activeRuns[chat.id];
-      return { ...chat, running: Boolean(active), compacting: active?.status === "compacting", status: active ? "running" : runStatusFor(state, chat.id), streamingTail: state.streamingTails[chat.id] ?? null };
+      const approval = active?.status === "awaiting-approval" ? state.approvals[active.runId] as ApprovalView | undefined : undefined;
+      return {
+        ...chat,
+        running: Boolean(active),
+        compacting: active?.status === "compacting",
+        status: active ? "running" : runStatusFor(state, chat.id),
+        streamingTail: state.streamingTails[chat.id] ?? null,
+        ...(approval ? { approval } : {}),
+      };
     }),
   };
 }
