@@ -458,6 +458,8 @@ export function App() {
                     onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", taskId: chat.id, quote, note, anchor })}
                     onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", taskId: chat.id, annotationId, note })}
                     onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", taskId: chat.id, annotationId })}
+                    onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", taskId: chat.id, text })}
+                    onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", taskId: chat.id, pasteId })}
                     onSend={(attachments, steer) => void workspace.dispatch({ type: "task.send", taskId: chat.id, attachments, steer })}
                     onCancel={() => void workspace.dispatch({ type: "run.cancel", taskId: chat.id })}
                     onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
@@ -486,9 +488,12 @@ export function App() {
           runActive={workspace.runActive}
           queuedMessages={workspace.queuedMessages}
           annotations={workspace.annotations}
+          pastes={workspace.pastes}
           actions={composerActions}
           onPromptChange={workspace.actions.setPrompt}
           onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
+          onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
+          onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", pasteId })}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
           onEffortChange={workspace.actions.setEffort}

@@ -21,6 +21,12 @@ export type Annotation = {
   anchor?: AnnotationAnchor;
 };
 
+/** A block of text pasted into a composer, held aside as a pill instead of filling the prompt. */
+export type PastedText = {
+  id: string;
+  text: string;
+};
+
 export type TaskMessage = {
   id: string;
   kind: TaskMessageKind;
@@ -32,6 +38,8 @@ export type TaskMessage = {
   attachments?: string[];
   /** Highlights of earlier output sent with this message. The agent gets them in the prompt; the timeline shows quote cards. */
   annotations?: Annotation[];
+  /** Blocks pasted into the composer and sent with this message. The agent gets them in the prompt; the timeline shows pills. */
+  pastes?: PastedText[];
   at: number;
 };
 
@@ -473,11 +481,16 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     (value.tone === undefined || value.tone === "error") &&
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
     (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
+    (value.pastes === undefined || (Array.isArray(value.pastes) && value.pastes.every(isPastedText))) &&
     finiteNumber(value.at);
 }
 
 function isAnnotation(value: unknown): value is Annotation {
   return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.quote) && typeof value.note === "string";
+}
+
+function isPastedText(value: unknown): value is PastedText {
+  return isRecord(value) && nonEmptyString(value.id) && typeof value.text === "string";
 }
 
 function isContinuation(value: unknown): value is Continuation {

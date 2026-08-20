@@ -8,6 +8,7 @@ import type { FindView } from "../../application/workspace-state";
 import type { FindHit } from "../../domain/find";
 import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
+import { PasteRow } from "./PasteRow";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { RevealedTextProvider, StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
@@ -621,6 +622,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                 <article className="message user">
                   <div className="message-stack">
                     {message!.annotations?.length ? <AnnotationRow annotations={message!.annotations} /> : null}
+                    {message!.pastes?.length ? <PasteRow pastes={message!.pastes} /> : null}
                     {message!.attachments?.length ? (
                       <div className="message-attachments">
                         {message!.attachments.map((file, index) => (

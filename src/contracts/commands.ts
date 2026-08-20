@@ -11,7 +11,7 @@ import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | TerminalCommand | ViewCommand;
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =
@@ -60,6 +60,14 @@ export type AnnotationCommand =
   | { type: "annotation.add"; taskId?: string; quote: string; note?: string; anchor?: AnnotationAnchor }
   | { type: "annotation.note"; taskId?: string; annotationId: string; note: string }
   | { type: "annotation.remove"; taskId?: string; annotationId: string };
+
+/**
+ * Text pasted into a composer, kept aside as a pill instead of filling the prompt. Drafted the way
+ * annotations are: per task, cleared by the send that carries them.
+ */
+export type PasteCommand =
+  | { type: "paste.add"; taskId?: string; text: string }
+  | { type: "paste.remove"; taskId?: string; pasteId: string };
 
 export type ProjectCommand =
   | { type: "project.open" }

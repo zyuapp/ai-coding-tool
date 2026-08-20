@@ -958,6 +958,68 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   await view.unmount();
 });
 
+test("a long paste is held aside as a pill, and a short one lands in the draft", async () => {
+  window.desktop = fakeDesktop();
+  const added = [];
+  const removed = [];
+  const blob = Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\n");
+  function Harness({ pastes }) {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      mode: "confirm",
+      model: "opus",
+      runActive: false,
+      pastes,
+      onPromptChange: setPrompt,
+      onPasteAdd: (text) => { added.push(text); },
+      onPasteRemove: (pasteId) => { removed.push(pasteId); },
+      onModeChange() {},
+      onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
+      onSend() {},
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness, { pastes: [] }));
+  const textarea = view.container.querySelector("textarea");
+
+  function pasteText(text) {
+    const event = new dom.window.Event("paste", { bubbles: true, cancelable: true });
+    event.clipboardData = { files: [], getData: () => text };
+    return event;
+  }
+
+  const short = pasteText("a line I meant to type");
+  await act(async () => { textarea.dispatchEvent(short); });
+  assert.deepEqual(added, [], "a short paste is the textarea's own business");
+  assert.equal(short.defaultPrevented, false);
+
+  const long = pasteText(blob);
+  await act(async () => { textarea.dispatchEvent(long); });
+  assert.deepEqual(added, [blob]);
+  assert.equal(long.defaultPrevented, true, "the blob never reaches the draft");
+
+  await view.render(React.createElement(Harness, { pastes: [{ id: "paste-1", text: blob }] }));
+  const pill = view.container.querySelector(".paste-pill");
+  assert.match(pill.textContent, /Pasted text #1/);
+  assert.match(pill.textContent, /40 lines/);
+  assert.equal(view.container.querySelector('button[aria-label="Send task"]').disabled, false, "a paste alone is enough to send");
+
+  await act(async () => { view.container.querySelector('button[aria-label="Read pasted text 1"]').click(); });
+  assert.match(document.body.querySelector(".paste-full").textContent, /line 39/);
+  await act(async () => { document.body.querySelector(".viewer-close").click(); });
+  assert.equal(document.body.querySelector(".paste-full"), null);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Remove pasted text 1"]').click(); });
+  assert.deepEqual(removed, ["paste-1"]);
+  await view.unmount();
+});
+
 function seedLegacyWorkspace() {
   const legacyTask = {
     id: "legacy-task", title: "Legacy", folder: "/project", sessionId: "session-1", mode: "default",

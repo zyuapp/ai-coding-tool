@@ -8,7 +8,7 @@ import { findHits, type FindHit, type FindResults, type FindTarget } from "../do
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, retainedTasks, type Annotation, type Project, type Task, type TaskStoreData } from "../domain/task.js";
+import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 import type { Worktree } from "../domain/worktree.js";
 
 /**
@@ -28,6 +28,7 @@ export type PendingRun = {
   prompt: string;
   attachments: string[];
   annotations?: Annotation[];
+  pastes?: PastedText[];
   detail?: string;
   policy?: ExecutionPolicy;
   automationId?: string;
@@ -50,6 +51,7 @@ export type QueuedMessage = {
   prompt: string;
   attachments: string[];
   annotations?: Annotation[];
+  pastes?: PastedText[];
   /** Set once steering is on its way to the agent, which is the point of no return. */
   steering?: boolean;
 };
@@ -70,6 +72,7 @@ export type SideChatView = SideChat & {
   task: Task;
   prompt: string;
   annotations: Annotation[];
+  pastes: PastedText[];
   running: boolean;
   compacting: boolean;
   status: TaskRunStatus;
@@ -134,6 +137,8 @@ export type WorkspaceState = {
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
   annotations: Record<string, Annotation[]>;
+  /** Pasted blocks waiting in each composer, keyed the way `prompts` is. */
+  pastes: Record<string, PastedText[]>;
   expandedProjects: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
@@ -188,6 +193,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
     annotations: {},
+    pastes: {},
     expandedProjects: new Set(),
     projectsOpen: true,
     recentsOpen: true,
@@ -293,6 +299,7 @@ function sessionStarted(state: WorkspaceState): boolean {
     || state.draftProjectId !== null
     || Object.keys(state.prompts).length > 0
     || Object.keys(state.annotations).length > 0
+    || Object.keys(state.pastes).length > 0
     || Object.keys(state.pendingRuns).length > 0;
 }
 
@@ -465,6 +472,18 @@ export function withAnnotations(state: WorkspaceState, key: string, annotations:
   return { ...state, annotations: remaining };
 }
 
+const NO_PASTES: PastedText[] = [];
+
+export function pastesFor(state: Pick<WorkspaceState, "pastes">, key: string): PastedText[] {
+  return state.pastes[key] ?? NO_PASTES;
+}
+
+export function withPastes(state: WorkspaceState, key: string, pastes: PastedText[]): WorkspaceState {
+  if (pastes.length) return { ...state, pastes: { ...state.pastes, [key]: pastes } };
+  const { [key]: _cleared, ...remaining } = state.pastes;
+  return { ...state, pastes: remaining };
+}
+
 /** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
 export function reachableVisit(state: WorkspaceState, step: -1 | 1): number | null {
   for (let index = state.historyIndex + step; index >= 0 && index < state.history.length; index += step) {
@@ -538,6 +557,7 @@ export function deriveView(state: WorkspaceState) {
     effort: currentTask?.effort ?? state.draftEffort,
     prompt: state.prompts[promptKey(state)] ?? "",
     annotations: annotationsFor(state, promptKey(state)),
+    pastes: pastesFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
@@ -593,6 +613,7 @@ export function deriveView(state: WorkspaceState) {
         task,
         prompt: state.prompts[chat.id] ?? "",
         annotations: annotationsFor(state, chat.id),
+        pastes: pastesFor(state, chat.id),
         running: Boolean(active),
         compacting: active?.status === "compacting",
         status: active ? "running" : runStatusFor(state, chat.id),

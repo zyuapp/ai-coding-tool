@@ -7,7 +7,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
+export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
@@ -15,6 +15,8 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
   onAnnotateAdd: (draft: { quote: string; note: string; anchor: AnnotationAnchor }) => void;
   onAnnotateNote: (annotationId: string, note: string) => void;
   onAnnotateRemove: (annotationId: string) => void;
+  onPasteAdd: (text: string) => void;
+  onPasteRemove: (pasteId: string) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
@@ -71,10 +73,13 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
         runActive={chat.running}
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
+        pastes={chat.pastes}
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}
         onAnnotationRemove={onAnnotateRemove}
+        onPasteAdd={onPasteAdd}
+        onPasteRemove={onPasteRemove}
         onModeChange={onPolicyChange}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}

@@ -1,8 +1,10 @@
 import { Command, CornerDownRight, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
-import type { Annotation as TaskAnnotation, RunAttachment } from "../../domain/task";
+import type { Annotation as TaskAnnotation, PastedText, RunAttachment } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
+import { PasteRow } from "./PasteRow";
+import { pasteRidesAsPill } from "../../application/pastes";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
@@ -84,10 +86,14 @@ export type TaskComposerProps = {
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
   annotations?: TaskAnnotation[];
+  /** Text pasted in that was too long to sit in the prompt, waiting to ride the next send. */
+  pastes?: PastedText[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
   onPromptChange: (prompt: string) => void;
   onAnnotationRemove?: (annotationId: string) => void;
+  onPasteAdd?: (text: string) => void;
+  onPasteRemove?: (pasteId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
@@ -111,9 +117,12 @@ export function TaskComposer({
   runActive,
   queuedMessages,
   annotations = [],
+  pastes = [],
   focusToken = 0,
   onPromptChange,
   onAnnotationRemove,
+  onPasteAdd,
+  onPasteRemove,
   onModeChange,
   onModelChange,
   onEffortChange,
@@ -189,7 +198,7 @@ export function TaskComposer({
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (sending || disabled || (steer && !runActive)) return;
-    if (!prompt.trim() && attachments.length === 0 && annotations.length === 0) return;
+    if (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0) return;
     if (attachments.length === 0) {
       onSend([], steer);
       return;
@@ -299,6 +308,7 @@ export function TaskComposer({
           </div>
         )}
         {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} />}
+        {onPasteRemove && <PasteRow pastes={pastes} onRemove={onPasteRemove} />}
         {attachments.length > 0 && (
           <div className="attachment-row">
             {attachments.map((attachment, index) => (
@@ -325,9 +335,15 @@ export function TaskComposer({
           value={prompt}
           onPaste={(event) => {
             const images = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
-            if (images.length === 0) return;
+            if (images.length > 0) {
+              event.preventDefault();
+              void attachPasted(images);
+              return;
+            }
+            const text = event.clipboardData.getData("text/plain");
+            if (!onPasteAdd || !pasteRidesAsPill(text)) return;
             event.preventDefault();
-            void attachPasted(images);
+            onPasteAdd(text);
           }}
           onInput={(event) => {
             const { value, selectionStart } = event.currentTarget;
@@ -383,7 +399,7 @@ export function TaskComposer({
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && (disabled || sending || (!prompt.trim() && attachments.length === 0 && annotations.length === 0))}
+              disabled={!runActive && (disabled || sending || (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0))}
               onClick={runActive ? onCancel : () => void submit()}
               aria-label={sendLabel(surface, runActive)}
             >

@@ -1,5 +1,6 @@
 import { clampQuote, promptWithAnnotations } from "./annotations.js";
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
+import { pasteTitle, promptWithPastes } from "./pastes.js";
 import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import {
   applyRunEvent,
@@ -12,7 +13,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, terminalFolder, viewPreferences, withAnnotations, withDock, withPrompt, withStoreData, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, terminalFolder, viewPreferences, withAnnotations, withDock, withPastes, withPrompt, withStoreData, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -33,7 +34,7 @@ import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget 
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
-import { clampTitle, legacyProjectId, type Project, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -352,6 +353,11 @@ function withQueued(state: WorkspaceState, taskId: string, messages: QueuedMessa
   return { ...state, queuedMessages };
 }
 
+/** Everything drafted alongside the text, flattened into the one prompt the agent reads. */
+function sentPrompt(text: string, pastes: PastedText[], annotations: Annotation[], attachments: RunAttachment[]) {
+  return promptWithAttachments(promptWithAnnotations(promptWithPastes(text, pastes), annotations), attachments);
+}
+
 function startRunCommand(task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
   return {
     type: "start",
@@ -399,7 +405,7 @@ function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: 
   if (!delivered) return state;
   return applyTask(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId, (task) => ({
     ...task,
-    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations)],
+    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes)],
     updatedAt: now(),
   }));
 }
@@ -415,7 +421,8 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
   if (status === "cancelled") {
     const text = [...queued.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
     const annotations = [...queued.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
-    return settled(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations));
+    const pastes = [...queued.flatMap((message) => message.pastes ?? []), ...pastesFor(state, taskId)];
+    return settled(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes));
   }
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task) return settled(withQueued(state, taskId, []));
@@ -431,6 +438,7 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     prompt: next.prompt,
     attachments: next.attachments,
     ...(next.annotations ? { annotations: next.annotations } : {}),
+    ...(next.pastes ? { pastes: next.pastes } : {}),
     queuedIds: [next.id],
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, false)]);
@@ -517,7 +525,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       const { [active.runId]: _abandoned, ...approvals } = next.approvals;
       next = { ...next, approvals };
     }
-    next = withAnnotations(withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, ""), chat.id, []);
+    next = withPastes(withAnnotations(withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, ""), chat.id, []), chat.id, []);
   }
   const closed = new Set(closing.map((chat) => chat.id));
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
@@ -857,8 +865,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const text = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
       /** The anchors mark drafts in the transcript; the sent message keeps only quote and note. */
       const annotations = (draftKey === undefined ? [] : annotationsFor(state, draftKey)).map(({ anchor: _anchored, ...annotation }) => annotation);
+      const pastes = draftKey === undefined ? [] : pastesFor(state, draftKey);
       const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
-      if ((!text && attachments.length === 0 && annotations.length === 0) || alreadySending) return settled(state);
+      if ((!text && attachments.length === 0 && annotations.length === 0 && pastes.length === 0) || alreadySending) return settled(state);
       if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
       /** A side chat has nothing to say until the thread it forks from has a session to fork. */
       if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
@@ -868,11 +877,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
           text,
-          prompt: promptWithAttachments(promptWithAnnotations(text, annotations), attachments),
+          prompt: sentPrompt(text, pastes, annotations, attachments),
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
+          ...(pastes.length ? { pastes } : {}),
         };
-        const drafted = draftKey === undefined ? state : withAnnotations(withPrompt(state, draftKey, ""), draftKey, []);
+        const drafted = draftKey === undefined ? state : withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []);
         const next = withQueued(drafted, task.id, [...queuedFor(state, task.id), queued]);
         return input.steer ? apply(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
       }
@@ -887,9 +897,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         ...(project ? { projectId: project.id } : {}),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
-        prompt: promptWithAttachments(promptWithAnnotations(text, annotations), attachments),
+        prompt: sentPrompt(text, pastes, annotations, attachments),
         attachments: attachments.map((attachment) => attachment.path),
         ...(annotations.length ? { annotations } : {}),
+        ...(pastes.length ? { pastes } : {}),
       };
       /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
       /** Only a thread yet to exist can start in a checkout of its own; one that exists already moved. */
@@ -1209,6 +1220,17 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "annotation.remove": {
       const key = input.taskId ?? promptKey(state);
       return settled(withAnnotations(state, key, annotationsFor(state, key).filter((item) => item.id !== input.annotationId)));
+    }
+
+    case "paste.add": {
+      const key = input.taskId ?? promptKey(state);
+      if (!input.text) return settled(state);
+      return settled(withPastes(state, key, [...pastesFor(state, key), { id: crypto.randomUUID(), text: input.text }]));
+    }
+
+    case "paste.remove": {
+      const key = input.taskId ?? promptKey(state);
+      return settled(withPastes(state, key, pastesFor(state, key).filter((item) => item.id !== input.pasteId)));
     }
 
     case "view.set-prompt":
@@ -1565,7 +1587,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const entering = Boolean(arriving && !arriving.enteredAt);
   const task: Task = existing ?? {
     id: crypto.randomUUID(),
-    title: taskTitleFor(pending.text, pending.attachments.map((path) => ({ path, labels: [] }))),
+    title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
     model: state.draftModel,
@@ -1577,7 +1599,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     createdAt: now(),
     updatedAt: now(),
   };
-  const message = createTaskMessage("user", pending.text, undefined, pending.attachments, pending.annotations);
+  const message = createTaskMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes);
   const arrival = entering && worktree ? [createTaskMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`)] : [];
   /** Every run through a worktree touches it, which is what an eviction rule would sort on. */
   const located = arriving ? { ...task, worktree: { ...arriving, lastUsedAt: now(), enteredAt: arriving.enteredAt ?? now() } } : task;
@@ -1598,7 +1620,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ...sideChannelFor(state, updated),
   };
   return settled(
-    pending.draftKey ? withAnnotations(withPrompt(drained, pending.draftKey, ""), pending.draftKey, []) : drained,
+    pending.draftKey ? withPastes(withAnnotations(withPrompt(drained, pending.draftKey, ""), pending.draftKey, []), pending.draftKey, []) : drained,
     [{ type: "start-run", command }, ...titling],
   );
 }

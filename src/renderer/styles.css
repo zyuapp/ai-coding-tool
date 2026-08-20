@@ -2056,6 +2056,60 @@ pre {
 }
 .annotation-pill button:hover { background: var(--surface-active); color: var(--ink-soft); }
 
+.paste-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 0; }
+.message-stack .paste-row { padding: 0; justify-content: flex-end; }
+.paste-pill {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line-mid);
+  border-radius: 9px;
+  background: var(--control);
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+}
+.paste-pill:hover { border-color: var(--line-bright); }
+.paste-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+.paste-open strong { font-weight: 500; }
+.paste-open small { color: var(--quiet); font-family: var(--mono); }
+.paste-remove {
+  display: grid;
+  width: 21px;
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--quiet);
+  place-items: center;
+  cursor: pointer;
+}
+.paste-remove:hover { background: var(--surface-active); color: var(--ink-soft); }
+.paste-full {
+  max-width: min(880px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--line-mid);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: var(--surface-raised);
+  color: var(--ink-soft);
+  font: var(--text-meta)/1.55 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
 .annotation-marker {
   position: absolute;
   z-index: 5;
