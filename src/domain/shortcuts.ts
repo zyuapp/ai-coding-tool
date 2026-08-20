@@ -195,6 +195,10 @@ export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
   { id: "run.deny", group: "Threads", label: "Deny", description: "Refuse the approval this thread is waiting on", surface: "any", defaultBinding: "Mod+Shift+D" },
   { id: "composer.focus", group: "Threads", label: "Focus the composer", description: "Put the caret in the prompt", surface: "any", defaultBinding: "Mod+L" },
 
+  { id: "find.open", group: "Find", label: "Find", description: "Search the transcript, the page, or the shell you are reading", surface: "any", defaultBinding: "Mod+F" },
+  { id: "find.next", group: "Find", label: "Next match", description: "Move to the match after this one", surface: "any", defaultBinding: "Mod+G" },
+  { id: "find.previous", group: "Find", label: "Previous match", description: "Move to the match before this one", surface: "any", defaultBinding: "Mod+Shift+G" },
+
   { id: "nav.back", group: "Navigation", label: "Back", description: "The thread you came from, or the page before this one", surface: "any", defaultBinding: "Mod+[" },
   { id: "nav.forward", group: "Navigation", label: "Forward", description: "The thread you came back from, or the page after this one", surface: "any", defaultBinding: "Mod+]" },
   { id: "page.reload", group: "Navigation", label: "Reload the page", description: "Only while a page in the panel has the keys", surface: "browser", defaultBinding: "Mod+R" },

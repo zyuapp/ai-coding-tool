@@ -12,7 +12,7 @@ import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
-import { disposeTerminalView } from "./terminal-views";
+import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, searchTerminalView } from "./terminal-views";
 
 export type { ApprovalView } from "../../application/task-workspace";
 
@@ -206,6 +206,16 @@ export function useTaskWorkspace() {
         }
         return;
 
+      case "checkout-branch":
+        try {
+          if (effect.create) await window.desktop.createBranch(effect.workspaceId, effect.branch);
+          await window.desktop.checkoutBranch(effect.workspaceId, effect.branch);
+        } catch (error) {
+          await dispatch({ type: "action.failed", message: errorMessage(error) });
+        }
+        await dispatch({ type: "view.refresh-environment" });
+        return;
+
       case "suggest-title": {
         const title = await window.desktop.suggestTaskTitle(effect.text, effect.attachments).catch(() => null);
         if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
@@ -267,6 +277,24 @@ export function useTaskWorkspace() {
       case "terminal.close":
         disposeTerminalView(effect.terminalId);
         return reportFailure(window.desktop.closeTerminal(effect.terminalId));
+
+      case "find-in-page":
+        return reportFailure(window.desktop.findInPage(effect.tabId, effect.query, effect.forward, effect.findNext));
+
+      case "stop-find-in-page":
+        return reportFailure(window.desktop.stopFindInPage(effect.tabId));
+
+      case "find-in-terminal":
+        searchTerminalView(effect.terminalId, effect.query, effect.forward);
+        return;
+
+      case "stop-find-in-terminal":
+        clearTerminalSearch(effect.terminalId);
+        return;
+
+      case "focus-window":
+        window.desktop.focusWindow();
+        return;
 
       case "close-window":
         window.desktop.closeWindow();
@@ -458,6 +486,24 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
+    return window.desktop.onBrowserFind(({ tabId, matches, index }) => void dispatchRef.current({
+      type: "find.results",
+      target: { kind: "browser", tabId },
+      results: { matches, index },
+    }));
+  }, []);
+
+  useEffect(() => {
+    const stopReporting = onTerminalFindResults((terminalId, results) => void dispatchRef.current({ type: "find.results", target: { kind: "terminal", terminalId }, results }));
+    const stopWatching = onTerminalFocus((terminalId) => void dispatchRef.current({ type: "terminal.focus", terminalId }));
+    return () => {
+      stopReporting();
+      stopWatching();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
     /** Preferences are read before the first render, so the bindings they hold reach main from here. */
     window.desktop.setShortcuts(stateRef.current.shortcuts);
     const stopListening = window.desktop.onShortcut(({ action, surface }) => void dispatchRef.current({ type: "view.shortcut", action, surface }));
@@ -523,6 +569,7 @@ export function useTaskWorkspace() {
       setEffort: (effort: AgentEffort) => dispatch({ type: "task.set-effort", effort }),
       setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
       setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),
+      checkoutBranch: (branch: string, create?: boolean) => dispatch({ type: "task.checkout-branch", branch, ...(create ? { create } : {}) }),
       deleteWorktree: () => dispatch({ type: "worktree.delete" }),
       sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
       steerQueued: (messageId: string) => dispatch({ type: "task.steer-queued", messageId }),
@@ -553,6 +600,10 @@ export function useTaskWorkspace() {
       selectTerminal: (terminalId: string) => dispatch({ type: "terminal.select", terminalId }),
       closeTerminal: (terminalId: string) => dispatch({ type: "terminal.close", terminalId }),
       sendToTerminal: (terminalId: string, data: string) => dispatch({ type: "terminal.input", terminalId, data }),
+      openFind: () => dispatch({ type: "view.find-open" }),
+      setFindQuery: (query: string) => dispatch({ type: "view.find-query", query }),
+      stepFind: (delta: -1 | 1) => dispatch({ type: "view.find-step", delta }),
+      closeFind: () => dispatch({ type: "view.find-close" }),
       resizeTerminal: (terminalId: string, cols: number, rows: number) => dispatch({ type: "terminal.resize", terminalId, cols, rows }),
     },
   };

@@ -4,6 +4,7 @@ import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
+import { FindBar } from "./components/FindBar";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SessionPanel } from "./components/SessionPanel";
@@ -59,6 +60,17 @@ export function App() {
   const browserPageVisible = rightDockOpen && !settingsVisible && !addMenuOpen;
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
+  const find = workspace.find;
+  /** One bar, drawn wherever what it searches is: above the transcript, the page, or the shell. */
+  const findBar = find ? (
+    <FindBar
+      find={find}
+      label={find.target.kind === "browser" ? "page" : find.target.kind === "terminal" ? "terminal" : "thread"}
+      onQuery={workspace.actions.setFindQuery}
+      onStep={workspace.actions.stepFind}
+      onClose={workspace.actions.closeFind}
+    />
+  ) : null;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
   const inspectedWorkflow = workspace.workflows.find((workflow) => workflow.id === selectedWorkflow);
 
@@ -260,8 +272,10 @@ export function App() {
         )}
 
         <div className="work-area">
+          {find?.target.kind === "transcript" && findBar}
           <div className="conversation" ref={transcriptRef}>
             <ConversationTimeline
+              find={find?.target.kind === "transcript" ? find : null}
               currentTask={workspace.currentTask}
               folder={workspace.folder}
               status={workspace.status}
@@ -290,6 +304,7 @@ export function App() {
           <SessionPanel
             environment={workspace.environment}
             hasProject={Boolean(workspace.folder)}
+            {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
             {...(workspace.currentTask ? { location: workspace.location } : {})}
             runActive={workspace.runActive}
             openMenu={workspace.openMenu}
@@ -306,6 +321,7 @@ export function App() {
             onOpenAutomations={() => openRightTab("automation")}
             onOpenWorkflow={openWorkflow}
             onStopProcess={workspace.actions.stopBackgroundProcess}
+            onCheckoutBranch={(branch, create) => void workspace.actions.checkoutBranch(branch, create)}
             onSetWorktree={(worktree) => {
               /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */
               const holding = workspace.environment?.status === "available" ? workspace.environment.files.length : 0;
@@ -392,6 +408,7 @@ export function App() {
                 <div>
                   <BrowserPanel
                     tab={browserTab}
+                    {...(find?.target.kind === "browser" && find.target.tabId === browserTab.id ? { find: findBar } : {})}
                     approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}
                     visible={browserPageVisible}
                     onOpen={(url) => void workspace.actions.openBrowser(url)}
@@ -405,6 +422,7 @@ export function App() {
                 <div>
                   <TerminalPanel
                     terminal={shownTerminal}
+                    {...(find?.target.kind === "terminal" && find.target.terminalId === shownTerminal.id ? { find: findBar } : {})}
                     visible={rightDockOpen && !settingsVisible}
                     onInput={(terminalId, data) => void workspace.actions.sendToTerminal(terminalId, data)}
                     onResize={(terminalId, cols, rows) => void workspace.actions.resizeTerminal(terminalId, cols, rows)}

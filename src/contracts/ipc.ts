@@ -1,6 +1,7 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
@@ -216,6 +217,10 @@ export type DesktopAPI = {
   readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
   clearBrowserData(): Promise<void>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
+  /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
+  findInPage(tabId: string, query: string, forward: boolean, findNext: boolean): Promise<void>;
+  stopFindInPage(tabId: string): Promise<void>;
+  onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
   /** The terminal panel's shells live in main; the window owns the record of them. */
   startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
   /** What the user typed. Nothing outside the window reaches this: a run may read a terminal, never drive one. */
@@ -235,6 +240,8 @@ export type DesktopAPI = {
   /** What was pressed while capturing, or null for the Escape that calls it off. */
   onShortcutCaptured(listener: (binding: string | null) => void): () => void;
   closeWindow(): void;
+  /** Takes the keyboard back from a page in the panel, so the window can have it. */
+  focusWindow(): void;
 };
 
 /** What a keystroke asked for, and where it was pressed. */
@@ -278,6 +285,9 @@ export type BrowserPageEvent = {
   canGoForward?: boolean;
   error?: string;
 };
+
+/** What a page found: how many matches it has, and which one it is showing, counting from zero. */
+export type BrowserFindEvent = { tabId: string } & FindResults;
 
 export type AvailableCommand = {
   name: string;

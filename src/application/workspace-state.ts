@@ -4,7 +4,8 @@ import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
-import { shortcutSettings, type ShortcutOverrides } from "../domain/shortcuts.js";
+import { findHits, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
+import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
@@ -79,6 +80,20 @@ export function sideChatIds(state: Pick<WorkspaceState, "sideChats">) {
   return new Set(state.sideChats.map((chat) => chat.id));
 }
 
+/**
+ * What the find bar is looking for, and where. Only the query and the match the user stepped to live
+ * here: what a query matches is derived, so a thread that is still streaming keeps finding what it
+ * has just printed.
+ */
+export type FindState = {
+  target: FindTarget;
+  query: string;
+  /** Which match the user stepped to, counting from zero. */
+  index: number;
+  /** Bumped whenever find is asked for again, which is all the bar needs to take the caret back. */
+  focus: number;
+};
+
 /** The branch a thread is to start from. `create` names one the repository does not have yet. */
 export type DraftBranch = { name: string; create: boolean };
 
@@ -127,6 +142,11 @@ export type WorkspaceState = {
   composerFocus: number;
   /** One dock per thread, keyed by thread id, so moving between threads leaves each one as it was. */
   docks: Record<string, ThreadDock>;
+  /** The find bar, and what a page or a shell reported after searching itself. */
+  find: FindState | null;
+  findResults: FindResults | null;
+  /** Which shell has the keyboard, so find knows whether ⌘F means the shell or the transcript. */
+  focusedTerminalId: string | null;
   /** The origins a run may reach without asking. Visiting a site adds it. */
   browserOrigins: string[];
   browserApproval: BrowserApproval | null;
@@ -172,6 +192,9 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     capturingShortcut: null,
     composerFocus: 0,
     docks: {},
+    find: null,
+    findResults: null,
+    focusedTerminalId: null,
     browserOrigins: [],
     browserApproval: null,
     openMenu: null,
@@ -392,6 +415,31 @@ export function recordVisit(state: WorkspaceState, taskId: string): WorkspaceSta
   return { ...state, history, historyIndex: history.length - 1 };
 }
 
+/**
+ * What ⌘F searches: the page while one has the keys, else the shell holding them, else the thread
+ * being read. A keystroke is the only thing that knows about the page, because a page swallows it.
+ */
+export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): FindTarget {
+  const dock = dockFor(state, dockOwner(state));
+  if (surface === "browser" && dock.browserTabId) return { kind: "browser", tabId: dock.browserTabId };
+  if (state.focusedTerminalId) return { kind: "terminal", terminalId: state.focusedTerminalId };
+  return { kind: "transcript" };
+}
+
+/** The find bar as it is drawn: its matches counted here for a thread, reported for a page or a shell. */
+export type FindView = FindState & FindResults & { hit: FindHit | null };
+
+function findView(state: WorkspaceState, currentTask: Task | undefined): FindView | null {
+  const find = state.find;
+  if (!find) return null;
+  if (find.target.kind !== "transcript") {
+    return { ...find, matches: state.findResults?.matches ?? 0, index: state.findResults?.index ?? 0, hit: null };
+  }
+  const hits = findHits(currentTask?.messages ?? [], find.query);
+  const index = hits.length ? Math.min(find.index, hits.length - 1) : 0;
+  return { ...find, index, matches: hits.length, hit: hits[index] ?? null };
+}
+
 export type WorkspaceView = ReturnType<typeof deriveView>;
 
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
@@ -437,6 +485,8 @@ export function deriveView(state: WorkspaceState) {
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktree).map((task) => task.id)),
     location: locationOf(currentTask),
+    /** The checkout the current thread works in, which is what Git is read from and moved. */
+    workspaceId,
     draftBranch: state.draftBranch,
     draftWorktree: state.draftWorktree,
     environment,
@@ -462,6 +512,7 @@ export function deriveView(state: WorkspaceState) {
     terminals: dock.terminals,
     terminalFolder: terminalFolder(state),
     openMenu: state.openMenu,
+    find: findView(state, currentTask),
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: dockSideChats(state, owner).flatMap((chat): SideChatView[] => {

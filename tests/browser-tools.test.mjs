@@ -47,6 +47,16 @@ test("opening a page loads it and reads back the page it settled on", async () =
   assert.match(text, /\[2\] button "New pull request"/);
 });
 
+test("a search opens a page that answers one, and reads the results back", async () => {
+  const bridge = fakeBridge();
+
+  const searched = await toolNamed(bridge, "browser_search").handler({ query: "weather today", newTab: true }, {});
+
+  assert.deepEqual(bridge.calls[0], ["command", { type: "browser.open", url: "https://duckduckgo.com/?q=weather%20today", newTab: true }]);
+  assert.deepEqual(bridge.calls[1], ["read", { op: "snapshot", timeoutMs: 20_000, textLimit: 4_000 }]);
+  assert.match(textOf(searched), /Pull requests — https:\/\/example\.com\/pulls/);
+});
+
 test("a wait longer than the panel allows is capped rather than passed on", async () => {
   const bridge = fakeBridge();
 

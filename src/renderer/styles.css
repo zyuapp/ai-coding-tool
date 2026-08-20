@@ -106,6 +106,8 @@
 
   /* Terminal: the sixteen colours a shell addresses by name, plus what it draws behind them */
   --terminal-selection: #33465c;
+  --find-match: #43391c; /* every match find is showing */
+  --find-active: #d97757; /* the one being read */
   --ansi-black: #2a2f36;
   --ansi-red: #e06c75;
   --ansi-green: #72c66b;
@@ -645,7 +647,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.work-area { min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
+.work-area { position: relative; min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
 .workspace.summary-open .composer-wrap { margin-right: 282px; }
 .workspace.summary-open .conversation { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
 .right-dock {
@@ -759,6 +761,27 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 
 .terminal-viewport { position: relative; min-height: 0; flex: 1; padding: 8px 4px 8px 10px; background: var(--code-surface); }
 .terminal-surface { width: 100%; height: 100%; }
+.terminal-error { max-width: 420px; display: grid; gap: 8px; justify-items: start; margin: 8px 6px 0 0; border: 1px solid var(--danger-line); border-radius: 9px; padding: 11px 13px; background: var(--danger-surface); color: var(--danger-soft); font-size: var(--text-meta); line-height: 1.45; }
+.terminal-error p { margin: 0; }
+.terminal-error small { color: var(--quiet); font: var(--text-meta)/1.4 var(--mono); overflow-wrap: anywhere; }
+.terminal-error button { border: 1px solid var(--danger-line); border-radius: 8px; padding: 5px 11px; background: transparent; color: var(--danger-soft); font-size: var(--text-meta); cursor: pointer; }
+.terminal-error button:hover { background: var(--surface-hover); }
+
+::highlight(find-match) { background: var(--find-match); color: var(--ink); }
+::highlight(find-active) { background: var(--find-active); color: var(--accent-ink); }
+
+.find-bar { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; background: var(--surface); }
+.find-bar > svg { flex: 0 0 auto; color: var(--quiet); }
+.find-bar input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; background: var(--surface-input); color: var(--ink-soft); font-size: var(--text-control); }
+.find-bar input:focus-visible { border-color: var(--info-line); outline: none; }
+.find-bar > button { width: 26px; height: 26px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--quiet-strong); cursor: pointer; }
+.find-bar > button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
+.find-bar > button:disabled { color: var(--quiet-soft); cursor: default; }
+.find-count { flex: 0 0 auto; color: var(--quiet); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.find-count.empty { color: var(--danger-soft); }
+
+/* Over the transcript, which scrolls under it, rather than in the column the transcript is laid out in. */
+.work-area > .find-bar { position: absolute; z-index: 5; top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
 
 .agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
@@ -901,7 +924,54 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   white-space: nowrap;
 }
 .empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
-.thread-start-search {
+/** The branch list, wherever it hangs: the empty state's start options, and the session panel. */
+.branch-menu {
+  position: absolute;
+  z-index: 20;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--line-mid);
+  border-radius: 10px;
+  padding: 5px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+  text-align: left;
+}
+.branch-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: var(--text-control);
+  font-weight: 450;
+  cursor: pointer;
+}
+.branch-menu button:hover { background: var(--surface-menu-hover); color: var(--ink-soft); }
+/** A name too long for the list is cut off; it is never worth a second line. */
+.branch-menu button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.branch-menu svg { flex: none; color: var(--quiet-strong); }
+.thread-start-field .branch-menu {
+  top: 45px;
+  left: 0;
+  /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
+  width: max-content;
+  min-width: 220px;
+  max-width: 340px;
+}
+.branch-menu-search, .thread-start-search {
   width: 100%;
   margin-bottom: 4px;
   border: 1px solid var(--line-mid);
@@ -912,7 +982,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font: inherit;
   font-size: var(--text-control);
 }
-.thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
+.branch-menu-empty, .thread-start-empty { padding: 8px; color: var(--quiet); font-size: var(--text-meta); }
 .thread-start-check {
   display: flex;
   align-items: center;
@@ -1556,6 +1626,15 @@ pre {
 .session-menu-popover button:disabled:hover { background: transparent; }
 .session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: var(--surface-hover); }
+.session-branch { position: relative; }
+.session-branch .session-row { grid-template-columns: 22px auto minmax(0, 1fr) 14px; }
+.session-branch code { justify-self: end; max-width: 100%; }
+.session-branch > button > svg { color: var(--quiet-strong); opacity: 0; }
+.session-branch:hover > button > svg, .session-branch.open > button > svg { opacity: 1; }
+.session-branch button:disabled { cursor: default; }
+.session-branch button:disabled:hover { background: none; }
+/** The panel is narrow, so the list takes the row's width and cuts the names that outrun it. */
+.session-branch .branch-menu { top: 34px; left: 0; right: 0; }
 .session-count { color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .automation-body { min-height: 0; overflow: auto; padding: 16px 22px 22px; }
 .automation-field { display: grid; gap: 4px; margin-top: 9px; }

@@ -95,10 +95,18 @@ export async function startMainProcess(t, prefix) {
     utilityProcess: { fork: () => { const agent = new FakeAgent(); agents.push(agent); return agent; } },
     protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => protocolHandlers.set(scheme, handler) },
     net: { fetch: async (url) => new Response(url) },
-    session: { fromPartition: () => ({ setUserAgent() {}, async clearStorageData() {}, async clearCache() {} }) },
+    session: {
+      fromPartition: () => ({
+        setUserAgent() {},
+        webRequest: { onBeforeSendHeaders() {} },
+        async clearStorageData() {},
+        async clearCache() {},
+      }),
+    },
     WebContentsView: FakeWebContentsView,
   };
   globalThis.__dirname = path.join(process.cwd(), "dist/main/main");
+  process.versions.chrome = "141.0.0.0";
 
   const vite = await createServer({
     logLevel: "silent",
@@ -124,9 +132,15 @@ export async function startMainProcess(t, prefix) {
     await rm(userData, { recursive: true, force: true });
     delete globalThis.__claudexElectron;
     delete globalThis.__dirname;
+    delete process.versions.chrome;
   };
   t?.after(dispose);
-  await vite.ssrLoadModule("/src/main/main.ts");
+  try {
+    await vite.ssrLoadModule("/src/main/main.ts");
+  } catch (cause) {
+    await dispose();
+    throw cause;
+  }
   while (windows.length === 0) await tick();
 
   const window = windows[0];

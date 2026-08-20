@@ -1,9 +1,11 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ListCollapse, X, type LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
+import type { FindView } from "../../application/workspace-state";
+import type { FindHit } from "../../domain/find";
 import type { Task, TaskMessage } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { RevealedTextProvider, StreamingText } from "./StreamingText";
@@ -33,6 +35,50 @@ function AttachmentViewer({ source, onClose }: { source: string; onClose: () => 
     </div>,
     document.body,
   );
+}
+
+/** The message a match is in. Whatever holds it opens, however deep the fold it was written into. */
+const RevealedMessage = createContext<string | null>(null);
+
+const MATCH_HIGHLIGHT = "find-match";
+const ACTIVE_HIGHLIGHT = "find-active";
+
+function highlights(): HighlightRegistry | null {
+  return typeof CSS !== "undefined" && "highlights" in CSS ? CSS.highlights : null;
+}
+
+/**
+ * Draws every match the rows on screen hold, and the one being read among them. The ranges are the
+ * rendered text's, so markdown is highlighted where it is read rather than where it was written.
+ */
+function paintMatches(root: HTMLElement | null, query: string, hit: FindHit | null) {
+  const registry = highlights();
+  if (!registry) return;
+  registry.delete(MATCH_HIGHLIGHT);
+  registry.delete(ACTIVE_HIGHLIGHT);
+  const needle = query.trim().toLowerCase();
+  if (!root || !needle) return;
+  const found: Range[] = [];
+  const seen = new Map<string, number>();
+  let active: Range | null = null;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.nodeValue?.toLowerCase();
+    if (!text) continue;
+    const owner = node.parentElement?.closest("[data-message-id]")?.getAttribute("data-message-id") ?? null;
+    for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + needle.length)) {
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + needle.length);
+      found.push(range);
+      if (!owner) continue;
+      const occurrence = seen.get(owner) ?? 0;
+      seen.set(owner, occurrence + 1);
+      if (hit && owner === hit.messageId && occurrence === hit.occurrence) active = range;
+    }
+  }
+  if (found.length) registry.set(MATCH_HIGHLIGHT, new Highlight(...found));
+  if (active) registry.set(ACTIVE_HIGHLIGHT, new Highlight(active));
 }
 
 type TimelineGroup =
@@ -136,13 +182,19 @@ function Elapsed({ startedAt, endsAt }: { startedAt: number; endsAt: number | nu
   return <span className="work-time">{formatElapsed(end - startedAt)}</span>;
 }
 
-/** Folded work stays out of the DOM until opened, so a long turn costs one row until it is read. */
-function Fold({ className, summary, children }: { className: string; summary: ReactNode; children: () => ReactNode }) {
+/**
+ * Folded work stays out of the DOM until opened, so a long turn costs one row until it is read. A
+ * fold holding the match being read opens itself, because a match nobody can see is no match at all.
+ */
+function Fold({ className, summary, holds, messageId, children }: { className: string; summary: ReactNode; holds: string[]; messageId?: string; children: () => ReactNode }) {
+  const revealed = useContext(RevealedMessage);
   const [open, setOpen] = useState(false);
+  const forced = revealed !== null && holds.includes(revealed);
+  const shown = open || forced;
   return (
-    <details className={className} open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className={className} open={shown} data-message-id={messageId} onToggle={(event) => { if (!forced) setOpen(event.currentTarget.open); }}>
       <summary>{summary}</summary>
-      {open && children()}
+      {shown && children()}
     </details>
   );
 }
@@ -155,7 +207,7 @@ function ToolStep({ step }: { step: TimedStep }) {
       <span className="work-label">{step.message.text}</span>
     </>
   );
-  return <Fold className="work-row" summary={summary}>{() => <pre>{step.message.detail}</pre>}</Fold>;
+  return <Fold className="work-row" holds={[step.message.id]} messageId={step.message.id} summary={summary}>{() => <pre>{step.message.detail}</pre>}</Fold>;
 }
 
 /** Run of tool calls: the newest one stays visible, the rest hide behind a +N counter. */
@@ -171,7 +223,7 @@ function ToolRun({ steps }: { steps: TimedStep[] }) {
     </>
   );
   return (
-    <Fold className="work-group" summary={summary}>
+    <Fold className="work-group" holds={steps.map((step) => step.message.id)} summary={summary}>
       {() => <div className="work-steps">{steps.map((step) => <ToolStep key={step.message.id} step={step} />)}</div>}
     </Fold>
   );
@@ -214,7 +266,7 @@ function SettledSteps({ steps, endsAt, onSelectTask }: { steps: TaskMessage[]; e
     </>
   );
   return (
-    <Fold className="work-group" summary={summary}>
+    <Fold className="work-group" holds={steps.map((step) => step.id)} summary={summary}>
       {() => <div className="work-steps"><TurnSegments segments={toSegments(timeSteps(steps, endsAt))} onSelectTask={onSelectTask} /></div>}
     </Fold>
   );
@@ -230,10 +282,12 @@ export type ConversationTimelineProps = {
   empty?: { icon: LucideIcon; title: string; description: string };
   /** Shown under the empty state, where a thread that does not exist yet is set up. */
   startOptions?: ReactNode;
+  /** The find bar, when it is this transcript being searched, and the match it is showing. */
+  find?: FindView | null;
   onSelectTask?: (taskId: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, onSelectTask }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, onSelectTask }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -263,6 +317,39 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     getItemKey: (index) => groups[index]?.id ?? index,
     overscan: 6,
   });
+
+  /** Which row a message is in, so a match can be scrolled to whether or not its row is drawn. */
+  const rowOfMessage = useMemo(() => {
+    const rows = new Map<string, number>();
+    groups.forEach((group, index) => {
+      if (group.kind === "message") rows.set(group.message.id, index);
+      else {
+        for (const step of group.steps) rows.set(step.id, index);
+        if (group.final) rows.set(group.final.id, index);
+      }
+    });
+    return rows;
+  }, [groups]);
+
+  const hit = find?.hit ?? null;
+  const rendered = virtualizer.getVirtualItems().map((item) => item.key).join(",");
+
+  /** Reading a match takes the view over, the way scrolling by hand does. */
+  useEffect(() => {
+    if (!hit) return;
+    const row = rowOfMessage.get(hit.messageId);
+    if (row === undefined) return;
+    detached.current = true;
+    pinnedToBottom.current = false;
+    anchored.current = null;
+    virtualizer.scrollToIndex(row, { align: "center" });
+  }, [hit?.messageId, hit?.occurrence, rowOfMessage]);
+
+  useEffect(() => {
+    paintMatches(timelineRef.current, find?.query ?? "", hit);
+  }, [find?.query, hit?.messageId, hit?.occurrence, rendered]);
+
+  useEffect(() => () => paintMatches(null, "", null), []);
 
   useEffect(() => {
     const scroller = scrollContainerRef.current;
@@ -339,6 +426,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
 
   return (
     <RevealedTextProvider>
+    <RevealedMessage.Provider value={hit?.messageId ?? null}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => {
@@ -348,6 +436,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
             <div
               className={`timeline-row ${message?.kind ?? "turn"}`}
               data-index={item.index}
+              data-message-id={message?.id}
               key={item.key}
               ref={virtualizer.measureElement}
               style={{ transform: `translateY(${item.start}px)` }}
@@ -421,6 +510,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
     </div>
+    </RevealedMessage.Provider>
     </RevealedTextProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Globe, RotateCw, ShieldAlert } from "lucide-react";
 import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../domain/browser";
 
@@ -8,13 +8,15 @@ export type BrowserPanelProps = {
   approval: BrowserApproval | null;
   /** False whenever something else is over the panel: the page is a native view, not an element. */
   visible: boolean;
+  /** The find bar, when it is this page being searched. It sits above the page rather than over it. */
+  find?: ReactNode;
   onOpen: (url: string) => void;
   onGo: (delta: -1 | 1) => void;
   onReload: () => void;
   onDecide: (allow: boolean) => void;
 };
 
-export function BrowserPanel({ tab, approval, visible, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
+export function BrowserPanel({ tab, approval, visible, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const [address, setAddress] = useState(tab.url);
   const [editing, setEditing] = useState(false);
@@ -42,7 +44,7 @@ export function BrowserPanel({ tab, approval, visible, onOpen, onGo, onReload, o
       window.removeEventListener("resize", report);
       window.removeEventListener("scroll", report, true);
     };
-  }, [visible, tab.id]);
+  }, [visible, tab.id, find]);
 
   /** A panel that is gone must not leave a page drawn over whatever replaces it. */
   useEffect(() => () => void window.desktop.setBrowserBounds(null), []);
@@ -70,6 +72,8 @@ export function BrowserPanel({ tab, approval, visible, onOpen, onGo, onReload, o
           onBlur={() => setEditing(false)}
         />
       </div>
+
+      {find}
 
       {approval && (
         <div className="browser-approval" role="alert">

@@ -1,6 +1,8 @@
 import { BrowserWindow, session, WebContentsView, type Rectangle } from "electron";
 import type { BrowserPageEvent } from "../contracts/ipc.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { FindResults } from "../domain/find.js";
+import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
 
 /**
  * The browser panel's pages. One partition serves the whole app, so a login the user makes in the
@@ -8,7 +10,7 @@ import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/br
  */
 const PARTITION = "persist:browser";
 /** Sites refuse sign-in from a user agent that names an embedded runtime, so Electron's is replaced. */
-const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+const IDENTITY = chromeIdentity(process.versions.chrome);
 const REF_ATTRIBUTE = "data-claudex-ref";
 const DEFAULT_TEXT_LIMIT = 4_000;
 
@@ -20,6 +22,7 @@ type Tab = {
 const tabs = new Map<string, Tab>();
 let host: BrowserWindow | null = null;
 let publish: (event: BrowserPageEvent) => void = () => undefined;
+let publishFind: (tabId: string, results: FindResults) => void = () => undefined;
 let keyPressed: (input: Electron.Input) => boolean = () => false;
 let activeId: string | null = null;
 let bounds: BrowserBounds | null = null;
@@ -73,12 +76,17 @@ function actionScript(action: BrowserAction) {
   })()`;
 }
 
-export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (event: BrowserPageEvent) => void; onKey: (input: Electron.Input) => boolean }) {
+export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (event: BrowserPageEvent) => void; onFind: (tabId: string, results: FindResults) => void; onKey: (input: Electron.Input) => boolean }) {
   host = window;
   publish = handlers.onPage;
+  publishFind = handlers.onFind;
   keyPressed = handlers.onKey;
   const partition = session.fromPartition(PARTITION);
-  partition.setUserAgent(USER_AGENT);
+  partition.setUserAgent(IDENTITY.userAgent);
+  /** The user agent is one of several things a request says about the browser; these are the rest. */
+  partition.webRequest.onBeforeSendHeaders((details, callback) => {
+    callback({ requestHeaders: chromeHeaders(details.url, details.requestHeaders, IDENTITY) });
+  });
 }
 
 /** Every view is dropped when the window goes, so a closed window leaves no page running. */
@@ -141,6 +149,8 @@ function watch({ id, view }: Tab) {
     if (isMainFrame && code !== -3) report(id, { loading: false, error: `${description} (${validatedURL})` });
   });
   contents.on("render-process-gone", () => report(id, { loading: false, error: "The page stopped responding." }));
+  /** Chromium counts a page's matches itself, and numbers the one it is on from one. */
+  contents.on("found-in-page", (_event, result) => publishFind(id, { matches: result.matches, index: Math.max(0, (result.activeMatchOrdinal ?? 1) - 1) }));
   /** A shortcut belongs to the app while a page has the keys, so the page never sees that keystroke. */
   contents.on("before-input-event", (event, input) => {
     if (keyPressed(input)) event.preventDefault();
@@ -183,6 +193,17 @@ export function goHistory(tabId: string, delta: -1 | 1) {
 
 export function reload(tabId: string) {
   tabs.get(tabId)?.view.webContents.reload();
+}
+
+/** Searches a page, stepping to the next match when the query is one the page is already showing. */
+export function findInPage(tabId: string, query: string, options: { forward: boolean; findNext: boolean }) {
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  tab.view.webContents.findInPage(query, { forward: options.forward, findNext: options.findNext });
+}
+
+export function stopFindInPage(tabId: string) {
+  tabs.get(tabId)?.view.webContents.stopFindInPage("clearSelection");
 }
 
 export function closeTab(tabId: string) {

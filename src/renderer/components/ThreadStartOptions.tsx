@@ -1,7 +1,7 @@
-import { Check, ChevronDown, FolderGit2, GitBranch, Plus } from "lucide-react";
+import { Check, ChevronDown, FolderGit2, GitBranch } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
-import type { BranchesResult } from "../../contracts/ipc";
+import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/task";
 
 export type ThreadStartOptionsProps = {
@@ -16,21 +16,6 @@ export type ThreadStartOptionsProps = {
   onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
 };
-
-/**
- * The branch a typed query would make: what the user typed, once it is a name no branch already has.
- * Whitespace is never a branch name, so a query that is only spaces asks for nothing.
- */
-export function newBranchName(branches: string[], query: string) {
-  const name = query.trim();
-  return name && !branches.includes(name) ? name : null;
-}
-
-/** Which branches a typed query keeps, matched loosely so a fragment of a name is enough. */
-export function matchBranches(branches: string[], query: string) {
-  const needle = query.trim().toLowerCase();
-  return needle ? branches.filter((name) => name.toLowerCase().includes(needle)) : branches;
-}
 
 function useOutsideClose(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
@@ -52,31 +37,14 @@ function useOutsideClose(open: boolean, close: () => void) {
 export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [branchesOpen, setBranchesOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [result, setResult] = useState<BranchesResult | null>(null);
   const projectRef = useOutsideClose(projectsOpen, () => setProjectsOpen(false));
-  const branchRef = useOutsideClose(branchesOpen, () => {
-    setBranchesOpen(false);
-    setQuery("");
-  });
+  const branchRef = useOutsideClose(branchesOpen, () => setBranchesOpen(false));
   const project = projects.find((item) => item.id === projectId);
+  const branches = useBranches(workspaceId);
 
-  useEffect(() => {
-    setResult(null);
-    if (!workspaceId) return;
-    let cancelled = false;
-    void window.desktop.branches(workspaceId)
-      .then((branches) => { if (!cancelled) setResult(branches); })
-      .catch((error) => { if (!cancelled) setResult({ status: "error", message: String(error) }); });
-    return () => { cancelled = true; };
-  }, [workspaceId]);
-
-  const branches = result?.status === "available" ? result.branches : [];
-  const current = result?.status === "available" ? result.current : null;
+  const current = branches?.status === "available" ? branches.current : null;
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
-  const matches = matchBranches(branches, query);
-  const naming = newBranchName(branches, query);
 
   if (!project) return null;
 
@@ -109,53 +77,21 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
       <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
         <button type="button" aria-label="Starting branch" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
           <GitBranch size={15} />
-          <span>{selected ?? (result?.status === "error" ? "No branches" : "Current branch")}</span>
+          <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
           {branch?.create && <small>new</small>}
           <ChevronDown size={14} />
         </button>
-        {branchesOpen && <div className="thread-start-popover">
-          <input
-            className="thread-start-search"
-            aria-label="Search branches"
-            placeholder="Search branches"
-            autoFocus
-            value={query}
-            onInput={(event) => setQuery(event.currentTarget.value)}
+        {branchesOpen && (
+          <BranchMenu
+            branches={branches}
+            selected={selected}
+            onPick={(name, create) => {
+              setBranchesOpen(false);
+              /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
+              onSelectBranch(!create && name === current ? null : name, create);
+            }}
           />
-          <div role="listbox" aria-label="Branches">
-            {naming && (
-              <button
-                role="option"
-                aria-selected={false}
-                onClick={() => {
-                  setBranchesOpen(false);
-                  setQuery("");
-                  onSelectBranch(naming, true);
-                }}
-              >
-                <span>Create branch “{naming}”</span>
-                <Plus size={14} />
-              </button>
-            )}
-            {matches.length === 0 && !naming && <p className="thread-start-empty">{result ? "No branch matches" : "Reading branches…"}</p>}
-            {matches.map((name) => (
-              <button
-                key={name}
-                role="option"
-                aria-selected={name === selected}
-                onClick={() => {
-                  setBranchesOpen(false);
-                  setQuery("");
-                  /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
-                  onSelectBranch(name === current ? null : name);
-                }}
-              >
-                <span>{name}</span>
-                {name === selected && <Check size={14} />}
-              </button>
-            ))}
-          </div>
-        </div>}
+        )}
       </div>
 
       <label className="thread-start-check">

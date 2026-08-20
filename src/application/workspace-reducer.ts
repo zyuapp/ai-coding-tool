@@ -11,7 +11,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -28,6 +28,7 @@ import type {
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
+import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
@@ -60,7 +61,9 @@ export type WorkspaceEvent =
   | { type: "terminal.updated"; update: TerminalUpdate }
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
   /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
-  | { type: "shortcut.captured"; binding: string | null };
+  | { type: "shortcut.captured"; binding: string | null }
+  /** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
+  | { type: "find.results"; target: FindTarget; results: FindResults };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -86,6 +89,8 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
+  | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
   | { type: "automation.save"; draft: AutomationDraft }
@@ -113,7 +118,17 @@ export type WorkspaceEffect =
   /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */
   | { type: "apply-shortcuts"; overrides: ShortcutOverrides }
   /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
-  | { type: "capture-shortcut"; capturing: boolean };
+  | { type: "capture-shortcut"; capturing: boolean }
+  /**
+   * Find, in the things that hold their own text. The transcript needs no effect: the timeline reads
+   * the match out of state and reveals it, folds and virtual rows and all.
+   */
+  | { type: "find-in-page"; tabId: string; query: string; forward: boolean; findNext: boolean }
+  | { type: "stop-find-in-page"; tabId: string }
+  | { type: "find-in-terminal"; terminalId: string; query: string; forward: boolean }
+  | { type: "stop-find-in-terminal"; terminalId: string }
+  /** Takes the keyboard off a page in the panel, which is the only way the find bar can have it. */
+  | { type: "focus-window" };
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -128,6 +143,8 @@ const WORKTREE_PROJECT_ERROR = "Open this thread in a project folder before givi
 const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a terminal.";
 const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
+const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
+const SWITCH_PROJECT_ERROR = "Open this thread in a project folder before switching branches.";
 
 export const WORKSPACE_ERRORS = {
   reopenProject: REOPEN_PROJECT_ERROR,
@@ -137,6 +154,8 @@ export const WORKSPACE_ERRORS = {
   terminalFolder: TERMINAL_FOLDER_ERROR,
   worktreeRunning: WORKTREE_RUNNING_ERROR,
   checkoutRunning: CHECKOUT_RUNNING_ERROR,
+  switchRunning: SWITCH_RUNNING_ERROR,
+  switchProject: SWITCH_PROJECT_ERROR,
 } as const;
 
 function now() {
@@ -516,6 +535,38 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
   };
 }
 
+/** What a search asks of whoever holds the text. A thread's own matches are counted in the view. */
+function searchEffects(find: FindState, { findNext, forward }: { findNext: boolean; forward: boolean }): WorkspaceEffect[] {
+  const query = find.query.trim();
+  if (!query || find.target.kind === "transcript") return [];
+  return find.target.kind === "browser"
+    ? [{ type: "find-in-page", tabId: find.target.tabId, query, forward, findNext }]
+    : [{ type: "find-in-terminal", terminalId: find.target.terminalId, query, forward }];
+}
+
+/** A page and a shell keep highlighting what was found until they are told to stop. */
+function stopSearchEffects(find: FindState | null): WorkspaceEffect[] {
+  if (!find || find.target.kind === "transcript") return [];
+  return find.target.kind === "browser"
+    ? [{ type: "stop-find-in-page", tabId: find.target.tabId }]
+    : [{ type: "stop-find-in-terminal", terminalId: find.target.terminalId }];
+}
+
+/** Find belongs to what it is searching, so it goes when that thread, page, or shell does. */
+function prunedFind(state: WorkspaceState, before: WorkspaceState): WorkspaceState {
+  const focusedTerminalId = state.focusedTerminalId && ownerOfTerminal(state, state.focusedTerminalId) ? state.focusedTerminalId : null;
+  const find = state.find;
+  const gone = !find
+    ? false
+    : find.target.kind === "transcript"
+      ? state.currentId !== before.currentId
+      : find.target.kind === "browser"
+        ? !ownerOfBrowserTab(state, find.target.tabId)
+        : !ownerOfTerminal(state, find.target.terminalId);
+  if (!gone && focusedTerminalId === state.focusedTerminalId) return state;
+  return { ...state, focusedTerminalId, ...(gone ? { find: null, findResults: null } : {}) };
+}
+
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else
  * driving the app); events report what the outside world did back. Nothing here touches Electron.
@@ -528,7 +579,8 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
       return { state: next.state, effects: [...transition.effects, ...next.effects] };
     }, settled(state));
   }
-  const transition = apply(state, input);
+  const applied = apply(state, input);
+  const transition = { state: prunedFind(applied.state, state), effects: applied.effects };
   if (transition.state.currentId === state.currentId) return transition;
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
@@ -561,6 +613,13 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "run.allow": return [{ type: "run.decide", allow: true }];
     case "run.deny": return [{ type: "run.decide", allow: false }];
     case "composer.focus": return [{ type: "view.focus-composer" }];
+    /** A bar that is already open is the one being asked for again, so it keeps what it was searching. */
+    case "find.open": return [state.find ? { type: "view.find-open" } : { type: "view.find-open", target: findTargetFor(state, surface) }];
+    case "find.next":
+    case "find.previous": {
+      const delta = action === "find.next" ? 1 as const : -1 as const;
+      return state.find ? [{ type: "view.find-step", delta }] : [{ type: "view.find-open", target: findTargetFor(state, surface) }];
+    }
     case "nav.back": return [surface === "browser" ? { type: "browser.go", delta: -1 } : { type: "view.go-back" }];
     case "nav.forward": return [surface === "browser" ? { type: "browser.go", delta: 1 } : { type: "view.go-forward" }];
     case "page.reload": return [{ type: "browser.reload" }];
@@ -728,6 +787,25 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         draftBranch: input.branch === null ? null : { name: input.branch, create: Boolean(input.create) },
         actionError: null,
       });
+
+    /**
+     * Moves the checkout itself, which everything working in it sees, so nothing may be running
+     * there. A thread that does not exist yet has no checkout to move: it only records where to start.
+     */
+    case "task.checkout-branch": {
+      const taskId = targetId(state, input.taskId);
+      const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
+      if (!task) return apply(state, { type: "task.set-branch", branch: input.branch, ...(input.create ? { create: true } : {}) });
+      const workspaceId = taskWorkspaceId(state, task);
+      if (!workspaceId) return settled({ ...state, actionError: SWITCH_PROJECT_ERROR });
+      if (runsInWorkspace(state, workspaceId) || threadBusy(state, task.id)) return settled({ ...state, actionError: SWITCH_RUNNING_ERROR });
+      return settled({ ...state, actionError: null }, [{
+        type: "checkout-branch",
+        workspaceId,
+        branch: input.branch,
+        ...(input.create ? { create: true } : {}),
+      }]);
+    }
 
     /** Unlike switching back, this keeps nothing: the checkout and everything loose in it go. */
     case "worktree.delete": {
@@ -1366,6 +1444,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "terminal.resize":
       return settled(state, [{ type: "terminal.resize", terminalId: input.terminalId, cols: input.cols, rows: input.rows }]);
 
+    case "terminal.focus":
+      return settled({ ...state, focusedTerminalId: input.terminalId });
+
     case "terminal.updated": {
       const { terminalId, ...patch } = input.update;
       const owner = ownerOfTerminal(state, terminalId);
@@ -1409,6 +1490,51 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return input.focused
         ? settled(withoutAttention({ ...state, focused: true }, state.currentId))
         : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
+
+    case "view.find-open": {
+      const target = input.target ?? state.find?.target ?? findTargetFor(state, "any");
+      const previous = state.find;
+      const same = previous && sameFindTarget(previous.target, target);
+      const find: FindState = {
+        target,
+        query: previous?.query ?? "",
+        index: same ? previous.index : 0,
+        focus: (previous?.focus ?? 0) + 1,
+      };
+      /** A page in the panel holds the keyboard, and the bar is no use without it. */
+      const takeKeys: WorkspaceEffect[] = target.kind === "browser" ? [{ type: "focus-window" }] : [];
+      return settled({ ...state, find, ...(same ? {} : { findResults: null }) }, [
+        ...(same ? [] : stopSearchEffects(previous)),
+        ...takeKeys,
+        ...(same ? [] : searchEffects(find, { findNext: false, forward: true })),
+      ]);
+    }
+
+    case "view.find-query": {
+      if (!state.find) return settled(state);
+      const find: FindState = { ...state.find, query: input.query, index: 0 };
+      /** An emptied box is no longer searching, so whatever it lit up stops being lit. */
+      const effects = find.query.trim() ? searchEffects(find, { findNext: false, forward: true }) : stopSearchEffects(find);
+      return settled({ ...state, find, findResults: null }, effects);
+    }
+
+    case "view.find-step": {
+      const find = state.find;
+      if (!find) return settled(state);
+      if (find.target.kind !== "transcript") return settled(state, searchEffects(find, { findNext: true, forward: input.delta === 1 }));
+      const task = state.tasks.find((item) => item.id === state.currentId);
+      const matches = findHits(task?.messages ?? [], find.query).length;
+      return settled({ ...state, find: { ...find, index: stepMatch(find.index, input.delta, matches) } });
+    }
+
+    case "view.find-close":
+      return settled({ ...state, find: null, findResults: null }, stopSearchEffects(state.find));
+
+    case "find.results": {
+      const find = state.find;
+      if (!find || !sameFindTarget(find.target, input.target)) return settled(state);
+      return settled({ ...state, findResults: input.results });
+    }
 
     case "view.dismiss-computer-use-setup":
       return settled({ ...state, computerUseSetup: false });

@@ -1,6 +1,7 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
+import type { FindTarget } from "../domain/find.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
 import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
 
@@ -32,6 +33,12 @@ export type TaskCommand =
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
   | { type: "task.set-branch"; branch: string | null; create?: boolean }
+  /**
+   * Moves the checkout the thread works in — its worktree, or the project's — onto `branch`,
+   * making it at the checkout's own HEAD first when `create`. Never forced, so uncommitted work
+   * that the switch would overwrite stops it.
+   */
+  | { type: "task.checkout-branch"; taskId?: string; branch: string; create?: boolean }
   /**
    * While a run is going the message is queued instead; `steer` pushes it into that run straight away.
    * `text` sends that message instead of the composer draft and leaves the draft alone: only the
@@ -103,7 +110,9 @@ export type TerminalCommand =
   | { type: "terminal.close"; terminalId: string }
   /** Keystrokes on their way to the shell, and the size it believes it has. Neither changes state. */
   | { type: "terminal.input"; terminalId: string; data: string }
-  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number };
+  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
+  /** Which shell has the keyboard, with a null when it lost them. Only find reads it. */
+  | { type: "terminal.focus"; terminalId: string | null };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
@@ -152,4 +161,13 @@ export type ViewCommand =
   /** Waits for the next keystroke to bind to `action`, or stops waiting with a null. */
   | { type: "view.capture-shortcut"; action: string | null }
   | { type: "view.dismiss-computer-use-setup" }
-  | { type: "view.refresh-environment" };
+  | { type: "view.refresh-environment" }
+  /**
+   * Find. What is searched is whatever the keyboard is on: the page while one has the keys, else the
+   * shell holding them, else the transcript. `target` names it outright for a caller that already knows.
+   */
+  | { type: "view.find-open"; target?: FindTarget }
+  | { type: "view.find-query"; query: string }
+  /** The match after this one, or the one before it, wrapping at both ends. */
+  | { type: "view.find-step"; delta: -1 | 1 }
+  | { type: "view.find-close" };

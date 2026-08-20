@@ -1,5 +1,7 @@
 import type { FitAddon } from "@xterm/addon-fit";
+import type { SearchAddon } from "@xterm/addon-search";
 import type { Terminal } from "@xterm/xterm";
+import type { FindResults } from "../../domain/find.js";
 
 /**
  * The views the terminal panel draws into. They live outside React because a shell outlives the panel:
@@ -15,6 +17,7 @@ type TerminalView = {
   container: HTMLDivElement;
   terminal: Terminal | null;
   fit: FitAddon | null;
+  search: SearchAddon | null;
   /** What arrived before xterm finished loading, written in order once it has. */
   pending: string[];
   opened: boolean;
@@ -22,20 +25,44 @@ type TerminalView = {
 
 const views = new Map<string, TerminalView>();
 let publishInput: (terminalId: string, data: string) => void = () => undefined;
-let xterm: Promise<{ Terminal: typeof Terminal; FitAddon: typeof FitAddon }> | null = null;
+let publishFocus: (terminalId: string | null) => void = () => undefined;
+let publishFind: (terminalId: string, results: FindResults) => void = () => undefined;
+let xterm: Promise<{ Terminal: typeof Terminal; FitAddon: typeof FitAddon; SearchAddon: typeof SearchAddon }> | null = null;
 
 /** xterm is only needed once a shell exists, so it stays out of the startup bundle. */
 function loadXterm() {
-  xterm ??= Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit")]).then(([core, addon]) => ({
+  xterm ??= Promise.all([import("@xterm/xterm"), import("@xterm/addon-fit"), import("@xterm/addon-search")]).then(([core, fit, search]) => ({
     Terminal: core.Terminal,
-    FitAddon: addon.FitAddon,
+    FitAddon: fit.FitAddon,
+    SearchAddon: search.SearchAddon,
   }));
   return xterm;
+}
+
+/**
+ * The chunk is read from disk, and a build under a running app takes it away for as long as it runs.
+ * A module that failed to load stays failed for the life of the window however often it is asked for,
+ * so it is fetched while the app is idle rather than at the moment a terminal is opened.
+ */
+if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+  window.requestIdleCallback(() => void loadXterm().catch(() => undefined));
 }
 
 /** Where keystrokes go. Set by the panel, since a view can exist before the panel is mounted. */
 export function onTerminalInput(handler: (terminalId: string, data: string) => void) {
   publishInput = handler;
+}
+
+/** Which view has the keyboard, so ⌘F knows whether it means this shell or the transcript. */
+export function onTerminalFocus(handler: (terminalId: string | null) => void) {
+  publishFocus = handler;
+  return () => { publishFocus = () => undefined; };
+}
+
+/** What a search found. The shell holds its own scrollback, so it counts its own matches. */
+export function onTerminalFindResults(handler: (terminalId: string, results: FindResults) => void) {
+  publishFind = handler;
+  return () => { publishFind = () => undefined; };
 }
 
 /** The colours are the stylesheet's, read from the tokens so a theme reaches the terminal too. */
@@ -73,7 +100,9 @@ function terminalRecord(terminalId: string): TerminalView {
   if (existing) return existing;
   const container = document.createElement("div");
   container.className = "terminal-surface";
-  const view: TerminalView = { container, terminal: null, fit: null, pending: [], opened: false };
+  container.addEventListener("focusin", () => publishFocus(terminalId));
+  container.addEventListener("focusout", () => publishFocus(null));
+  const view: TerminalView = { container, terminal: null, fit: null, search: null, pending: [], opened: false };
   views.set(terminalId, view);
   return view;
 }
@@ -81,7 +110,7 @@ function terminalRecord(terminalId: string): TerminalView {
 async function terminalView(terminalId: string): Promise<TerminalView> {
   const view = terminalRecord(terminalId);
   if (view.terminal) return view;
-  const { Terminal, FitAddon } = await loadXterm();
+  const { Terminal, FitAddon, SearchAddon } = await loadXterm();
   /** Another caller may have raced ahead, or the terminal may be gone by now. */
   if (view.terminal || views.get(terminalId) !== view) return view;
   const terminal = new Terminal({
@@ -93,9 +122,13 @@ async function terminalView(terminalId: string): Promise<TerminalView> {
   });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
+  const search = new SearchAddon();
+  terminal.loadAddon(search);
+  search.onDidChangeResults(({ resultIndex, resultCount }) => publishFind(terminalId, { matches: resultCount, index: Math.max(0, resultIndex) }));
   terminal.onData((data) => publishInput(terminalId, data));
   view.terminal = terminal;
   view.fit = fit;
+  view.search = search;
   for (const data of view.pending.splice(0)) terminal.write(data);
   return view;
 }
@@ -124,6 +157,27 @@ export function fitTerminalView(terminalId: string) {
   return { cols: view.terminal.cols, rows: view.terminal.rows };
 }
 
+/** The colours a match is drawn in, read from the stylesheet the way the rest of the theme is. */
+function searchDecorations() {
+  const style = getComputedStyle(document.documentElement);
+  const match = style.getPropertyValue("--find-match").trim();
+  const active = style.getPropertyValue("--find-active").trim();
+  return { decorations: { matchBackground: match, activeMatchBackground: active, matchOverviewRuler: match, activeMatchColorOverviewRuler: active } };
+}
+
+/** Steps to the next match, or the one before it, highlighting every match it passes. */
+export function searchTerminalView(terminalId: string, query: string, forward: boolean) {
+  const search = views.get(terminalId)?.search;
+  if (!search) return;
+  const options = searchDecorations();
+  if (forward) search.findNext(query, options);
+  else search.findPrevious(query, options);
+}
+
+export function clearTerminalSearch(terminalId: string) {
+  views.get(terminalId)?.search?.clearDecorations();
+}
+
 export function focusTerminalView(terminalId: string) {
   views.get(terminalId)?.terminal?.focus();
 }
@@ -149,6 +203,7 @@ if (typeof window !== "undefined" && "desktop" in window) {
       return;
     }
     view.pending.push(data);
-    void terminalView(terminalId);
+    /** Output waits in `pending` if xterm cannot be loaded; the panel is where that is reported. */
+    void terminalView(terminalId).catch(() => undefined);
   });
 }

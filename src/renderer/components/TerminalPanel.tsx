@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TerminalSession } from "../../domain/terminal";
 import { fitTerminalView, focusTerminalView, hideTerminalView, onTerminalInput, showTerminalView } from "../task-workspace/terminal-views";
 
@@ -6,11 +6,13 @@ export type TerminalPanelProps = {
   terminal: TerminalSession;
   /** False whenever something else is over the panel, so a hidden terminal keeps the size it had. */
   visible: boolean;
+  /** The find bar, when it is this shell being searched. */
+  find?: ReactNode;
   onInput: (terminalId: string, data: string) => void;
   onResize: (terminalId: string, cols: number, rows: number) => void;
 };
 
-export function TerminalPanel({ terminal, visible, onInput, onResize }: TerminalPanelProps) {
+export function TerminalPanel({ terminal, visible, find, onInput, onResize }: TerminalPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   /**
    * Held in a ref rather than named as a dependency: showing a view moves its element into the
@@ -18,6 +20,8 @@ export function TerminalPanel({ terminal, visible, onInput, onResize }: Terminal
    * keyboard off the terminal on every unrelated re-render.
    */
   const resized = useRef(onResize);
+  /** Why the panel is empty. Drawing is the view's, not the workspace's, so the reason is the panel's too. */
+  const [drawError, setDrawError] = useState<string | null>(null);
 
   useEffect(() => onTerminalInput(onInput), [onInput]);
 
@@ -33,10 +37,14 @@ export function TerminalPanel({ terminal, visible, onInput, onResize }: Terminal
       if (size) resized.current(terminal.id, size.cols, size.rows);
     };
     /** xterm arrives asynchronously, so the first focus and fit wait for the view to be drawn. */
-    void showTerminalView(terminal.id, element).then(() => {
-      focusTerminalView(terminal.id);
-      measure();
-    });
+    void showTerminalView(terminal.id, element).then(
+      () => {
+        setDrawError(null);
+        focusTerminalView(terminal.id);
+        measure();
+      },
+      (error: unknown) => setDrawError(error instanceof Error ? error.message : String(error)),
+    );
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => {
@@ -52,8 +60,19 @@ export function TerminalPanel({ terminal, visible, onInput, onResize }: Terminal
         {terminal.status === "exited" && <em>{terminal.error ?? `exited${terminal.exitCode === undefined ? "" : ` (${terminal.exitCode})`}`}</em>}
       </p>
 
+      {find}
+
       {/** The viewport is wider than the rows it holds, so a click in the margin still means the shell. */}
-      <div className="terminal-viewport" ref={viewport} onMouseDown={() => focusTerminalView(terminal.id)} />
+      <div className="terminal-viewport" ref={viewport} onMouseDown={() => focusTerminalView(terminal.id)}>
+        {drawError && (
+          <div className="terminal-error">
+            {/** A module that failed to load stays failed for the life of the window, so reloading is the way back. */}
+            <p>The terminal view could not be loaded. Reloading the app and opening a terminal again is what fixes it.</p>
+            <small>{drawError}</small>
+            <button type="button" onClick={() => window.location.reload()}>Reload the app</button>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

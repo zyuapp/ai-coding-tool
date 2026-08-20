@@ -1018,6 +1018,43 @@ test("a branch the repository does not have yet is made before the thread starts
   assert.deepEqual(worktreed.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false, branch: "loader-fix" });
 });
 
+test("switching a thread's branch moves the checkout it works in", () => {
+  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+
+  const moved = reduce(state, { type: "task.checkout-branch", branch: "feature-x" });
+  assert.deepEqual(moved.effects, [{ type: "checkout-branch", workspaceId: "workspace-a", branch: "feature-x" }]);
+
+  const made = reduce(state, { type: "task.checkout-branch", branch: "loader-fix", create: true });
+  assert.deepEqual(made.effects, [{ type: "checkout-branch", workspaceId: "workspace-a", branch: "loader-fix", create: true }]);
+
+  const worktree = madeWorktree();
+  const inWorktree = projected({ tasks: [task("task-a", { projectId: PROJECT.id, worktree })], currentId: "task-a" });
+  assert.deepEqual(
+    reduce(inWorktree, { type: "task.checkout-branch", branch: "feature-x" }).effects,
+    [{ type: "checkout-branch", workspaceId: "worktree-wt1", branch: "feature-x" }],
+    "a thread with a checkout of its own moves that one, never the project's",
+  );
+});
+
+test("a checkout with a run going is not moved onto another branch", () => {
+  const state = projected({
+    tasks: [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })],
+    currentId: "task-a",
+    activeRuns: { "task-b": { taskId: "task-b", runId: "run-b", sequence: 0, status: "running" } },
+  });
+
+  const refused = reduce(state, { type: "task.checkout-branch", branch: "feature-x" });
+  assert.deepEqual(refused.effects, [], "the ground stays still under the thread that is working");
+  assert.equal(refused.state.actionError, WORKSPACE_ERRORS.switchRunning);
+});
+
+test("a thread that does not exist yet only records the branch it will start from", () => {
+  const asked = reduce(projected(), { type: "task.checkout-branch", branch: "feature-x" });
+
+  assert.deepEqual(asked.effects, [], "there is no checkout of its own to move yet");
+  assert.deepEqual(deriveView(asked.state).draftBranch, { name: "feature-x", create: false });
+});
+
 test("a branch already in the repository is started from without being made", () => {
   const drafted = run(projected(), [
     { type: "task.set-branch", branch: "feature-x" },

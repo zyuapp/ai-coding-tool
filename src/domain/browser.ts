@@ -64,6 +64,14 @@ export function browserUrl(text: string): string | null {
   }
 }
 
+/**
+ * Where the panel searches. Google sometimes answers an automated request with its unusual-traffic
+ * page rather than results, so a search made from here goes somewhere that answers it every time.
+ */
+export function browserSearchUrl(query: string): string {
+  return `https://duckduckgo.com/?q=${encodeURIComponent(query.trim())}`;
+}
+
 /** The origin an allowlist entry covers. Null for anything that is not a loadable page. */
 export function browserOrigin(url: string): string | null {
   try {

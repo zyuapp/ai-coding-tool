@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AutomationAck, AutomationFire, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
+import type { AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { ShortcutOverrides } from "./domain/shortcuts";
 import type { TerminalUpdate } from "./domain/terminal";
@@ -69,6 +69,13 @@ const api: DesktopAPI = {
     ipcRenderer.on("browser:event", handler);
     return () => ipcRenderer.removeListener("browser:event", handler);
   },
+  findInPage: (tabId: string, query: string, forward: boolean, findNext: boolean) => ipcRenderer.invoke("browser:find", tabId, query, forward, findNext),
+  stopFindInPage: (tabId: string) => ipcRenderer.invoke("browser:stop-find", tabId),
+  onBrowserFind: (listener: (event: BrowserFindEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: BrowserFindEvent) => listener(payload);
+    ipcRenderer.on("browser:find", handler);
+    return () => ipcRenderer.removeListener("browser:find", handler);
+  },
   startTerminal: (terminalId: string, options: TerminalStartOptions) => ipcRenderer.invoke("terminal:start", terminalId, options),
   writeTerminal: (terminalId: string, data: string) => ipcRenderer.invoke("terminal:write", terminalId, data),
   resizeTerminal: (terminalId: string, cols: number, rows: number) => ipcRenderer.invoke("terminal:resize", terminalId, cols, rows),
@@ -97,6 +104,7 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("window:shortcut-captured", handler);
   },
   closeWindow: () => ipcRenderer.send("window:close"),
+  focusWindow: () => ipcRenderer.send("window:focus"),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

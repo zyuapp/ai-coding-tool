@@ -1,15 +1,18 @@
-import { AlarmClock, FileDiff, GitBranch, House } from "lucide-react";
+import { AlarmClock, ChevronDown, FileDiff, GitBranch, House } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent } from "../../domain/run";
 import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
+import { BranchMenu, useBranches } from "./BranchMenu";
 import { PopoverMenu } from "./PopoverMenu";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 
 export type SessionPanelProps = {
   environment: ChangedFilesResult | null;
   hasProject: boolean;
+  /** The checkout the thread works in, which is the one the branch menu reads and moves. */
+  workspaceId?: string;
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   location?: ThreadLocation;
   runActive: boolean;
@@ -25,9 +28,12 @@ export type SessionPanelProps = {
   onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSetWorktree: (worktree: boolean) => void;
+  /** `create` names a branch the repository does not have yet, made at the checkout's HEAD first. */
+  onCheckoutBranch: (branch: string, create: boolean) => void;
 };
 
 export const LOCATION_MENU = "session:location";
+export const BRANCH_MENU = "session:branch";
 
 /** The sidebar carries the few that want reading; the whole roster lives in the Subagents panel. */
 const SIDEBAR_LIMIT = 6;
@@ -70,7 +76,45 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
   );
 }
 
-export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onStopProcess }: SessionPanelProps) {
+type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSetOpenMenu" | "onCheckoutBranch"> & { branch: string | null };
+
+/** The branch the checkout is on, and the list that moves it onto another. */
+function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
+  const open = openMenu === BRANCH_MENU;
+  /** Branches are only worth reading while the list is up; the row itself says where Git already is. */
+  const branches = useBranches(workspaceId, open);
+
+  return (
+    <div className={`session-branch ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
+      <button
+        className="session-row session-row-action"
+        type="button"
+        aria-label="Branch"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={!workspaceId}
+        onClick={() => onSetOpenMenu(open ? null : BRANCH_MENU)}
+      >
+        <span className="session-row-icon"><GitBranch size={18} /></span>
+        <span>Branch</span>
+        <code title={branch ?? undefined}>{branch ?? "—"}</code>
+        <ChevronDown size={14} />
+      </button>
+      {open && (
+        <BranchMenu
+          branches={branches}
+          selected={branch}
+          onPick={(name, create) => {
+            onSetOpenMenu(null);
+            onCheckoutBranch(name, create);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export function SessionPanel({ environment, hasProject, workspaceId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
@@ -90,11 +134,13 @@ export function SessionPanel({ environment, hasProject, location, runActive, ope
                   </span>
                 )}
               </div>
-              <div className="session-row">
-                <span className="session-row-icon"><GitBranch size={18} /></span>
-                <span>Branch</span>
-                {available?.branch && <code title={available.branch}>{available.branch}</code>}
-              </div>
+              <BranchRow
+                branch={available?.branch ?? null}
+                {...(workspaceId ? { workspaceId } : {})}
+                openMenu={openMenu}
+                onSetOpenMenu={onSetOpenMenu}
+                onCheckoutBranch={onCheckoutBranch}
+              />
               {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
               <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
                 <span className="session-row-icon"><AlarmClock size={18} /></span>

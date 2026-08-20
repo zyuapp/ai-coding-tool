@@ -2,7 +2,7 @@ import { createSdkMcpServer, tool, type McpServerConfig } from "@anthropic-ai/cl
 import { z } from "zod";
 import { MAX_BROWSER_WAIT_MS } from "../../contracts/ipc.js";
 import type { BrowserReadResult } from "../../contracts/threads.js";
-import { describeTab, type BrowserSnapshot } from "../../domain/browser.js";
+import { browserSearchUrl, describeTab, type BrowserSnapshot } from "../../domain/browser.js";
 import type { BrowserBridge } from "./agent-provider.mjs";
 
 export const BROWSER_SERVER_NAME = "claudex-browser";
@@ -66,7 +66,7 @@ export function browserTools(bridge: BrowserBridge) {
   return [
     tool(
       "browser_open",
-      "Open a page in the Claudex browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying.",
+      "Open a page in the Claudex browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying. To search, use browser_search.",
       {
         url: z.string().describe("The page to open. Include the scheme for anything that is not an ordinary domain."),
         newTab: z.boolean().optional().describe("Open another tab instead of reusing the one on screen."),
@@ -75,6 +75,20 @@ export function browserTools(bridge: BrowserBridge) {
       },
       async (args) => report(async () => {
         await bridge.command({ type: "browser.open", url: args.url, ...(args.newTab ? { newTab: true } : {}), ...(args.tabId ? { tabId: args.tabId } : {}) });
+        return await settledPage(args.newTab ? undefined : args.tabId, args.waitSeconds);
+      }),
+    ),
+    tool(
+      "browser_search",
+      "Search the web in the Claudex browser panel and read the results. Use this rather than opening a search engine yourself: Google sometimes answers the panel with its bot page instead of results.",
+      {
+        query: z.string().describe("What to search for."),
+        newTab: z.boolean().optional().describe("Search in another tab instead of the one on screen."),
+        tabId: tabField,
+        waitSeconds: z.number().optional().describe("How long to wait for the results to load. Defaults to 20."),
+      },
+      async (args) => report(async () => {
+        await bridge.command({ type: "browser.open", url: browserSearchUrl(args.query), ...(args.newTab ? { newTab: true } : {}), ...(args.tabId ? { tabId: args.tabId } : {}) });
         return await settledPage(args.newTab ? undefined : args.tabId, args.waitSeconds);
       }),
     ),

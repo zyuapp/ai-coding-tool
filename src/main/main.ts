@@ -344,6 +344,9 @@ async function createWindow() {
     onPage: (event: BrowserPageEvent) => {
       if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
     },
+    onFind: (tabId, results) => {
+      if (window && !window.isDestroyed()) window.webContents.send("browser:find", { tabId, ...results });
+    },
     onKey: (input) => handleKey(input, "browser"),
   });
   terminal.startTerminalHost({
@@ -615,6 +618,12 @@ ipcMain.on("window:close", (event) => {
   window?.close();
 });
 
+/** A page in the panel holds the keyboard until the window asks for it back. */
+ipcMain.on("window:focus", (event) => {
+  if (!trustedSender(event) || !window || window.isDestroyed()) return;
+  window.webContents.focus();
+});
+
 ipcMain.on("thread:answer", (event, response: unknown) => {
   if (!trustedSender(event) || !isThreadResponse(response)) return;
   const timer = threadRequests.get(response.requestId);
@@ -687,10 +696,25 @@ ipcMain.handle("browser:read", (event, tabId: unknown, textLimit: unknown, timeo
   return browser.readPage(browserTabId(tabId), textLimit, timeoutMs);
 });
 
+ipcMain.handle("browser:find", (event, tabId: unknown, query: unknown, forward: unknown, findNext: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof query !== "string" || !query || query.length > MAX_FIND_QUERY) throw new Error("Invalid search.");
+  if (typeof forward !== "boolean" || typeof findNext !== "boolean") throw new Error("Invalid search.");
+  browser.findInPage(browserTabId(tabId), query, { forward, findNext });
+});
+
+ipcMain.handle("browser:stop-find", (event, tabId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.stopFindInPage(browserTabId(tabId));
+});
+
 ipcMain.handle("browser:clear", (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return browser.clearData();
 });
+
+/** Longer than anything anyone searches for, and still bounded. */
+const MAX_FIND_QUERY = 1_000;
 
 const MAX_TERMINAL_INPUT = 64 * 1024;
 const MAX_TERMINAL_DIMENSION = 1_000;

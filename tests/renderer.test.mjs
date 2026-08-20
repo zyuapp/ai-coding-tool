@@ -482,6 +482,7 @@ function fakeDesktop(overrides = {}) {
     },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
+    onBrowserFind: () => () => {},
     terminalCalls,
     get terminalEvent() { return terminalEvent; },
     startTerminal: async (terminalId, options) => { terminalCalls.push(["start", terminalId, options]); },
@@ -1196,6 +1197,52 @@ test("workspace hook runs a projectless task and scopes events, approvals, and c
   assert.equal(desktop.unsubscribed, true);
 });
 
+const BRANCH_PROJECT = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+
+/** A store holding one thread in a project, which is a thread with a checkout to move. */
+function seedBranchProject(overrides = {}) {
+  const task = {
+    id: "task-1", title: "Task", projectId: BRANCH_PROJECT.id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  return fakeDesktop({
+    loadTaskStore: async () => ({ version: 2, projects: [BRANCH_PROJECT], tasks: [task], lastFolder: BRANCH_PROJECT.root }),
+    ...overrides,
+  });
+}
+
+test("the branch a thread is switched to is made, checked out, and read back", async () => {
+  const calls = [];
+  const desktop = seedBranchProject({
+    createBranch: async (workspaceId, branch) => { calls.push(["create", workspaceId, branch]); },
+    checkoutBranch: async (workspaceId, branch) => { calls.push(["checkout", workspaceId, branch]); },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+
+  await act(async () => { await workspace.get().actions.checkoutBranch("feature-x"); });
+  assert.deepEqual(calls, [["checkout", "workspace-1", "feature-x"]], "a branch the repository has is only moved onto");
+
+  await act(async () => { await workspace.get().actions.checkoutBranch("loader-fix", true); });
+  assert.deepEqual(calls.slice(1), [["create", "workspace-1", "loader-fix"], ["checkout", "workspace-1", "loader-fix"]]);
+  assert.equal(workspace.get().environment.branch, "main", "the checkout is read again once it has moved");
+
+  await workspace.view.unmount();
+});
+
+test("a checkout Git refuses to move says why, and the thread stays where it is", async () => {
+  const desktop = seedBranchProject({
+    checkoutBranch: async () => { throw new Error("Your local changes would be overwritten."); },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+
+  await act(async () => { await workspace.get().actions.checkoutBranch("feature-x"); });
+  assert.equal(workspace.get().actionError, "Your local changes would be overwritten.");
+
+  await workspace.view.unmount();
+});
+
 test("workspace hook reopens a legacy project and prevents duplicate submissions", async () => {
   let resolveFolder;
   const folder = new Promise((resolve) => { resolveFolder = resolve; });
@@ -1437,7 +1484,7 @@ async function expand(details) {
   });
 }
 
-function timelineView(messages, status, streamingTail, runEndedAt) {
+function timelineView(messages, status, streamingTail, runEndedAt, find) {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
@@ -1448,9 +1495,32 @@ function timelineView(messages, status, streamingTail, runEndedAt) {
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, folder: "/p", status, compacting: false, streamingTail, scrollContainerRef: { current: scroller },
+    currentTask: task, folder: "/p", status, compacting: false, streamingTail, scrollContainerRef: { current: scroller }, find,
   });
 }
+
+test("find opens the fold the match it is showing was written into", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "tool", text: "Bash", detail: "retry the build" },
+    { kind: "assistant", text: "Done." },
+  );
+  const find = {
+    target: { kind: "transcript" },
+    query: "retry",
+    index: 0,
+    focus: 1,
+    matches: 1,
+    hit: { messageId: "m1", field: "detail", start: 0, occurrence: 0 },
+  };
+  const view = await mount(timelineView(messages, "idle", undefined, undefined, find));
+
+  assert.equal(view.container.querySelector(".work-steps pre").textContent, "retry the build");
+
+  await view.render(timelineView(messages, "idle", undefined, undefined, { ...find, hit: null, matches: 0, query: "" }));
+  assert.equal(view.container.querySelector(".work-steps"), null, "the fold closes again once the match is no longer being read");
+  await view.unmount();
+});
 
 test("a running turn collapses its tool calls behind the newest one", async () => {
   const messages = transcript(
@@ -2382,6 +2452,56 @@ test("the session panel's thread menu offers the hand-off its location allows, a
   await view.unmount();
 });
 
+test("the session panel's branch row moves the checkout onto the branch it is given", async () => {
+  window.desktop = fakeDesktop();
+  const calls = { menu: [], checkout: [] };
+  const panel = (openMenu) => React.createElement(SessionPanel, {
+    environment: { status: "available", files: [], branch: "main", additions: 0, deletions: 0 },
+    hasProject: true,
+    workspaceId: "workspace-a",
+    location: { kind: "local" },
+    runActive: false,
+    openMenu,
+    subagents: [],
+    backgroundProcesses: [], workflows: [],
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onSetOpenMenu: (menu) => { calls.menu.push(menu); },
+    onSetWorktree() {},
+    onCheckoutBranch: (branch, create) => { calls.checkout.push({ branch, create }); },
+  });
+
+  const view = await mount(panel(null));
+  const trigger = view.container.querySelector('button[aria-label="Branch"]');
+  assert.match(trigger.textContent, /main/, "the row says where the checkout already is");
+  assert.equal(view.container.querySelector('[role="listbox"]'), null, "no branch is read until the list is asked for");
+  await act(async () => { trigger.click(); });
+  assert.deepEqual(calls.menu, ["session:branch"]);
+
+  await view.render(panel("session:branch"));
+  const options = [...view.container.querySelectorAll('[role="option"]')];
+  assert.deepEqual(options.map((option) => option.textContent), ["main", "fix-loader", "feature-x"]);
+  await act(async () => { options.find((option) => option.textContent === "fix-loader").click(); });
+  assert.deepEqual(calls.checkout, [{ branch: "fix-loader", create: false }]);
+  assert.deepEqual(calls.menu, ["session:branch", null], "choosing one closes the list");
+
+  await view.render(panel("session:branch"));
+  const search = view.container.querySelector('input[aria-label="Search branches"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  await act(async () => {
+    setValue.call(search, "loader-fix");
+    search.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  const creating = [...view.container.querySelectorAll('[role="option"]')].find((option) => /Create branch/.test(option.textContent));
+  await act(async () => { creating.click(); });
+  assert.deepEqual(calls.checkout.at(-1), { branch: "loader-fix", create: true });
+
+  await view.render(React.createElement(SessionPanel, { ...panel(null).props, workspaceId: undefined, hasProject: false, environment: null }));
+  assert.equal(view.container.querySelector('button[aria-label="Branch"]').disabled, true, "with no checkout there is no branch to change");
+  await view.unmount();
+});
+
 test("the start options say where a thread begins, and searching narrows the branches", async () => {
   const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
@@ -2476,7 +2596,7 @@ test("a branch the repository does not have is offered as one to create", async 
 });
 
 test("a branch search keeps what the query names, and everything when it is empty", async () => {
-  const { matchBranches, newBranchName } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+  const { matchBranches, newBranchName } = await vite.ssrLoadModule("/src/renderer/components/BranchMenu.tsx");
   const branches = ["main", "fix-loader", "feature-x", "Fix-Encoding"];
 
   assert.deepEqual(matchBranches(branches, ""), branches);
