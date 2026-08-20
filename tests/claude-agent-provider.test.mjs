@@ -8,6 +8,7 @@ import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable }
 function input(overrides = {}) {
   return {
     channel: "main",
+    taskId: "task-1",
     prompt: "inspect the app",
     workspaceRoot: "/tmp/project",
     projectless: false,
@@ -39,6 +40,52 @@ function queryFactory(messages, capture = {}) {
         capture.closed = true;
       },
     };
+  };
+}
+
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+/** A session that stays open between turns, the way the CLI does in streaming input mode. */
+function liveQueryFactory(capture = {}) {
+  capture.opens = 0;
+  capture.sent = [];
+  return (options) => {
+    capture.options = options;
+    capture.opens += 1;
+    const pending = [];
+    let wake = null;
+    capture.emit = (message) => { pending.push(message); wake?.(); wake = null; };
+    void (async () => { for await (const message of options.prompt) capture.sent.push(message.message.content); })();
+    return {
+      async *[Symbol.asyncIterator]() {
+        for (;;) {
+          while (pending.length) yield pending.shift();
+          await new Promise((resolve) => { wake = resolve; });
+        }
+      },
+      interrupt: async () => { capture.interrupted = true; },
+      setModel: async (model) => { capture.model = model; },
+      setPermissionMode: async (mode) => { capture.mode = mode; },
+      applyFlagSettings: async (settings) => { capture.settings = settings; },
+      close() { capture.closed = true; },
+    };
+  };
+}
+
+/** Opens a live session and holds its turn, so the tool gate can be asked the way the CLI asks it. */
+async function liveTurn(overrides = {}) {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const running = provider.execute(input(overrides));
+  await tick();
+  return {
+    ...capture.options.options,
+    capture,
+    end: async () => {
+      capture.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
+      await running;
+      provider.closeAll();
+    },
   };
 }
 
@@ -265,27 +312,27 @@ test("Claude receives bundled computer-use MCP or the internal setup tool", asyn
     env: { CUA_DRIVER_EMBEDDED: "1" },
   });
 
-  const setupCapture = {};
-  await new ClaudeAgentProvider(queryFactory([], setupCapture)).execute(input({ computerUse: { status: "setup-required" } }));
-  assert.equal(setupCapture.options.options.mcpServers["claudex-computer-use"].type, "sdk");
-  assert.equal((await setupCapture.options.options.canUseTool("mcp__claudex-computer-use__request_setup", {}, { toolUseID: "setup-1" })).behavior, "allow");
-  assert.match(setupCapture.options.options.systemPrompt.append, /Observe the exact target before every action/);
-  assert.match(setupCapture.options.options.systemPrompt.append, /Never invoke a separately installed cua-driver through Bash/);
+  const setup = await liveTurn({ computerUse: { status: "setup-required" } });
+  assert.equal(setup.mcpServers["claudex-computer-use"].type, "sdk");
+  assert.equal((await setup.canUseTool("mcp__claudex-computer-use__request_setup", {}, { toolUseID: "setup-1" })).behavior, "allow");
+  assert.match(setup.systemPrompt.append, /Observe the exact target before every action/);
+  assert.match(setup.systemPrompt.append, /Never invoke a separately installed cua-driver through Bash/);
+  await setup.end();
 });
 
 test("autonomous runs allow bundled computer use without bypassing other tool approvals", async () => {
-  const capture = {};
   const authorized = [];
-  await new ClaudeAgentProvider(queryFactory([], capture)).execute(input({
+  const live = await liveTurn({
     policy: "autonomous",
     computerUse: { status: "available", mcp: { command: "/app/cua-driver", args: [], env: {} } },
     authorize: async (intent) => { authorized.push(intent.name); return "allow"; },
-  }));
+  });
 
-  assert.equal((await capture.options.options.canUseTool("mcp__cua-driver__click", {}, { toolUseID: "cua-1" })).behavior, "allow");
+  assert.equal((await live.canUseTool("mcp__cua-driver__click", {}, { toolUseID: "cua-1" })).behavior, "allow");
   assert.deepEqual(authorized, []);
-  assert.equal((await capture.options.options.canUseTool("Bash", {}, { toolUseID: "bash-1" })).behavior, "allow");
+  assert.equal((await live.canUseTool("Bash", {}, { toolUseID: "bash-1" })).behavior, "allow");
   assert.deepEqual(authorized, ["Bash"]);
+  await live.end();
 });
 
 test("Claude messages translate to provider events and normalized tool intents", async () => {
@@ -324,13 +371,16 @@ test("Claude messages translate to provider events and normalized tool intents",
   ]);
 
   const intents = [];
-  const allow = await capture.options.options.canUseTool("NotebookEdit", { notebook_path: "/tmp/project/a.ipynb" }, { toolUseID: "tool-1" });
-  const denyProvider = new ClaudeAgentProvider(queryFactory([], capture));
-  await denyProvider.execute(input({ authorize: async (intent) => { intents.push(intent); return "deny"; } }));
-  const deny = await capture.options.options.canUseTool("Bash", { command: "pwd" }, { toolUseID: "tool-2" });
+  const live = await liveTurn({ authorize: async (intent) => { intents.push(intent); return intent.name === "NotebookEdit" ? "allow" : "deny"; } });
+  const allow = await live.canUseTool("NotebookEdit", { notebook_path: "/tmp/project/a.ipynb" }, { toolUseID: "tool-1" });
+  const deny = await live.canUseTool("Bash", { command: "pwd" }, { toolUseID: "tool-2" });
   assert.equal(allow.behavior, "allow");
   assert.equal(deny.behavior, "deny");
-  assert.deepEqual(intents, [{ toolId: "tool-2", name: "Bash", input: { command: "pwd" } }]);
+  assert.deepEqual(intents, [
+    { toolId: "tool-1", name: "NotebookEdit", input: { notebook_path: "/tmp/project/a.ipynb" }, writePath: "/tmp/project/a.ipynb" },
+    { toolId: "tool-2", name: "Bash", input: { command: "pwd" } },
+  ]);
+  await live.end();
 });
 
 test("a skill invocation is named after the skill it runs", async () => {
@@ -356,20 +406,18 @@ test("a skill invocation is named after the skill it runs", async () => {
 });
 
 test("automation tools bypass approval so a scheduled run can stop itself unattended", async () => {
-  const capture = {};
   const asked = [];
-  const provider = new ClaudeAgentProvider(queryFactory([], capture));
-  await provider.execute(input({
+  const { canUseTool, end } = await liveTurn({
     automations: { read: async () => null, list: async () => [], save: async () => ({}), update: async () => ({}), remove: async () => true },
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
-  }));
+  });
 
-  const { canUseTool } = capture.options.options;
   for (const name of ["mcp__claudex-automation__schedule", "mcp__claudex-automation__stop", "mcp__claudex-automation__status"]) {
     assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "allow", name);
   }
   assert.equal((await canUseTool("Bash", { command: "pwd" }, { toolUseID: "bash-1" })).behavior, "deny");
   assert.deepEqual(asked, ["Bash"], "no automation tool ever waited on a human");
+  await end();
 });
 
 test("Claude failures, exceptions, and aborts close the query", async () => {
@@ -429,19 +477,74 @@ test("a run ends on its turn's result even though its input stream stays open", 
   const provider = new ClaudeAgentProvider(streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }], capture));
 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
+});
+
+async function turn(capture, promise, ...messages) {
+  await tick();
+  for (const message of messages) capture.emit(message);
+  capture.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
+  return promise;
+}
+
+test("a second turn keeps the session the first one warmed, and takes its settings as changes", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+
+  const first = await turn(capture, provider.execute(input()), { type: "system", subtype: "init", session_id: "session-1" });
+  assert.deepEqual(first, { status: "succeeded" });
+  assert.equal(capture.opens, 1);
+
+  const continuation = { provider: "claude", value: "session-1" };
+  const second = await turn(capture, provider.execute(input({ continuation, model: "sonnet", effort: "low", policy: "autonomous", prompt: "and again" })));
+  assert.deepEqual(second, { status: "succeeded" });
+  assert.equal(capture.opens, 1, "the warm session answers the second turn, so nothing is spawned or resumed");
+  assert.deepEqual(capture.sent, ["inspect the app", "and again"]);
+  assert.deepEqual([capture.model, capture.settings, capture.mode], ["sonnet", { effortLevel: "low" }, "auto"]);
+
+  provider.closeAll();
   assert.equal(capture.closed, true);
 });
 
-test("reading other threads needs no approval, but starting or stopping one does", async () => {
+test("a session is only reused for the thread and the conversation it belongs to", async () => {
   const capture = {};
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const continuation = { provider: "claude", value: "session-1" };
+  await turn(capture, provider.execute(input()), { type: "system", subtype: "init", session_id: "session-1" });
+
+  for (const [reason, overrides] of [
+    ["another thread", { taskId: "task-2", continuation }],
+    ["a fork of the same session", { continuation, forkContinuation: true }],
+    ["a different session", { continuation: { provider: "claude", value: "session-9" } }],
+    ["a different checkout", { continuation, workspaceRoot: "/tmp/worktree" }],
+  ]) {
+    const opens = capture.opens;
+    await turn(capture, provider.execute(input(overrides)), { type: "system", subtype: "init", session_id: "session-1" });
+    assert.equal(capture.opens, opens + 1, reason);
+  }
+  provider.closeAll();
+});
+
+test("cancelling a turn interrupts it and leaves the session alive", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const abortController = new AbortController();
+  const running = provider.execute(input({ abortController }));
+
+  await tick();
+  abortController.abort();
+  capture.emit({ type: "result", subtype: "success", is_error: false, result: "stopped" });
+  assert.deepEqual(await running, { status: "cancelled" });
+  assert.equal(capture.interrupted, true);
+  assert.equal(capture.closed, undefined, "an interrupted turn does not take the session's processes with it");
+  provider.closeAll();
+});
+
+test("reading other threads needs no approval, but starting or stopping one does", async () => {
   const asked = [];
-  const provider = new ClaudeAgentProvider(queryFactory([], capture));
-  await provider.execute(input({
+  const { canUseTool, mcpServers, systemPrompt, end } = await liveTurn({
     threads: { list: async () => [], read: async () => ({}), wait: async () => ({}), command: async () => ({ thread: null }) },
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
-  }));
-
-  const { canUseTool, mcpServers, systemPrompt } = capture.options.options;
+  });
   assert.equal(mcpServers["claudex-threads"].type, "sdk");
   assert.match(systemPrompt.append, /the claudex-threads tools are the only way to reach them/);
   for (const name of ["mcp__claudex-threads__list_threads", "mcp__claudex-threads__read_thread", "mcp__claudex-threads__wait_for_thread"]) {
@@ -451,6 +554,7 @@ test("reading other threads needs no approval, but starting or stopping one does
     assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "deny", name);
   }
   assert.deepEqual(asked, ["mcp__claudex-threads__start_thread", "mcp__claudex-threads__archive_thread", "mcp__claudex-threads__stop_thread"]);
+  await end();
 });
 
 test("a run with no workspace bridge is offered no thread tools", async () => {

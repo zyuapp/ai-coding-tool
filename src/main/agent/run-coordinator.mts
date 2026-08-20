@@ -107,6 +107,7 @@ export class RunCoordinator {
     try {
       const result = await this.provider.execute({
         channel: command.channel,
+        taskId: command.taskId,
         prompt: command.prompt,
         workspaceRoot: active.workspaceRoot,
         projectless: active.projectless,

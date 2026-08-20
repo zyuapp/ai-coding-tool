@@ -22,10 +22,16 @@ const coordinatorOptions = {
   browser: (taskId: string) => threads.browserFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };
+const providers = { main: new ClaudeAgentProvider(), side: new ClaudeAgentProvider() };
 const coordinators = {
-  main: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), coordinatorOptions),
-  side: new RunCoordinator(new ClaudeAgentProvider(), (event) => parentPort.postMessage(event), coordinatorOptions),
+  main: new RunCoordinator(providers.main, (event) => parentPort.postMessage(event), coordinatorOptions),
+  side: new RunCoordinator(providers.side, (event) => parentPort.postMessage(event), coordinatorOptions),
 };
+
+/** Sessions outlive the runs that used them, so leaving takes them down explicitly. */
+for (const signal of ["exit", "SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => { for (const provider of Object.values(providers)) provider.closeAll(); });
+}
 
 parentPort.on("message", ({ data }) => {
   if (isAutomationResponse(data)) {

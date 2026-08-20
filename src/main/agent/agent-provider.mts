@@ -66,6 +66,8 @@ export type RunControls = {
 
 export type ProviderRunInput = {
   channel: RunChannel;
+  /** Which thread is asking, which is what a warm session belongs to. */
+  taskId: string;
   prompt: string;
   workspaceRoot: string;
   projectless: boolean;
