@@ -202,6 +202,35 @@ test("reported context usage tracks the widest window the chosen model offers", 
   }
 });
 
+test("a synthetic reply leaves the reported context usage alone", async () => {
+  const emitted = [];
+  const provider = new ClaudeAgentProvider(queryFactory([
+    {
+      type: "assistant",
+      uuid: crypto.randomUUID(),
+      parent_tool_use_id: null,
+      message: { id: "api-message", model: "claude-sonnet", usage: { input_tokens: 40_000 }, content: [] },
+    },
+    {
+      type: "assistant",
+      uuid: crypto.randomUUID(),
+      parent_tool_use_id: null,
+      message: {
+        id: "synthetic-message",
+        model: "<synthetic>",
+        usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+        content: [{ type: "text", text: "6 MCP server(s): 2 connected." }],
+      },
+    },
+  ]));
+  await provider.execute(input({ emit: (event) => emitted.push(event) }));
+
+  assert.deepEqual(emitted.filter((event) => event.type === "usage"), [
+    { type: "usage", tokens: 40_000, limit: 1_000_000, model: "claude-sonnet" },
+  ]);
+  assert.ok(emitted.some((event) => event.type === "assistant" && event.text === "6 MCP server(s): 2 connected."));
+});
+
 test("Claude keeps complex Markdown fences intact across adversarial chunk boundaries", async () => {
   const cases = [
     {

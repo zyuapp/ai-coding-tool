@@ -18,6 +18,9 @@ const readOnlyThreadTools = new Set([`${threadToolPrefix}list_threads`, `${threa
 const browserToolPrefix = `mcp__${BROWSER_SERVER_NAME}__`;
 const readOnlyBrowserTools = new Set([`${browserToolPrefix}browser_read`, `${browserToolPrefix}browser_tabs`]);
 
+/** The model the CLI stamps on replies it produced itself: slash commands, interrupts, error notices. */
+const SYNTHETIC_MODEL = "<synthetic>";
+
 /** How long an interrupted turn has to come back with a result before the session is given up on. */
 const INTERRUPT_GRACE_MS = 10_000;
 
@@ -381,13 +384,16 @@ export class ClaudeSession {
           input.emit({ type: "tool", intent: normalizeToolIntent(block.name, block.input, block.id) });
         }
       }
-      const usage = message.message.usage;
-      input.emit({
-        type: "usage",
-        tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-        limit: contextWindowLimit(input.model),
-        model: message.message.model,
-      });
+      /** A synthetic reply costs no context and counts none, so reporting it would blank the meter. */
+      if (message.message.model !== SYNTHETIC_MODEL) {
+        const usage = message.message.usage;
+        input.emit({
+          type: "usage",
+          tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+          limit: contextWindowLimit(input.model),
+          model: message.message.model,
+        });
+      }
     } else if (message.type === "result") {
       /** The open input stream keeps the session alive, so the turn's result is what ends the run. */
       if (message.subtype !== "success" || message.is_error) {
