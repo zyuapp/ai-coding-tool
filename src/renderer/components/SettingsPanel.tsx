@@ -1,10 +1,14 @@
-import { Archive, ArrowLeft, Check, Gauge, Globe, MonitorCog } from "lucide-react";
+import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
+import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import { UsageSettings } from "./UsageSettings";
 
-type SettingsSection = "computer-use" | "usage" | "browser" | "archive";
+type SettingsSection = "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
+
+/** macOS writes its modifiers as symbols; everywhere else spells them out. */
+const MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform || navigator.userAgent);
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -17,12 +21,30 @@ export type SettingsPanelProps = {
   archivedTasks: Task[];
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
+  shortcuts: ShortcutSetting[];
+  /** The action waiting for a keystroke, while the window hands every one of them over. */
+  capturingShortcut: string | null;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
   onClearBrowserData: () => void;
+  onCaptureShortcut: (action: string | null) => void;
+  onSetShortcut: (action: string, binding: string | null) => void;
+  onResetShortcuts: () => void;
 };
 
-export function SettingsPanel({ onClose, archivedTasks, allowedOrigins, onRestoreTask, onClearArchive, onClearBrowserData }: SettingsPanelProps) {
+export function SettingsPanel({
+  onClose,
+  archivedTasks,
+  allowedOrigins,
+  shortcuts,
+  capturingShortcut,
+  onRestoreTask,
+  onClearArchive,
+  onClearBrowserData,
+  onCaptureShortcut,
+  onSetShortcut,
+  onResetShortcuts,
+}: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("computer-use");
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
@@ -88,6 +110,10 @@ export function SettingsPanel({ onClose, archivedTasks, allowedOrigins, onRestor
             <Gauge size={17} aria-hidden="true" />
             <span>Usage</span>
           </button>
+          <button className={section === "shortcuts" ? "active" : ""} type="button" aria-current={section === "shortcuts" ? "page" : undefined} onClick={() => setSection("shortcuts")}>
+            <Keyboard size={17} aria-hidden="true" />
+            <span>Shortcuts</span>
+          </button>
           <button className={section === "browser" ? "active" : ""} type="button" aria-current={section === "browser" ? "page" : undefined} onClick={() => setSection("browser")}>
             <Globe size={17} aria-hidden="true" />
             <span>Browser</span>
@@ -107,6 +133,54 @@ export function SettingsPanel({ onClose, archivedTasks, allowedOrigins, onRestor
         </div>
 
         <UsageSettings />
+      </main>
+      )}
+
+      {section === "shortcuts" && (
+      <main className="settings-main">
+        <div className="settings-page-heading">
+          <h2>Shortcuts</h2>
+          <p>Every shortcut works wherever you are, including inside a page the browser panel is showing.</p>
+        </div>
+
+        {[...new Set(shortcuts.map((shortcut) => shortcut.group))].map((group, index) => (
+          <section className="settings-group" key={group} aria-label={group}>
+            <div className="settings-group-heading">
+              <div><h3>{group}</h3></div>
+              {index === 0 && (
+                <div className="settings-group-action">
+                  <button type="button" disabled={shortcuts.every((shortcut) => !shortcut.changed)} onClick={onResetShortcuts}>Restore defaults</button>
+                </div>
+              )}
+            </div>
+
+            {shortcuts.filter((shortcut) => shortcut.group === group).map((shortcut) => (
+              <div className="setting-row shortcut-row" key={shortcut.id}>
+                <span className="setting-status blank" aria-hidden="true" />
+                <div>
+                  <strong>{shortcut.label}</strong>
+                  <p>{shortcut.description}</p>
+                </div>
+                <div className="setting-row-action">
+                  {capturingShortcut === shortcut.id
+                    ? <>
+                        <em className="shortcut-capture">Press a keystroke…</em>
+                        <button type="button" onClick={() => onCaptureShortcut(null)}>Cancel</button>
+                      </>
+                    : <>
+                        {shortcut.binding
+                          ? <kbd>{displayShortcut(shortcut.binding, MAC)}</kbd>
+                          : <em>Not set</em>}
+                        <button type="button" onClick={() => onCaptureShortcut(shortcut.id)}>Change</button>
+                        {shortcut.changed
+                          ? <button type="button" onClick={() => onSetShortcut(shortcut.id, shortcut.defaultBinding)}>Reset</button>
+                          : <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>}
+                      </>}
+                </div>
+              </div>
+            ))}
+          </section>
+        ))}
       </main>
       )}
 

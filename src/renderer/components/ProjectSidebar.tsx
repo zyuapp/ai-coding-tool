@@ -38,7 +38,7 @@ function FolderIcon() {
 }
 
 export type ProjectSidebarProps = {
-  compactOpen: boolean;
+  open: boolean;
   inactive: boolean;
   projects: Project[];
   orderedTasks: Task[];
@@ -72,7 +72,7 @@ export type ProjectSidebarProps = {
 };
 
 export function ProjectSidebar({
-  compactOpen,
+  open,
   inactive,
   projects,
   orderedTasks,
@@ -233,7 +233,7 @@ export function ProjectSidebar({
 
   return (
     <DragDropContext onBeforeCapture={() => setDragging(true)} onDragEnd={finishDrag}>
-    <aside className={`sidebar ${compactOpen ? "compact-open" : ""}`} inert={inactive}>
+    <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive}>
       <div className="traffic-space">
         <div className="thread-nav">
           <button className="thread-nav-button" type="button" aria-label="Go back" disabled={!canGoBack} onClick={onGoBack}>

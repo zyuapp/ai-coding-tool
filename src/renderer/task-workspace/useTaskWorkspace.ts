@@ -271,6 +271,14 @@ export function useTaskWorkspace() {
       case "close-window":
         window.desktop.closeWindow();
         return;
+
+      case "apply-shortcuts":
+        window.desktop.setShortcuts(effect.overrides);
+        return;
+
+      case "capture-shortcut":
+        window.desktop.setShortcutCapture(effect.capturing);
+        return;
     }
   }
 
@@ -450,7 +458,14 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
-    return window.desktop.onCloseTab(() => void dispatchRef.current({ type: "view.close-tab" }));
+    /** Preferences are read before the first render, so the bindings they hold reach main from here. */
+    window.desktop.setShortcuts(stateRef.current.shortcuts);
+    const stopListening = window.desktop.onShortcut(({ action, surface }) => void dispatchRef.current({ type: "view.shortcut", action, surface }));
+    const stopCapturing = window.desktop.onShortcutCaptured((binding) => void dispatchRef.current({ type: "shortcut.captured", binding }));
+    return () => {
+      stopListening();
+      stopCapturing();
+    };
   }, []);
 
   useEffect(() => {
@@ -494,6 +509,10 @@ export function useTaskWorkspace() {
       setProjectsOpen: (open: boolean) => dispatch({ type: "view.set-projects-open", open }),
       setRecentsOpen: (open: boolean) => dispatch({ type: "view.set-recents-open", open }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
+      setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
+      setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),
+      resetShortcuts: () => dispatch({ type: "view.reset-shortcuts" }),
+      captureShortcut: (action: string | null) => dispatch({ type: "view.capture-shortcut", action }),
       inspectSubagent: (subagentId: string) => dispatch({ type: "view.inspect-subagent", subagentId }),
       setOpenMenu: (menu: string | null) => dispatch({ type: "view.set-menu", menu }),
       goBack: () => dispatch({ type: "view.go-back" }),

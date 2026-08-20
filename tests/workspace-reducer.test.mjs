@@ -333,18 +333,22 @@ test("closing a side chat cancels its run, and leaving the thread leaves the cha
   assert.deepEqual(deriveView(reduce(switched.state, { type: "task.select", taskId: "main-task" }).state).sideChats.map((chat) => chat.id), ["chat-1"]);
 });
 
-test("the session panel choice is persisted and survives the store loading", () => {
-  const restored = run(workspace(), [{ type: "preferences.loaded", preferences: { sessionPanelOpen: true } }]);
+test("the panel and sidebar choices are persisted and survive the store loading", () => {
+  const restored = run(workspace(), [{ type: "preferences.loaded", preferences: { sessionPanelOpen: true, sidebarOpen: false } }]);
   assert.equal(restored.sessionPanelOpen, true);
+  assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false, sidebarOpen: false, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
+  assert.deepEqual(reduce(closed.state, { type: "view.set-sidebar-open", open: false }).effects, [], "and so does an unchanged sidebar");
+  assert.equal(reduce(closed.state, { type: "view.set-sidebar-open", open: true }).state.sidebarOpen, true);
 
   const loaded = reduce(restored, { type: "store.loaded", data: { tasks: [], projects: [], lastFolder: null } });
   assert.equal(loaded.state.sessionPanelOpen, true);
+  assert.equal(loaded.state.sidebarOpen, false);
 });
 
 /** A task mid-run, which is the only state in which a message can be queued or steered. */

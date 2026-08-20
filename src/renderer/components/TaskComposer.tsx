@@ -81,6 +81,8 @@ export type TaskComposerProps = {
   contextUsage?: ContextUsage;
   runActive: boolean;
   queuedMessages: QueuedMessage[];
+  /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
+  focusToken?: number;
   onPromptChange: (prompt: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
@@ -104,6 +106,7 @@ export function TaskComposer({
   contextUsage,
   runActive,
   queuedMessages,
+  focusToken = 0,
   onPromptChange,
   onModeChange,
   onModelChange,
@@ -225,6 +228,10 @@ export function TaskComposer({
   }, []);
 
   useEffect(() => setSelectedCommand(0), [prompt, commands]);
+
+  useEffect(() => {
+    if (focusToken) textareaRef.current?.focus();
+  }, [focusToken]);
 
   useLayoutEffect(() => {
     if (pendingCaret === null) return;

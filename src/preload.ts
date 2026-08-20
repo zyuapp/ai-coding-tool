@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AutomationAck, AutomationFire, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
+import type { AutomationAck, AutomationFire, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
+import type { ShortcutOverrides } from "./domain/shortcuts";
 import type { TerminalUpdate } from "./domain/terminal";
 import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
@@ -83,10 +84,17 @@ const api: DesktopAPI = {
     ipcRenderer.on("terminal:event", handler);
     return () => ipcRenderer.removeListener("terminal:event", handler);
   },
-  onCloseTab: (listener: () => void) => {
-    const handler = () => listener();
-    ipcRenderer.on("window:close-tab", handler);
-    return () => ipcRenderer.removeListener("window:close-tab", handler);
+  setShortcuts: (overrides: ShortcutOverrides) => ipcRenderer.send("shortcuts:set", overrides),
+  setShortcutCapture: (capturing: boolean) => ipcRenderer.send("shortcuts:capture", capturing),
+  onShortcut: (listener: (invocation: ShortcutInvocation) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: ShortcutInvocation) => listener(payload);
+    ipcRenderer.on("window:shortcut", handler);
+    return () => ipcRenderer.removeListener("window:shortcut", handler);
+  },
+  onShortcutCaptured: (listener: (binding: string | null) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: string | null) => listener(payload);
+    ipcRenderer.on("window:shortcut-captured", handler);
+    return () => ipcRenderer.removeListener("window:shortcut-captured", handler);
   },
   closeWindow: () => ipcRenderer.send("window:close"),
 };

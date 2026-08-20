@@ -4,6 +4,7 @@ import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
+import { shortcutSettings, type ShortcutOverrides } from "../domain/shortcuts.js";
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
@@ -116,8 +117,14 @@ export type WorkspaceState = {
   expandedProjects: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
+  sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   settingsOpen: boolean;
+  /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
+  shortcuts: ShortcutOverrides;
+  capturingShortcut: string | null;
+  /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
+  composerFocus: number;
   /** One dock per thread, keyed by thread id, so moving between threads leaves each one as it was. */
   docks: Record<string, ThreadDock>;
   /** The origins a run may reach without asking. Visiting a site adds it. */
@@ -158,8 +165,12 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     expandedProjects: new Set(),
     projectsOpen: true,
     recentsOpen: true,
+    sidebarOpen: true,
     sessionPanelOpen: false,
     settingsOpen: false,
+    shortcuts: {},
+    capturingShortcut: null,
+    composerFocus: 0,
     docks: {},
     browserOrigins: [],
     browserApproval: null,
@@ -219,6 +230,8 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
   }
   return {
     sessionPanelOpen: state.sessionPanelOpen,
+    sidebarOpen: state.sidebarOpen,
+    shortcuts: state.shortcuts,
     browserTabs,
     browserOrigins: state.browserOrigins,
   };
@@ -433,7 +446,11 @@ export function deriveView(state: WorkspaceState) {
     expandedProjects: state.expandedProjects,
     projectsOpen: state.projectsOpen,
     recentsOpen: state.recentsOpen,
+    sidebarOpen: state.sidebarOpen,
     sessionPanelOpen: state.sessionPanelOpen,
+    shortcuts: shortcutSettings(state.shortcuts),
+    capturingShortcut: state.capturingShortcut,
+    composerFocus: state.composerFocus,
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
     dockOpen: dock.open,

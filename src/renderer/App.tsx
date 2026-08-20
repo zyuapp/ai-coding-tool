@@ -44,9 +44,9 @@ const ADD_TAB_MENU = "dock-add";
 export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
+  const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const rightDockOpen = workspace.dockOpen;
@@ -78,7 +78,6 @@ export function App() {
   }
 
   function openSettings() {
-    setSidebarOpen(false);
     void workspace.actions.setSettingsOpen(true);
   }
 
@@ -121,9 +120,6 @@ export function App() {
     }
     function handleKeys(event: KeyboardEvent) {
       if (event.key === "Escape") workspace.actions.setOpenMenu(null);
-      if (!event.metaKey || event.ctrlKey || event.altKey || (event.key !== "[" && event.key !== "]")) return;
-      event.preventDefault();
-      void (event.key === "[" ? workspace.actions.goBack() : workspace.actions.goForward());
     }
     document.addEventListener("pointerdown", dismissMenu);
     document.addEventListener("keydown", handleKeys);
@@ -207,7 +203,7 @@ export function App() {
   return (
     <main className="app-shell">
       <ProjectSidebar
-        compactOpen={sidebarOpen}
+        open={sidebarOpen}
         inactive={settingsVisible}
         projects={workspace.projects}
         orderedTasks={workspace.orderedTasks}
@@ -239,7 +235,7 @@ export function App() {
         onMoveTask={workspace.actions.moveTask}
         onOpenSettings={openSettings}
       />
-      {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => setSidebarOpen(false)} />}
+      {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
       <section className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`} inert={settingsVisible}>
         <WorkspaceHeader
@@ -249,7 +245,7 @@ export function App() {
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);
             void workspace.actions.setSessionPanelOpen(!sessionPanelVisible);
@@ -439,6 +435,7 @@ export function App() {
         </aside>
 
         <TaskComposer
+          focusToken={workspace.composerFocus}
           prompt={workspace.prompt}
           folder={workspace.folder}
           workspaceId={workspace.currentProject?.workspaceId}
@@ -464,9 +461,14 @@ export function App() {
           onClose={closeSettings}
           archivedTasks={workspace.archivedTasks}
           allowedOrigins={workspace.browserOrigins}
+          shortcuts={workspace.shortcuts}
+          capturingShortcut={workspace.capturingShortcut}
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}
+          onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
+          onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
+          onResetShortcuts={() => void workspace.actions.resetShortcuts()}
         />
       )}
     </main>

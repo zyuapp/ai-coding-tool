@@ -74,24 +74,46 @@ test("thread requests are relayed to the window and only its answers reach the a
   assert.deepEqual(answered.map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
 });
 
-test("⌘W is taken from the window's menu and handed to whatever is in front", async (t) => {
+test("a bound keystroke is taken from the window's menu and handed to whatever is in front", async (t) => {
   const { window, listeners, trusted, untrusted } = await startMainProcess(t, "claudex-close-");
 
   const beforeInput = window.webContents.listeners.get("before-input-event");
-  const press = (input) => {
+  /** Whichever key the platform calls its own: ⌘ on macOS, Ctrl everywhere else. */
+  const mod = (held) => process.platform === "darwin" ? { meta: held, control: false } : { control: held, meta: false };
+  const press = (code, { held = true, shift = false, type = "keyDown" } = {}) => {
     let prevented = false;
-    beforeInput({ preventDefault: () => { prevented = true; } }, { type: "keyDown", key: "w", meta: true, control: false, alt: false, shift: false, ...input });
+    beforeInput({ preventDefault: () => { prevented = true; } }, { type, key: code.slice(-1).toLowerCase(), code, alt: false, shift, ...mod(held) });
     return prevented;
   };
+  const shortcuts = () => window.webContents.sent.filter((message) => message.channel === "window:shortcut").map(({ event }) => event);
+  const captured = () => window.webContents.sent.filter((message) => message.channel === "window:shortcut-captured").map(({ event }) => event);
 
-  assert.equal(press({}), true, "the window must not act on ⌘W before the app has");
-  assert.equal(window.webContents.sent.filter((message) => message.channel === "window:close-tab").length, 1);
+  assert.equal(press("KeyW"), true, "the window must not act on the close keystroke before the app has");
+  assert.deepEqual(shortcuts(), [{ action: "tab.close", surface: "any" }]);
 
-  assert.equal(press({ shift: true }), false, "⇧⌘W stays the window's own");
-  assert.equal(press({ key: "t" }), false);
-  assert.equal(press({ meta: false }), false);
-  assert.equal(press({ type: "keyUp" }), false);
-  assert.equal(window.webContents.sent.filter((message) => message.channel === "window:close-tab").length, 1);
+  assert.equal(press("KeyW", { shift: true }), false, "adding a modifier makes it somebody else's keystroke");
+  assert.equal(press("KeyY"), false, "an unbound keystroke is nobody's");
+  assert.equal(press("KeyW", { held: false }), false);
+  assert.equal(press("KeyW", { type: "keyUp" }), false);
+  assert.equal(shortcuts().length, 1);
+
+  assert.equal(press("KeyR"), false, "reloading belongs to a page in the panel, not to the window");
+
+  listeners.get("shortcuts:set")(untrusted, { "tab.close": "Mod+E" });
+  assert.equal(press("KeyW"), true, "an untrusted sender cannot rebind anything");
+  listeners.get("shortcuts:set")(trusted, { "tab.close": "Mod+E" });
+  assert.equal(press("KeyW"), false, "the keystroke it used to hold is free again");
+  assert.equal(press("KeyE"), true);
+  assert.deepEqual(shortcuts().at(-1), { action: "tab.close", surface: "any" });
+
+  listeners.get("shortcuts:capture")(trusted, true);
+  const acted = shortcuts().length;
+  assert.equal(press("KeyJ", { shift: true }), true, "while capturing, a keystroke is reported rather than acted on");
+  assert.equal(press("KeyJ", { held: false }), false, "a keystroke with no modifier is left to whatever has the keys");
+  assert.equal(press("Escape", { held: false }), true);
+  assert.deepEqual(captured(), ["Mod+Shift+J", null]);
+  assert.equal(shortcuts().length, acted, "nothing fired while settings were listening");
+  listeners.get("shortcuts:capture")(trusted, false);
 
   let closed = 0;
   window.close = () => { closed += 1; };

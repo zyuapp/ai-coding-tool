@@ -412,7 +412,8 @@ function fakeDesktop(overrides = {}) {
   const terminalCalls = [];
   let browserEvent;
   let terminalEvent;
-  let closeTabShortcut;
+  let shortcutPressed;
+  let shortcutCaptured;
   let listener;
   let automationsChanged;
   let fireAutomation;
@@ -463,7 +464,10 @@ function fakeDesktop(overrides = {}) {
     answerThreadRequest: (response) => threadAnswers.push(response),
     browserCalls,
     get browserEvent() { return browserEvent; },
-    get closeTabShortcut() { return closeTabShortcut; },
+    shortcuts: [],
+    captures: [],
+    pressShortcut: (action, surface = "any") => shortcutPressed({ action, surface }),
+    captureShortcut: (binding) => shortcutCaptured(binding),
     openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
     navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
     browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },
@@ -490,7 +494,10 @@ function fakeDesktop(overrides = {}) {
     },
     onTerminalData: () => () => {},
     onTerminalEvent: (next) => { terminalEvent = next; return () => {}; },
-    onCloseTab: (next) => { closeTabShortcut = next; return () => {}; },
+    setShortcuts(overrides) { this.shortcuts.push(overrides); },
+    setShortcutCapture(capturing) { this.captures.push(capturing); },
+    onShortcut: (next) => { shortcutPressed = next; return () => {}; },
+    onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
     closeWindow: () => { browserCalls.push(["close-window"]); },
     ...overrides,
   };
@@ -511,7 +518,7 @@ test("computer-use settings refresh permissions", async () => {
     ][checks++],
     restartForComputerUse: () => { restarted = true; },
   });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   assert.match(view.container.textContent, /Accessibility/);
   assert.match(view.container.textContent, /Setup required/);
@@ -543,7 +550,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
   };
   let answer = windows;
   window.desktop = fakeDesktop({ planUsage: async () => answer });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.textContent, /Max plan/);
@@ -565,7 +572,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
 
 test("a usage read that rejects reports instead of breaking the panel", async () => {
   window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.querySelector(".settings-error").textContent, /Untrusted IPC sender/);
@@ -2631,6 +2638,42 @@ test("a run reads the page through the window and is told when a site is waiting
   await harness.view.unmount();
 });
 
+test("settings rebind a shortcut, and the window is told what to match", async () => {
+  seedTaskWithSubagent();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  assert.deepEqual(desktop.shortcuts, [{}], "the window starts out matching the defaults");
+
+  await act(async () => { view.container.querySelector(".sidebar-settings").click(); });
+  await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Shortcuts").click(); });
+  const row = (label) => [...view.container.querySelectorAll(".shortcut-row")].find((element) => element.querySelector("strong").textContent === label);
+  /** jsdom is no Mac, so the panel spells its modifiers out rather than drawing them. */
+  assert.equal(row("New thread").querySelector("kbd").textContent, "Ctrl+N");
+
+  await act(async () => { [...row("New thread").querySelectorAll("button")].find((button) => button.textContent === "Change").click(); });
+  assert.match(row("New thread").textContent, /Press a keystroke…/);
+  assert.deepEqual(desktop.captures, [true]);
+
+  await act(async () => { desktop.captureShortcut("Mod+Shift+K"); });
+  assert.equal(row("New thread").querySelector("kbd").textContent, "Ctrl+Shift+K");
+  assert.deepEqual(desktop.captures, [true, false], "the window goes back to acting on keystrokes");
+  assert.deepEqual(desktop.shortcuts.at(-1), { "thread.new": "Mod+Shift+K" });
+
+  /** Taking a keystroke that another action holds leaves that action with none. */
+  await act(async () => { [...row("New tab").querySelectorAll("button")].find((button) => button.textContent === "Change").click(); });
+  await act(async () => { desktop.captureShortcut("Mod+W"); });
+  assert.equal(row("New tab").querySelector("kbd").textContent, "Ctrl+W");
+  assert.match(row("Close").textContent, /Not set/);
+  assert.deepEqual(desktop.shortcuts.at(-1), { "thread.new": "Mod+Shift+K", "tab.new": "Mod+W", "tab.close": null });
+
+  await act(async () => { view.container.querySelector(".settings-group-action button").click(); });
+  assert.equal(row("New thread").querySelector("kbd").textContent, "Ctrl+N");
+  assert.deepEqual(desktop.shortcuts.at(-1), {});
+
+  await view.unmount();
+});
+
 test("⌘W closes the page in front, then the dock, and only then the window", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();
@@ -2648,15 +2691,15 @@ test("⌘W closes the page in front, then the dock, and only then the window", a
   await act(async () => { address.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
   assert.equal(view.container.querySelectorAll(".right-dock-tab").length, 1);
 
-  await act(async () => { window.desktop.closeTabShortcut(); });
+  await act(async () => { window.desktop.pressShortcut("tab.close"); });
   assert.equal(view.container.querySelectorAll(".right-dock-tab").length, 0, "the page is the tab, so it goes first");
   assert.equal(view.container.querySelector(".browser-panel"), null);
 
-  await act(async () => { window.desktop.closeTabShortcut(); });
+  await act(async () => { window.desktop.pressShortcut("tab.close"); });
   assert.equal(view.container.querySelector(".right-dock").hidden, true, "then the dock");
 
   assert.deepEqual(window.desktop.browserCalls.filter(([name]) => name === "close-window"), []);
-  await act(async () => { window.desktop.closeTabShortcut(); });
+  await act(async () => { window.desktop.pressShortcut("tab.close"); });
   assert.deepEqual(window.desktop.browserCalls.filter(([name]) => name === "close-window"), [["close-window"]], "with nothing in front, ⌘W is the window's");
 
   await view.unmount();

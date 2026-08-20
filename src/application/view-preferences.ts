@@ -1,5 +1,6 @@
 import type { KeyValueStorage } from "./task-store.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
+import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 
 export const VIEW_PREFERENCES_KEY = "claudex.view-preferences.v1";
 
@@ -21,6 +22,18 @@ function urlsByThread(value: unknown): Record<string, string[]> | undefined {
   return threads;
 }
 
+/** A binding the app no longer knows, or one it would refuse to record, is dropped rather than kept. */
+function bindings(value: unknown): ShortcutOverrides | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const stored: ShortcutOverrides = {};
+  for (const [action, binding] of Object.entries(value as Record<string, unknown>)) {
+    if (!shortcutAction(action)) continue;
+    if (binding === null) stored[action] = null;
+    else if (typeof binding === "string" && !shortcutProblem(binding)) stored[action] = binding;
+  }
+  return shortcutOverrides(stored);
+}
+
 /** Anything unreadable reports no preference, so the caller's default decides. */
 export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPreferences> {
   try {
@@ -30,8 +43,11 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
     const browserTabs = urlsByThread(value.browserTabs);
     const browserOrigins = urlList(value.browserOrigins);
+    const shortcuts = bindings(value.shortcuts);
     return {
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
+      ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
+      ...(shortcuts ? { shortcuts } : {}),
       ...(browserTabs ? { browserTabs } : {}),
       ...(browserOrigins ? { browserOrigins } : {}),
     };

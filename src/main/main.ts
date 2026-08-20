@@ -5,9 +5,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
+import { formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
@@ -166,9 +167,33 @@ function handleThreadRequest(request: ThreadRequest) {
   window.webContents.send("thread:request", request);
 }
 
-/** The window decides what ⌘W closes, because it is the only side that knows what is in front. */
-function requestCloseTab() {
-  if (window && !window.isDestroyed()) window.webContents.send("window:close-tab");
+/**
+ * The keyboard. Matching happens here rather than in the window, because a page in the browser panel
+ * swallows every keystroke it is given, and the window decides what each action means once it lands.
+ */
+let shortcuts: ShortcutBinding[] = resolveShortcuts({});
+/** While settings wait for a keystroke, every keystroke goes to them instead of to an action. */
+let capturingShortcut = false;
+
+function sendToWindow(channel: string, payload?: unknown) {
+  if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
+}
+
+/** Whether the app took the keystroke, which is also whether the page or the menu must not see it. */
+function handleKey(input: Electron.Input, surface: ShortcutSurface): boolean {
+  if (input.type !== "keyDown") return false;
+  const stroke = keystrokeOf(input, process.platform === "darwin");
+  if (!stroke) return false;
+  if (capturingShortcut) {
+    if (stroke.key === "Escape") sendToWindow("window:shortcut-captured", null);
+    else if (stroke.mod || stroke.ctrl || stroke.alt) sendToWindow("window:shortcut-captured", formatShortcut(stroke));
+    else return false;
+    return true;
+  }
+  const binding = shortcutFor(shortcuts, stroke, surface);
+  if (!binding) return false;
+  sendToWindow("window:shortcut", { action: binding.action, surface });
+  return true;
 }
 
 function answerThreadRequest(response: ThreadResponse) {
@@ -319,7 +344,7 @@ async function createWindow() {
     onPage: (event: BrowserPageEvent) => {
       if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
     },
-    onCloseTab: requestCloseTab,
+    onKey: (input) => handleKey(input, "browser"),
   });
   terminal.startTerminalHost({
     onData: (event) => {
@@ -331,9 +356,7 @@ async function createWindow() {
   });
   /** The window owns no menu shortcut the app wants back; preventing it here is what frees ⌘W. */
   window.webContents.on("before-input-event", (event, input) => {
-    if (!browser.isCloseTab(input)) return;
-    event.preventDefault();
-    requestCloseTab();
+    if (handleKey(input, "any")) event.preventDefault();
   });
   window.on("closed", () => {
     browser.stopBrowserHost();
@@ -575,6 +598,16 @@ ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
 ipcMain.on("automation:ack", (event, ack: unknown) => {
   if (!trustedSender(event) || !isAutomationAck(ack)) return;
   automationDispatches.get(ack.runId)?.acknowledge?.(ack.started);
+});
+
+ipcMain.on("shortcuts:set", (event, overrides: unknown) => {
+  if (!trustedSender(event) || !isShortcutOverrides(overrides)) return;
+  shortcuts = resolveShortcuts(overrides);
+});
+
+ipcMain.on("shortcuts:capture", (event, capturing: unknown) => {
+  if (!trustedSender(event) || typeof capturing !== "boolean") return;
+  capturingShortcut = capturing;
 });
 
 ipcMain.on("window:close", (event) => {

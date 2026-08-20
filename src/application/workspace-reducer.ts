@@ -1,5 +1,5 @@
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
-import { moveTask as moveTaskInList, nextSortIndex } from "./task-order.js";
+import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import {
   applyRunEvent,
   applyTask,
@@ -11,7 +11,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -28,6 +28,7 @@ import type {
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
+import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import { clampTitle, legacyProjectId, type Project, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
@@ -57,7 +58,9 @@ export type WorkspaceEvent =
   | { type: "browser.updated"; page: BrowserPageEvent }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
   | { type: "terminal.updated"; update: TerminalUpdate }
-  | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] };
+  | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
+  /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
+  | { type: "shortcut.captured"; binding: string | null };
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -106,7 +109,11 @@ export type WorkspaceEffect =
   | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
   | { type: "terminal.close"; terminalId: string }
   /** Nothing was left in front of the window, so ⌘W means what it always means. */
-  | { type: "close-window" };
+  | { type: "close-window" }
+  /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */
+  | { type: "apply-shortcuts"; overrides: ShortcutOverrides }
+  /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
+  | { type: "capture-shortcut"; capturing: boolean };
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -514,6 +521,13 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
  * driving the app); events report what the outside world did back. Nothing here touches Electron.
  */
 export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
+  /** A keystroke is whatever the user could have clicked, so it re-enters here as those commands. */
+  if (input.type === "view.shortcut") {
+    return shortcutCommands(state, input.action, input.surface).reduce<WorkspaceTransition>((transition, command) => {
+      const next = reduce(transition.state, command);
+      return { state: next.state, effects: [...transition.effects, ...next.effects] };
+    }, settled(state));
+  }
   const transition = apply(state, input);
   if (transition.state.currentId === state.currentId) return transition;
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
@@ -523,7 +537,49 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed)] };
 }
 
-function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
+/** The project a new thread starts in: the one the current thread is in, else the one being drafted. */
+function currentProjectId(state: WorkspaceState): string | undefined {
+  const task = state.tasks.find((item) => item.id === state.currentId);
+  return (state.currentId ? task?.projectId : state.draftProjectId) ?? undefined;
+}
+
+/**
+ * What a bound keystroke means. Only the surface it was pressed on decides between a thread and a
+ * page: everything else reads the same state the buttons do.
+ */
+export function shortcutCommands(state: WorkspaceState, action: string, surface: ShortcutSurface): AppCommand[] {
+  const tab = dockTabShortcutIndex(action);
+  if (tab !== null) return [{ type: "view.select-dock-index", index: tab }];
+  const projectId = currentProjectId(state);
+  const newThread: AppCommand = { type: "task.new", ...(projectId ? { projectId } : {}) };
+  switch (action) {
+    case "thread.new": return [newThread];
+    case "thread.new-worktree": return [newThread, { type: "task.set-worktree", worktree: true }];
+    case "thread.previous": return [{ type: "task.step", delta: -1 }];
+    case "thread.next": return [{ type: "task.step", delta: 1 }];
+    case "run.cancel": return [{ type: "run.cancel" }];
+    case "run.allow": return [{ type: "run.decide", allow: true }];
+    case "run.deny": return [{ type: "run.decide", allow: false }];
+    case "composer.focus": return [{ type: "view.focus-composer" }];
+    case "nav.back": return [surface === "browser" ? { type: "browser.go", delta: -1 } : { type: "view.go-back" }];
+    case "nav.forward": return [surface === "browser" ? { type: "browser.go", delta: 1 } : { type: "view.go-forward" }];
+    case "page.reload": return [{ type: "browser.reload" }];
+    case "tab.new": return [{ type: "view.new-tab" }];
+    case "tab.close": return [{ type: "view.close-tab" }];
+    case "dock.toggle": return [{ type: "view.set-dock-open", open: !dockFor(state, dockOwner(state)).open }];
+    case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
+    case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
+    default: return [];
+  }
+}
+
+/** Settings stop waiting for a keystroke the moment they are no longer the thing in front. */
+function stopCapture(state: WorkspaceState): WorkspaceEffect[] {
+  return state.capturingShortcut === null ? [] : [{ type: "capture-shortcut", capturing: false }];
+}
+
+/** Every input but the keystroke, which {@link reduce} has already turned into the commands it means. */
+function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" }>): WorkspaceTransition {
   switch (input.type) {
     case "task.new": {
       const project = input.projectId ? state.projects.find((item) => item.id === input.projectId) : undefined;
@@ -549,6 +605,18 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         lastFolder: project?.root ?? state.lastFolder,
         actionError: null,
       }, input.taskId));
+    }
+
+    /** Walks the sidebar. From a draft the list is entered from whichever end the step comes from. */
+    case "task.step": {
+      const forked = sideChatIds(state);
+      const ordered = orderTasks(state.tasks.filter((task) => !forked.has(task.id) && task.archivedAt === undefined));
+      if (!ordered.length) return settled(state);
+      const position = ordered.findIndex((task) => task.id === state.currentId);
+      const next = position === -1
+        ? ordered[input.delta === 1 ? 0 : ordered.length - 1]
+        : ordered[position + input.delta];
+      return next ? apply(state, { type: "task.select", taskId: next.id }) : settled(state);
     }
 
     /** Archiving a running task cancels its run; the task leaves the sidebar without waiting for the run to settle. */
@@ -1017,6 +1085,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
         automations: state.automations,
         focused: state.focused,
         sessionPanelOpen: state.sessionPanelOpen,
+        sidebarOpen: state.sidebarOpen,
+        shortcuts: state.shortcuts,
         docks: state.docks,
         browserOrigins: state.browserOrigins,
       });
@@ -1034,6 +1104,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return settled({
         ...state,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
+        sidebarOpen: input.preferences.sidebarOpen,
+        shortcuts: input.preferences.shortcuts ?? {},
         docks,
         browserOrigins: input.preferences.browserOrigins ?? [],
       });
@@ -1060,6 +1132,42 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "view.set-recents-open":
       return settled({ ...state, recentsOpen: input.open });
+
+    case "view.set-sidebar-open": {
+      if (state.sidebarOpen === input.open) return settled(state);
+      const next = { ...state, sidebarOpen: input.open };
+      return settled(next, persistView(next));
+    }
+
+    case "view.focus-composer":
+      return settled({ ...state, composerFocus: state.composerFocus + 1 });
+
+    case "view.set-shortcut": {
+      if (!shortcutAction(input.action)) return settled(state);
+      const problem = input.binding === null ? null : shortcutProblem(input.binding);
+      if (problem) return settled({ ...state, actionError: problem, capturingShortcut: null }, stopCapture(state));
+      const shortcuts = withShortcut(state.shortcuts, input.action, input.binding);
+      const next = { ...state, shortcuts, capturingShortcut: null, actionError: null };
+      return settled(next, [...persistView(next), { type: "apply-shortcuts", overrides: shortcuts }, ...stopCapture(state)]);
+    }
+
+    case "view.reset-shortcuts": {
+      const next = { ...state, shortcuts: {}, capturingShortcut: null, actionError: null };
+      return settled(next, [...persistView(next), { type: "apply-shortcuts", overrides: next.shortcuts }, ...stopCapture(state)]);
+    }
+
+    case "view.capture-shortcut": {
+      if (input.action !== null && !shortcutAction(input.action)) return settled(state);
+      if (state.capturingShortcut === input.action) return settled(state);
+      return settled({ ...state, capturingShortcut: input.action, actionError: null }, [{ type: "capture-shortcut", capturing: input.action !== null }]);
+    }
+
+    case "shortcut.captured": {
+      const action = state.capturingShortcut;
+      if (!action) return settled(state);
+      if (input.binding === null) return settled({ ...state, capturingShortcut: null }, stopCapture(state));
+      return apply(state, { type: "view.set-shortcut", action, binding: input.binding });
+    }
 
     case "view.inspect-subagent": {
       const taskId = targetId(state, input.taskId);
@@ -1090,8 +1198,8 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
 
     case "view.set-settings-open": {
       const owner = dockOwner(state);
-      const settings = { ...state, settingsOpen: input.open, ...(input.open ? {} : { computerUseSetup: false }) };
-      return settled(input.open ? withDock(settings, owner, { open: false }) : settings);
+      const settings = { ...state, settingsOpen: input.open, ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }) };
+      return settled(input.open ? withDock(settings, owner, { open: false }) : settings, input.open ? [] : stopCapture(state));
     }
 
     case "view.close-tab": {
@@ -1106,6 +1214,22 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       return apply(state, kind === "side-chat"
         ? { type: "side-chat.close", chatId: dock.tab }
         : { type: "view.close-dock-panel", panel: dock.tab });
+    }
+
+    /** ⌘W's inverse, answering with whatever the panel is showing rather than one fixed thing. */
+    case "view.new-tab": {
+      if (state.settingsOpen) return settled(state);
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      const kind = dock.open ? dockTabKind(state, owner, dock.tab) : "picker";
+      return apply(state, kind === "browser" ? { type: "browser.new-tab" } : { type: "terminal.open" });
+    }
+
+    case "view.select-dock-index": {
+      const owner = dockOwner(state);
+      const tabs = dockTabIds(state, owner);
+      const tab = input.index === -1 ? tabs[tabs.length - 1] : tabs[input.index];
+      return tab ? apply(state, { type: "view.select-dock-tab", tab }) : settled(state);
     }
 
     case "view.set-dock-open": {
@@ -1282,7 +1406,9 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     }
 
     case "view.set-focused":
-      return settled(input.focused ? withoutAttention({ ...state, focused: true }, state.currentId) : { ...state, focused: false });
+      return input.focused
+        ? settled(withoutAttention({ ...state, focused: true }, state.currentId))
+        : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
 
     case "view.dismiss-computer-use-setup":
       return settled({ ...state, computerUseSetup: false });

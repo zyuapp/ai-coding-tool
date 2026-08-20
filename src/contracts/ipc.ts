@@ -4,6 +4,7 @@ import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/br
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
+import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus } from "../domain/workflow.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -226,10 +227,30 @@ export type DesktopAPI = {
   /** Output, coalesced and delivered straight to the view. It is never workspace state. */
   onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
-  /** ⌘W anywhere in the app, including inside a page, so the window only closes with nothing in front of it. */
-  onCloseTab(listener: () => void): () => void;
+  /** The keystrokes main matches, so a shortcut works inside a page the window never hears from. */
+  setShortcuts(overrides: ShortcutOverrides): void;
+  /** While settings wait for a keystroke, main hands every one of them over instead of acting on it. */
+  setShortcutCapture(capturing: boolean): void;
+  onShortcut(listener: (invocation: ShortcutInvocation) => void): () => void;
+  /** What was pressed while capturing, or null for the Escape that calls it off. */
+  onShortcutCaptured(listener: (binding: string | null) => void): () => void;
   closeWindow(): void;
 };
+
+/** What a keystroke asked for, and where it was pressed. */
+export type ShortcutInvocation = { action: string; surface: ShortcutSurface };
+
+/** How many bindings a window may send. Far more than the app has actions, and still bounded. */
+const MAX_SHORTCUTS = 200;
+
+/** Bindings arrive from the window like any other outside command, so main reads them defensively. */
+export function isShortcutOverrides(value: unknown): value is ShortcutOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > MAX_SHORTCUTS) return false;
+  return entries.every(([action, binding]) => Boolean(shortcutAction(action))
+    && (binding === null || (typeof binding === "string" && !shortcutProblem(binding))));
+}
 
 export type TerminalStartOptions = { cwd: string };
 

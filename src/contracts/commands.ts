@@ -1,4 +1,5 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
+import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
 import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
@@ -38,6 +39,8 @@ export type TaskCommand =
    * always starts a new task, in `projectId`. `worktree` starts that new task in its own checkout.
    */
   | { type: "task.send"; taskId?: string; projectId?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean }
+  /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
+  | { type: "task.step"; delta: -1 | 1 }
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
   | { type: "task.drop-queued"; taskId?: string; messageId: string };
 
@@ -108,6 +111,7 @@ export type ViewCommand =
   | { type: "view.toggle-project"; projectId: string }
   | { type: "view.set-projects-open"; open: boolean }
   | { type: "view.set-recents-open"; open: boolean }
+  | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
@@ -118,15 +122,34 @@ export type ViewCommand =
    * front of it does the window itself go.
    */
   | { type: "view.close-tab" }
+  /**
+   * ⌘W's inverse: another page while the panel shows one, another shell while it shows one, and a
+   * shell when it shows neither.
+   */
+  | { type: "view.new-tab" }
   /** The right dock: which panels are open as tabs, and which of them is showing. */
   | { type: "view.set-dock-open"; open: boolean }
   | { type: "view.open-dock-panel"; panel: string }
   | { type: "view.close-dock-panel"; panel: string }
   | { type: "view.select-dock-tab"; tab: string }
+  /** The tab in that position, counting from zero, with -1 for the last one. */
+  | { type: "view.select-dock-index"; index: number }
   | { type: "view.set-menu"; menu: string | null }
   /** Moves the visit cursor without recording a visit, so the trail behind and ahead survives. */
   | { type: "view.go-back" }
   | { type: "view.go-forward" }
   | { type: "view.set-focused"; focused: boolean }
+  /** Puts the caret in the composer. Components watch the token rather than being told to focus. */
+  | { type: "view.focus-composer" }
+  /**
+   * What a keystroke asked for. The action is routed here rather than in the window, because only
+   * state knows whether ⌘[ means the thread you came from or the page before this one.
+   */
+  | { type: "view.shortcut"; action: string; surface: ShortcutSurface }
+  /** Binds an action, or unbinds it with a null. Whoever else held the keystroke loses it. */
+  | { type: "view.set-shortcut"; action: string; binding: string | null }
+  | { type: "view.reset-shortcuts" }
+  /** Waits for the next keystroke to bind to `action`, or stops waiting with a null. */
+  | { type: "view.capture-shortcut"; action: string | null }
   | { type: "view.dismiss-computer-use-setup" }
   | { type: "view.refresh-environment" };

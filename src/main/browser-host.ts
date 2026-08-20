@@ -20,7 +20,7 @@ type Tab = {
 const tabs = new Map<string, Tab>();
 let host: BrowserWindow | null = null;
 let publish: (event: BrowserPageEvent) => void = () => undefined;
-let closeTabRequested: () => void = () => undefined;
+let keyPressed: (input: Electron.Input) => boolean = () => false;
 let activeId: string | null = null;
 let bounds: BrowserBounds | null = null;
 
@@ -49,11 +49,6 @@ const SNAPSHOT_SCRIPT = `(() => {
   return { url: location.href, title: document.title, text: text.slice(0, limit), truncated: text.length > limit, elements };
 })()`;
 
-/** ⌘W, and only ⌘W: ⇧⌘W stays the window's own, the way it is elsewhere on the desktop. */
-export function isCloseTab(input: { type: string; key: string; meta: boolean; control: boolean; alt: boolean; shift: boolean }) {
-  return input.type === "keyDown" && input.key.toLowerCase() === "w" && input.meta && !input.control && !input.alt && !input.shift;
-}
-
 function actionScript(action: BrowserAction) {
   const ref = JSON.stringify(action.ref);
   const found = `const node = document.querySelector('[${REF_ATTRIBUTE}=' + JSON.stringify(${ref}) + ']');
@@ -78,10 +73,10 @@ function actionScript(action: BrowserAction) {
   })()`;
 }
 
-export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (event: BrowserPageEvent) => void; onCloseTab: () => void }) {
+export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (event: BrowserPageEvent) => void; onKey: (input: Electron.Input) => boolean }) {
   host = window;
   publish = handlers.onPage;
-  closeTabRequested = handlers.onCloseTab;
+  keyPressed = handlers.onKey;
   const partition = session.fromPartition(PARTITION);
   partition.setUserAgent(USER_AGENT);
 }
@@ -146,11 +141,9 @@ function watch({ id, view }: Tab) {
     if (isMainFrame && code !== -3) report(id, { loading: false, error: `${description} (${validatedURL})` });
   });
   contents.on("render-process-gone", () => report(id, { loading: false, error: "The page stopped responding." }));
-  /** ⌘W belongs to the panel's tabs while a page has the keys, not to the window behind it. */
+  /** A shortcut belongs to the app while a page has the keys, so the page never sees that keystroke. */
   contents.on("before-input-event", (event, input) => {
-    if (!isCloseTab(input)) return;
-    event.preventDefault();
-    closeTabRequested();
+    if (keyPressed(input)) event.preventDefault();
   });
   /** The panel only ever holds web pages; anything else the page asks for is left to the OS. */
   contents.on("will-navigate", (event, url) => {
