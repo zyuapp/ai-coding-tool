@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Globe, RotateCw, ShieldAlert } from "lucide-react";
 import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../domain/browser";
+import { useDismissibleLayer } from "../focus";
 
 export type BrowserPanelProps = {
   tab: BrowserTab;
@@ -18,8 +19,15 @@ export type BrowserPanelProps = {
 
 export function BrowserPanel({ tab, approval, visible, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
+  const addressInput = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState(tab.url);
   const [editing, setEditing] = useState(false);
+  const stopEditing = () => {
+    setAddress(tab.url);
+    setEditing(false);
+    addressInput.current?.blur();
+  };
+  useDismissibleLayer(editing, [addressInput], stopEditing, null);
 
   useEffect(() => {
     if (!editing) setAddress(tab.url);
@@ -56,15 +64,22 @@ export function BrowserPanel({ tab, approval, visible, find, onOpen, onGo, onRel
         <button type="button" aria-label="Forward" disabled={!tab.canGoForward} onClick={() => onGo(1)}><ArrowRight size={15} /></button>
         <button type="button" aria-label="Reload" disabled={!tab.url} onClick={onReload}><RotateCw size={14} /></button>
         <input
+          ref={addressInput}
           value={address}
           aria-label="Address"
           spellCheck={false}
           placeholder="Enter a web address"
+          onFocus={() => setEditing(true)}
           onInput={(event) => {
             setEditing(true);
             setAddress(event.currentTarget.value);
           }}
           onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              stopEditing();
+              return;
+            }
             if (event.key !== "Enter") return;
             setEditing(false);
             if (address.trim()) onOpen(address);

@@ -1,6 +1,7 @@
 import { Brain, Check, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useRef, useState } from "react";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
+import { moveListFocus, useDismissibleLayer } from "../focus";
 
 type Choice<T extends string> = { value: T; label: string; description: string; icon: LucideIcon; elevated?: boolean };
 
@@ -35,22 +36,31 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
 }) {
   const selected = choices.find((item) => item.value === value) ?? choices[0];
   const SelectedIcon = selected.icon;
+  const details = useRef<HTMLDetailsElement>(null);
+  const summary = useRef<HTMLElement>(null);
+  const [open, setOpen] = useState(false);
+  const close = () => { if (details.current) details.current.open = false; };
+  useDismissibleLayer(open, [details], close, summary);
 
-  return <details className="setting-menu">
-    <summary aria-label={label}>
+  return <details ref={details} className="setting-menu" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary ref={summary} aria-label={label}>
       <span className="setting-summary-icon" aria-hidden="true"><SelectedIcon size={16} /></span>
       <span className="setting-summary-label">{selected.label}</span>
     </summary>
-    <div className="setting-popover">
+    {open && <div className="setting-popover" role="listbox" aria-label={heading} onKeyDown={moveListFocus}>
       <div className="setting-heading">{heading}</div>
       {choices.map((item) => {
         const Icon = item.icon;
         return <button
+          type="button"
+          role="option"
+          aria-selected={item.value === value}
+          autoFocus={item.value === value}
           className={`setting-option ${item.elevated ? "elevated" : ""}`}
           key={item.value}
           onClick={(event) => {
             onChange(item.value);
-            event.currentTarget.closest("details")?.removeAttribute("open");
+            close();
           }}
         >
           <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
@@ -58,7 +68,7 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
           <span className="setting-check" aria-hidden="true">{item.value === value && <Check size={20} />}</span>
         </button>;
       })}
-    </div>
+    </div>}
   </details>;
 }
 
@@ -70,20 +80,8 @@ export function ComposerSettings({ mode, model, effort, onModeChange, onModelCha
   onModelChange: (model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
 }) {
-  const settingsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const closeOtherMenus = (event: PointerEvent) => {
-      settingsRef.current?.querySelectorAll("details[open]").forEach((details) => {
-        if (!details.contains(event.target as Node)) details.removeAttribute("open");
-      });
-    };
-    document.addEventListener("pointerdown", closeOtherMenus);
-    return () => document.removeEventListener("pointerdown", closeOtherMenus);
-  }, []);
-
   return (
-    <div className="composer-settings" ref={settingsRef}>
+    <div className="composer-settings">
       <ChoiceMenu label="Permission mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
       <ChoiceMenu label="Model" heading="Choose a model" choices={models} value={model} onChange={onModelChange} />
       <ChoiceMenu label="Effort" heading="How hard should Claude think?" choices={efforts} value={effort} onChange={onEffortChange} />

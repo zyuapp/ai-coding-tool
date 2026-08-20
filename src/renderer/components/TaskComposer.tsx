@@ -11,6 +11,7 @@ import type { ContextUsage } from "../../domain/task";
 import { ComposerSettings } from "./ComposerSettings";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
+import { useDismissibleLayer } from "../focus";
 
 const MAX_ATTACHMENTS = 6;
 
@@ -162,6 +163,7 @@ export function TaskComposer({
   ];
   const matchingCommands = token === null ? [] : menuEntries.filter((entry) => commandMatches(entry, token.query));
   const commandMenuOpen = inputFocused && token !== null && dismissedPrompt !== prompt;
+  useDismissibleLayer(commandMenuOpen, [textareaRef, commandMenuRef], () => setDismissedPrompt(prompt), textareaRef);
 
   const sentTexts = [...history, ...queuedMessages.map((message) => message.text)];
   const recallable = sentTexts.filter((text, index) => text.trim() !== "" && text !== sentTexts[index - 1]);

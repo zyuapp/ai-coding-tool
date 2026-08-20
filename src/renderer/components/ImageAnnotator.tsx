@@ -1,6 +1,7 @@
 import { ArrowUpRight, Check, SquarePen, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useModalFocus } from "../focus";
 
 export type AnnotationKind = "box" | "arrow";
 
@@ -160,6 +161,7 @@ export type ImageAnnotatorProps = {
 };
 
 export function ImageAnnotator({ source, annotations, onCancel, onApply }: ImageAnnotatorProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
@@ -172,6 +174,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
   const [draft, setDraft] = useState<Annotation | null>(null);
   const [pending, setPending] = useState<Omit<Annotation, "kind" | "text"> | null>(null);
   const [label, setLabel] = useState("");
+  useModalFocus(dialogRef);
 
   useEffect(() => {
     let active = true;
@@ -275,7 +278,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
 
   // Portalled to the body: the composer's stacking context sits below the topbar, which would paint over the overlay.
   return createPortal(
-    <div className="annotator" role="dialog" aria-modal="true" aria-label="Annotate screenshot">
+    <div ref={dialogRef} className="annotator" role="dialog" aria-modal="true" aria-label="Annotate screenshot" tabIndex={-1}>
       <div className="annotator-panel">
         <header className="annotator-head">
           <div className="annotator-tools" role="group" aria-label="Annotation tool">

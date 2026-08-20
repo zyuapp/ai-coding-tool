@@ -5,6 +5,7 @@ import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import { UsageSettings } from "./UsageSettings";
+import { useFocusReturn } from "../focus";
 
 export type SettingsSection = "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
 
@@ -70,6 +71,21 @@ export function SettingsPanel({
   const [error, setError] = useState<string | null>(null);
   const [restartRequired, setRestartRequired] = useState(false);
   const requested = useRef(false);
+  const back = useRef<HTMLButtonElement>(null);
+  const clearArchive = useRef<HTMLButtonElement>(null);
+  const clearBrowser = useRef<HTMLButtonElement>(null);
+  const confirmation = useRef<HTMLButtonElement>(null);
+  useFocusReturn(back);
+
+  useEffect(() => {
+    if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
+  }, [confirmingClear, confirmingSignOut]);
+
+  function cancelConfirmation(browser: boolean) {
+    if (browser) setConfirmingSignOut(false);
+    else setConfirmingClear(false);
+    requestAnimationFrame(() => (browser ? clearBrowser : clearArchive).current?.focus());
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -130,10 +146,19 @@ export function SettingsPanel({
 
   const ready = Boolean(permissions?.accessibility && permissions.screenRecording);
   return (
-    <section className="settings-view" aria-label="Settings">
+    <section
+      className="settings-view"
+      aria-label="Settings"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || (!confirmingClear && !confirmingSignOut)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancelConfirmation(confirmingSignOut);
+      }}
+    >
       <aside className="settings-sidebar">
         <div className="settings-traffic-space" aria-hidden="true" />
-        <button className="settings-back" type="button" autoFocus onClick={onClose}>
+        <button ref={back} className="settings-back" type="button" onClick={onClose}>
           <ArrowLeft size={17} aria-hidden="true" />
           <span>Back to Claudex</span>
         </button>
@@ -279,13 +304,13 @@ export function SettingsPanel({
               <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
               {confirmingSignOut
                 ? <>
-                    <button className="danger" type="button" onClick={() => {
+                    <button ref={confirmation} className="danger" type="button" onClick={() => {
                       onClearBrowserData();
-                      setConfirmingSignOut(false);
+                      cancelConfirmation(true);
                     }}>Sign out of everything</button>
-                    <button type="button" onClick={() => setConfirmingSignOut(false)}>Cancel</button>
+                    <button type="button" onClick={() => cancelConfirmation(true)}>Cancel</button>
                   </>
-                : <button type="button" onClick={() => setConfirmingSignOut(true)}>Clear browser data</button>}
+                : <button ref={clearBrowser} type="button" onClick={() => setConfirmingSignOut(true)}>Clear browser data</button>}
             </div>
           </div>
 
@@ -321,13 +346,13 @@ export function SettingsPanel({
               <span>{archivedTasks.length} archived</span>
               {archivedTasks.length > 0 && (confirmingClear
                 ? <>
-                    <button className="danger" type="button" onClick={() => {
+                    <button ref={confirmation} className="danger" type="button" onClick={() => {
                       onClearArchive();
-                      setConfirmingClear(false);
+                      cancelConfirmation(false);
                     }}>Delete all</button>
-                    <button type="button" onClick={() => setConfirmingClear(false)}>Cancel</button>
+                    <button type="button" onClick={() => cancelConfirmation(false)}>Cancel</button>
                   </>
-                : <button type="button" onClick={() => setConfirmingClear(true)}>Clear all</button>)}
+                : <button ref={clearArchive} type="button" onClick={() => setConfirmingClear(true)}>Clear all</button>)}
             </div>
           </div>
 

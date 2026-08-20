@@ -1,8 +1,9 @@
 import { Check, ChevronDown, FolderGit2, GitBranch } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/task";
+import { moveListFocus, useDismissibleLayer } from "../focus";
 
 export type ThreadStartOptionsProps = {
   projects: Project[];
@@ -17,19 +18,6 @@ export type ThreadStartOptionsProps = {
   onSetWorktree: (worktree: boolean) => void;
 };
 
-function useOutsideClose(open: boolean, close: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) close();
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open, close]);
-  return ref;
-}
-
 /**
  * How the thread the user is about to start begins: which project, which branch it starts from, and
  * whether it gets a checkout of its own. Nothing here touches disk — the first message does that.
@@ -37,8 +25,13 @@ function useOutsideClose(open: boolean, close: () => void) {
 export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [branchesOpen, setBranchesOpen] = useState(false);
-  const projectRef = useOutsideClose(projectsOpen, () => setProjectsOpen(false));
-  const branchRef = useOutsideClose(branchesOpen, () => setBranchesOpen(false));
+  const projectRef = useRef<HTMLDivElement>(null);
+  const projectTrigger = useRef<HTMLButtonElement>(null);
+  const branchRef = useRef<HTMLDivElement>(null);
+  const branchTrigger = useRef<HTMLButtonElement>(null);
+  const branchMenu = useRef<HTMLDivElement>(null);
+  useDismissibleLayer(projectsOpen, [projectRef], () => setProjectsOpen(false), projectTrigger);
+  useDismissibleLayer(branchesOpen, [branchRef, branchMenu], () => setBranchesOpen(false), branchTrigger);
   const project = projects.find((item) => item.id === projectId);
   const branches = useBranches(workspaceId);
 
@@ -51,17 +44,19 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button type="button" aria-label="Project" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
+        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
           <FolderGit2 size={15} />
           <span>{projectName(project.root)}</span>
           <ChevronDown size={14} />
         </button>
-        {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects">
+        {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects" onKeyDown={moveListFocus}>
           {projects.map((item) => (
             <button
               key={item.id}
+              type="button"
               role="option"
               aria-selected={item.id === projectId}
+              autoFocus={item.id === projectId}
               onClick={() => {
                 setProjectsOpen(false);
                 onSelectProject(item.id);
@@ -75,7 +70,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
       </div>
 
       <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-        <button type="button" aria-label="Starting branch" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
+        <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
           <GitBranch size={15} />
           <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
           {branch?.create && <small>new</small>}
@@ -83,6 +78,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         </button>
         {branchesOpen && (
           <BranchMenu
+            menuRef={branchMenu}
             branches={branches}
             selected={selected}
             onPick={(name, create) => {

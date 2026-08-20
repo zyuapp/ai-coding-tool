@@ -81,6 +81,7 @@ const api: DesktopAPI = {
   },
   findInPage: (tabId: string, query: string, forward: boolean, findNext: boolean) => ipcRenderer.invoke("browser:find", tabId, query, forward, findNext),
   stopFindInPage: (tabId: string) => ipcRenderer.invoke("browser:stop-find", tabId),
+  focusBrowserTab: (tabId: string) => ipcRenderer.invoke("browser:focus", tabId),
   onBrowserFind: (listener: (event: BrowserFindEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: BrowserFindEvent) => listener(payload);
     ipcRenderer.on("browser:find", handler);

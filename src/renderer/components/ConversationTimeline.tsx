@@ -12,6 +12,7 @@ import { PasteRow } from "./PasteRow";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { RevealedTextProvider, StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
+import { useDismissibleLayer, useModalFocus } from "../focus";
 
 function FolderIcon() {
   return (
@@ -22,6 +23,8 @@ function FolderIcon() {
 }
 
 function AttachmentViewer({ source, onClose }: { source: string; onClose: () => void }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useModalFocus(dialog);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -33,7 +36,7 @@ function AttachmentViewer({ source, onClose }: { source: string; onClose: () => 
   }, [onClose]);
 
   return createPortal(
-    <div className="viewer" role="dialog" aria-modal="true" aria-label="Screenshot" onClick={onClose}>
+    <div ref={dialog} className="viewer" role="dialog" aria-modal="true" aria-label="Screenshot" tabIndex={-1} onClick={onClose}>
       <button type="button" className="viewer-close" onClick={onClose} aria-label="Close screenshot"><X size={16} /></button>
       <img src={source} alt="Attached screenshot" onClick={(event) => event.stopPropagation()} />
     </div>,
@@ -336,6 +339,14 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const [selection, setSelection] = useState<{ quote: string; anchor: AnnotationAnchor; x: number; y: number } | null>(null);
   /** The note being written or rewritten at a highlight: for a new annotation, or an existing one. */
   const [noting, setNoting] = useState<{ annotationId?: string; quote: string; anchor: AnnotationAnchor; note: string; x: number; y: number } | null>(null);
+  const selectionToolbar = useRef<HTMLDivElement>(null);
+  const noteEditor = useRef<HTMLDivElement>(null);
+  const noteReturn = useRef<HTMLElement>(null);
+  useDismissibleLayer(selection !== null && noting === null, [selectionToolbar], () => {
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+  }, null);
+  useDismissibleLayer(noting !== null, [noteEditor], () => setNoting(null), noteReturn);
   const [markers, setMarkers] = useState<{ id: string; number: number; x: number; y: number }[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const pinnedToBottom = useRef(true);
@@ -519,16 +530,6 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     return () => scroller.removeEventListener("scroll", dismiss);
   }, [onAnnotateAdd, scrollContainerRef, currentTask?.id]);
 
-  /** The note editor closes when the pointer goes anywhere else, keeping whatever was typed unsaved. */
-  useEffect(() => {
-    if (!noting) return;
-    const onDown = (event: PointerEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest(".annotate-editor")) setNoting(null);
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [noting !== null]);
-
   /** Anchored annotations are painted as highlights, each with a numbered marker at its end. */
   useEffect(() => {
     const registry = highlights();
@@ -659,6 +660,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
             const annotation = annotations.find((item) => item.id === marker.id);
             if (!annotation?.anchor) return;
             const rect = event.currentTarget.getBoundingClientRect();
+            noteReturn.current = event.currentTarget;
             setNoting({ annotationId: annotation.id, quote: annotation.quote, anchor: annotation.anchor, note: annotation.note, x: rect.left + rect.width / 2, y: rect.top });
           }}
         >
@@ -698,8 +700,8 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
       {selection && !noting && onAnnotateAdd && createPortal(
-        <div className="annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
-          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => openNote(selection)}>
+        <div ref={selectionToolbar} className="annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
+          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={(event) => { noteReturn.current = event.currentTarget; openNote(selection); }}>
             <MessageSquareQuote size={14} aria-hidden="true" />Add to chat
           </button>
           {onAnnotateSide && (
@@ -711,7 +713,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         document.body,
       )}
       {noting && createPortal(
-        <div className="annotate-editor" role="dialog" aria-label={noting.annotationId ? "Edit annotation" : "New annotation"} style={{ left: noting.x, top: noting.y }}>
+        <div ref={noteEditor} className="annotate-editor" role="dialog" aria-label={noting.annotationId ? "Edit annotation" : "New annotation"} style={{ left: noting.x, top: noting.y }}>
           <input
             autoFocus
             value={noting.note}

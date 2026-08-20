@@ -7,6 +7,7 @@ import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { PopoverMenu } from "./PopoverMenu";
+import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 
 export type SessionPanelProps = {
@@ -83,12 +84,16 @@ type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSe
 function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
   const open = openMenu === BRANCH_MENU;
   const row = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useDismissibleLayer(open, [row, menu], () => onSetOpenMenu(null), trigger);
   /** Branches are only worth reading while the list is up; the row itself says where Git already is. */
   const branches = useBranches(workspaceId, open);
 
   return (
     <div ref={row} className={`session-branch ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
       <button
+        ref={trigger}
         className="session-row session-row-action"
         type="button"
         aria-label="Branch"
@@ -104,6 +109,7 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
       </button>
       {open && (
         <BranchMenu
+          menuRef={menu}
           anchor={row.current}
           branches={branches}
           selected={branch}

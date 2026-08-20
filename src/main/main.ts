@@ -788,6 +788,11 @@ ipcMain.handle("browser:stop-find", (event, tabId: unknown) => {
   browser.stopFindInPage(browserTabId(tabId));
 });
 
+ipcMain.handle("browser:focus", (event, tabId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  browser.focusTab(browserTabId(tabId));
+});
+
 ipcMain.handle("browser:clear", (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return browser.clearData();

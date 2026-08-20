@@ -19,6 +19,7 @@ import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { browserTabTitle } from "../domain/browser";
+import { moveListFocus, useDismissibleLayer } from "./focus";
 
 /**
  * A view in the right dock that there is only ever one of. Pages, shells and side chats are tabs of
@@ -54,6 +55,9 @@ export function App() {
   const rightDockOpen = workspace.dockOpen;
   const activeRightTab = workspace.dockTab;
   const addMenuOpen = workspace.openMenu === ADD_TAB_MENU;
+  const addMenu = useRef<HTMLDivElement>(null);
+  const addMenuTrigger = useRef<HTMLButtonElement>(null);
+  useDismissibleLayer(addMenuOpen, [addMenu], () => workspace.actions.setOpenMenu(null), addMenuTrigger);
   /**
    * The page is a native view drawn over the panel, above every element whatever its z-index, so the
    * add menu hangs over it only while the page is taken off screen.
@@ -102,6 +106,14 @@ export function App() {
     else if (workspace.browserTabs.some((tab) => tab.id === id)) void workspace.actions.closeBrowserTab(id);
     else if (workspace.terminals.some((terminal) => terminal.id === id)) void workspace.actions.closeTerminal(id);
     else void workspace.dispatch({ type: "side-chat.close", chatId: id });
+    requestAnimationFrame(() => {
+      (document.querySelector<HTMLElement>('.right-dock-tab.active [role="tab"]') ?? addMenuTrigger.current)?.focus();
+    });
+  }
+
+  function closeSubagentInspector() {
+    setSelectedSubagent(null);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.agents-panel input, .agents-panel button')?.focus());
   }
 
   function openSettings() {
@@ -142,9 +154,6 @@ export function App() {
   }, [workspace.actions, workspace.dockPanels, workspace.workflows, selectedWorkflow]);
 
   useEffect(() => {
-    function dismissMenu(event: PointerEvent) {
-      if (!(event.target instanceof Element) || !event.target.closest("[data-popover-menu]")) workspace.actions.setOpenMenu(null);
-    }
     /** Esc serves whatever is nearest: an overlay claims it first, then a menu, the find bar, and last the run. */
     function handleKeys(event: KeyboardEvent) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -153,10 +162,8 @@ export function App() {
       else if (workspace.find) workspace.actions.closeFind();
       else void workspace.actions.cancelRun();
     }
-    document.addEventListener("pointerdown", dismissMenu);
     window.addEventListener("keydown", handleKeys);
     return () => {
-      document.removeEventListener("pointerdown", dismissMenu);
       window.removeEventListener("keydown", handleKeys);
     };
   }, [workspace.actions, workspace.openMenu, workspace.settingsOpen, workspace.find]);
@@ -180,7 +187,7 @@ export function App() {
       icon: Bot,
       badge: workingSubagents,
       render: () => (inspectedSubagent
-        ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />
+        ? <SubagentInspector subagent={inspectedSubagent} onClose={closeSubagentInspector} />
         : <AgentsPanel subagents={workspace.subagents} onSelect={inspectSubagent} />),
     },
     {
@@ -398,19 +405,21 @@ export function App() {
                   </div>
                 ))}
               </div>
-              <div className={`right-dock-add ${addMenuOpen ? "open" : ""}`.trimEnd()} data-popover-menu>
+              <div ref={addMenu} className={`right-dock-add ${addMenuOpen ? "open" : ""}`.trimEnd()} data-popover-menu>
                 <button
+                  ref={addMenuTrigger}
                   type="button"
                   aria-label="Add right panel tab"
+                  aria-haspopup="menu"
                   aria-expanded={addMenuOpen}
                   onClick={() => workspace.actions.setOpenMenu(addMenuOpen ? null : ADD_TAB_MENU)}
                 >
                   <Plus size={18} />
                 </button>
                 {addMenuOpen && (
-                  <div role="menu">
-                    {dockLaunchers.map((launcher) => (
-                      <button key={launcher.id} type="button" role="menuitem" disabled={launcher.disabled} onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}>
+                  <div role="menu" onKeyDown={moveListFocus}>
+                    {dockLaunchers.map((launcher, index) => (
+                      <button key={launcher.id} type="button" role="menuitem" autoFocus={index === 0} disabled={launcher.disabled} onClick={() => { workspace.actions.setOpenMenu(null); launcher.open(); }}>
                         <launcher.icon size={16} />{launcher.title}
                       </button>
                     ))}

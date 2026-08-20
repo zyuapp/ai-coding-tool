@@ -1,10 +1,13 @@
 import { ClipboardPaste, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pasteSummary } from "../../application/pastes";
 import type { PastedText } from "../../domain/task";
+import { useModalFocus } from "../focus";
 
 function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: string; onClose: () => void }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useModalFocus(dialog);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
@@ -16,7 +19,7 @@ function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: stri
   }, [onClose]);
 
   return createPortal(
-    <div className="viewer" role="dialog" aria-modal="true" aria-label={label} onClick={onClose}>
+    <div ref={dialog} className="viewer" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} onClick={onClose}>
       <button type="button" className="viewer-close" onClick={onClose} aria-label={`Close ${label.toLowerCase()}`}><X size={16} /></button>
       <pre className="paste-full" onClick={(event) => event.stopPropagation()}>{paste.text}</pre>
     </div>,

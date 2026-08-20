@@ -129,6 +129,7 @@ export type WorkspaceEffect =
    */
   | { type: "find-in-page"; tabId: string; query: string; forward: boolean; findNext: boolean }
   | { type: "stop-find-in-page"; tabId: string }
+  | { type: "focus-browser"; tabId: string }
   | { type: "find-in-terminal"; terminalId: string; query: string; forward: boolean }
   | { type: "stop-find-in-terminal"; terminalId: string }
   /** Takes the keyboard off a page in the panel, which is the only way the find bar can have it. */
@@ -1576,8 +1577,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({ ...state, find: { ...find, index: stepMatch(find.index, input.delta, matches) } });
     }
 
-    case "view.find-close":
-      return settled({ ...state, find: null, findResults: null }, stopSearchEffects(state.find));
+    case "view.find-close": {
+      const focus: WorkspaceEffect[] = state.find?.target.kind === "browser" ? [{ type: "focus-browser", tabId: state.find.target.tabId }] : [];
+      return settled({ ...state, find: null, findResults: null }, [...stopSearchEffects(state.find), ...focus]);
+    }
 
     case "find.results": {
       const find = state.find;

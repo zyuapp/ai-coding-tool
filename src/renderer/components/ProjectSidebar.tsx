@@ -6,6 +6,7 @@ import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 import { ContextMenu, PopoverMenu } from "./PopoverMenu";
 import { ShowMore } from "./ShowMore";
+import { useDismissibleLayer } from "../focus";
 
 const RECENTS_DROPPABLE = "recents";
 const PROJECT_TASK_LIMIT = 10;
@@ -114,6 +115,9 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const renameInput = useRef<HTMLInputElement>(null);
+  const taskReturn = useRef<HTMLElement>(null);
+  useDismissibleLayer(renamingId !== null, [renameInput], () => renameInput.current?.blur(), taskReturn);
   /** A folded row becomes a thin drop strip for the length of a drag, so a collapsed folder is a
    *  place to drop into without unfolding. Set before capture: a `display: none` droppable has no
    *  bounds for the library to measure. */
@@ -148,6 +152,11 @@ export function ProjectSidebar({
   function commitRename(taskId: string, value: string) {
     setRenamingId(null);
     if (value.trim()) onRenameTask(taskId, value);
+  }
+
+  function startRename(taskId: string, row?: HTMLElement | null) {
+    if (row) taskReturn.current = row;
+    setRenamingId(taskId);
   }
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
@@ -196,9 +205,10 @@ export function ProjectSidebar({
           <div
             className={className}
             onClick={() => onSelectTask(task.id)}
-            onDoubleClick={() => setRenamingId(task.id)}
+            onDoubleClick={(event) => startRename(task.id, event.currentTarget.closest(".task-entry"))}
             onContextMenu={(event) => {
               event.preventDefault();
+              taskReturn.current = event.currentTarget.closest(".task-entry");
               const row = event.currentTarget.getBoundingClientRect();
               const menuHeight = 80;
               setTaskMenuPosition({
@@ -211,6 +221,7 @@ export function ProjectSidebar({
           >
             {renamingId === task.id
               ? <input
+                  ref={renameInput}
                   className="task-rename"
                   aria-label={`Rename ${task.title}`}
                   autoFocus
@@ -221,7 +232,10 @@ export function ProjectSidebar({
                   onKeyDown={(event) => {
                     event.stopPropagation();
                     if (event.key === "Enter") commitRename(task.id, event.currentTarget.value);
-                    else if (event.key === "Escape") setRenamingId(null);
+                    else if (event.key === "Escape") {
+                      event.preventDefault();
+                      setRenamingId(null);
+                    }
                   }}
                   onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
                 />
@@ -229,9 +243,10 @@ export function ProjectSidebar({
           </div>
           {openMenu === `task:${task.id}` && <ContextMenu
             position={taskMenuPosition}
+            returnFocus={taskReturn}
             onSetOpenMenu={onSetOpenMenu}
             items={[
-              { label: "Rename", onSelect: () => setRenamingId(task.id) },
+              { label: "Rename", onSelect: () => startRename(task.id) },
               { label: "Archive", onSelect: () => onArchiveTask(task.id) },
             ]}
           />}

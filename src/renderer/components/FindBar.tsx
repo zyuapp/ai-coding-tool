@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import type { FindView } from "../../application/workspace-state";
+import { useFocusReturn } from "../focus";
 
 export type FindBarProps = {
   find: FindView;
@@ -13,6 +14,7 @@ export type FindBarProps = {
 
 export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps) {
   const input = useRef<HTMLInputElement>(null);
+  useFocusReturn(input);
 
   /** Asking for find again means asking for the caret, whether or not the bar was already open. */
   useEffect(() => {

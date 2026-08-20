@@ -287,6 +287,9 @@ export function useTaskWorkspace() {
       case "stop-find-in-page":
         return reportFailure(window.desktop.stopFindInPage(effect.tabId));
 
+      case "focus-browser":
+        return reportFailure(window.desktop.focusBrowserTab(effect.tabId));
+
       case "find-in-terminal":
         searchTerminalView(effect.terminalId, effect.query, effect.forward);
         return;

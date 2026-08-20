@@ -1,7 +1,8 @@
 import { Check, Plus } from "lucide-react";
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
+import { moveListFocus } from "../focus";
 
 /**
  * The branch a typed query would make: what the user typed, once it is a name no branch already has.
@@ -80,10 +81,11 @@ export type BranchMenuProps = {
   onPick: (branch: string, create: boolean) => void;
   /** The row to hang off, for a list whose surroundings would otherwise clip it. */
   anchor?: HTMLElement | null;
+  menuRef?: RefObject<HTMLDivElement | null>;
 };
 
 /** The list a branch is chosen from: every local branch, narrowed by search, and the name to make. */
-export function BranchMenu({ branches, selected, onPick, anchor }: BranchMenuProps) {
+export function BranchMenu({ branches, selected, onPick, anchor, menuRef }: BranchMenuProps) {
   const [query, setQuery] = useState("");
   const anchored = useAnchoredStyle(anchor);
   const names = branches?.status === "available" ? branches.branches : [];
@@ -91,7 +93,7 @@ export function BranchMenu({ branches, selected, onPick, anchor }: BranchMenuPro
   const naming = newBranchName(names, query);
 
   const menu = (
-    <div className={`branch-menu ${anchor ? "anchored" : ""}`.trimEnd()} data-popover-menu style={anchored ?? undefined}>
+    <div ref={menuRef} className={`branch-menu ${anchor ? "anchored" : ""}`.trimEnd()} data-popover-menu style={anchored ?? undefined} onKeyDown={moveListFocus}>
       <input
         className="branch-menu-search"
         aria-label="Search branches"
@@ -102,14 +104,14 @@ export function BranchMenu({ branches, selected, onPick, anchor }: BranchMenuPro
       />
       <div role="listbox" aria-label="Branches">
         {naming && (
-          <button role="option" aria-selected={false} onClick={() => onPick(naming, true)}>
+          <button type="button" role="option" aria-selected={false} onClick={() => onPick(naming, true)}>
             <span>Create branch “{naming}”</span>
             <Plus size={14} />
           </button>
         )}
         {matches.length === 0 && !naming && <p className="branch-menu-empty">{branches ? "No branch matches" : "Reading branches…"}</p>}
         {matches.map((name) => (
-          <button key={name} role="option" aria-selected={name === selected} onClick={() => onPick(name, false)}>
+          <button type="button" key={name} role="option" aria-selected={name === selected} onClick={() => onPick(name, false)}>
             <span>{name}</span>
             {name === selected && <Check size={14} />}
           </button>

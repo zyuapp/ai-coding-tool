@@ -228,6 +228,7 @@ export type DesktopAPI = {
   /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
   findInPage(tabId: string, query: string, forward: boolean, findNext: boolean): Promise<void>;
   stopFindInPage(tabId: string): Promise<void>;
+  focusBrowserTab(tabId: string): Promise<void>;
   onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
   openFile(root: string, path: string): Promise<void>;

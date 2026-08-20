@@ -105,7 +105,10 @@ test("⌘F while a page has the keys searches the page, and takes the keyboard b
   assert.deepEqual(deriveView(reported).find.matches, 4);
   assert.deepEqual(deriveView(reported).find.index, 3);
 
-  assert.deepEqual(reduce(reported, { type: "view.find-close" }).effects, [{ type: "stop-find-in-page", tabId }]);
+  assert.deepEqual(reduce(reported, { type: "view.find-close" }).effects, [
+    { type: "stop-find-in-page", tabId },
+    { type: "focus-browser", tabId },
+  ]);
 });
 
 test("a page that closes takes the search of it with it", () => {

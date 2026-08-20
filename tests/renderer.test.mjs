@@ -526,6 +526,7 @@ function fakeDesktop(overrides = {}) {
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
+    focusBrowserTab: async (tabId) => { browserCalls.push(["focus", tabId]); },
     onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
     onBrowserFind: () => () => {},
     terminalCalls,
@@ -775,6 +776,7 @@ test("a side chat composes with everything the main composer has", async () => {
   const settings = view.container.querySelectorAll(".composer-settings .setting-menu");
   assert.equal(settings.length, 3, "permission mode, model, and effort");
   assert.match(settings[0].textContent, /Allow all edit/, "the chat's own policy is selected, not the first one on offer");
+  await act(async () => { settings[0].querySelector("summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => { [...settings[0].querySelectorAll(".setting-option")].find((option) => option.textContent.includes("Auto mode")).click(); });
   assert.deepEqual(policies, ["autonomous"]);
 
@@ -791,6 +793,36 @@ test("a side chat composes with everything the main composer has", async () => {
   await act(async () => { textarea.dispatchEvent(paste); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a side chat takes a pasted image");
+  await view.unmount();
+});
+
+test("one outside pointer press dismisses the slash menu until the draft changes", async () => {
+  window.desktop = fakeDesktop({ commands: async () => ({ status: "available", commands: [{ name: "review", description: "Review this change.", argumentHint: "" }] }) });
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt, folder: "/project", workspaceId: "workspace-1", mode: "confirm", model: "opus", effort: "medium", runActive: false,
+      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector("textarea");
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  textarea.attachEvent = () => {};
+  textarea.detachEvent = () => {};
+  await act(async () => {
+    textarea.focus();
+    setValue.call(textarea, "/");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
+  });
+  assert.ok(view.container.querySelector(".command-menu"));
+  await act(async () => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
+  assert.equal(view.container.querySelector(".command-menu"), null);
+  await act(async () => {
+    setValue.call(textarea, "/r");
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
+  });
+  assert.ok(view.container.querySelector(".command-menu"), "typing again reopens matching commands");
   await view.unmount();
 });
 
@@ -1494,12 +1526,14 @@ test("the composer offers model and effort choices, ordered most to least capabl
   const menus = [...view.container.querySelectorAll(".setting-menu summary")].map((item) => item.getAttribute("aria-label"));
   assert.deepEqual(menus, ["Permission mode", "Model", "Effort"]);
   const modelMenu = view.container.querySelectorAll(".setting-menu")[1];
+  await act(async () => { modelMenu.querySelector("summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
     [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
     ["Fable", "Opus", "Sonnet", "Haiku"],
   );
   assert.equal(modelMenu.querySelector(".setting-summary-label").textContent, "Opus");
   const effortMenu = view.container.querySelectorAll(".setting-menu")[2];
+  await act(async () => { effortMenu.querySelector("summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
     [...effortMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
     ["Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"],
@@ -2755,9 +2789,24 @@ test("the start options say where a thread begins, and searching narrows the bra
   assert.deepEqual(chosen.branch, ["fix-loader", null], "the branch the checkout is already on asks for nothing");
 
   await view.render(options({ name: "fix-loader", create: false }, false));
-  assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /fix-loader/);
+  const branchTrigger = view.container.querySelector('button[aria-label="Starting branch"]');
+  assert.match(branchTrigger.textContent, /fix-loader/);
   await act(async () => { view.container.querySelector('.thread-start-check input').click(); });
   assert.deepEqual(chosen.worktree, [true]);
+
+  await act(async () => { branchTrigger.click(); });
+  const branchSearch = view.container.querySelector('input[aria-label="Search branches"]');
+  assert.equal(document.activeElement, branchSearch, "the branch search takes focus when it opens");
+  await act(async () => { branchSearch.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(view.container.querySelector(".branch-menu"), null, "Escape closes the branch list");
+  assert.equal(document.activeElement, branchTrigger, "closing the list returns focus to its trigger");
+
+  await act(async () => { branchTrigger.click(); });
+  await act(async () => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(view.container.querySelector(".branch-menu"), null, "one outside pointer press closes the branch list");
+  assert.equal(document.activeElement, branchTrigger);
   await view.unmount();
 });
 

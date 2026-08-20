@@ -1,6 +1,7 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Ellipsis } from "lucide-react";
+import { moveListFocus, useDismissibleLayer } from "../focus";
 
 export type MenuItem = {
   label: string;
@@ -14,19 +15,22 @@ type MenuListProps = {
   onSetOpenMenu: (menu: string | null) => void;
   className?: string;
   style?: CSSProperties;
+  menuRef?: RefObject<HTMLDivElement | null>;
 };
 
 /** Choosing an item always closes the menu, so no item has to remember to. */
-function MenuList({ items, onSetOpenMenu, className, style }: MenuListProps) {
+function MenuList({ items, onSetOpenMenu, className, style, menuRef }: MenuListProps) {
+  const first = items.findIndex((item) => !item.disabled);
   return (
-    <div className={`menu-popover ${className ?? ""}`.trimEnd()} data-popover-menu role="menu" style={style}>
-      {items.map((item) => (
+    <div ref={menuRef} className={`menu-popover ${className ?? ""}`.trimEnd()} data-popover-menu role="menu" style={style} onKeyDown={moveListFocus}>
+      {items.map((item, index) => (
         <button
           key={item.label}
           type="button"
           role="menuitem"
           className={item.danger ? "danger-menu-item" : undefined}
           disabled={item.disabled}
+          autoFocus={index === first}
           onClick={() => {
             onSetOpenMenu(null);
             item.onSelect();
@@ -55,13 +59,17 @@ export type PopoverMenuProps = {
 
 /**
  * An ellipsis trigger and the list it opens. The reducer owns which menu is open, so the only
- * state here is the comparison; a pointer outside any `[data-popover-menu]` closes it in `App`,
+ * state here is the comparison; the shared dismissible layer handles outside presses and Escape,
  * and focus leaving closes it here.
  */
 export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, className, popoverClassName, children }: PopoverMenuProps) {
   const open = openMenu === id;
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
   return (
     <div
+      ref={root}
       className={`${className} ${open ? "open" : ""}`.trimEnd()}
       data-popover-menu
       onBlur={(event) => {
@@ -70,9 +78,11 @@ export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, classNa
     >
       {children}
       <button
+        ref={trigger}
         className="menu-trigger"
         type="button"
         aria-label={label}
+        aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
@@ -84,9 +94,11 @@ export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, classNa
 }
 
 /** The same list with no trigger of its own, placed where a right-click asked for it. */
-export function ContextMenu({ items, onSetOpenMenu, position }: Omit<MenuListProps, "className" | "style"> & { position: CSSProperties }) {
+export function ContextMenu({ items, onSetOpenMenu, position, returnFocus }: Omit<MenuListProps, "className" | "style" | "menuRef"> & { position: CSSProperties; returnFocus?: RefObject<HTMLElement | null> }) {
+  const menu = useRef<HTMLDivElement>(null);
+  useDismissibleLayer(true, [menu], () => onSetOpenMenu(null), returnFocus);
   return createPortal(
-    <MenuList items={items} onSetOpenMenu={onSetOpenMenu} className="context-menu-popover" style={position} />,
+    <MenuList menuRef={menu} items={items} onSetOpenMenu={onSetOpenMenu} className="context-menu-popover" style={position} />,
     document.body,
   );
 }

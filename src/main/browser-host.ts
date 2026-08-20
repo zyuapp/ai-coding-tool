@@ -206,6 +206,10 @@ export function stopFindInPage(tabId: string) {
   tabs.get(tabId)?.view.webContents.stopFindInPage("clearSelection");
 }
 
+export function focusTab(tabId: string) {
+  tabs.get(tabId)?.view.webContents.focus();
+}
+
 export function closeTab(tabId: string) {
   const tab = tabs.get(tabId);
   if (!tab) return;
