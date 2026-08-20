@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { access, cp, mkdir, readdir, stat } from "node:fs/promises";
+import { access, cp, lstat, mkdir, readdir, realpath, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import {
   addWorktree,
   applyPatch,
   git,
   headCommit,
+  headIsUnreachable,
   ignoredPaths,
   isDetached,
   matchIgnorePatterns,
@@ -91,21 +92,29 @@ export class WorktreeService {
 
   /**
    * Commits everything left in the worktree so a thread never loses work by walking away from it,
-   * then gives the directory back. A worktree still detached has no branch holding its commit, so a
-   * ref under `refs/claudex` keeps it reachable; once the thread has made a branch, the branch does
-   * that job. The snapshot has to land before the directory goes, so a failure there keeps both.
+   * then gives the directory back. A worktree still detached has no branch holding its commits —
+   * the snapshot's or the thread's own — so a ref under `refs/claudex` keeps them reachable; once
+   * the thread has made a branch, the branch does that job. The snapshot has to land before the
+   * directory goes, so a failure there keeps both.
    */
   async release(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshot> {
+    await this.assertOwned(request.root);
     const snapshot = await this.snapshot(request);
     await this.delete(request.root);
     return snapshot;
   }
 
-  /** Throws the directory away along with anything uncommitted in it. Branches are never touched. */
+  /**
+   * Throws the directory away along with anything uncommitted in it. Branches are never touched.
+   * Git cannot remove a checkout whose repository is gone, so the directory itself always goes.
+   */
   async delete(root: string) {
+    await this.assertOwned(root);
+    const canonical = await canonicalPath(root);
     const repository = await parentRepository(root);
     if (repository) await removeWorktree(repository, root);
-    await this.workspaces.forgetWorktree(root);
+    await rm(root, { recursive: true, force: true });
+    await this.workspaces.forgetWorktree(canonical);
   }
 
   /**
@@ -115,12 +124,13 @@ export class WorktreeService {
    * still holds is committed and kept reachable first, exactly as returning to local would.
    */
   async reconcile(request: ReconcileRequest): Promise<{ reaped: string[] }> {
-    const claimed = new Set(request.claimed.map((root) => path.resolve(root)));
+    /** Claimed roots come from the registry realpath'd; the disk is read literally. Compare like with like. */
+    const claimed = new Set(await Promise.all(request.claimed.map(canonicalPath)));
     const reaped: string[] = [];
     for (const entry of await readdir(this.worktreesRoot, { withFileTypes: true }).catch(() => [])) {
       if (!entry.isDirectory()) continue;
       const root = path.join(this.worktreesRoot, entry.name);
-      if (claimed.has(root)) continue;
+      if (claimed.has(await canonicalPath(root))) continue;
       /** One directory that cannot be read is not a reason to leave every other one behind. */
       try {
         await this.release({
@@ -143,15 +153,34 @@ export class WorktreeService {
     return { reaped };
   }
 
-  /** A directory that is already gone has nothing to commit, and says so rather than failing. */
+  /**
+   * A directory that is already gone, or whose repository is, has nothing to commit and nowhere to
+   * keep it, and says so rather than failing. A detached checkout keeps its `refs/claudex` ref even
+   * with nothing left to commit: commits the thread made itself have no branch holding them either.
+   */
   private async snapshot(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshot> {
     if (!(await directoryExists(request.root))) return { commit: null, shortCommit: null, ref: null };
+    if (!(await parentRepository(request.root))) return { commit: null, shortCommit: null, ref: null };
     const ref = (await isDetached(request.root)) ? worktreeRef(request.worktreeId) : null;
     const commit = await snapshotCommit(request.root, snapshotMessage(request.title, request.taskId, request.release, ref));
-    if (!commit) return { commit: null, shortCommit: null, ref: null };
-    if (ref) await updateRef(request.root, ref, commit);
-    return { commit, shortCommit: await shortCommit(request.root, commit), ref };
+    const kept = commit ?? (ref && (await headIsUnreachable(request.root)) ? await headCommit(request.root) : null);
+    if (!kept) return { commit: null, shortCommit: null, ref: null };
+    if (ref) await updateRef(request.root, ref, kept);
+    return { commit, shortCommit: commit ? await shortCommit(request.root, commit) : null, ref };
   }
+
+  /** Everything here acts only inside the worktrees root; any other path is refused outright. */
+  private async assertOwned(root: string) {
+    const roots = [await canonicalPath(this.worktreesRoot), path.resolve(this.worktreesRoot)];
+    const candidates = [await canonicalPath(root), path.resolve(root)];
+    const owned = roots.some((base) => candidates.some((candidate) => candidate.startsWith(`${base}${path.sep}`)));
+    if (!owned) throw new Error(`Not a Claudex worktree: ${root}`);
+  }
+}
+
+/** Resolved through symlinks while the path exists, so the registry, git and the disk agree on it. */
+async function canonicalPath(target: string) {
+  return realpath(target).catch(() => path.resolve(target));
 }
 
 async function directoryExists(root: string) {
@@ -184,20 +213,24 @@ async function copyIncludedFiles(repository: string, worktreePath: string) {
     const from = path.join(repository, relative);
     const to = path.join(worktreePath, relative);
     await mkdir(path.dirname(to), { recursive: true });
-    await cp(from, to, { recursive: true, force: true, preserveTimestamps: true }).catch(() => {});
+    /** The includes are conveniences, not the thread's work; one that will not copy is not fatal. */
+    await cp(from, to, { recursive: true, force: true, preserveTimestamps: true }).catch((error) => {
+      console.error(`Could not copy ${relative} into the worktree:`, error);
+    });
   }
 }
 
-/** Uncommitted work, copied across: tracked edits as a patch, untracked files verbatim. */
+/** Uncommitted work, copied across: tracked edits as a patch, untracked files and symlinks verbatim. */
 async function carryChanges(repository: string, worktreePath: string) {
   const patch = await trackedDiff(repository);
   if (patch.trim()) await applyPatch(worktreePath, patch);
   for (const relative of await untrackedPaths(repository)) {
     const from = path.join(repository, relative);
     const to = path.join(worktreePath, relative);
-    const metadata = await stat(from).catch(() => null);
-    if (!metadata?.isFile()) continue;
+    /** A path deleted while this runs is gone from the checkout too, so there is nothing to carry. */
+    const metadata = await lstat(from).catch(() => null);
+    if (!metadata || (!metadata.isFile() && !metadata.isSymbolicLink())) continue;
     await mkdir(path.dirname(to), { recursive: true });
-    await cp(from, to, { force: true, preserveTimestamps: true }).catch(() => {});
+    await cp(from, to, { force: true, preserveTimestamps: true, verbatimSymlinks: true });
   }
 }

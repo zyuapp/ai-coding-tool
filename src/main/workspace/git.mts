@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const TIMEOUT_MS = 30_000;
+/** Checkout-scale work — populating or removing a worktree, committing a whole tree — takes as long as the tree is big. */
+const LONG_TIMEOUT_MS = 600_000;
 /** A worktree checkout can carry a large binary patch, so the pipe has to be bigger than the default. */
 const MAX_BUFFER = 64 * 1024 * 1024;
 
@@ -22,11 +24,13 @@ export class GitError extends Error {
   }
 }
 
-/** Every git invocation in the app goes through here: no shell, one timeout, one error shape. */
-export async function git(cwd: string, args: string[], input?: string) {
+/** Every git invocation in the app goes through here: no shell, one error shape, a bounded timeout. */
+export async function git(cwd: string, args: string[], input?: string, timeoutMs = TIMEOUT_MS) {
   try {
-    const child = execFileAsync("git", args, { cwd, timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, encoding: "buffer" });
+    const child = execFileAsync("git", args, { cwd, timeout: timeoutMs, maxBuffer: MAX_BUFFER, encoding: "buffer" });
     if (input !== undefined) {
+      /** Git may exit before reading all of stdin; that failure is git's exit code, not a stream error. */
+      child.child.stdin?.once("error", () => {});
       child.child.stdin?.end(input);
     }
     const { stdout } = await child;
@@ -40,16 +44,22 @@ export async function git(cwd: string, args: string[], input?: string) {
   }
 }
 
-async function tryGit(cwd: string, args: string[]) {
+async function tryGit(cwd: string, args: string[], timeoutMs?: number) {
   try {
-    return await git(cwd, args);
+    return await git(cwd, args, undefined, timeoutMs);
   } catch {
     return null;
   }
 }
 
+/** Refuses a caller-supplied name git would read as an option instead of a ref. */
+function refArgument(name: string) {
+  if (name.startsWith("-")) throw new GitError([name], `Invalid ref name: ${name}`);
+  return name;
+}
+
 export async function headCommit(root: string, ref = "HEAD") {
-  return (await git(root, ["rev-parse", ref])).trim();
+  return (await git(root, ["rev-parse", refArgument(ref)])).trim();
 }
 
 export async function shortCommit(root: string, commit: string) {
@@ -70,11 +80,11 @@ export async function repositoryRoot(root: string) {
 }
 
 export async function addWorktree(repositoryPath: string, worktreePath: string, commit: string) {
-  await git(repositoryPath, ["worktree", "add", "--detach", worktreePath, commit]);
+  await git(repositoryPath, ["worktree", "add", "--detach", worktreePath, commit], undefined, LONG_TIMEOUT_MS);
 }
 
 export async function removeWorktree(repositoryPath: string, worktreePath: string) {
-  await tryGit(repositoryPath, ["worktree", "remove", "--force", worktreePath]);
+  await tryGit(repositoryPath, ["worktree", "remove", "--force", worktreePath], LONG_TIMEOUT_MS);
   await tryGit(repositoryPath, ["worktree", "prune"]);
 }
 
@@ -98,7 +108,7 @@ export async function listBranches(root: string) {
 
 /** Makes `branch` at the checkout's HEAD. Git refuses a name the repository already has. */
 export async function createBranch(root: string, branch: string) {
-  await git(root, ["branch", branch]);
+  await git(root, ["branch", refArgument(branch)]);
 }
 
 /**
@@ -106,7 +116,7 @@ export async function createBranch(root: string, branch: string) {
  * uncommitted work, and that refusal is the answer rather than something to override.
  */
 export async function checkoutBranch(root: string, branch: string) {
-  await git(root, ["checkout", branch]);
+  await git(root, ["checkout", refArgument(branch)]);
 }
 
 export async function updateRef(root: string, ref: string, commit: string) {
@@ -120,9 +130,19 @@ export async function updateRef(root: string, ref: string, commit: string) {
  */
 export async function snapshotCommit(root: string, message: string) {
   if (!(await isDirty(root))) return null;
-  await git(root, ["add", "-A"]);
-  await git(root, ["commit", "--no-verify", "-m", message]);
+  await git(root, ["add", "-A"], undefined, LONG_TIMEOUT_MS);
+  /** A machine with no git identity still gets its snapshot; the app signs it instead. */
+  const identity = (await tryGit(root, ["var", "GIT_AUTHOR_IDENT"]))
+    ? []
+    : ["-c", "user.name=Claudex", "-c", "user.email=claudex@localhost"];
+  await git(root, [...identity, "commit", "--no-verify", "-m", message], undefined, LONG_TIMEOUT_MS);
   return headCommit(root);
+}
+
+/** True when no branch, remote or tag holds `HEAD`, so removing the checkout would orphan its commits. */
+export async function headIsUnreachable(root: string) {
+  const output = await git(root, ["rev-list", "-n", "1", "HEAD", "--not", "--branches", "--remotes", "--tags"]);
+  return output.trim().length > 0;
 }
 
 /** Ignored files present in the checkout. `--directory` collapses `node_modules/` into one entry. */
@@ -163,9 +183,9 @@ export async function matchIgnorePatterns(patternFile: string, candidates: strin
 
 /** The uncommitted work in a checkout, as a patch that applies onto the same commit elsewhere. */
 export async function trackedDiff(root: string) {
-  return git(root, ["diff", "--binary", "HEAD", "--"]);
+  return git(root, ["diff", "--binary", "HEAD", "--"], undefined, LONG_TIMEOUT_MS);
 }
 
 export async function applyPatch(root: string, patch: string) {
-  await git(root, ["apply", "--whitespace=nowarn", "-"], patch);
+  await git(root, ["apply", "--whitespace=nowarn", "-"], patch, LONG_TIMEOUT_MS);
 }

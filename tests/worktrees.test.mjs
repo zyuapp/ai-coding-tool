@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readlink, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { WorktreeService } from "../dist/main/main/workspace/worktrees.mjs";
-import { isDetached, listWorktrees } from "../dist/main/main/workspace/git.mjs";
+import { checkoutBranch, createBranch, isDetached, listWorktrees } from "../dist/main/main/workspace/git.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -210,6 +210,28 @@ test("releasing a clean worktree commits nothing", async () => {
   assert.deepEqual(snapshot, { commit: null, shortCommit: null, ref: null });
 });
 
+test("releasing a clean worktree keeps commits the thread made while detached", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await writeFile(path.join(worktree.root, "tracked.txt"), "committed detached\n");
+  await git(worktree.root, "commit", "-qam", "detached work");
+  const head = (await git(worktree.root, "rev-parse", "HEAD")).stdout.trim();
+
+  const snapshot = await worktrees.release({
+    worktreeId: worktree.id,
+    root: worktree.root,
+    taskId: "thread-2b",
+    title: "Committed but detached",
+    release: "returned-to-local",
+  });
+
+  assert.equal(snapshot.commit, null, "there was nothing left to commit");
+  assert.equal(snapshot.ref, `refs/claudex/${worktree.id}`);
+  const preserved = (await git(root, "rev-parse", snapshot.ref)).stdout.trim();
+  assert.equal(preserved, head, "the thread's own commits stay reachable after the directory goes");
+});
+
 test("a branch the thread made holds the snapshot itself, so no ref is written", async () => {
   const root = await repository();
   const worktrees = await service();
@@ -270,6 +292,40 @@ test("deleting a worktree takes its uncommitted work and leaves branches alone",
   assert.equal(kept, "committed on the branch\n");
 });
 
+test("a worktree whose repository is gone can still be deleted", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await rm(root, { recursive: true, force: true });
+
+  await worktrees.delete(worktree.root);
+
+  assert.equal(await exists(worktree.root), false, "the directory goes even with no git to remove it");
+  assert.equal(worktrees.registry.records.size, 0);
+});
+
+test("release and delete refuse a directory outside the worktrees root", async () => {
+  const root = await repository();
+  const worktrees = await service();
+
+  await assert.rejects(worktrees.delete(root), /Not a Claudex worktree/);
+  await assert.rejects(
+    worktrees.release({ worktreeId: "x", root, taskId: null, title: "elsewhere", release: "evicted" }),
+    /Not a Claudex worktree/,
+  );
+  assert.equal(await exists(path.join(root, "tracked.txt")), true, "the refused directory is untouched");
+});
+
+test("a moving thread carries untracked symlinks as symlinks", async () => {
+  const root = await repository();
+  await symlink("tracked.txt", path.join(root, "link.txt"));
+  const worktrees = await service();
+
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: true });
+
+  assert.equal(await readlink(path.join(worktree.root, "link.txt")), "tracked.txt");
+});
+
 test("worktrees of the same project stay independent", async () => {
   const root = await repository();
   const worktrees = await service();
@@ -328,6 +384,41 @@ test("a reconcile forgets registrations whose directory was removed from outside
 
   assert.equal(worktrees.registry.records.size, 0, "the registry never outgrows the disk");
   assert.deepEqual(await listWorktrees(root), [root], "and neither does git's own list");
+});
+
+test("a reconcile reaps a checkout whose repository is gone", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await rm(root, { recursive: true, force: true });
+
+  const { reaped } = await worktrees.reconcile({ claimed: [], repositories: [] });
+
+  assert.deepEqual(reaped, [worktree.root]);
+  assert.equal(await exists(worktree.root), false, "a checkout git cannot read does not linger forever");
+});
+
+test("a reconcile recognises a claimed checkout through a symlinked path", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const claimed = await worktrees.create({ projectRoot: root, carryChanges: false });
+  const link = path.join(await temporaryDirectory("link"), "worktrees");
+  await symlink(worktrees.worktreesRoot, link);
+
+  const { reaped } = await worktrees.reconcile({
+    claimed: [path.join(link, path.basename(claimed.root))],
+    repositories: [root],
+  });
+
+  assert.deepEqual(reaped, [], "a live worktree is never evicted over how its path is spelled");
+  assert.equal(await exists(claimed.root), true);
+});
+
+test("branch names git would read as options are refused", async () => {
+  const root = await repository();
+
+  await assert.rejects(createBranch(root, "--force"), /Invalid ref name/);
+  await assert.rejects(checkoutBranch(root, "-b"), /Invalid ref name/);
 });
 
 test("a reconcile leaves a worktrees root that has never been used alone", async () => {
