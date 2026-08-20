@@ -2266,7 +2266,7 @@ test("an expanded folder shows ten tasks, and reveals the rest on demand", async
   const view = await mount(React.createElement(App));
 
   const rows = () => view.container.querySelectorAll(".project-task-row");
-  const showMore = () => view.container.querySelector(".project-show-more");
+  const showMore = () => view.container.querySelector(".show-more");
   assert.equal(rows().length, 10);
   assert.equal(showMore().textContent, "Show 3 more");
 
@@ -2290,14 +2290,14 @@ test("a folder keeps the open task in view past the first ten", async () => {
   const view = await mount(React.createElement(App));
 
   const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
-  await act(async () => { view.container.querySelector(".project-show-more").click(); });
+  await act(async () => { view.container.querySelector(".show-more").click(); });
   const eleventh = [...view.container.querySelectorAll(".project-task-row")].find((row) => row.textContent.startsWith("Task 11"));
   await act(async () => { eleventh.click(); });
-  await act(async () => { view.container.querySelector(".project-show-more").click(); });
+  await act(async () => { view.container.querySelector(".show-more").click(); });
 
   assert.equal(titles().length, 12);
   assert.equal(titles().at(-1), "Task 11");
-  assert.equal(view.container.querySelector(".project-show-more").textContent, "Show 1 more");
+  assert.equal(view.container.querySelector(".show-more").textContent, "Show 1 more");
   await view.unmount();
 });
 

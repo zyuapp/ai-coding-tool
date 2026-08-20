@@ -397,7 +397,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-tasks.collapsed, .task-list.collapsed { display: none; }
 /** A folded row keeps bounds a drag can measure and land in, without showing what it holds. */
 .project-tasks.drop-strip, .task-list.drop-strip { display: block; min-height: 12px; }
-.project-show-more {
+.show-more {
   height: 24px;
   display: block;
   border: 0;
@@ -409,7 +409,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   letter-spacing: -0.012em;
   cursor: pointer;
 }
-.project-show-more:hover { color: var(--muted-strong); }
+.show-more:hover { color: var(--muted-strong); }
 .task-entry { position: relative; min-width: 0; }
 .context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /** The status mark and the archive action share the slot's single cell, so a row keeps
@@ -806,19 +806,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-size: var(--text-meta);
   font-weight: 560;
 }
-.subagent-more {
-  display: block;
-  width: 100%;
-  border: 0;
-  border-radius: 9px;
-  padding: 7px 8px;
-  background: transparent;
-  color: var(--quiet-strong);
-  font-size: var(--text-meta);
-  text-align: left;
-  cursor: pointer;
-}
-.subagent-more:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .agents-panel-empty { flex: 1; display: grid; place-content: center; justify-items: center; padding: 24px 24px 10vh; text-align: center; }
 .agents-panel-empty h2 { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
 .agents-panel-empty p { max-width: 290px; margin: 0; color: var(--quiet); font-size: var(--text-control); line-height: 1.5; }

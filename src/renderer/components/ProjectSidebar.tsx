@@ -5,6 +5,7 @@ import { projectName } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
 import { ContextMenu, PopoverMenu } from "./PopoverMenu";
+import { ShowMore } from "./ShowMore";
 
 const RECENTS_DROPPABLE = "recents";
 const PROJECT_TASK_LIMIT = 10;
@@ -296,12 +297,13 @@ export function ProjectSidebar({
                     </div>
                   )}
                 </Droppable>
-                {expanded && (hidden > 0 || showAllTasks.has(project.id)) && <button
-                  className="project-show-more"
-                  type="button"
-                  onClick={() => toggleShowAll(project.id)}
-                  aria-expanded={showAllTasks.has(project.id)}
-                >{hidden > 0 ? `Show ${hidden} more` : "Show less"}</button>}
+                {expanded && (hidden > 0 || showAllTasks.has(project.id)) && (
+                  <ShowMore
+                    label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
+                    expanded={showAllTasks.has(project.id)}
+                    onSelect={() => toggleShowAll(project.id)}
+                  />
+                )}
               </section>
             );
           })}

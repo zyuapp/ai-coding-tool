@@ -3,6 +3,7 @@ import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { Subagent } from "../../domain/run";
 import { PopoverMenu } from "./PopoverMenu";
+import { ShowMore } from "./ShowMore";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 
 export type SessionPanelProps = {
@@ -108,7 +109,7 @@ export function SessionPanel({ environment, hasProject, location, runActive, ope
                 <div className="subagent-list" aria-live="polite">
                   {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
                   {subagents.length > shown.length && (
-                    <button className="subagent-more" type="button" onClick={onOpenAgents} aria-label={`View all ${subagents.length} subagents`}>View All</button>
+                    <ShowMore label="View All" onSelect={onOpenAgents} />
                   )}
                 </div>
               )}
