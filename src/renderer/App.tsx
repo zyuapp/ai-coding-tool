@@ -273,6 +273,7 @@ export function App() {
             openMenu={workspace.openMenu}
             onSetOpenMenu={workspace.actions.setOpenMenu}
             subagents={workspace.subagents}
+            backgroundProcesses={workspace.backgroundProcesses}
             automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
               inspectSubagent(id);
@@ -280,6 +281,7 @@ export function App() {
             }}
             onOpenAgents={() => openRightTab("agents")}
             onOpenAutomations={() => openRightTab("automation")}
+            onStopProcess={workspace.actions.stopBackgroundProcess}
             onSetWorktree={(worktree) => {
               /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */
               const holding = workspace.environment?.status === "available" ? workspace.environment.files.length : 0;

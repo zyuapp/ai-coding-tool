@@ -17,6 +17,7 @@ function input(overrides = {}) {
     effort: "high",
     steering: { next: () => new Promise(() => {}) },
     abortController: new AbortController(),
+    attach() {},
     authorize: async () => "allow",
     emit() {},
     ...overrides,
@@ -29,6 +30,10 @@ function queryFactory(messages, capture = {}) {
     return {
       async *[Symbol.asyncIterator]() {
         for (const message of messages) yield message;
+      },
+      stopTask(taskId) {
+        capture.stopped = [...(capture.stopped ?? []), taskId];
+        return Promise.resolve();
       },
       close() {
         capture.closed = true;
@@ -454,4 +459,40 @@ test("a run with no workspace bridge is offered no thread tools", async () => {
 
   assert.equal(capture.options.options.mcpServers?.["claudex-threads"], undefined);
   assert.doesNotMatch(capture.options.options.systemPrompt.append, /claudex-threads/);
+});
+
+test("only background tasks that are processes of their own are reported, and the whole set each time", async () => {
+  const emitted = [];
+  const provider = new ClaudeAgentProvider(queryFactory([
+    {
+      type: "system",
+      subtype: "background_tasks_changed",
+      tasks: [
+        { task_id: "bash-1", task_type: "local_bash", description: "npm run dev" },
+        { task_id: "agent-1", task_type: "local_agent", description: "Inspect the renderer" },
+        { task_id: "watch-1", task_type: "monitor_ws", description: "Deploy events" },
+      ],
+    },
+    { type: "system", subtype: "background_tasks_changed", tasks: [{ task_id: "bash-1", task_type: "local_bash", description: "npm run dev" }] },
+    { type: "result", subtype: "success", is_error: false, result: "done" },
+  ]));
+
+  await provider.execute(input({ emit: (event) => emitted.push(event) }));
+  assert.deepEqual(emitted.filter((event) => event.type === "background.changed"), [
+    { type: "background.changed", processes: [
+      { id: "bash-1", kind: "shell", description: "npm run dev" },
+      { id: "watch-1", kind: "monitor", description: "Deploy events" },
+    ] },
+    { type: "background.changed", processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }] },
+  ]);
+});
+
+test("the live session is handed back so a background process can be stopped mid-run", async () => {
+  const capture = {};
+  let controls;
+  const provider = new ClaudeAgentProvider(queryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }], capture));
+
+  await provider.execute(input({ attach: (handed) => { controls = handed; } }));
+  await controls.stopProcess("bash-1");
+  assert.deepEqual(capture.stopped, ["bash-1"]);
 });

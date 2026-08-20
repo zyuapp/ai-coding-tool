@@ -1,7 +1,8 @@
 import { AlarmClock, FileDiff, GitBranch, House } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
-import type { Subagent } from "../../domain/run";
+import type { BackgroundProcess, Subagent } from "../../domain/run";
+import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { PopoverMenu } from "./PopoverMenu";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 
@@ -13,10 +14,12 @@ export type SessionPanelProps = {
   runActive: boolean;
   openMenu: string | null;
   subagents: Subagent[];
+  backgroundProcesses: BackgroundProcess[];
   automationCount: number;
   onSelect: (id: string) => void;
   onOpenAgents: () => void;
   onOpenAutomations: () => void;
+  onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSetWorktree: (worktree: boolean) => void;
 };
@@ -64,7 +67,7 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
   );
 }
 
-export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, automationCount, onSelect, onOpenAgents, onOpenAutomations, onSetOpenMenu, onSetWorktree }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, backgroundProcesses, automationCount, onSelect, onOpenAgents, onOpenAutomations, onSetOpenMenu, onSetWorktree, onStopProcess }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
@@ -113,6 +116,8 @@ export function SessionPanel({ environment, hasProject, location, runActive, ope
                 </div>
               )}
             </div>
+
+            <BackgroundProcessSection processes={backgroundProcesses} onStop={onStopProcess} />
       </div>
     </aside>
   );

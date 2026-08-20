@@ -39,6 +39,24 @@ test("run command guard scopes cancellation and approval", () => {
   assert.equal(isRunCommand({ type: "approval", approvalId: "approval-1", allow: false }), false);
 });
 
+test("run command guard scopes stopping one of a run's processes", () => {
+  const stop = { type: "stop-process", taskId: "task-1", runId: "run-1", processId: "bash-1" };
+  assert.equal(isRunCommand(stop), true);
+  assert.equal(isInternalRunCommand(stop), true);
+  assert.equal(isRunCommand({ ...stop, processId: "" }), false);
+  assert.equal(isRunCommand({ type: "stop-process", taskId: "task-1", runId: "run-1" }), false);
+});
+
+test("run event guard validates the background process set", () => {
+  const base = { type: "background.changed", taskId: "task-1", runId: "run-1", sequence: 1 };
+  assert.equal(isRunEvent({ ...base, processes: [] }), true);
+  assert.equal(isRunEvent({ ...base, processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }, { id: "watch-1", kind: "monitor", description: "Deploy events" }] }), true);
+  assert.equal(isRunEvent({ ...base, processes: [{ id: "bash-1", kind: "subagent", description: "npm run dev" }] }), false);
+  assert.equal(isRunEvent({ ...base, processes: [{ id: "", kind: "shell", description: "npm run dev" }] }), false);
+  assert.equal(isRunEvent({ ...base, processes: [{ id: "bash-1", kind: "shell", description: "" }] }), false);
+  assert.equal(isRunEvent({ ...base, processes: {} }), false);
+});
+
 test("run event guard validates optional status messages", () => {
   const event = { type: "run.status", taskId: "task-1", runId: "run-1", sequence: 1, status: "failed" };
   assert.equal(isRunEvent({ ...event, message: "failed" }), true);

@@ -1525,3 +1525,23 @@ test("opening settings puts the dock away, and closing them forgets the computer
   assert.equal(closed.state.computerUseSetup, false);
   assert.equal(deriveView(closed.state).settingsOpen, false);
 });
+
+test("stopping a background process marks the row and asks the run, once", () => {
+  const state = workspace({
+    tasks: [task("task-a")],
+    currentId: "task-a",
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running" } },
+    backgroundProcesses: { "task-a": [{ id: "bash-1", kind: "shell", description: "npm run dev" }] },
+  });
+
+  const stopping = reduce(state, { type: "run.stop-process", processId: "bash-1" });
+  assert.deepEqual(stopping.effects, [
+    { type: "send-run-command", command: { type: "stop-process", taskId: "task-a", runId: "run-a", processId: "bash-1" } },
+  ]);
+  assert.equal(stopping.state.backgroundProcesses["task-a"][0].stopping, true);
+  assert.deepEqual(deriveView(stopping.state).backgroundProcesses, stopping.state.backgroundProcesses["task-a"]);
+
+  assert.deepEqual(reduce(stopping.state, { type: "run.stop-process", processId: "bash-1" }).effects, [], "a stop already on its way is not repeated");
+  assert.deepEqual(reduce(state, { type: "run.stop-process", processId: "ghost" }).effects, []);
+  assert.deepEqual(reduce(workspace({ tasks: [task("task-a")], currentId: "task-a" }), { type: "run.stop-process", processId: "bash-1" }).effects, [], "no run, nothing to stop");
+});

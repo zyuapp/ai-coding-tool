@@ -40,5 +40,6 @@ parentPort.on("message", ({ data }) => {
   if (data.type === "start") coordinators[data.channel].start(data);
   else if (data.type === "cancel") Object.values(coordinators).some((coordinator) => coordinator.cancel(data.taskId, data.runId));
   else if (data.type === "steer") Object.values(coordinators).some((coordinator) => coordinator.steer(data.taskId, data.runId, data.messageId, data.prompt));
+  else if (data.type === "stop-process") Object.values(coordinators).some((coordinator) => coordinator.stopProcess(data.taskId, data.runId, data.processId));
   else Object.values(coordinators).some((coordinator) => coordinator.decideApproval(data.taskId, data.runId, data.approvalId, data.allow));
 });

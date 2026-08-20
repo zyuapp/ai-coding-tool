@@ -2,7 +2,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type Automa
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
-import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
@@ -112,7 +112,15 @@ export type SteerRunCommand = {
   prompt: string;
 };
 
-export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand;
+/** Kills one background process the run started, leaving the run itself going. */
+export type StopProcessCommand = {
+  type: "stop-process";
+  taskId: string;
+  runId: string;
+  processId: string;
+};
+
+export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand;
 
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
@@ -288,6 +296,8 @@ export type RunEvent =
   | (RunEventBase & { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number })
   | (RunEventBase & { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string })
   | (RunEventBase & { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string })
+  /** Every background process the run still has. Replaces the set rather than amending it. */
+  | (RunEventBase & { type: "background.changed"; processes: BackgroundProcess[] })
   | (RunEventBase & {
       type: "approval.requested";
       approvalId: string;
@@ -334,6 +344,16 @@ function isContinuation(value: unknown): value is Continuation {
   return Boolean(value && typeof value === "object" && isString((value as Record<string, unknown>).provider) && isString((value as Record<string, unknown>).value, 100_000));
 }
 
+function isBackgroundProcessKind(value: unknown): value is BackgroundProcessKind {
+  return value === "shell" || value === "monitor";
+}
+
+function isBackgroundProcess(value: unknown): value is BackgroundProcess {
+  if (!value || typeof value !== "object") return false;
+  const process = value as Record<string, unknown>;
+  return isString(process.id) && isBackgroundProcessKind(process.kind) && isString(process.description, 100_000);
+}
+
 function isIntent(value: unknown): value is ToolIntent {
   if (!value || typeof value !== "object") return false;
   const intent = value as Record<string, unknown>;
@@ -361,10 +381,11 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
+  if (command.type === "stop-process") return isString(command.taskId) && isString(command.runId) && isString(command.processId);
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand {
+export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
   if (command.type === "start") return isStartCommand(command, true);
@@ -516,6 +537,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "subagent.progress") return isString(event.id) && isString(event.description, 100_000) && (event.lastToolName === undefined || isString(event.lastToolName)) && (event.summary === undefined || isString(event.summary, 100_000)) && typeof event.totalTokens === "number" && Number.isFinite(event.totalTokens) && event.totalTokens >= 0;
   if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";
   if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
+  if (event.type === "background.changed") return Array.isArray(event.processes) && event.processes.every(isBackgroundProcess);
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   if (event.type === "queued.delivered") return isString(event.messageId);

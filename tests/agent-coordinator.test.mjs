@@ -194,6 +194,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
     runStatuses: { "task-v": "running" },
     approvals: {},
     streamingTails: {},
+    backgroundProcesses: {},
   };
   for (const event of events) state = applyRunEvent(state, event);
 
@@ -394,4 +395,22 @@ test("each run reaches the workspace through a bridge scoped to its own thread",
 
   assert.deepEqual(bridges, ["task-a", "task-b"]);
   assert.deepEqual(provider.runs.map((run) => run.input.threads.taskId), ["task-a", "task-b"]);
+});
+
+test("stopping a background process reaches the live run's session, and only that run", async () => {
+  const provider = new FakeProvider();
+  const coordinator = new RunCoordinator(provider, () => {});
+
+  coordinator.start(base("task-p", "run-p"));
+  await tick();
+  assert.equal(coordinator.stopProcess("task-p", "run-p", "bash-1"), false, "nothing to stop before the session is live");
+
+  const stopped = [];
+  provider.runs[0].input.attach({ stopProcess: async (processId) => { stopped.push(processId); } });
+  assert.equal(coordinator.stopProcess("task-p", "run-stale", "bash-1"), false);
+  assert.equal(coordinator.stopProcess("task-q", "run-p", "bash-1"), false);
+  assert.equal(coordinator.stopProcess("task-p", "run-p", "bash-1"), true);
+  await tick();
+
+  assert.deepEqual(stopped, ["bash-1"]);
 });

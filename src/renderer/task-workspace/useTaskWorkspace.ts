@@ -513,6 +513,7 @@ export function useTaskWorkspace() {
       deleteAutomation: () => dispatch({ type: "automation.delete" }),
       runAutomationNow: () => dispatch({ type: "automation.run-now" }),
       cancelRun: () => dispatch({ type: "run.cancel" }),
+      stopBackgroundProcess: (processId: string) => dispatch({ type: "run.stop-process", processId }),
       decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),
       dismissComputerUseSetup: () => dispatch({ type: "view.dismiss-computer-use-setup" }),
       setDockOpen: (open: boolean) => dispatch({ type: "view.set-dock-open", open }),

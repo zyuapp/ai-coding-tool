@@ -21,6 +21,7 @@ function state() {
     runStatuses: { "task-a": "running" },
     approvals: {},
     streamingTails: {},
+    backgroundProcesses: {},
   };
 }
 
@@ -223,4 +224,34 @@ test("concurrent runs advance independently and finish one at a time", () => {
 
   const stillStreaming = applyRunEvent(stopped, { type: "assistant.delta", taskId: "task-b", runId: "run-b", sequence: 2, messageId: "message-b", text: "still going" });
   assert.equal(stillStreaming.tasks[1].messages[0].text, "from b\nstill going");
+});
+
+test("background processes are replaced whole, keep a stop already asked for, and end with the run", () => {
+  const started = applyRunEvent(state(), {
+    type: "background.changed",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 1,
+    processes: [
+      { id: "bash-1", kind: "shell", description: "npm run dev" },
+      { id: "watch-1", kind: "monitor", description: "Deploy events" },
+    ],
+  });
+  assert.deepEqual(started.backgroundProcesses["task-a"].map((process) => process.id), ["bash-1", "watch-1"]);
+
+  const stopping = {
+    ...started,
+    backgroundProcesses: { "task-a": started.backgroundProcesses["task-a"].map((process) => process.id === "bash-1" ? { ...process, stopping: true } : process) },
+  };
+  const replaced = applyRunEvent(stopping, {
+    type: "background.changed",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 2,
+    processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }],
+  });
+  assert.deepEqual(replaced.backgroundProcesses["task-a"], [{ id: "bash-1", kind: "shell", description: "npm run dev", stopping: true }]);
+
+  const ended = applyRunEvent(replaced, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" });
+  assert.equal(ended.backgroundProcesses["task-a"], undefined);
 });

@@ -145,6 +145,7 @@ test("session panel renders Git and subagent states and selects an agent", async
     environment: { status: "available", files: [" M file"], branch: "main", additions: 4, deletions: 2 },
     hasProject: true,
     subagents,
+    backgroundProcesses: [],
     automationCount: 1,
     onSelect: (id) => { selected = id; },
     onOpenAutomations: () => { openedAutomations += 1; },
@@ -168,11 +169,42 @@ test("session panel renders Git and subagent states and selects an agent", async
     [{ status: "unavailable", reason: "missing" }, "Workspace is missing"],
     [{ status: "error", message: "git failed" }, "git failed"],
   ]) {
-    await view.render(React.createElement(SessionPanel, { environment, hasProject: true, subagents: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
+    await view.render(React.createElement(SessionPanel, { environment, hasProject: true, subagents: [], backgroundProcesses: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
     assert.match(view.container.textContent, new RegExp(message));
   }
-  await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
+  await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], backgroundProcesses: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Open a project to inspect Git/);
+  await view.unmount();
+});
+
+test("the session panel lists the run's background processes and stops the one asked for", async () => {
+  const stopped = [];
+  const processes = [
+    { id: "bash-1", kind: "shell", description: "npm run dev" },
+    { id: "watch-1", kind: "monitor", description: "Deploy events", stopping: true },
+  ];
+  const view = await mount(React.createElement(SessionPanel, {
+    environment: { status: "available", files: [], branch: "main", additions: 0, deletions: 0 },
+    hasProject: true,
+    subagents: [],
+    backgroundProcesses: processes,
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onStopProcess: (processId) => { stopped.push(processId); },
+  }));
+
+  assert.match(view.container.textContent, /2 running/);
+  assert.match(view.container.textContent, /npm run dev/);
+  assert.match(view.container.textContent, /Stopping/);
+  await act(async () => { view.container.querySelector('button[aria-label="Stop npm run dev"]').click(); });
+  assert.deepEqual(stopped, ["bash-1"]);
+  assert.equal(view.container.querySelector('button[aria-label="Stop Deploy events"]').disabled, true, "a stop already asked for cannot be asked for twice");
+
+  await view.render(React.createElement(SessionPanel, {
+    environment: null, hasProject: true, subagents: [], backgroundProcesses: [], automationCount: 0, onSelect() {}, onOpenAutomations() {}, onStopProcess() {},
+  }));
+  assert.match(view.container.textContent, /No background processes/);
   await view.unmount();
 });
 
@@ -2310,6 +2342,7 @@ test("the session panel's thread menu offers the hand-off its location allows, a
     runActive,
     openMenu,
     subagents: [],
+    backgroundProcesses: [],
     automationCount: 0,
     onSelect() {},
     onOpenAutomations() {},

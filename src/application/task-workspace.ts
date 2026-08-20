@@ -1,5 +1,5 @@
 import type { RunEvent } from "../contracts/ipc.js";
-import type { Subagent } from "../domain/run.js";
+import type { BackgroundProcess, Subagent } from "../domain/run.js";
 import type { Task, TaskMessage } from "../domain/task.js";
 
 export type ActiveRun = {
@@ -37,6 +37,11 @@ export type RunTransitionState = {
   runStatuses: Record<string, TaskRunStatus>;
   approvals: Record<string, ApprovalView>;
   streamingTails: Record<string, StreamingTail>;
+  /**
+   * What each task's live run has running in the background. The agent process (re)starts with none,
+   * so this is never persisted and never outlives the run that reported it.
+   */
+  backgroundProcesses: Record<string, BackgroundProcess[]>;
 };
 
 function now() {
@@ -86,6 +91,13 @@ export function withStreamingTail<T extends RunTransitionState>(state: T, taskId
   return { ...state, streamingTails } as T;
 }
 
+export function withBackgroundProcesses<T extends RunTransitionState>(state: T, taskId: string, processes: BackgroundProcess[]): T {
+  if (processes.length) return { ...state, backgroundProcesses: { ...state.backgroundProcesses, [taskId]: processes } } as T;
+  if (!(taskId in state.backgroundProcesses)) return state;
+  const { [taskId]: _ended, ...backgroundProcesses } = state.backgroundProcesses;
+  return { ...state, backgroundProcesses } as T;
+}
+
 export function runStatusFor(state: RunTransitionState, taskId: string | null): TaskRunStatus {
   return taskId ? state.runStatuses[taskId] ?? "idle" : "idle";
 }
@@ -109,12 +121,13 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
   const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
 
-  if (event.type === "run.started") return withStreamingTail(withSequence, event.taskId, null);
+  if (event.type === "run.started") return withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []);
   if (event.type === "run.status") {
     if (event.status === "running" || event.status === "awaiting-approval") {
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
     }
-    let next = withRunStatus(withActiveRun(withStreamingTail(withSequence, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
+    /** The agent process ends with the run, taking every process it started with it. */
+    let next = withRunStatus(withActiveRun(withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
     next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
@@ -234,6 +247,11 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       finishedAt: now(),
       activity: existing?.activity ?? [],
     }));
+  }
+  /** A stop already asked for stays marked until the run stops reporting that process. */
+  if (event.type === "background.changed") {
+    const stopping = new Set((state.backgroundProcesses[event.taskId] ?? []).filter((process) => process.stopping).map((process) => process.id));
+    return withBackgroundProcesses(withSequence, event.taskId, event.processes.map((process) => stopping.has(process.id) ? { ...process, stopping: true } : process));
   }
   if (event.type === "approval.requested") {
     const input = event.intent.input && typeof event.intent.input === "object" && !Array.isArray(event.intent.input)

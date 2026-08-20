@@ -1,7 +1,7 @@
 import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, AgentModel, BackgroundProcess, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
@@ -55,7 +55,14 @@ export type ProviderEvent =
   | { type: "subagent.started"; id: string; description: string; agentType?: string }
   | { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number }
   | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
-  | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string };
+  | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string }
+  /** The run's whole set of background processes, republished on every change. */
+  | { type: "background.changed"; processes: BackgroundProcess[] };
+
+/** The levers a run only has once it is live, handed back so control can reach it mid-run. */
+export type RunControls = {
+  stopProcess(processId: string): Promise<void>;
+};
 
 export type ProviderRunInput = {
   channel: RunChannel;
@@ -74,6 +81,7 @@ export type ProviderRunInput = {
   terminal?: TerminalBridge;
   steering: SteerQueue;
   abortController: AbortController;
+  attach: (controls: RunControls) => void;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;
   emit: (event: ProviderEvent) => void;
 };

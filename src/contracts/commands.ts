@@ -51,7 +51,9 @@ export type WorktreeCommand =
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
-  | { type: "run.decide"; allow: boolean; taskId?: string };
+  | { type: "run.decide"; allow: boolean; taskId?: string }
+  /** Kills one process the run left running, without ending the run. */
+  | { type: "run.stop-process"; taskId?: string; processId: string };
 
 /**
  * A side chat forks the current thread and is discarded when it closes. Its thread is an ordinary

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
 import { contextWindowLimit } from "../../domain/run.js";
-import type { Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue } from "./agent-provider.mjs";
 import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { browserServer, BROWSER_SERVER_NAME } from "./browser-tools.mjs";
@@ -25,6 +25,20 @@ const browserInstructions = `The Claudex browser panel is a real browser sharing
 const threadInstructions = `Claudex holds the user's other threads, and the claudex-threads tools are the only way to reach them. Read them with list_threads and read_thread when the user points at other, recent, or related work instead of guessing from memory. Start a thread per piece of work when the user asks for several things to run side by side, and give each one a prompt that stands alone: a new thread inherits none of this conversation. Wait on a thread you started with wait_for_thread rather than polling read_thread. Archiving or stopping a thread throws away work in progress, so only do it when the user asked for it. When you name another thread in an answer, link it as [title](claudex://thread/<id>) so the user can open it from your message.`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the claudex-automation tools instead of looping yourself or reaching for cron. An automation runs the same prompt on its own schedule with no user present, so write the prompt to stand alone and carry its own stop condition. When a scheduled run is what is executing and that stop condition is met, call the stop tool; nothing else ends an automation.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails. If only request_setup is available, call it instead of telling the user to install or configure anything.`;
+
+/** The task types that are processes of their own. Subagents and workflows have a panel already. */
+const backgroundProcessKinds: Record<string, BackgroundProcessKind> = {
+  local_bash: "shell",
+  monitor_mcp: "monitor",
+  monitor_ws: "monitor",
+};
+
+function backgroundProcesses(tasks: { task_id: string; task_type: string; description: string }[]): BackgroundProcess[] {
+  return tasks.flatMap((task) => {
+    const kind = backgroundProcessKinds[task.task_type];
+    return kind ? [{ id: task.task_id, kind, description: task.description }] : [];
+  });
+}
 
 async function* idlePrompt() {
   await new Promise<void>(() => {});
@@ -178,6 +192,8 @@ export class ClaudeAgentProvider implements AgentProvider {
           abortController: input.abortController,
         },
       });
+      const session = activeQuery;
+      input.attach({ stopProcess: (processId) => session.stopTask(processId) });
 
       for await (const message of activeQuery) {
         if (message.type === "system" && message.subtype === "init") {
@@ -198,6 +214,8 @@ export class ClaudeAgentProvider implements AgentProvider {
             compacting: message.status === "compacting",
             ...(message.compact_result === "failed" ? { error: message.compact_error ?? "Context compaction failed." } : {}),
           });
+        } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
+          input.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
         } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
           subagentIds.add(message.task_id);
           if (message.tool_use_id) subagentByToolUse.set(message.tool_use_id, message.task_id);

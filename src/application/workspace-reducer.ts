@@ -7,6 +7,7 @@ import {
   automationRunPrompt,
   createTaskMessage,
   withActiveRun,
+  withBackgroundProcesses,
   withRunStatus,
 } from "./task-workspace.js";
 import { browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
@@ -21,6 +22,7 @@ import type {
   RunEvent,
   StartRunCommand,
   SteerRunCommand,
+  StopProcessCommand,
 } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
@@ -78,7 +80,7 @@ export type WorkspaceEffect =
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "delete-worktree"; taskId: string; root: string }
   | { type: "start-run"; command: StartRunCommand }
-  | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand }
+  | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
@@ -485,7 +487,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       const { [active.runId]: _abandoned, ...approvals } = next.approvals;
       next = { ...next, approvals };
     }
-    next = withPrompt(withQueued(withRunStatus(withActiveRun(next, chat.id, null), chat.id, "idle"), chat.id, []), chat.id, "");
+    next = withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, "");
   }
   const closed = new Set(closing.map((chat) => chat.id));
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
@@ -845,6 +847,19 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
       const active = taskId ? state.activeRuns[taskId] : undefined;
       if (!active) return settled(state);
       return settled(state, [{ type: "send-run-command", command: { type: "cancel", taskId: active.taskId, runId: active.runId } }]);
+    }
+
+    /** The kill is the agent process's to make; the row only says a stop is on its way. */
+    case "run.stop-process": {
+      const taskId = targetId(state, input.taskId);
+      const active = taskId ? state.activeRuns[taskId] : undefined;
+      const processes = taskId ? state.backgroundProcesses[taskId] ?? [] : [];
+      const target = processes.find((process) => process.id === input.processId);
+      if (!taskId || !active || !target || target.stopping) return settled(state);
+      return settled(
+        withBackgroundProcesses(state, taskId, processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process)),
+        [{ type: "send-run-command", command: { type: "stop-process", taskId, runId: active.runId, processId: target.id } }],
+      );
     }
 
     case "run.decide": {

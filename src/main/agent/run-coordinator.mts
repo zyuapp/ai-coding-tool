@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { InternalStartRunCommand, RunEvent } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AutomationBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { AgentProvider, AutomationBridge, ProviderEvent, BrowserBridge, RunControls, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
 type ActiveRun = {
@@ -14,6 +14,8 @@ type ActiveRun = {
   sequence: number;
   terminal: boolean;
   approvals: Map<string, { settled: boolean; resolve: (decision: "allow" | "deny") => void }>;
+  /** Absent until the provider has a live session to hand back. */
+  controls?: RunControls;
   /** Newest streamed tail, held back until the throttle window opens. */
   pendingTail?: { messageId: string; text: string };
   tailTimer?: ReturnType<typeof setTimeout>;
@@ -81,6 +83,14 @@ export class RunCoordinator {
     return true;
   }
 
+  /** Kills one of the run's background processes. The set the run republishes is what confirms it. */
+  stopProcess(taskId: string, runId: string, processId: string) {
+    const active = this.runs.get(taskId);
+    if (!active || active.runId !== runId || active.terminal || !active.controls) return false;
+    void active.controls.stopProcess(processId).catch(() => {});
+    return true;
+  }
+
   decideApproval(taskId: string, runId: string, approvalId: string, allow: boolean) {
     const active = this.runs.get(taskId);
     if (!active || active.runId !== runId || active.terminal) return false;
@@ -112,6 +122,7 @@ export class RunCoordinator {
         terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,
         abortController: active.abortController,
+        attach: (controls) => { active.controls = controls; },
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),
       });
@@ -142,6 +153,7 @@ export class RunCoordinator {
     if (event.type === "subagent.progress") this.publish(active, event);
     if (event.type === "subagent.activity") this.publish(active, event);
     if (event.type === "subagent.finished") this.publish(active, event);
+    if (event.type === "background.changed") this.publish(active, event);
   }
 
   private queueTail(active: ActiveRun, messageId: string, text: string) {

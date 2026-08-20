@@ -1625,6 +1625,31 @@ pre {
   cursor: pointer;
 }
 .subagent-view-all:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.subagent-list .process-row {
+  display: grid;
+  grid-template-columns: 29px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 9px;
+  border-radius: 11px;
+  padding: 9px 8px;
+  color: var(--muted);
+}
+.subagent-list .process-row:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.subagent-list .process-row > span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
+.process-stop {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: var(--quiet-strong);
+  cursor: pointer;
+}
+.process-stop:hover:not(:disabled) { background: var(--danger-chip); border-color: transparent; color: var(--danger); }
+.process-stop:disabled { opacity: 0.45; cursor: default; }
 .agent-orb { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--info-surface); color: var(--info); }
 .agent-orb.completed { background: var(--success-surface); color: var(--success); }
 .agent-orb.failed, .agent-orb.stopped { background: var(--danger-chip); color: var(--danger); }
