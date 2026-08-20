@@ -595,7 +595,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   }
 
   return (
-    <RevealedTextProvider>
+    <RevealedTextProvider flush={status === "stopped"}>
     <RevealedMessage.Provider value={hit?.messageId ?? null}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>

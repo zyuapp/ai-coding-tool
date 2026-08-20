@@ -1,28 +1,32 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { emptyScan, repairCut, scanBlocks } from "../../domain/markdown-stream";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 /** The speed text reads as being typed at, held steady however fast the model produces it. */
-const TYPING_CHARS_PER_SECOND = 120;
+const TYPING_CHARS_PER_SECOND = 240;
 /**
  * How far behind the stream the reveal may fall before it gives up its steady speed to catch up.
  * Generous, because falling behind is the point: it is what lets a burst read as typing.
  */
-const MAX_LAG_MS = 15_000;
+const MAX_LAG_MS = 8_000;
 /** Redrawing faster than this costs re-measurement in the virtualized timeline and buys nothing. */
 const FRAME_MS = 33;
+
+type Reveal = { revealed: Map<string, number>; flush: boolean };
 
 /**
  * How much of each message has been read out, kept outside the components so the reveal survives
  * the node changing hands. A message moves between renderers as it commits and as its turn settles,
  * and remounting a typewriter would replay text the reader has already seen.
  */
-const RevealedText = createContext<Map<string, number>>(new Map());
+const RevealedText = createContext<Reveal>({ revealed: new Map(), flush: false });
 
-export function RevealedTextProvider({ children }: { children: ReactNode }) {
+/** `flush` drops the pacing and shows everything at once, for a run the reader has stopped. */
+export function RevealedTextProvider({ flush = false, children }: { flush?: boolean; children: ReactNode }) {
   const revealed = useRef<Map<string, number>>(null!);
   revealed.current ??= new Map();
-  return <RevealedText.Provider value={revealed.current}>{children}</RevealedText.Provider>;
+  const value = useMemo(() => ({ revealed: revealed.current, flush }), [flush]);
+  return <RevealedText.Provider value={value}>{children}</RevealedText.Provider>;
 }
 
 function animates() {
@@ -36,7 +40,7 @@ function animates() {
  * text changes how far behind the reveal sits rather than how fast it reads.
  */
 function useTypewriter(text: string, id: string, streaming: boolean) {
-  const revealedText = useContext(RevealedText);
+  const { revealed: revealedText, flush } = useContext(RevealedText);
   const [revealed, setRevealed] = useState(() => revealedText.get(id) ?? (streaming ? 0 : text.length));
   const shown = useRef(revealed);
   const drawnAt = useRef(0);
@@ -47,7 +51,7 @@ function useTypewriter(text: string, id: string, streaming: boolean) {
       revealedText.set(id, text.length);
       setRevealed(text.length);
     };
-    if (shown.current > text.length || !animates()) {
+    if (flush || shown.current > text.length || !animates()) {
       finish();
       return;
     }
@@ -71,7 +75,7 @@ function useTypewriter(text: string, id: string, streaming: boolean) {
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [text, id, revealedText]);
+  }, [text, id, revealedText, flush]);
 
   return Math.min(revealed, text.length);
 }

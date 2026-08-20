@@ -2240,8 +2240,8 @@ test("a collapsed folder takes a drop as a strip the drag can measure, still fol
 });
 
 /** Each mount gets its own reveal store, the way a timeline does, so tests never share progress. */
-function streaming(props) {
-  return React.createElement(RevealedTextProvider, null, React.createElement(StreamingText, { id: "m1", streaming: true, ...props }));
+function streaming(props, flush = false) {
+  return React.createElement(RevealedTextProvider, { flush }, React.createElement(StreamingText, { id: "m1", streaming: true, ...props }));
 }
 
 /** Waits out the reveal loop, which paces itself against the real clock rather than frame count. */
@@ -2272,6 +2272,17 @@ test("streamed text arrives progressively instead of landing whole", async () =>
   assert.equal(steps.at(-1), tail);
   assert.ok(steps.length >= 3, `expected a progressive reveal, saw ${JSON.stringify(steps)}`);
   assert.ok(steps.every((step) => tail.startsWith(step)), "the reveal only ever grows from the front");
+  await view.unmount();
+});
+
+test("a stopped run flushes the backlog instead of typing it out", async () => {
+  const tail = Array.from({ length: 8 }, (_, index) => `Sentence ${index} of a backlog the paced reveal would still be typing.`).join(" ");
+  const view = await mount(streaming({ committed: "", tail }));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+  assert.notEqual(view.container.textContent, tail, "the reveal is still mid-backlog");
+
+  await view.render(streaming({ committed: "", tail }, true));
+  assert.equal(view.container.textContent, tail);
   await view.unmount();
 });
 
