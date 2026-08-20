@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { closeTerminal, readTerminal, startTerminal, startTerminalHost, stopTerminalHost, writeTerminal } from "../dist/main/main/terminal-host.js";
 
+const loginShell = process.env.SHELL;
+test.before(() => { if (process.platform !== "win32") process.env.SHELL = "/bin/sh"; });
+test.after(() => { if (loginShell === undefined) delete process.env.SHELL; else process.env.SHELL = loginShell; });
+
 function host() {
   const data = [];
   const updates = [];

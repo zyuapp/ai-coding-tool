@@ -29,6 +29,7 @@ function workspaces(root) {
   return { resolve: async () => ({ status: "available", workspace: { id: "fixture", kind: "project", root } }) };
 }
 
+test.describe("Git changes", { concurrency: true }, () => {
 test("changed files distinguishes unknown workspaces", async () => {
   const result = await changedFiles("missing", { resolve: async () => { throw new UnknownWorkspaceError("missing"); } });
   assert.deepEqual(result, { status: "unknown", workspaceId: "missing" });
@@ -114,4 +115,5 @@ test("changed files reports detached HEAD and non-Git failures", async (t) => {
   assert.equal(detached.branch, `detached@${stdout.trim()}`);
   assert.equal(failed.status, "error");
   assert.match(failed.message, /not a git repository/i);
+});
 });

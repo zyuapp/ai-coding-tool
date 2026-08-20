@@ -111,12 +111,15 @@ test("the channel stamps the calling thread on every browser command it sends", 
   const channel = new ThreadChannel((request) => posted.push(request), 50);
   const bridge = channel.browserFor("task-7");
 
-  /** Nothing answers these, so the requests are left to time out; only what was posted matters. */
-  bridge.command({ type: "browser.open", url: "https://example.com" }).catch(() => undefined);
-  bridge.read({ op: "snapshot", timeoutMs: 1_000 }).catch(() => undefined);
+  const requests = [
+    bridge.command({ type: "browser.open", url: "https://example.com" }).catch(() => undefined),
+    bridge.read({ op: "snapshot", timeoutMs: 1_000 }).catch(() => undefined),
+  ];
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.deepEqual(posted[0].command, { type: "browser.open", url: "https://example.com", taskId: "task-7" });
   assert.equal(posted[0].taskId, "task-7");
   assert.deepEqual(posted[1], { type: "thread.request", requestId: posted[1].requestId, taskId: "task-7", op: "browser", read: { op: "snapshot", timeoutMs: 1_000 } });
+  posted.forEach(({ requestId }) => channel.settle({ type: "thread.response", requestId, ok: false, message: "Test complete." }));
+  await Promise.all(requests);
 });

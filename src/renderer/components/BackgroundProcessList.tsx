@@ -15,7 +15,7 @@ export function workflowLabel(workflow: Workflow) {
 export const BackgroundProcessRow = memo(function BackgroundProcessRow({ process, onStop }: { process: BackgroundProcess; onStop: (processId: string) => void }) {
   return (
     <div className="process-row">
-      <span className="agent-orb">{process.kind === "shell" ? <Terminal size={15} /> : <Radio size={15} />}</span>
+      <span className="agent-orb">{process.kind === "shell" ? <Terminal size={12} /> : <Radio size={12} />}</span>
       <span><strong>{process.description}</strong><small>{processLabel(process)}</small></span>
       <button
         className="process-stop"
@@ -35,7 +35,7 @@ export const WorkflowProcessRow = memo(function WorkflowProcessRow({ workflow, o
   return (
     <div className="process-row">
       <button className="process-open" type="button" onClick={() => onOpen(workflow.id)} aria-label={`Open ${workflow.name} workflow`}>
-        <span className={`agent-orb ${workflow.status === "running" ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={15} /></span>
+        <span className={`agent-orb ${workflow.status === "running" ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={12} /></span>
         <span><strong>{workflow.name}</strong><small>{workflowLabel(workflow)}</small></span>
       </button>
       {workflow.status === "running" && (

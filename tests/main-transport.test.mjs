@@ -3,8 +3,12 @@ import path from "node:path";
 import test from "node:test";
 import { startMainProcess, tick, waitFor } from "./support/electron-harness.mjs";
 
-test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async (t) => {
-  const { userData, handlers, listeners, agents, protocolHandlers, window, trusted, untrusted } = await startMainProcess(t, "claudex-main-");
+let main;
+test.before(async () => { main = await startMainProcess(null, "claudex-main-"); });
+test.after(async () => { await main?.dispose(); });
+
+test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async () => {
+  const { userData, handlers, listeners, agents, protocolHandlers, window, trusted, untrusted } = main;
 
   const runCommand = listeners.get("run:command");
   const saved = await handlers.get("attachment:save")(trusted, Buffer.from([1, 2, 3]).toString("base64"));
@@ -52,14 +56,16 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   agents[1].throwOnPost = true;
   runCommand(trusted, { type: "cancel", taskId: "post", runId: "run-post" });
   assert.equal(window.webContents.sent.map(({ event }) => event).some((event) => event.runId === "run-post" && event.type === "run.status" && event.status === "failed"), true);
+  agents[1].throwOnPost = false;
 });
 
-test("thread requests are relayed to the window and only its answers reach the agent", async (t) => {
-  const { listeners, agents, window, trusted, untrusted } = await startMainProcess(t, "claudex-threads-");
+test("thread requests are relayed to the window and only its answers reach the agent", async () => {
+  const { listeners, agents, window, trusted, untrusted } = main;
+  const agent = agents.at(-1);
   const request = { type: "thread.request", requestId: "request-1", taskId: "task-caller", op: "list" };
 
-  agents[0].emit("message", { type: "thread.request", requestId: "malformed", taskId: "task-caller", op: "list", limit: -1 });
-  agents[0].emit("message", request);
+  agent.emit("message", { type: "thread.request", requestId: "malformed", taskId: "task-caller", op: "list", limit: -1 });
+  agent.emit("message", request);
   await tick();
   const relayed = window.webContents.sent.filter(({ channel }) => channel === "thread:request").map(({ event }) => event);
   assert.deepEqual(relayed, [request], "only the valid request reached the window");
@@ -70,12 +76,12 @@ test("thread requests are relayed to the window and only its answers reach the a
   answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
   answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
 
-  const answered = agents[0].messages.filter((message) => message.type === "thread.response");
+  const answered = agent.messages.filter((message) => message.type === "thread.response");
   assert.deepEqual(answered.map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
 });
 
-test("a bound keystroke is taken from the window's menu and handed to whatever is in front", async (t) => {
-  const { window, listeners, trusted, untrusted } = await startMainProcess(t, "claudex-close-");
+test("a bound keystroke is taken from the window's menu and handed to whatever is in front", async () => {
+  const { window, listeners, trusted, untrusted } = main;
 
   const beforeInput = window.webContents.listeners.get("before-input-event");
   /** Whichever key the platform calls its own: ⌘ on macOS, Ctrl everywhere else. */

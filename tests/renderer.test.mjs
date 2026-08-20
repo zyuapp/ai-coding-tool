@@ -9,7 +9,8 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http:
 for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader", "innerWidth", "innerHeight"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
-for (const [name, value] of [["requestAnimationFrame", (fn) => setTimeout(() => fn(Date.now()), 0)], ["cancelAnimationFrame", (id) => clearTimeout(id)]]) {
+let animationTime = 0;
+for (const [name, value] of [["requestAnimationFrame", (fn) => setTimeout(() => fn(animationTime += 33), 0)], ["cancelAnimationFrame", (id) => clearTimeout(id)]]) {
   Object.defineProperty(globalThis, name, { configurable: true, value });
   Object.defineProperty(dom.window, name, { configurable: true, value });
 }
@@ -2003,7 +2004,7 @@ async function settle(view, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
   let previous = null;
   while (Date.now() < deadline) {
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
     const current = view.container.textContent;
     if (current === previous) return view;
     previous = current;
@@ -2018,7 +2019,7 @@ test("streamed text arrives progressively instead of landing whole", async () =>
   const steps = [];
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline && steps.at(-1) !== tail) {
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2)); });
     const current = view.container.textContent;
     if (steps.at(-1) !== current) steps.push(current);
   }
@@ -2077,7 +2078,7 @@ test("a table waits for its delimiter row instead of showing pipes", async () =>
   /** The reveal is still typing through rows that render as nothing, so settling on text cannot see it. */
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline && !view.container.querySelector("table")) {
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 5)); });
   }
   assert.equal(view.container.querySelector("table th").textContent, "Channel");
   assert.doesNotMatch(view.container.textContent, /\|/);
@@ -2139,7 +2140,7 @@ async function revealDuration(tail) {
   const startedAt = Date.now();
   const deadline = startedAt + 10_000;
   while (Date.now() < deadline && view.container.textContent !== tail) {
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2)); });
   }
   assert.equal(view.container.textContent, tail, "the reveal never finished");
   const elapsed = Date.now() - startedAt;
@@ -2174,7 +2175,7 @@ test("a turn that settles keeps reading out rather than snapping to the end", as
   });
   const view = await mount(timeline(messages, "running", { messageId: "reply-1", text: body }));
   const reading = () => [...view.container.querySelectorAll(".stream-word")].reduce((total, node) => total + node.textContent.length, 0);
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
   const midway = reading();
   assert.ok(midway > 0 && midway < body.length, `the reveal should be under way and short of ${body.length}, was ${midway}`);
 

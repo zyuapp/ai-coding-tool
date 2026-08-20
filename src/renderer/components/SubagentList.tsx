@@ -48,7 +48,7 @@ export function countByStatus(subagents: Subagent[]) {
 export const SubagentRow = memo(function SubagentRow({ subagent, onSelect }: { subagent: Subagent; onSelect: (id: string) => void }) {
   return (
     <button className="agent-row" onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
-      <span className={`agent-orb ${subagent.status}`}><Bot size={15} /></span>
+      <span className={`agent-orb ${subagent.status}`}><Bot size={12} /></span>
       <span><strong>{subagent.description}</strong><small>{subagentLine(subagent)}</small></span>
       <StatusIcon status={subagent.status} />
     </button>
@@ -88,7 +88,7 @@ export function AgentsPanel({ subagents, onSelect }: { subagents: Subagent[]; on
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => rows[index]?.kind === "header" ? 30 : 51,
+    estimateSize: (index) => rows[index]?.kind === "header" ? 30 : 42,
     getItemKey: (index) => {
       const row = rows[index];
       return row?.kind === "agent" ? row.subagent.id : `header:${row?.status ?? index}`;

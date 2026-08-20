@@ -133,31 +133,39 @@ test("a run that meets its stop condition deletes the automation and is not resu
 });
 
 test("a one-shot automation fires at its scheduled time and then retires itself", async (t) => {
+  const now = Date.now();
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
   const store = memoryStore();
-  const when = new Date(Math.ceil((Date.now() + 1_200) / 1_000) * 1_000).toISOString();
+  const whenAt = Math.ceil((now + 1) / 1_000) * 1_000;
+  const when = new Date(whenAt).toISOString();
   let fired;
   const ran = new Promise((resolve) => { fired = resolve; });
   const scheduler = schedulerFor(t, store, async () => { fired(); return "succeeded"; });
   scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
   assert.equal(scheduler.forTask("task-1").nextRunAt, Date.parse(when));
 
+  t.mock.timers.tick(whenAt - now);
   await ran;
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(scheduler.forTask("task-1"), null, "a spent one-shot does not linger in the panel");
   assert.equal(store.rows.size, 0);
 });
 
 test("a one-shot whose moment is skipped is kept and marked missed, not deleted", async (t) => {
+  const now = Date.now();
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now });
   const store = memoryStore();
-  const when = new Date(Math.ceil((Date.now() + 1_200) / 1_000) * 1_000).toISOString();
+  const whenAt = Math.ceil((now + 1) / 1_000) * 1_000;
+  const when = new Date(whenAt).toISOString();
   let declined;
   const refused = new Promise((resolve) => { declined = resolve; });
   const scheduler = schedulerFor(t, store, async () => { declined(); return "skipped"; });
   scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
 
+  t.mock.timers.tick(whenAt - now);
   await refused;
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise((resolve) => setImmediate(resolve));
 
   const missed = scheduler.forTask("task-1");
   assert.ok(missed, "a one-shot that never ran is not thrown away");

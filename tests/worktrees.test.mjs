@@ -69,6 +69,7 @@ async function exists(target) {
   return stat(target).then(() => true, () => false);
 }
 
+test.describe("worktrees", { concurrency: true }, () => {
 test("a worktree starts detached at whatever the project has checked out", async () => {
   const root = await repository();
   const head = (await git(root, "rev-parse", "HEAD")).stdout.trim();
@@ -428,4 +429,5 @@ test("a reconcile leaves a worktrees root that has never been used alone", async
   const { reaped } = await worktrees.reconcile({ claimed: [], repositories: [root] });
 
   assert.deepEqual(reaped, []);
+});
 });
