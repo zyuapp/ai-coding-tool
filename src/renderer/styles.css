@@ -773,7 +773,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 
 ::highlight(find-match) { background: var(--find-match); color: var(--ink); }
 ::highlight(find-active) { background: var(--find-active); color: var(--accent-ink); }
-::highlight(annotation-mark) { background: var(--accent-chip); color: var(--ink); }
+::highlight(annotation-mark) { background: var(--info-surface); color: var(--ink); }
 
 .find-bar { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; background: var(--surface); }
 .find-bar > svg { flex: 0 0 auto; color: var(--quiet); }
@@ -2032,12 +2032,14 @@ pre {
   align-items: center;
   gap: 4px;
   padding: 3px 4px 3px 8px;
-  border: 1px solid var(--accent-line);
+  border: 1px solid var(--info-line);
   border-radius: 999px;
-  background: var(--accent-chip);
-  color: var(--accent-soft);
+  background: var(--info-surface-soft);
+  color: var(--info-soft);
   font-size: var(--text-meta);
 }
+.annotation-pill:not(:has(button)) { padding-right: 8px; }
+.message-stack .annotation-row { padding: 0; justify-content: flex-end; }
 .annotation-pill-number { font-weight: 600; }
 .annotation-pill button {
   display: grid;
@@ -2047,7 +2049,7 @@ pre {
   border: none;
   border-radius: 999px;
   background: none;
-  color: var(--accent-soft);
+  color: var(--info-soft);
   place-items: center;
   cursor: pointer;
 }
@@ -2059,17 +2061,17 @@ pre {
   min-width: 16px;
   height: 16px;
   transform: translate(2px, -100%);
-  border: 1px solid var(--accent-line);
+  border: 1px solid var(--info-line);
   border-radius: 999px;
   padding: 0 4px;
-  background: var(--accent-chip);
-  color: var(--accent-soft);
+  background: var(--info-surface);
+  color: var(--info-soft);
   font-size: var(--text-badge);
   font-weight: 600;
   line-height: 14px;
   cursor: pointer;
 }
-.annotation-marker:hover { border-color: var(--accent); color: var(--accent); }
+.annotation-marker:hover { border-color: var(--info); color: var(--info); }
 
 .annotate-popover,
 .annotate-editor {
@@ -2168,31 +2170,6 @@ pre {
 }
 .attachment-remove:hover { background: var(--control-hover); color: var(--ink); }
 .attachment-error { margin: 8px 14px 0; color: var(--danger); font-size: var(--text-meta); }
-.message-annotations { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
-.message-annotation {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 9px 13px;
-  background: var(--surface);
-}
-.message-annotation blockquote {
-  margin: 0;
-  border-left: 2px solid var(--line-strong);
-  padding-left: 9px;
-  color: var(--muted);
-  font-size: var(--text-control);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.message-annotation p {
-  margin: 6px 0 0;
-  color: var(--ink-soft);
-  font-size: var(--text-control);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .message-attachments {
   display: flex;
   flex-wrap: wrap;

@@ -7,10 +7,10 @@ function pillTitle(annotation: Annotation) {
   return note ? `“${annotation.quote}”\n— ${note}` : `“${annotation.quote}”`;
 }
 
-/** The annotations waiting in a composer, as numbered pills. Notes are edited at their highlight. */
+/** Annotations as numbered pills: removable while drafted in a composer, read-only on a sent message. */
 export function AnnotationRow({ annotations, onRemove }: {
   annotations: Annotation[];
-  onRemove: (annotationId: string) => void;
+  onRemove?: (annotationId: string) => void;
 }) {
   if (annotations.length === 0) return null;
 
@@ -20,9 +20,11 @@ export function AnnotationRow({ annotations, onRemove }: {
         <span className="annotation-pill" role="listitem" key={annotation.id} title={pillTitle(annotation)}>
           <TextQuote size={12} aria-hidden="true" />
           <span className="annotation-pill-number">{index + 1}</span>
-          <button type="button" aria-label={`Remove annotation ${index + 1}`} onClick={() => onRemove(annotation.id)}>
-            <X size={12} />
-          </button>
+          {onRemove && (
+            <button type="button" aria-label={`Remove annotation ${index + 1}`} onClick={() => onRemove(annotation.id)}>
+              <X size={12} />
+            </button>
+          )}
         </span>
       ))}
     </div>
