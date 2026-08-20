@@ -257,7 +257,7 @@ test("background processes are replaced whole, keep a stop already asked for, an
   assert.equal(ended.backgroundProcesses["task-a"], undefined);
 });
 
-test("a workflow's frames replace its tree, and the run's end stops what was still going", () => {
+test("a workflow's frames replace its tree, and a run cut short stops what was still going", () => {
   const started = applyRunEvent(state(), {
     type: "workflow.started",
     taskId: "task-a",
@@ -298,9 +298,13 @@ test("a workflow's frames replace its tree, and the run's end stops what was sti
   const cancelled = applyRunEvent(second, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 4, status: "cancelled" });
   assert.equal(cancelled.workflows["task-a"][0].status, "stopped");
   assert.equal(typeof cancelled.workflows["task-a"][0].finishedAt, "number");
+
+  const answered = applyRunEvent(second, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 4, status: "succeeded" });
+  assert.equal(answered.workflows["task-a"][0].status, "running", "a workflow left in the background outlives the turn that started it");
+  assert.equal(answered.workflows["task-a"][0].finishedAt, undefined);
 });
 
-test("a workflow keeps how it ended, and the next run starts with none", () => {
+test("a workflow keeps how it ended, and the next run carries only what is still running", () => {
   const running = applyRunEvent(applyRunEvent(state(), {
     type: "workflow.started", taskId: "task-a", runId: "run-a", sequence: 1, id: "wf-1", name: "spec", description: "Write the spec",
   }), {
@@ -318,4 +322,14 @@ test("a workflow keeps how it ended, and the next run starts with none", () => {
     type: "run.started", taskId: "task-a", runId: "run-b", sequence: 1,
   });
   assert.equal("task-a" in next.workflows, false);
+
+  const carried = applyRunEvent({ ...running, activeRuns: { "task-a": { taskId: "task-a", runId: "run-b", sequence: 0, status: "running" } } }, {
+    type: "run.started", taskId: "task-a", runId: "run-b", sequence: 1,
+  });
+  assert.deepEqual(carried.workflows["task-a"].map((workflow) => workflow.id), ["wf-1"]);
+
+  const refreshed = applyRunEvent(carried, {
+    type: "workflow.progress", taskId: "task-a", runId: "run-b", sequence: 2, id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }, { index: 1, label: "review", state: "running" }], totalTokens: 40, totalToolCalls: 3,
+  });
+  assert.equal(refreshed.workflows["task-a"][0].agents.length, 2, "the carried workflow keeps taking frames under the new run");
 });

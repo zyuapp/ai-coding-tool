@@ -96,7 +96,6 @@ type Turn = {
   activeMainStreamId?: string;
   subagentIds: Set<string>;
   subagentByToolUse: Map<string, string>;
-  workflowIds: Set<string>;
   release: () => void;
 };
 
@@ -116,6 +115,8 @@ export class ClaudeSession {
   private ended = false;
   /** How the stream ended, kept for a run that arrives after the session is already over. */
   private outcome: ProviderResult | null = null;
+  /** The workflows running here. One outlives the turn that started it, so the set outlives the turn too. */
+  private readonly workflowIds = new Set<string>();
   /** What the CLI called this session. A later run resumes it by this id. */
   sessionId?: string;
   private model?: string;
@@ -163,7 +164,6 @@ export class ClaudeSession {
         streamedText: new Map(),
         subagentIds: new Set(),
         subagentByToolUse: new Map(),
-        workflowIds: new Set(),
         release: () => {
           clearTimeout(grace);
           input.abortController.signal.removeEventListener("abort", interrupt);
@@ -292,14 +292,14 @@ export class ClaudeSession {
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
       input.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
     } else if (message.type === "system" && message.subtype === "task_started" && message.task_type === "local_workflow") {
-      turn.workflowIds.add(message.task_id);
+      this.workflowIds.add(message.task_id);
       input.emit({
         type: "workflow.started",
         id: message.task_id,
         name: message.workflow_name ?? message.description,
         description: message.description,
       });
-    } else if (message.type === "system" && message.subtype === "task_progress" && turn.workflowIds.has(message.task_id)) {
+    } else if (message.type === "system" && message.subtype === "task_progress" && this.workflowIds.has(message.task_id)) {
       /** The tree rides along with some frames and not others; a frame without one has nothing to say. */
       const progress = parseWorkflowProgress(workflowProgressOf(message));
       if (progress) {
@@ -312,7 +312,8 @@ export class ClaudeSession {
           totalToolCalls: message.usage.tool_uses,
         });
       }
-    } else if (message.type === "system" && message.subtype === "task_notification" && turn.workflowIds.has(message.task_id)) {
+    } else if (message.type === "system" && message.subtype === "task_notification" && this.workflowIds.has(message.task_id)) {
+      this.workflowIds.delete(message.task_id);
       input.emit({
         type: "workflow.finished",
         id: message.task_id,

@@ -591,6 +591,39 @@ test("only background tasks that are processes of their own are reported, and th
   ]);
 });
 
+test("a workflow started in one turn keeps reporting in the next", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const emitted = [];
+  const emit = (event) => emitted.push(event);
+
+  await turn(capture, provider.execute(input({ emit })),
+    { type: "system", subtype: "init", session_id: "session-1" },
+    { type: "system", subtype: "task_started", task_type: "local_workflow", task_id: "wf-1", workflow_name: "review-changes", description: "Review changed files" });
+
+  const continuation = { provider: "claude", value: "session-1" };
+  await turn(capture, provider.execute(input({ continuation, emit, prompt: "and again" })),
+    {
+      type: "system",
+      subtype: "task_progress",
+      task_id: "wf-1",
+      workflow_progress: [
+        { type: "workflow_phase", index: 0, title: "Review" },
+        { type: "workflow_agent", index: 0, label: "review:bugs", state: "progress", startedAt: 5 },
+      ],
+      usage: { total_tokens: 1_200, tool_uses: 4 },
+    },
+    { type: "system", subtype: "task_notification", task_id: "wf-1", status: "completed", summary: "Dynamic workflow completed" });
+
+  assert.equal(capture.opens, 1);
+  assert.deepEqual(emitted.filter((event) => event.type.startsWith("workflow.")).map((event) => event.type), [
+    "workflow.started",
+    "workflow.progress",
+    "workflow.finished",
+  ], "the turn that started the workflow does not own it");
+  provider.closeAll();
+});
+
 test("the live session is handed back so a background process can be stopped mid-run", async () => {
   const capture = {};
   let controls;

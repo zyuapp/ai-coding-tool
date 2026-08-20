@@ -43,7 +43,7 @@ export type RunTransitionState = {
    * so this is never persisted and never outlives the run that reported it.
    */
   backgroundProcesses: Record<string, BackgroundProcess[]>;
-  /** What each task's live run has driven as a dynamic workflow. Run-scoped like the processes are. */
+  /** What each task has driven as a dynamic workflow. A workflow left running outlives the run that started it. */
   workflows: Record<string, Workflow[]>;
 };
 
@@ -140,7 +140,11 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
   const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
 
-  if (event.type === "run.started") return withWorkflows(withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []), event.taskId, []);
+  if (event.type === "run.started") {
+    /** A workflow the last run left running is still going; the ones that ended are that run's history. */
+    const carried = (state.workflows[event.taskId] ?? []).filter((workflow) => workflow.status === "running");
+    return withWorkflows(withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []), event.taskId, carried);
+  }
   if (event.type === "run.status") {
     if (event.status === "running" || event.status === "awaiting-approval") {
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
@@ -159,9 +163,9 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
         updatedAt: now(),
       }));
     }
-    /** The workflows the run was driving died with it, whatever their last frame reported. */
+    /** A run cut short took its workflows with it; a run that answered leaves them running in the background. */
     const workflows = next.workflows[event.taskId];
-    if (workflows?.some((workflow) => workflow.status === "running")) {
+    if (event.status !== "succeeded" && workflows?.some((workflow) => workflow.status === "running")) {
       next = withWorkflows(next, event.taskId, workflows.map((workflow) => workflow.status === "running"
         ? { ...workflow, status: "stopped" as const, finishedAt: now(), stopping: false }
         : workflow));
