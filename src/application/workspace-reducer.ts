@@ -12,7 +12,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withAnnotations, withDock, withPrompt, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, terminalFolder, viewPreferences, withAnnotations, withDock, withPrompt, withStoreData, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -1166,16 +1166,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "store.loaded":
-      return settled({
-        ...stateFromData(input.data),
-        automations: state.automations,
-        focused: state.focused,
-        sessionPanelOpen: state.sessionPanelOpen,
-        sidebarOpen: state.sidebarOpen,
-        shortcuts: state.shortcuts,
-        docks: state.docks,
-        browserOrigins: state.browserOrigins,
-      });
+      return settled(withStoreData(state, input.data));
 
     case "preferences.loaded": {
       /** A restored page keeps its record and gets its view back when the panel first shows it. */

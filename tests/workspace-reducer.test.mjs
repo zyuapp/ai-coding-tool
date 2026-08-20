@@ -173,6 +173,56 @@ test("a load drops archived tasks past the retention window and keeps the rest",
   assert.deepEqual(deriveView(loaded.state).archivedTasks.map((item) => item.id), ["recent"]);
 });
 
+/** The store is read while the window is already up, so everything below happens before it answers. */
+const STORE_ANSWER = { version: 2, tasks: [task("stored")], projects: [], lastFolder: null };
+
+test("a load lands a session that has gone nowhere on the newest thread", () => {
+  const loaded = reduce(workspace(), { type: "store.loaded", data: STORE_ANSWER });
+
+  assert.equal(loaded.state.currentId, "stored");
+  assert.deepEqual(loaded.state.history, ["stored"]);
+});
+
+test("a draft typed before the load is still there, and still where it was typed, after", () => {
+  const typed = run(workspace(), [
+    { type: "view.set-prompt", prompt: "the first message after a restart" },
+    { type: "annotation.add", quote: "your earlier words", note: "this bit" },
+  ]);
+  const key = Object.keys(typed.prompts)[0];
+
+  const arrived = reduce(typed, { type: "store.loaded", data: STORE_ANSWER }).state;
+  assert.equal(arrived.prompts[key], "the first message after a restart");
+  assert.equal(arrived.annotations[key].length, 1);
+  assert.equal(arrived.currentId, null, "the store never moves a session that has already been typed into");
+});
+
+test("a send waiting on its workspace survives the load, and still starts its run", () => {
+  const typed = run(workspace(), [{ type: "view.set-prompt", prompt: "the first message after a restart" }]);
+  const sending = reduce(typed, { type: "task.send", attachments: [] });
+  const { pendingId } = sending.effects[0];
+
+  const arrived = reduce(sending.state, { type: "store.loaded", data: STORE_ANSWER });
+  assert.deepEqual(Object.keys(arrived.state.pendingRuns), [pendingId], "the run on its way out is not the store's to drop");
+
+  const started = reduce(arrived.state, { type: "run.resolved", pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const [effect] = started.effects;
+  assert.equal(effect.type, "start-run");
+  assert.equal(effect.command.prompt, "the first message after a restart");
+});
+
+test("a run already going survives the load, and keeps reporting into its thread", () => {
+  const sending = reduce(run(workspace(), [{ type: "view.set-prompt", prompt: "Look at the annotations" }]), { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  const { taskId, runId } = started.effects.find((effect) => effect.type === "start-run").command;
+
+  const arrived = reduce(started.state, { type: "store.loaded", data: STORE_ANSWER }).state;
+  assert.ok(arrived.tasks.some((item) => item.id === taskId), "a thread started before the answer is not in it");
+  assert.equal(arrived.activeRuns[taskId]?.runId, runId);
+
+  const replied = reduce(arrived, { type: "run.event", event: { type: "assistant.delta", taskId, runId, sequence: 1, messageId: "reply", text: "On it" } });
+  assert.equal(replied.state.tasks.find((item) => item.id === taskId).messages.at(-1).text, "On it");
+});
+
 test("changed files from a superseded run never overwrite the snapshot", () => {
   const state = workspace({ tasks: [task("task-a")], lastRunIds: { "task-a": "run-2" } });
   const stale = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1", result: { status: "available", files: ["stale"], branch: "old", additions: 0, deletions: 0 } });

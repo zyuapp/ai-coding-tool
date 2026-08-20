@@ -248,6 +248,54 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
   };
 }
 
+/**
+ * The store answering the load a session opened with. The window is live and typed into while the
+ * store is read, so threads and projects arrive into the session rather than replacing it: a draft,
+ * an annotation, a run on its way out and a run already going all outlive the arrival.
+ */
+export function withStoreData(state: WorkspaceState, data: TaskStoreData): WorkspaceState {
+  const landing = stateFromData(data);
+  /** Threads the answer cannot know about: a fork, which is never stored, and one just started here. */
+  const held = new Set([
+    ...sideChatIds(state),
+    ...Object.keys(state.activeRuns),
+    ...Object.values(state.pendingRuns).flatMap((pending) => pending.taskId ? [pending.taskId] : []),
+  ]);
+  const stored = new Set(landing.tasks.map((task) => task.id));
+  const arrived: WorkspaceState = {
+    ...state,
+    tasks: [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))],
+    projects: landing.projects,
+    lastFolder: landing.lastFolder,
+    storageError: landing.storageError,
+    writable: landing.writable,
+  };
+  if (sessionStarted(arrived)) return arrived;
+  return {
+    ...arrived,
+    currentId: landing.currentId,
+    history: landing.history,
+    historyIndex: landing.historyIndex,
+    draftProjectId: landing.draftProjectId,
+    draftPolicy: landing.draftPolicy,
+    draftModel: landing.draftModel,
+    draftEffort: landing.draftEffort,
+    expandedProjects: landing.expandedProjects,
+  };
+}
+
+/**
+ * Whether the session has gone anywhere of its own: it holds a thread, a project, a draft, or a run.
+ * Only a session that has not takes the thread and the draft answers the store implies.
+ */
+function sessionStarted(state: WorkspaceState): boolean {
+  return (state.currentId !== null && state.tasks.some((task) => task.id === state.currentId))
+    || state.draftProjectId !== null
+    || Object.keys(state.prompts).length > 0
+    || Object.keys(state.annotations).length > 0
+    || Object.keys(state.pendingRuns).length > 0;
+}
+
 /** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
 export function viewPreferences(state: WorkspaceState): ViewPreferences {
   /** Only a thread that will still be there reopens its pages, so a dock nothing owns stops being written. */
