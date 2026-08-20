@@ -97,8 +97,8 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
       >
         <span className="session-row-icon"><GitBranch size={18} /></span>
         <span>Branch</span>
-        <code title={branch ?? undefined}>{branch ?? "—"}</code>
         <ChevronDown size={14} />
+        <code title={branch ?? undefined}>{branch ?? "—"}</code>
       </button>
       {open && (
         <BranchMenu

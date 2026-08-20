@@ -24,7 +24,7 @@ export type WorkspaceHeaderProps = {
 
 export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
-    <header className="topbar">
+    <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
         <button
           className={`session-toggle sidebar-toggle ${sidebarOpen ? "active" : ""}`}

@@ -172,7 +172,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 
 .sidebar {
   position: relative;
-  width: 280px;
+  width: var(--sidebar-width, 280px);
   min-width: 220px;
   max-width: 50vw;
   overflow: visible;
@@ -182,8 +182,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  transition: margin-left 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
-.sidebar.hidden { display: none; }
+/** Hiding slides the sidebar off the left edge at its own width, so its contents never reflow. */
+.sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width, 280px)); }
+.sidebar.hidden .sidebar-resizer { display: none; }
 .sidebar-backdrop { display: none; }
 .sidebar-resizer {
   position: absolute;
@@ -570,6 +573,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .topbar {
   position: relative;
   z-index: 3;
+  transition: padding-left 200ms cubic-bezier(0.32, 0.72, 0, 1);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -580,10 +584,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   grid-column: 1;
   grid-row: 1;
 }
+/** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
+.topbar.traffic-inset { padding-left: 84px; }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }
 /** The sidebar has its own edge to bring it back by, so the button only appears once it is gone. */
 .session-toggle.sidebar-toggle { display: none; }
-.session-toggle.sidebar-toggle:not(.active) { display: grid; }
+.session-toggle.sidebar-toggle:not(.active) { display: grid; animation: sidebar-toggle-in 200ms ease-out both; }
 .session-toggle {
   position: relative;
   width: 42px;
@@ -1627,9 +1633,10 @@ pre {
 .session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: var(--surface-hover); }
 .session-branch { position: relative; }
-.session-branch .session-row { grid-template-columns: 22px auto minmax(0, 1fr) 14px; }
+/** The chevron follows the label so the branch name lines up with the other rows' values. */
+.session-branch .session-row { grid-template-columns: 22px auto 14px minmax(0, 1fr); }
 .session-branch code { justify-self: end; max-width: 100%; }
-.session-branch > button > svg { color: var(--quiet-strong); opacity: 0; }
+.session-branch > button > svg { margin-left: -4px; color: var(--quiet-strong); opacity: 0; }
 .session-branch:hover > button > svg, .session-branch.open > button > svg { opacity: 1; }
 .session-branch button:disabled { cursor: default; }
 .session-branch button:disabled:hover { background: none; }
@@ -2378,10 +2385,11 @@ pre {
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
+@keyframes sidebar-toggle-in { from { opacity: 0; transform: translateX(-6px); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; transition: none !important; } }
 
 @media (max-width: 1100px) {
-  .sidebar { width: 240px; }
+  .sidebar { --sidebar-width: 240px; }
   .conversation { padding-inline: 28px; }
   .composer-wrap { padding-inline: 24px; }
   .message.user .message-text { max-width: 85%; }
@@ -2399,11 +2407,13 @@ pre {
     max-width: none;
     box-shadow: var(--shadow-sidebar);
     transform: translateX(-100%);
-    transition: transform 160ms ease-out;
+    transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
     visibility: hidden;
   }
-  /** Narrow windows slide the sidebar out of the way instead of taking it off the layout. */
-  .sidebar.hidden { display: flex; }
+  /** The sidebar floats over the workspace here, so the topbar always clears the traffic lights. */
+  .topbar { padding-left: 84px; }
+  /** Narrow windows slide the sidebar over the workspace instead of making room for it. */
+  .sidebar.hidden { margin-left: 0; }
   .sidebar.compact-open { transform: translateX(0); visibility: visible; }
   .session-toggle.sidebar-toggle { display: grid; }
   .sidebar-backdrop {
@@ -2419,7 +2429,7 @@ pre {
 
 @media (max-width: 620px) {
   .workspace.summary-open .composer-wrap { margin-right: 0; }
-  .topbar { min-width: 0; gap: 8px; padding-inline: 16px; }
+  .topbar { min-width: 0; gap: 8px; padding-inline: 84px 16px; }
   .task-heading { flex: 1; gap: 8px; }
   .task-heading h1, .task-heading p { max-width: none; }
   .session-panel { top: 82px; right: 12px; width: calc(100% - 24px); max-height: calc(100% - 94px); }

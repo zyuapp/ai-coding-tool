@@ -144,7 +144,8 @@ export function ProjectSidebar({
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
     const sidebar = target.parentElement;
-    if (sidebar) sidebar.style.width = `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`;
+    /** The width is a custom property because the hidden state slides the sidebar out by that same width. */
+    if (sidebar) sidebar.style.setProperty("--sidebar-width", `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`);
   }
 
   /** Every task row ends in the same trailing group, and its last cell holds both the
@@ -233,7 +234,7 @@ export function ProjectSidebar({
 
   return (
     <DragDropContext onBeforeCapture={() => setDragging(true)} onDragEnd={finishDrag}>
-    <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive}>
+    <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
       <div className="traffic-space">
         <div className="thread-nav">
           <button className="thread-nav-button" type="button" aria-label="Go back" disabled={!canGoBack} onClick={onGoBack}>
