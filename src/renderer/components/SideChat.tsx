@@ -7,11 +7,14 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
+export function SideChat({ chat, source, project, onPrompt, onAnnotate, onAnnotationNote, onAnnotationRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
   onPrompt: (prompt: string) => void;
+  onAnnotate: (quote: string) => void;
+  onAnnotationNote: (annotationId: string, note: string) => void;
+  onAnnotationRemove: (annotationId: string) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
@@ -43,6 +46,7 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
           compacting={chat.compacting}
           streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
+          onAnnotate={onAnnotate}
           onSelectTask={onSelectTask}
           empty={{
             icon: GitFork,
@@ -63,9 +67,12 @@ export function SideChat({ chat, source, project, onPrompt, onSend, onCancel, on
         {...(chat.task.contextUsage ? { contextUsage: chat.task.contextUsage } : {})}
         runActive={chat.running}
         queuedMessages={chat.queuedMessages}
+        annotations={chat.annotations}
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}
+        onAnnotationNote={onAnnotationNote}
+        onAnnotationRemove={onAnnotationRemove}
         onModeChange={onPolicyChange}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}

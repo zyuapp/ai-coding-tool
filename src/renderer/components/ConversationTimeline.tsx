@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, ListCollapse, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, GitFork, ListCollapse, MessageSquareQuote, X, type LucideIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
@@ -284,13 +284,18 @@ export type ConversationTimelineProps = {
   startOptions?: ReactNode;
   /** The find bar, when it is this transcript being searched, and the match it is showing. */
   find?: FindView | null;
+  /** Offered on selected assistant text: annotate into this transcript's composer. */
+  onAnnotate?: (quote: string) => void;
+  /** Offered next to it when this transcript can hand a selection to a side chat. */
+  onAnnotateSide?: (quote: string) => void;
   onSelectTask?: (taskId: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, onSelectTask }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, onAnnotate, onAnnotateSide, onSelectTask }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ quote: string; x: number; y: number } | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const pinnedToBottom = useRef(true);
   /** Set once the reader scrolls for themselves, which stops the transcript taking the view back. */
@@ -412,6 +417,57 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     restoreScroll.current();
   }, [toolId]);
 
+  /** Selected assistant text grows an annotate popover; anything else puts it away. */
+  useEffect(() => {
+    if (!onAnnotate) return;
+    let frame = 0;
+    const read = () => {
+      const root = timelineRef.current;
+      const selected = window.getSelection();
+      if (!root || !selected || selected.isCollapsed || selected.rangeCount === 0) return setSelection(null);
+      const quote = selected.toString().trim();
+      if (!quote) return setSelection(null);
+      const range = selected.getRangeAt(0);
+      const withinAssistant = (node: Node) => {
+        const element = node instanceof Element ? node : node.parentElement;
+        return Boolean(element && root.contains(element) && element.closest(".message.assistant"));
+      };
+      if (!withinAssistant(range.startContainer) || !withinAssistant(range.endContainer)) return setSelection(null);
+      const rect = range.getBoundingClientRect();
+      setSelection({ quote, x: rect.left + rect.width / 2, y: rect.top });
+    };
+    const settle = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(read);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Shift" || event.shiftKey) settle();
+    };
+    document.addEventListener("pointerup", settle);
+    document.addEventListener("keyup", onKeyUp);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointerup", settle);
+      document.removeEventListener("keyup", onKeyUp);
+    };
+  }, [onAnnotate]);
+
+  /** The popover sits where the selection was, so any scroll puts it away rather than leaving it adrift. */
+  useEffect(() => {
+    const scroller = scrollContainerRef.current;
+    if (!scroller || !onAnnotate) return;
+    const dismiss = () => setSelection((current) => (current ? null : current));
+    scroller.addEventListener("scroll", dismiss, { passive: true });
+    return () => scroller.removeEventListener("scroll", dismiss);
+  }, [onAnnotate, scrollContainerRef, currentTask?.id]);
+
+  function annotate(handler: (quote: string) => void) {
+    if (!selection) return;
+    handler(selection.quote);
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+  }
+
   if (!currentTask?.messages.length && !streamingTail) {
     const EmptyIcon = empty?.icon;
     return (
@@ -453,6 +509,16 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
               ) : (
                 <article className="message user">
                   <div className="message-stack">
+                    {message!.annotations?.length ? (
+                      <div className="message-annotations">
+                        {message!.annotations.map((annotation) => (
+                          <div className="message-annotation" key={annotation.id}>
+                            <blockquote>{annotation.quote}</blockquote>
+                            {annotation.note.trim() && <p>{annotation.note}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {message!.attachments?.length ? (
                       <div className="message-attachments">
                         {message!.attachments.map((file, index) => (
@@ -509,6 +575,19 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         </div>
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
+      {selection && onAnnotate && createPortal(
+        <div className="annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
+          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => annotate(onAnnotate)}>
+            <MessageSquareQuote size={14} aria-hidden="true" />Add to chat
+          </button>
+          {onAnnotateSide && (
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => annotate(onAnnotateSide)}>
+              <GitFork size={14} aria-hidden="true" />Add to side chat
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
     </div>
     </RevealedMessage.Provider>
     </RevealedTextProvider>

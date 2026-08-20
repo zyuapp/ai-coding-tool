@@ -2024,6 +2024,90 @@ pre {
 .command-option.selected .command-source { border-color: var(--line-strong); color: var(--muted-soft); }
 .command-empty { margin: 0; padding: 18px 12px; color: var(--quiet); font-size: var(--text-control); text-align: center; }
 .command-menu-status { padding: 8px 13px 10px; border-top: 1px solid var(--line); color: var(--quiet); font-size: var(--text-meta); }
+.annotation-row { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 0; }
+.annotation-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 8px 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+.annotation-mark { flex: none; margin-top: 3px; color: var(--quiet); }
+.annotation-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.annotation-quote {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0;
+  border-left: 2px solid var(--line-strong);
+  padding-left: 8px;
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.annotation-note {
+  width: 100%;
+  min-height: 22px;
+  max-height: 96px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 0 0 0 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--text-control);
+  line-height: 1.45;
+  field-sizing: content;
+}
+.annotation-note::placeholder { color: var(--quiet-soft); }
+.annotation-remove {
+  display: grid;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--quiet);
+  place-items: center;
+  cursor: pointer;
+}
+.annotation-remove:hover { background: var(--surface-active); color: var(--ink-soft); }
+
+.annotate-popover {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  transform: translate(-50%, calc(-100% - 8px));
+  overflow: hidden;
+  border: 1px solid var(--line-mid);
+  border-radius: 10px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-panel);
+  animation: command-menu-in 110ms ease-out;
+}
+.annotate-popover button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.annotate-popover button + button { border-left: 1px solid var(--line); }
+.annotate-popover button:hover { background: var(--surface-active); }
+.annotate-popover button svg { color: var(--quiet-strong); }
+
 .attachment-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px 0; }
 .attachment-chip { position: relative; width: 62px; height: 62px; }
 .attachment-open {
@@ -2069,6 +2153,31 @@ pre {
 }
 .attachment-remove:hover { background: var(--control-hover); color: var(--ink); }
 .attachment-error { margin: 8px 14px 0; color: var(--danger); font-size: var(--text-meta); }
+.message-annotations { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.message-annotation {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 9px 13px;
+  background: var(--surface);
+}
+.message-annotation blockquote {
+  margin: 0;
+  border-left: 2px solid var(--line-strong);
+  padding-left: 9px;
+  color: var(--muted);
+  font-size: var(--text-control);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.message-annotation p {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+  font-size: var(--text-control);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .message-attachments {
   display: flex;
   flex-wrap: wrap;

@@ -11,7 +11,7 @@ import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | TerminalCommand | ViewCommand;
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =
@@ -50,6 +50,15 @@ export type TaskCommand =
   | { type: "task.step"; delta: -1 | 1 }
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
   | { type: "task.drop-queued"; taskId?: string; messageId: string };
+
+/**
+ * Highlights of the assistant's output waiting in a composer, kept as drafts are: per task, with the
+ * chat id as the `taskId` for a side chat's composer. They ride the next send and are cleared by it.
+ */
+export type AnnotationCommand =
+  | { type: "annotation.add"; taskId?: string; quote: string }
+  | { type: "annotation.note"; taskId?: string; annotationId: string; note: string }
+  | { type: "annotation.remove"; taskId?: string; annotationId: string };
 
 export type ProjectCommand =
   | { type: "project.open" }

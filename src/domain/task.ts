@@ -5,6 +5,13 @@ export const TASK_STORE_VERSION = 2 as const;
 
 export type TaskMessageKind = "user" | "assistant" | "tool" | "system";
 
+/** A piece of the assistant's output the user highlighted, with their note on it. */
+export type Annotation = {
+  id: string;
+  quote: string;
+  note: string;
+};
+
 export type TaskMessage = {
   id: string;
   kind: TaskMessageKind;
@@ -14,6 +21,8 @@ export type TaskMessage = {
   tone?: "error";
   /** Absolute paths of images sent with this message. The agent reads them from disk; the timeline shows them inline. */
   attachments?: string[];
+  /** Highlights of earlier output sent with this message. The agent gets them in the prompt; the timeline shows quote cards. */
+  annotations?: Annotation[];
   at: number;
 };
 
@@ -454,7 +463,12 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     (value.detail === undefined || typeof value.detail === "string") &&
     (value.tone === undefined || value.tone === "error") &&
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
+    (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
     finiteNumber(value.at);
+}
+
+function isAnnotation(value: unknown): value is Annotation {
+  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.quote) && typeof value.note === "string";
 }
 
 function isContinuation(value: unknown): value is Continuation {

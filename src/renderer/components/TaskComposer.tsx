@@ -1,7 +1,8 @@
 import { Command, CornerDownRight, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
-import type { RunAttachment } from "../../domain/task";
+import type { Annotation as TaskAnnotation, RunAttachment } from "../../domain/task";
+import { AnnotationRow } from "./AnnotationRow";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
@@ -81,9 +82,13 @@ export type TaskComposerProps = {
   contextUsage?: ContextUsage;
   runActive: boolean;
   queuedMessages: QueuedMessage[];
+  /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
+  annotations?: TaskAnnotation[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
   onPromptChange: (prompt: string) => void;
+  onAnnotationNote?: (annotationId: string, note: string) => void;
+  onAnnotationRemove?: (annotationId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
@@ -106,8 +111,11 @@ export function TaskComposer({
   contextUsage,
   runActive,
   queuedMessages,
+  annotations = [],
   focusToken = 0,
   onPromptChange,
+  onAnnotationNote,
+  onAnnotationRemove,
   onModeChange,
   onModelChange,
   onEffortChange,
@@ -183,7 +191,7 @@ export function TaskComposer({
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (sending || disabled || (steer && !runActive)) return;
-    if (!prompt.trim() && attachments.length === 0) return;
+    if (!prompt.trim() && attachments.length === 0 && annotations.length === 0) return;
     if (attachments.length === 0) {
       onSend([], steer);
       return;
@@ -292,6 +300,9 @@ export function TaskComposer({
             {commandsLoading && <div className="command-menu-status">Loading installed skills…</div>}
           </div>
         )}
+        {onAnnotationNote && onAnnotationRemove && (
+          <AnnotationRow annotations={annotations} onNote={onAnnotationNote} onRemove={onAnnotationRemove} />
+        )}
         {attachments.length > 0 && (
           <div className="attachment-row">
             {attachments.map((attachment, index) => (
@@ -376,7 +387,7 @@ export function TaskComposer({
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && (disabled || sending || (!prompt.trim() && attachments.length === 0))}
+              disabled={!runActive && (disabled || sending || (!prompt.trim() && attachments.length === 0 && annotations.length === 0))}
               onClick={runActive ? onCancel : () => void submit()}
               aria-label={sendLabel(surface, runActive)}
             >

@@ -8,7 +8,7 @@ import { findHits, type FindHit, type FindResults, type FindTarget } from "../do
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, retainedTasks, type Project, type Task, type TaskStoreData } from "../domain/task.js";
+import { legacyProjectId, retainedTasks, type Annotation, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 import type { Worktree } from "../domain/worktree.js";
 
 /**
@@ -27,6 +27,7 @@ export type PendingRun = {
   text: string;
   prompt: string;
   attachments: string[];
+  annotations?: Annotation[];
   detail?: string;
   policy?: ExecutionPolicy;
   automationId?: string;
@@ -48,6 +49,7 @@ export type QueuedMessage = {
   text: string;
   prompt: string;
   attachments: string[];
+  annotations?: Annotation[];
   /** Set once steering is on its way to the agent, which is the point of no return. */
   steering?: boolean;
 };
@@ -67,6 +69,7 @@ export type SideChatView = SideChat & {
   title: string;
   task: Task;
   prompt: string;
+  annotations: Annotation[];
   running: boolean;
   compacting: boolean;
   status: TaskRunStatus;
@@ -129,6 +132,8 @@ export type WorkspaceState = {
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   prompts: Record<string, string>;
+  /** Annotations waiting in each composer, keyed the way `prompts` is. */
+  annotations: Record<string, Annotation[]>;
   expandedProjects: Set<string>;
   projectsOpen: boolean;
   recentsOpen: boolean;
@@ -182,6 +187,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
+    annotations: {},
     expandedProjects: new Set(),
     projectsOpen: true,
     recentsOpen: true,
@@ -399,6 +405,16 @@ export function withPrompt(state: WorkspaceState, key: string, prompt: string): 
   return { ...state, prompts };
 }
 
+export function annotationsFor(state: Pick<WorkspaceState, "annotations">, key: string): Annotation[] {
+  return state.annotations[key] ?? [];
+}
+
+export function withAnnotations(state: WorkspaceState, key: string, annotations: Annotation[]): WorkspaceState {
+  if (annotations.length) return { ...state, annotations: { ...state.annotations, [key]: annotations } };
+  const { [key]: _cleared, ...remaining } = state.annotations;
+  return { ...state, annotations: remaining };
+}
+
 /** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
 export function reachableVisit(state: WorkspaceState, step: -1 | 1): number | null {
   for (let index = state.historyIndex + step; index >= 0 && index < state.history.length; index += step) {
@@ -471,6 +487,7 @@ export function deriveView(state: WorkspaceState) {
     model: currentTask?.model ?? state.draftModel,
     effort: currentTask?.effort ?? state.draftEffort,
     prompt: state.prompts[promptKey(state)] ?? "",
+    annotations: annotationsFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
@@ -525,6 +542,7 @@ export function deriveView(state: WorkspaceState) {
         title: task.title,
         task,
         prompt: state.prompts[chat.id] ?? "",
+        annotations: annotationsFor(state, chat.id),
         running: Boolean(active),
         compacting: active?.status === "compacting",
         status: active ? "running" : runStatusFor(state, chat.id),

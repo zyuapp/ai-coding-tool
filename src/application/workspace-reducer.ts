@@ -1,3 +1,4 @@
+import { clampQuote, promptWithAnnotations } from "./annotations.js";
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
 import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import {
@@ -11,7 +12,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withAnnotations, withDock, withPrompt, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -398,7 +399,7 @@ function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: 
   if (!delivered) return state;
   return applyTask(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId, (task) => ({
     ...task,
-    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments)],
+    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations)],
     updatedAt: now(),
   }));
 }
@@ -413,7 +414,8 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
   if (!queued.length) return settled(state);
   if (status === "cancelled") {
     const text = [...queued.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
-    return settled(withPrompt(withQueued(state, taskId, []), taskId, text));
+    const annotations = [...queued.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
+    return settled(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations));
   }
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task) return settled(withQueued(state, taskId, []));
@@ -428,6 +430,7 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     text: next.text,
     prompt: next.prompt,
     attachments: next.attachments,
+    ...(next.annotations ? { annotations: next.annotations } : {}),
     queuedIds: [next.id],
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, false)]);
@@ -514,7 +517,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       const { [active.runId]: _abandoned, ...approvals } = next.approvals;
       next = { ...next, approvals };
     }
-    next = withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, "");
+    next = withAnnotations(withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, ""), chat.id, []);
   }
   const closed = new Set(closing.map((chat) => chat.id));
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
@@ -852,8 +855,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       /** A send that carries its own text is not the composer's: it neither reads nor clears a draft. */
       const draftKey = input.text === undefined ? input.taskId ?? promptKey(state) : undefined;
       const text = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
+      const annotations = draftKey === undefined ? [] : annotationsFor(state, draftKey);
       const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
-      if ((!text && attachments.length === 0) || alreadySending) return settled(state);
+      if ((!text && attachments.length === 0 && annotations.length === 0) || alreadySending) return settled(state);
       if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
       /** A side chat has nothing to say until the thread it forks from has a session to fork. */
       if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
@@ -863,10 +867,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
           text,
-          prompt: promptWithAttachments(text, attachments),
+          prompt: promptWithAttachments(promptWithAnnotations(text, annotations), attachments),
           attachments: attachments.map((attachment) => attachment.path),
+          ...(annotations.length ? { annotations } : {}),
         };
-        const next = withQueued(draftKey === undefined ? state : withPrompt(state, draftKey, ""), task.id, [...queuedFor(state, task.id), queued]);
+        const drafted = draftKey === undefined ? state : withAnnotations(withPrompt(state, draftKey, ""), draftKey, []);
+        const next = withQueued(drafted, task.id, [...queuedFor(state, task.id), queued]);
         return input.steer ? apply(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
       }
       const projectId = task?.projectId ?? input.projectId ?? (draftKey === undefined ? null : state.draftProjectId);
@@ -880,8 +886,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         ...(project ? { projectId: project.id } : {}),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
-        prompt: promptWithAttachments(text, attachments),
+        prompt: promptWithAttachments(promptWithAnnotations(text, annotations), attachments),
         attachments: attachments.map((attachment) => attachment.path),
+        ...(annotations.length ? { annotations } : {}),
       };
       /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
       /** Only a thread yet to exist can start in a checkout of its own; one that exists already moved. */
@@ -1194,6 +1201,23 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "action.failed":
       return settled({ ...state, actionError: input.message });
+
+    case "annotation.add": {
+      const quote = clampQuote(input.quote);
+      if (!quote) return settled(state);
+      const key = input.taskId ?? promptKey(state);
+      return settled(withAnnotations(state, key, [...annotationsFor(state, key), { id: crypto.randomUUID(), quote, note: "" }]));
+    }
+
+    case "annotation.note": {
+      const key = input.taskId ?? promptKey(state);
+      return settled(withAnnotations(state, key, annotationsFor(state, key).map((item) => item.id === input.annotationId ? { ...item, note: input.note } : item)));
+    }
+
+    case "annotation.remove": {
+      const key = input.taskId ?? promptKey(state);
+      return settled(withAnnotations(state, key, annotationsFor(state, key).filter((item) => item.id !== input.annotationId)));
+    }
 
     case "view.set-prompt":
       return settled(withPrompt(state, input.taskId ?? promptKey(state), input.prompt));
@@ -1561,7 +1585,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     createdAt: now(),
     updatedAt: now(),
   };
-  const message = createTaskMessage("user", pending.text, undefined, pending.attachments);
+  const message = createTaskMessage("user", pending.text, undefined, pending.attachments, pending.annotations);
   const arrival = entering && worktree ? [createTaskMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`)] : [];
   /** Every run through a worktree touches it, which is what an eviction rule would sort on. */
   const located = arriving ? { ...task, worktree: { ...arriving, lastUsedAt: now(), enteredAt: arriving.enteredAt ?? now() } } : task;
@@ -1582,7 +1606,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ...sideChannelFor(state, updated),
   };
   return settled(
-    pending.draftKey ? withPrompt(drained, pending.draftKey, "") : drained,
+    pending.draftKey ? withAnnotations(withPrompt(drained, pending.draftKey, ""), pending.draftKey, []) : drained,
     [{ type: "start-run", command }, ...titling],
   );
 }

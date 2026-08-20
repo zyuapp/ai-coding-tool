@@ -1,7 +1,7 @@
 import type { RunEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
-import type { Task, TaskMessage } from "../domain/task.js";
+import type { Annotation, Task, TaskMessage } from "../domain/task.js";
 
 export type ActiveRun = {
   taskId: string;
@@ -60,13 +60,14 @@ export function automationRunLabel(runNumber: number) {
   return `Automation run #${runNumber}`;
 }
 
-export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[]): TaskMessage {
+export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[], annotations?: Annotation[]): TaskMessage {
   return {
     id: crypto.randomUUID(),
     kind,
     text,
     ...(detail === undefined ? {} : { detail }),
     ...(attachments?.length ? { attachments } : {}),
+    ...(annotations?.length ? { annotations } : {}),
     at: now(),
   };
 }

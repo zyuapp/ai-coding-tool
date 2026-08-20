@@ -19,7 +19,7 @@ const ATTENTION_LABELS: Record<TaskAttention, string> = {
 function TaskSpinner() {
   const ref = useRef<HTMLSpanElement>(null);
   // Anchor every spinner to the document timeline so rows that mount later stay in phase. A row that
-  // mounts inside a collapsed list has no animation to anchor yet, so each start is anchored as well.
+  // mounts while nothing is drawing it has no animation to anchor yet, so each start is anchored too.
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
