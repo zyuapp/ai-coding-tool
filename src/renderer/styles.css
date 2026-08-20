@@ -587,9 +587,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 /** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
 .topbar.traffic-inset { padding-left: 84px; }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }
-/** The sidebar has its own edge to bring it back by, so the button only appears once it is gone. */
-.session-toggle.sidebar-toggle { display: none; }
-.session-toggle.sidebar-toggle:not(.active) { display: grid; animation: sidebar-toggle-in 200ms ease-out both; }
+.session-toggle.sidebar-toggle { display: grid; }
 .session-toggle {
   position: relative;
   width: 42px;
@@ -2385,7 +2383,6 @@ pre {
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes command-menu-in { from { opacity: 0; transform: translateY(5px); } }
-@keyframes sidebar-toggle-in { from { opacity: 0; transform: translateX(-6px); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; transition: none !important; } }
 
 @media (max-width: 1100px) {
@@ -2415,7 +2412,6 @@ pre {
   /** Narrow windows slide the sidebar over the workspace instead of making room for it. */
   .sidebar.hidden { margin-left: 0; }
   .sidebar.compact-open { transform: translateX(0); visibility: visible; }
-  .session-toggle.sidebar-toggle { display: grid; }
   .sidebar-backdrop {
     position: absolute;
     z-index: 19;
