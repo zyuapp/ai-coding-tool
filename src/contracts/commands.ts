@@ -3,7 +3,7 @@ import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { FindTarget } from "../domain/find.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
-import type { RunAttachment, TaskDropTarget } from "../domain/task.js";
+import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
  * Every interaction the application supports, named as data. The UI dispatches these instead of
@@ -56,7 +56,8 @@ export type TaskCommand =
  * chat id as the `taskId` for a side chat's composer. They ride the next send and are cleared by it.
  */
 export type AnnotationCommand =
-  | { type: "annotation.add"; taskId?: string; quote: string }
+  /** Without an `anchor` the quote is a bare reference: no highlight marks it and no note is taken on it. */
+  | { type: "annotation.add"; taskId?: string; quote: string; note?: string; anchor?: AnnotationAnchor }
   | { type: "annotation.note"; taskId?: string; annotationId: string; note: string }
   | { type: "annotation.remove"; taskId?: string; annotationId: string };
 

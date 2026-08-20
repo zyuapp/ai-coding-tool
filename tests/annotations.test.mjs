@@ -51,11 +51,14 @@ test("a quote is clamped when it is made, so a select-all cannot flood the promp
 
 test("annotations are drafted per task, their notes edited and removed by id", () => {
   const drafted = run(currentWorkspace(), [
-    { type: "annotation.add", quote: "first" },
+    { type: "annotation.add", quote: "first", note: "typed at the highlight", anchor: { messageId: "m-1", start: 4, end: 9 } },
     { type: "annotation.add", quote: "second" },
   ]);
   const [first, second] = drafted.annotations["task-1"];
   assert.deepEqual([first.quote, second.quote], ["first", "second"]);
+  assert.equal(first.note, "typed at the highlight");
+  assert.deepEqual(first.anchor, { messageId: "m-1", start: 4, end: 9 });
+  assert.equal(second.anchor, undefined, "a side chat reference carries no anchor");
 
   const noted = run(drafted, [{ type: "annotation.note", annotationId: first.id, note: "keep this" }]);
   assert.equal(noted.annotations["task-1"][0].note, "keep this");
@@ -68,7 +71,7 @@ test("annotations are drafted per task, their notes edited and removed by id", (
 test("a send flattens annotations into the prompt, keeps them on the message, and clears the draft", () => {
   const drafted = run(currentWorkspace(), [
     { type: "view.set-prompt", prompt: "About this" },
-    { type: "annotation.add", quote: "the claim" },
+    { type: "annotation.add", quote: "the claim", anchor: { messageId: "m-1", start: 0, end: 9 } },
   ]);
   const noted = run(drafted, [{ type: "annotation.note", annotationId: drafted.annotations["task-1"][0].id, note: "not true" }]);
 
@@ -81,6 +84,7 @@ test("a send flattens annotations into the prompt, keeps them on the message, an
   const message = started.state.tasks[0].messages.at(-1);
   assert.equal(message.text, "About this");
   assert.deepEqual(message.annotations.map((item) => [item.quote, item.note]), [["the claim", "not true"]]);
+  assert.ok(message.annotations.every((item) => item.anchor === undefined), "the sent message keeps no anchor");
   assert.deepEqual(started.state.annotations, {});
 });
 

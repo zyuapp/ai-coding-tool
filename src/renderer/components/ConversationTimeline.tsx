@@ -6,7 +6,7 @@ import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView } from "../../application/workspace-state";
 import type { FindHit } from "../../domain/find";
-import type { Task, TaskMessage } from "../../domain/task";
+import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../domain/task";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { RevealedTextProvider, StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
@@ -42,6 +42,37 @@ const RevealedMessage = createContext<string | null>(null);
 
 const MATCH_HIGHLIGHT = "find-match";
 const ACTIVE_HIGHLIGHT = "find-active";
+const ANNOTATION_HIGHLIGHT = "annotation-mark";
+const EMPTY_ANNOTATIONS: Annotation[] = [];
+
+/** Where a point in a message sits, counted in characters of the text nodes before it. */
+function renderedOffset(root: Element, node: Node, offset: number) {
+  const range = document.createRange();
+  range.selectNodeContents(root);
+  range.setEnd(node, offset);
+  return range.toString().length;
+}
+
+/** The range those counted characters name today, or nothing while the message is off screen. */
+function renderedRange(root: Element, start: number, end: number): Range | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  let at = 0;
+  let started = false;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const length = node.nodeValue?.length ?? 0;
+    if (!started && at + length >= start) {
+      range.setStart(node, start - at);
+      started = true;
+    }
+    if (started && at + length >= end) {
+      range.setEnd(node, end - at);
+      return range;
+    }
+    at += length;
+  }
+  return null;
+}
 
 function highlights(): HighlightRegistry | null {
   return typeof CSS !== "undefined" && "highlights" in CSS ? CSS.highlights : null;
@@ -284,18 +315,25 @@ export type ConversationTimelineProps = {
   startOptions?: ReactNode;
   /** The find bar, when it is this transcript being searched, and the match it is showing. */
   find?: FindView | null;
+  /** This composer's drafted annotations, whose anchors are highlighted and numbered here. */
+  annotations?: Annotation[];
   /** Offered on selected assistant text: annotate into this transcript's composer. */
-  onAnnotate?: (quote: string) => void;
-  /** Offered next to it when this transcript can hand a selection to a side chat. */
+  onAnnotateAdd?: (draft: { quote: string; note: string; anchor: AnnotationAnchor }) => void;
+  onAnnotateNote?: (annotationId: string, note: string) => void;
+  onAnnotateRemove?: (annotationId: string) => void;
+  /** Offered next to it when this transcript can hand a selection to a side chat as a bare reference. */
   onAnnotateSide?: (quote: string) => void;
   onSelectTask?: (taskId: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, onAnnotate, onAnnotateSide, onSelectTask }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, onSelectTask }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [selection, setSelection] = useState<{ quote: string; x: number; y: number } | null>(null);
+  const [selection, setSelection] = useState<{ quote: string; anchor: AnnotationAnchor; x: number; y: number } | null>(null);
+  /** The note being written or rewritten at a highlight: for a new annotation, or an existing one. */
+  const [noting, setNoting] = useState<{ annotationId?: string; quote: string; anchor: AnnotationAnchor; note: string; x: number; y: number } | null>(null);
+  const [markers, setMarkers] = useState<{ id: string; number: number; x: number; y: number }[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const pinnedToBottom = useRef(true);
   /** Set once the reader scrolls for themselves, which stops the transcript taking the view back. */
@@ -419,7 +457,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
 
   /** Selected assistant text grows an annotate popover; anything else puts it away. */
   useEffect(() => {
-    if (!onAnnotate) return;
+    if (!onAnnotateAdd) return;
     let frame = 0;
     const read = () => {
       const root = timelineRef.current;
@@ -428,13 +466,27 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       const quote = selected.toString().trim();
       if (!quote) return setSelection(null);
       const range = selected.getRangeAt(0);
-      const withinAssistant = (node: Node) => {
+      /** A highlight lives in one message, so a selection is only offered within a single one. */
+      const messageOf = (node: Node) => {
         const element = node instanceof Element ? node : node.parentElement;
-        return Boolean(element && root.contains(element) && element.closest(".message.assistant"));
+        if (!element || !root.contains(element) || !element.closest(".message.assistant")) return null;
+        return element.closest("[data-message-id]");
       };
-      if (!withinAssistant(range.startContainer) || !withinAssistant(range.endContainer)) return setSelection(null);
+      const startMessage = messageOf(range.startContainer);
+      if (!startMessage || startMessage !== messageOf(range.endContainer)) return setSelection(null);
+      const messageId = startMessage.getAttribute("data-message-id");
+      if (!messageId) return setSelection(null);
       const rect = range.getBoundingClientRect();
-      setSelection({ quote, x: rect.left + rect.width / 2, y: rect.top });
+      setSelection({
+        quote,
+        anchor: {
+          messageId,
+          start: renderedOffset(startMessage, range.startContainer, range.startOffset),
+          end: renderedOffset(startMessage, range.endContainer, range.endOffset),
+        },
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+      });
     };
     const settle = () => {
       cancelAnimationFrame(frame);
@@ -450,22 +502,80 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       document.removeEventListener("pointerup", settle);
       document.removeEventListener("keyup", onKeyUp);
     };
-  }, [onAnnotate]);
+  }, [onAnnotateAdd]);
 
-  /** The popover sits where the selection was, so any scroll puts it away rather than leaving it adrift. */
+  /** Popovers sit where the selection was, so any scroll puts them away rather than leaving them adrift. */
   useEffect(() => {
     const scroller = scrollContainerRef.current;
-    if (!scroller || !onAnnotate) return;
-    const dismiss = () => setSelection((current) => (current ? null : current));
+    if (!scroller || !onAnnotateAdd) return;
+    const dismiss = () => {
+      setSelection((current) => (current ? null : current));
+      setNoting((current) => (current ? null : current));
+    };
     scroller.addEventListener("scroll", dismiss, { passive: true });
     return () => scroller.removeEventListener("scroll", dismiss);
-  }, [onAnnotate, scrollContainerRef, currentTask?.id]);
+  }, [onAnnotateAdd, scrollContainerRef, currentTask?.id]);
 
-  function annotate(handler: (quote: string) => void) {
-    if (!selection) return;
-    handler(selection.quote);
+  /** The note editor closes when the pointer goes anywhere else, keeping whatever was typed unsaved. */
+  useEffect(() => {
+    if (!noting) return;
+    const onDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest(".annotate-editor")) setNoting(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [noting !== null]);
+
+  /** Anchored annotations are painted as highlights, each with a numbered marker at its end. */
+  useEffect(() => {
+    const registry = highlights();
+    const timeline = timelineRef.current;
+    registry?.delete(ANNOTATION_HIGHLIGHT);
+    const ranges: Range[] = [];
+    const placed: { id: string; number: number; x: number; y: number }[] = [];
+    if (timeline) {
+      const timelineRect = timeline.getBoundingClientRect();
+      annotations.forEach((annotation, index) => {
+        if (!annotation.anchor) return;
+        const root = timeline.querySelector(`[data-message-id="${annotation.anchor.messageId}"]`);
+        const range = root && renderedRange(root, annotation.anchor.start, annotation.anchor.end);
+        if (!range) return;
+        ranges.push(range);
+        const rects = range.getClientRects();
+        const tail = rects[rects.length - 1] ?? range.getBoundingClientRect();
+        placed.push({ id: annotation.id, number: index + 1, x: tail.right - timelineRect.left, y: tail.top - timelineRect.top });
+      });
+    }
+    if (registry && ranges.length) registry.set(ANNOTATION_HIGHLIGHT, new Highlight(...ranges));
+    /** Placements repeat far more often than they move, so an unchanged set is not a render. */
+    setMarkers((current) => {
+      const same = current.length === placed.length && current.every((marker, index) => {
+        const next = placed[index];
+        return marker.id === next.id && marker.number === next.number && marker.x === next.x && marker.y === next.y;
+      });
+      return same ? current : placed;
+    });
+    return () => {
+      registry?.delete(ANNOTATION_HIGHLIGHT);
+    };
+  }, [annotations, rendered, messages.length]);
+
+  function openNote(selected: NonNullable<typeof selection>) {
+    setNoting({ quote: selected.quote, anchor: selected.anchor, note: "", x: selected.x, y: selected.y });
     window.getSelection()?.removeAllRanges();
     setSelection(null);
+  }
+
+  function referToSide(selected: NonNullable<typeof selection>) {
+    onAnnotateSide?.(selected.quote);
+    window.getSelection()?.removeAllRanges();
+    setSelection(null);
+  }
+
+  function commitNote(noted: NonNullable<typeof noting>) {
+    if (noted.annotationId) onAnnotateNote?.(noted.annotationId, noted.note);
+    else onAnnotateAdd?.({ quote: noted.quote, note: noted.note, anchor: noted.anchor });
+    setNoting(null);
   }
 
   if (!currentTask?.messages.length && !streamingTail) {
@@ -543,6 +653,23 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
           );
         })}
       </div>
+      {markers.map((marker) => (
+        <button
+          type="button"
+          key={marker.id}
+          className="annotation-marker"
+          style={{ left: marker.x, top: marker.y }}
+          aria-label={`Edit annotation ${marker.number}`}
+          onClick={(event) => {
+            const annotation = annotations.find((item) => item.id === marker.id);
+            if (!annotation?.anchor) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            setNoting({ annotationId: annotation.id, quote: annotation.quote, anchor: annotation.anchor, note: annotation.note, x: rect.left + rect.width / 2, y: rect.top });
+          }}
+        >
+          {marker.number}
+        </button>
+      ))}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
           <ListCollapse aria-hidden="true" />
@@ -575,14 +702,41 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         </div>
       )}
       {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
-      {selection && onAnnotate && createPortal(
+      {selection && !noting && onAnnotateAdd && createPortal(
         <div className="annotate-popover" role="toolbar" aria-label="Annotate selection" style={{ left: selection.x, top: selection.y }}>
-          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => annotate(onAnnotate)}>
+          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => openNote(selection)}>
             <MessageSquareQuote size={14} aria-hidden="true" />Add to chat
           </button>
           {onAnnotateSide && (
-            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => annotate(onAnnotateSide)}>
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => referToSide(selection)}>
               <GitFork size={14} aria-hidden="true" />Add to side chat
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
+      {noting && createPortal(
+        <div className="annotate-editor" role="dialog" aria-label={noting.annotationId ? "Edit annotation" : "New annotation"} style={{ left: noting.x, top: noting.y }}>
+          <input
+            autoFocus
+            value={noting.note}
+            placeholder="Annotate…"
+            onChange={(event) => setNoting({ ...noting, note: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") commitNote(noting);
+              if (event.key === "Escape") setNoting(null);
+            }}
+          />
+          {noting.annotationId && (
+            <button
+              type="button"
+              aria-label="Remove annotation"
+              onClick={() => {
+                onAnnotateRemove?.(noting.annotationId!);
+                setNoting(null);
+              }}
+            >
+              <X size={13} />
             </button>
           )}
         </div>,

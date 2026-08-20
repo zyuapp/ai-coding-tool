@@ -855,7 +855,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       /** A send that carries its own text is not the composer's: it neither reads nor clears a draft. */
       const draftKey = input.text === undefined ? input.taskId ?? promptKey(state) : undefined;
       const text = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
-      const annotations = draftKey === undefined ? [] : annotationsFor(state, draftKey);
+      /** The anchors mark drafts in the transcript; the sent message keeps only quote and note. */
+      const annotations = (draftKey === undefined ? [] : annotationsFor(state, draftKey)).map(({ anchor: _anchored, ...annotation }) => annotation);
       const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
       if ((!text && attachments.length === 0 && annotations.length === 0) || alreadySending) return settled(state);
       if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
@@ -1206,7 +1207,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const quote = clampQuote(input.quote);
       if (!quote) return settled(state);
       const key = input.taskId ?? promptKey(state);
-      return settled(withAnnotations(state, key, [...annotationsFor(state, key), { id: crypto.randomUUID(), quote, note: "" }]));
+      return settled(withAnnotations(state, key, [...annotationsFor(state, key), { id: crypto.randomUUID(), quote, note: input.note ?? "", ...(input.anchor ? { anchor: input.anchor } : {}) }]));
     }
 
     case "annotation.note": {

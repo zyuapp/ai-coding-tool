@@ -1,20 +1,20 @@
 import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
-import type { RunAttachment, Project, Task } from "../../domain/task";
+import type { AnnotationAnchor, RunAttachment, Project, Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, source, project, onPrompt, onAnnotate, onAnnotationNote, onAnnotationRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
+export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
   onPrompt: (prompt: string) => void;
-  onAnnotate: (quote: string) => void;
-  onAnnotationNote: (annotationId: string, note: string) => void;
-  onAnnotationRemove: (annotationId: string) => void;
+  onAnnotateAdd: (draft: { quote: string; note: string; anchor: AnnotationAnchor }) => void;
+  onAnnotateNote: (annotationId: string, note: string) => void;
+  onAnnotateRemove: (annotationId: string) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
@@ -46,7 +46,10 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotate, onAnnota
           compacting={chat.compacting}
           streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
-          onAnnotate={onAnnotate}
+          annotations={chat.annotations}
+          onAnnotateAdd={onAnnotateAdd}
+          onAnnotateNote={onAnnotateNote}
+          onAnnotateRemove={onAnnotateRemove}
           onSelectTask={onSelectTask}
           empty={{
             icon: GitFork,
@@ -71,8 +74,7 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotate, onAnnota
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}
-        onAnnotationNote={onAnnotationNote}
-        onAnnotationRemove={onAnnotationRemove}
+        onAnnotationRemove={onAnnotateRemove}
         onModeChange={onPolicyChange}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}

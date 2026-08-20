@@ -5,11 +5,20 @@ export const TASK_STORE_VERSION = 2 as const;
 
 export type TaskMessageKind = "user" | "assistant" | "tool" | "system";
 
+/** Where a drafted annotation's highlight lives: offsets into a message's rendered text. */
+export type AnnotationAnchor = {
+  messageId: string;
+  start: number;
+  end: number;
+};
+
 /** A piece of the assistant's output the user highlighted, with their note on it. */
 export type Annotation = {
   id: string;
   quote: string;
   note: string;
+  /** Only while drafted, and never on a reference handed to a side chat; sending drops it. */
+  anchor?: AnnotationAnchor;
 };
 
 export type TaskMessage = {

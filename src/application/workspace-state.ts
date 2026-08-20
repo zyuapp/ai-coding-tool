@@ -405,8 +405,10 @@ export function withPrompt(state: WorkspaceState, key: string, prompt: string): 
   return { ...state, prompts };
 }
 
+const NO_ANNOTATIONS: Annotation[] = [];
+
 export function annotationsFor(state: Pick<WorkspaceState, "annotations">, key: string): Annotation[] {
-  return state.annotations[key] ?? [];
+  return state.annotations[key] ?? NO_ANNOTATIONS;
 }
 
 export function withAnnotations(state: WorkspaceState, key: string, annotations: Annotation[]): WorkspaceState {

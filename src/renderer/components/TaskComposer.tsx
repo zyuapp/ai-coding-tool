@@ -87,7 +87,6 @@ export type TaskComposerProps = {
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
   onPromptChange: (prompt: string) => void;
-  onAnnotationNote?: (annotationId: string, note: string) => void;
   onAnnotationRemove?: (annotationId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
@@ -114,7 +113,6 @@ export function TaskComposer({
   annotations = [],
   focusToken = 0,
   onPromptChange,
-  onAnnotationNote,
   onAnnotationRemove,
   onModeChange,
   onModelChange,
@@ -300,9 +298,7 @@ export function TaskComposer({
             {commandsLoading && <div className="command-menu-status">Loading installed skills…</div>}
           </div>
         )}
-        {onAnnotationNote && onAnnotationRemove && (
-          <AnnotationRow annotations={annotations} onNote={onAnnotationNote} onRemove={onAnnotationRemove} />
-        )}
+        {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} />}
         {attachments.length > 0 && (
           <div className="attachment-row">
             {attachments.map((attachment, index) => (

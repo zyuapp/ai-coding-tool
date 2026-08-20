@@ -308,7 +308,10 @@ export function App() {
                   onSetWorktree={workspace.actions.setWorktree}
                 />
               )}
-              onAnnotate={(quote) => void workspace.dispatch({ type: "annotation.add", quote })}
+              annotations={workspace.annotations}
+              onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor })}
+              onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
+              onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
               onAnnotateSide={annotateToSideChat}
               onSelectTask={workspace.actions.selectTask}
             />
@@ -452,9 +455,9 @@ export function App() {
                     source={workspace.currentTask!}
                     project={workspace.currentProject}
                     onPrompt={(prompt) => void workspace.dispatch({ type: "view.set-prompt", taskId: chat.id, prompt })}
-                    onAnnotate={(quote) => void workspace.dispatch({ type: "annotation.add", taskId: chat.id, quote })}
-                    onAnnotationNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", taskId: chat.id, annotationId, note })}
-                    onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", taskId: chat.id, annotationId })}
+                    onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", taskId: chat.id, quote, note, anchor })}
+                    onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", taskId: chat.id, annotationId, note })}
+                    onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", taskId: chat.id, annotationId })}
                     onSend={(attachments, steer) => void workspace.dispatch({ type: "task.send", taskId: chat.id, attachments, steer })}
                     onCancel={() => void workspace.dispatch({ type: "run.cancel", taskId: chat.id })}
                     onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
@@ -485,7 +488,6 @@ export function App() {
           annotations={workspace.annotations}
           actions={composerActions}
           onPromptChange={workspace.actions.setPrompt}
-          onAnnotationNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
           onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
