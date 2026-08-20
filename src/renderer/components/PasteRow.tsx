@@ -7,7 +7,9 @@ import type { PastedText } from "../../domain/task";
 function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: string; onClose: () => void }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

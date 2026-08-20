@@ -220,10 +220,12 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !pending) {
-        event.preventDefault();
-        onCancel();
-      }
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      if (pending) {
+        setPending(null);
+        setLabel("");
+      } else onCancel();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);

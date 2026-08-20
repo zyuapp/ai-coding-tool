@@ -24,7 +24,9 @@ function FolderIcon() {
 function AttachmentViewer({ source, onClose }: { source: string; onClose: () => void }) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -718,7 +720,10 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
             onChange={(event) => setNoting({ ...noting, note: event.target.value })}
             onKeyDown={(event) => {
               if (event.key === "Enter") commitNote(noting);
-              if (event.key === "Escape") setNoting(null);
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setNoting(null);
+              }
             }}
           />
           {noting.annotationId && (

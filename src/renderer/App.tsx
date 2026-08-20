@@ -144,16 +144,21 @@ export function App() {
     function dismissMenu(event: PointerEvent) {
       if (!(event.target instanceof Element) || !event.target.closest("[data-popover-menu]")) workspace.actions.setOpenMenu(null);
     }
+    /** Esc serves whatever is nearest: an overlay claims it first, then a menu, the find bar, and last the run. */
     function handleKeys(event: KeyboardEvent) {
-      if (event.key === "Escape") workspace.actions.setOpenMenu(null);
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (workspace.openMenu !== null) workspace.actions.setOpenMenu(null);
+      else if (workspace.settingsOpen) void workspace.actions.setSettingsOpen(false);
+      else if (workspace.find) workspace.actions.closeFind();
+      else void workspace.actions.cancelRun();
     }
     document.addEventListener("pointerdown", dismissMenu);
-    document.addEventListener("keydown", handleKeys);
+    window.addEventListener("keydown", handleKeys);
     return () => {
       document.removeEventListener("pointerdown", dismissMenu);
-      document.removeEventListener("keydown", handleKeys);
+      window.removeEventListener("keydown", handleKeys);
     };
-  }, [workspace.actions]);
+  }, [workspace.actions, workspace.openMenu, workspace.settingsOpen, workspace.find]);
 
   const inspectSubagent = useCallback((id: string) => {
     setSelectedSubagent(id);
