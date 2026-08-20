@@ -1611,6 +1611,20 @@ pre {
 .subagent-list strong, .subagent-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subagent-list strong { color: inherit; font-size: var(--text-control); font-weight: 560; }
 .subagent-list small { color: var(--quiet); font-size: var(--text-meta); }
+.subagent-view-all {
+  width: 100%;
+  margin-top: 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--quiet-strong);
+  font-size: var(--text-meta);
+  font-weight: 550;
+  text-align: center;
+  cursor: pointer;
+}
+.subagent-view-all:hover { background: var(--surface-hover); color: var(--ink-soft); }
 .agent-orb { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--info-surface); color: var(--info); }
 .agent-orb.completed { background: var(--success-surface); color: var(--success); }
 .agent-orb.failed, .agent-orb.stopped { background: var(--danger-chip); color: var(--danger); }
