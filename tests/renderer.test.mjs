@@ -776,6 +776,66 @@ test("a slash action runs at once and clears the draft", async () => {
   await view.unmount();
 });
 
+test("the up arrow recalls sent prompts and the down arrow walks back to the draft", async () => {
+  window.desktop = fakeDesktop();
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      mode: "confirm",
+      model: "opus",
+      runActive: false,
+      history: ["first question", "first question", "second question"],
+      onPromptChange: setPrompt,
+      onModeChange() {},
+      onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
+      onSend() {},
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  textarea.attachEvent = () => {};
+  textarea.detachEvent = () => {};
+  const press = (key) => act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key })); });
+  const type = (text) => act(async () => {
+    setValue.call(textarea, text);
+    textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+  });
+
+  await act(async () => { textarea.focus(); });
+  await type("a draft");
+  await press("ArrowUp");
+  assert.equal(textarea.value, "second question", "up recalls the newest sent prompt");
+  await press("ArrowUp");
+  assert.equal(textarea.value, "first question", "up again walks back, skipping the repeated send");
+  await press("ArrowUp");
+  assert.equal(textarea.value, "first question", "the oldest entry is the end of the line");
+  await press("ArrowDown");
+  assert.equal(textarea.value, "second question");
+  await press("ArrowDown");
+  assert.equal(textarea.value, "a draft", "down past the newest restores the stashed draft");
+  await press("ArrowDown");
+  assert.equal(textarea.value, "a draft", "with no recall going, down is just a caret move");
+
+  await press("ArrowUp");
+  await type("second question edited");
+  await press("ArrowUp");
+  assert.equal(textarea.value, "second question", "editing a recalled prompt starts recall over from the newest");
+
+  await type("line one\nline two");
+  await act(async () => { textarea.setSelectionRange(textarea.value.length, textarea.value.length); });
+  await press("ArrowUp");
+  assert.equal(textarea.value, "line one\nline two", "up below the first line moves the caret, not the history");
+  await view.unmount();
+});
+
 test("a skill completes anywhere in the draft, where an action is not offered", async () => {
   window.desktop = fakeDesktop({
     commands: async () => ({ status: "available", commands: [

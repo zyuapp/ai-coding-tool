@@ -90,6 +90,8 @@ export type TaskComposerProps = {
   pastes?: PastedText[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
+  /** Texts of previously sent messages, oldest first, offered back on ↑ from the first line. */
+  history?: string[];
   onPromptChange: (prompt: string) => void;
   onAnnotationRemove?: (annotationId: string) => void;
   onPasteAdd?: (text: string) => void;
@@ -119,6 +121,7 @@ export function TaskComposer({
   annotations = [],
   pastes = [],
   focusToken = 0,
+  history = [],
   onPromptChange,
   onAnnotationRemove,
   onPasteAdd,
@@ -142,6 +145,8 @@ export function TaskComposer({
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
   const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  /** Where ↑/↓ sits in the sent history, with the draft it replaced and the text it put on screen. */
+  const [recall, setRecall] = useState<{ index: number; draft: string; shown: string } | null>(null);
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -157,6 +162,23 @@ export function TaskComposer({
   ];
   const matchingCommands = token === null ? [] : menuEntries.filter((entry) => commandMatches(entry, token.query));
   const commandMenuOpen = inputFocused && token !== null && dismissedPrompt !== prompt;
+
+  const sentTexts = [...history, ...queuedMessages.map((message) => message.text)];
+  const recallable = sentTexts.filter((text, index) => text.trim() !== "" && text !== sentTexts[index - 1]);
+
+  /** Step through the sent history; the live draft is stashed and comes back below the newest entry. */
+  function stepRecall(step: -1 | 1) {
+    if (step === 1 && recall === null) return false;
+    const index = (recall?.index ?? recallable.length) + step;
+    if (index < 0) return false;
+    const draft = recall?.draft ?? prompt;
+    const next = index >= recallable.length ? draft : recallable[index];
+    setRecall(index >= recallable.length ? null : { index, draft, shown: next });
+    onPromptChange(next);
+    setDismissedPrompt(next);
+    setPendingCaret(next.length);
+    return true;
+  }
 
   function shortDescription(description: string) {
     const firstSentence = description.split(/(?<=[.!?])\s/, 1)[0].replace(/\s+\([^)]*\)$/, "");
@@ -243,6 +265,11 @@ export function TaskComposer({
   }, []);
 
   useEffect(() => setSelectedCommand(0), [prompt, commands]);
+
+  /** Typing, sending, or switching drafts all change the prompt out from under a recall, ending it. */
+  useEffect(() => {
+    if (recall && prompt !== recall.shown) setRecall(null);
+  }, [prompt, recall]);
 
   useEffect(() => {
     if (focusToken) textareaRef.current?.focus();
@@ -373,6 +400,16 @@ export function TaskComposer({
               event.preventDefault();
               chooseCommand(matchingCommands[selectedCommand]);
               return;
+            }
+            if (!commandMenuOpen && (event.key === "ArrowUp" || event.key === "ArrowDown") && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
+              const { value, selectionStart, selectionEnd } = event.currentTarget;
+              const atEdge = event.key === "ArrowUp"
+                ? !value.slice(0, selectionStart).includes("\n")
+                : !value.slice(selectionEnd).includes("\n");
+              if (atEdge && stepRecall(event.key === "ArrowUp" ? -1 : 1)) {
+                event.preventDefault();
+                return;
+              }
             }
             if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && runActive && !sending) {
               event.preventDefault();

@@ -74,6 +74,7 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}
+        history={chat.task.messages.filter((message) => message.kind === "user").map((message) => message.text)}
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}
