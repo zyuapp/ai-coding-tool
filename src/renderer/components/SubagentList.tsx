@@ -47,7 +47,7 @@ export function countByStatus(subagents: Subagent[]) {
 
 export const SubagentRow = memo(function SubagentRow({ subagent, onSelect }: { subagent: Subagent; onSelect: (id: string) => void }) {
   return (
-    <button onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
+    <button className="agent-row" onClick={() => onSelect(subagent.id)} aria-label={`Open ${subagent.description} details`}>
       <span className={`agent-orb ${subagent.status}`}><Bot size={15} /></span>
       <span><strong>{subagent.description}</strong><small>{subagentLine(subagent)}</small></span>
       <StatusIcon status={subagent.status} />

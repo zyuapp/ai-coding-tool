@@ -762,7 +762,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .agents-panel-heading p { margin: 4px 0 0; color: var(--quiet); font-size: var(--text-meta); }
 .agents-panel-heading > span { color: var(--info-soft); font-size: var(--text-meta); }
 .agents-panel-list { min-height: 0; overflow: auto; margin: 0; padding: 14px; display: block; }
-.agents-panel-list button { padding: 11px 10px; }
+.agents-panel-list .agent-row { padding: 11px 10px; }
 .agents-panel-none { padding: 18px 22px; }
 .agents-filters { display: grid; gap: 9px; border-bottom: 1px solid var(--line-soft); padding: 12px 14px; }
 .agent-status-strip { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1591,7 +1591,7 @@ pre {
 .subagent-heading > span:last-child { color: var(--info-soft); font-size: var(--text-meta); font-weight: 550; }
 .session-empty { margin: 10px 0 0; color: var(--quiet-soft); font-size: var(--text-meta); line-height: 1.5; }
 .subagent-list { display: grid; gap: 5px; margin-top: 13px; }
-.subagent-list button {
+.subagent-list .agent-row {
   width: 100%;
   min-width: 0;
   display: grid;
@@ -1606,8 +1606,8 @@ pre {
   text-align: left;
   cursor: pointer;
 }
-.subagent-list button:hover { background: var(--surface-hover); color: var(--ink-soft); }
-.subagent-list button > span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
+.subagent-list .agent-row:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.subagent-list .agent-row > span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
 .subagent-list strong, .subagent-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .subagent-list strong { color: inherit; font-size: var(--text-control); font-weight: 560; }
 .subagent-list small { color: var(--quiet); font-size: var(--text-meta); }
