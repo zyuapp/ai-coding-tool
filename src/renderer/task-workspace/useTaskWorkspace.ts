@@ -516,6 +516,12 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
+    /** A folder the `claudex` command named arrives as an already-registered workspace. */
+    return window.desktop.onOpenProject((workspace) => void dispatchRef.current({ type: "project.opened", workspace }));
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
     void window.desktop.listAutomations()
       .then((automations) => dispatchRef.current({ type: "automations.changed", automations }))
       .catch((error) => dispatchRef.current({ type: "action.failed", message: errorMessage(error) }));

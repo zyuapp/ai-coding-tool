@@ -419,6 +419,7 @@ function fakeDesktop(overrides = {}) {
   let automationsChanged;
   let fireAutomation;
   let threadRequested;
+  let openProject;
   const threadAnswers = [];
   let unsubscribed = false;
   return {
@@ -431,8 +432,13 @@ function fakeDesktop(overrides = {}) {
     get fireAutomation() { return fireAutomation; },
     threadAnswers,
     askThreads: (request) => threadRequested(request),
+    openProjectFromCli: (workspace) => openProject(workspace),
     get unsubscribed() { return unsubscribed; },
     openFolder: async () => null,
+    onOpenProject: (next) => { openProject = next; return () => {}; },
+    cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/claudex" }),
+    installCli: async () => ({ state: "installed", path: "/usr/local/bin/claudex" }),
+    uninstallCli: async () => ({ state: "missing", path: "/usr/local/bin/claudex" }),
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
     commands: async () => ({ status: "available", commands: [] }),
     computerUsePermissions: async () => ({ accessibility: true, screenRecording: true }),
@@ -505,6 +511,41 @@ function fakeDesktop(overrides = {}) {
   };
 }
 
+test("the general section installs the claudex command and takes it back", async () => {
+  const calls = [];
+  let status = { state: "missing", path: "/usr/local/bin/claudex" };
+  window.desktop = fakeDesktop({
+    cliStatus: async () => status,
+    installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/claudex" }; return status; },
+    uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/claudex" }; return status; },
+  });
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  await act(async () => {});
+  const button = () => view.container.querySelector(".setting-row-action button");
+  assert.match(view.container.textContent, /Terminal command/);
+  assert.equal(button().textContent, "Install");
+
+  await act(async () => { button().click(); });
+  assert.equal(button().textContent, "Uninstall");
+  assert.match(view.container.textContent, /Installed at \/usr\/local\/bin\/claudex/);
+
+  await act(async () => { button().click(); });
+  assert.deepEqual(calls, ["install", "uninstall"]);
+  assert.equal(button().textContent, "Install");
+  await view.unmount();
+});
+
+test("an install the password prompt refuses is reported, not swallowed", async () => {
+  window.desktop = fakeDesktop({ installCli: async () => { throw new Error("Cancelled."); } });
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  await act(async () => {});
+  await act(async () => { view.container.querySelector(".setting-row-action button").click(); });
+
+  assert.match(view.container.querySelector(".settings-error").textContent, /Cancelled/);
+  assert.equal(view.container.querySelector(".setting-row-action button").textContent, "Install");
+  await view.unmount();
+});
+
 test("computer-use settings refresh permissions", async () => {
   let restarted = false;
   let checks = 0;
@@ -520,7 +561,7 @@ test("computer-use settings refresh permissions", async () => {
     ][checks++],
     restartForComputerUse: () => { restarted = true; },
   });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, initialSection: "computer-use", archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   assert.match(view.container.textContent, /Accessibility/);
   assert.match(view.container.textContent, /Setup required/);
@@ -1527,6 +1568,15 @@ test("workspace hook ignores a changed-files response from a replaced run", asyn
   await act(async () => {});
 
   assert.notDeepEqual(workspace.get().currentTask.lastChangeSnapshot.files, ["stale"]);
+  await workspace.view.unmount();
+});
+
+test("a folder the claudex command names opens as a project without the dialog", async () => {
+  const desktop = fakeDesktop({ openFolder: async () => { throw new Error("nothing should be picked"); } });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { desktop.openProjectFromCli({ id: "workspace-cli", kind: "project", root: "/code/app" }); });
+
+  assert.deepEqual(workspace.get().projects.map((project) => [project.root, project.workspaceId]), [["/code/app", "workspace-cli"]]);
   await workspace.view.unmount();
 });
 

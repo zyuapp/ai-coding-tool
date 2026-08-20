@@ -52,6 +52,9 @@ export async function startMainProcess(t, prefix) {
     contentView = { addChildView() {}, removeChildView() {} };
     constructor(options) { this.options = options; windows.push(this); }
     isDestroyed() { return false; }
+    isMinimized() { return false; }
+    restore() {}
+    show() {}
     on() {}
     async loadFile() {}
   }
@@ -84,7 +87,11 @@ export async function startMainProcess(t, prefix) {
       getPath: () => userData,
       whenReady: () => Promise.resolve(),
       on: (name, listener) => appListeners.set(name, listener),
+      requestSingleInstanceLock: () => true,
+      setAsDefaultProtocolClient() {},
+      focus() {},
       quit() {},
+      exit() {},
     },
     BrowserWindow: FakeWindow,
     dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },

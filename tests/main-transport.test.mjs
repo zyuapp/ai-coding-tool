@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { startMainProcess, tick, waitFor } from "./support/electron-harness.mjs";
@@ -127,4 +129,40 @@ test("a bound keystroke is taken from the window's menu and handed to whatever i
   assert.equal(closed, 0, "only the window's own renderer may close it");
   listeners.get("window:close")(trusted);
   assert.equal(closed, 1);
+});
+
+test("a folder the claudex command names is registered and handed to the window that asks for it", async () => {
+  const { appListeners, handlers, listeners, trusted, untrusted, sentOn } = main;
+  const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), "claudex-cli-open-")));
+  const url = `claudex://open?path=${Buffer.from(folder, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_")}`;
+  const opened = () => sentOn("workspace:open-project");
+  try {
+    appListeners.get("open-url")({ preventDefault() {} }, url);
+    await tick();
+    assert.deepEqual(opened(), [], "the folder waits while the window is still coming up");
+
+    listeners.get("workspace:open-project-ready")(untrusted);
+    await tick();
+    assert.deepEqual(opened(), [], "only the window's own renderer can ask for it");
+
+    listeners.get("workspace:open-project-ready")(trusted);
+    await waitFor(() => opened().length === 1);
+    assert.equal(opened()[0].root, folder);
+    assert.equal(opened()[0].kind, "project");
+
+    appListeners.get("second-instance")({}, ["/Applications/Claudex.app", url]);
+    await waitFor(() => opened().length === 2);
+    assert.equal(opened()[1].id, opened()[0].id, "the same folder keeps the workspace it already had");
+
+    appListeners.get("open-url")({ preventDefault() {} }, "claudex://open?path=bm90LWFic29sdXRl");
+    await tick();
+    assert.equal(opened().length, 2, "a URL that names no absolute folder opens nothing");
+
+    await assert.rejects(handlers.get("cli:status")(untrusted));
+    assert.equal((await handlers.get("cli:status")(trusted)).path, "/usr/local/bin/claudex");
+    await assert.rejects(handlers.get("cli:install")(untrusted));
+    await assert.rejects(handlers.get("cli:uninstall")(untrusted));
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
 });

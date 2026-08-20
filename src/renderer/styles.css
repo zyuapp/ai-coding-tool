@@ -1321,6 +1321,7 @@ pre {
 .setting-row > div:nth-child(2) { min-width: 0; }
 .setting-row strong { color: var(--ink-dim); font-size: var(--text-control); font-weight: 570; }
 .setting-row p { margin: 5px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
+.settings-group code { border-radius: 5px; padding: 1px 5px; background: var(--wash); color: var(--ink-dim); font: 0.9em/1.4 ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .settings-group .setting-status.blank { border-color: transparent; }
 .setting-row.shortcut-row { grid-template-columns: 22px minmax(0, 1fr) minmax(212px, auto); }
 .setting-row.shortcut-row .setting-row-action { gap: 8px; }

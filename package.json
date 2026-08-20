@@ -50,6 +50,14 @@
   "build": {
     "appId": "com.zyuapp.claudex",
     "productName": "Claudex",
+    "protocols": [
+      {
+        "name": "Claudex project",
+        "schemes": [
+          "claudex"
+        ]
+      }
+    ],
     "directories": {
       "output": "release"
     },

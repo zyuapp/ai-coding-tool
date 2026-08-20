@@ -8,6 +8,7 @@ import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js
 import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
+import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import { formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -15,6 +16,7 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
+import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
@@ -27,6 +29,14 @@ protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
+/** The `claudex` command opens a folder in the app that is already running, never a second one. */
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) {
+  console.log("Claudex is already running. Bringing that window forward instead of starting a second one.");
+  app.exit(0);
+}
+app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
+
 const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
@@ -36,6 +46,9 @@ let taskDatabase: TaskDatabase | null = null;
 let automationScheduler: AutomationScheduler | null = null;
 let quitting = false;
 let quitAfterComputerUseStops = false;
+/** Folders the `claudex` command named, held until the window is up and listening for them. */
+const pendingProjectOpens: string[] = [];
+let rendererListening = false;
 
 type RunState = {
   taskId: string;
@@ -324,6 +337,46 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
 /** The renderer's --canvas, so the window does not flash a different colour before it paints. */
 const CANVAS = "#0e1117";
 
+function revealWindow() {
+  if (!window || window.isDestroyed()) return;
+  if (window.isMinimized()) window.restore();
+  window.show();
+  app.focus({ steal: true });
+}
+
+/** Registers each folder the CLI named and hands it to the window, which is the only writer of state. */
+async function flushProjectOpens() {
+  if (!rendererListening || !workspaceService || !pendingProjectOpens.length) return;
+  while (pendingProjectOpens.length) {
+    const root = pendingProjectOpens.shift()!;
+    try {
+      const registration = await getWorkspaceService().registerProject(root);
+      if (window && !window.isDestroyed()) window.webContents.send("workspace:open-project", registration.workspace);
+    } catch (error) {
+      console.error("Could not open the folder the claudex command named:", error);
+    }
+  }
+  revealWindow();
+}
+
+function openProjectPath(root: string) {
+  pendingProjectOpens.push(root);
+  void flushProjectOpens();
+}
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  const root = projectPathFromUrl(url);
+  if (root) openProjectPath(root);
+  else revealWindow();
+});
+
+app.on("second-instance", (_event, argv) => {
+  const root = projectPathFromArgv(argv);
+  if (root) openProjectPath(root);
+  else revealWindow();
+});
+
 async function createWindow() {
   window = new BrowserWindow({
     width: 1240,
@@ -362,6 +415,7 @@ async function createWindow() {
     if (handleKey(input, "any")) event.preventDefault();
   });
   window.on("closed", () => {
+    rendererListening = false;
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
   });
@@ -428,6 +482,7 @@ async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeSer
 }
 
 app.whenReady().then(async () => {
+  if (!singleInstance) return;
   const userData = app.getPath("userData");
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
   workspaceService = new WorkspaceServiceConstructor({
@@ -455,6 +510,8 @@ app.whenReady().then(async () => {
   app.dock?.setIcon(icon);
   startAgent();
   await createWindow();
+  const launchPath = projectPathFromArgv(process.argv);
+  if (launchPath) openProjectPath(launchPath);
   void checkForUpdates().catch((error) => console.error("Update check failed:", error));
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
@@ -495,6 +552,28 @@ ipcMain.handle("workspace:open", async (event) => {
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
+});
+
+/** The window says when it can take a folder, so one the CLI named before it was up is not lost. */
+ipcMain.on("workspace:open-project-ready", (event) => {
+  if (!trustedSender(event)) return;
+  rendererListening = true;
+  void flushProjectOpens();
+});
+
+ipcMain.handle("cli:status", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return cliStatus();
+});
+
+ipcMain.handle("cli:install", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return installCli();
+});
+
+ipcMain.handle("cli:uninstall", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return uninstallCli();
 });
 
 ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {

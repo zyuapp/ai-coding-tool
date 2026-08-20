@@ -512,6 +512,7 @@ export function App() {
       {settingsVisible && (
         <SettingsPanel
           onClose={closeSettings}
+          initialSection={workspace.computerUseSetup ? "computer-use" : "general"}
           archivedTasks={workspace.archivedTasks}
           allowedOrigins={workspace.browserOrigins}
           shortcuts={workspace.shortcuts}

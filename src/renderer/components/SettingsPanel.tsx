@@ -1,14 +1,25 @@
-import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog } from "lucide-react";
+import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
+import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import { UsageSettings } from "./UsageSettings";
 
-type SettingsSection = "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
+export type SettingsSection = "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
 
 /** macOS writes its modifiers as symbols; everywhere else spells them out. */
 const MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform || navigator.userAgent);
+
+function cliDescription(status: CliStatus | null) {
+  if (!status) return "Looking for the command…";
+  switch (status.state) {
+    case "installed": return `Installed at ${status.path}.`;
+    case "conflict": return `Something else already answers to ${CLI_COMMAND} at ${status.path}.`;
+    case "unsupported": return "The command can only be installed on macOS.";
+    default: return `Goes in ${status.path}, which asks for your password once.`;
+  }
+}
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -18,6 +29,8 @@ function daysLeft(archivedAt: number) {
 
 export type SettingsPanelProps = {
   onClose: () => void;
+  /** The page settings opens on, which computer-use setup asks for by name. */
+  initialSection?: SettingsSection;
   archivedTasks: Task[];
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
@@ -34,6 +47,7 @@ export type SettingsPanelProps = {
 
 export function SettingsPanel({
   onClose,
+  initialSection = "general",
   archivedTasks,
   allowedOrigins,
   shortcuts,
@@ -45,7 +59,10 @@ export function SettingsPanel({
   onSetShortcut,
   onResetShortcuts,
 }: SettingsPanelProps) {
-  const [section, setSection] = useState<SettingsSection>("computer-use");
+  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [cli, setCli] = useState<CliStatus | null>(null);
+  const [cliBusy, setCliBusy] = useState(false);
+  const [cliError, setCliError] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [permissions, setPermissions] = useState<ComputerUsePermissions | null>(null);
@@ -76,6 +93,26 @@ export function SettingsPanel({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    window.desktop.cliStatus()
+      .then((status) => { if (!cancelled) setCli(status); })
+      .catch((cause) => { if (!cancelled) setCliError(cause instanceof Error ? cause.message : String(cause)); });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function changeCli(install: boolean) {
+    setCliBusy(true);
+    setCliError(null);
+    try {
+      setCli(await (install ? window.desktop.installCli() : window.desktop.uninstallCli()));
+    } catch (cause) {
+      setCliError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setCliBusy(false);
+    }
+  }
+
   async function enable(permission: ComputerUsePermission) {
     setBusy(permission);
     setError(null);
@@ -102,6 +139,10 @@ export function SettingsPanel({
         </button>
         <h1>Settings</h1>
         <nav aria-label="Settings sections">
+          <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => setSection("general")}>
+            <SlidersHorizontal size={17} aria-hidden="true" />
+            <span>General</span>
+          </button>
           <button className={section === "computer-use" ? "active" : ""} type="button" aria-current={section === "computer-use" ? "page" : undefined} onClick={() => setSection("computer-use")}>
             <MonitorCog size={17} aria-hidden="true" />
             <span>Computer use</span>
@@ -124,6 +165,43 @@ export function SettingsPanel({
           </button>
         </nav>
       </aside>
+
+      {section === "general" && (
+      <main className="settings-main">
+        <div className="settings-page-heading">
+          <h2>General</h2>
+          <p>How Claudex answers from outside its own window.</p>
+        </div>
+
+        <section className="settings-group" aria-labelledby="cli-heading">
+          <div className="settings-group-heading">
+            <div>
+              <h3 id="cli-heading">Terminal command</h3>
+              <p>Run <code>{CLI_COMMAND}</code> in a folder to open it here as a project, or <code>{CLI_COMMAND} ~/code/app</code> to open another one.</p>
+            </div>
+          </div>
+
+          <div className="setting-row">
+            <span className={`setting-status ${cli?.state === "installed" ? "granted" : ""}`}>{cli?.state === "installed" && <Check size={13} />}</span>
+            <div>
+              <strong>{CLI_COMMAND}</strong>
+              <p>{cliDescription(cli)}</p>
+            </div>
+            <div className="setting-row-action">
+              {!cli && !cliError && <em>Checking…</em>}
+              {cli?.state === "installed" && <button type="button" disabled={cliBusy} onClick={() => void changeCli(false)}>{cliBusy ? "Removing…" : "Uninstall"}</button>}
+              {(cli?.state === "missing" || cli?.state === "conflict") && (
+                <button type="button" disabled={cliBusy} onClick={() => void changeCli(true)}>
+                  {cliBusy ? "Installing…" : cli.state === "conflict" ? "Replace it" : "Install"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {cliError && <p className="settings-error" role="alert">{cliError}</p>}
+        </section>
+      </main>
+      )}
 
       {section === "usage" && (
       <main className="settings-main">

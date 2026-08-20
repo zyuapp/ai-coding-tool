@@ -1,6 +1,7 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { CliStatus } from "../domain/cli.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
@@ -161,6 +162,13 @@ export type AutomationResponse = {
 
 export type DesktopAPI = {
   openFolder(): Promise<WorkspaceRecord | null>;
+  /** A folder the `claudex` terminal command named, already registered as a workspace. */
+  onOpenProject(listener: (workspace: WorkspaceRecord) => void): () => void;
+  /** Whether the `claudex` terminal command is installed, and the path it takes. */
+  cliStatus(): Promise<CliStatus>;
+  /** Writes the command, asking for the administrator password when its directory needs one. */
+  installCli(): Promise<CliStatus>;
+  uninstallCli(): Promise<CliStatus>;
   projectlessWorkspace(): Promise<WorkspaceRecord>;
   commands(workspaceId: WorkspaceId): Promise<CommandDiscoveryResult>;
   computerUsePermissions(): Promise<ComputerUsePermissions>;

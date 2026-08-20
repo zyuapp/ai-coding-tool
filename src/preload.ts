@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
+import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
 import type { TerminalUpdate } from "./domain/terminal";
 import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
@@ -8,6 +9,15 @@ import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/
 
 const api: DesktopAPI = {
   openFolder: () => ipcRenderer.invoke("workspace:open"),
+  onOpenProject: (listener: (workspace: WorkspaceRecord) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: WorkspaceRecord) => listener(payload);
+    ipcRenderer.on("workspace:open-project", handler);
+    ipcRenderer.send("workspace:open-project-ready");
+    return () => ipcRenderer.removeListener("workspace:open-project", handler);
+  },
+  cliStatus: () => ipcRenderer.invoke("cli:status"),
+  installCli: () => ipcRenderer.invoke("cli:install"),
+  uninstallCli: () => ipcRenderer.invoke("cli:uninstall"),
   projectlessWorkspace: () => ipcRenderer.invoke("workspace:projectless"),
   commands: (workspaceId: string) => ipcRenderer.invoke("workspace:commands", workspaceId),
   computerUsePermissions: () => ipcRenderer.invoke("computer-use:permissions"),
