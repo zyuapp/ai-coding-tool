@@ -155,6 +155,9 @@ export class RunCoordinator {
     if (event.type === "subagent.activity") this.publish(active, event);
     if (event.type === "subagent.finished") this.publish(active, event);
     if (event.type === "background.changed") this.publish(active, event);
+    if (event.type === "workflow.started") this.publish(active, event);
+    if (event.type === "workflow.progress") this.publish(active, event);
+    if (event.type === "workflow.finished") this.publish(active, event);
   }
 
   private queueTail(active: ActiveRun, messageId: string, text: string) {

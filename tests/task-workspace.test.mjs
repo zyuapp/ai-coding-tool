@@ -22,6 +22,7 @@ function state() {
     approvals: {},
     streamingTails: {},
     backgroundProcesses: {},
+    workflows: {},
   };
 }
 
@@ -254,4 +255,67 @@ test("background processes are replaced whole, keep a stop already asked for, an
 
   const ended = applyRunEvent(replaced, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" });
   assert.equal(ended.backgroundProcesses["task-a"], undefined);
+});
+
+test("a workflow's frames replace its tree, and the run's end stops what was still going", () => {
+  const started = applyRunEvent(state(), {
+    type: "workflow.started",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 1,
+    id: "wf-1",
+    name: "review-changes",
+    description: "Review changed files across dimensions",
+  });
+  const first = applyRunEvent(started, {
+    type: "workflow.progress",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 2,
+    id: "wf-1",
+    phases: [{ index: 0, title: "Review" }],
+    agents: [{ index: 0, label: "review:bugs", state: "running" }, { index: 1, label: "review:perf", state: "queued" }],
+    totalTokens: 1_200,
+    totalToolCalls: 4,
+  });
+  const second = applyRunEvent(first, {
+    type: "workflow.progress",
+    taskId: "task-a",
+    runId: "run-a",
+    sequence: 3,
+    id: "wf-1",
+    phases: [{ index: 0, title: "Review" }],
+    agents: [{ index: 0, label: "review:bugs", state: "done" }],
+    totalTokens: 2_400,
+    totalToolCalls: 9,
+  });
+
+  assert.equal(second.workflows["task-a"].length, 1);
+  assert.equal(second.workflows["task-a"][0].name, "review-changes");
+  assert.deepEqual(second.workflows["task-a"][0].agents.map((agent) => agent.state), ["done"], "a frame replaces the tree rather than merging into it");
+  assert.equal(second.workflows["task-a"][0].totalTokens, 2_400);
+
+  const cancelled = applyRunEvent(second, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 4, status: "cancelled" });
+  assert.equal(cancelled.workflows["task-a"][0].status, "stopped");
+  assert.equal(typeof cancelled.workflows["task-a"][0].finishedAt, "number");
+});
+
+test("a workflow keeps how it ended, and the next run starts with none", () => {
+  const running = applyRunEvent(applyRunEvent(state(), {
+    type: "workflow.started", taskId: "task-a", runId: "run-a", sequence: 1, id: "wf-1", name: "spec", description: "Write the spec",
+  }), {
+    type: "workflow.progress", taskId: "task-a", runId: "run-a", sequence: 2, id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }], totalTokens: 10, totalToolCalls: 1,
+  });
+  const finished = applyRunEvent(running, {
+    type: "workflow.finished", taskId: "task-a", runId: "run-a", sequence: 3, id: "wf-1", status: "completed", summary: 'Dynamic workflow "spec" completed',
+  });
+
+  assert.equal(finished.workflows["task-a"][0].status, "completed");
+  assert.equal(finished.workflows["task-a"][0].summary, 'Dynamic workflow "spec" completed');
+  assert.equal(finished.workflows["task-a"][0].agents.length, 1, "the tree the workflow ended on stays readable");
+
+  const next = applyRunEvent({ ...finished, activeRuns: { "task-a": { taskId: "task-a", runId: "run-b", sequence: 0, status: "running" } } }, {
+    type: "run.started", taskId: "task-a", runId: "run-b", sequence: 1,
+  });
+  assert.equal("task-a" in next.workflows, false);
 });

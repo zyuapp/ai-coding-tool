@@ -3,6 +3,7 @@ import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-str
 import { contextWindowLimit } from "../../domain/run.js";
 import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
+import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { BROWSER_SERVER_NAME } from "./browser-tools.mjs";
 import { THREAD_SERVER_NAME } from "./thread-tools.mjs";
@@ -95,6 +96,7 @@ type Turn = {
   activeMainStreamId?: string;
   subagentIds: Set<string>;
   subagentByToolUse: Map<string, string>;
+  workflowIds: Set<string>;
   release: () => void;
 };
 
@@ -161,6 +163,7 @@ export class ClaudeSession {
         streamedText: new Map(),
         subagentIds: new Set(),
         subagentByToolUse: new Map(),
+        workflowIds: new Set(),
         release: () => {
           clearTimeout(grace);
           input.abortController.signal.removeEventListener("abort", interrupt);
@@ -288,6 +291,34 @@ export class ClaudeSession {
       });
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
       input.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
+    } else if (message.type === "system" && message.subtype === "task_started" && message.task_type === "local_workflow") {
+      turn.workflowIds.add(message.task_id);
+      input.emit({
+        type: "workflow.started",
+        id: message.task_id,
+        name: message.workflow_name ?? message.description,
+        description: message.description,
+      });
+    } else if (message.type === "system" && message.subtype === "task_progress" && turn.workflowIds.has(message.task_id)) {
+      /** The tree rides along with some frames and not others; a frame without one has nothing to say. */
+      const progress = parseWorkflowProgress(workflowProgressOf(message));
+      if (progress) {
+        input.emit({
+          type: "workflow.progress",
+          id: message.task_id,
+          phases: progress.phases,
+          agents: progress.agents,
+          totalTokens: message.usage.total_tokens,
+          totalToolCalls: message.usage.tool_uses,
+        });
+      }
+    } else if (message.type === "system" && message.subtype === "task_notification" && turn.workflowIds.has(message.task_id)) {
+      input.emit({
+        type: "workflow.finished",
+        id: message.task_id,
+        status: message.status === "completed" ? "completed" : message.status === "failed" ? "failed" : "stopped",
+        summary: message.summary,
+      });
     } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
       turn.subagentIds.add(message.task_id);
       if (message.tool_use_id) turn.subagentByToolUse.set(message.tool_use_id, message.task_id);

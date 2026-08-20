@@ -195,6 +195,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
     approvals: {},
     streamingTails: {},
     backgroundProcesses: {},
+    workflows: {},
   };
   for (const event of events) state = applyRunEvent(state, event);
 

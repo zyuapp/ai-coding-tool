@@ -2,6 +2,7 @@ import { AlarmClock, FileDiff, GitBranch, House } from "lucide-react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent } from "../../domain/run";
+import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { PopoverMenu } from "./PopoverMenu";
 import { orderSubagents, SubagentRow } from "./SubagentList";
@@ -15,10 +16,12 @@ export type SessionPanelProps = {
   openMenu: string | null;
   subagents: Subagent[];
   backgroundProcesses: BackgroundProcess[];
+  workflows: Workflow[];
   automationCount: number;
   onSelect: (id: string) => void;
   onOpenAgents: () => void;
   onOpenAutomations: () => void;
+  onOpenWorkflow: (id: string) => void;
   onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSetWorktree: (worktree: boolean) => void;
@@ -67,7 +70,7 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
   );
 }
 
-export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, backgroundProcesses, automationCount, onSelect, onOpenAgents, onOpenAutomations, onSetOpenMenu, onSetWorktree, onStopProcess }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onStopProcess }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
@@ -117,7 +120,7 @@ export function SessionPanel({ environment, hasProject, location, runActive, ope
               )}
             </div>
 
-            <BackgroundProcessSection processes={backgroundProcesses} onStop={onStopProcess} />
+            <BackgroundProcessSection processes={backgroundProcesses} workflows={workflows} onOpenWorkflow={onOpenWorkflow} onStop={onStopProcess} />
       </div>
     </aside>
   );

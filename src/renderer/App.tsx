@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlarmClock, Bot, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
+import { AlarmClock, Bot, Boxes, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
@@ -12,6 +12,7 @@ import { ThreadStartOptions } from "./components/ThreadStartOptions";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
 import { TerminalPanel } from "./components/TerminalPanel";
+import { WorkflowPanel } from "./components/WorkflowPanel";
 import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
@@ -25,8 +26,8 @@ type DockPanel = {
   id: string;
   title: string;
   description: string;
-  /** The name that opens this view from the composer, without its `/`. */
-  command: string;
+  /** The name that opens this view from the composer, without its `/`. A panel with none is only ever opened by the thing it belongs to. */
+  command?: string;
   icon: LucideIcon;
   badge?: number;
   render: () => ReactNode;
@@ -45,6 +46,7 @@ export function App() {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   const rightDockOpen = workspace.dockOpen;
@@ -58,6 +60,7 @@ export function App() {
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
+  const inspectedWorkflow = workspace.workflows.find((workflow) => workflow.id === selectedWorkflow);
 
   function addSideChat() {
     void workspace.dispatch({ type: "side-chat.open", chatId: crypto.randomUUID() });
@@ -101,7 +104,16 @@ export function App() {
 
   useEffect(() => {
     if (!workspace.dockPanels.includes("agents")) setSelectedSubagent(null);
+    if (!workspace.dockPanels.includes("workflow")) setSelectedWorkflow(null);
   }, [workspace.dockPanels]);
+
+  /** A workflow lives with the run that drove it, so its panel closes when that record goes. */
+  useEffect(() => {
+    if (selectedWorkflow && !workspace.workflows.some((workflow) => workflow.id === selectedWorkflow)) {
+      setSelectedWorkflow(null);
+      if (workspace.dockPanels.includes("workflow")) void workspace.actions.closeDockPanel("workflow");
+    }
+  }, [workspace.actions, workspace.dockPanels, workspace.workflows, selectedWorkflow]);
 
   useEffect(() => {
     function dismissMenu(event: PointerEvent) {
@@ -126,6 +138,11 @@ export function App() {
     void workspace.actions.inspectSubagent(id);
   }, [workspace.actions]);
 
+  const openWorkflow = useCallback((id: string) => {
+    setSelectedWorkflow(id);
+    void workspace.actions.openDockPanel("workflow");
+  }, [workspace.actions]);
+
   const dockPanels: DockPanel[] = [
     {
       id: "agents",
@@ -137,6 +154,15 @@ export function App() {
       render: () => (inspectedSubagent
         ? <SubagentInspector subagent={inspectedSubagent} onClose={() => setSelectedSubagent(null)} />
         : <AgentsPanel subagents={workspace.subagents} onSelect={inspectSubagent} />),
+    },
+    {
+      id: "workflow",
+      title: inspectedWorkflow?.name ?? "Workflow",
+      description: "Follow a dynamic workflow the run is driving",
+      icon: Boxes,
+      render: () => (inspectedWorkflow
+        ? <WorkflowPanel workflow={inspectedWorkflow} onStop={workspace.actions.stopBackgroundProcess} />
+        : <p className="session-empty">This workflow is no longer running.</p>),
     },
     {
       id: "automation",
@@ -157,7 +183,7 @@ export function App() {
 
   /** One click opens the thing itself: a launcher makes a tab rather than a panel that holds tabs. */
   const dockLaunchers: DockLauncher[] = [
-    ...dockPanels.map(({ id, title, description, command, icon }) => ({ id, title, description, command, icon, open: () => openRightTab(id) })),
+    ...dockPanels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, open: () => openRightTab(id) }] : []),
     { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() },
     { id: "terminal", title: "Terminal", description: "Run a shell here and let Claude read what it prints", command: "terminal", icon: SquareTerminal, disabled: !workspace.terminalFolder, open: () => void workspace.actions.openTerminal() },
     { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentTask, open: addSideChat },
@@ -274,6 +300,7 @@ export function App() {
             onSetOpenMenu={workspace.actions.setOpenMenu}
             subagents={workspace.subagents}
             backgroundProcesses={workspace.backgroundProcesses}
+            workflows={workspace.workflows}
             automationCount={workspace.automation ? 1 : 0}
             onSelect={(id) => {
               inspectSubagent(id);
@@ -281,6 +308,7 @@ export function App() {
             }}
             onOpenAgents={() => openRightTab("agents")}
             onOpenAutomations={() => openRightTab("automation")}
+            onOpenWorkflow={openWorkflow}
             onStopProcess={workspace.actions.stopBackgroundProcess}
             onSetWorktree={(worktree) => {
               /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */

@@ -2,6 +2,7 @@ import type { ComputerUseRunConfig, RunChannel } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+import type { WorkflowAgent, WorkflowPhase, WorkflowStatus } from "../../domain/workflow.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
@@ -57,7 +58,11 @@ export type ProviderEvent =
   | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
   | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string }
   /** The run's whole set of background processes, republished on every change. */
-  | { type: "background.changed"; processes: BackgroundProcess[] };
+  | { type: "background.changed"; processes: BackgroundProcess[] }
+  | { type: "workflow.started"; id: string; name: string; description: string }
+  /** A dynamic workflow's whole tree, republished on every change. */
+  | { type: "workflow.progress"; id: string; phases: WorkflowPhase[]; agents: WorkflowAgent[]; totalTokens: number; totalToolCalls: number }
+  | { type: "workflow.finished"; id: string; status: Exclude<WorkflowStatus, "running">; summary: string };
 
 /** The levers a run only has once it is live, handed back so control can reach it mid-run. */
 export type RunControls = {

@@ -1,5 +1,6 @@
 import type { RunEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent } from "../domain/run.js";
+import type { Workflow } from "../domain/workflow.js";
 import type { Task, TaskMessage } from "../domain/task.js";
 
 export type ActiveRun = {
@@ -42,6 +43,8 @@ export type RunTransitionState = {
    * so this is never persisted and never outlives the run that reported it.
    */
   backgroundProcesses: Record<string, BackgroundProcess[]>;
+  /** What each task's live run has driven as a dynamic workflow. Run-scoped like the processes are. */
+  workflows: Record<string, Workflow[]>;
 };
 
 function now() {
@@ -98,6 +101,22 @@ export function withBackgroundProcesses<T extends RunTransitionState>(state: T, 
   return { ...state, backgroundProcesses } as T;
 }
 
+export function withWorkflows<T extends RunTransitionState>(state: T, taskId: string, workflows: Workflow[]): T {
+  if (workflows.length) return { ...state, workflows: { ...state.workflows, [taskId]: workflows } } as T;
+  if (!(taskId in state.workflows)) return state;
+  const { [taskId]: _ended, ...rest } = state.workflows;
+  return { ...state, workflows: rest } as T;
+}
+
+/** Every workflow record but the named one, with that one replaced by what the update returns. */
+function updateWorkflow<T extends RunTransitionState>(state: T, taskId: string, id: string, update: (existing?: Workflow) => Workflow): T {
+  const workflows = state.workflows[taskId] ?? [];
+  const existing = workflows.find((workflow) => workflow.id === id);
+  return withWorkflows(state, taskId, existing
+    ? workflows.map((workflow) => workflow.id === id ? update(workflow) : workflow)
+    : [...workflows, update(undefined)]);
+}
+
 export function runStatusFor(state: RunTransitionState, taskId: string | null): TaskRunStatus {
   return taskId ? state.runStatuses[taskId] ?? "idle" : "idle";
 }
@@ -121,7 +140,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
   const withSequence = withActiveRun(state, event.taskId, { ...active, sequence: event.sequence });
 
-  if (event.type === "run.started") return withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []);
+  if (event.type === "run.started") return withWorkflows(withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []), event.taskId, []);
   if (event.type === "run.status") {
     if (event.status === "running" || event.status === "awaiting-approval") {
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
@@ -139,6 +158,13 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
         subagents: task.subagents?.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent),
         updatedAt: now(),
       }));
+    }
+    /** The workflows the run was driving died with it, whatever their last frame reported. */
+    const workflows = next.workflows[event.taskId];
+    if (workflows?.some((workflow) => workflow.status === "running")) {
+      next = withWorkflows(next, event.taskId, workflows.map((workflow) => workflow.status === "running"
+        ? { ...workflow, status: "stopped" as const, finishedAt: now(), stopping: false }
+        : workflow));
     }
     if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.message!)], updatedAt: now() }));
     return next;
@@ -246,6 +272,33 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       startedAt: existing?.startedAt ?? now(),
       finishedAt: now(),
       activity: existing?.activity ?? [],
+    }));
+  }
+  if (event.type === "workflow.started") {
+    return updateWorkflow(withSequence, event.taskId, event.id, (existing) => ({
+      ...(existing ?? { phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      status: "running",
+    }));
+  }
+  if (event.type === "workflow.progress") {
+    return updateWorkflow(withSequence, event.taskId, event.id, (existing) => ({
+      ...(existing ?? { id: event.id, name: event.id, description: "Dynamic workflow", status: "running" as const, startedAt: now() }),
+      phases: event.phases,
+      agents: event.agents,
+      totalTokens: event.totalTokens,
+      totalToolCalls: event.totalToolCalls,
+    }));
+  }
+  if (event.type === "workflow.finished") {
+    return updateWorkflow(withSequence, event.taskId, event.id, (existing) => ({
+      ...(existing ?? { id: event.id, name: event.id, description: "Dynamic workflow", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
+      status: event.status,
+      finishedAt: now(),
+      stopping: false,
+      ...(event.summary ? { summary: event.summary } : {}),
     }));
   }
   /** A stop already asked for stays marked until the run stops reporting that process. */

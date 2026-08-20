@@ -4,6 +4,7 @@ import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/br
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
+import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus } from "../domain/workflow.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
@@ -298,6 +299,17 @@ export type RunEvent =
   | (RunEventBase & { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string })
   /** Every background process the run still has. Replaces the set rather than amending it. */
   | (RunEventBase & { type: "background.changed"; processes: BackgroundProcess[] })
+  | (RunEventBase & { type: "workflow.started"; id: string; name: string; description: string })
+  /** The workflow's whole tree as it stands. Replaces the record rather than amending it. */
+  | (RunEventBase & {
+      type: "workflow.progress";
+      id: string;
+      phases: WorkflowPhase[];
+      agents: WorkflowAgent[];
+      totalTokens: number;
+      totalToolCalls: number;
+    })
+  | (RunEventBase & { type: "workflow.finished"; id: string; status: Exclude<WorkflowStatus, "running">; summary: string })
   | (RunEventBase & {
       type: "approval.requested";
       approvalId: string;
@@ -352,6 +364,30 @@ function isBackgroundProcess(value: unknown): value is BackgroundProcess {
   if (!value || typeof value !== "object") return false;
   const process = value as Record<string, unknown>;
   return isString(process.id) && isBackgroundProcessKind(process.kind) && isString(process.description, 100_000);
+}
+
+function isWorkflowPhase(value: unknown): value is WorkflowPhase {
+  if (!value || typeof value !== "object") return false;
+  const phase = value as Record<string, unknown>;
+  return isCount(phase.index) && isString(phase.title, 100_000);
+}
+
+function isWorkflowAgentState(value: unknown): value is WorkflowAgentState {
+  return value === "queued" || value === "running" || value === "done" || value === "error";
+}
+
+function isWorkflowAgent(value: unknown): value is WorkflowAgent {
+  if (!value || typeof value !== "object") return false;
+  const agent = value as Record<string, unknown>;
+  const strings = ["phaseTitle", "agentId", "agentType", "model", "lastAttemptReason", "lastToolName", "lastToolSummary", "promptPreview", "resultPreview", "error"];
+  const counts = ["phaseIndex", "attempt", "queuedAt", "startedAt", "durationMs", "lastProgressAt", "tokens", "toolCalls"];
+  return isCount(agent.index)
+    && isString(agent.label, 100_000)
+    && isWorkflowAgentState(agent.state)
+    && (agent.isolation === undefined || agent.isolation === "worktree" || agent.isolation === "remote")
+    && (agent.cached === undefined || typeof agent.cached === "boolean")
+    && strings.every((key) => agent[key] === undefined || isString(agent[key], 100_000))
+    && counts.every((key) => agent[key] === undefined || isCount(agent[key]));
 }
 
 function isIntent(value: unknown): value is ToolIntent {
@@ -538,6 +574,14 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";
   if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "background.changed") return Array.isArray(event.processes) && event.processes.every(isBackgroundProcess);
+  if (event.type === "workflow.started") return isString(event.id) && isString(event.name, 100_000) && isString(event.description, 100_000);
+  if (event.type === "workflow.progress") {
+    return isString(event.id)
+      && Array.isArray(event.phases) && event.phases.every(isWorkflowPhase)
+      && Array.isArray(event.agents) && event.agents.every(isWorkflowAgent)
+      && isCount(event.totalTokens) && isCount(event.totalToolCalls);
+  }
+  if (event.type === "workflow.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   if (event.type === "queued.delivered") return isString(event.messageId);

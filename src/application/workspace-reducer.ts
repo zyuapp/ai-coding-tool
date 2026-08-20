@@ -9,6 +9,7 @@ import {
   withActiveRun,
   withBackgroundProcesses,
   withRunStatus,
+  withWorkflows,
 } from "./task-workspace.js";
 import { browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, stateFromData, taskWorkspaceId, terminalFolder, viewPreferences, withDock, withPrompt, type DraftBranch, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
@@ -853,12 +854,23 @@ function apply(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransitio
     case "run.stop-process": {
       const taskId = targetId(state, input.taskId);
       const active = taskId ? state.activeRuns[taskId] : undefined;
-      const processes = taskId ? state.backgroundProcesses[taskId] ?? [] : [];
+      if (!taskId || !active) return settled(state);
+      const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, runId: active.runId, processId: input.processId } }];
+      const processes = state.backgroundProcesses[taskId] ?? [];
       const target = processes.find((process) => process.id === input.processId);
-      if (!taskId || !active || !target || target.stopping) return settled(state);
+      if (target) {
+        return target.stopping ? settled(state) : settled(
+          withBackgroundProcesses(state, taskId, processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process)),
+          stop,
+        );
+      }
+      /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
+      const workflows = state.workflows[taskId] ?? [];
+      const workflow = workflows.find((candidate) => candidate.id === input.processId);
+      if (!workflow || workflow.stopping || workflow.status !== "running") return settled(state);
       return settled(
-        withBackgroundProcesses(state, taskId, processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process)),
-        [{ type: "send-run-command", command: { type: "stop-process", taskId, runId: active.runId, processId: target.id } }],
+        withWorkflows(state, taskId, workflows.map((candidate) => candidate.id === workflow.id ? { ...candidate, stopping: true } : candidate)),
+        stop,
       );
     }
 

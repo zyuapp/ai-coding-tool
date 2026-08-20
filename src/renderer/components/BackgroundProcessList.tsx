@@ -1,10 +1,15 @@
 import { memo } from "react";
-import { Radio, Square, Terminal } from "lucide-react";
+import { Boxes, Radio, Square, Terminal } from "lucide-react";
 import type { BackgroundProcess } from "../../domain/run";
+import { workflowAgentsDone, workflowStatusLabel, type Workflow } from "../../domain/workflow";
 
 export function processLabel(process: BackgroundProcess) {
   if (process.stopping) return "Stopping";
   return process.kind === "shell" ? "Shell" : "Monitor";
+}
+
+export function workflowLabel(workflow: Workflow) {
+  return `${workflowStatusLabel(workflow)} · ${workflowAgentsDone(workflow)}/${workflow.agents.length} agents`;
 }
 
 export const BackgroundProcessRow = memo(function BackgroundProcessRow({ process, onStop }: { process: BackgroundProcess; onStop: (processId: string) => void }) {
@@ -25,18 +30,51 @@ export const BackgroundProcessRow = memo(function BackgroundProcessRow({ process
   );
 });
 
-/** The processes the live run left running. They end with the run, so nothing here outlives it. */
-export function BackgroundProcessSection({ processes, onStop }: { processes: BackgroundProcess[]; onStop: (processId: string) => void }) {
+/** A workflow is a process with a panel behind it, so the row opens rather than just reporting. */
+export const WorkflowProcessRow = memo(function WorkflowProcessRow({ workflow, onOpen, onStop }: { workflow: Workflow; onOpen: (id: string) => void; onStop: (processId: string) => void }) {
+  return (
+    <div className="process-row">
+      <button className="process-open" type="button" onClick={() => onOpen(workflow.id)} aria-label={`Open ${workflow.name} workflow`}>
+        <span className={`agent-orb ${workflow.status === "running" ? "" : workflow.status === "completed" ? "done" : "error"}`}><Boxes size={15} /></span>
+        <span><strong>{workflow.name}</strong><small>{workflowLabel(workflow)}</small></span>
+      </button>
+      {workflow.status === "running" && (
+        <button
+          className="process-stop"
+          type="button"
+          disabled={workflow.stopping}
+          onClick={() => onStop(workflow.id)}
+          aria-label={`Stop ${workflow.name}`}
+        >
+          <Square size={12} />
+        </button>
+      )}
+    </div>
+  );
+});
+
+type BackgroundProcessSectionProps = {
+  processes: BackgroundProcess[];
+  workflows: Workflow[];
+  onOpenWorkflow: (id: string) => void;
+  onStop: (processId: string) => void;
+};
+
+/** The processes the live run left running, and the workflows it drove while they were going. */
+export function BackgroundProcessSection({ processes, workflows, onOpenWorkflow, onStop }: BackgroundProcessSectionProps) {
+  const running = processes.length + workflows.filter((workflow) => workflow.status === "running").length;
+
   return (
     <div className="subagent-section">
       <div className="subagent-heading">
         <span>Processes</span>
-        {processes.length > 0 && <span>{processes.length} running</span>}
+        {running > 0 && <span>{running} running</span>}
       </div>
-      {processes.length === 0 ? (
+      {processes.length === 0 && workflows.length === 0 ? (
         <p className="session-empty">No background processes</p>
       ) : (
         <div className="subagent-list" aria-live="polite">
+          {workflows.map((workflow) => <WorkflowProcessRow key={workflow.id} workflow={workflow} onOpen={onOpenWorkflow} onStop={onStop} />)}
           {processes.map((process) => <BackgroundProcessRow key={process.id} process={process} onStop={onStop} />)}
         </div>
       )}

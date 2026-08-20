@@ -45,6 +45,7 @@ const { RevealedTextProvider, StreamingText } = await vite.ssrLoadModule("/src/r
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 const { ProjectSidebar } = await vite.ssrLoadModule("/src/renderer/components/ProjectSidebar.tsx");
 const { SideChat } = await vite.ssrLoadModule("/src/renderer/components/SideChat.tsx");
+const { WorkflowPanel } = await vite.ssrLoadModule("/src/renderer/components/WorkflowPanel.tsx");
 
 test.after(async () => {
   await vite.close();
@@ -145,7 +146,7 @@ test("session panel renders Git and subagent states and selects an agent", async
     environment: { status: "available", files: [" M file"], branch: "main", additions: 4, deletions: 2 },
     hasProject: true,
     subagents,
-    backgroundProcesses: [],
+    backgroundProcesses: [], workflows: [],
     automationCount: 1,
     onSelect: (id) => { selected = id; },
     onOpenAutomations: () => { openedAutomations += 1; },
@@ -169,10 +170,10 @@ test("session panel renders Git and subagent states and selects an agent", async
     [{ status: "unavailable", reason: "missing" }, "Workspace is missing"],
     [{ status: "error", message: "git failed" }, "git failed"],
   ]) {
-    await view.render(React.createElement(SessionPanel, { environment, hasProject: true, subagents: [], backgroundProcesses: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
+    await view.render(React.createElement(SessionPanel, { environment, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
     assert.match(view.container.textContent, new RegExp(message));
   }
-  await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], backgroundProcesses: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
+  await view.render(React.createElement(SessionPanel, { environment: null, hasProject: false, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Open a project to inspect Git/);
   await view.unmount();
 });
@@ -188,6 +189,7 @@ test("the session panel lists the run's background processes and stops the one a
     hasProject: true,
     subagents: [],
     backgroundProcesses: processes,
+    workflows: [],
     automationCount: 0,
     onSelect() {},
     onOpenAutomations() {},
@@ -202,7 +204,7 @@ test("the session panel lists the run's background processes and stops the one a
   assert.equal(view.container.querySelector('button[aria-label="Stop Deploy events"]').disabled, true, "a stop already asked for cannot be asked for twice");
 
   await view.render(React.createElement(SessionPanel, {
-    environment: null, hasProject: true, subagents: [], backgroundProcesses: [], automationCount: 0, onSelect() {}, onOpenAutomations() {}, onStopProcess() {},
+    environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {}, onStopProcess() {},
   }));
   assert.match(view.container.textContent, /No background processes/);
   await view.unmount();
@@ -1024,7 +1026,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 4);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 5);
   await view.unmount();
 });
 
@@ -2342,7 +2344,7 @@ test("the session panel's thread menu offers the hand-off its location allows, a
     runActive,
     openMenu,
     subagents: [],
-    backgroundProcesses: [],
+    backgroundProcesses: [], workflows: [],
     automationCount: 0,
     onSelect() {},
     onOpenAutomations() {},
@@ -2657,5 +2659,95 @@ test("⌘W closes the page in front, then the dock, and only then the window", a
   await act(async () => { window.desktop.closeTabShortcut(); });
   assert.deepEqual(window.desktop.browserCalls.filter(([name]) => name === "close-window"), [["close-window"]], "with nothing in front, ⌘W is the window's");
 
+  await view.unmount();
+});
+
+/** A workflow still going is drawn against the clock, so its fixture starts where a live one would. */
+const workflowStart = Date.now() - 92_000;
+const workflowAgents = [
+  { index: 0, label: "review:bugs", state: "done", phaseIndex: 0, phaseTitle: "Review", startedAt: workflowStart, durationMs: 60_000, tokens: 41_200, toolCalls: 12, resultPreview: "3 findings", model: "opus" },
+  { index: 1, label: "verify:query.ts", state: "error", phaseIndex: 1, phaseTitle: "Verify", startedAt: workflowStart + 60_000, durationMs: 30_000, tokens: 20_500, error: "Agent returned no structured output" },
+  { index: 2, label: "verify:store.ts", state: "running", phaseIndex: 1, phaseTitle: "Verify", queuedAt: workflowStart + 60_000, startedAt: workflowStart + 61_000, tokens: 18_600, lastToolName: "Grep", isolation: "worktree", attempt: 2, promptPreview: "Adversarially verify this finding" },
+];
+
+const liveWorkflow = {
+  id: "wf-1",
+  name: "review-changes",
+  description: "Review changed files across dimensions",
+  status: "running",
+  phases: [{ index: 0, title: "Review" }, { index: 1, title: "Verify" }],
+  agents: workflowAgents,
+  totalTokens: 80_300,
+  totalToolCalls: 21,
+  startedAt: workflowStart,
+};
+
+test("the workflow panel groups agents by phase, draws their lanes, and opens one", async () => {
+  const stopped = [];
+  const view = await mount(React.createElement(WorkflowPanel, { workflow: liveWorkflow, onStop: (id) => { stopped.push(id); } }));
+
+  assert.match(view.container.textContent, /review-changes/);
+  assert.match(view.container.textContent, /2\/3/, "done counts both the finished and the failed");
+  assert.deepEqual([...view.container.querySelectorAll(".workflow-group-head h3")].map((head) => head.textContent), ["Review", "Verify"]);
+  assert.equal(view.container.querySelectorAll(".workflow-lane").length, 3);
+  assert.match(view.container.querySelector(".workflow-row .workflow-row-main small").textContent, /3 findings/);
+  assert.match(view.container.textContent, /Using Grep/);
+  assert.match(view.container.textContent, /retry 2/);
+  assert.match(view.container.textContent, /worktree/);
+  assert.match(view.container.textContent, /Agent returned no structured output/);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Stop review-changes"]'); });
+  await act(async () => { view.container.querySelector(".workflow-stop").click(); });
+  assert.deepEqual(stopped, ["wf-1"]);
+
+  await act(async () => { view.container.querySelector('.workflow-row[aria-label="Open verify:store.ts details"]').click(); });
+  assert.match(view.container.textContent, /Adversarially verify this finding/);
+  assert.match(view.container.textContent, /Previews are the first 400 characters/);
+  await act(async () => { view.container.querySelector(".session-back").click(); });
+  assert.equal(view.container.querySelectorAll(".workflow-lane").length, 3, "the panel comes back to the whole workflow");
+  await view.unmount();
+});
+
+test("a workflow that ended stops reporting its agents as live", async () => {
+  const view = await mount(React.createElement(WorkflowPanel, {
+    workflow: { ...liveWorkflow, status: "stopped", finishedAt: workflowStart + 92_000, summary: 'Dynamic workflow "review-changes" was stopped' },
+    onStop() {},
+  }));
+
+  assert.equal(view.container.querySelector(".workflow-stop"), null, "a workflow that ended has nothing to stop");
+  assert.match(view.container.textContent, /Stopped with the run/);
+  assert.match(view.container.textContent, /was stopped/);
+  assert.equal(view.container.querySelectorAll(".workflow-lane-track > i.run.running").length, 0);
+  await view.unmount();
+});
+
+test("the session panel lists a workflow as a process and opens its panel", async () => {
+  const opened = [];
+  const stopped = [];
+  const view = await mount(React.createElement(SessionPanel, {
+    environment: { status: "available", files: [], branch: "main", additions: 0, deletions: 0 },
+    hasProject: true,
+    subagents: [],
+    backgroundProcesses: [{ id: "bash-1", kind: "shell", description: "npm run dev" }],
+    workflows: [liveWorkflow],
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onOpenWorkflow: (id) => { opened.push(id); },
+    onStopProcess: (id) => { stopped.push(id); },
+  }));
+
+  assert.match(view.container.textContent, /2 running/);
+  assert.match(view.container.textContent, /Running · 2\/3 agents/);
+  await act(async () => { view.container.querySelector('button[aria-label="Open review-changes workflow"]').click(); });
+  assert.deepEqual(opened, ["wf-1"]);
+  await act(async () => { view.container.querySelector('button[aria-label="Stop review-changes"]').click(); });
+  assert.deepEqual(stopped, ["wf-1"]);
+
+  await view.render(React.createElement(SessionPanel, {
+    environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [{ ...liveWorkflow, status: "completed" }], automationCount: 0,
+    onSelect() {}, onOpenAutomations() {}, onOpenWorkflow() {}, onStopProcess() {},
+  }));
+  assert.equal(view.container.querySelector('button[aria-label="Stop review-changes"]'), null, "a workflow that ended keeps its row without a stop");
   await view.unmount();
 });
