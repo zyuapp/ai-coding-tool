@@ -785,7 +785,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .find-count.empty { color: var(--danger-soft); }
 
 /* Over the transcript, which scrolls under it, rather than in the column the transcript is laid out in. */
-.work-area > .find-bar { position: absolute; z-index: 5; top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
+.work-area > .find-bar { position: absolute; z-index: 9; top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
+
+/** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
+.workspace.summary-open .work-area > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
 .agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
@@ -2392,6 +2395,7 @@ pre {
   .message.user .message-text { max-width: 85%; }
   .workspace.summary-open .composer-wrap { margin-right: 272px; }
   .workspace.summary-open .conversation { padding-right: 300px; }
+  .workspace.summary-open .work-area > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 272px); }
   .session-panel { width: 260px; right: 12px; }
 }
 
@@ -2431,6 +2435,8 @@ pre {
   .session-panel { top: 82px; right: 12px; width: calc(100% - 24px); max-height: calc(100% - 94px); }
   .conversation { padding: 36px 18px 20px; }
   .workspace.summary-open .conversation { padding-right: 18px; }
+  /** The panel takes the whole width here, so the bar sits over it instead of beside it. */
+  .workspace.summary-open .work-area > .find-bar { right: clamp(20px, 4vw, 64px); }
   .composer-wrap { padding: 10px 14px 14px; }
   .composer-settings { gap: 0; }
   .setting-menu > summary { gap: 5px; padding-inline: 6px; }
