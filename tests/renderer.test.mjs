@@ -137,36 +137,35 @@ test("a thread link is plain text where no thread can be selected", async () => 
   await view.unmount();
 });
 
-test("references written as prose become links: a path, a path in backticks, and a bare thread URL", async () => {
+test("only Markdown file links open in the default app", async () => {
   const opened = [];
-  const selected = [];
   const markdown = [
-    "Look at src/renderer/App.tsx:42 and `AGENTS.md`, and read claudex://thread/task-3.",
+    "Plain src/renderer/App.tsx:42 and `AGENTS.md` stay plain.",
     "",
-    "Nothing in and/or, example.com, or `npm run build` is a file.",
+    "Open [the app](/checkout/src/renderer/App.tsx:42) or [the notes](docs/My%20Notes.md:7:3).",
   ].join("\n");
-  const view = await mountMessage(markdown, { openFile: (path) => opened.push(path), selectTask: (taskId) => selected.push(taskId) });
+  const view = await mountMessage(markdown, { openFile: (path) => opened.push(path) });
 
   const links = [...view.container.querySelectorAll("a")];
-  assert.deepEqual(links.map((link) => link.textContent), ["src/renderer/App.tsx:42", "AGENTS.md", "claudex://thread/task-3"]);
-  assert.match(view.container.textContent, /Nothing in and\/or, example\.com, or npm run build is a file\./);
+  assert.deepEqual(links.map((link) => link.textContent), ["the app", "the notes"]);
+  assert.match(view.container.textContent, /Plain src\/renderer\/App\.tsx:42 and AGENTS\.md stay plain\./);
 
   await act(async () => { links[0].click(); });
   await act(async () => { links[1].click(); });
-  assert.deepEqual(opened, ["src/renderer/App.tsx", "AGENTS.md"], "the line a path names is not part of the path");
-
-  await act(async () => { links[2].click(); });
-  assert.deepEqual(selected, ["task-3"]);
+  assert.deepEqual(opened, ["/checkout/src/renderer/App.tsx", "docs/My Notes.md"], "line and column suffixes are not part of the path");
   await view.unmount();
 });
 
-test("a web link opens in the browser panel rather than a window of its own", async () => {
+test("a web link opens externally by default and offers the browser panel on right click", async () => {
   const opened = [];
-  const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrl: (url) => opened.push(url) });
+  const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrlInApp: (url) => opened.push(url) });
 
   const link = view.container.querySelector("a");
-  assert.equal(link.target, "", "the panel is the browser, so nothing opens outside the window");
-  await act(async () => { link.click(); });
+  assert.equal(link.target, "_blank", "the main process hands an ordinary click to the default browser");
+  await act(async () => { link.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 50, clientY: 60 })); });
+  const item = document.querySelector(".context-menu-popover button");
+  assert.equal(item.textContent, "Open in Claudex");
+  await act(async () => { item.click(); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
   await view.unmount();
 });

@@ -1,8 +1,9 @@
-import { Children, createContext, isValidElement, memo, useContext, type ComponentProps, type ReactNode } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { linkableFor, parseFileHref, parseThreadHref, scanLinkables } from "../../domain/markdown-links";
+import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
 import { MermaidBlock } from "./MermaidBlock";
+import { ContextMenu } from "./PopoverMenu";
 
 const CLAUDEX_HREF = /^claudex:/i;
 const WEB_HREF = /^https?:/i;
@@ -11,7 +12,7 @@ const WEB_HREF = /^https?:/i;
 export type MessageLinkActions = {
   selectTask?: (taskId: string) => void;
   openFile?: (path: string) => void;
-  openUrl?: (url: string) => void;
+  openUrlInApp?: (url: string) => void;
 };
 
 const MessageLinks = createContext<MessageLinkActions>({});
@@ -28,59 +29,49 @@ function MarkdownPre({ children, ...props }: ComponentProps<"pre">) {
   return <pre {...props}>{children}</pre>;
 }
 
+function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
+  const link = useRef<HTMLAnchorElement>(null);
+  const [menu, setMenu] = useState<{ left: number; top: number } | null>(null);
+  return (
+    <>
+      <a
+        {...props}
+        ref={link}
+        target="_blank"
+        rel="noreferrer"
+        onContextMenu={openInApp ? (event) => {
+          event.preventDefault();
+          setMenu({
+            left: Math.max(8, Math.min(event.clientX, innerWidth - 136)),
+            top: Math.max(8, Math.min(event.clientY, innerHeight - 48)),
+          });
+        } : undefined}
+      >
+        {children}
+      </a>
+      {menu && openInApp && <ContextMenu
+        position={menu}
+        returnFocus={link}
+        onSetOpenMenu={() => setMenu(null)}
+        items={[{ label: "Open in Claudex", onSelect: openInApp }]}
+      />}
+    </>
+  );
+}
+
 function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const actions = useContext(MessageLinks);
   const href = props.href ?? "";
-  const inApp = (() => {
-    const taskId = parseThreadHref(href);
-    if (taskId) return actions.selectTask && (() => actions.selectTask!(taskId));
-    const path = parseFileHref(href);
-    if (path) return actions.openFile && (() => actions.openFile!(path));
-    return undefined;
-  })();
-  if (inApp) return <a {...props} onClick={(event) => { event.preventDefault(); inApp(); }}>{children}</a>;
+  const taskId = parseThreadHref(href);
+  if (taskId && actions.selectTask) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectTask!(taskId); }}>{children}</a>;
   /** Anything else under the scheme is text, never a live link. */
   if (CLAUDEX_HREF.test(href)) return <>{children}</>;
-  if (actions.openUrl && WEB_HREF.test(href)) {
-    return <a {...props} onClick={(event) => { event.preventDefault(); actions.openUrl!(href); }}>{children}</a>;
-  }
+  const path = parseFileHref(href);
+  if (path) return actions.openFile
+    ? <a {...props} onClick={(event) => { event.preventDefault(); actions.openFile!(path); }}>{children}</a>
+    : <>{children}</>;
+  if (WEB_HREF.test(href)) return <WebLink {...props} openInApp={actions.openUrlInApp && (() => actions.openUrlInApp!(href))}>{children}</WebLink>;
   return <a {...props} target="_blank" rel="noreferrer">{children}</a>;
-}
-
-type MdastNode = { type: string; value?: string; url?: string; children?: MdastNode[] };
-
-/**
- * Links the references an agent writes as plain prose — a path, a thread URL, a URL in backticks.
- * Only what {@link scanLinkables} is sure of becomes a link, so ordinary prose stays prose.
- */
-function autoLinks() {
-  const fromText = (node: MdastNode): MdastNode[] => {
-    const value = node.value ?? "";
-    const found = scanLinkables(value);
-    if (found.length === 0) return [node];
-    const parts: MdastNode[] = [];
-    let read = 0;
-    for (const linkable of found) {
-      if (linkable.start > read) parts.push({ type: "text", value: value.slice(read, linkable.start) });
-      parts.push({ type: "link", url: linkable.href, children: [{ type: "text", value: linkable.text }] });
-      read = linkable.end;
-    }
-    if (read < value.length) parts.push({ type: "text", value: value.slice(read) });
-    return parts;
-  };
-  const walk = (node: MdastNode) => {
-    if (!node.children || node.type === "link" || node.type === "linkReference") return;
-    node.children = node.children.flatMap((child) => {
-      if (child.type === "text") return fromText(child);
-      if (child.type === "inlineCode") {
-        const href = linkableFor((child.value ?? "").trim());
-        return href ? { type: "link", url: href, children: [child] } : child;
-      }
-      walk(child);
-      return child;
-    });
-  };
-  return walk;
 }
 
 type HastNode = { type: string; tagName?: string; value?: string; children?: HastNode[] };
@@ -108,7 +99,7 @@ function wordSpans() {
 export const MarkdownMessage = memo(function MarkdownMessage({ children, animate }: { children: string; animate?: boolean }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, autoLinks]}
+      remarkPlugins={[remarkGfm]}
       rehypePlugins={animate ? [wordSpans] : []}
       skipHtml
       urlTransform={(url) => (CLAUDEX_HREF.test(url) ? url : defaultUrlTransform(url))}

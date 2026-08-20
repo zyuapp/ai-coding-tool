@@ -9,6 +9,17 @@ let main;
 test.before(async () => { main = await startMainProcess(null, "claudex-main-"); });
 test.after(async () => { await main?.dispose(); });
 
+test("the main window sends ordinary web links to the default browser", async () => {
+  const open = main.window.webContents.windowOpenHandler;
+  assert.deepEqual(open({ url: "https://example.com/docs" }), { action: "deny" });
+  await tick();
+  assert.deepEqual(main.externalUrls, ["https://example.com/docs"]);
+
+  assert.deepEqual(open({ url: "file:///etc/passwd" }), { action: "deny" });
+  await tick();
+  assert.deepEqual(main.externalUrls, ["https://example.com/docs"], "non-web targets stay closed");
+});
+
 test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async () => {
   const { userData, handlers, listeners, agents, protocolHandlers, window, trusted, untrusted } = main;
 

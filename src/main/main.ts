@@ -415,6 +415,15 @@ async function createWindow() {
   window.webContents.on("before-input-event", (event, input) => {
     if (handleKey(input, "any")) event.preventDefault();
   });
+  /** A normal link leaves Claudex. Its context menu offers the browser panel separately. */
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      void shell.openExternal(browserPageUrl(url)).catch((error) => console.error("Could not open link:", error));
+    } catch {
+      // Chromium asked to open something other than a web page.
+    }
+    return { action: "deny" };
+  });
   window.on("closed", () => {
     rendererListening = false;
     browser.stopBrowserHost();

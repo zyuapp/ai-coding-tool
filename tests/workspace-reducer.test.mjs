@@ -87,6 +87,11 @@ test("a run whose folder is never reopened reports why and keeps nothing pending
   assert.deepEqual(failed.state.pendingRuns, {});
 });
 
+test("an action error can be dismissed", () => {
+  const failed = workspace({ actionError: "That action is not supported." });
+  assert.equal(reduce(failed, { type: "view.dismiss-action-error" }).state.actionError, null);
+});
+
 test("a scheduled run declines when the task is archived, gone, or already running", () => {
   const fire = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2 };
   const declined = [

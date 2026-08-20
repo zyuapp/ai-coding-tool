@@ -1241,6 +1241,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.set-prompt":
       return settled(withPrompt(state, input.taskId ?? promptKey(state), input.prompt));
 
+    case "view.dismiss-action-error":
+      return settled({ ...state, actionError: null });
+
     case "view.toggle-project": {
       const expandedProjects = new Set(state.expandedProjects);
       if (expandedProjects.has(input.projectId)) expandedProjects.delete(input.projectId);

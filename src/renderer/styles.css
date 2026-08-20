@@ -417,7 +417,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .show-more:hover { color: var(--muted-strong); }
 .task-entry { position: relative; min-width: 0; }
-.context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
+.context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; width: max-content; min-width: 128px; }
+.context-menu-popover button { white-space: nowrap; }
 /** The status mark and the archive action share the slot's single cell, so a row keeps
  *  the same center hovered or not, whatever marks precede the slot. */
 .row-slot {
@@ -1111,8 +1112,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .markdown-body code { border-radius: 5px; padding: 2px 5px; background: var(--code-surface); color: var(--code-ink); font: 0.88em/1.5 ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .markdown-body pre { margin: 17px 0; padding: 14px 15px; white-space: pre; }
 .markdown-body pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; }
-/** A path in backticks is a link, so the chip takes the link's colour rather than code's. */
-.markdown-body a > code { color: inherit; text-decoration: inherit; }
 .markdown-body table { display: block; width: max-content; max-width: 100%; margin: 17px 0; overflow-x: auto; border-spacing: 0; border-collapse: collapse; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; }
 .markdown-body th { background: var(--surface-raised); color: var(--ink-soft); font-weight: 620; }
@@ -1433,6 +1432,9 @@ pre {
   top: 78px;
   left: 22px;
   right: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   border: 1px solid var(--danger-line);
   border-radius: 9px;
@@ -1441,6 +1443,8 @@ pre {
   color: var(--danger-soft);
   font-size: var(--text-control);
 }
+.storage-error span { flex: 1; min-width: 0; }
+.storage-error button { flex: none; display: grid; place-items: center; border: 0; padding: 2px; background: none; color: inherit; cursor: pointer; }
 
 .session-panel {
   position: absolute;

@@ -245,7 +245,7 @@ export function App() {
   const messageLinks = useMemo<MessageLinkActions>(() => ({
     selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),
     openFile: (path: string) => void dispatchRef.current({ type: "file.open", path }),
-    openUrl: (url: string) => void dispatchRef.current({ type: "browser.open", url, newTab: true }),
+    openUrlInApp: (url: string) => void dispatchRef.current({ type: "browser.open", url, newTab: true }),
   }), []);
 
   return (
@@ -305,7 +305,14 @@ export function App() {
           }}
         />
         {(workspace.storageError || workspace.actionError) && (
-          <p className="storage-error" role="alert">{workspace.storageError || workspace.actionError}</p>
+          <div className="storage-error" role="alert">
+            <span>{workspace.storageError || workspace.actionError}</span>
+            {!workspace.storageError && (
+              <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
+                <X size={15} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
 
         <div className="work-area">

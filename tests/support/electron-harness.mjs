@@ -39,6 +39,7 @@ export async function startMainProcess(t, prefix) {
   const agents = [];
   const appListeners = new Map();
   const protocolHandlers = new Map();
+  const externalUrls = [];
 
   class FakeWindow {
     static getAllWindows() { return windows; }
@@ -47,6 +48,7 @@ export async function startMainProcess(t, prefix) {
       listeners: new Map(),
       send: (channel, event) => this.webContents.sent.push({ channel, event }),
       on: (name, listener) => this.webContents.listeners.set(name, listener),
+      setWindowOpenHandler: (handler) => { this.webContents.windowOpenHandler = handler; },
       getZoomFactor: () => 1,
     };
     contentView = { addChildView() {}, removeChildView() {} };
@@ -102,6 +104,10 @@ export async function startMainProcess(t, prefix) {
     utilityProcess: { fork: () => { const agent = new FakeAgent(); agents.push(agent); return agent; } },
     protocol: { registerSchemesAsPrivileged() {}, handle: (scheme, handler) => protocolHandlers.set(scheme, handler) },
     net: { fetch: async (url) => new Response(url) },
+    shell: {
+      openExternal: async (url) => { externalUrls.push(url); },
+      openPath: async () => "",
+    },
     session: {
       fromPartition: () => ({
         setUserAgent() {},
@@ -127,7 +133,7 @@ export async function startMainProcess(t, prefix) {
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, session=e.session, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
       },
     }],
   });
@@ -159,6 +165,7 @@ export async function startMainProcess(t, prefix) {
     windows,
     agents,
     appListeners,
+    externalUrls,
     protocolHandlers,
     window,
     trusted: { sender: window.webContents },

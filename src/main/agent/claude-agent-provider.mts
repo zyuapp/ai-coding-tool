@@ -10,6 +10,7 @@ import { threadServer, THREAD_SERVER_NAME } from "./thread-tools.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 
 type QueryFactory = typeof query;
+const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com) and workspace files as [label](/absolute/path:line). Omit the line when it is unavailable.`;
 const browserInstructions = `The Claudex browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the claudex-browser tools rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read. Open a page, read it, then act on the refs that read hands you — a ref is stale as soon as the page changes. The user sees the same tabs you drive, so leave their pages alone and close only the tabs you opened. An origin the user has never visited waits on their approval before it loads; say what you need it for instead of retrying.`;
 const threadInstructions = `Claudex holds the user's other threads, and the claudex-threads tools are the only way to reach them. Read them with list_threads and read_thread when the user points at other, recent, or related work instead of guessing from memory. Start a thread per piece of work when the user asks for several things to run side by side, and give each one a prompt that stands alone: a new thread inherits none of this conversation. Wait on a thread you started with wait_for_thread rather than polling read_thread. Archiving or stopping a thread throws away work in progress, so only do it when the user asked for it. When you name another thread in an answer, link it as [title](claudex://thread/<id>) so the user can open it from your message.`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the claudex-automation tools instead of looping yourself or reaching for cron. An automation runs the same prompt on its own schedule with no user present, so write the prompt to stand alone and carry its own stop condition. When a scheduled run is what is executing and that stop condition is met, call the stop tool; nothing else ends an automation.`;
@@ -176,7 +177,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         effort: input.effort,
         betas: ["context-1m-2025-08-07" as const],
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [computerUseInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [computerUseInstructions, linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         skills: "all" as const,
         forwardSubagentText: true,

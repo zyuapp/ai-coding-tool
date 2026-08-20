@@ -147,6 +147,7 @@ test("Claude query options follow run policy and workspace settings", async () =
   assert.equal(capture.options.options.skills, "all");
   assert.equal(capture.options.options.forwardSubagentText, true);
   assert.equal(capture.options.options.includePartialMessages, true);
+  assert.match(capture.options.options.systemPrompt.append, /workspace files as \[label\]\(\/absolute\/path:line\)/);
 });
 
 test("Claude streams only complete Markdown blocks and does not repeat final text", async () => {

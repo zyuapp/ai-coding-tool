@@ -141,6 +141,7 @@ export type TerminalCommand =
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
+  | { type: "view.dismiss-action-error" }
   | { type: "view.toggle-project"; projectId: string }
   | { type: "view.set-projects-open"; open: boolean }
   | { type: "view.set-recents-open"; open: boolean }
