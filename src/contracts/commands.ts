@@ -11,7 +11,7 @@ import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | FileCommand | TerminalCommand | ViewCommand;
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =
@@ -116,6 +116,12 @@ export type BrowserCommand =
   | { type: "browser.decide"; allow: boolean }
   /** Signs the whole app out: cookies, storage, and caches for every site. */
   | { type: "browser.clear-data" };
+
+/**
+ * A file named in a message, opened in whatever the desktop opens that kind of file with. Relative
+ * paths are read against the thread's own checkout, so only files that thread can see ever open.
+ */
+export type FileCommand = { type: "file.open"; taskId?: string; path: string; line?: number };
 
 /**
  * The terminal panel. Every command here is the user's own: a run may read what a shell has printed

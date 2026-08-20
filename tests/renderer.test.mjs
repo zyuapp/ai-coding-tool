@@ -35,7 +35,7 @@ const { SessionPanel } = await vite.ssrLoadModule("/src/renderer/components/Sess
 const { SubagentInspector } = await vite.ssrLoadModule("/src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await vite.ssrLoadModule("/src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await vite.ssrLoadModule("/src/renderer/components/WorkspaceHeader.tsx");
-const { MarkdownMessage } = await vite.ssrLoadModule("/src/renderer/components/MarkdownMessage.tsx");
+const { MarkdownMessage, MessageLinkProvider } = await vite.ssrLoadModule("/src/renderer/components/MarkdownMessage.tsx");
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
@@ -102,6 +102,10 @@ test("assistant markdown preserves nested, quoted, linked, and fenced structures
   await view.unmount();
 });
 
+function mountMessage(markdown, actions = {}) {
+  return mount(React.createElement(MessageLinkProvider, { actions }, React.createElement(MarkdownMessage, null, markdown)));
+}
+
 test("a thread link opens that thread in place, and nothing else under the scheme is a link", async () => {
   const selected = [];
   const markdown = [
@@ -109,7 +113,7 @@ test("a thread link opens that thread in place, and nothing else under the schem
     "",
     "Not [an archive](claudex://archive/task-9) and not [the docs](https://example.com).",
   ].join("\n");
-  const view = await mount(React.createElement(MarkdownMessage, { onSelectTask: (taskId) => selected.push(taskId) }, markdown));
+  const view = await mountMessage(markdown, { selectTask: (taskId) => selected.push(taskId) });
 
   const links = [...view.container.querySelectorAll("a")];
   assert.deepEqual(links.map((link) => link.textContent), ["the sidebar work", "the docs"], "an unknown claudex:// path stays plain text");
@@ -126,10 +130,44 @@ test("a thread link opens that thread in place, and nothing else under the schem
 });
 
 test("a thread link is plain text where no thread can be selected", async () => {
-  const view = await mount(React.createElement(MarkdownMessage, null, "See [the sidebar work](claudex://thread/task-9)."));
+  const view = await mountMessage("See [the sidebar work](claudex://thread/task-9).");
 
   assert.equal(view.container.querySelector("a"), null);
   assert.match(view.container.textContent, /See the sidebar work\./);
+  await view.unmount();
+});
+
+test("references written as prose become links: a path, a path in backticks, and a bare thread URL", async () => {
+  const opened = [];
+  const selected = [];
+  const markdown = [
+    "Look at src/renderer/App.tsx:42 and `AGENTS.md`, and read claudex://thread/task-3.",
+    "",
+    "Nothing in and/or, example.com, or `npm run build` is a file.",
+  ].join("\n");
+  const view = await mountMessage(markdown, { openFile: (path) => opened.push(path), selectTask: (taskId) => selected.push(taskId) });
+
+  const links = [...view.container.querySelectorAll("a")];
+  assert.deepEqual(links.map((link) => link.textContent), ["src/renderer/App.tsx:42", "AGENTS.md", "claudex://thread/task-3"]);
+  assert.match(view.container.textContent, /Nothing in and\/or, example\.com, or npm run build is a file\./);
+
+  await act(async () => { links[0].click(); });
+  await act(async () => { links[1].click(); });
+  assert.deepEqual(opened, ["src/renderer/App.tsx", "AGENTS.md"], "the line a path names is not part of the path");
+
+  await act(async () => { links[2].click(); });
+  assert.deepEqual(selected, ["task-3"]);
+  await view.unmount();
+});
+
+test("a web link opens in the browser panel rather than a window of its own", async () => {
+  const opened = [];
+  const view = await mountMessage("Read https://example.com/docs for the rest.", { openUrl: (url) => opened.push(url) });
+
+  const link = view.container.querySelector("a");
+  assert.equal(link.target, "", "the panel is the browser, so nothing opens outside the window");
+  await act(async () => { link.click(); });
+  assert.deepEqual(opened, ["https://example.com/docs"]);
   await view.unmount();
 });
 
@@ -722,7 +760,6 @@ test("a side chat composes with everything the main composer has", async () => {
     onSteerQueued() {},
     onDropQueued() {},
     onClose() {},
-    onSelectTask() {},
   });
   function Harness() {
     const [prompt, setPrompt] = React.useState("");

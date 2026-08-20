@@ -269,7 +269,7 @@ function ToolRun({ steps }: { steps: TimedStep[] }) {
  * renders under the message id it will belong to and keeps that node once the block lands. The
  * newest text stays streamed even between tails, because remounting it would replay the whole block.
  */
-function TurnSegments({ segments, tail, live = false, onSelectTask }: { segments: TurnSegment[]; tail?: StreamingTail | null; live?: boolean; onSelectTask?: (taskId: string) => void }) {
+function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[]; tail?: StreamingTail | null; live?: boolean }) {
   const newest = segments.at(-1);
   const streamingId = live ? tail?.messageId ?? (newest?.kind === "note" ? newest.message.id : undefined) : undefined;
   const nodes = segments.map((segment) => segment.kind === "tools"
@@ -277,14 +277,14 @@ function TurnSegments({ segments, tail, live = false, onSelectTask }: { segments
     : (
       <div key={segment.id} data-message-id={segment.message.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
-          ? <StreamingText id={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming onSelectTask={onSelectTask} />
-          : <MarkdownMessage onSelectTask={onSelectTask}>{segment.message.text}</MarkdownMessage>}
+          ? <StreamingText id={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
+          : <MarkdownMessage>{segment.message.text}</MarkdownMessage>}
       </div>
     ));
   if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {
     nodes.push(
       <div key={streamingId} data-message-id={streamingId} className="message-text markdown-body work-note">
-        <StreamingText id={streamingId} committed="" tail={tail?.text ?? ""} streaming onSelectTask={onSelectTask} />
+        <StreamingText id={streamingId} committed="" tail={tail?.text ?? ""} streaming />
       </div>,
     );
   }
@@ -292,7 +292,7 @@ function TurnSegments({ segments, tail, live = false, onSelectTask }: { segments
 }
 
 /** Settled turn: every step, tool calls and interim text alike, folds behind one row. */
-function SettledSteps({ steps, endsAt, onSelectTask }: { steps: TaskMessage[]; endsAt: number | null; onSelectTask?: (taskId: string) => void }) {
+function SettledSteps({ steps, endsAt }: { steps: TaskMessage[]; endsAt: number | null }) {
   const summary = (
     <>
       <span className="work-lead">Worked</span>
@@ -302,7 +302,7 @@ function SettledSteps({ steps, endsAt, onSelectTask }: { steps: TaskMessage[]; e
   );
   return (
     <Fold className="work-group" holds={steps.map((step) => step.id)} summary={summary}>
-      {() => <div className="work-steps"><TurnSegments segments={toSegments(timeSteps(steps, endsAt))} onSelectTask={onSelectTask} /></div>}
+      {() => <div className="work-steps"><TurnSegments segments={toSegments(timeSteps(steps, endsAt))} /></div>}
     </Fold>
   );
 }
@@ -327,10 +327,9 @@ export type ConversationTimelineProps = {
   onAnnotateRemove?: (annotationId: string) => void;
   /** Offered next to it when this transcript can hand a selection to a side chat as a bare reference. */
   onAnnotateSide?: (quote: string) => void;
-  onSelectTask?: (taskId: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide, onSelectTask }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -614,9 +613,9 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
               {group.kind === "turn" ? (
                 <article className="message assistant turn">
                   {group.live
-                    ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live onSelectTask={onSelectTask} />
-                    : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} onSelectTask={onSelectTask} />}
-                  {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} onSelectTask={onSelectTask} /></div>}
+                    ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
+                    : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} />}
+                  {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} /></div>}
                 </article>
               ) : message!.kind === "system" ? (
                 <SystemNotice message={message!} />

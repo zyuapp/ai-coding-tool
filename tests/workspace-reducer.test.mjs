@@ -1400,6 +1400,24 @@ test("a terminal opens in the thread's own checkout and takes a dock tab of its 
   assert.equal(dock(reduce(inWorktree, { type: "terminal.open" }).state).terminals[0].cwd, "/worktrees/repo-w1");
 });
 
+test("a file named in a message opens against the checkout that thread works in", () => {
+  const state = {
+    ...workspace(),
+    projects: [{ id: "project-1", root: "/repo" }],
+    tasks: [task("task-1", { projectId: "project-1" })],
+    currentId: "task-1",
+  };
+
+  assert.deepEqual(reduce(state, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", root: "/repo", path: "src/App.tsx" }]);
+
+  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktree: { id: "w1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 } })] };
+  assert.deepEqual(reduce(inWorktree, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", root: "/worktrees/repo-w1", path: "src/App.tsx" }]);
+
+  const refused = reduce(workspace(), { type: "file.open", path: "src/App.tsx" });
+  assert.deepEqual(refused.effects, []);
+  assert.equal(refused.state.actionError, WORKSPACE_ERRORS.fileFolder);
+});
+
 test("a terminal needs a folder to start in", () => {
   const refused = reduce(workspace(), { type: "terminal.open" });
 

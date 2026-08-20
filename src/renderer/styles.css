@@ -1111,6 +1111,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .markdown-body code { border-radius: 5px; padding: 2px 5px; background: var(--code-surface); color: var(--code-ink); font: 0.88em/1.5 ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .markdown-body pre { margin: 17px 0; padding: 14px 15px; white-space: pre; }
 .markdown-body pre code { padding: 0; background: transparent; color: inherit; font-size: inherit; }
+/** A path in backticks is a link, so the chip takes the link's colour rather than code's. */
+.markdown-body a > code { color: inherit; text-decoration: inherit; }
 .markdown-body table { display: block; width: max-content; max-width: 100%; margin: 17px 0; overflow-x: auto; border-spacing: 0; border-collapse: collapse; }
 .markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; }
 .markdown-body th { background: var(--surface-raised); color: var(--ink-soft); font-weight: 620; }

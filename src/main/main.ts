@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
@@ -790,6 +791,33 @@ ipcMain.handle("browser:stop-find", (event, tabId: unknown) => {
 ipcMain.handle("browser:clear", (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return browser.clearData();
+});
+
+const MAX_FILE_PATH = 4_096;
+
+/**
+ * The file a message named, as an absolute path the desktop can open. A message is only prose, so
+ * the path it wrote has to land inside the checkout the thread works in before anything opens it.
+ */
+async function fileInCheckout(root: unknown, candidate: unknown) {
+  if (typeof root !== "string" || !root) throw new Error("Invalid folder.");
+  if (typeof candidate !== "string" || !candidate || candidate.length > MAX_FILE_PATH) throw new Error("Invalid file path.");
+  const named = candidate.startsWith("~/") ? path.join(homedir(), candidate.slice(2)) : candidate;
+  const { isPathInside } = await import("./path-policy.mjs");
+  try {
+    const [checkout, file] = await Promise.all([realpath(root), realpath(path.resolve(root, named))]);
+    if (!isPathInside(checkout, file)) throw new Error("That file is outside this thread's folder.");
+    return file;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("That file is not there any more.");
+    throw error;
+  }
+}
+
+ipcMain.handle("file:open", async (event, root: unknown, candidate: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const failure = await shell.openPath(await fileInCheckout(root, candidate));
+  if (failure) throw new Error(failure);
 });
 
 /** Longer than anything anyone searches for, and still bounded. */

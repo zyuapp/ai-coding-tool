@@ -92,25 +92,24 @@ function useCompleteBlocks(text: string) {
  * is repaired so half-written markup is held back rather than shown as literal markers. `streaming`
  * says more text may still arrive, which is what starts a fresh message from nothing.
  */
-export function StreamingText({ id, committed, tail = "", streaming = false, onSelectTask }: {
+export function StreamingText({ id, committed, tail = "", streaming = false }: {
   id: string;
   committed: string;
   tail?: string;
   streaming?: boolean;
-  onSelectTask?: (taskId: string) => void;
 }) {
   const full = committed + tail;
   const revealed = useTypewriter(full, id, streaming);
   const text = full.slice(0, revealed);
   const blocks = useCompleteBlocks(text);
   /** Nothing more is coming and nothing is held back, so the whole answer renders as one document. */
-  if (!streaming && revealed >= full.length) return <MarkdownMessage onSelectTask={onSelectTask}>{full}</MarkdownMessage>;
+  if (!streaming && revealed >= full.length) return <MarkdownMessage>{full}</MarkdownMessage>;
   const settled = text.slice(0, blocks);
   const live = repairCut(text.slice(blocks));
   return (
     <>
-      {settled && <MarkdownMessage onSelectTask={onSelectTask}>{settled}</MarkdownMessage>}
-      {live && <MarkdownMessage animate onSelectTask={onSelectTask}>{live}</MarkdownMessage>}
+      {settled && <MarkdownMessage>{settled}</MarkdownMessage>}
+      {live && <MarkdownMessage animate>{live}</MarkdownMessage>}
     </>
   );
 }

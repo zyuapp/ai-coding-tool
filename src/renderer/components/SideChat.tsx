@@ -7,7 +7,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose, onSelectTask }: {
+export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   source: Task;
   project?: Project;
@@ -26,7 +26,6 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
   onClose: () => void;
-  onSelectTask: (taskId: string) => void;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const available = Boolean(source.continuation || chat.task.continuation);
@@ -52,7 +51,6 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
           onAnnotateAdd={onAnnotateAdd}
           onAnnotateNote={onAnnotateNote}
           onAnnotateRemove={onAnnotateRemove}
-          onSelectTask={onSelectTask}
           empty={{
             icon: GitFork,
             title: available ? "Work from a copy of this thread" : "Main context unavailable",

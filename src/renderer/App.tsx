@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlarmClock, Bot, Boxes, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
+import { MessageLinkProvider, type MessageLinkActions } from "./components/MarkdownMessage";
 import { FindBar } from "./components/FindBar";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -231,7 +232,17 @@ export function App() {
     ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork })),
   ];
 
+  /** Held still, so a link in a settled message is not a fresh handler on every render of the shell. */
+  const dispatchRef = useRef(workspace.dispatch);
+  dispatchRef.current = workspace.dispatch;
+  const messageLinks = useMemo<MessageLinkActions>(() => ({
+    selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),
+    openFile: (path: string) => void dispatchRef.current({ type: "file.open", path }),
+    openUrl: (url: string) => void dispatchRef.current({ type: "browser.open", url, newTab: true }),
+  }), []);
+
   return (
+    <MessageLinkProvider actions={messageLinks}>
     <main className="app-shell">
       <ProjectSidebar
         open={sidebarOpen}
@@ -318,7 +329,6 @@ export function App() {
               onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
               onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
               onAnnotateSide={annotateToSideChat}
-              onSelectTask={workspace.actions.selectTask}
             />
             {workspace.approval && <ApprovalCard approval={workspace.approval} onDecide={workspace.actions.decideApproval} />}
           </div>
@@ -474,7 +484,6 @@ export function App() {
                     onSteerQueued={(messageId) => void workspace.dispatch({ type: "task.steer-queued", taskId: chat.id, messageId })}
                     onDropQueued={(messageId) => void workspace.dispatch({ type: "task.drop-queued", taskId: chat.id, messageId })}
                     onClose={() => closeRightTab(chat.id)}
-                    onSelectTask={workspace.actions.selectTask}
                   />
                 </div>
               ))}
@@ -526,5 +535,6 @@ export function App() {
         />
       )}
     </main>
+    </MessageLinkProvider>
   );
 }

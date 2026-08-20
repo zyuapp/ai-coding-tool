@@ -13,7 +13,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, terminalFolder, viewPreferences, withAnnotations, withDock, withPastes, withPrompt, withStoreData, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDock, withPastes, withPrompt, withStoreData, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -110,6 +110,8 @@ export type WorkspaceEffect =
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }
   | { type: "browser.clear-data" }
+  /** A file the desktop opens for the reader. `root` is the checkout it has to sit inside. */
+  | { type: "file.open"; root: string; path: string }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
   | { type: "terminal.start"; terminalId: string; cwd: string }
   | { type: "terminal.write"; terminalId: string; data: string }
@@ -147,6 +149,7 @@ const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it 
 const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
 const SWITCH_PROJECT_ERROR = "Open this thread in a project folder before switching branches.";
+const FILE_FOLDER_ERROR = "Open this thread in a project folder before opening a file from it.";
 
 export const WORKSPACE_ERRORS = {
   reopenProject: REOPEN_PROJECT_ERROR,
@@ -158,6 +161,7 @@ export const WORKSPACE_ERRORS = {
   checkoutRunning: CHECKOUT_RUNNING_ERROR,
   switchRunning: SWITCH_RUNNING_ERROR,
   switchProject: SWITCH_PROJECT_ERROR,
+  fileFolder: FILE_FOLDER_ERROR,
 } as const;
 
 function now() {
@@ -1433,6 +1437,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "browser.clear-data": {
       const cleared = { ...state, browserOrigins: [] };
       return settled(cleared, [{ type: "browser.clear-data" }, ...persistView(cleared)]);
+    }
+
+    case "file.open": {
+      const task = state.tasks.find((item) => item.id === (input.taskId ?? state.currentId));
+      const root = taskWorkspaceRoot(state, task);
+      if (!root) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
+      return settled({ ...state, actionError: null }, [{ type: "file.open", root, path: input.path }]);
     }
 
     case "terminal.open": {

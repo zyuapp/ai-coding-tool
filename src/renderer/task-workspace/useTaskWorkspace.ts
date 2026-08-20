@@ -240,6 +240,9 @@ export function useTaskWorkspace() {
         window.desktop.acknowledgeAutomation(effect.ack);
         return;
 
+      case "file.open":
+        return reportFailure(window.desktop.openFile(effect.root, effect.path));
+
       case "browser.open":
         return reportFailure(window.desktop.openBrowserTab(effect.tabId, effect.url));
 
