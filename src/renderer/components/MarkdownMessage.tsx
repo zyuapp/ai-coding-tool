@@ -11,7 +11,7 @@ const WEB_HREF = /^https?:/i;
 /** What a link in a message can reach. A handler the host leaves out makes that link plain text. */
 export type MessageLinkActions = {
   selectTask?: (taskId: string) => void;
-  openFile?: (path: string) => void;
+  openFile?: (path: string, line: number | null) => void;
   openUrlInApp?: (url: string) => void;
 };
 
@@ -66,9 +66,9 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   if (taskId && actions.selectTask) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectTask!(taskId); }}>{children}</a>;
   /** Anything else under the scheme is text, never a live link. */
   if (CLAUDEX_HREF.test(href)) return <>{children}</>;
-  const path = parseFileHref(href);
-  if (path) return actions.openFile
-    ? <a {...props} onClick={(event) => { event.preventDefault(); actions.openFile!(path); }}>{children}</a>
+  const file = parseFileHref(href);
+  if (file) return actions.openFile
+    ? <a {...props} onClick={(event) => { event.preventDefault(); actions.openFile!(file.file, file.line); }}>{children}</a>
     : <>{children}</>;
   if (WEB_HREF.test(href)) return <WebLink {...props} openInApp={actions.openUrlInApp && (() => actions.openUrlInApp!(href))}>{children}</WebLink>;
   return <a {...props} target="_blank" rel="noreferrer">{children}</a>;

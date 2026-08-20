@@ -111,7 +111,7 @@ export type WorkspaceEffect =
   | { type: "browser.show"; tabId: string | null }
   | { type: "browser.clear-data" }
   /** A file the desktop opens for the reader. `root` is the checkout it has to sit inside. */
-  | { type: "file.open"; root: string; path: string }
+  | { type: "file.open"; root: string; path: string; line: number | null }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
   | { type: "terminal.start"; terminalId: string; cwd: string }
   | { type: "terminal.write"; terminalId: string; data: string }
@@ -1447,7 +1447,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const task = state.tasks.find((item) => item.id === (input.taskId ?? state.currentId));
       const root = taskWorkspaceRoot(state, task);
       if (!root) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
-      return settled({ ...state, actionError: null }, [{ type: "file.open", root, path: input.path }]);
+      return settled({ ...state, actionError: null }, [{ type: "file.open", root, path: input.path, line: input.line ?? null }]);
     }
 
     case "terminal.open": {

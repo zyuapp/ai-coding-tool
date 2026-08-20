@@ -241,7 +241,7 @@ export function useTaskWorkspace() {
         return;
 
       case "file.open":
-        return reportFailure(window.desktop.openFile(effect.root, effect.path));
+        return reportFailure(window.desktop.openFile(effect.root, effect.path, effect.line));
 
       case "browser.open":
         return reportFailure(window.desktop.openBrowserTab(effect.tabId, effect.url));

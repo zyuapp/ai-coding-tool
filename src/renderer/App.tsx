@@ -244,7 +244,7 @@ export function App() {
   dispatchRef.current = workspace.dispatch;
   const messageLinks = useMemo<MessageLinkActions>(() => ({
     selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),
-    openFile: (path: string) => void dispatchRef.current({ type: "file.open", path }),
+    openFile: (path: string, line: number | null) => void dispatchRef.current({ type: "file.open", path, line: line ?? undefined }),
     openUrlInApp: (url: string) => void dispatchRef.current({ type: "browser.open", url, newTab: true }),
   }), []);
 

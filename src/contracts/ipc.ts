@@ -231,7 +231,7 @@ export type DesktopAPI = {
   focusBrowserTab(tabId: string): Promise<void>;
   onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
-  openFile(root: string, path: string): Promise<void>;
+  openFile(root: string, path: string, line: number | null): Promise<void>;
   /** The terminal panel's shells live in main; the window owns the record of them. */
   startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
   /** What the user typed. Nothing outside the window reaches this: a run may read a terminal, never drive one. */

@@ -19,6 +19,7 @@ import type { AutomationScheduler } from "./automation/automation-scheduler.mjs"
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
+import { openInEditor } from "./open-in-editor.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
@@ -828,10 +829,15 @@ async function fileInCheckout(root: unknown, candidate: unknown) {
   }
 }
 
-ipcMain.handle("file:open", async (event, root: unknown, candidate: unknown) => {
+/** Bigger than any file anyone reads, and still small enough that no editor chokes on the argument. */
+const MAX_FILE_LINE = 10_000_000;
+
+ipcMain.handle("file:open", async (event, root: unknown, candidate: unknown, line: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  const failure = await shell.openPath(await fileInCheckout(root, candidate));
-  if (failure) throw new Error(failure);
+  if (line !== null && line !== undefined && (typeof line !== "number" || !Number.isInteger(line) || line < 1 || line > MAX_FILE_LINE)) {
+    throw new Error("Invalid file line.");
+  }
+  await openInEditor(await fileInCheckout(root, candidate), typeof line === "number" ? line : null);
 });
 
 /** Longer than anything anyone searches for, and still bounded. */

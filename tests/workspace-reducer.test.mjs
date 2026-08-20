@@ -1413,10 +1413,10 @@ test("a file named in a message opens against the checkout that thread works in"
     currentId: "task-1",
   };
 
-  assert.deepEqual(reduce(state, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", root: "/repo", path: "src/App.tsx" }]);
+  assert.deepEqual(reduce(state, { type: "file.open", path: "src/App.tsx", line: 42 }).effects, [{ type: "file.open", root: "/repo", path: "src/App.tsx", line: 42 }]);
 
   const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktree: { id: "w1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 } })] };
-  assert.deepEqual(reduce(inWorktree, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", root: "/worktrees/repo-w1", path: "src/App.tsx" }]);
+  assert.deepEqual(reduce(inWorktree, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", root: "/worktrees/repo-w1", path: "src/App.tsx", line: null }], "a link with no line still opens the file");
 
   const refused = reduce(workspace(), { type: "file.open", path: "src/App.tsx" });
   assert.deepEqual(refused.effects, []);

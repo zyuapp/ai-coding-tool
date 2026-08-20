@@ -137,22 +137,25 @@ test("a thread link is plain text where no thread can be selected", async () => 
   await view.unmount();
 });
 
-test("only Markdown file links open in the default app", async () => {
+test("only Markdown file links open a file, at the line they name", async () => {
   const opened = [];
   const markdown = [
     "Plain src/renderer/App.tsx:42 and `AGENTS.md` stay plain.",
     "",
-    "Open [the app](/checkout/src/renderer/App.tsx:42) or [the notes](docs/My%20Notes.md:7:3).",
+    "Open [the app](/checkout/src/renderer/App.tsx:42), [the notes](docs/My%20Notes.md:7:3) or [the readme](README.md).",
   ].join("\n");
-  const view = await mountMessage(markdown, { openFile: (path) => opened.push(path) });
+  const view = await mountMessage(markdown, { openFile: (path, line) => opened.push([path, line]) });
 
   const links = [...view.container.querySelectorAll("a")];
-  assert.deepEqual(links.map((link) => link.textContent), ["the app", "the notes"]);
+  assert.deepEqual(links.map((link) => link.textContent), ["the app", "the notes", "the readme"]);
   assert.match(view.container.textContent, /Plain src\/renderer\/App\.tsx:42 and AGENTS\.md stay plain\./);
 
-  await act(async () => { links[0].click(); });
-  await act(async () => { links[1].click(); });
-  assert.deepEqual(opened, ["/checkout/src/renderer/App.tsx", "docs/My Notes.md"], "line and column suffixes are not part of the path");
+  for (const link of links) await act(async () => { link.click(); });
+  assert.deepEqual(opened, [
+    ["/checkout/src/renderer/App.tsx", 42],
+    ["docs/My Notes.md", 7],
+    ["README.md", null],
+  ], "the line comes through separately, and the column is dropped");
   await view.unmount();
 });
 
