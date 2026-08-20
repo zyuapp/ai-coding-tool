@@ -1,5 +1,6 @@
 import { Check, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
 
 /**
@@ -34,23 +35,63 @@ export function useBranches(workspaceId: string | undefined, enabled = true) {
   return result;
 }
 
+/** The gap between the row a list hangs off and the list itself. */
+const ANCHOR_GAP = 4;
+
+/** Where a list sits beside a row it is not inside: on whichever side of it the viewport leaves more room. */
+function anchoredStyle(anchor: HTMLElement): CSSProperties {
+  const rect = anchor.getBoundingClientRect();
+  const below = window.innerHeight - rect.bottom - ANCHOR_GAP * 2;
+  const above = rect.top - ANCHOR_GAP * 2;
+  const over = above > below;
+  return {
+    left: rect.left,
+    width: rect.width,
+    top: over ? undefined : rect.bottom + ANCHOR_GAP,
+    bottom: over ? window.innerHeight - rect.top + ANCHOR_GAP : undefined,
+    "--branch-menu-room": `${Math.max(above, below)}px`,
+  } as CSSProperties;
+}
+
+/** Follows the anchor, since the panel it sits in scrolls out from under a list that does not move. */
+function useAnchoredStyle(anchor: HTMLElement | null | undefined) {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    if (!anchor) return;
+    const place = () => setStyle(anchoredStyle(anchor));
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchor]);
+
+  return style;
+}
+
 export type BranchMenuProps = {
   branches: BranchesResult | null;
   /** The branch shown as chosen. A detached checkout has none, so nothing is ticked. */
   selected: string | null;
   /** `create` names a branch the repository does not have yet. */
   onPick: (branch: string, create: boolean) => void;
+  /** The row to hang off, for a list whose surroundings would otherwise clip it. */
+  anchor?: HTMLElement | null;
 };
 
 /** The list a branch is chosen from: every local branch, narrowed by search, and the name to make. */
-export function BranchMenu({ branches, selected, onPick }: BranchMenuProps) {
+export function BranchMenu({ branches, selected, onPick, anchor }: BranchMenuProps) {
   const [query, setQuery] = useState("");
+  const anchored = useAnchoredStyle(anchor);
   const names = branches?.status === "available" ? branches.branches : [];
   const matches = matchBranches(names, query);
   const naming = newBranchName(names, query);
 
-  return (
-    <div className="branch-menu" data-popover-menu>
+  const menu = (
+    <div className={`branch-menu ${anchor ? "anchored" : ""}`.trimEnd()} data-popover-menu style={anchored ?? undefined}>
       <input
         className="branch-menu-search"
         aria-label="Search branches"
@@ -76,4 +117,6 @@ export function BranchMenu({ branches, selected, onPick }: BranchMenuProps) {
       </div>
     </div>
   );
+
+  return anchor ? createPortal(menu, document.body) : menu;
 }

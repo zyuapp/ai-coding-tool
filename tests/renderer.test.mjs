@@ -2481,20 +2481,22 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
   assert.deepEqual(calls.menu, ["session:branch"]);
 
   await view.render(panel("session:branch"));
-  const options = [...view.container.querySelectorAll('[role="option"]')];
+  const menu = document.querySelector(".branch-menu");
+  assert.ok(menu && !view.container.contains(menu), "the list hangs outside the panel, which would crop it");
+  const options = [...menu.querySelectorAll('[role="option"]')];
   assert.deepEqual(options.map((option) => option.textContent), ["main", "fix-loader", "feature-x"]);
   await act(async () => { options.find((option) => option.textContent === "fix-loader").click(); });
   assert.deepEqual(calls.checkout, [{ branch: "fix-loader", create: false }]);
   assert.deepEqual(calls.menu, ["session:branch", null], "choosing one closes the list");
 
   await view.render(panel("session:branch"));
-  const search = view.container.querySelector('input[aria-label="Search branches"]');
+  const search = document.querySelector('input[aria-label="Search branches"]');
   const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
   await act(async () => {
     setValue.call(search, "loader-fix");
     search.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
   });
-  const creating = [...view.container.querySelectorAll('[role="option"]')].find((option) => /Create branch/.test(option.textContent));
+  const creating = [...document.querySelectorAll('[role="option"]')].find((option) => /Create branch/.test(option.textContent));
   await act(async () => { creating.click(); });
   assert.deepEqual(calls.checkout.at(-1), { branch: "loader-fix", create: true });
 

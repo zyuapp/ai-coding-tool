@@ -1,4 +1,5 @@
 import { AlarmClock, ChevronDown, FileDiff, GitBranch, House } from "lucide-react";
+import { useRef } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent } from "../../domain/run";
@@ -81,11 +82,12 @@ type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSe
 /** The branch the checkout is on, and the list that moves it onto another. */
 function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBranch }: BranchRowProps) {
   const open = openMenu === BRANCH_MENU;
+  const row = useRef<HTMLDivElement>(null);
   /** Branches are only worth reading while the list is up; the row itself says where Git already is. */
   const branches = useBranches(workspaceId, open);
 
   return (
-    <div className={`session-branch ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
+    <div ref={row} className={`session-branch ${open ? "open" : ""}`.trimEnd()} data-popover-menu>
       <button
         className="session-row session-row-action"
         type="button"
@@ -102,6 +104,7 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
       </button>
       {open && (
         <BranchMenu
+          anchor={row.current}
           branches={branches}
           selected={branch}
           onPick={(name, create) => {

@@ -936,7 +936,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .branch-menu {
   position: absolute;
   z-index: 20;
-  max-height: 280px;
+  max-height: min(280px, var(--branch-menu-room, 100vh));
   overflow: auto;
   border: 1px solid var(--line-mid);
   border-radius: 10px;
@@ -971,6 +971,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   white-space: nowrap;
 }
 .branch-menu svg { flex: none; color: var(--quiet-strong); }
+/** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
+.branch-menu.anchored { position: fixed; z-index: 1000; }
 .thread-start-field .branch-menu {
   top: 45px;
   left: 0;
@@ -1643,7 +1645,6 @@ pre {
 .session-branch button:disabled { cursor: default; }
 .session-branch button:disabled:hover { background: none; }
 /** The panel is narrow, so the list takes the row's width and cuts the names that outrun it. */
-.session-branch .branch-menu { top: 34px; left: 0; right: 0; }
 .session-count { color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .automation-body { min-height: 0; overflow: auto; padding: 16px 22px 22px; }
 .automation-field { display: grid; gap: 4px; margin-top: 9px; }
