@@ -134,7 +134,6 @@ export type DiffState = {
   file: string | null;
   /** Ticked-off paths, each against the counts it had when ticked, so a file that moves un-ticks. */
   viewed: Record<string, string>;
-  wrap: boolean;
   split: boolean;
 };
 
@@ -423,7 +422,6 @@ export const EMPTY_DIFF: DiffState = {
   loading: false,
   file: null,
   viewed: {},
-  wrap: false,
   split: false,
 };
 

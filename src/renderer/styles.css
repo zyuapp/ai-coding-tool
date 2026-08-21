@@ -2796,32 +2796,30 @@ pre {
 .diff-note { margin: 0; padding: 8px 12px 10px 34px; color: var(--quiet); font-size: var(--text-meta); }
 
 .diff-file-view { border-top: 1px solid var(--line-soft); }
-.diff-scroll { max-height: 62vh; overflow: auto; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
-.diff-scroll:not(.wrapped) { overflow-x: auto; }
+.diff-scroll { max-height: 62vh; overflow-y: auto; overflow-x: hidden; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
 .diff-window { position: relative; width: 100%; }
 .diff-window-row { position: absolute; top: 0; left: 0; width: 100%; }
-.diff-line { display: flex; align-items: flex-start; min-height: 20px; white-space: pre; }
+.diff-line { display: flex; align-items: flex-start; min-height: 20px; }
 .diff-line.hunk { padding: 2px 10px; background: var(--diff-hunk-surface); color: var(--diff-hunk-ink); }
 .diff-line.add { background: var(--diff-add-surface); }
 .diff-line.delete { background: var(--diff-del-surface); }
 .diff-line.selected { background: var(--diff-selected); box-shadow: inset 2px 0 0 var(--diff-selected-line); }
-.diff-gutter { display: flex; flex: none; gap: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; cursor: pointer; user-select: none; }
-.diff-gutter span { display: inline-block; width: 44px; padding-right: 8px; text-align: right; }
+.diff-gutter { display: flex; flex: none; align-self: stretch; gap: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
+.diff-gutter span { display: block; width: 44px; padding-right: 8px; }
 .diff-gutter:hover { color: var(--ink-dim); }
 .diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
 .diff-line.delete .diff-gutter { background: var(--diff-del-gutter); }
-.diff-marker { flex: none; width: 14px; text-align: center; color: var(--diff-gutter-ink); }
-.diff-line code { flex: 1; min-width: 0; padding-right: 12px; color: var(--code-ink); font-family: inherit; }
-.diff-line code.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-marker { flex: none; width: 14px; text-align: center; color: var(--diff-gutter-ink); white-space: pre; }
+/** Lines always wrap, so nothing is read sideways and every row measures its own height. */
+.diff-line code { flex: 1; min-width: 0; padding-right: 12px; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .diff-split-row { display: grid; grid-template-columns: 1fr 1fr; }
-.diff-split-cell { display: flex; align-items: flex-start; min-height: 20px; white-space: pre; border-right: 1px solid var(--line-soft); }
+.diff-split-cell { display: flex; align-items: flex-start; min-height: 20px; border-right: 1px solid var(--line-soft); }
 .diff-split-cell.add { background: var(--diff-add-surface); }
 .diff-split-cell.delete { background: var(--diff-del-surface); }
 .diff-split-cell.empty { background: var(--sunken); }
-.diff-split-cell code { flex: 1; min-width: 0; overflow: hidden; padding-right: 8px; color: var(--code-ink); font-family: inherit; }
-.diff-split-cell code.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
-.diff-gutter.static { flex: none; width: 44px; padding-right: 8px; text-align: right; color: var(--diff-gutter-ink); }
+.diff-split-cell code { flex: 1; min-width: 0; padding-right: 8px; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-gutter.static { flex: none; align-self: stretch; width: 44px; padding-right: 8px; text-align: right; color: var(--diff-gutter-ink); }
 
 .diff-comment { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--surface); }
 .diff-comment-range { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }

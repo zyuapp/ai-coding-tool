@@ -24,7 +24,6 @@ export type DiffCommand =
   /** Null closes the open file and leaves the list. */
   | { type: "diff.select-file"; path: string | null }
   | { type: "diff.set-viewed"; path: string; viewed: boolean }
-  | { type: "diff.set-wrap"; wrap: boolean }
   | { type: "diff.set-split"; split: boolean };
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */

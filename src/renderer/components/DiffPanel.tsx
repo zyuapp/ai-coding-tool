@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, ChevronDown, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, WrapText, X } from "lucide-react";
+import { Check, ChevronDown, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState } from "../../application/workspace-state";
 import {
@@ -35,7 +35,7 @@ const WORKING_TREE = "working tree";
 /** Above this many rows the patch is windowed; a short file is cheaper drawn whole. */
 const VIRTUALIZE_ABOVE = 60;
 
-/** One line, unwrapped. Wrapping gives rows their own heights, which the windowing then measures. */
+/** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
 const ROW_HEIGHT = 20;
 
 export type DiffPanelProps = {
@@ -44,7 +44,6 @@ export type DiffPanelProps = {
   onSetRange: (range: DiffRange) => void;
   onSelectFile: (path: string | null) => void;
   onSetViewed: (path: string, viewed: boolean) => void;
-  onSetWrap: (wrap: boolean) => void;
   onSetSplit: (split: boolean) => void;
   onRefresh: () => void;
   /** The ref the session panel counts from, which is the base a branch comparison opens on. */
@@ -181,13 +180,12 @@ function selectionSide(rows: DiffRow[]): DiffSide {
 type UnifiedRowProps = {
   row: DiffRow;
   tokens: ThemedToken[] | undefined;
-  wrap: boolean;
   selected: boolean;
   onSelect: (extend: boolean) => void;
 };
 
 /** One line of the unified view. Its gutter is the only thing that selects, the way a review reads. */
-function UnifiedRow({ row, tokens, wrap, selected, onSelect }: UnifiedRowProps) {
+function UnifiedRow({ row, tokens, selected, onSelect }: UnifiedRowProps) {
   if (row.kind === "hunk") return <div className="diff-line hunk">{row.text}</div>;
   return (
     <div className={`diff-line ${row.kind}${selected ? " selected" : ""}`}>
@@ -201,23 +199,23 @@ function UnifiedRow({ row, tokens, wrap, selected, onSelect }: UnifiedRowProps) 
         <span>{row.newLine ?? ""}</span>
       </button>
       <span className="diff-marker" aria-hidden="true">{row.kind === "add" ? "+" : row.kind === "delete" ? "\u2212" : " "}</span>
-      <code className={wrap ? "wrap" : ""}><RowText text={row.text} tokens={tokens} /></code>
+      <code><RowText text={row.text} tokens={tokens} /></code>
     </div>
   );
 }
 
 /** One column of the two-column view, which selects nothing: a comment names a row, and a pair is two. */
-function SplitCell({ row, tokens, wrap, side }: { row: DiffRow | null; tokens: Map<string, ThemedToken[]>; wrap: boolean; side: DiffSide }) {
+function SplitCell({ row, tokens, side }: { row: DiffRow | null; tokens: Map<string, ThemedToken[]>; side: DiffSide }) {
   if (!row || row.kind === "hunk") return <div className="diff-split-cell empty" />;
   return (
     <div className={`diff-split-cell ${row.kind}`}>
       <span className="diff-gutter static">{side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}</span>
-      <code className={wrap ? "wrap" : ""}><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
+      <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
   );
 }
 
-function SplitView({ file, tokens, wrap }: { file: DiffFile; tokens: Map<string, ThemedToken[]>; wrap: boolean }) {
+function SplitView({ file, tokens }: { file: DiffFile; tokens: Map<string, ThemedToken[]> }) {
   const pairs = useMemo(() => splitRows(file), [file]);
   return (
     <>
@@ -225,8 +223,8 @@ function SplitView({ file, tokens, wrap }: { file: DiffFile; tokens: Map<string,
         ? <div className="diff-line hunk" key={pair.key}>{pair.text}</div>
         : (
           <div className="diff-split-row" key={pair.key}>
-            <SplitCell row={(pair as DiffPair).left} tokens={tokens} wrap={wrap} side="old" />
-            <SplitCell row={(pair as DiffPair).right} tokens={tokens} wrap={wrap} side="new" />
+            <SplitCell row={(pair as DiffPair).left} tokens={tokens} side="old" />
+            <SplitCell row={(pair as DiffPair).right} tokens={tokens} side="new" />
           </div>
         ))}
     </>
@@ -236,13 +234,12 @@ function SplitView({ file, tokens, wrap }: { file: DiffFile; tokens: Map<string,
 type FileViewProps = {
   path: string;
   file: DiffFile;
-  wrap: boolean;
   split: boolean;
   onComment: (quote: string, note: string) => void;
 };
 
 /** The open file: its rows, and the bar a selected range is commented from. */
-function FileView({ path, file, wrap, split, onComment }: FileViewProps) {
+function FileView({ path, file, split, onComment }: FileViewProps) {
   const rows = useMemo(() => diffRows(file), [file]);
   const tokens = useMemo(() => tokenizeFile(file), [file]);
   const [anchor, setAnchor] = useState<number | null>(null);
@@ -291,14 +288,13 @@ function FileView({ path, file, wrap, split, onComment }: FileViewProps) {
 
   return (
     <div className="diff-file-view">
-      <div className={`diff-scroll ${wrap ? "wrapped" : ""}`.trimEnd()} ref={scrollRef}>
-        {split && <SplitView file={file} tokens={tokens} wrap={wrap} />}
+      <div className="diff-scroll" ref={scrollRef}>
+        {split && <SplitView file={file} tokens={tokens} />}
         {!split && !windowed && rows.map((row, index) => (
           <UnifiedRow
             key={row.key}
             row={row}
             tokens={tokens.get(row.key)}
-            wrap={wrap}
             selected={selection !== null && index >= selection.from && index <= selection.to}
             onSelect={(extend) => select(index, extend)}
           />
@@ -309,14 +305,13 @@ function FileView({ path, file, wrap, split, onComment }: FileViewProps) {
               <div
                 className="diff-window-row"
                 key={item.key}
-                ref={wrap ? virtualizer.measureElement : undefined}
+                ref={virtualizer.measureElement}
                 data-index={item.index}
                 style={{ transform: `translateY(${item.start}px)` }}
               >
                 <UnifiedRow
                   row={rows[item.index]}
                   tokens={tokens.get(rows[item.index].key)}
-                  wrap={wrap}
                   selected={selection !== null && item.index >= selection.from && item.index <= selection.to}
                   onSelect={(extend) => select(item.index, extend)}
                 />
@@ -355,7 +350,6 @@ export function DiffPanel({
   onSetRange,
   onSelectFile,
   onSetViewed,
-  onSetWrap,
   onSetSplit,
   onRefresh,
   baseline,
@@ -390,15 +384,6 @@ export function DiffPanel({
           <ChevronDown size={13} />
         </PopoverMenu>
         <div className="diff-toolbar-actions">
-          <button
-            type="button"
-            aria-label="Wrap long lines"
-            aria-pressed={diff.wrap}
-            className={diff.wrap ? "on" : ""}
-            onClick={() => onSetWrap(!diff.wrap)}
-          >
-            <WrapText size={15} />
-          </button>
           <button
             type="button"
             aria-label={diff.split ? "Show one column" : "Show two columns"}
@@ -489,7 +474,7 @@ export function DiffPanel({
               {open && !file.binary && patch?.status === "error" && <p className="diff-note">{patch.message}</p>}
               {open && !file.binary && patch?.status === "too-large" && <p className="diff-note">Patch is larger than {Math.round(patch.limit / 1_000_000)} MB — open it in your editor.</p>}
               {open && !file.binary && patch?.status === "available" && (
-                <FileView path={file.path} file={patch.file} wrap={diff.wrap} split={diff.split} onComment={onComment} />
+                <FileView path={file.path} file={patch.file} split={diff.split} onComment={onComment} />
               )}
             </div>
           );

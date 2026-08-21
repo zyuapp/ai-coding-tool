@@ -1417,9 +1417,6 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       }));
     }
 
-    case "diff.set-wrap":
-      return settled(withDiff(state, dockOwner(state), { wrap: input.wrap }));
-
     case "diff.set-split":
       return settled(withDiff(state, dockOwner(state), { split: input.split }));
 

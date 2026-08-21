@@ -223,7 +223,6 @@ export function App() {
           onSetRange={workspace.actions.setDiffRange}
           onSelectFile={workspace.actions.selectDiffFile}
           onSetViewed={workspace.actions.setDiffViewed}
-          onSetWrap={workspace.actions.setDiffWrap}
           onSetSplit={workspace.actions.setDiffSplit}
           onRefresh={workspace.actions.refreshDiff}
           {...(workspace.environment?.status === "available" && workspace.environment.baseline ? { baseline: workspace.environment.baseline } : {})}

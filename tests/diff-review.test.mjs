@@ -91,13 +91,13 @@ test("changing the comparison starts a fresh read and keeps nothing but the layo
   const reviewed = run(reviewing(workspace(), [file("a.ts")]), [
     { type: "diff.set-viewed", path: "a.ts", viewed: true },
     { type: "diff.select-file", path: "a.ts" },
-    { type: "diff.set-wrap", wrap: true },
+    { type: "diff.set-split", split: true },
   ]);
   const changed = reduce(reviewed, { type: "diff.set-range", range: { kind: "branches", base: "main", compare: null } });
 
   assert.deepEqual(diff(changed.state).viewed, {});
   assert.equal(diff(changed.state).file, null);
-  assert.equal(diff(changed.state).wrap, true, "how it is drawn is not what is being compared");
+  assert.equal(diff(changed.state).split, true, "how it is drawn is not what is being compared");
   assert.equal(changed.effects.filter((effect) => effect.type === "read-diff").length, 1);
 });
 
