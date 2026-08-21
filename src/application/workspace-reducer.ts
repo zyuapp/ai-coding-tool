@@ -739,7 +739,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
    * The dock the thread was left in comes back as it was; only the panel's own page has to follow. The
    * keys come back to the window too, since the page they were on belongs to the thread just left.
    */
-  return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...TAKE_KEYS] };
+  return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
 }
 
 /** The project a new thread starts in: the one the current thread is in, else the one being drafted. */

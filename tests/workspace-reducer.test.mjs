@@ -2019,6 +2019,8 @@ test("every thread keeps a dock of its own, panels, pages and shells alike", () 
   assert.deepEqual(dock(switched.state).terminals, []);
   assert.deepEqual(switched.effects.at(-2), { type: "browser.show", tabId: null }, "and the panel stops drawing the page it was showing");
   assert.deepEqual(switched.effects.at(-1), { type: "focus-window" }, "the page it was drawing does not keep the keys");
+  const away = reduce({ ...opened, focused: false }, { type: "task.select", taskId: "task-2" });
+  assert.equal(away.effects.some((effect) => effect.type === "focus-window"), false, "a window the user has left is not pulled back");
 
   const back = reduce(switched.state, { type: "task.select", taskId: "task-1" });
   assert.deepEqual(dock(back.state).panels, ["agents"], "the dock a thread was left in comes back as it was");
