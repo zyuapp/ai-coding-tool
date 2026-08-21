@@ -141,6 +141,23 @@ test("salvages a v2 task with an invalid continuation", () => {
   assert.deepEqual(result.data.tasks[0].messages, migrated.data.tasks[0].messages);
 });
 
+test("a task saved with the old attention dot still loads, without one", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const tasks = JSON.parse(serialized.tasks);
+  tasks.value[0].attention = "approval";
+  tasks.value[0].attentionRead = true;
+  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.tasks.length, 1, "a dot the app no longer keeps is no reason to drop the thread");
+  assert.equal(result.data.tasks[0].outcome, undefined);
+  assert.equal(result.data.tasks[0].attention, undefined, "the retired dot is not carried back out to the store");
+  assert.equal(result.data.tasks[0].attentionRead, undefined);
+});
+
 test("rejects invalid v2 policy and timestamps", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

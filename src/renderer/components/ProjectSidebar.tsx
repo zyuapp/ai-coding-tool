@@ -3,7 +3,7 @@ import { DragDropContext, Draggable, Droppable, type DraggableProvided, type Dro
 import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
 import { projectName, threadActivityAt } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
-import type { Project, Task, TaskAttention } from "../../domain/task";
+import type { Project, Task, TaskOutcome } from "../../domain/task";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
 import type { ActivitySections } from "../../application/task-order";
@@ -22,11 +22,12 @@ const PROJECT_TASK_LIMIT = 10;
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 type RowAction = "archive" | "dismiss" | "none";
 
-const ATTENTION_LABELS: Record<TaskAttention, string> = {
+const OUTCOME_LABELS: Record<TaskOutcome, string> = {
   finished: "Finished",
   failed: "Failed",
-  approval: "Needs approval",
 };
+
+const BLOCKED_LABEL = "Needs approval";
 
 /** The activity mode's three lists, top to bottom, with the heading each is drawn under. */
 const ACTIVITY_SECTIONS = [
@@ -74,6 +75,8 @@ export type ProjectSidebarProps = {
   draftProjectId: string | null;
   expandedProjects: Set<string>;
   runningTaskIds: Set<string>;
+  /** Threads stopped on an approval only the user can answer. A subset of {@link runningTaskIds}. */
+  blockedTaskIds: Set<string>;
   automatedTaskIds: Set<string>;
   worktreeTaskIds: Set<string>;
   /** The checkouts threads nest under, with the threads in each. Grouped by project when rendered. */
@@ -117,6 +120,7 @@ export function ProjectSidebar({
   draftProjectId,
   expandedProjects,
   runningTaskIds,
+  blockedTaskIds,
   automatedTaskIds,
   worktreeTaskIds,
   worktreeGroups,
@@ -205,21 +209,24 @@ export function ProjectSidebar({
 
   /**
    * Every task row ends in the same trailing group, and its last cell holds both the status mark and
-   * the row's own action, so the two share one center. Activity mode offers dismissing on a priority
-   * row and nothing on the others, rather than two different icons in one view; archiving a thread
-   * there is on its menu.
+   * the row's own action, so the two share one center. A thread waiting on the user is marked as
+   * asking rather than as merely busy. Activity mode offers dismissing on a priority row carrying a
+   * verdict - a thread still asking has nothing to dismiss - and nothing on the others, rather than
+   * two different icons in one view; archiving a thread there is on its menu.
    */
   const taskMarks = (task: Task, action: RowAction) => (
     <span className="task-row-marks">
       {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label="Works in a worktree" />}
       {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
       <span className="row-slot">
-        {runningTaskIds.has(task.id)
-          ? <TaskSpinner />
-          : task.attention && <span
-              className={`task-attention ${task.attention} ${task.attentionRead ? "read" : ""}`}
-              aria-label={`${ATTENTION_LABELS[task.attention]}${task.attentionRead ? ", read" : ""}`}
-            />}
+        {blockedTaskIds.has(task.id)
+          ? <span className="task-attention approval" aria-label={BLOCKED_LABEL} />
+          : runningTaskIds.has(task.id)
+            ? <TaskSpinner />
+            : task.outcome && <span
+                className={`task-attention ${task.outcome} ${task.outcomeSeen ? "read" : ""}`}
+                aria-label={`${OUTCOME_LABELS[task.outcome]}${task.outcomeSeen ? ", read" : ""}`}
+              />}
         {action === "dismiss" && <button
           className="task-archive task-dismiss"
           type="button"
@@ -371,7 +378,7 @@ export function ProjectSidebar({
       <div className="sidebar-scroll">
         {mode === "activity" && ACTIVITY_SECTIONS.map(({ key, label }) => {
           const tasks = activityTasks[key];
-          const readCount = key === "priority" ? tasks.filter((task) => task.attentionRead).length : 0;
+          const readCount = key === "priority" ? tasks.filter((task) => task.outcome && task.outcomeSeen).length : 0;
           return (
             <section className="activity-group" key={key}>
               <div className="section-heading activity-heading">
@@ -387,7 +394,7 @@ export function ProjectSidebar({
                 )}
               </div>
               {sections[key] && <nav className="task-list" aria-label={label}>
-                {tasks.map((task) => activityRow(task, key === "priority" ? "dismiss" : "none"))}
+                {tasks.map((task) => activityRow(task, key === "priority" && !blockedTaskIds.has(task.id) ? "dismiss" : "none"))}
               </nav>}
             </section>
           );
@@ -409,7 +416,7 @@ export function ProjectSidebar({
                 const checkouts = worktreeGroups.filter((group) => group.worktree.projectId === project.id);
                 const loose = projectTasks.filter((task) => !task.worktreeId);
                 const expanded = expandedProjects.has(project.id);
-                const attentionCount = projectTasks.filter((task) => task.attention).length;
+                const waitingCount = projectTasks.filter((task) => task.outcome || blockedTaskIds.has(task.id)).length;
                 const shown = visibleCount(loose, project.id);
                 const hidden = loose.length - shown;
                 return (
@@ -428,7 +435,7 @@ export function ProjectSidebar({
                             <span className="folder-icon"><FolderIcon /></span>
                             <span>{projectName(project.root)}</span>
                           </button>
-                          {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
+                          {!expanded && waitingCount > 0 && <span className="project-attention-count">{waitingCount}</span>}
                           <PopoverMenu
                             id={`project:${project.id}`}
                             openMenu={openMenu}

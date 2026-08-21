@@ -92,26 +92,37 @@ test("a thread reorders inside its own checkout and is never carried out of one 
   assert.equal(moveTask(tasks, "loose", { projectId: "project-1", worktreeId: "wt1", index: 0 }), tasks, "and nothing drags one in either");
 });
 
-test("activity ranks a dotted thread above a running one, and every thread appears once", () => {
+test("activity leads with the threads that want the user, and every thread appears once", () => {
   const tasks = [
     task("quiet", { createdAt: 1 }),
     task("busy", { createdAt: 2 }),
-    task("asked", { createdAt: 3, attention: "approval" }),
+    task("asked", { createdAt: 3 }),
+    task("settled", { createdAt: 5, outcome: "finished" }),
     task("newest", { createdAt: 9 }),
-    /** Dotted and running at once, which is a thread whose next run started after the last one settled. */
-    task("both", { createdAt: 4, attention: "finished" }),
+    /** Working again after its last run settled: the verdict is stale, so the work wins. */
+    task("both", { createdAt: 4, outcome: "finished" }),
+    /** Asking, and carrying a verdict from before: it belongs to Priority once, for the question. */
+    task("asked-again", { createdAt: 6, outcome: "failed" }),
   ];
 
-  const sections = activitySections(tasks, new Set(["busy", "both"]));
+  const sections = activitySections(tasks, new Set(["busy", "both", "asked", "asked-again"]), new Set(["asked", "asked-again"]));
 
-  assert.deepEqual(sections.priority.map((item) => item.id), ["both", "asked"]);
-  assert.deepEqual(sections.running.map((item) => item.id), ["busy"]);
+  assert.deepEqual(sections.priority.map((item) => item.id), ["asked-again", "settled", "asked"]);
+  assert.deepEqual(sections.running.map((item) => item.id), ["both", "busy"], "a working thread ranks by its work, however its last run ended");
   assert.deepEqual(sections.threads.map((item) => item.id), ["newest", "quiet"]);
-  assert.equal(
-    [...sections.priority, ...sections.running, ...sections.threads].length,
-    tasks.length,
-    "the three lists partition the threads rather than repeating any",
+  assert.deepEqual(
+    [...sections.priority, ...sections.running, ...sections.threads].map((item) => item.id).sort(),
+    tasks.map((item) => item.id).sort(),
+    "the three lists partition the threads rather than repeating or losing any",
   );
+});
+
+test("a thread carrying a verdict ranks in Priority only while it is idle", () => {
+  const tasks = [task("done", { createdAt: 1, outcome: "finished" })];
+
+  assert.deepEqual(activitySections(tasks, new Set(), new Set()).priority.map((item) => item.id), ["done"]);
+  assert.deepEqual(activitySections(tasks, new Set(["done"]), new Set()).priority, [], "starting work on it takes it out of Priority");
+  assert.deepEqual(activitySections(tasks, new Set(["done"]), new Set()).running.map((item) => item.id), ["done"]);
 });
 
 test("activity dates a thread by what it last did, not by every write to it", () => {
@@ -120,5 +131,5 @@ test("activity dates a thread by what it last did, not by every write to it", ()
     task("fresh-message", { createdAt: 2, messages: [{ id: "m", kind: "user", text: "hi", at: 80 }], updatedAt: 3 }),
   ];
 
-  assert.deepEqual(activitySections(tasks, new Set()).threads.map((item) => item.id), ["fresh-message", "stale-run"]);
+  assert.deepEqual(activitySections(tasks, new Set(), new Set()).threads.map((item) => item.id), ["fresh-message", "stale-run"]);
 });

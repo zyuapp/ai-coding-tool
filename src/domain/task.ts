@@ -74,8 +74,8 @@ export type ChangeSnapshot = {
 
 export type ContinuationStatus = "none" | "available" | "invalid";
 
-/** Why a task wants the user's eyes: it settled, broke, or is blocked on approval. */
-export type TaskAttention = "finished" | "failed" | "approval";
+/** How the thread's newest settled run ended. Whether it is blocked on an approval lives in `activeRuns`. */
+export type TaskOutcome = "finished" | "failed";
 
 const TITLE_LIMIT = 52;
 
@@ -137,9 +137,10 @@ export type Task = {
   lastChangeSnapshot: ChangeSnapshot;
   /** Sidebar position. Only the user moves it; run activity never does. */
   sortIndex?: number;
-  attention?: TaskAttention;
-  /** Set once the user has looked at the thread since the dot appeared. Only a dismissal takes the dot away. */
-  attentionRead?: true;
+  /** The verdict of the newest settled run, until a dismissal or the next run supersedes it. */
+  outcome?: TaskOutcome;
+  /** Set once the user has looked at the thread since that verdict landed. Only a dismissal takes the dot away. */
+  outcomeSeen?: true;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**
@@ -490,8 +491,8 @@ function isTaskBase(value: unknown): value is Task {
     (value.subagents === undefined || Array.isArray(value.subagents) && value.subagents.every(isSubagent)) &&
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
-    (value.attention === undefined || isTaskAttention(value.attention)) &&
-    (value.attentionRead === undefined || value.attentionRead === true) &&
+    (value.outcome === undefined || isTaskOutcome(value.outcome)) &&
+    (value.outcomeSeen === undefined || value.outcomeSeen === true) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
@@ -500,18 +501,21 @@ function isTaskBase(value: unknown): value is Task {
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
 }
 
-function isTaskAttention(value: unknown): value is TaskAttention {
-  return value === "finished" || value === "failed" || value === "approval";
+function isTaskOutcome(value: unknown): value is TaskOutcome {
+  return value === "finished" || value === "failed";
 }
 
 function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
-/** Tasks written before the picker dropped "default" and the context window; both fall back to the current defaults. */
+/**
+ * Tasks written before the picker dropped "default" and the context window; both fall back to the
+ * current defaults. The attention dot they may also carry is ephemeral, so it is retired unread.
+ */
 function dropRetiredSettings(value: unknown) {
   if (!isRecord(value)) return value;
-  const { contextWindow: _retired, ...task } = value;
+  const { contextWindow: _retired, attention: _dot, attentionRead: _read, ...task } = value;
   if (task.model === "default") delete task.model;
   return task;
 }

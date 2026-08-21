@@ -511,12 +511,13 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(["busy"]),
+    runningTaskIds: new Set(["busy", "asked"]),
+    blockedTaskIds: new Set(["asked"]),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
     activityTasks: {
-      priority: [thread("asked", { attention: "approval", projectId: "project-1" }), thread("seen", { attention: "finished", attentionRead: true })],
+      priority: [thread("asked", { projectId: "project-1" }), thread("seen", { outcome: "finished", outcomeSeen: true })],
       running: [thread("busy")],
       threads: [thread("quiet")],
     },
@@ -547,11 +548,17 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     "a flat list still says which folder a thread lives in",
   );
   assert.equal(view.container.querySelector(".task-attention.finished").classList.contains("read"), true);
+  assert.equal(
+    view.container.querySelector('nav[aria-label="Priority"] [aria-label="Needs approval"]').className,
+    "task-attention approval",
+    "a thread waiting on the user asks rather than looking merely busy",
+  );
+  assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-spinner'), null);
 
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-archive')].map((button) => button.getAttribute("aria-label")),
-    ["Dismiss asked", "Dismiss seen"],
-    "the priority list trades archive for dismiss",
+    ["Dismiss seen"],
+    "the priority list trades archive for dismiss, and a question has nothing to dismiss",
   );
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Running"] .task-archive, nav[aria-label="Threads"] .task-archive')],
@@ -559,8 +566,8 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     "and the other two offer nothing, rather than a second icon meaning something else",
   );
 
-  await act(async () => { view.container.querySelector('[aria-label="Dismiss asked"]').click(); });
-  assert.deepEqual(dismissed, ["asked"]);
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss seen"]').click(); });
+  assert.deepEqual(dismissed, ["seen"]);
 
   await act(async () => { view.container.querySelector('[aria-label="Dismiss all read"]').click(); });
   assert.equal(clearedRead, 1);
@@ -582,6 +589,7 @@ test("only the priority heading offers to dismiss what has been read", async () 
     draftProjectId: null,
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
@@ -599,11 +607,11 @@ test("only the priority heading offers to dismiss what has been read", async () 
     onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
-  const view = await mount(sidebar([thread("unread", { attention: "failed" })]));
+  const view = await mount(sidebar([thread("unread", { outcome: "failed" })]));
   assert.equal(view.container.querySelector('[aria-label="Dismiss all read"]'), null, "nothing read yet, so the heading offers nothing");
   assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "1");
 
-  await view.render(sidebar([thread("unread", { attention: "failed" }), thread("seen", { attention: "finished", attentionRead: true })]));
+  await view.render(sidebar([thread("unread", { outcome: "failed" }), thread("seen", { outcome: "finished", outcomeSeen: true })]));
   assert.ok(view.container.querySelector('[aria-label="Dismiss all read"]'), "one read dot is enough to offer it");
   assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "2");
   await view.unmount();
@@ -621,6 +629,7 @@ test("the sidebar steps through visited threads", async () => {
     draftProjectId: null,
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
@@ -1589,7 +1598,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
 test("the sidebar switches to activity mode, and dismissing there takes the dot off for good", async () => {
   seedProjectTasks([
     { id: "quiet", title: "Quiet task", sortIndex: 0, updatedAt: 5, createdAt: 5 },
-    { id: "asked", title: "Blocked task", sortIndex: 1, updatedAt: 9, createdAt: 9, attention: "approval" },
+    { id: "settled", title: "Settled task", sortIndex: 1, updatedAt: 9, createdAt: 9, outcome: "finished" },
   ]);
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
@@ -1602,7 +1611,7 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
   assert.equal(toggle().getAttribute("aria-pressed"), "true");
 
   const priority = () => [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-row-text > span')].map((row) => row.textContent);
-  assert.deepEqual(priority(), ["Blocked task"]);
+  assert.deepEqual(priority(), ["Settled task"]);
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent),
     ["Quiet task"],
@@ -1610,14 +1619,14 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
 
   /** Opening it leaves it where it is; only the check takes it out of the list. */
   await act(async () => { view.container.querySelector('nav[aria-label="Priority"] .task-row').click(); });
-  assert.deepEqual(priority(), ["Blocked task"]);
-  assert.equal(view.container.querySelector(".task-attention.approval").classList.contains("read"), true);
+  assert.deepEqual(priority(), ["Settled task"]);
+  assert.equal(view.container.querySelector(".task-attention.finished").classList.contains("read"), true);
 
-  await act(async () => { view.container.querySelector('[aria-label="Dismiss Blocked task"]').click(); });
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss Settled task"]').click(); });
   assert.deepEqual(priority(), []);
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent),
-    ["Blocked task", "Quiet task"],
+    ["Settled task", "Quiet task"],
     "a dismissed thread drops into the chronological list",
   );
 
@@ -1632,22 +1641,28 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
 test("opening an unread row dims its dot and leaves the dot in place", async () => {
   seedProjectTasks([
     { id: "open", title: "Open task", sortIndex: 0, updatedAt: 2 },
-    { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, attention: "approval" },
+    { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, outcome: "failed" },
   ]);
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
-  const dot = view.container.querySelector(".task-attention.approval");
-  assert.equal(dot?.getAttribute("aria-label"), "Needs approval");
+  const dot = view.container.querySelector(".task-attention.failed");
+  assert.equal(dot?.getAttribute("aria-label"), "Failed");
   assert.equal(dot.classList.contains("read"), false);
 
   const waiting = [...view.container.querySelectorAll(".project-task-row")].find((row) => row.textContent.includes("Waiting task"));
   await act(async () => { waiting.click(); });
 
-  const read = view.container.querySelector(".task-attention.approval");
+  const read = view.container.querySelector(".task-attention.failed");
   assert.ok(read, "the dot survives being looked at");
   assert.equal(read.classList.contains("read"), true);
-  assert.equal(read.getAttribute("aria-label"), "Needs approval, read");
+  assert.equal(read.getAttribute("aria-label"), "Failed, read");
+  assert.deepEqual([...view.container.querySelectorAll(".task-dismiss")], [], "projects mode never offers a dismissal");
+  assert.deepEqual(
+    [...view.container.querySelectorAll(".project-task-row .task-archive")].map((button) => button.getAttribute("aria-label")),
+    ["Archive Open task", "Archive Waiting task"],
+    "archiving is a projects-mode row's only trailing action",
+  );
   await view.unmount();
 });
 
@@ -1662,14 +1677,14 @@ test("a run that settles out of sight is flagged, and the window coming back onl
   await act(async () => {
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 1, status: "succeeded" });
   });
-  assert.equal(workspace.get().currentTask.attention, "finished");
+  assert.equal(workspace.get().currentTask.outcome, "finished");
 
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.equal(workspace.get().currentTask.attention, "finished");
-  assert.equal(workspace.get().currentTask.attentionRead, true);
+  assert.equal(workspace.get().currentTask.outcome, "finished");
+  assert.equal(workspace.get().currentTask.outcomeSeen, true);
 
   await act(async () => { workspace.get().actions.dismissTask(start.taskId); });
-  assert.equal(workspace.get().currentTask.attention, undefined);
+  assert.equal(workspace.get().currentTask.outcome, undefined);
   await workspace.view.unmount();
 });
 
@@ -2384,6 +2399,7 @@ test("the sidebar nests a checkout's threads under it, and its row starts anothe
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [{ worktree, tasks: [thread("in-checkout", { worktreeId: "wt1" })] }],
     worktreeTaskIds: new Set(["in-checkout"]),
@@ -2431,6 +2447,7 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(["scheduled-task", "scheduled-chat"]),
     worktreeGroups: [],
     worktreeTaskIds: new Set(["plain-task"]),
@@ -2466,6 +2483,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
@@ -2513,6 +2531,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
     draftProjectId: null,
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
@@ -2562,6 +2581,7 @@ test("a thread drag leaves a folded folder folded, and opens no gap where it sit
     draftProjectId: null,
     expandedProjects: new Set(["open-project"]),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
@@ -3653,6 +3673,7 @@ test("a folder lifts from a press on its name, which is a button", async () => {
     draftProjectId: null,
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),

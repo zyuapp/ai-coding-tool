@@ -37,7 +37,7 @@ import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget 
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
-import { clampTitle, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskAttention, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -191,9 +191,8 @@ function targetId(state: WorkspaceState, taskId: string | undefined): string | n
   return state.tasks.some((task) => task.id === taskId) ? taskId : null;
 }
 
-/** A run only earns a dot when it settles on its own; cancelling is the user's own doing. */
-function attentionFor(event: RunEvent): TaskAttention | null {
-  if (event.type === "approval.requested") return "approval";
+/** A run only earns a verdict when it settles on its own; cancelling is the user's own doing. */
+function outcomeFor(event: RunEvent): TaskOutcome | null {
   if (event.type !== "run.status") return null;
   if (event.status === "succeeded") return "finished";
   if (event.status === "failed") return "failed";
@@ -201,17 +200,17 @@ function attentionFor(event: RunEvent): TaskAttention | null {
 }
 
 /** Landing on a dotted thread dims its dot. Only a dismissal takes the dot away. */
-function readAttention(state: WorkspaceState, taskId: string | null): WorkspaceState {
-  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.attention && !task.attentionRead)) return state;
-  return applyTask(state, taskId, (task) => ({ ...task, attentionRead: true }));
+function seeOutcome(state: WorkspaceState, taskId: string | null): WorkspaceState {
+  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.outcome && !task.outcomeSeen)) return state;
+  return applyTask(state, taskId, (task) => ({ ...task, outcomeSeen: true }));
 }
 
 /** Takes the dot off the named threads, leaving the list alone when none of them carry one. */
-function withoutAttention(tasks: Task[], dismissing: Set<string>): Task[] {
-  if (!tasks.some((task) => dismissing.has(task.id) && task.attention)) return tasks;
+function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
+  if (!tasks.some((task) => dismissing.has(task.id) && task.outcome)) return tasks;
   return tasks.map((task) => {
-    if (!dismissing.has(task.id) || !task.attention) return task;
-    const { attention: _gone, attentionRead: _read, ...rest } = task;
+    if (!dismissing.has(task.id) || !task.outcome) return task;
+    const { outcome: _gone, outcomeSeen: _seen, ...rest } = task;
     return rest;
   });
 }
@@ -437,10 +436,14 @@ function forkableContinuation(state: WorkspaceState, taskId: string) {
   return task?.continuation ?? state.tasks.find((item) => item.id === chat.sourceTaskId)?.continuation;
 }
 
-/** Records the run against the task and marks it the task's latest, so stale replies can be dropped. */
+/**
+ * Records the run against the task and marks it the task's latest, so stale replies can be dropped.
+ * The new run supersedes whatever the last one concluded, so its verdict never outlives it.
+ */
 function beginRun(state: WorkspaceState, taskId: string, runId: string): WorkspaceState {
+  const tasks = withoutOutcome(state.tasks, new Set([taskId]));
   return withRunStatus(
-    withActiveRun({ ...state, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running" }),
+    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running" }),
     taskId,
     "running",
   );
@@ -819,7 +822,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "task.select": {
       const task = state.tasks.find((item) => item.id === input.taskId);
       const project = projectFor(state, task);
-      return settled(readAttention({
+      return settled(seeOutcome({
         ...state,
         currentId: input.taskId,
         draftProjectId: task?.projectId ?? null,
@@ -829,13 +832,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "task.dismiss": {
-      const tasks = withoutAttention(state.tasks, new Set([input.taskId]));
+      const tasks = withoutOutcome(state.tasks, new Set([input.taskId]));
       return settled(tasks === state.tasks ? state : { ...state, tasks });
     }
 
     case "task.dismiss-read": {
-      const read = new Set(state.tasks.filter((task) => task.attention && task.attentionRead).map((task) => task.id));
-      return settled(read.size ? { ...state, tasks: withoutAttention(state.tasks, read) } : state);
+      const seen = new Set(state.tasks.filter((task) => task.outcome && task.outcomeSeen).map((task) => task.id));
+      return settled(seen.size ? { ...state, tasks: withoutOutcome(state.tasks, seen) } : state);
     }
 
     /** Walks the sidebar. From a draft the list is entered from whichever end the step comes from. */
@@ -1277,14 +1280,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const active = state.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(state, event);
-      const attention = attentionFor(event);
+      const outcome = outcomeFor(event);
       /**
        * Every settled run earns a dot, watched or not, so a thread that finishes under the user's
        * eye ranks with the rest instead of dropping among the idle ones. A fresh dot is unread
        * however read the one it replaces was.
        */
-      let next = attention
-        ? applyTask(applied, event.taskId, ({ attentionRead: _read, ...task }) => ({ ...task, attention }))
+      let next = outcome
+        ? applyTask(applied, event.taskId, ({ outcomeSeen: _seen, ...task }) => ({ ...task, outcome }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
@@ -1823,7 +1826,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (index === null) return settled(state);
       const taskId = state.history[index];
       const task = state.tasks.find((item) => item.id === taskId);
-      return settled(readAttention({
+      return settled(seeOutcome({
         ...state,
         historyIndex: index,
         currentId: taskId,
@@ -1835,7 +1838,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.set-focused":
       return input.focused
-        ? settled(readAttention({ ...state, focused: true }, state.currentId))
+        ? settled(seeOutcome({ ...state, focused: true }, state.currentId))
         : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
 
     case "view.find-open": {

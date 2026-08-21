@@ -4,17 +4,17 @@ import { threadActivityAt, type Task, type TaskDropTarget } from "../domain/task
 export type ActivitySections = Record<"priority" | "running" | "threads", Task[]>;
 
 /**
- * Ranks threads by what wants the user rather than by where they live. A thread carrying a dot leads
- * however busy it is, so a question never hides among the runs, and every thread appears once.
+ * Ranks threads by what wants the user rather than by where they live. A thread leads when it is
+ * blocked on the user, or when it is idle and its last run left a verdict; a thread still working
+ * belongs among the runs however it ended last time. Every thread appears once.
  */
-export function activitySections(tasks: Task[], running: Set<string>): ActivitySections {
+export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<string>): ActivitySections {
   const recent = [...tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
-  const waiting = recent.filter((task) => task.attention);
-  const rest = recent.filter((task) => !task.attention);
+  const idle = (task: Task) => !busy.has(task.id) && !blocked.has(task.id);
   return {
-    priority: waiting,
-    running: rest.filter((task) => running.has(task.id)),
-    threads: rest.filter((task) => !running.has(task.id)),
+    priority: recent.filter((task) => blocked.has(task.id) || (idle(task) && task.outcome)),
+    running: recent.filter((task) => busy.has(task.id) && !blocked.has(task.id)),
+    threads: recent.filter((task) => idle(task) && !task.outcome),
   };
 }
 

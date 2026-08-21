@@ -567,6 +567,11 @@ export function busyTaskIds(state: WorkspaceState): Set<string> {
   return busy;
 }
 
+/** Threads stopped on a question only the user can answer, which outranks any work they were doing. */
+export function blockedTaskIds(state: WorkspaceState): Set<string> {
+  return new Set(Object.values(state.activeRuns).filter((run) => run.status === "awaiting-approval").map((run) => run.taskId));
+}
+
 /** What the current thread is waiting on, if anything: its own checkout, or where a send will run. */
 export function waitFor(state: WorkspaceState, currentTask: Task | undefined): ThreadWait | null {
   if (currentTask && state.creatingWorktrees.includes(currentTask.id)) return "worktree";
@@ -679,12 +684,14 @@ export function deriveView(state: WorkspaceState) {
   const owner = dockOwner(state);
   const dock = dockFor(state, owner);
   const waitingOn = waitFor(state, currentTask);
+  const busy = busyTaskIds(state);
+  const blocked = blockedTaskIds(state);
   return {
     tasks: listedTasks,
     projects: orderProjects(state.projects),
     orderedTasks: orderTasks(visibleTasks),
     /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
-    activityTasks: activitySections(visibleTasks, busyTaskIds(state)),
+    activityTasks: activitySections(visibleTasks, busy, blocked),
     archivedTasks: listedTasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
     recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt),
     currentTask,
@@ -700,7 +707,8 @@ export function deriveView(state: WorkspaceState) {
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? [],
-    runningTaskIds: busyTaskIds(state),
+    runningTaskIds: busy,
+    blockedTaskIds: blocked,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     subagents: currentTask?.subagents ?? [],
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],

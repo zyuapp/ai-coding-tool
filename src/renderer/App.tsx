@@ -295,6 +295,7 @@ export function App() {
         draftProjectId={workspace.currentProject?.id ?? null}
         expandedProjects={workspace.expandedProjects}
         runningTaskIds={workspace.runningTaskIds}
+        blockedTaskIds={workspace.blockedTaskIds}
         automatedTaskIds={workspace.automatedTaskIds}
         worktreeTaskIds={workspace.worktreeTaskIds}
         worktreeGroups={workspace.worktreeGroups}
