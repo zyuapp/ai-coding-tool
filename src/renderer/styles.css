@@ -1118,10 +1118,15 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; }
 .markdown-body th { background: var(--surface-raised); color: var(--ink-soft); font-weight: 620; }
 .markdown-body tr:nth-child(even) td { background: var(--sunken); }
-.mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); }
+.mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.mermaid-block:has(.mermaid-open:hover) { border-color: var(--line-bright); }
 .mermaid-loading { display: block; padding: 16px; color: var(--quiet-strong); text-align: center; font-size: var(--text-meta); }
-.mermaid-svg { min-width: 360px; text-align: center; }
-.mermaid-svg svg { display: inline-block; max-width: 100%; height: auto; }
+/* max-content wraps a diagram wider than the block so all of it stays clickable; the full width centres a narrow one. */
+.mermaid-open { display: block; width: max-content; min-width: 100%; border: 0; padding: 0; background: none; cursor: zoom-in; }
+/* Auto margins centre a diagram that fits without cutting off the left of one that does not. */
+.mermaid-svg { display: flex; }
+/* The fallbacks are what markup with no viewBox to measure keeps: the width Mermaid itself asked for. */
+.mermaid-svg svg { flex: none; margin: auto; width: var(--diagram-width, 100%); height: var(--diagram-height, auto); }
 .mermaid-error summary { color: var(--danger-soft); cursor: pointer; }
 .mermaid-error pre { margin-bottom: 0; }
 .message.tool { margin: 0; }
@@ -2286,6 +2291,29 @@ pre {
   cursor: pointer;
 }
 .viewer-close:hover { color: var(--ink); }
+/* A diagram brings its own scroller, which fills the shell rather than being centred as one fixed item. */
+.viewer.diagram { display: block; }
+.viewer-stage { display: flex; width: 100%; height: 100%; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.viewer-stage .mermaid-svg { flex: none; margin: auto; cursor: default; }
+.viewer-zoom {
+  position: absolute;
+  top: 58px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 8px;
+  padding: 3px;
+  background: var(--control);
+  color: var(--quiet);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.viewer-zoom button { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.viewer-zoom button:hover:not(:disabled) { background: var(--control-hover); color: var(--ink); }
+.viewer-zoom button:disabled { opacity: 0.45; cursor: default; }
+.viewer-zoom span { min-width: 40px; text-align: center; }
 /* Top padding clears the traffic lights; no-drag opts out of the topbar drag region this overlay covers. */
 .annotator {
   position: fixed;

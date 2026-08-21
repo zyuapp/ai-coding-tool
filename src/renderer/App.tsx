@@ -5,6 +5,7 @@ import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
 import { MessageLinkProvider, type MessageLinkActions } from "./components/MarkdownMessage";
+import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -250,6 +251,7 @@ export function App() {
 
   return (
     <MessageLinkProvider actions={messageLinks}>
+    <DiagramViewerHost>
     <main className="app-shell">
       <ProjectSidebar
         open={sidebarOpen}
@@ -552,6 +554,7 @@ export function App() {
         />
       )}
     </main>
+    </DiagramViewerHost>
     </MessageLinkProvider>
   );
 }
