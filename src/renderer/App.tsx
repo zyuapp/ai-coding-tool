@@ -12,7 +12,7 @@ import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SessionPanel } from "./components/SessionPanel";
 import { AgentsPanel } from "./components/SubagentList";
-import { ThreadStartOptions } from "./components/ThreadStartOptions";
+import { ThreadModeSwitch, ThreadStartOptions } from "./components/ThreadStartOptions";
 import { SideChat } from "./components/SideChat";
 import { SubagentInspector } from "./components/SubagentInspector";
 import { TerminalPanel } from "./components/TerminalPanel";
@@ -356,6 +356,13 @@ export function App() {
 
         <div className="work-area">
           {find?.target.kind === "transcript" && findBar}
+          {!workspace.currentTask && (
+            <ThreadModeSwitch
+              projects={workspace.projects}
+              projectId={workspace.currentProject?.id ?? null}
+              onSelectProject={workspace.actions.newTask}
+            />
+          )}
           <div className="conversation" ref={transcriptRef}>
             <ConversationTimeline
               find={find?.target.kind === "transcript" ? find : null}

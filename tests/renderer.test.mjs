@@ -3191,14 +3191,7 @@ test("the start options say where a thread begins, and searching narrows the bra
   const worktreeToggle = view.container.querySelector(".thread-start-toggle");
   assert.equal(worktreeToggle.textContent, "Worktree");
   assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
-  const modes = [...view.container.querySelectorAll('.thread-start-mode [role="radio"]')];
-  assert.deepEqual(modes.map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "false"], ["Work", "true"]], "a thread in a project is work");
-
-  await act(async () => { modes[1].click(); });
-  assert.deepEqual(chosen.project, [], "the mode it is already in asks for nothing");
-  await act(async () => { modes[0].click(); });
-  assert.deepEqual(chosen.project, [undefined], "turning to chat leaves the project behind");
-  chosen.project.length = 0;
+  assert.equal(view.container.querySelector(".thread-mode"), null, "the mode is asked for above these, not among them");
 
   await act(async () => { project.click(); });
   const projectOptions = [...view.container.querySelectorAll('[role="option"]')];
@@ -3240,30 +3233,39 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.unmount();
 });
 
-test("a chat thread asks nothing but its mode, and turning to work starts it in a project", async () => {
-  const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+test("the mode is chat or work, and a chat is left with nothing else to answer", async () => {
+  const { ThreadModeSwitch, ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
   const chosen = [];
-  const view = await mount(React.createElement(ThreadStartOptions, {
-    projects: [{ id: "project-a", root: "/repo/claudex" }, { id: "project-b", root: "/repo/just-speak" }],
+  const projects = [{ id: "project-a", root: "/repo/claudex" }, { id: "project-b", root: "/repo/just-speak" }];
+  const view = await mount(React.createElement(ThreadModeSwitch, { projects, projectId: "project-a", onSelectProject: (id) => { chosen.push(id); } }));
+
+  const modes = () => [...view.container.querySelectorAll('[role="radio"]')];
+  assert.deepEqual(modes().map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "false"], ["Work", "true"]], "a thread in a project is work");
+  await act(async () => { modes()[1].click(); });
+  assert.deepEqual(chosen, [], "the mode it is already in asks for nothing");
+  await act(async () => { modes()[0].click(); });
+  assert.deepEqual(chosen, [undefined], "turning to chat leaves the project behind");
+  chosen.length = 0;
+
+  await view.render(React.createElement(ThreadModeSwitch, { projects, projectId: null, onSelectProject: (id) => { chosen.push(id); } }));
+  assert.deepEqual(modes().map((mode) => mode.getAttribute("aria-checked")), ["true", "false"], "a thread with no project is a chat");
+  await act(async () => { modes()[1].click(); });
+  assert.deepEqual(chosen, ["project-a"], "turning to work starts the thread in the first project");
+
+  await view.render(React.createElement(ThreadModeSwitch, { projects: [], projectId: null, onSelectProject() {} }));
+  assert.equal(view.container.querySelector(".thread-mode"), null, "with nowhere to work there is no mode to choose");
+
+  await view.render(React.createElement(ThreadStartOptions, {
+    projects,
     projectId: null,
     branch: null,
     worktree: false,
-    onSelectProject: (id) => { chosen.push(id); },
+    onSelectProject() {},
     onSelectBranch() {},
     onSetWorktree() {},
   }));
-
-  const modes = [...view.container.querySelectorAll('.thread-start-mode [role="radio"]')];
-  assert.deepEqual(modes.map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "true"], ["Work", "false"]], "a thread with no project is a chat");
-  assert.equal(view.container.querySelector('button[aria-label="Project"]'), null, "a chat has no project to name");
-  assert.equal(view.container.querySelector('button[aria-label="Starting branch"]'), null, "and no branch to start from");
-  assert.equal(view.container.querySelector(".thread-start-toggle"), null, "and no checkout to cut");
-
-  await act(async () => { modes[0].click(); });
-  assert.deepEqual(chosen, [], "the mode it is already in asks for nothing");
-  await act(async () => { modes[1].click(); });
-  assert.deepEqual(chosen, ["project-a"], "turning to work starts the thread in the first project");
+  assert.equal(view.container.querySelector(".thread-start"), null, "a chat has no project, branch, or checkout to answer for");
   await view.unmount();
 });
 

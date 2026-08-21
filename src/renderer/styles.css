@@ -866,6 +866,31 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 /* Over the transcript, which scrolls under it, rather than in the column the transcript is laid out in. */
 .work-area > .find-bar { position: absolute; z-index: 9; top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
 
+/** The mode is the thread's own choice, so it sits under its name rather than in with the details. */
+.thread-mode {
+  position: absolute;
+  z-index: 4;
+  top: 14px;
+  left: clamp(20px, 4vw, 64px);
+  display: flex;
+  align-items: center;
+  border-radius: 9px;
+  padding: 2px;
+  background: var(--chip);
+}
+.thread-mode button {
+  min-height: 26px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 11px;
+  background: transparent;
+  color: var(--quiet-strong);
+  font-size: var(--text-control);
+  font-weight: 520;
+  cursor: pointer;
+}
+.thread-mode button:hover { color: var(--ink-faint); }
+.thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink-soft); }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
 .workspace.summary-open .work-area > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
@@ -937,9 +962,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   padding-bottom: 11vh;
   text-align: center;
 }
-/** The mode leads on its own line; what work still needs to know follows underneath it. */
-.thread-start { display: grid; justify-items: center; gap: 10px; margin-top: 24px; }
-.thread-start-details { display: flex; align-items: center; gap: 2px; }
+.thread-start { display: flex; align-items: center; gap: 2px; margin-top: 24px; }
 .thread-start-field { position: relative; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
 .empty-state .thread-start button {
@@ -959,27 +982,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .empty-state .thread-start button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
-/** The two modes sit in one track, so the choice reads as a switch rather than a row of buttons. */
-.thread-start-mode {
-  display: flex;
-  align-items: center;
-  border-radius: 9px;
-  padding: 2px;
-  background: var(--chip);
-}
-.empty-state .thread-start .thread-start-mode button {
-  min-height: 26px;
-  border-radius: 7px;
-  padding: 0 11px;
-  color: var(--quiet-strong);
-  font-weight: 520;
-}
-.empty-state .thread-start .thread-start-mode button:hover { background: transparent; color: var(--ink-faint); }
-.empty-state .thread-start .thread-start-mode button[aria-checked="true"],
-.empty-state .thread-start .thread-start-mode button[aria-checked="true"]:hover {
-  background: var(--surface-active);
-  color: var(--ink-soft);
-}
 /** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
 .empty-state .thread-start .thread-start-toggle { color: var(--quiet-strong); }
 .empty-state .thread-start .thread-start-toggle[aria-pressed="true"],

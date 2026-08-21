@@ -5,6 +5,29 @@ import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/task";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
+export type ThreadModeSwitchProps = {
+  projects: Project[];
+  projectId: string | null;
+  /** No project starts the thread as a chat, in a scratch workspace of its own. */
+  onSelectProject: (projectId?: string) => void;
+};
+
+/**
+ * Chat or work: the shape of the thread, asked once and above everything work goes on to ask.
+ */
+export function ThreadModeSwitch({ projects, projectId, onSelectProject }: ThreadModeSwitchProps) {
+  /** With nothing to work in, a thread can only be a chat, and there is nothing to ask. */
+  if (!projects.length) return null;
+
+  const chat = !projectId;
+  return (
+    <div className="thread-mode" role="radiogroup" aria-label="Mode">
+      <button type="button" role="radio" aria-checked={chat} onClick={() => { if (!chat) onSelectProject(undefined); }}>Chat</button>
+      <button type="button" role="radio" aria-checked={!chat} onClick={() => { if (chat) onSelectProject(projects[0]?.id); }}>Work</button>
+    </div>
+  );
+}
+
 export type ThreadStartOptionsProps = {
   projects: Project[];
   projectId: string | null;
@@ -22,9 +45,9 @@ export type ThreadStartOptionsProps = {
 };
 
 /**
- * How the thread the user is about to start begins: whether it is a chat or work, and for work, which
- * project, which branch it starts from, and whether it gets a checkout of its own. Nothing here
- * touches disk — the first message does that.
+ * What work the user is about to start still needs to know: which project, which branch it starts
+ * from, and whether it gets a checkout of its own. Nothing here touches disk — the first message does
+ * that.
  */
 export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -43,80 +66,72 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
 
-  /** With nothing to work in, a thread can only be a chat, and there is nothing to ask. */
-  if (!projects.length) return null;
+  /** A chat has no project, so there is nothing left for it to answer. */
+  if (!project) return null;
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
-      {/** Chat and work are the two shapes a thread has; everything else here only refines work. */}
-      <div className="thread-start-mode" role="radiogroup" aria-label="Mode">
-        <button type="button" role="radio" aria-checked={!project} onClick={() => { if (project) onSelectProject(undefined); }}>Chat</button>
-        <button type="button" role="radio" aria-checked={Boolean(project)} onClick={() => { if (!project) onSelectProject(projects[0]?.id); }}>Work</button>
+      <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
+        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
+          <FolderGit2 size={14} />
+          <span>{projectName(project.root)}</span>
+          <ChevronDown size={14} />
+        </button>
+        {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects" onKeyDown={moveListFocus}>
+          {projects.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="option"
+              aria-selected={item.id === projectId}
+              autoFocus={item.id === projectId}
+              onClick={() => {
+                setProjectsOpen(false);
+                onSelectProject(item.id);
+              }}
+            >
+              <span>{projectName(item.root)}</span>
+              {item.id === projectId && <Check size={14} />}
+            </button>
+          ))}
+        </div>}
       </div>
 
-      {project && <div className="thread-start-details">
-        <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-          <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
-            <FolderGit2 size={14} />
-            <span>{projectName(project.root)}</span>
-            <ChevronDown size={14} />
-          </button>
-          {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects" onKeyDown={moveListFocus}>
-            {projects.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="option"
-                aria-selected={item.id === projectId}
-                autoFocus={item.id === projectId}
-                onClick={() => {
-                  setProjectsOpen(false);
-                  onSelectProject(item.id);
-                }}
-              >
-                <span>{projectName(item.root)}</span>
-                {item.id === projectId && <Check size={14} />}
-              </button>
-            ))}
-          </div>}
+      {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
+        *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
+      {startsInWorktree ? (
+        <div className="thread-start-worktree">
+          <FolderSymlink size={15} />
+          <span>{startsInWorktree}</span>
+          <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
         </div>
-
-        {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
-          *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
-        {startsInWorktree ? (
-          <div className="thread-start-worktree">
-            <FolderSymlink size={15} />
-            <span>{startsInWorktree}</span>
-            <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
-          </div>
-        ) : (<>
-        <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-          <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
-            <GitBranch size={14} />
-            <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
-            {branch?.create && <small>new</small>}
-            <ChevronDown size={14} />
-          </button>
-          {branchesOpen && (
-            <BranchMenu
-              menuRef={branchMenu}
-              branches={branches}
-              selected={selected}
-              onPick={(name, create) => {
-                setBranchesOpen(false);
-                /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
-                onSelectBranch(!create && name === current ? null : name, create);
-              }}
-            />
-          )}
-        </div>
-
-        <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
-          <FolderSymlink size={14} />
-          <span>Worktree</span>
+      ) : (<>
+      <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
+        <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
+          <GitBranch size={14} />
+          <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
+          {branch?.create && <small>new</small>}
+          <ChevronDown size={14} />
         </button>
-        </>)}
-      </div>}
+        {branchesOpen && (
+          <BranchMenu
+            menuRef={branchMenu}
+            branches={branches}
+            selected={selected}
+            onPick={(name, create) => {
+              setBranchesOpen(false);
+              /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
+              onSelectBranch(!create && name === current ? null : name, create);
+            }}
+          />
+        )}
+      </div>
+
+      <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
+        <FolderSymlink size={14} />
+        <span>Worktree</span>
+      </button>
+      </>)}
     </div>
   );
 }
