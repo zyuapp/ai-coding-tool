@@ -130,10 +130,6 @@ export function ProjectSidebar({
   const renameInput = useRef<HTMLInputElement>(null);
   const taskReturn = useRef<HTMLElement>(null);
   useDismissibleLayer(renamingId !== null, [renameInput], () => renameInput.current?.blur(), taskReturn);
-  /** A folded row becomes a thin drop strip for the length of a thread drag, so a collapsed folder is
-   *  a place to drop into without unfolding. Set before capture: a `display: none` droppable has no
-   *  bounds for the library to measure. A folder drag takes no threads, so it leaves the folding alone. */
-  const [dragging, setDragging] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
 
   /** A folder shows its first ten tasks, and enough more to keep the open one in view. */
@@ -153,7 +149,6 @@ export function ProjectSidebar({
 
   /** One context carries both drags; `type` says which list the drop belongs to. */
   function finishDrag({ draggableId, type, source, destination }: DropResult) {
-    setDragging(false);
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
     if (type === PROJECT_DRAG) return onMoveProject(draggableId, destination.index);
@@ -279,10 +274,7 @@ export function ProjectSidebar({
   );
 
   return (
-    <DragDropContext
-      onBeforeCapture={({ draggableId }) => setDragging(!projects.some((project) => project.id === draggableId))}
-      onDragEnd={finishDrag}
-    >
+    <DragDropContext onDragEnd={finishDrag}>
     <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
       <div className="traffic-space">
         <div className="thread-nav">
@@ -381,18 +373,15 @@ export function ProjectSidebar({
                             </Droppable>
                           </div>
                         ))}
-                        <Droppable droppableId={project.id} type="task">
+                        {/** A folded folder holds no droppable, so a drag neither unfolds it nor opens a gap where it sits. */}
+                        {expanded && <Droppable droppableId={project.id} type="task">
                           {(provided) => (
-                            <div
-                              className={`project-tasks ${expanded ? "" : dragging ? "drop-strip" : "collapsed"}`}
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                            >
-                              {expanded && loose.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
+                            <div className="project-tasks" ref={provided.innerRef} {...provided.droppableProps}>
+                              {loose.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
                               {provided.placeholder}
                             </div>
                           )}
-                        </Droppable>
+                        </Droppable>}
                         {expanded && (hidden > 0 || showAllTasks.has(project.id)) && (
                           <ShowMore
                             label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
@@ -425,23 +414,18 @@ export function ProjectSidebar({
           />
           <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
         </div>
-        <Droppable droppableId={RECENTS_DROPPABLE} type="task">
+        {recentsOpen && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
           {(provided, snapshot) => (
-            <nav
-              className={`task-list ${recentsOpen ? "" : dragging ? "drop-strip" : "collapsed"}`}
-              aria-label="Project-less tasks"
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-            >
-              {recentsOpen && recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
-              {recentsOpen && recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
+            <nav className="task-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
+              {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
+              {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
                   <span>{task.title}</span>
                   <small>{formatTime(task.updatedAt)}</small>
                 </span>))}
               {provided.placeholder}
             </nav>
           )}
-        </Droppable>
+        </Droppable>}
       </div>
       <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
         <Settings size={17} aria-hidden="true" />

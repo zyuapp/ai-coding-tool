@@ -401,9 +401,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .menu-popover .danger-menu-item { color: var(--danger); }
 .section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
-.project-tasks.collapsed, .task-list.collapsed { display: none; }
-/** A folded row keeps bounds a drag can measure and land in, without showing what it holds. */
-.project-tasks.drop-strip, .task-list.drop-strip { display: block; min-height: 12px; }
 /** A checkout sits between its project and the threads working in it, and each level steps in once. */
 .worktree-group { display: flex; flex-direction: column; }
 .worktree-row {

@@ -2363,8 +2363,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
     handle.focus();
     handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
   });
-  const folded = view.container.querySelector('[data-rfd-droppable-id="first-project"]');
-  assert.ok(folded.className.includes("collapsed"), "a folder drag carries no threads, so it opens no drop strips");
+  assert.equal(view.container.querySelector('[data-rfd-droppable-id="first-project"]'), null, "a folded folder holds no drop target of its own");
 
   await act(async () => {
     handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
@@ -2373,14 +2372,13 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
   await view.unmount();
 });
 
-test("a collapsed folder takes a drop as a strip the drag can measure, still folded", async () => {
+test("a thread drag leaves a folded folder folded, and opens no gap where it sits", async () => {
   const task = (id, projectId) => ({
     id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
   });
   const projects = [{ id: "open-project", root: "/open" }, { id: "shut-project", root: "/shut" }];
   const tasks = [task("open-task", "open-project"), task("shut-task", "shut-project")];
-  const measured = [];
   const view = await mount(React.createElement(ProjectSidebar, {
     compactOpen: false,
     inactive: false,
@@ -2395,7 +2393,7 @@ test("a collapsed folder takes a drop as a strip the drag can measure, still fol
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
     projectsOpen: true,
-    recentsOpen: true,
+    recentsOpen: false,
     openMenu: null,
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
@@ -2403,32 +2401,21 @@ test("a collapsed folder takes a drop as a strip the drag can measure, still fol
     onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
-  const shutList = () => view.container.querySelector('[data-rfd-droppable-id="shut-project"]');
-  assert.ok(shutList().className.includes("collapsed"), "the folder starts collapsed");
+  const folded = () => [...view.container.querySelectorAll('[data-rfd-droppable-id="shut-project"], .task-list')];
+  assert.deepEqual(folded(), [], "a folded folder and a folded Recents render nothing to lay out");
 
-  // The library measures every droppable while lifting; record what it could see.
-  const original = dom.window.HTMLElement.prototype.getBoundingClientRect;
-  dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
-    if (this.getAttribute?.("data-rfd-droppable-id") === "shut-project") {
-      measured.push(this.className.includes("collapsed") ? "hidden" : "visible");
-    }
-    return { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0, toJSON() {} };
-  };
-  try {
-    const handle = view.container.querySelector('[data-rfd-drag-handle-draggable-id="open-task"]');
-    assert.ok(handle, "the open folder's task is draggable");
-    await act(async () => {
-      handle.focus();
-      handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
-    });
+  const handle = view.container.querySelector('[data-rfd-drag-handle-draggable-id="open-task"]');
+  assert.ok(handle, "the open folder's task is draggable");
+  await act(async () => {
+    handle.focus();
+    handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
+  });
 
-    assert.equal(shutList().className.includes("collapsed"), false, "the folded folder becomes a drop strip");
-    assert.ok(measured.length > 0, "the library measured the collapsed folder");
-    assert.equal(measured.includes("hidden"), false, `measured while still collapsed: ${measured.join(",")}`);
-    assert.equal(shutList().querySelectorAll("[data-rfd-draggable-id]").length, 0, "the folder takes the drop without showing what it holds");
-  } finally {
-    dom.window.HTMLElement.prototype.getBoundingClientRect = original;
-  }
+  assert.deepEqual(folded(), [], "the drag opens no strip under either of them");
+  assert.equal(view.container.querySelectorAll('[data-rfd-draggable-id="shut-task"]').length, 0, "and reveals nothing they hold");
+  await act(async () => {
+    handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
+  });
   await view.unmount();
 });
 
