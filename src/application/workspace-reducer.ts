@@ -1279,18 +1279,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const applied = applyRunEvent(state, event);
       const attention = attentionFor(event);
       /**
-       * Every settled run earns a dot, because the dot is a list the user clears rather than a
-       * report of what they missed. Watching one settle counts as reading it, so that dot lands
-       * dimmed and already answerable by a dismissal; a fresh one is unread however read the dot
-       * it replaces was.
+       * Every settled run earns a dot, watched or not, so a thread that finishes under the user's
+       * eye ranks with the rest instead of dropping among the idle ones. A fresh dot is unread
+       * however read the one it replaces was.
        */
-      const watched = state.focused && state.currentId === event.taskId;
       let next = attention
-        ? applyTask(applied, event.taskId, ({ attentionRead: _read, ...task }) => ({
-            ...task,
-            attention,
-            ...(watched ? { attentionRead: true as const } : {}),
-          }))
+        ? applyTask(applied, event.taskId, ({ attentionRead: _read, ...task }) => ({ ...task, attention }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
