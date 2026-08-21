@@ -10,7 +10,7 @@ import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../doma
 import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { RevealedTextProvider, StreamingText } from "./StreamingText";
+import { StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
 import { useDismissibleLayer, useModalFocus } from "../focus";
 
@@ -268,9 +268,8 @@ function ToolRun({ steps }: { steps: TimedStep[] }) {
 }
 
 /**
- * A live turn types its newest text out. The tail can arrive before its first block commits, so it
- * renders under the message id it will belong to and keeps that node once the block lands. The
- * newest text stays streamed even between tails, because remounting it would replay the whole block.
+ * A live turn streams its newest text. The tail can arrive before its first block commits, so it
+ * renders under the message id it will belong to and keeps that node once the block lands.
  */
 function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[]; tail?: StreamingTail | null; live?: boolean }) {
   const newest = segments.at(-1);
@@ -280,14 +279,14 @@ function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[
     : (
       <div key={segment.id} data-message-id={segment.message.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
-          ? <StreamingText id={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
+          ? <StreamingText committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
           : <MarkdownMessage>{segment.message.text}</MarkdownMessage>}
       </div>
     ));
   if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {
     nodes.push(
       <div key={streamingId} data-message-id={streamingId} className="message-text markdown-body work-note">
-        <StreamingText id={streamingId} committed="" tail={tail?.text ?? ""} streaming />
+        <StreamingText committed="" tail={tail?.text ?? ""} streaming />
       </div>,
     );
   }
@@ -597,7 +596,6 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   }
 
   return (
-    <RevealedTextProvider flush={status === "stopped"}>
     <RevealedMessage.Provider value={hit?.messageId ?? null}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
@@ -618,7 +616,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                   {group.live
                     ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
                     : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} />}
-                  {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText id={group.final.id} committed={group.final.text} /></div>}
+                  {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} /></div>}
                 </article>
               ) : message!.kind === "system" ? (
                 <SystemNotice message={message!} />
@@ -753,6 +751,5 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       )}
     </div>
     </RevealedMessage.Provider>
-    </RevealedTextProvider>
   );
 }
