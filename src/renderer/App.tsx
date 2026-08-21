@@ -20,6 +20,7 @@ import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { browserTabTitle } from "../domain/browser";
+import { sentPrompts } from "../domain/task";
 import { moveListFocus, useDismissibleLayer } from "./focus";
 
 /**
@@ -529,7 +530,7 @@ export function App() {
           queuedMessages={workspace.queuedMessages}
           annotations={workspace.annotations}
           pastes={workspace.pastes}
-          history={(workspace.currentTask?.messages ?? []).filter((message) => message.kind === "user").map((message) => message.text)}
+          history={sentPrompts(workspace.currentTask?.messages ?? [])}
           actions={composerActions}
           onPromptChange={workspace.actions.setPrompt}
           onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}

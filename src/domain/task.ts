@@ -90,6 +90,14 @@ export function projectName(root: string) {
   return root.split("/").filter(Boolean).at(-1) ?? root;
 }
 
+/**
+ * What the composer offers back on ↑: prompts the user sent themselves, oldest first. A user message
+ * carries a detail only when an automation tick wrote it, so a labelled one was never typed.
+ */
+export function sentPrompts(messages: TaskMessage[]): string[] {
+  return messages.filter((message) => message.kind === "user" && message.detail === undefined).map((message) => message.text);
+}
+
 export function threadCreatedAt(task: Task): number {
   return task.createdAt ?? task.messages[0]?.at ?? task.updatedAt;
 }

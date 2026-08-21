@@ -3,6 +3,7 @@ import test from "node:test";
 import { reduce, WORKSPACE_ERRORS } from "../dist/main/application/workspace-reducer.js";
 import { deriveView, dockFor, dockOwner, emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 import { threadSummaries } from "../dist/main/application/thread-projection.js";
+import { sentPrompts } from "../dist/main/domain/task.js";
 
 /** The dock a thread was left in: the one on screen unless a thread is named. */
 function dock(state, owner) {
@@ -118,6 +119,7 @@ test("a scheduled run starts with its own framing and acknowledges the tick", ()
   assert.match(start.command.prompt, /automated run #2/);
   assert.deepEqual(acknowledged, { type: "automation.ack", ack: { automationId: "automation-1", runId: "run-1", started: true } });
   assert.equal(started.state.tasks[0].messages[0].detail, "Automation run #2");
+  assert.deepEqual(sentPrompts(started.state.tasks[0].messages), [], "a scheduled prompt is not one the composer offers back");
 });
 
 test("archiving a task retires its automation and cancels a run still going", () => {

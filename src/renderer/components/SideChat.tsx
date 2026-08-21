@@ -1,7 +1,7 @@
 import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
-import type { AnnotationAnchor, RunAttachment, Project, Task } from "../../domain/task";
+import { sentPrompts, type AnnotationAnchor, type RunAttachment, type Project, type Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -72,7 +72,7 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}
-        history={chat.task.messages.filter((message) => message.kind === "user").map((message) => message.text)}
+        history={sentPrompts(chat.task.messages)}
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}
