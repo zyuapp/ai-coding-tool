@@ -85,6 +85,29 @@ test("shadows fall at one weight across the themes of a variant", () => {
   }
 });
 
+/**
+ * Pairs that must never resolve alike, because one is drawn on the other: a divider on the surface
+ * it divides, and the terminal's black slot on the ground the terminal paints.
+ */
+const MUST_DIFFER = [
+  ["--p-line-0", "--p-bg-1"],
+  ["--p-line-0", "--p-bg-2"],
+  ["--p-line-1", "--p-bg-2"],
+  ["--p-ansi-black", "--p-bg-4"],
+  ["--p-ansi-white", "--p-bg-4"],
+];
+
+test("nothing is drawn in the colour of the thing it is drawn on", () => {
+  const collisions = [];
+  for (const theme of THEMES) {
+    const tokens = blocks.get(theme.id);
+    for (const [drawn, ground] of MUST_DIFFER) {
+      if (tokens.get(drawn) === tokens.get(ground)) collisions.push(`${theme.id}: ${drawn} is ${ground} (${tokens.get(drawn)})`);
+    }
+  }
+  assert.deepEqual(collisions, []);
+});
+
 test("the semantic layer holds no colour of its own", () => {
   const literals = stylesCss
     .split("\n")
