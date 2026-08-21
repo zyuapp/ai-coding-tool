@@ -78,18 +78,18 @@ test("unknown and archived tasks leave the list alone", () => {
   assert.equal(moveTask(tasks, "gone", { projectId: null, index: 0 }), tasks);
 });
 
-test("a thread reorders inside its own checkout and is never carried out of one by a drag", () => {
+test("a thread working in a checkout reorders in its project's list but never leaves that project", () => {
   const tasks = [
     task("loose", { projectId: "project-1", sortIndex: 0 }),
     task("first", { projectId: "project-1", worktreeId: "wt1", sortIndex: 1 }),
     task("second", { projectId: "project-1", worktreeId: "wt1", sortIndex: 2 }),
   ];
 
-  const reordered = moveTask(tasks, "second", { projectId: "project-1", worktreeId: "wt1", index: 0 });
-  assert.deepEqual(ids(reordered), ["loose", "second", "first"], "the index counts rows in that checkout's list alone");
+  const reordered = moveTask(tasks, "second", { projectId: "project-1", index: 0 });
+  assert.deepEqual(ids(reordered), ["second", "loose", "first"], "one list, so the index counts every row the project holds");
 
-  assert.equal(moveTask(tasks, "first", { projectId: "project-1", index: 0 }), tasks, "a checkout places its own threads, so nothing drags one into the project's list");
-  assert.equal(moveTask(tasks, "loose", { projectId: "project-1", worktreeId: "wt1", index: 0 }), tasks, "and nothing drags one in either");
+  assert.equal(moveTask(tasks, "first", { projectId: "project-2", index: 0 }), tasks, "a checkout is cut from one project, so nothing drags a thread in one to another");
+  assert.equal(moveTask(tasks, "first", { projectId: null, index: 0 }), tasks, "and nothing drags one out to the project-less list");
 });
 
 test("activity leads with the threads that want the user, and every thread appears once", () => {

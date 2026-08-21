@@ -448,32 +448,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .menu-popover .danger-menu-item { color: var(--danger); }
 .section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
-/** A checkout sits between its project and the threads working in it, and each level steps in once. */
-.worktree-group { display: flex; flex-direction: column; }
-.worktree-row {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
-  min-height: 26px;
-  align-items: center;
-  border-radius: 8px;
-  padding-left: 26px;
-  color: var(--ink-faint);
-  font-size: var(--text-control);
-}
-.worktree-row:hover, .worktree-row:has(.worktree-menu.open) { background: var(--surface-active); }
-.worktree-row-icon { display: grid; place-items: center; color: var(--muted-soft); }
-.worktree-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.worktree-new,
-.worktree-menu > .menu-trigger { border: 0; background: transparent; color: var(--muted-soft); cursor: pointer; }
-.worktree-new, .worktree-menu { opacity: 0; }
-.worktree-row:hover .worktree-new,
-.worktree-row:hover .worktree-menu,
-.worktree-menu.open { opacity: 1; }
-.worktree-new { width: 27px; height: 26px; display: grid; place-items: center; }
-.worktree-menu { position: relative; height: 26px; }
-.worktree-new:hover, .worktree-menu > .menu-trigger:hover { color: var(--ink-dim); }
-.worktree-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; }
-.worktree-task-row { padding-left: 50px; }
 .show-more {
   height: 24px;
   display: block;

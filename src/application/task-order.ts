@@ -48,19 +48,20 @@ export function nextSortIndex(tasks: Task[]): number {
 /**
  * Moves one task into `target` and renumbers the visible list. `target.index` counts rows in the
  * destination group with the moved task already taken out, matching what a drop reports. A group is
- * one list in the sidebar: a project's own threads, one of its checkouts, or the project-less list.
+ * one list in the sidebar: a project's threads, or the project-less list.
  *
- * A thread working in a checkout is placed by that checkout, so dragging never carries it out of one.
+ * A checkout is cut from one project, so a thread working in one reorders freely inside that
+ * project's list but is never carried to another project.
  */
 export function moveTask(tasks: Task[], taskId: string, target: TaskDropTarget): Task[] {
   const visible = orderTasks(tasks.filter((task) => task.archivedAt === undefined));
   const moving = visible.find((task) => task.id === taskId);
   if (!moving) return tasks;
-  if ((moving.worktreeId ?? undefined) !== target.worktreeId) return tasks;
   const rest = visible.filter((task) => task.id !== taskId);
   const projectId = target.projectId ?? undefined;
+  if (moving.worktreeId && projectId !== moving.projectId) return tasks;
 
-  const group = rest.filter((task) => task.projectId === projectId && (task.worktreeId ?? undefined) === target.worktreeId);
+  const group = rest.filter((task) => task.projectId === projectId);
   const anchor = group[Math.max(0, target.index)];
   const index = anchor
     ? rest.indexOf(anchor)

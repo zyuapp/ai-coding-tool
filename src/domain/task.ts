@@ -52,12 +52,11 @@ export type Project = {
 };
 
 /**
- * Where a dragged task lands: a slot in a project's list, in one of that project's checkouts, or in
- * the project-less "recents" list. `index` counts rows in that one list, so each list is its own.
+ * Where a dragged task lands: a slot in a project's list, or in the project-less "recents" list.
+ * `index` counts rows in that one list, so each list is its own.
  */
 export type TaskDropTarget = {
   projectId: string | null;
-  worktreeId?: string;
   index: number;
 };
 

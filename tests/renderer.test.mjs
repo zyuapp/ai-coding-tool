@@ -2494,7 +2494,7 @@ test("archiving a task retires its automation", async () => {
   await workspace.view.unmount();
 });
 
-test("the sidebar nests a checkout's threads under it, and its row starts another thread there", async () => {
+test("the sidebar lists a project's threads as one list, and its menu starts another in a checkout", async () => {
   const thread = (id, overrides = {}) => ({
     id, title: id, projectId: "project-1", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1, ...overrides,
@@ -2518,7 +2518,7 @@ test("the sidebar nests a checkout's threads under it, and its row starts anothe
     activityTasks: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
-    openMenu: null,
+    openMenu: "project:project-1",
     settingsOpen: false,
     onNewTask(projectId, worktreeId) { started.push([projectId, worktreeId]); },
     onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
@@ -2526,21 +2526,17 @@ test("the sidebar nests a checkout's threads under it, and its row starts anothe
     onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
-  const group = view.container.querySelector(".worktree-group");
-  assert.equal(group.querySelector(".worktree-row-name").textContent, "project-wt1", "the row names the directory git worktree list shows");
-  assert.deepEqual(
-    [...group.querySelectorAll("[data-rfd-draggable-id]")].map((row) => row.getAttribute("data-rfd-draggable-id")),
-    ["in-checkout"],
-    "only the threads working in that checkout nest under it",
-  );
   assert.deepEqual(
     [...view.container.querySelectorAll(".project-tasks [data-rfd-draggable-id]")].map((row) => row.getAttribute("data-rfd-draggable-id")),
-    ["in-project"],
-    "and the project's own list keeps the rest",
+    ["in-checkout", "in-project"],
+    "a checkout opens no list of its own, so the project holds every thread in one order",
   );
+  const marked = view.container.querySelector('[data-rfd-draggable-id="in-checkout"] .task-worktree');
+  assert.equal(marked.getAttribute("aria-label"), "Works in project-wt1", "the row's own mark says which checkout it works in");
 
-  await act(async () => { group.querySelector('[aria-label="New thread in project-wt1"]').click(); });
-  assert.deepEqual(started, [["project-1", "wt1"]], "the row starts a thread in that checkout, not in the project");
+  const item = [...view.container.querySelectorAll(".project-menu [role=menuitem]")].find((button) => button.textContent === "New thread in project-wt1");
+  await act(async () => { item.click(); });
+  assert.deepEqual(started, [["project-1", "wt1"]], "the project's menu is where a checkout it already has is started in");
   await view.unmount();
 });
 

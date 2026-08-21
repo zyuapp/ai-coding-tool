@@ -13,8 +13,6 @@ import { ShowMore } from "./ShowMore";
 import { useDismissibleLayer } from "../focus";
 
 const RECENTS_DROPPABLE = "recents";
-/** A checkout's list of threads is its own droppable, so an index means a row in that list alone. */
-const WORKTREE_DROPPABLE = "worktree:";
 const PROJECTS_DROPPABLE = "projects";
 const PROJECT_DRAG = "project";
 const PROJECT_TASK_LIMIT = 10;
@@ -79,7 +77,7 @@ export type ProjectSidebarProps = {
   blockedTaskIds: Set<string>;
   automatedTaskIds: Set<string>;
   worktreeTaskIds: Set<string>;
-  /** The checkouts threads nest under, with the threads in each. Grouped by project when rendered. */
+  /** The checkouts each project has, with the threads in each. A project offers starting one more there. */
   worktreeGroups: WorktreeGroup[];
   /** The same threads ranked by what wants the user, which is what activity mode draws. */
   activityTasks: ActivitySections;
@@ -156,6 +154,11 @@ export function ProjectSidebar({
   useDismissibleLayer(renamingId !== null, [renameInput], () => renameInput.current?.blur(), taskReturn);
   const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
 
+  const checkoutNames = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
+    tasks.map((task) => [task.id, worktreeName(worktree)] as const)));
+  /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
+  const worktreeLabel = (taskId: string) => `Works in ${checkoutNames.get(taskId) ?? "a worktree"}`;
+
   /** A folder shows its first ten tasks, and enough more to keep the open one in view. */
   function visibleCount(projectTasks: Task[], projectId: string) {
     if (showAllTasks.has(projectId)) return projectTasks.length;
@@ -176,17 +179,8 @@ export function ProjectSidebar({
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
     if (type === PROJECT_DRAG) return onMoveProject(draggableId, destination.index);
-    /** A checkout places the threads working in it, so a drag only ever reorders one within its own. */
-    const worktreeId = destination.droppableId.startsWith(WORKTREE_DROPPABLE)
-      ? destination.droppableId.slice(WORKTREE_DROPPABLE.length)
-      : undefined;
-    if (source.droppableId !== destination.droppableId && (worktreeId || source.droppableId.startsWith(WORKTREE_DROPPABLE))) return;
-    const project = worktreeId
-      ? worktreeGroups.find((group) => group.worktree.id === worktreeId)?.worktree.projectId ?? null
-      : destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId;
     onMoveTask(draggableId, {
-      projectId: project,
-      ...(worktreeId ? { worktreeId } : {}),
+      projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
       index: destination.index,
     });
   }
@@ -216,7 +210,7 @@ export function ProjectSidebar({
    */
   const taskMarks = (task: Task, action: RowAction) => (
     <span className="task-row-marks">
-      {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label="Works in a worktree" />}
+      {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />}
       {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
       <span className="row-slot">
         {blockedTaskIds.has(task.id)
@@ -412,13 +406,12 @@ export function ProjectSidebar({
             <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
               {projects.map((project, projectIndex) => {
                 const projectTasks = orderedTasks.filter((task) => task.projectId === project.id);
-                /** A checkout's threads nest under it; the rest are the project's own list. */
+                /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
                 const checkouts = worktreeGroups.filter((group) => group.worktree.projectId === project.id);
-                const loose = projectTasks.filter((task) => !task.worktreeId);
                 const expanded = expandedProjects.has(project.id);
                 const waitingCount = projectTasks.filter((task) => task.outcome || blockedTaskIds.has(task.id)).length;
-                const shown = visibleCount(loose, project.id);
-                const hidden = loose.length - shown;
+                const shown = visibleCount(projectTasks, project.id);
+                const hidden = projectTasks.length - shown;
                 return (
                   <Draggable draggableId={project.id} index={projectIndex} key={project.id} disableInteractiveElementBlocking>
                     {(dragged: DraggableProvided, snapshot) => (
@@ -444,49 +437,21 @@ export function ProjectSidebar({
                             className="project-menu"
                             items={[
                               { label: "New task", onSelect: () => onNewTask(project.id) },
+                              ...checkouts.map(({ worktree }) => ({
+                                label: `New thread in ${worktreeName(worktree)}`,
+                                onSelect: () => onNewTask(project.id, worktree.id),
+                              })),
                               { label: expanded ? "Collapse" : "Expand", onSelect: () => onToggleProject(project.id) },
                               { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
                             ]}
                           />
                           <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project.root)}`}><SquarePen size={16} /></button>
                         </div>
-                        {expanded && checkouts.map(({ worktree, tasks }) => (
-                          <div className="worktree-group" key={worktree.id}>
-                            <div className="worktree-row">
-                              <span className="worktree-row-icon"><FolderSymlink size={13} aria-hidden="true" /></span>
-                              <span className="worktree-row-name" title={worktree.root}>{worktreeName(worktree)}</span>
-                              <PopoverMenu
-                                id={`worktree:${worktree.id}`}
-                                openMenu={openMenu}
-                                onSetOpenMenu={onSetOpenMenu}
-                                label={`More options for ${worktreeName(worktree)}`}
-                                className="worktree-menu"
-                                items={[{ label: "New thread here", onSelect: () => onNewTask(project.id, worktree.id) }]}
-                              />
-                              <button
-                                className="worktree-new"
-                                type="button"
-                                onClick={() => onNewTask(project.id, worktree.id)}
-                                aria-label={`New thread in ${worktreeName(worktree)}`}
-                              >
-                                <SquarePen size={14} />
-                              </button>
-                            </div>
-                            <Droppable droppableId={`${WORKTREE_DROPPABLE}${worktree.id}`} type="task">
-                              {(provided) => (
-                                <div className="worktree-tasks" ref={provided.innerRef} {...provided.droppableProps}>
-                                  {tasks.map((task, index) => taskRow(task, index, `project-task-row worktree-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
-                                  {provided.placeholder}
-                                </div>
-                              )}
-                            </Droppable>
-                          </div>
-                        ))}
                         {/** A folded folder holds no droppable, so a drag neither unfolds it nor opens a gap where it sits. */}
                         {expanded && <Droppable droppableId={project.id} type="task">
                           {(provided) => (
                             <div className="project-tasks" ref={provided.innerRef} {...provided.droppableProps}>
-                              {loose.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
+                              {projectTasks.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
                               {provided.placeholder}
                             </div>
                           )}
