@@ -4,3 +4,5 @@ release/
 vendor/cua-driver/
 *.log
 .DS_Store
+/.claude/*
+!/.claude/skills/
