@@ -1,12 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWorkflowEvent, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
@@ -343,8 +343,33 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
   postCommand(payload);
 }
 
-/** The renderer's --canvas, so the window does not flash a different colour before it paints. */
-const CANVAS = "#0e1117";
+/**
+ * The theme's canvas and ground, so the window does not flash a colour the user has already left
+ * and the platform's own frame is drawn to match. Remembered on disk because the frame exists
+ * before the renderer can say which theme it is in.
+ */
+const DEFAULT_WINDOW_THEME: WindowTheme = { variant: "dark", canvas: "#0e1117" };
+let windowTheme = DEFAULT_WINDOW_THEME;
+
+function windowThemePath() {
+  return path.join(app.getPath("userData"), "window-theme.v1.json");
+}
+
+/** An unreadable file simply means the default, which is what a first launch reads anyway. */
+function loadWindowTheme(): WindowTheme {
+  try {
+    const value: unknown = JSON.parse(readFileSync(windowThemePath(), "utf8"));
+    return isWindowTheme(value) ? value : DEFAULT_WINDOW_THEME;
+  } catch {
+    return DEFAULT_WINDOW_THEME;
+  }
+}
+
+function applyWindowTheme(theme: WindowTheme) {
+  windowTheme = theme;
+  nativeTheme.themeSource = theme.variant;
+  if (window && !window.isDestroyed()) window.setBackgroundColor(theme.canvas);
+}
 
 function revealWindow() {
   if (quitState !== "running") return;
@@ -420,7 +445,7 @@ async function createWindow() {
     minWidth: 820,
     minHeight: 620,
     titleBarStyle: "hiddenInset",
-    backgroundColor: CANVAS,
+    backgroundColor: windowTheme.canvas,
     icon,
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
@@ -545,6 +570,7 @@ async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeSer
 app.whenReady().then(async () => {
   if (!singleInstance) return;
   const userData = app.getPath("userData");
+  applyWindowTheme(loadWindowTheme());
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
   workspaceService = new WorkspaceServiceConstructor({
     registryPath: path.join(userData, "workspaces.v1.json"),
@@ -762,6 +788,13 @@ ipcMain.handle("automation:run-now", (event, taskId: unknown) => {
 ipcMain.on("automation:ack", (event, ack: unknown) => {
   if (!trustedSender(event) || !isAutomationAck(ack)) return;
   automationDispatches.get(ack.runId)?.acknowledge?.(ack.started);
+});
+
+ipcMain.on("theme:set", (event, theme: unknown) => {
+  if (!trustedSender(event) || !isWindowTheme(theme)) return;
+  if (theme.variant === windowTheme.variant && theme.canvas === windowTheme.canvas) return;
+  applyWindowTheme(theme);
+  void writeFile(windowThemePath(), JSON.stringify(theme)).catch(() => undefined);
 });
 
 ipcMain.on("shortcuts:set", (event, overrides: unknown) => {

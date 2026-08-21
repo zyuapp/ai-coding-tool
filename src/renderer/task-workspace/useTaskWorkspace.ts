@@ -13,6 +13,7 @@ import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivi
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
+import { applyTheme } from "../theme";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, searchTerminalView } from "./terminal-views";
 
@@ -558,6 +559,9 @@ export function useTaskWorkspace() {
   }, []);
 
   const view = useMemo(() => deriveView(state), [state]);
+
+  useEffect(() => { applyTheme(view.theme); }, [view.theme]);
+
   const currentRunId = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
 
   useEffect(() => {
@@ -586,6 +590,7 @@ export function useTaskWorkspace() {
       dismissTask: (taskId: string) => dispatch({ type: "task.dismiss", taskId }),
       dismissAllTasks: () => dispatch({ type: "task.dismiss-all" }),
       setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
+      setTheme: (theme: string) => dispatch({ type: "view.set-theme", theme }),
       setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),

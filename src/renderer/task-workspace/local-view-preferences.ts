@@ -1,10 +1,12 @@
 import { readViewPreferences, writeViewPreferences } from "../../application/view-preferences";
 import type { ViewPreferences } from "../../contracts/preferences";
+import { DEFAULT_THEME } from "../../domain/theme";
 
 /** Wide windows open the session panel, and windows with room for it show the sidebar. */
 export function loadViewPreferences(): ViewPreferences {
   const stored = readViewPreferences(localStorage);
   return {
+    theme: stored.theme ?? DEFAULT_THEME,
     sessionPanelOpen: stored.sessionPanelOpen ?? window.innerWidth >= 1400,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
     sidebarMode: stored.sidebarMode ?? "projects",

@@ -217,6 +217,8 @@ export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
     defaultBinding: `Mod+${index + 1}`,
   })),
   { id: "dock.tab-last", group: "Panels", label: "Last panel tab", description: "Show the last tab in the panel", surface: "any", defaultBinding: "Mod+9" },
+
+  { id: "appearance.cycle-theme", group: "Appearance", label: "Next theme", description: "Walk the theme list without opening settings", surface: "any", defaultBinding: "Mod+Shift+T" },
 ];
 
 const ACTIONS_BY_ID = new Map(SHORTCUT_ACTIONS.map((action) => [action.id, action]));

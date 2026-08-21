@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
+import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
@@ -105,6 +105,7 @@ const api: DesktopAPI = {
     ipcRenderer.on("terminal:event", handler);
     return () => ipcRenderer.removeListener("terminal:event", handler);
   },
+  setTheme: (theme: WindowTheme) => ipcRenderer.send("theme:set", theme),
   setShortcuts: (overrides: ShortcutOverrides) => ipcRenderer.send("shortcuts:set", overrides),
   setShortcutCapture: (capturing: boolean) => ipcRenderer.send("shortcuts:capture", capturing),
   onShortcut: (listener: (invocation: ShortcutInvocation) => void) => {

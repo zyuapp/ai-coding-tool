@@ -606,9 +606,11 @@ export function App() {
           onClose={closeSettings}
           initialSection={workspace.computerUseSetup ? "computer-use" : "general"}
           archivedTasks={workspace.archivedTasks}
+          theme={workspace.theme}
           allowedOrigins={workspace.browserOrigins}
           shortcuts={workspace.shortcuts}
           capturingShortcut={workspace.capturingShortcut}
+          onSetTheme={(theme) => void workspace.actions.setTheme(theme)}
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}

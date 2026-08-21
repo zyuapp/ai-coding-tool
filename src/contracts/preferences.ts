@@ -3,6 +3,8 @@ import type { SidebarMode } from "../domain/sidebar.js";
 
 /** Presentation choices the window remembers between launches. */
 export type ViewPreferences = {
+  /** The theme the window paints in, by id. Themes the app no longer ships fall back to the default. */
+  theme: string;
   sessionPanelOpen: boolean;
   sidebarOpen: boolean;
   /** Which shape the sidebar reopens in. Which of its lists are folded is not remembered. */

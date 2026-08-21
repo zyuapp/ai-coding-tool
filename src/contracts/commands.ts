@@ -168,6 +168,8 @@ export type ViewCommand =
   | { type: "view.toggle-project"; projectId: string }
   /** Folds one of the sidebar's lists, whichever mode draws it. */
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
+  /** The theme the window paints in. An id the app does not ship is ignored. */
+  | { type: "view.set-theme"; theme: string }
   | { type: "view.set-sidebar-mode"; mode: SidebarMode }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }

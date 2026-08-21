@@ -65,33 +65,59 @@ export function onTerminalFindResults(handler: (terminalId: string, results: Fin
   return () => { publishFind = () => undefined; };
 }
 
+/**
+ * A custom property keeps its color-mix() and relative colours unevaluated, so the values are read
+ * off an element that actually paints them rather than off the root's own tokens.
+ */
+function readColours<K extends string>(tokens: Record<K, string>): Record<K, string> {
+  const colours = {} as Record<K, string>;
+  const view = document.defaultView;
+  if (!view) return colours;
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;top:0;left:0;visibility:hidden;pointer-events:none";
+  document.body.appendChild(probe);
+  const computed = view.getComputedStyle(probe);
+  for (const [key, token] of Object.entries(tokens) as [K, string][]) {
+    probe.style.color = `var(${token})`;
+    colours[key] = computed.color;
+  }
+  probe.remove();
+  return colours;
+}
+
 /** The colours are the stylesheet's, read from the tokens so a theme reaches the terminal too. */
 function terminalTheme(): Record<string, string> {
-  const style = getComputedStyle(document.documentElement);
-  const token = (name: string) => style.getPropertyValue(name).trim();
-  return {
-    background: token("--code-surface"),
-    foreground: token("--code-ink"),
-    cursor: token("--ink"),
-    cursorAccent: token("--code-surface"),
-    selectionBackground: token("--selection"),
-    black: token("--ansi-black"),
-    red: token("--ansi-red"),
-    green: token("--ansi-green"),
-    yellow: token("--ansi-yellow"),
-    blue: token("--ansi-blue"),
-    magenta: token("--ansi-magenta"),
-    cyan: token("--ansi-cyan"),
-    white: token("--ansi-white"),
-    brightBlack: token("--ansi-bright-black"),
-    brightRed: token("--ansi-bright-red"),
-    brightGreen: token("--ansi-bright-green"),
-    brightYellow: token("--ansi-bright-yellow"),
-    brightBlue: token("--ansi-bright-blue"),
-    brightMagenta: token("--ansi-bright-magenta"),
-    brightCyan: token("--ansi-bright-cyan"),
-    brightWhite: token("--ansi-bright-white"),
-  };
+  return readColours({
+    background: "--code-surface",
+    foreground: "--code-ink",
+    cursor: "--ink",
+    cursorAccent: "--code-surface",
+    selectionBackground: "--terminal-selection",
+    black: "--ansi-black",
+    red: "--ansi-red",
+    green: "--ansi-green",
+    yellow: "--ansi-yellow",
+    blue: "--ansi-blue",
+    magenta: "--ansi-magenta",
+    cyan: "--ansi-cyan",
+    white: "--ansi-white",
+    brightBlack: "--ansi-bright-black",
+    brightRed: "--ansi-bright-red",
+    brightGreen: "--ansi-bright-green",
+    brightYellow: "--ansi-bright-yellow",
+    brightBlue: "--ansi-bright-blue",
+    brightMagenta: "--ansi-bright-magenta",
+    brightCyan: "--ansi-bright-cyan",
+    brightWhite: "--ansi-bright-white",
+  });
+}
+
+/** Repaints every open shell after the theme changes, since xterm holds the colours it was built with. */
+export function repaintTerminalViews() {
+  const theme = terminalTheme();
+  for (const view of views.values()) {
+    if (view.terminal) view.terminal.options.theme = theme;
+  }
 }
 
 /** The record of a view, which exists before xterm does so output has somewhere to wait. */
@@ -116,7 +142,7 @@ async function terminalView(terminalId: string): Promise<TerminalView> {
   const terminal = new Terminal({
     allowProposedApi: true,
     scrollback: SCROLLBACK_LINES,
-    fontFamily: getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace",
+    fontFamily: document.defaultView?.getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace",
     fontSize: 12,
     theme: terminalTheme(),
   });
@@ -159,9 +185,7 @@ export function fitTerminalView(terminalId: string) {
 
 /** The colours a match is drawn in, read from the stylesheet the way the rest of the theme is. */
 function searchDecorations() {
-  const style = getComputedStyle(document.documentElement);
-  const match = style.getPropertyValue("--find-match").trim();
-  const active = style.getPropertyValue("--find-active").trim();
+  const { match, active } = readColours({ match: "--find-match", active: "--find-active" });
   return { decorations: { matchBackground: match, activeMatchBackground: active, matchOverviewRuler: match, activeMatchColorOverviewRuler: active } };
 }
 

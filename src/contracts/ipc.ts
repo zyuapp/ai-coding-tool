@@ -13,6 +13,12 @@ import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.j
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
 
+/** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
+export type WindowTheme = {
+  variant: "dark" | "light";
+  canvas: string;
+};
+
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
 
@@ -257,6 +263,8 @@ export type DesktopAPI = {
   /** Output, coalesced and delivered straight to the view. It is never workspace state. */
   onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
+  /** The theme's ground and canvas, which the platform's own window frame is drawn from. */
+  setTheme(theme: WindowTheme): void;
   /** The keystrokes main matches, so a shortcut works inside a page the window never hears from. */
   setShortcuts(overrides: ShortcutOverrides): void;
   /** While settings wait for a keystroke, main hands every one of them over instead of acting on it. */
@@ -665,4 +673,13 @@ export function isWorkflowEvent(value: unknown): value is WorkflowEvent {
   }
   if (event.type === "workflow.finished") return (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   return false;
+}
+
+/** A theme arriving from the renderer, which the window trusts no further than its own two fields. */
+export function isWindowTheme(value: unknown): value is WindowTheme {
+  if (!value || typeof value !== "object") return false;
+  const theme = value as Record<string, unknown>;
+  return (theme.variant === "dark" || theme.variant === "light")
+    && typeof theme.canvas === "string"
+    && /^#[0-9a-fA-F]{6}$/.test(theme.canvas);
 }

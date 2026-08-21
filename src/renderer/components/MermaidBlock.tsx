@@ -1,5 +1,5 @@
 import { Minus, Plus, X } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
 
@@ -127,6 +127,26 @@ type Drawn = { diagram?: Diagram; error?: string };
 const drawn = new Map<string, Drawn>();
 const MAX_REMEMBERED = 64;
 
+let themeGeneration = 0;
+const generationListeners = new Set<() => void>();
+
+/** Mermaid bakes the theme into the SVG it hands back, so a theme change throws away what was drawn. */
+export function redrawDiagrams() {
+  initialized = false;
+  drawn.clear();
+  themeGeneration += 1;
+  for (const listener of generationListeners) listener();
+}
+
+function readGeneration() {
+  return themeGeneration;
+}
+
+function subscribeToGeneration(listener: () => void) {
+  generationListeners.add(listener);
+  return () => { generationListeners.delete(listener); };
+}
+
 function remember(source: string, result: Drawn) {
   drawn.delete(source);
   drawn.set(source, result);
@@ -140,6 +160,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
   const [visible, setVisible] = useState(false);
   const [result, setResult] = useState<{ source: string; diagram?: Diagram; error?: string }>({ source });
   const open = useContext(OpenDiagram);
+  const generation = useSyncExternalStore(subscribeToGeneration, readGeneration);
 
   useEffect(() => {
     const element = host.current;
@@ -180,7 +201,7 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
       if (!cancelled) setResult({ source, ...drawn.get(source) });
     })();
     return () => { cancelled = true; };
-  }, [id, source, visible, pending]);
+  }, [id, source, visible, pending, generation]);
 
   const current: Drawn = drawn.get(source) ?? (result.source === source ? result : {});
   const drawing = current.diagram

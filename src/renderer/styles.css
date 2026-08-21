@@ -1,169 +1,175 @@
-/**
- * Every colour in this file comes from a token below. A theme is a second block that redefines
- * the same names; nothing else in the stylesheet changes. Add a token rather than a literal.
- */
-:root {
-  color-scheme: dark;
+@import "./themes.css";
 
+/**
+ * Every colour in this file comes from a token below, and every token below comes from a theme
+ * primitive in themes.css. A theme redefines the primitives; nothing here changes. Add a token
+ * rather than a literal, and derive it from a primitive rather than picking a hex.
+ *
+ * A custom property inherits already substituted, so the tokens are redeclared under any element
+ * carrying a theme rather than on the root alone. That is what lets a preview tile paint itself.
+ */
+:root,
+[data-theme] {
   /* Surfaces */
-  --canvas: #0e1117;
-  --canvas-fade: rgba(14, 17, 23, 0); /* --canvas at zero alpha, for gradients that fade into it */
-  --sunken: #11151b; /* panes set below the canvas: docks, inspectors, modals */
-  --sidebar: #171b20;
-  --surface: #151920; /* cards and the composer */
-  --surface-raised: #1c2129; /* bubbles and chips sitting on a surface */
-  --surface-menu: #171c24; /* popovers and floating menus */
-  --surface-menu-hover: #2a2f36;
-  --surface-hover: #1b2028;
-  --surface-active: #20242a; /* the row, tab, or option in effect */
-  --surface-input: #12161c;
-  --surface-glass: #1b1f26cc; /* blurred float over the transcript */
-  --surface-glass-hover: #262b34e6;
-  --surface-inverse: #e4e2dd; /* the one bright fill: primary buttons */
-  --surface-inverse-soft: #cbc9c3;
-  --surface-inverse-off: #343941; /* an inverse fill with nothing to do */
-  --control: #20262e;
-  --control-soft: #171b21;
-  --control-hover: #272e37;
-  --chip: #2f353d; /* counts and short labels */
-  --wash: rgba(255, 255, 255, 0.045); /* hover on an otherwise transparent control */
-  --code-surface: #1b2027;
-  --code-ink: #c7d2dd;
-  --meter-fill: #6f747a;
-  --meter-track: #252a31;
+  --canvas: var(--p-bg-0);
+  --canvas-fade: rgb(from var(--p-bg-0) r g b / 0); /* --canvas at zero alpha, for gradients that fade into it */
+  --sunken: var(--p-bg-1); /* panes set below the canvas: docks, inspectors, modals */
+  --sidebar: var(--p-bg-3);
+  --surface: var(--p-bg-2); /* cards and the composer */
+  --surface-raised: var(--p-bg-4); /* bubbles and chips sitting on a surface */
+  --surface-menu: var(--p-bg-3); /* popovers and floating menus */
+  --surface-menu-hover: var(--p-bg-6);
+  --surface-hover: var(--p-bg-4);
+  --surface-active: var(--p-bg-5); /* the row, tab, or option in effect */
+  --surface-input: color-mix(in srgb, var(--p-bg-0) 50%, var(--p-bg-2));
+  --surface-glass: rgb(from var(--p-bg-4) r g b / 0.8); /* blurred float over the transcript */
+  --surface-glass-hover: rgb(from var(--p-bg-6) r g b / 0.9);
+  --surface-inverse: var(--p-contrast); /* the one high-contrast fill: primary buttons */
+  --surface-inverse-soft: color-mix(in srgb, var(--p-contrast) 85%, var(--p-bg-6));
+  --surface-inverse-off: color-mix(in srgb, var(--p-bg-6) 80%, var(--p-fg-5)); /* an inverse fill with nothing to do */
+  --control: var(--p-bg-5);
+  --control-soft: var(--p-bg-3);
+  --control-hover: color-mix(in srgb, var(--p-bg-5) 40%, var(--p-bg-6));
+  --chip: color-mix(in srgb, var(--p-bg-6) 85%, var(--p-fg-5)); /* counts and short labels */
+  --wash: rgb(from var(--p-fg-0) r g b / 0.045); /* hover on an otherwise transparent control */
+  --code-surface: var(--p-bg-4);
+  --code-ink: var(--p-ansi-white);
+  --meter-fill: var(--p-fg-4);
+  --meter-track: color-mix(in srgb, var(--p-bg-5) 60%, var(--p-bg-6));
 
   /* Lines */
-  --line: #272c34;
-  --line-soft: #1d2229; /* a divider within one surface */
-  --line-mid: #303741;
-  --line-strong: #3a414b; /* input borders and grab handles */
-  --line-bright: #48525f; /* a border under the pointer */
-  --line-glass: #ffffff1c;
-  --scroll-thumb: #30353d;
+  --line: var(--p-line-1);
+  --line-soft: var(--p-line-0); /* a divider within one surface */
+  --line-mid: color-mix(in srgb, var(--p-line-1) 50%, var(--p-line-2));
+  --line-strong: var(--p-line-2); /* input borders and grab handles */
+  --line-bright: var(--p-line-3); /* a border under the pointer */
+  --line-glass: rgb(from var(--p-fg-0) r g b / 0.11);
+  --scroll-thumb: color-mix(in srgb, var(--p-line-1) 45%, var(--p-line-2));
 
-  /* Text, brightest to dimmest */
-  --ink: #e6e4df;
-  --ink-soft: #d5d3ce;
-  --ink-dim: #c9c8c4;
-  --ink-faint: #b8b8b4;
-  --muted-strong: #a9aaa7;
-  --muted: #969a9f;
-  --muted-soft: #858b92;
-  --quiet-strong: #747a82;
-  --quiet: #666b72;
-  --quiet-soft: #55595e; /* placeholders and disabled text */
-  --ink-inverse: #171a1f; /* text on --surface-inverse */
-  --ink-inverse-soft: #5d6062;
+  /* Text, strongest to quietest */
+  --ink: var(--p-fg-0);
+  --ink-soft: color-mix(in srgb, var(--p-fg-0) 60%, var(--p-fg-1));
+  --ink-dim: var(--p-fg-1);
+  --ink-faint: color-mix(in srgb, var(--p-fg-1) 55%, var(--p-fg-2));
+  --muted-strong: var(--p-fg-2);
+  --muted: var(--p-fg-3);
+  --muted-soft: color-mix(in srgb, var(--p-fg-3) 60%, var(--p-fg-4));
+  --quiet-strong: color-mix(in srgb, var(--p-fg-3) 30%, var(--p-fg-4));
+  --quiet: var(--p-fg-4);
+  --quiet-soft: var(--p-fg-5); /* placeholders and disabled text */
+  --ink-inverse: var(--p-contrast-ink); /* text on --surface-inverse */
+  --ink-inverse-soft: color-mix(in srgb, var(--p-contrast-ink) 65%, var(--p-contrast));
 
   /* Accent */
-  --accent: #d97757;
-  --accent-hover: #e0855f;
-  --accent-bright: #ef8451;
-  --accent-soft: #dd8b6d;
-  --accent-ink: #1b0f09; /* text on --accent */
-  --accent-surface: #1e1918;
-  --accent-chip: #34251f;
-  --accent-line: #564036;
-  --accent-line-strong: #694638;
-  --accent-line-soft: #372d2a;
+  --accent: var(--p-accent);
+  --accent-hover: color-mix(in srgb, var(--p-accent) 82%, var(--p-fg-0));
+  --accent-bright: var(--p-accent-bright);
+  --accent-soft: color-mix(in srgb, var(--p-accent) 88%, var(--p-fg-1));
+  --accent-ink: var(--p-accent-ink); /* text on --accent */
+  --accent-surface: color-mix(in srgb, var(--p-accent) 9%, var(--p-bg-0));
+  --accent-chip: color-mix(in srgb, var(--p-accent) 17%, var(--p-bg-1));
+  --accent-line: color-mix(in srgb, var(--p-accent) 32%, var(--p-bg-5));
+  --accent-line-strong: color-mix(in srgb, var(--p-accent) 42%, var(--p-bg-5));
+  --accent-line-soft: color-mix(in srgb, var(--p-accent) 15%, var(--p-bg-5));
 
   /* Info */
-  --info: #6f9ed6;
-  --info-soft: #7695b8;
-  --info-surface: #213249;
-  --info-surface-soft: #182433;
-  --info-line: #2d4055;
-  --info-badge: #467bb7;
-  --info-badge-soft: #315e8e;
-  --info-ink: #12161c; /* text on --info */
-  --badge-ink: #e9f2fc; /* text on --info-badge */
-  --focus-ring: #6f9ed6;
-  --focus-ring-soft: #3d5a80;
-  --link: #8ab5e1;
-  --link-hover: #acd0f2;
-  --link-line: #456684;
+  --info: var(--p-info);
+  --info-soft: color-mix(in srgb, var(--p-info) 70%, var(--p-fg-2));
+  --info-surface: color-mix(in srgb, var(--p-info) 22%, var(--p-bg-1));
+  --info-surface-soft: color-mix(in srgb, var(--p-info) 12%, var(--p-bg-1));
+  --info-line: color-mix(in srgb, var(--p-info) 28%, var(--p-bg-5));
+  --info-badge: var(--p-info-strong);
+  --info-badge-soft: color-mix(in srgb, var(--p-info-strong) 78%, var(--p-bg-1));
+  --info-ink: var(--p-info-ink); /* text on --info */
+  --badge-ink: var(--p-on-hue); /* text on --info-badge */
+  --focus-ring: var(--p-info);
+  --focus-ring-soft: color-mix(in srgb, var(--p-info) 45%, var(--p-bg-5));
+  --link: var(--p-link);
+  --link-hover: color-mix(in srgb, var(--p-link) 70%, var(--p-on-hue));
+  --link-line: color-mix(in srgb, var(--p-link) 45%, var(--p-bg-5));
 
   /* Success */
-  --success: #72c66b;
-  --success-soft: #75b890;
-  --success-surface: #1d3028;
-  --success-line: #4c8666;
-  --success-ink: #172019;
+  --success: var(--p-success);
+  --success-soft: color-mix(in srgb, var(--p-success) 75%, var(--p-fg-3));
+  --success-surface: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
+  --success-line: color-mix(in srgb, var(--p-success) 50%, var(--p-bg-5));
+  --success-ink: color-mix(in srgb, var(--p-success) 10%, var(--p-bg-0));
 
   /* Danger */
-  --danger: #e06c75;
-  --danger-soft: #d98b8f;
-  --danger-surface: #24191b;
-  --danger-chip: #372326;
-  --danger-line: #5c3237;
-  --danger-line-hover: #74423a;
+  --danger: var(--p-danger);
+  --danger-soft: color-mix(in srgb, var(--p-danger) 78%, var(--p-fg-2));
+  --danger-surface: color-mix(in srgb, var(--p-danger) 10%, var(--p-bg-1));
+  --danger-chip: color-mix(in srgb, var(--p-danger) 18%, var(--p-bg-1));
+  --danger-line: color-mix(in srgb, var(--p-danger) 32%, var(--p-bg-5));
+  --danger-line-hover: color-mix(in srgb, var(--p-danger) 45%, var(--p-bg-5));
 
   /* Alert, for marks drawn over an image */
-  --alert: #ff453a;
-  --alert-hover: #ff6259;
-  --alert-line: #ff8a82;
-  --alert-ink: #fff;
+  --alert: var(--p-alert);
+  --alert-hover: color-mix(in srgb, var(--p-alert) 82%, var(--p-on-hue));
+  --alert-line: color-mix(in srgb, var(--p-alert) 65%, var(--p-on-hue));
+  --alert-ink: var(--p-on-hue);
 
   /* Terminal: the sixteen colours a shell addresses by name, plus what it draws behind them */
-  --terminal-selection: #33465c;
-  --find-match: #43391c; /* every match find is showing */
-  --find-active: #d97757; /* the one being read */
-  --ansi-black: #2a2f36;
-  --ansi-red: #e06c75;
-  --ansi-green: #72c66b;
-  --ansi-yellow: #d9a760;
-  --ansi-blue: #6f9ed6;
-  --ansi-magenta: #c58fd6;
-  --ansi-cyan: #63bfba;
-  --ansi-white: #c7d2dd;
-  --ansi-bright-black: #565c65;
-  --ansi-bright-red: #ef8b93;
-  --ansi-bright-green: #97d891;
-  --ansi-bright-yellow: #e8c088;
-  --ansi-bright-blue: #93bbe8;
-  --ansi-bright-magenta: #d9aee7;
-  --ansi-bright-cyan: #8ad6d1;
-  --ansi-bright-white: #e6e4df;
+  --terminal-selection: color-mix(in srgb, var(--p-info) 25%, var(--p-bg-5));
+  --find-match: color-mix(in srgb, var(--p-ansi-yellow) 25%, var(--p-bg-0)); /* every match find is showing */
+  --find-active: var(--p-accent); /* the one being read */
+  --ansi-black: var(--p-ansi-black);
+  --ansi-red: var(--p-ansi-red);
+  --ansi-green: var(--p-ansi-green);
+  --ansi-yellow: var(--p-ansi-yellow);
+  --ansi-blue: var(--p-ansi-blue);
+  --ansi-magenta: var(--p-ansi-magenta);
+  --ansi-cyan: var(--p-ansi-cyan);
+  --ansi-white: var(--p-ansi-white);
+  --ansi-bright-black: var(--p-ansi-bright-black);
+  --ansi-bright-red: var(--p-ansi-bright-red);
+  --ansi-bright-green: var(--p-ansi-bright-green);
+  --ansi-bright-yellow: var(--p-ansi-bright-yellow);
+  --ansi-bright-blue: var(--p-ansi-bright-blue);
+  --ansi-bright-magenta: var(--p-ansi-bright-magenta);
+  --ansi-bright-cyan: var(--p-ansi-bright-cyan);
+  --ansi-bright-white: var(--p-ansi-bright-white);
 
   /* Diff: full-bleed fills behind body text, so lower in chroma than the chips they resemble */
-  --diff-add-surface: #16241c;
-  --diff-add-line: #2c4c38;
-  --diff-add-gutter: #1c3125;
-  --diff-del-surface: #271a1c;
-  --diff-del-line: #543035;
-  --diff-del-gutter: #332225;
-  --diff-hunk-surface: #171d26;
-  --diff-hunk-ink: #7d92ad;
-  --diff-gutter-ink: #5f666f;
-  --diff-absent: #14181e; /* the side a two-column row has nothing on */
-  --diff-selected: #24303f;
-  --diff-selected-line: #3d5a80;
+  --diff-add-surface: color-mix(in srgb, var(--p-success) 12%, var(--p-bg-0));
+  --diff-add-line: color-mix(in srgb, var(--p-success) 30%, var(--p-bg-1));
+  --diff-add-gutter: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
+  --diff-del-surface: color-mix(in srgb, var(--p-danger) 12%, var(--p-bg-0));
+  --diff-del-line: color-mix(in srgb, var(--p-danger) 30%, var(--p-bg-1));
+  --diff-del-gutter: color-mix(in srgb, var(--p-danger) 18%, var(--p-bg-1));
+  --diff-hunk-surface: color-mix(in srgb, var(--p-info) 6%, var(--p-bg-1));
+  --diff-hunk-ink: color-mix(in srgb, var(--p-info) 60%, var(--p-fg-4));
+  --diff-gutter-ink: color-mix(in srgb, var(--p-fg-4) 80%, var(--p-fg-5));
+  --diff-absent: color-mix(in srgb, var(--p-bg-1) 80%, var(--p-bg-2)); /* the side a two-column row has nothing on */
+  --diff-selected: color-mix(in srgb, var(--p-info) 15%, var(--p-bg-3));
+  --diff-selected-line: color-mix(in srgb, var(--p-info) 45%, var(--p-bg-5));
 
-  /* Syntax, for the diff and anything else that draws code */
-  --syntax-comment: #6b7580;
-  --syntax-string: #9ec97f;
-  --syntax-number: #d9a760;
-  --syntax-constant: #d9a760;
-  --syntax-keyword: #c58fd6;
-  --syntax-operator: #8ab5e1;
-  --syntax-function: #6f9ed6;
-  --syntax-type: #63bfba;
-  --syntax-variable: #c7d2dd;
-  --syntax-tag: #e06c75;
-  --syntax-attribute: #d9a760;
-  --syntax-punctuation: #8b939c;
+  /* Syntax, for the diff and anything else that draws code. Eight of these are an ansi slot, so a
+     terminal scheme reaches the code viewer too. */
+  --syntax-comment: var(--p-syntax-comment);
+  --syntax-string: var(--p-syntax-string);
+  --syntax-number: var(--p-ansi-yellow);
+  --syntax-constant: var(--p-ansi-yellow);
+  --syntax-keyword: var(--p-ansi-magenta);
+  --syntax-operator: var(--p-link);
+  --syntax-function: var(--p-ansi-blue);
+  --syntax-type: var(--p-ansi-cyan);
+  --syntax-variable: var(--p-ansi-white);
+  --syntax-tag: var(--p-ansi-red);
+  --syntax-attribute: var(--p-ansi-yellow);
+  --syntax-punctuation: var(--p-syntax-punctuation);
 
-  /* Shadows and scrims */
-  --shadow-menu: 0 12px 30px rgba(0, 0, 0, 0.38);
-  --shadow-popover: 0 16px 40px rgba(0, 0, 0, 0.42);
-  --shadow-panel: 0 22px 60px rgba(0, 0, 0, 0.45);
-  --shadow-composer: 0 15px 45px rgba(0, 0, 0, 0.2);
-  --shadow-overlay: 0 30px 80px rgba(0, 0, 0, 0.55);
-  --shadow-drag: 0 10px 26px rgba(0, 0, 0, 0.45);
-  --shadow-sidebar: 20px 0 60px rgba(0, 0, 0, 0.45);
-  --shadow-tooltip: 0 12px 32px rgba(0, 0, 0, 0.32);
-  --scrim: rgba(6, 8, 12, 0.85);
-  --scrim-soft: rgba(0, 0, 0, 0.38);
+  /* Shadows and scrims. Light themes carry the same geometry at a lower --p-shadow-scale. */
+  --shadow-menu: 0 12px 30px rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
+  --shadow-popover: 0 16px 40px rgb(var(--p-shadow) / calc(0.42 * var(--p-shadow-scale)));
+  --shadow-panel: 0 22px 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
+  --shadow-composer: 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  --shadow-overlay: 0 30px 80px rgb(var(--p-shadow) / calc(0.55 * var(--p-shadow-scale)));
+  --shadow-drag: 0 10px 26px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
+  --shadow-sidebar: 20px 0 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
+  --shadow-tooltip: 0 12px 32px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale)));
+  --scrim: rgb(var(--p-scrim) / 0.85);
+  --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
 
   /* Type and metrics */
   --text-meta: 12px;
@@ -174,7 +180,9 @@
   --text-badge: 10px;
   --row-slot: 22px;
   --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
 
+:root {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   color: var(--ink);
   background: var(--canvas);
@@ -1422,6 +1430,77 @@ pre {
 .settings-group-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 0; }
 .settings-group-heading h3 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 590; }
 .settings-group-heading p { margin: 6px 0 0; color: var(--quiet-strong); font-size: var(--text-control); line-height: 1.45; }
+
+/**
+ * A theme tile. Its own data-theme makes every token inside it that theme's, so the tile is drawn
+ * in the colours it offers rather than in a picture of them.
+ */
+.theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding-bottom: 22px; }
+.theme-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--canvas);
+  cursor: pointer;
+  text-align: left;
+}
+.theme-choice:hover { border-color: var(--line-bright); }
+.theme-choice.chosen { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.theme-choice-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--sidebar);
+  color: var(--ink);
+  font-size: var(--text-meta);
+  font-weight: 560;
+}
+.theme-choice-name svg { color: var(--accent); flex: none; }
+
+.theme-preview { display: flex; height: 84px; background: var(--canvas); }
+.theme-preview i { display: block; border-radius: 2px; }
+.theme-preview-sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 5px;
+  width: 34%;
+  padding: 9px 7px;
+  border-right: 1px solid var(--line-soft);
+  background: var(--sidebar);
+}
+.theme-preview-sidebar i { height: 5px; background: var(--quiet); }
+.theme-preview-sidebar i:first-child { background: var(--accent); width: 70%; }
+.theme-preview-sidebar i:last-child { width: 55%; }
+.theme-preview-body { display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 9px 8px; }
+.theme-preview-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface-raised);
+}
+.theme-preview-bubble i { height: 4px; background: var(--ink-faint); }
+.theme-preview-bubble i:last-child { width: 60%; background: var(--muted-soft); }
+.theme-preview-shell { display: flex; gap: 4px; padding: 5px 6px; border-radius: 4px; background: var(--code-surface); }
+.theme-preview-shell i { height: 4px; flex: 1; }
+.theme-preview-shell .ansi-green { background: var(--ansi-green); }
+.theme-preview-shell .ansi-blue { background: var(--ansi-blue); }
+.theme-preview-shell .ansi-yellow { background: var(--ansi-yellow); }
+.theme-preview-shell .ansi-magenta { background: var(--ansi-magenta); }
+.theme-preview-diff { display: flex; flex-direction: column; gap: 2px; }
+.theme-preview-diff i { height: 6px; border-radius: 0; }
+.theme-preview-diff .added { background: var(--diff-add-surface); border-left: 2px solid var(--success); }
+.theme-preview-diff .removed { background: var(--diff-del-surface); border-left: 2px solid var(--danger); }
 .settings-group-heading > span { flex: 0 0 auto; border-radius: 999px; padding: 5px 9px; background: var(--accent-chip); color: var(--accent-soft); font-size: var(--text-meta); font-weight: 600; }
 .settings-group-heading > span.ready { background: var(--success-surface); color: var(--success-soft); }
 .setting-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(150px, auto); align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 19px 0; }

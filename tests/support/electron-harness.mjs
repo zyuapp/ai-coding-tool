@@ -84,6 +84,7 @@ export async function startMainProcess(t, prefix, options = {}) {
     constructor(options) { this.options = options; }
     setBounds() {}
     setVisible() {}
+    setBackgroundColor() {}
   }
 
   globalThis.__claudexElectron = {
@@ -110,6 +111,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       exit() {},
     },
     BrowserWindow: FakeWindow,
+    nativeTheme: { themeSource: "system" },
     dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
     ipcMain: {
       handle: (name, handler) => handlers.set(name, handler),
@@ -147,7 +149,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
       },
     }, ...(options.computerUse ? [{
       name: "fake-computer-use",

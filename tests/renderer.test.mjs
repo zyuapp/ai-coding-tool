@@ -781,6 +781,7 @@ function fakeDesktop(overrides = {}) {
     browserCalls,
     get browserEvent() { return browserEvent; },
     shortcuts: [],
+    themes: [],
     captures: [],
     pressShortcut: (action, surface = "any") => shortcutPressed({ action, surface }),
     captureShortcut: (binding) => shortcutCaptured(binding),
@@ -813,6 +814,7 @@ function fakeDesktop(overrides = {}) {
     onTerminalData: () => () => {},
     onTerminalEvent: (next) => { terminalEvent = next; return () => {}; },
     setShortcuts(overrides) { this.shortcuts.push(overrides); },
+    setTheme(theme) { this.themes.push(theme); },
     setShortcutCapture(capturing) { this.captures.push(capturing); },
     onShortcut: (next) => { shortcutPressed = next; return () => {}; },
     onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
@@ -830,7 +832,7 @@ test("the general section installs the claudex command and takes it back", async
     installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/claudex" }; return status; },
     uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/claudex" }; return status; },
   });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   const button = () => view.container.querySelector(".setting-row-action button");
   assert.match(view.container.textContent, /Terminal command/);
@@ -848,7 +850,7 @@ test("the general section installs the claudex command and takes it back", async
 
 test("an install the password prompt refuses is reported, not swallowed", async () => {
   window.desktop = fakeDesktop({ installCli: async () => { throw new Error("Cancelled."); } });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   await act(async () => { view.container.querySelector(".setting-row-action button").click(); });
 
@@ -904,7 +906,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
   };
   let answer = windows;
   window.desktop = fakeDesktop({ planUsage: async () => answer });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.textContent, /Max plan/);
@@ -926,7 +928,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
 
 test("a usage read that rejects reports instead of breaking the panel", async () => {
   window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.querySelector(".settings-error").textContent, /Untrusted IPC sender/);

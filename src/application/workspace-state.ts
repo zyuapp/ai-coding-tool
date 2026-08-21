@@ -10,6 +10,7 @@ import { findHits, type FindHit, type FindResults, type FindTarget } from "../do
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { TerminalSession } from "../domain/terminal.js";
+import { DEFAULT_THEME } from "../domain/theme.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
@@ -189,6 +190,7 @@ export type WorkspaceState = {
   expandedProjects: Set<string>;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
+  theme: string;
   sidebarMode: SidebarMode;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
@@ -254,6 +256,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     pastes: {},
     expandedProjects: new Set(),
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    theme: DEFAULT_THEME,
     sidebarMode: "projects",
     sidebarOpen: true,
     sessionPanelOpen: false,
@@ -382,6 +385,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     if (urls.length) browserTabs[owner] = urls;
   }
   return {
+    theme: state.theme,
     sessionPanelOpen: state.sessionPanelOpen,
     sidebarOpen: state.sidebarOpen,
     sidebarMode: state.sidebarMode,
@@ -759,6 +763,7 @@ export function deriveView(state: WorkspaceState) {
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
     sections: state.sections,
+    theme: state.theme,
     sidebarMode: state.sidebarMode,
     sidebarOpen: state.sidebarOpen,
     sessionPanelOpen: state.sessionPanelOpen,

@@ -37,6 +37,7 @@ import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "
 import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
 import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
+import { nextTheme, themeById, themeOrDefault } from "../domain/theme.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import { clampTitle, findProject, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
@@ -783,6 +784,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "dock.toggle": return [{ type: "view.set-dock-open", open: !dockFor(state, dockOwner(state)).open }];
     case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
+    case "appearance.cycle-theme": return [{ type: "view.set-theme", theme: nextTheme(state.theme).id }];
     default: return [];
   }
 }
@@ -1547,6 +1549,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       }
       return settled({
         ...state,
+        theme: themeOrDefault(input.preferences.theme).id,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
         sidebarOpen: input.preferences.sidebarOpen,
         sidebarMode: input.preferences.sidebarMode,
@@ -1605,6 +1608,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.set-section-open":
       return settled({ ...state, sections: { ...state.sections, [input.section]: input.open } });
+
+    case "view.set-theme": {
+      if (!themeById(input.theme) || state.theme === input.theme) return settled(state);
+      const next = { ...state, theme: input.theme };
+      return settled(next, persistView(next));
+    }
 
     case "view.set-sidebar-mode": {
       if (state.sidebarMode === input.mode) return settled(state);
