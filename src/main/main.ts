@@ -371,6 +371,13 @@ function applyWindowTheme(theme: WindowTheme) {
   if (window && !window.isDestroyed()) window.setBackgroundColor(theme.canvas);
 }
 
+/** Writes queue behind one another, since two overlapping ones leave the tail of the longer. */
+let themeWritten: Promise<void> = Promise.resolve();
+
+function rememberWindowTheme(theme: WindowTheme) {
+  themeWritten = themeWritten.then(() => writeFile(windowThemePath(), JSON.stringify(theme))).catch(() => undefined);
+}
+
 function revealWindow() {
   if (quitState !== "running") return;
   if (!window || window.isDestroyed()) return;
@@ -794,7 +801,7 @@ ipcMain.on("theme:set", (event, theme: unknown) => {
   if (!trustedSender(event) || !isWindowTheme(theme)) return;
   if (theme.variant === windowTheme.variant && theme.canvas === windowTheme.canvas) return;
   applyWindowTheme(theme);
-  void writeFile(windowThemePath(), JSON.stringify(theme)).catch(() => undefined);
+  rememberWindowTheme(theme);
 });
 
 ipcMain.on("shortcuts:set", (event, overrides: unknown) => {

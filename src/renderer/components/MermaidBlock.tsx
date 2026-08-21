@@ -109,6 +109,8 @@ const OpenDiagram = createContext<((diagram: Diagram) => void) | null>(null);
 export function DiagramViewerHost({ children }: { children: ReactNode }) {
   const [diagram, setDiagram] = useState<Diagram | null>(null);
   const open = useCallback((next: Diagram) => setDiagram(next), []);
+  /** The drawing on screen carries the theme it was rendered in, so a theme change closes it. */
+  useEffect(() => subscribeToGeneration(() => setDiagram(null)), []);
   return (
     <OpenDiagram.Provider value={open}>
       {children}
@@ -181,8 +183,11 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
     if (!visible || pending || drawn.has(source)) return;
     let cancelled = false;
     void (async () => {
+      /** Mermaid keys its scratch node on the id it is given, so two renders may not share one. */
+      const drawnAs = generation;
       try {
         const { default: mermaid } = await import("mermaid");
+        if (readGeneration() !== drawnAs) return;
         if (!initialized) {
           const scheme = getComputedStyle(document.documentElement).colorScheme;
           mermaid.initialize({
@@ -193,9 +198,11 @@ export function MermaidBlock({ source, pending = false }: { source: string; pend
           });
           initialized = true;
         }
-        const { svg } = await mermaid.render(`mermaid-${id}`, source);
+        const { svg } = await mermaid.render(`mermaid-${id}-${drawnAs}`, source);
+        if (readGeneration() !== drawnAs) return;
         remember(source, { diagram: naturalDiagram(svg) });
       } catch (error) {
+        if (readGeneration() !== drawnAs) return;
         remember(source, { error: error instanceof Error ? error.message : String(error) });
       }
       if (!cancelled) setResult({ source, ...drawn.get(source) });
