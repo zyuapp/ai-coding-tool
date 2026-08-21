@@ -13,10 +13,14 @@ const PARTITION = "persist:browser";
 const IDENTITY = chromeIdentity(process.versions.chrome);
 const REF_ATTRIBUTE = "data-claudex-ref";
 const DEFAULT_TEXT_LIMIT = 4_000;
+/** A page nobody is looking at still lays itself out, so it is given a window's worth of room. */
+const PARKED_VIEWPORT: Rectangle = { x: 0, y: 0, width: 1_200, height: 800 };
 
 type Tab = {
   id: string;
   view: WebContentsView;
+  /** Whether the window is drawing this page. Only the page on screen is ever a child of it. */
+  shown: boolean;
 };
 
 const tabs = new Map<string, Tab>();
@@ -26,6 +30,8 @@ let publishFind: (tabId: string, results: FindResults) => void = () => undefined
 let keyPressed: (input: Electron.Input) => boolean = () => false;
 let activeId: string | null = null;
 let bounds: BrowserBounds | null = null;
+let parked: Rectangle = PARKED_VIEWPORT;
+let parking: BrowserWindow | null = null;
 
 /** Reads what a caller can act on, keeping the refs it hands out on the elements themselves. */
 const SNAPSHOT_SCRIPT = `(() => {
@@ -95,16 +101,44 @@ export function stopBrowserHost() {
   host = null;
   activeId = null;
   bounds = null;
+  parked = PARKED_VIEWPORT;
+  /** A window left behind is one the app still counts, and the app quits by counting its windows. */
+  if (parking && !parking.isDestroyed()) parking.destroy();
+  parking = null;
 }
 
 function report(tabId: string, event: Omit<BrowserPageEvent, "tabId">) {
   publish({ tabId, ...event });
 }
 
+/**
+ * Where a page waits while the panel is not showing it. A window of its own is what gives it a
+ * viewport to lay out in: a page belonging to no window at all measures zero by zero, which is no
+ * page to read. Nothing ever shows this window.
+ */
+function parkingWindow(): BrowserWindow | null {
+  if (parking && !parking.isDestroyed()) return parking;
+  if (!host || host.isDestroyed()) return null;
+  parking = new BrowserWindow({ show: false, width: PARKED_VIEWPORT.width, height: PARKED_VIEWPORT.height });
+  return parking;
+}
+
+/**
+ * Which window a page belongs to, which is the app's own only while the panel is showing it. A page
+ * navigating inside a window takes the keyboard off whatever there had it, drawn or not, so a run
+ * browsing in the background is parked out of the app's window rather than hidden inside it.
+ */
 function layout(tab: Tab) {
-  const visible = tab.id === activeId && bounds !== null;
-  tab.view.setVisible(visible);
-  if (visible && bounds) tab.view.setBounds(inWindow(bounds));
+  if (!host || host.isDestroyed()) return;
+  const shown = tab.id === activeId && bounds !== null;
+  const home = shown ? host : parkingWindow();
+  if (!home) return;
+  if (shown !== tab.shown) {
+    home.contentView.addChildView(tab.view);
+    tab.shown = shown;
+  }
+  tab.view.setVisible(shown);
+  tab.view.setBounds(shown && bounds ? inWindow(bounds) : parked);
 }
 
 /**
@@ -128,10 +162,9 @@ export function openTab(tabId: string, url?: string) {
   const view = new WebContentsView({
     webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false },
   });
-  const tab: Tab = { id: tabId, view };
+  const tab: Tab = { id: tabId, view, shown: false };
   tabs.set(tabId, tab);
-  host.contentView.addChildView(view);
-  view.setVisible(false);
+  parkingWindow()?.contentView.addChildView(view);
   watch(tab);
   if (url) void load(tab, url);
   layout(tab);
@@ -214,7 +247,8 @@ export function closeTab(tabId: string) {
   const tab = tabs.get(tabId);
   if (!tab) return;
   tabs.delete(tabId);
-  if (host && !host.isDestroyed()) host.contentView.removeChildView(tab.view);
+  const home = tab.shown ? host : parking;
+  if (home && !home.isDestroyed()) home.contentView.removeChildView(tab.view);
   tab.view.webContents.close();
 }
 
@@ -227,6 +261,8 @@ export function showTab(tabId: string | null) {
 /** Where the panel is, in window coordinates. Null means the panel is not on screen at all. */
 export function setBounds(box: BrowserBounds | null) {
   bounds = box;
+  /** A page off screen lays out in the panel it would appear in, or a window's worth when there is none. */
+  parked = box ? { ...inWindow(box), x: 0, y: 0 } : PARKED_VIEWPORT;
   for (const tab of tabs.values()) layout(tab);
 }
 

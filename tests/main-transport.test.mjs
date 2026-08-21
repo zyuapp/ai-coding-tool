@@ -177,3 +177,30 @@ test("a folder the claudex command names is registered and handed to the window 
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("a page the panel is not showing belongs to a window of its own", async () => {
+  const { handlers, window, windows, trusted } = main;
+  const panel = { x: 40, y: 60, width: 900, height: 700 };
+  const view = () => windows.flatMap((each) => each.children)[0];
+
+  await handlers.get("browser:open")(trusted, "tab-parked", "https://example.com/");
+  assert.equal(window.children.length, 0, "a page nobody is showing is not in the app's window");
+  const page = view();
+  assert.ok(page, "the page is parked in a window all the same");
+  assert.deepEqual(page.bounds, { x: 0, y: 0, width: 1200, height: 800 }, "and is given a viewport to lay out in");
+  const parking = windows.find((each) => each.children.includes(page));
+  assert.notEqual(parking, window);
+  assert.equal(parking.isVisible(), false, "nothing ever shows it");
+
+  await handlers.get("browser:bounds")(trusted, panel);
+  await handlers.get("browser:show")(trusted, "tab-parked");
+  assert.deepEqual(window.children, [page], "the page the panel shows is the app window's own");
+  assert.deepEqual(page.bounds, panel);
+
+  await handlers.get("browser:bounds")(trusted, null);
+  assert.equal(window.children.length, 0, "a closed panel puts the page back where it cannot take the keyboard");
+  assert.deepEqual(parking.children, [page]);
+
+  await handlers.get("browser:close")(trusted, "tab-parked");
+  assert.equal(windows.flatMap((each) => each.children).length, 0);
+});

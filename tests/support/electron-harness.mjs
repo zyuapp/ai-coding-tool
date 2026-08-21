@@ -54,9 +54,22 @@ export async function startMainProcess(t, prefix, options = {}) {
       setWindowOpenHandler: (handler) => { this.webContents.windowOpenHandler = handler; },
       getZoomFactor: () => 1,
     };
-    contentView = { addChildView() {}, removeChildView() {} };
-    constructor(options) { this.options = options; windows.push(this); }
-    isDestroyed() { return false; }
+    /** Views live in exactly one window, the way Electron parents them. */
+    children = [];
+    contentView = {
+      addChildView: (view) => {
+        for (const other of windows) other.children = other.children.filter((child) => child !== view);
+        this.children.push(view);
+      },
+      removeChildView: (view) => { this.children = this.children.filter((child) => child !== view); },
+    };
+    constructor(options) { this.options = options; this.visible = options?.show !== false; windows.push(this); }
+    destroy() {
+      this.destroyed = true;
+      const at = windows.indexOf(this);
+      if (at !== -1) windows.splice(at, 1);
+    }
+    isDestroyed() { return this.destroyed === true; }
     isMinimized() { return false; }
     isVisible() { return this.visible !== false; }
     restore() {}
@@ -82,8 +95,8 @@ export async function startMainProcess(t, prefix, options = {}) {
       async executeJavaScript() { return ""; },
     };
     constructor(options) { this.options = options; }
-    setBounds() {}
-    setVisible() {}
+    setBounds(bounds) { this.bounds = bounds; }
+    setVisible(visible) { this.visible = visible; }
     setBackgroundColor() {}
   }
 
