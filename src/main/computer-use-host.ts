@@ -7,6 +7,7 @@ import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfi
 
 const bundleId = "com.zyuapp.claudex";
 let host: EmbeddedCuaDriverHost | null = null;
+let acceptingRuns = true;
 
 function packagedModule(file: string) {
   return pathToFileURL(path.join(process.resourcesPath, "cua-sdk", "node_modules", "@trycua", "cua-driver", "dist", file)).href;
@@ -76,22 +77,29 @@ function mcpConfig(connection: EmbeddedDriverConnection): ComputerUseRunConfig {
 }
 
 export async function computerUseForRun(): Promise<ComputerUseRunConfig> {
+  if (!acceptingRuns) return { status: "unavailable", message: "Claudex is quitting." };
   if (process.platform !== "darwin") return { status: "unavailable", message: "Computer use is currently available only on macOS." };
   const permissions = await computerUsePermissions();
+  if (!acceptingRuns) return { status: "unavailable", message: "Claudex is quitting." };
   if (!permissions.accessibility || !permissions.screenRecording) return { status: "setup-required" };
   const executable = binaryPath();
   if (!existsSync(executable)) return { status: "unavailable", message: "The bundled Cua Driver executable is missing." };
   if (!host) {
     const { EmbeddedCuaDriverHost: Host } = await cuaDriver();
+    if (!acceptingRuns) return { status: "unavailable", message: "Claudex is quitting." };
     host = new Host(executable, bundleId);
   }
   return mcpConfig(host.connection() ?? await host.start());
 }
 
 export async function stopComputerUse() {
+  acceptingRuns = false;
   if (!host) return;
   const current = host;
   host = null;
-  await current.stop();
-  current.uniffiDestroy();
+  try {
+    await current.stop();
+  } finally {
+    current.uniffiDestroy();
+  }
 }

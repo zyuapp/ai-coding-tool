@@ -30,7 +30,7 @@ class FakeAgent extends EventEmitter {
  * Boots src/main/main.ts against a stub Electron so IPC wiring can be driven from a test.
  * Each boot starts its own Vite server, so share one per test file rather than one per test.
  */
-export async function startMainProcess(t, prefix) {
+export async function startMainProcess(t, prefix, options = {}) {
   let disposed = false;
   const userData = await mkdtemp(path.join(os.tmpdir(), prefix));
   const handlers = new Map();
@@ -40,6 +40,9 @@ export async function startMainProcess(t, prefix) {
   const appListeners = new Map();
   const protocolHandlers = new Map();
   const externalUrls = [];
+  const relaunches = [];
+  let quitAttempts = 0;
+  let completedQuits = 0;
 
   class FakeWindow {
     static getAllWindows() { return windows; }
@@ -55,8 +58,10 @@ export async function startMainProcess(t, prefix) {
     constructor(options) { this.options = options; windows.push(this); }
     isDestroyed() { return false; }
     isMinimized() { return false; }
+    isVisible() { return this.visible !== false; }
     restore() {}
-    show() {}
+    show() { this.visible = true; }
+    hide() { this.visible = false; }
     on() {}
     async loadFile() {}
   }
@@ -92,7 +97,16 @@ export async function startMainProcess(t, prefix) {
       requestSingleInstanceLock: () => true,
       setAsDefaultProtocolClient() {},
       focus() {},
-      quit() {},
+      quit() {
+        quitAttempts += 1;
+        let prevented = false;
+        appListeners.get("before-quit")?.({ preventDefault: () => { prevented = true; } });
+        if (!prevented) {
+          completedQuits += 1;
+          appListeners.get("will-quit")?.();
+        }
+      },
+      relaunch: (relaunchOptions) => { relaunches.push(relaunchOptions); },
       exit() {},
     },
     BrowserWindow: FakeWindow,
@@ -135,8 +149,18 @@ export async function startMainProcess(t, prefix) {
       load(id) {
         if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, net=e.net, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
       },
-    }],
+    }, ...(options.computerUse ? [{
+      name: "fake-computer-use",
+      enforce: "pre",
+      resolveId(id, importer) {
+        if (id === "./computer-use-host.js" && importer?.endsWith("/src/main/main.ts")) return "\0fake-computer-use";
+      },
+      load(id) {
+        if (id === "\0fake-computer-use") return "const c = globalThis.__claudexComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse;";
+      },
+    }] : [])],
   });
+  if (options.computerUse) globalThis.__claudexComputerUse = options.computerUse;
   const dispose = async () => {
     if (disposed) return;
     disposed = true;
@@ -144,6 +168,7 @@ export async function startMainProcess(t, prefix) {
     await vite.close();
     await rm(userData, { recursive: true, force: true });
     delete globalThis.__claudexElectron;
+    delete globalThis.__claudexComputerUse;
     delete globalThis.__dirname;
     delete process.versions.chrome;
   };
@@ -158,6 +183,7 @@ export async function startMainProcess(t, prefix) {
 
   const window = windows[0];
   return {
+    app: globalThis.__claudexElectron.app,
     dispose,
     userData,
     handlers,
@@ -166,6 +192,9 @@ export async function startMainProcess(t, prefix) {
     agents,
     appListeners,
     externalUrls,
+    relaunches,
+    quitAttempts: () => quitAttempts,
+    completedQuits: () => completedQuits,
     protocolHandlers,
     window,
     trusted: { sender: window.webContents },

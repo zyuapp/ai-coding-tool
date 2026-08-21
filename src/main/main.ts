@@ -46,8 +46,11 @@ let workspaceService: WorkspaceService | null = null;
 let worktreeService: WorktreeService | null = null;
 let taskDatabase: TaskDatabase | null = null;
 let automationScheduler: AutomationScheduler | null = null;
-let quitting = false;
-let quitAfterComputerUseStops = false;
+let quitState: "running" | "stopping" | "ready" = "running";
+let restartRequested = false;
+let restartIssued = false;
+let updateRestartScheduled = false;
+let reopenArgs: string[] | null = null;
 /** Folders the `claudex` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
 let rendererListening = false;
@@ -236,7 +239,7 @@ function startAgent() {
   });
   agent.on("exit", (code) => {
     agent = null;
-    if (!quitting) {
+    if (quitState === "running") {
       pendingStarts.clear();
       const message = `Agent process exited${code === null ? "" : ` with code ${code}`}.`;
       for (const event of failedEventsForTransportLoss(runStates.values(), message)) publishRunEvent(event);
@@ -314,7 +317,7 @@ async function dispatchStart(command: StartRunCommand) {
 }
 
 function handleRunCommand(event: IpcMainEvent, payload: unknown) {
-  if (!trustedSender(event) || !isRunCommand(payload)) return;
+  if (quitState !== "running" || !trustedSender(event) || !isRunCommand(payload)) return;
   if (payload.type === "start") {
     if (runStates.has(runKey(payload.taskId, payload.runId))) return;
     for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId), (command) => command.taskId === payload.taskId)) {
@@ -340,10 +343,34 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
 const CANVAS = "#0e1117";
 
 function revealWindow() {
+  if (quitState !== "running") return;
   if (!window || window.isDestroyed()) return;
   if (window.isMinimized()) window.restore();
   window.show();
   app.focus({ steal: true });
+}
+
+function scheduleRestart(args?: string[]) {
+  if (restartIssued || updateRestartScheduled || !restartRequested) return;
+  restartIssued = true;
+  app.relaunch(args ? { args } : undefined);
+}
+
+function requestRestart(args?: string[]) {
+  restartRequested = true;
+  if (args || reopenArgs === null) reopenArgs = args ?? [];
+  if (quitState === "ready") scheduleRestart(reopenArgs.length ? reopenArgs : undefined);
+}
+
+/** A launch aimed at the old process waits for it to finish rather than racing its teardown. */
+function queueReopen(args?: string[]) {
+  if (quitState === "running") return false;
+  requestRestart(args);
+  return true;
+}
+
+function argsForReopen(url: string) {
+  return [...process.argv.slice(1).filter((argument) => !argument.startsWith(`${CLI_URL_SCHEME}://`)), url];
 }
 
 /** Registers each folder the CLI named and hands it to the window, which is the only writer of state. */
@@ -368,12 +395,15 @@ function openProjectPath(root: string) {
 
 app.on("open-url", (event, url) => {
   event.preventDefault();
+  if (queueReopen(argsForReopen(url))) return;
   const root = projectPathFromUrl(url);
   if (root) openProjectPath(root);
   else revealWindow();
 });
 
 app.on("second-instance", (_event, argv) => {
+  const url = argv.find((argument) => argument.startsWith(`${CLI_URL_SCHEME}://`));
+  if (queueReopen(url ? argsForReopen(url) : undefined)) return;
   const root = projectPathFromArgv(argv);
   if (root) openProjectPath(root);
   else revealWindow();
@@ -462,7 +492,10 @@ async function checkForUpdates() {
       defaultId: 0,
       cancelId: 1,
     });
-    if (result.response === 0) autoUpdater.quitAndInstall(false, true);
+    if (result.response === 0) {
+      updateRestartScheduled = true;
+      autoUpdater.quitAndInstall(false, true);
+    }
   });
   await autoUpdater.checkForUpdates();
 }
@@ -525,6 +558,7 @@ app.whenReady().then(async () => {
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates().catch((error) => console.error("Update check failed:", error));
   app.on("activate", () => {
+    if (queueReopen()) return;
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
   });
 });
@@ -534,14 +568,24 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", (event) => {
-  if (!quitAfterComputerUseStops) {
-    event.preventDefault();
-    quitAfterComputerUseStops = true;
-    void stopComputerUse().finally(() => app.quit());
+  if (quitState === "ready") {
+    agent?.kill();
     return;
   }
-  quitting = true;
+  event.preventDefault();
+  if (quitState === "stopping") return;
+  quitState = "stopping";
+  automationScheduler?.stop();
+  pendingStarts.clear();
   agent?.kill();
+  if (window && !window.isDestroyed()) window.hide();
+  void stopComputerUse()
+    .catch((error) => console.error("Could not stop computer use:", error))
+    .finally(() => {
+      quitState = "ready";
+      if (restartRequested) scheduleRestart(reopenArgs?.length ? reopenArgs : undefined);
+      app.quit();
+    });
 });
 
 app.on("will-quit", () => {
@@ -635,7 +679,7 @@ ipcMain.handle("usage:plan", async (event) => {
 
 ipcMain.on("computer-use:restart", (event) => {
   if (!trustedSender(event)) return;
-  app.relaunch();
+  requestRestart();
   app.quit();
 });
 
