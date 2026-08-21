@@ -108,11 +108,12 @@ export function App() {
     void workspace.actions.openDockPanel(id);
   }
 
-  function closeRightTab(id: string) {
-    if (workspace.dockPanels.includes(id)) void workspace.actions.closeDockPanel(id);
-    else if (workspace.browserTabs.some((tab) => tab.id === id)) void workspace.actions.closeBrowserTab(id);
-    else if (workspace.terminals.some((terminal) => terminal.id === id)) void workspace.actions.closeTerminal(id);
-    else void workspace.dispatch({ type: "side-chat.close", chatId: id });
+  /** The strip keeps the keyboard when a tab goes, so closing several in a row never needs the mouse. */
+  async function closeRightTab(id: string) {
+    if (workspace.dockPanels.includes(id)) await workspace.actions.closeDockPanel(id);
+    else if (workspace.browserTabs.some((tab) => tab.id === id)) await workspace.actions.closeBrowserTab(id);
+    else if (workspace.terminals.some((terminal) => terminal.id === id)) await workspace.actions.closeTerminal(id);
+    else await workspace.dispatch({ type: "side-chat.close", chatId: id });
     requestAnimationFrame(() => {
       (document.querySelector<HTMLElement>('.right-dock-tab.active [role="tab"]') ?? addMenuTrigger.current)?.focus();
     });
@@ -255,6 +256,10 @@ export function App() {
   const dockFocus = workspace.dockFocus;
   const focusTokenFor = (tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0;
 
+  const panelViews = useRef(new Map<string, HTMLDivElement | null>());
+  /** A page holds the keys itself, so the window must not take them back while one is in front. */
+  const pageInFront = rightDockOpen && !settingsVisible && workspace.browserTabs.some((tab) => tab.id === activeRightTab && tab.url);
+
   const browserTab = workspace.browserTabs.find((tab) => tab.id === activeRightTab);
   const shownTerminal = workspace.terminals.find((terminal) => terminal.id === activeRightTab);
 
@@ -268,6 +273,26 @@ export function App() {
   /** Held still, so a link in a settled message is not a fresh handler on every render of the shell. */
   const dispatchRef = useRef(workspace.dispatch);
   dispatchRef.current = workspace.dispatch;
+
+  useEffect(() => {
+    if (dockFocus) panelViews.current.get(dockFocus.tab)?.focus();
+  }, [dockFocus]);
+
+  /**
+   * A view taken off screen leaves the caret nowhere a keystroke can reach, and a window with no
+   * caret answers no typing at all. Whenever one goes the composer takes the keyboard back, unless a
+   * page or the settings sheet is the one holding it.
+   */
+  useEffect(() => {
+    if (pageInFront || settingsVisible) return;
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      const stranded = !active || active === document.body || !active.isConnected || active.closest("[hidden],[inert]") !== null;
+      if (stranded) void dispatchRef.current({ type: "view.focus-composer" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [rightDockOpen, sidebarOpen, settingsVisible, pageInFront, dockFocus, activeRightTab]);
+
   const messageLinks = useMemo<MessageLinkActions>(() => ({
     selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),
     openFile: (path: string, line: number | null) => void dispatchRef.current({ type: "file.open", path, line: line ?? undefined }),
@@ -494,7 +519,8 @@ export function App() {
                 </div>
               </div>
               {dockPanels.map((panel) => (
-                <div key={panel.id} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
+                /** A panel has no field to put a caret in, so the panel itself takes the keys and scrolls. */
+                <div key={panel.id} ref={(element) => { panelViews.current.set(panel.id, element); }} tabIndex={-1} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
               ))}
               {/** A page is a native view main draws over the panel, so only the one on top is ever drawn. */}
               {browserTab && (

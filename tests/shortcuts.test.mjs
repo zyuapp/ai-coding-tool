@@ -152,7 +152,7 @@ test("going back with a keystroke moves the cursor rather than recording a visit
 test("a new tab answers with whatever the panel is showing", () => {
   const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
   const shell = reduce(state, { type: "view.shortcut", action: "tab.new", surface: "any" });
-  assert.deepEqual(shell.effects.map((effect) => effect.type), ["terminal.start"], "with no page in front, a shell");
+  assert.deepEqual(shell.effects.map((effect) => effect.type), ["terminal.start", "focus-window"], "with no page in front, a shell, and the keyboard with it");
 
   const page = run(state, [{ type: "browser.new-tab" }]);
   const second = reduce(page, { type: "view.shortcut", action: "tab.new", surface: "any" });

@@ -1484,6 +1484,36 @@ test("a view opened in the dock takes the caret with it", async () => {
   await view.unmount();
 });
 
+test("hiding the panel hands the caret back instead of losing it", async () => {
+  localStorage.clear();
+  localStorage.setItem("claudex.store.v2", JSON.stringify({
+    tasks: JSON.stringify({ version: 2, value: [{
+      id: "task-1",
+      title: "Inspect",
+      executionPolicy: "confirm",
+      messages: [],
+      continuation: { provider: "claude", value: "main-session" },
+      continuationStatus: "available",
+      lastChangeSnapshot: { files: [], capturedAt: 1 },
+      updatedAt: 2,
+    }] }),
+    projects: JSON.stringify({ version: 2, value: [] }),
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  }));
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Open Side chat panel"]').click(); });
+  assert.equal(document.activeElement, view.container.querySelector('textarea[aria-label="Side chat prompt"]'));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Hide right panel"]').click(); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(document.activeElement, view.container.querySelector('textarea[aria-label="Task prompt"]'), "the composer takes the keyboard the hidden panel was holding");
+
+  await view.unmount();
+});
+
 test("session summary stays outside the tabbed right panel", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();

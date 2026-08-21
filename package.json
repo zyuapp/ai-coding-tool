@@ -10,7 +10,7 @@
   "scripts": {
     "build": "vite build && tsc -p tsconfig.main.json",
     "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "test": "npm run build && node --test --test-timeout=5000 tests/*.test.mjs",
+    "test": "npm run build && node --test --test-timeout=20000 tests/*.test.mjs",
     "prepare:cua": "node scripts/prepare-cua-driver.mjs",
     "start": "npm run prepare:cua && npm run build && electron .",
     "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never"

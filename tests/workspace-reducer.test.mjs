@@ -1196,7 +1196,7 @@ test("archiving a thread cancels its run and then hands its checkout back", () =
 
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" });
 
-  assert.deepEqual(archived.effects.filter((effect) => effect.type !== "browser.show"), [
+  assert.deepEqual(archived.effects.filter((effect) => effect.type !== "browser.show" && effect.type !== "focus-window"), [
     { type: "send-run-command", command: { type: "cancel", taskId: "task-a", runId: "run-a" } },
     { type: "release-worktree", taskId: "task-a", worktreeId: "wt1", root: worktree.root, title: "task-a" },
   ]);
@@ -1909,7 +1909,7 @@ test("a terminal opens in the thread's own checkout and takes a dock tab of its 
   assert.equal(dock(opened.state).terminalId, terminal.id);
   assert.equal(dock(opened.state).open, true, "a shell has to land somewhere the user can see it");
   assert.equal(dock(opened.state).tab, terminal.id, "a shell is a tab in the dock, not a tab inside a panel");
-  assert.deepEqual(opened.effects, [{ type: "terminal.start", terminalId: terminal.id, cwd: "/repo" }]);
+  assert.deepEqual(opened.effects, [{ type: "terminal.start", terminalId: terminal.id, cwd: "/repo" }, { type: "focus-window" }], "the shell starts, and the window hands it the keyboard");
 
   const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
   assert.equal(dock(reduce(inWorktree, { type: "terminal.open" }).state).terminals[0].cwd, "/worktrees/repo-w1");
@@ -1993,7 +1993,7 @@ test("⌘W closes the terminal in front, then the dock behind it", () => {
 
   const closedShell = reduce(opened.state, { type: "view.close-tab" });
   assert.deepEqual(dock(closedShell.state).terminals, []);
-  assert.deepEqual(closedShell.effects, [{ type: "terminal.close", terminalId: terminal.id }]);
+  assert.deepEqual(closedShell.effects, [{ type: "terminal.close", terminalId: terminal.id }, { type: "focus-window" }], "what the closed shell was holding comes back to the window");
   assert.equal(dock(closedShell.state).tab, "home", "nothing is left in the dock but the picker");
 
   assert.equal(dock(reduce(closedShell.state, { type: "view.close-tab" }).state).open, false);
@@ -2017,7 +2017,8 @@ test("every thread keeps a dock of its own, panels, pages and shells alike", () 
   assert.deepEqual(dock(switched.state).panels, [], "the thread the user lands on opens its own dock, which is empty");
   assert.deepEqual(dock(switched.state).browserTabs, []);
   assert.deepEqual(dock(switched.state).terminals, []);
-  assert.deepEqual(switched.effects.at(-1), { type: "browser.show", tabId: null }, "and the panel stops drawing the page it was showing");
+  assert.deepEqual(switched.effects.at(-2), { type: "browser.show", tabId: null }, "and the panel stops drawing the page it was showing");
+  assert.deepEqual(switched.effects.at(-1), { type: "focus-window" }, "the page it was drawing does not keep the keys");
 
   const back = reduce(switched.state, { type: "task.select", taskId: "task-1" });
   assert.deepEqual(dock(back.state).panels, ["agents"], "the dock a thread was left in comes back as it was");
@@ -2096,7 +2097,7 @@ test("a run drives its own thread's dock, whichever thread the user is looking a
 
   const shown = reduce(opened.state, { type: "task.select", taskId: "task-2" });
   assert.equal(dock(shown.state).tab, dock(opened.state, "task-2").browserTabs[0].id, "landing on that thread shows what its run opened");
-  assert.equal(shown.effects.at(-1).type, "browser.show");
+  assert.equal(shown.effects.at(-2).type, "browser.show");
 });
 
 test("a view the user opens in the dock is handed the keyboard, and a run's own page is not", () => {
@@ -2119,6 +2120,29 @@ test("a view the user opens in the dock is handed the keyboard, and a run's own 
   const byRun = reduce(stepped.state, { type: "browser.open", taskId: "task-2", url: "https://two.example" });
   assert.deepEqual(byRun.state.dockFocus, stepped.state.dockFocus, "a run's own page never takes the keyboard");
   assert.equal(deriveView(byRun.state).dockFocus.tab, terminalId);
+});
+
+test("only a page holds the keys itself; everything else in the dock needs the window to take them back", () => {
+  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1")], currentId: "task-1" };
+
+  const shell = reduce(state, { type: "terminal.open" });
+  assert.deepEqual(shell.effects.at(-1), { type: "focus-window" }, "a shell is drawn in the window");
+
+  const blank = reduce(shell.state, { type: "browser.new-tab" });
+  assert.deepEqual(blank.effects.at(-1), { type: "focus-window" }, "a page with no address is answered by the address bar");
+
+  const loaded = reduce(blank.state, { type: "browser.open", url: "https://one.example" });
+  assert.equal(loaded.effects.some((effect) => effect.type === "focus-window"), false, "a page the user opens takes the keys itself");
+
+  const panel = reduce(loaded.state, { type: "view.open-dock-panel", panel: "agents" });
+  assert.equal(panel.state.dockFocus.tab, "agents", "a panel is a view to read, so it takes the keyboard too");
+  assert.deepEqual(panel.effects.at(-1), { type: "focus-window" });
+
+  const hidden = reduce(panel.state, { type: "view.set-dock-open", open: false });
+  assert.deepEqual(hidden.effects, [{ type: "focus-window" }], "a hidden panel must not keep what it was holding");
+
+  const shown = reduce(hidden.state, { type: "view.set-dock-open", open: true });
+  assert.equal(shown.state.dockFocus.tab, "agents", "showing the panel again hands the tab in front the keyboard");
 });
 
 test("a new thread is opened to type in, so the caret and the keys go to its composer", () => {
@@ -2175,6 +2199,7 @@ test("closing a tab takes what is in front, and only then the window", () => {
   const shut = reduce(settings.state, { type: "view.close-tab" });
   assert.equal(shut.state.settingsOpen, false);
   assert.deepEqual(shut.effects, [], "settings closing is not the window closing");
+  assert.deepEqual(settings.effects, [{ type: "focus-window" }], "settings opening takes the keys off whatever was drawing");
 
   const asked = reduce({ ...base, computerUseSetup: true }, { type: "view.close-tab" });
   assert.equal(asked.state.computerUseSetup, false, "the settings computer use opened close the same way");
@@ -2201,7 +2226,7 @@ test("closing a tab takes what is in front, and only then the window", () => {
 
   const closedDock = reduce(closedAgents.state, { type: "view.close-tab" });
   assert.equal(dock(closedDock.state).open, false, "the picker showing means the dock itself is what is in front");
-  assert.deepEqual(closedDock.effects, []);
+  assert.deepEqual(closedDock.effects, [{ type: "focus-window" }], "and the window is left with the keyboard");
 
   assert.deepEqual(reduce(closedDock.state, { type: "view.close-tab" }).effects, [{ type: "close-window" }]);
 });

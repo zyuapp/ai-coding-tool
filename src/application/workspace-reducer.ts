@@ -236,9 +236,14 @@ function showDockTab(state: WorkspaceState, owner: string, tab: string): Workspa
   return withDock(state, owner, { open: true, tab });
 }
 
-/** Hands a dock tab the keyboard. The view watches the count rather than being told to focus. */
-function focusDockTab(state: WorkspaceState, owner: string, tab: string): WorkspaceState {
-  return { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
+/**
+ * Hands a dock tab the keyboard. The view watches the count rather than being told to focus, and the
+ * window takes the keys back on its way, because only a page can hold them itself.
+ */
+function focusDockTab(state: WorkspaceState, owner: string, tab: string): WorkspaceTransition {
+  const focused = { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
+  const page = dockFor(focused, owner).browserTabs.find((item) => item.id === tab);
+  return settled(focused, page?.url ? [] : TAKE_KEYS);
 }
 
 /** Puts the caret in the composer, taking the keys back from a page that swallows them. */
@@ -273,19 +278,21 @@ function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabI
   const cleared = { ...remembered, browserApproval: null, actionError: null };
   if (target) {
     const shown = withDock(patchBrowserTab(showDockTab(cleared, owner, target.id), owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
-    const navigating = byUser ? focusDockTab(shown, owner, target.id) : shown;
-    return settled(navigating, [
+    const navigating = byUser ? focusDockTab(shown, owner, target.id) : settled(shown);
+    return settled(navigating.state, [
       { type: "browser.navigate", tabId: target.id, url },
-      ...persistView(navigating),
+      ...persistView(navigating.state),
+      ...navigating.effects,
     ]);
   }
   const tab: BrowserTab = { id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
   const shown = withDock(showDockTab(cleared, owner, tab.id), owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
-  const opened = byUser ? focusDockTab(shown, owner, tab.id) : shown;
-  return settled(opened, [
+  const opened = byUser ? focusDockTab(shown, owner, tab.id) : settled(shown);
+  return settled(opened.state, [
     { type: "browser.open", tabId: tab.id, url },
     { type: "browser.show", tabId: tab.id },
-    ...persistView(opened),
+    ...persistView(opened.state),
+    ...opened.effects,
   ]);
 }
 
@@ -728,8 +735,11 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
     : transition.state;
-  /** The dock the thread was left in comes back as it was; only the panel's own page has to follow. */
-  return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed)] };
+  /**
+   * The dock the thread was left in comes back as it was; only the panel's own page has to follow. The
+   * keys come back to the window too, since the page they were on belongs to the thread just left.
+   */
+  return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...TAKE_KEYS] };
 }
 
 /** The project a new thread starts in: the one the current thread is in, else the one being drafted. */
@@ -1405,7 +1415,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         sideChats: [...state.sideChats, { id: input.chatId, sourceTaskId: source.id, error: null }],
         sideChatSequence: sequence,
       };
-      return settled(focusDockTab(showDockTab(opened, source.id, input.chatId), source.id, input.chatId));
+      return focusDockTab(showDockTab(opened, source.id, input.chatId), source.id, input.chatId);
     }
 
     case "side-chat.close": {
@@ -1666,7 +1676,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.set-settings-open": {
       const owner = dockOwner(state);
       const settings = { ...state, settingsOpen: input.open, ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }) };
-      return settled(input.open ? withDock(settings, owner, { open: false }) : settings, input.open ? [] : stopCapture(state));
+      /** Settings are drawn in the window, so a page that was in front cannot be left holding the keys. */
+      return settled(input.open ? withDock(settings, owner, { open: false }) : settings, input.open ? TAKE_KEYS : stopCapture(state));
     }
 
     case "view.close-tab": {
@@ -1675,12 +1686,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
       if (!dock.open) return settled(state, [{ type: "close-window" }]);
       const kind = dockTabKind(state, owner, dock.tab);
-      if (kind === "picker") return settled(withDock(state, owner, { open: false }));
-      if (kind === "browser") return apply(state, { type: "browser.close-tab", tabId: dock.tab });
-      if (kind === "terminal") return apply(state, { type: "terminal.close", terminalId: dock.tab });
-      return apply(state, kind === "side-chat"
-        ? { type: "side-chat.close", chatId: dock.tab }
-        : { type: "view.close-dock-panel", panel: dock.tab });
+      const closed = kind === "picker" ? settled(withDock(state, owner, { open: false }))
+        : kind === "browser" ? apply(state, { type: "browser.close-tab", tabId: dock.tab })
+        : kind === "terminal" ? apply(state, { type: "terminal.close", terminalId: dock.tab })
+        : apply(state, kind === "side-chat"
+          ? { type: "side-chat.close", chatId: dock.tab }
+          : { type: "view.close-dock-panel", panel: dock.tab });
+      /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */
+      return { state: closed.state, effects: [...closed.effects, ...TAKE_KEYS] };
     }
 
     /** ⌘W's inverse, answering with whatever the panel is showing rather than one fixed thing. */
@@ -1701,15 +1714,21 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.set-dock-open": {
       const owner = dockOwner(state);
-      return settled(dockFor(state, owner).open === input.open ? state : withDock(state, owner, { open: input.open }));
+      const dock = dockFor(state, owner);
+      if (dock.open === input.open) return settled(state);
+      const toggled = withDock(state, owner, { open: input.open });
+      /** A panel shown is one to work in; a panel hidden must not leave a page it was drawing with the keys. */
+      if (!input.open) return settled(toggled, TAKE_KEYS);
+      return dockTabKind(toggled, owner, dock.tab) === "picker" ? settled(toggled) : focusDockTab(toggled, owner, dock.tab);
     }
 
     case "view.open-dock-panel": {
       const owner = dockOwner(state);
       const dock = dockFor(state, owner);
       const panels = dock.panels.includes(input.panel) ? dock.panels : [...dock.panels, input.panel];
-      const opened = withDock(state, owner, { open: true, panels, tab: input.panel });
-      const effects = browserEffectsForTab(opened, owner, input.panel);
+      const shown = focusDockTab(withDock(state, owner, { open: true, panels, tab: input.panel }), owner, input.panel);
+      const opened = shown.state;
+      const effects = [...browserEffectsForTab(opened, owner, input.panel), ...shown.effects];
       /** However the review is reached, it opens on a list read now rather than one read last time. */
       if (input.panel !== DIFF_PANEL) return settled(opened, effects);
       const diff = diffFor(opened, owner);
@@ -1747,7 +1766,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         ...(kind === "terminal" ? { terminalId: input.tab } : {}),
       });
       const selected = focusDockTab(shown, owner, input.tab);
-      return settled(selected, browserEffectsForTab(selected, owner, input.tab));
+      return settled(selected.state, [...browserEffectsForTab(selected.state, owner, input.tab), ...selected.effects]);
     }
 
     case "browser.open": {
@@ -1762,7 +1781,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "browser.new-tab": {
       const owner = dockOwner(state);
       const { state: opened, tab } = withBlankTab(state, owner);
-      return settled(focusDockTab(opened, owner, tab.id), [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }]);
+      const focused = focusDockTab(opened, owner, tab.id);
+      return settled(focused.state, [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }, ...focused.effects]);
     }
 
     case "browser.decide": {
@@ -1829,7 +1849,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         terminals: [...dock.terminals, terminal],
         terminalId: terminal.id,
       });
-      return settled(focusDockTab(opened, owner, terminal.id), [{ type: "terminal.start", terminalId: terminal.id, cwd }]);
+      const focused = focusDockTab(opened, owner, terminal.id);
+      return settled(focused.state, [{ type: "terminal.start", terminalId: terminal.id, cwd }, ...focused.effects]);
     }
 
     case "terminal.select": {
