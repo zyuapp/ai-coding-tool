@@ -41,24 +41,25 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   /** Until the user picks one, the thread starts from wherever the checkout already is. */
   const selected = branch?.name ?? current;
 
-  if (!project) return null;
+  /** A thread with no project is a real choice, so the picker stays even when nothing is picked. */
+  if (!projects.length) return null;
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
         <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
           <FolderGit2 size={15} />
-          <span>{projectName(project.root)}</span>
+          <span>{project ? projectName(project.root) : "No project"}</span>
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects" onKeyDown={moveListFocus}>
-          {projects.map((item) => (
+          {projects.map((item, index) => (
             <button
               key={item.id}
               type="button"
               role="option"
               aria-selected={item.id === projectId}
-              autoFocus={item.id === projectId}
+              autoFocus={projectId ? item.id === projectId : index === 0}
               onClick={() => {
                 setProjectsOpen(false);
                 onSelectProject(item.id);
@@ -73,7 +74,8 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
 
       {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
         *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
-      {startsInWorktree ? (
+      {/** A branch and a checkout of its own are only questions a project can answer. */}
+      {project && (startsInWorktree ? (
         <div className="thread-start-worktree">
           <FolderSymlink size={15} />
           <span>{startsInWorktree}</span>
@@ -105,7 +107,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         <input type="checkbox" checked={worktree} onChange={(event) => onSetWorktree(event.target.checked)} />
         <span>Worktree</span>
       </label>
-      </>)}
+      </>))}
     </div>
   );
 }

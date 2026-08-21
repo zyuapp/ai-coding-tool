@@ -3230,6 +3230,34 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.unmount();
 });
 
+test("a thread with no project still offers one to pick, and nothing a project has not answered", async () => {
+  const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const chosen = [];
+  const view = await mount(React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/claudex" }, { id: "project-b", root: "/repo/just-speak" }],
+    projectId: null,
+    branch: null,
+    worktree: false,
+    onSelectProject: (id) => { chosen.push(id); },
+    onSelectBranch() {},
+    onSetWorktree() {},
+  }));
+
+  const project = view.container.querySelector('button[aria-label="Project"]');
+  assert.match(project.textContent, /No project/, "a self-contained thread says it has no project");
+  assert.equal(view.container.querySelector('button[aria-label="Starting branch"]'), null, "with no project there is no branch to start from");
+  assert.equal(view.container.querySelector(".thread-start-check"), null, "and no checkout to cut");
+
+  await act(async () => { project.click(); });
+  const projectOptions = [...view.container.querySelectorAll('[role="option"]')];
+  assert.deepEqual(projectOptions.map((option) => option.textContent), ["claudex", "just-speak"]);
+  assert.equal(document.activeElement, projectOptions[0], "the list takes focus even though nothing is picked");
+  await act(async () => { projectOptions[0].click(); });
+  assert.deepEqual(chosen, ["project-a"], "picking one starts the thread over in that project");
+  await view.unmount();
+});
+
 test("a branch the repository does not have is offered as one to create", async () => {
   const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
