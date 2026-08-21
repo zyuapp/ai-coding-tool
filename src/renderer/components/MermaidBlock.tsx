@@ -117,7 +117,24 @@ export function DiagramViewerHost({ children }: { children: ReactNode }) {
   );
 }
 
-export function MermaidBlock({ source }: { source: string }) {
+type Drawn = { diagram?: Diagram; error?: string };
+
+/**
+ * What each source has already drawn as. A block is remounted often — when its text commits, and
+ * whenever the timeline recycles the row it sits in — and rendering it again would blank the diagram
+ * for as long as Mermaid takes to redraw text that has not changed.
+ */
+const drawn = new Map<string, Drawn>();
+const MAX_REMEMBERED = 64;
+
+function remember(source: string, result: Drawn) {
+  drawn.delete(source);
+  drawn.set(source, result);
+  for (const stale of [...drawn.keys()].slice(0, drawn.size - MAX_REMEMBERED)) drawn.delete(stale);
+}
+
+/** `pending` marks a block whose fence has not closed yet, so its source still grows with the stream. */
+export function MermaidBlock({ source, pending = false }: { source: string; pending?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const id = useId().replaceAll(":", "");
   const [visible, setVisible] = useState(false);
@@ -140,7 +157,7 @@ export function MermaidBlock({ source }: { source: string }) {
   }, []);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || pending || drawn.has(source)) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -156,21 +173,22 @@ export function MermaidBlock({ source }: { source: string }) {
           initialized = true;
         }
         const { svg } = await mermaid.render(`mermaid-${id}`, source);
-        if (!cancelled) setResult({ source, diagram: naturalDiagram(svg) });
+        remember(source, { diagram: naturalDiagram(svg) });
       } catch (error) {
-        if (!cancelled) setResult({ source, error: error instanceof Error ? error.message : String(error) });
+        remember(source, { error: error instanceof Error ? error.message : String(error) });
       }
+      if (!cancelled) setResult({ source, ...drawn.get(source) });
     })();
     return () => { cancelled = true; };
-  }, [id, source, visible]);
+  }, [id, source, visible, pending]);
 
-  const current = result.source === source ? result : { source };
+  const current: Drawn = drawn.get(source) ?? (result.source === source ? result : {});
   const drawing = current.diagram
     ? <span className="mermaid-svg" style={drawnAt(current.diagram, 1)} dangerouslySetInnerHTML={{ __html: current.diagram.markup }} />
     : null;
   return (
     <div className="mermaid-block" ref={host}>
-      {!visible || (!current.diagram && !current.error) ? <span className="mermaid-loading">Rendering diagram…</span> : null}
+      {!current.diagram && !current.error ? <span className="mermaid-loading">Rendering diagram…</span> : null}
       {drawing && open
         ? <button type="button" className="mermaid-open" aria-label="Open the diagram at full size" onClick={() => open(current.diagram!)}>{drawing}</button>
         : drawing}

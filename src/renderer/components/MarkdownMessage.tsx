@@ -21,10 +21,14 @@ export function MessageLinkProvider({ actions, children }: { actions: MessageLin
   return <MessageLinks.Provider value={actions}>{children}</MessageLinks.Provider>;
 }
 
+/** Whether this document is the part of a stream still being written, whose last block will grow. */
+const Unsettled = createContext(false);
+
 function MarkdownPre({ children, ...props }: ComponentProps<"pre">) {
+  const unsettled = useContext(Unsettled);
   const child = Children.count(children) === 1 ? Children.only(children) : null;
   if (isValidElement<{ className?: string; children?: ReactNode }>(child) && child.props.className?.split(" ").includes("language-mermaid")) {
-    return <MermaidBlock source={String(child.props.children ?? "").replace(/\n$/, "")} />;
+    return <MermaidBlock source={String(child.props.children ?? "").replace(/\n$/, "")} pending={unsettled} />;
   }
   return <pre {...props}>{children}</pre>;
 }
@@ -98,14 +102,16 @@ function wordSpans() {
 
 export const MarkdownMessage = memo(function MarkdownMessage({ children, animate }: { children: string; animate?: boolean }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={animate ? [wordSpans] : []}
-      skipHtml
-      urlTransform={(url) => (CLAUDEX_HREF.test(url) ? url : defaultUrlTransform(url))}
-      components={{ pre: MarkdownPre, a: MarkdownLink }}
-    >
-      {children}
-    </ReactMarkdown>
+    <Unsettled.Provider value={!!animate}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={animate ? [wordSpans] : []}
+        skipHtml
+        urlTransform={(url) => (CLAUDEX_HREF.test(url) ? url : defaultUrlTransform(url))}
+        components={{ pre: MarkdownPre, a: MarkdownLink }}
+      >
+        {children}
+      </ReactMarkdown>
+    </Unsettled.Provider>
   );
 });
