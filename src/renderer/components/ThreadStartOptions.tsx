@@ -54,7 +54,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         <button type="button" role="radio" aria-checked={Boolean(project)} onClick={() => { if (!project) onSelectProject(projects[0]?.id); }}>Work</button>
       </div>
 
-      {project && <>
+      {project && <div className="thread-start-details">
         <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
           <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
             <FolderGit2 size={14} />
@@ -116,7 +116,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
           <span>Worktree</span>
         </button>
         </>)}
-      </>}
+      </div>}
     </div>
   );
 }

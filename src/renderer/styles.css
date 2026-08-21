@@ -937,7 +937,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   padding-bottom: 11vh;
   text-align: center;
 }
-.thread-start { display: flex; align-items: center; gap: 2px; margin-top: 24px; }
+/** The mode leads on its own line; what work still needs to know follows underneath it. */
+.thread-start { display: grid; justify-items: center; gap: 10px; margin-top: 24px; }
+.thread-start-details { display: flex; align-items: center; gap: 2px; }
 .thread-start-field { position: relative; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
 .empty-state .thread-start button {
@@ -961,7 +963,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .thread-start-mode {
   display: flex;
   align-items: center;
-  margin-right: 8px;
   border-radius: 9px;
   padding: 2px;
   background: var(--chip);
