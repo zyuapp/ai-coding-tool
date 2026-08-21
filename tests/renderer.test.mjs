@@ -2014,12 +2014,14 @@ function timelineView(messages, status, streamingTail, runEndedAt, find, waiting
   });
 }
 
-test("a thread reopens where its reader left it, and one left at the foot reopens there", async () => {
+const BOTTOM = 4000;
+
+function threadHarness() {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 900 });
-  Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 4000 });
+  Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: BOTTOM });
   let offset = 0;
   Object.defineProperty(scroller, "scrollTop", { configurable: true, get: () => offset, set: (next) => { offset = next; } });
   const scrolls = [];
@@ -2042,27 +2044,72 @@ test("a thread reopens where its reader left it, and one left at the foot reopen
   };
   /** The transcript places itself in a frame, which the shimmed one runs on a timer. */
   const settle = async () => { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
+  const resize = async () => act(async () => {
+    for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  });
+  return { scroller, scrolls, thread, scrollTo, settle, resize, done: (view) => { view.unmount(); scroller.remove(); } };
+}
+
+test("a thread reopens where its reader left it, and one left at the foot reopens there", async () => {
+  const { scrolls, thread, scrollTo, settle, done } = threadHarness();
 
   const view = await mount(thread("read", 12));
   await settle();
   await scrollTo(300);
   await view.render(thread("foot", 12));
   await settle();
-  await scrollTo(4000 - 900);
+  await scrollTo(BOTTOM - 900);
 
   scrolls.length = 0;
   await view.render(thread("read", 12));
   await settle();
   assert.ok(scrolls.length > 0, "returning to a thread places its view");
-  assert.ok(!scrolls.includes(4000), "a thread left mid-transcript does not reopen at its foot");
+  assert.ok(!scrolls.includes(BOTTOM), "a thread left mid-transcript does not reopen at its foot");
 
   scrolls.length = 0;
   await view.render(thread("foot", 12));
   await settle();
-  assert.equal(scrolls.at(-1), 4000, "a thread left at its foot reopens there");
+  assert.equal(scrolls.at(-1), BOTTOM, "a thread left at its foot reopens there");
 
-  await view.unmount();
-  scroller.remove();
+  await done(view);
+});
+
+test("a thread the run advanced while its reader was away opens at its newest line", async () => {
+  const { scrolls, thread, scrollTo, settle, done } = threadHarness();
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await view.render(thread("foot", 12));
+  await settle();
+
+  scrolls.length = 0;
+  await view.render(thread("read", 14));
+  await settle();
+  assert.equal(scrolls.at(-1), BOTTOM, "a thread that moved on is caught up rather than left where it was");
+
+  await done(view);
+});
+
+test("a reader who scrolls after a restore is left where they put themselves", async () => {
+  const { scrolls, thread, scrollTo, settle, resize, done } = threadHarness();
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await view.render(thread("foot", 12));
+  await settle();
+  await view.render(thread("read", 12));
+  await settle();
+
+  /** A plain scroll, with no gesture behind it: a keyboard or the scrollbar reads exactly like this. */
+  await scrollTo(900);
+  scrolls.length = 0;
+  await resize();
+  assert.deepEqual(scrolls, [], "the restored row stops holding once the reader moves");
+
+  await done(view);
 });
 
 test("find opens the fold the match it is showing was written into", async () => {
@@ -2841,7 +2888,6 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   const button = view.container.querySelector(".scroll-to-end");
   assert.ok(button, "offered once the end is out of view");
 
-  await act(async () => { harness.scroller.dispatchEvent(new Event("wheel")); });
   harness.sentTo.length = 0;
   await harness.resize();
   assert.deepEqual(harness.sentTo, [], "a transcript the reader scrolled is left where they put it");

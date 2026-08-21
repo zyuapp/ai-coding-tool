@@ -309,6 +309,20 @@ function SettledSteps({ steps, endsAt }: { steps: TaskMessage[]; endsAt: number 
   );
 }
 
+/**
+ * Where the view sits. `row` holds that row `depth` pixels below the top of the view, so a negative
+ * depth leaves it breathing room; `rest` is wherever the reader put it, which nothing takes back.
+ */
+type View = { at: "foot" } | { at: "row"; id: string; depth: number } | { at: "rest" };
+
+const FOOT: View = { at: "foot" };
+
+/** How far into a row an answer's first line sits, so it is not flush against the top of the view. */
+const ANSWER_DEPTH = -16;
+
+/** A scroll landing further than this from the one we asked for was the reader's, not ours. */
+const OURS_WITHIN = 4;
+
 export type ConversationTimelineProps = {
   currentTask?: Task;
   folder: string;
@@ -350,20 +364,23 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   useDismissibleLayer(noting !== null, [noteEditor], () => setNoting(null), noteReturn);
   const [markers, setMarkers] = useState<{ id: string; number: number; x: number; y: number }[]>([]);
   const [atBottom, setAtBottom] = useState(true);
-  const pinnedToBottom = useRef(true);
-  /** Set once the reader scrolls for themselves, which stops the transcript taking the view back. */
-  const detached = useRef(false);
-  /** A message whose top is held at the top of the view, rather than following the newest line. */
-  const anchored = useRef<string | null>(null);
+  const view = useRef<View>(FOOT);
+  /** The offset the view was last placed at, which tells a scroll of ours from one of the reader's. */
+  const placedAt = useRef(-1);
   const restoreScroll = useRef<() => void>(() => {});
-  /** Where each thread was left: the row at the top of the view, or its foot when the reader stayed there. */
-  const readingPoints = useRef(new Map<string, { groupId: string | null; pinned: boolean }>());
-  /** A thread's saved row, held until that thread has drawn enough for the row to be found again. */
-  const restoring = useRef<{ taskId: string; groupId: string } | null>(null);
+  /** The one way anything scrolls the view, so every offset we ask for is one we can recognise. */
+  const placeAt = useRef<(top: number, behavior?: ScrollBehavior) => void>(() => {});
+  /** Where each thread was left: a row and how far into it, or null for its foot. */
+  const readingPoints = useRef(new Map<string, { id: string; depth: number; tail?: string } | null>());
+  /** The gap above the timeline, which puts the virtualizer's offsets in the scroller's own terms. */
+  const [scrollMargin, setScrollMargin] = useState(0);
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */
   const answerId = streamingTail?.messageId ?? (lastMessage?.kind === "assistant" ? lastMessage.id : undefined);
   const toolId = lastMessage?.kind === "tool" ? lastMessage.id : undefined;
+  /** The newest line the thread has, which says whether it moved on while the reader was away. */
+  const newest = useRef<string | undefined>(undefined);
+  newest.current = streamingTail?.messageId ?? lastMessage?.id;
   const groups = useMemo(
     () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentTask?.runEndedAt }),
     [messages, status, streamingTail?.messageId, currentTask?.runEndedAt],
@@ -377,6 +394,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       return group?.message.kind === "user" ? 88 : 64;
     },
     getItemKey: (index) => groups[index]?.id ?? index,
+    scrollMargin,
     overscan: 6,
   });
 
@@ -384,6 +402,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const rowOfMessage = useMemo(() => {
     const rows = new Map<string, number>();
     groups.forEach((group, index) => {
+      rows.set(group.id, index);
       if (group.kind === "message") rows.set(group.message.id, index);
       else {
         for (const step of group.steps) rows.set(step.id, index);
@@ -392,6 +411,8 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     });
     return rows;
   }, [groups]);
+  const rows = useRef(rowOfMessage);
+  rows.current = rowOfMessage;
 
   const hit = find?.hit ?? null;
   const rendered = virtualizer.getVirtualItems().map((item) => item.key).join(",");
@@ -401,9 +422,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     if (!hit) return;
     const row = rowOfMessage.get(hit.messageId);
     if (row === undefined) return;
-    detached.current = true;
-    pinnedToBottom.current = false;
-    anchored.current = null;
+    view.current = { at: "rest" };
     virtualizer.scrollToIndex(row, { align: "center" });
   }, [hit?.messageId, hit?.occurrence, rowOfMessage]);
 
@@ -418,86 +437,79 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     const timeline = timelineRef.current;
     if (!scroller || !timeline || typeof ResizeObserver === "undefined") return;
     const taskId = currentTask?.id;
-    const left = taskId ? readingPoints.current.get(taskId) : undefined;
-    const pinned = left?.pinned ?? true;
-    pinnedToBottom.current = pinned;
-    detached.current = !pinned;
-    anchored.current = null;
-    restoring.current = !pinned && taskId && left?.groupId ? { taskId, groupId: left.groupId } : null;
-    setAtBottom(pinned);
     let frame = 0;
+    const measure = () => setScrollMargin(timeline.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+    const settle = (top: number, behavior?: ScrollBehavior) => {
+      placedAt.current = top;
+      scroller.scrollTo({ top, ...(behavior ? { behavior } : {}) });
+    };
+    placeAt.current = settle;
     const onScroll = () => {
       const bottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
-      pinnedToBottom.current = bottom;
-      if (bottom) detached.current = false;
       setAtBottom(bottom);
+      if (bottom) view.current = FOOT;
+      else if (Math.abs(scroller.scrollTop - placedAt.current) > OURS_WITHIN) view.current = { at: "rest" };
       if (!taskId) return;
       const top = virtualizer.getVirtualItemForOffset(scroller.scrollTop);
-      readingPoints.current.set(taskId, { groupId: top ? String(top.key) : null, pinned: bottom });
-    };
-    /** Only a gesture means the reader took over; our own scrolling also fires scroll events. */
-    const onGesture = () => {
-      detached.current = true;
-      anchored.current = null;
+      readingPoints.current.set(taskId, bottom || !top ? null : { id: String(top.key), depth: scroller.scrollTop - top.start, tail: newest.current });
     };
     const place = () => {
-      const anchor = anchored.current && timeline.querySelector(`[data-message-id="${anchored.current}"], [data-group-id="${anchored.current}"]`);
-      if (anchor) {
-        scroller.scrollTo({ top: scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16 });
-        return;
-      }
-      if (pinnedToBottom.current) scroller.scrollTo({ top: scroller.scrollHeight });
+      const held = view.current;
+      if (held.at === "foot") return settle(scroller.scrollHeight);
+      if (held.at === "rest") return;
+      const anchor = timeline.querySelector(`[data-message-id="${held.id}"], [data-group-id="${held.id}"]`);
+      if (anchor) settle(scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top + held.depth);
     };
     restoreScroll.current = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(place);
     };
-    const observer = new ResizeObserver(() => restoreScroll.current());
+    const observer = new ResizeObserver(() => {
+      measure();
+      restoreScroll.current();
+    });
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    scroller.addEventListener("wheel", onGesture, { passive: true });
-    scroller.addEventListener("touchmove", onGesture, { passive: true });
     observer.observe(timeline);
+    measure();
+
+    /** A thread reopens where it was left, unless it moved on while the reader was away. */
+    const left = taskId ? readingPoints.current.get(taskId) : null;
+    const row = left && left.tail === newest.current ? rows.current.get(left.id) : undefined;
+    view.current = row === undefined || !left ? FOOT : { at: "row", id: left.id, depth: left.depth };
+    setAtBottom(row === undefined);
+    placedAt.current = -1;
+    /** The row is brought into the window first, so `place()` has something to measure against. */
+    if (row !== undefined) settle(virtualizer.getOffsetForIndex(row, "start")?.[0] ?? scroller.scrollTop);
     restoreScroll.current();
     return () => {
       cancelAnimationFrame(frame);
       scroller.removeEventListener("scroll", onScroll);
-      scroller.removeEventListener("wheel", onGesture);
-      scroller.removeEventListener("touchmove", onGesture);
       observer.disconnect();
     };
   }, [currentTask?.id, scrollContainerRef, virtualizer]);
 
-  /** A thread opens where it was left: its saved row goes back to the top, once there is a row to put there. */
+  /**
+   * An answer is read from its first line, so the view holds its top instead of chasing the last.
+   * Only an answer that arrives while this thread is the one on screen: a switch places itself.
+   */
+  const answerThread = useRef<string | undefined>(undefined);
   useEffect(() => {
-    const target = restoring.current;
-    if (!target || target.taskId !== currentTask?.id || !groups.length) return;
-    restoring.current = null;
-    const row = rowOfMessage.get(target.groupId);
-    if (row === undefined) {
-      pinnedToBottom.current = true;
-      detached.current = false;
-      setAtBottom(true);
-    } else {
-      anchored.current = target.groupId;
-      virtualizer.scrollToIndex(row, { align: "start" });
-    }
+    const within = answerThread.current === currentTask?.id;
+    answerThread.current = currentTask?.id;
+    if (!answerId || !within || view.current.at === "rest") return;
+    view.current = { at: "row", id: answerId, depth: ANSWER_DEPTH };
     restoreScroll.current();
-  }, [currentTask?.id, groups.length, rendered, rowOfMessage, virtualizer]);
-
-  /** An answer is read from its first line, so the view holds its top instead of chasing the last. */
-  useEffect(() => {
-    if (!answerId || detached.current) return;
-    anchored.current = answerId;
-    restoreScroll.current();
-  }, [answerId]);
+  }, [answerId, currentTask?.id]);
 
   /** Work in progress is worth following, so a tool call hands the view back to the newest line. */
+  const toolThread = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!toolId) return;
-    anchored.current = null;
-    if (!detached.current) pinnedToBottom.current = true;
+    const within = toolThread.current === currentTask?.id;
+    toolThread.current = currentTask?.id;
+    if (!toolId || !within || view.current.at === "rest") return;
+    view.current = FOOT;
     restoreScroll.current();
-  }, [toolId]);
+  }, [toolId, currentTask?.id]);
 
   /** Selected assistant text grows an annotate popover; anything else puts it away. */
   useEffect(() => {
@@ -639,7 +651,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
               data-message-id={message?.id}
               key={item.key}
               ref={virtualizer.measureElement}
-              style={{ transform: `translateY(${item.start}px)` }}
+              style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
             >
               {group.kind === "turn" ? (
                 <article className="message assistant turn">
@@ -725,10 +737,8 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
           onClick={() => {
             const scroller = scrollContainerRef.current;
             if (!scroller) return;
-            detached.current = false;
-            anchored.current = null;
-            pinnedToBottom.current = true;
-            scroller.scrollTo({ top: scroller.scrollHeight, behavior: "smooth" });
+            view.current = FOOT;
+            placeAt.current(scroller.scrollHeight, "smooth");
           }}
         >
           <ChevronDown size={17} aria-hidden="true" />
