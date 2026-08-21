@@ -77,3 +77,17 @@ test("unknown and archived tasks leave the list alone", () => {
   assert.equal(moveTask(tasks, "missing", { projectId: null, index: 0 }), tasks);
   assert.equal(moveTask(tasks, "gone", { projectId: null, index: 0 }), tasks);
 });
+
+test("a thread reorders inside its own checkout and is never carried out of one by a drag", () => {
+  const tasks = [
+    task("loose", { projectId: "project-1", sortIndex: 0 }),
+    task("first", { projectId: "project-1", worktreeId: "wt1", sortIndex: 1 }),
+    task("second", { projectId: "project-1", worktreeId: "wt1", sortIndex: 2 }),
+  ];
+
+  const reordered = moveTask(tasks, "second", { projectId: "project-1", worktreeId: "wt1", index: 0 });
+  assert.deepEqual(ids(reordered), ["loose", "second", "first"], "the index counts rows in that checkout's list alone");
+
+  assert.equal(moveTask(tasks, "first", { projectId: "project-1", index: 0 }), tasks, "a checkout places its own threads, so nothing drags one into the project's list");
+  assert.equal(moveTask(tasks, "loose", { projectId: "project-1", worktreeId: "wt1", index: 0 }), tasks, "and nothing drags one in either");
+});

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, FolderGit2, GitBranch } from "lucide-react";
+import { Check, ChevronDown, FolderGit2, FolderSymlink, GitBranch, X } from "lucide-react";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import { BranchMenu, useBranches } from "./BranchMenu";
@@ -12,6 +12,8 @@ export type ThreadStartOptionsProps = {
   workspaceId?: string;
   branch: DraftBranch | null;
   worktree: boolean;
+  /** Names the checkout the thread starts in when the user picked one the project already has. */
+  startsInWorktree?: string;
   onSelectProject: (projectId: string) => void;
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
   onSelectBranch: (branch: string | null, create?: boolean) => void;
@@ -22,7 +24,7 @@ export type ThreadStartOptionsProps = {
  * How the thread the user is about to start begins: which project, which branch it starts from, and
  * whether it gets a checkout of its own. Nothing here touches disk — the first message does that.
  */
-export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
+export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [branchesOpen, setBranchesOpen] = useState(false);
   const projectRef = useRef<HTMLDivElement>(null);
@@ -69,6 +71,15 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         </div>}
       </div>
 
+      {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
+        *  and no second checkout to ask for. Clearing it puts the thread back in the project. */}
+      {startsInWorktree ? (
+        <div className="thread-start-worktree">
+          <FolderSymlink size={15} />
+          <span>{startsInWorktree}</span>
+          <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
+        </div>
+      ) : (<>
       <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
         <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
           <GitBranch size={15} />
@@ -94,6 +105,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         <input type="checkbox" checked={worktree} onChange={(event) => onSetWorktree(event.target.checked)} />
         <span>Worktree</span>
       </label>
+      </>)}
     </div>
   );
 }

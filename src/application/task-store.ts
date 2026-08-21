@@ -17,6 +17,7 @@ export const TASK_STORE_KEYS = {
     envelope: "claudex.store.v2",
     tasks: "claudex.tasks.v2",
     projects: "claudex.projects.v2",
+    worktrees: "claudex.worktrees.v2",
     lastFolder: "claudex.last-folder.v2",
   },
 } as const;
@@ -31,6 +32,7 @@ export const LEGACY_TASK_STORE_KEYS = {
     envelope: "threadline.store.v2",
     tasks: "threadline.tasks.v2",
     projects: "threadline.projects.v2",
+    worktrees: "threadline.worktrees.v2",
     lastFolder: "threadline.last-folder.v2",
   },
 } as const;
@@ -72,7 +74,7 @@ export class TaskStore {
         errorKind: "storage",
         errors: [errorMessage(error)],
         preservedV1: null,
-        raw: { tasks: null, projects: null, lastFolder: null },
+        raw: { tasks: null, projects: null, worktrees: null, lastFolder: null },
       };
     }
     const decodedEnvelope = envelope === null ? null : parseEnvelope(envelope);
@@ -102,10 +104,11 @@ export class TaskStore {
   }
 }
 
-function read(storage: KeyValueStorage, keys: { tasks: string; projects: string; lastFolder: string }): StorageValues {
+function read(storage: KeyValueStorage, keys: { tasks: string; projects: string; worktrees?: string; lastFolder: string }): StorageValues {
   return {
     tasks: storage.getItem(keys.tasks),
     projects: storage.getItem(keys.projects),
+    worktrees: keys.worktrees ? storage.getItem(keys.worktrees) : null,
     lastFolder: storage.getItem(keys.lastFolder),
   };
 }
@@ -119,7 +122,9 @@ function parseEnvelope(raw: string): StorageValues | "corrupt" {
     const value = JSON.parse(raw) as Record<string, unknown>;
     if (!value || typeof value !== "object" || Array.isArray(value)) return "corrupt";
     if (![value.tasks, value.projects, value.lastFolder].every((item) => item === null || typeof item === "string")) return "corrupt";
-    return value as StorageValues;
+    /** An envelope written before checkouts had records of their own carries no worktrees key. */
+    if (value.worktrees !== undefined && value.worktrees !== null && typeof value.worktrees !== "string") return "corrupt";
+    return { ...value, worktrees: (value.worktrees as string | null | undefined) ?? null } as StorageValues;
   } catch {
     return "corrupt";
   }
@@ -133,7 +138,7 @@ function corruptEnvelope(raw: string): TaskStoreParseResult {
     errorKind: "corrupt",
     errors: ["version 2 task storage envelope is invalid"],
     preservedV1: null,
-    raw: { tasks: raw, projects: null, lastFolder: null },
+    raw: { tasks: raw, projects: null, worktrees: null, lastFolder: null },
   };
 }
 

@@ -22,6 +22,9 @@ import {
 import type { WorkspaceService } from "./workspace-service.mjs";
 import { snapshotMessage, worktreeDirectoryName, worktreeIdFromDirectoryName, worktreeRef, type Worktree, type WorktreeRelease } from "../../domain/worktree.js";
 
+/** What this service makes: the checkout on disk, without the project link only workspace state has. */
+export type CreatedWorktree = Omit<Worktree, "projectId">;
+
 export const WORKTREE_INCLUDE_FILE = ".worktreeinclude";
 
 export type WorktreeServiceOptions = {
@@ -79,7 +82,7 @@ export class WorktreeService {
    * gitignored files `.worktreeinclude` names across. No branch is created; the thread makes one
    * itself if it wants one.
    */
-  async create(request: CreateWorktreeRequest): Promise<Worktree> {
+  async create(request: CreateWorktreeRequest): Promise<CreatedWorktree> {
     const repository = await repositoryRoot(request.projectRoot);
     const baseCommit = await headCommit(repository, request.branch);
     const id = randomBytes(4).toString("hex");

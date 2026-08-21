@@ -132,8 +132,8 @@ test("a wait reports the thread and the last thing it said", () => {
 });
 
 test("a thread in a worktree reports the checkout it actually works in", () => {
-  const worktree = { id: "wt1", root: "/worktrees/app-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
-  const state = workspace([task("task-a", { projectId: "project-app", worktree }), task("task-b", { projectId: "project-app" })]);
+  const worktree = { id: "wt1", projectId: "project-app", root: "/worktrees/app-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
+  const state = { ...workspace([task("task-a", { projectId: "project-app", worktreeId: worktree.id }), task("task-b", { projectId: "project-app" })]), worktrees: [worktree] };
 
   const [inWorktree, local] = threadSummaries(state, { scope: { kind: "all" } }, NOW).sort((left, right) => left.id.localeCompare(right.id));
 

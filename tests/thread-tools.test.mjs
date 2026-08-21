@@ -85,6 +85,9 @@ test("starting, messaging, archiving and stopping go through the command surface
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Implement item 1", projectId: "project-app" }]);
   assert.match(textOf(started), /^Started Rework the sidebar \[task-new\]/);
 
+  await toolNamed(bridge, "start_thread").handler({ prompt: "Take the other half", worktree: true, worktreeId: "wt1" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Take the other half", worktreeId: "wt1" }], "a checkout that already exists is entered rather than a second one being made");
+
   await toolNamed(bridge, "message_thread").handler({ threadId: "task-2", text: "also update the README", steer: true }, {});
   assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", taskId: "task-2", text: "also update the README", steer: true }]);
 

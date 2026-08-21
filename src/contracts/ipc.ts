@@ -27,6 +27,8 @@ export type TaskStoreDelta = {
   }>;
   removedTasks?: string[];
   projects?: Project[];
+  /** The whole list, as `projects` is: a checkout is only ever added or dropped, never edited alone. */
+  worktrees?: Worktree[];
   lastFolder?: string | null;
 };
 
@@ -50,6 +52,12 @@ export type CreateWorktreeRequest = {
   /** Which branch the worktree detaches from. The project's own HEAD when absent. */
   branch?: string;
 };
+
+/**
+ * The checkout the desktop just made. Which project's list it belongs to is workspace state, so the
+ * reducer says that; the desktop only reports what it did on disk.
+ */
+export type CreatedWorktree = Omit<Worktree, "projectId">;
 
 export type BranchesResult =
   | { status: "available"; branches: string[]; current: string | null }
@@ -186,7 +194,7 @@ export type DesktopAPI = {
   /** Makes a branch at the checkout's own HEAD, without moving onto it. */
   createBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
   /** Makes the thread's own checkout, detached at whatever the project has checked out right now. */
-  createWorktree(request: CreateWorktreeRequest): Promise<Worktree>;
+  createWorktree(request: CreateWorktreeRequest): Promise<CreatedWorktree>;
   /** Force-commits what the worktree still holds so the thread can leave it without losing work. */
   releaseWorktree(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshotResult>;
   /** Discards the checkout and everything uncommitted in it. */
@@ -498,7 +506,9 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       && isString(command.text, MAX_PROMPT_LENGTH)
       && command.attachments === undefined
       && (command.steer === undefined || typeof command.steer === "boolean")
-      && (command.worktree === undefined || typeof command.worktree === "boolean");
+      && (command.worktree === undefined || typeof command.worktree === "boolean")
+      /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
+      && (command.worktreeId === undefined || isString(command.worktreeId));
   }
   if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "run.cancel") return named;

@@ -26,7 +26,7 @@ function describe(thread: ThreadSummary, at: number) {
   const parts = [
     `${thread.title} [${thread.id}]`,
     thread.worktreeRoot ?? thread.projectRoot ?? "no project",
-    ...(thread.worktreeRoot ? ["worktree"] : []),
+    ...(thread.worktreeId ? [`worktree ${thread.worktreeId}`] : []),
     thread.status,
     `${thread.messageCount} messages`,
     ...(thread.attachmentCount ? [`${thread.attachmentCount} with images`] : []),
@@ -119,9 +119,10 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
         prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
         projectId: z.string().optional().describe("Which project the thread belongs to. Defaults to this thread's project."),
         worktree: z.boolean().optional().describe("Run the new thread in its own git worktree, detached at whatever the project has checked out, so its edits never touch the project checkout."),
+        worktreeId: z.string().optional().describe("Start the thread in a worktree that already exists, as list_threads reports it, so it works alongside the threads already in there. Takes precedence over worktree."),
       },
       async (args) => report(async () => {
-        const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.projectId ? { projectId: args.projectId } : {}), ...(args.worktree ? { worktree: true } : {}) });
+        const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.projectId ? { projectId: args.projectId } : {}), ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}) });
         return thread ? `Started ${describe(thread, now())}` : "The thread did not start.";
       }),
     ),

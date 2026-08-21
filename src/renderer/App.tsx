@@ -265,6 +265,7 @@ export function App() {
         runningTaskIds={workspace.runningTaskIds}
         automatedTaskIds={workspace.automatedTaskIds}
         worktreeTaskIds={workspace.worktreeTaskIds}
+        worktreeGroups={workspace.worktreeGroups}
         projectsOpen={workspace.projectsOpen}
         recentsOpen={workspace.recentsOpen}
         openMenu={workspace.openMenu}
@@ -336,6 +337,7 @@ export function App() {
                   {...(workspace.currentProject?.workspaceId ? { workspaceId: workspace.currentProject.workspaceId } : {})}
                   branch={workspace.draftBranch}
                   worktree={workspace.draftWorktree}
+                  {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
                   onSelectProject={workspace.actions.newTask}
                   onSelectBranch={workspace.actions.setBranch}
                   onSetWorktree={workspace.actions.setWorktree}

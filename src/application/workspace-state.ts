@@ -10,7 +10,7 @@ import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
-import type { Worktree } from "../domain/worktree.js";
+import { worktreeName, type Worktree } from "../domain/worktree.js";
 
 /**
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
@@ -22,6 +22,8 @@ export type PendingRun = {
   origin: "composer" | "automation";
   taskId?: string;
   projectId?: string;
+  /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
+  worktreeId?: string;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
   /** What the user typed, before attachments are appended. Titles a brand new task. */
@@ -35,12 +37,24 @@ export type PendingRun = {
   automationId?: string;
   /** Queued messages this run is draining, cleared only once the run actually starts. */
   queuedIds?: string[];
+  /** Set when the checkout this run needs is being made on the way, which is the slow part of resolving. */
+  creatingWorktree?: boolean;
 };
 
-/** Where a thread's runs happen. */
+/** Where a thread's runs happen, with the moment between asking for a checkout and having one. */
 export type ThreadLocation =
   | { kind: "local" }
+  | { kind: "creating" }
   | { kind: "worktree"; worktree: Worktree };
+
+/** What a thread is waiting on before it can work: a checkout being made, or a run finding one. */
+export type ThreadWait = "worktree" | "run";
+
+/** A checkout with the threads working in it, which is how the sidebar nests them under a project. */
+export type WorktreeGroup = {
+  worktree: Worktree;
+  tasks: Task[];
+};
 
 /**
  * Something the user typed while a run was going. It waits for the run to finish, unless it is
@@ -123,6 +137,13 @@ export type ThreadDock = {
 export type WorkspaceState = {
   tasks: Task[];
   projects: Project[];
+  /**
+   * Every checkout the app made and a thread still claims. A checkout outlives the thread that asked
+   * for it, so it lives here rather than inside one of them, and goes when the last claim does.
+   */
+  worktrees: Worktree[];
+  /** Threads whose checkout is being made, so nothing asks for a second one while the first lands. */
+  creatingWorktrees: string[];
   lastFolder: string | null;
   currentId: string | null;
   /** Threads the user has landed on this session, oldest first, with a cursor for back and forward. */
@@ -133,6 +154,8 @@ export type WorkspaceState = {
   /** How the next new thread starts: which branch, and whether it gets a checkout of its own. */
   draftBranch: DraftBranch | null;
   draftWorktree: boolean;
+  /** The checkout the next new thread starts in, when the user picked one the project already has. */
+  draftWorktreeId: string | null;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   prompts: Record<string, string>;
@@ -182,6 +205,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
   return {
     tasks: [],
     projects: [],
+    worktrees: [],
+    creatingWorktrees: [],
     lastFolder: null,
     currentId: null,
     history: [],
@@ -190,6 +215,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftPolicy: "confirm",
     draftBranch: null,
     draftWorktree: false,
+    draftWorktreeId: null,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
@@ -243,6 +269,8 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
     ...emptyWorkspaceState(storageError),
     tasks: backfillSortIndex(tasks),
     projects: backfillProjectSortIndex(projects),
+    /** A store answering from an older build has no checkouts to hand over. */
+    worktrees: data.worktrees ?? [],
     lastFolder: data.lastFolder,
     currentId: firstTask?.id ?? null,
     history: firstTask ? [firstTask.id] : [],
@@ -267,11 +295,18 @@ export function withStoreData(state: WorkspaceState, data: TaskStoreData): Works
     ...sideChatIds(state),
     ...Object.keys(state.activeRuns),
     ...Object.values(state.pendingRuns).flatMap((pending) => pending.taskId ? [pending.taskId] : []),
+    ...state.creatingWorktrees,
   ]);
   const stored = new Set(landing.tasks.map((task) => task.id));
+  const tasks = [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))];
+  /** A checkout the store has yet to hear about is still claimed here, so the session keeps its record. */
   const arrived: WorkspaceState = {
     ...state,
-    tasks: [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))],
+    tasks,
+    worktrees: [
+      ...landing.worktrees,
+      ...state.worktrees.filter((worktree) => !landing.worktrees.some((item) => item.id === worktree.id) && tasks.some((task) => task.worktreeId === worktree.id)),
+    ],
     projects: landing.projects,
     lastFolder: landing.lastFolder,
     storageError: landing.storageError,
@@ -436,18 +471,58 @@ export function projectFor(state: WorkspaceState, task: Task | undefined) {
   return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
 }
 
-/** The folder a thread works in: its own checkout once it has one, otherwise its project's. */
+export function worktreeById(state: Pick<WorkspaceState, "worktrees">, worktreeId: string | undefined) {
+  return worktreeId ? state.worktrees.find((worktree) => worktree.id === worktreeId) : undefined;
+}
+
+/** The checkout a thread works in, when it works in one rather than in its project. */
+export function worktreeFor(state: Pick<WorkspaceState, "worktrees">, task: Task | undefined) {
+  return worktreeById(state, task?.worktreeId);
+}
+
+/**
+ * The threads keeping a checkout alive. Archiving one is walking out of it, so an archived thread
+ * holds nothing open: a checkout whose last live thread leaves is handed back there and then.
+ */
+export function worktreeClaimants(state: Pick<WorkspaceState, "tasks">, worktreeId: string) {
+  return state.tasks.filter((task) => task.worktreeId === worktreeId && task.archivedAt === undefined);
+}
+
+/** The folder a thread works in: the checkout it shares once it has one, otherwise its project's. */
 export function taskWorkspaceRoot(state: WorkspaceState, task: Task | undefined) {
-  return task?.worktree?.root ?? projectFor(state, task)?.root;
+  return worktreeFor(state, task)?.root ?? projectFor(state, task)?.root;
 }
 
-/** Where a thread's runs happen: its own checkout once it has one, otherwise its project's. */
+/** Where a thread's runs happen: the checkout it shares once it has one, otherwise its project's. */
 export function taskWorkspaceId(state: WorkspaceState, task: Task | undefined) {
-  return task?.worktree?.workspaceId ?? projectFor(state, task)?.workspaceId;
+  return worktreeFor(state, task)?.workspaceId ?? projectFor(state, task)?.workspaceId;
 }
 
-export function locationOf(task: Task | undefined): ThreadLocation {
-  return task?.worktree ? { kind: "worktree", worktree: task.worktree } : { kind: "local" };
+/**
+ * Threads that are working, which is more than the threads with a run in them: a send still finding
+ * its checkout, and a checkout being made, are both work the thread is waiting on.
+ */
+export function busyTaskIds(state: WorkspaceState): Set<string> {
+  const busy = new Set(Object.keys(state.activeRuns));
+  for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
+  for (const taskId of state.creatingWorktrees) busy.add(taskId);
+  return busy;
+}
+
+/** What the current thread is waiting on, if anything: its own checkout, or where a send will run. */
+export function waitFor(state: WorkspaceState, currentTask: Task | undefined): ThreadWait | null {
+  if (currentTask && state.creatingWorktrees.includes(currentTask.id)) return "worktree";
+  const key = promptKey(state);
+  const resolving = Object.values(state.pendingRuns).find((pending) =>
+    (currentTask !== undefined && pending.taskId === currentTask.id) || pending.draftKey === key);
+  if (!resolving) return null;
+  return resolving.creatingWorktree ? "worktree" : "run";
+}
+
+export function locationOf(state: Pick<WorkspaceState, "worktrees" | "creatingWorktrees">, task: Task | undefined): ThreadLocation {
+  const worktree = worktreeFor(state, task);
+  if (worktree) return { kind: "worktree", worktree };
+  return task && state.creatingWorktrees.includes(task.id) ? { kind: "creating" } : { kind: "local" };
 }
 
 /** Composer drafts live per task, with one draft per project for the not-yet-created task. */
@@ -531,6 +606,7 @@ export type WorkspaceView = ReturnType<typeof deriveView>;
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
   const currentTask = state.tasks.find((task) => task.id === state.currentId);
+  const draftWorktree = worktreeById(state, state.draftWorktreeId ?? undefined);
   const currentProject = currentTask
     ? projectFor(state, currentTask)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
@@ -544,6 +620,7 @@ export function deriveView(state: WorkspaceState) {
   const environment = workspaceId && state.environment?.workspaceId === workspaceId ? state.environment.result : null;
   const owner = dockOwner(state);
   const dock = dockFor(state, owner);
+  const waitingOn = waitFor(state, currentTask);
   return {
     tasks: listedTasks,
     projects: orderProjects(state.projects),
@@ -563,7 +640,7 @@ export function deriveView(state: WorkspaceState) {
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? [],
-    runningTaskIds: new Set(Object.keys(state.activeRuns)),
+    runningTaskIds: busyTaskIds(state),
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
     subagents: currentTask?.subagents ?? [],
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
@@ -571,12 +648,21 @@ export function deriveView(state: WorkspaceState) {
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
-    worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktree).map((task) => task.id)),
-    location: locationOf(currentTask),
+    worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktreeId).map((task) => task.id)),
+    /** The checkouts the sidebar nests threads under, each with the threads that claim it. */
+    worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({
+      worktree,
+      tasks: orderTasks(visibleTasks.filter((task) => task.worktreeId === worktree.id)),
+    })),
+    location: locationOf(state, currentTask),
+    waitingOn,
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
     draftBranch: state.draftBranch,
     draftWorktree: state.draftWorktree,
+    draftWorktreeId: state.draftWorktreeId,
+    /** What the composer calls the checkout a draft starts in, when the user picked one. */
+    draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
     environment,
     storageError: state.storageError,
     actionError: state.actionError,

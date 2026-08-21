@@ -1,5 +1,5 @@
 import { runStatusFor } from "./task-workspace.js";
-import { projectFor, sideChatIds, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, sideChatIds, worktreeFor, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
 import { threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
 
@@ -34,12 +34,13 @@ export function threadWaitResult(state: WorkspaceState, threadId: string, timedO
 
 export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary {
   const project = projectFor(state, task);
+  const worktree = worktreeFor(state, task);
   return {
     id: task.id,
     title: task.title,
     ...(task.projectId ? { projectId: task.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
-    ...(task.worktree ? { worktreeRoot: task.worktree.root } : {}),
+    ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),
     status: threadBusy(state, task.id) ? "running" : runStatusFor(state, task.id),
     archived: task.archivedAt !== undefined,
     createdAt: threadCreatedAt(task),

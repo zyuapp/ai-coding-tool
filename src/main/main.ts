@@ -529,7 +529,8 @@ async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeSer
       }
     })();
     const { reaped } = await worktrees.reconcile({ claimed, repositories });
-    const missing = claimed.filter((root) => !existsSync(root));
+    /** Every record whose directory is gone, which is the reaped ones and any removed from outside. */
+    const missing = database.worktreeRoots().filter((root) => !existsSync(root));
     const forgotten = database.forgetWorktrees(missing);
     if (reaped.length || forgotten) console.log(`Reconciled worktrees: reaped ${reaped.length}, released ${forgotten}.`);
   } catch (error) {

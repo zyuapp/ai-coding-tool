@@ -480,6 +480,7 @@ test("the sidebar steps through visited threads", async () => {
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(),
+    worktreeGroups: [],
     worktreeTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,
@@ -1509,7 +1510,7 @@ function seedBranchProject(overrides = {}) {
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   return fakeDesktop({
-    loadTaskStore: async () => ({ version: 2, projects: [BRANCH_PROJECT], tasks: [task], lastFolder: BRANCH_PROJECT.root }),
+    loadTaskStore: async () => ({ version: 2, projects: [BRANCH_PROJECT], worktrees: [], tasks: [task], lastFolder: BRANCH_PROJECT.root }),
     ...overrides,
   });
 }
@@ -1621,7 +1622,7 @@ test("workspace hook reads a stored subagent's activity only when it is opened",
   };
   const asked = [];
   const desktop = fakeDesktop({
-    loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task], lastFolder: project.root }),
+    loadTaskStore: async () => ({ version: 2, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }),
     loadSubagentActivity: async (taskId, subagentId) => {
       asked.push([taskId, subagentId]);
       return [{ id: "activity-1", kind: "text", text: "Reading", at: 1 }];
@@ -1647,7 +1648,7 @@ test("workspace hook removes a project without touching its folder", async () =>
     id: "task-1", title: "Task", projectId: project.id, executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
-  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task], lastFolder: project.root }) });
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }) });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});
 
@@ -2133,7 +2134,7 @@ test("removing a project retires the automations of every task it takes with it"
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   });
   const desktop = fakeDesktop({
-    loadTaskStore: async () => ({ version: 2, projects: [project], tasks: [task("task-1"), task("task-2"), task("task-3")], lastFolder: project.root }),
+    loadTaskStore: async () => ({ version: 2, projects: [project], worktrees: [], tasks: [task("task-1"), task("task-2"), task("task-3")], lastFolder: project.root }),
   });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});
@@ -2169,6 +2170,54 @@ test("archiving a task retires its automation", async () => {
   await workspace.view.unmount();
 });
 
+test("the sidebar nests a checkout's threads under it, and its row starts another thread there", async () => {
+  const thread = (id, overrides = {}) => ({
+    id, title: id, projectId: "project-1", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1, ...overrides,
+  });
+  const worktree = { id: "wt1", projectId: "project-1", root: "/worktrees/project-wt1", workspaceId: "ws-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
+  const started = [];
+  const view = await mount(React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects: [{ id: "project-1", root: "/project" }],
+    orderedTasks: [thread("in-checkout", { worktreeId: "wt1" }), thread("in-project")],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(["project-1"]),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    worktreeGroups: [{ worktree, tasks: [thread("in-checkout", { worktreeId: "wt1" })] }],
+    worktreeTaskIds: new Set(["in-checkout"]),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    settingsOpen: false,
+    onNewTask(projectId, worktreeId) { started.push([projectId, worktreeId]); },
+    onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+  }));
+
+  const group = view.container.querySelector(".worktree-group");
+  assert.equal(group.querySelector(".worktree-row-name").textContent, "project-wt1", "the row names the directory git worktree list shows");
+  assert.deepEqual(
+    [...group.querySelectorAll("[data-rfd-draggable-id]")].map((row) => row.getAttribute("data-rfd-draggable-id")),
+    ["in-checkout"],
+    "only the threads working in that checkout nest under it",
+  );
+  assert.deepEqual(
+    [...view.container.querySelectorAll(".project-tasks [data-rfd-draggable-id]")].map((row) => row.getAttribute("data-rfd-draggable-id")),
+    ["in-project"],
+    "and the project's own list keeps the rest",
+  );
+
+  await act(async () => { group.querySelector('[aria-label="New thread in project-wt1"]').click(); });
+  assert.deepEqual(started, [["project-1", "wt1"]], "the row starts a thread in that checkout, not in the project");
+  await view.unmount();
+});
+
 test("the sidebar marks the threads that run on a schedule and the ones with their own checkout", async () => {
   const task = (id, projectId) => ({
     id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
@@ -2185,6 +2234,7 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
     expandedProjects: new Set(["project-1"]),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(["scheduled-task", "scheduled-chat"]),
+    worktreeGroups: [],
     worktreeTaskIds: new Set(["plain-task"]),
     projectsOpen: true,
     recentsOpen: true,
@@ -2218,6 +2268,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
     expandedProjects: new Set(["project-1"]),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(),
+    worktreeGroups: [],
     worktreeTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,
@@ -2263,6 +2314,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
     expandedProjects: new Set(),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(),
+    worktreeGroups: [],
     worktreeTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,
@@ -2312,6 +2364,7 @@ test("a collapsed folder takes a drop as a strip the drag can measure, still fol
     expandedProjects: new Set(["open-project"]),
     runningTaskIds: new Set(),
     automatedTaskIds: new Set(),
+    worktreeGroups: [],
     worktreeTaskIds: new Set(),
     projectsOpen: true,
     recentsOpen: true,

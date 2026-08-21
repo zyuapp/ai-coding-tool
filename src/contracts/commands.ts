@@ -15,7 +15,8 @@ export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | Projec
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =
-  | { type: "task.new"; projectId?: string }
+  /** `worktreeId` starts the thread in a checkout the project already has, rather than in the project. */
+  | { type: "task.new"; projectId?: string; worktreeId?: string }
   | { type: "task.select"; taskId: string }
   | { type: "task.archive"; taskId: string }
   | { type: "task.restore"; taskId: string }
@@ -43,9 +44,11 @@ export type TaskCommand =
    * While a run is going the message is queued instead; `steer` pushes it into that run straight away.
    * `text` sends that message instead of the composer draft and leaves the draft alone: only the
    * composer's own send falls back to the current task, so a send carrying `text` and no `taskId`
-   * always starts a new task, in `projectId`. `worktree` starts that new task in its own checkout.
+   * always starts a new task, in `projectId`. `worktree` starts that new task in a checkout of its
+   * own; `worktreeId` starts it in one the project already has, and names the project itself, so a
+   * `projectId` that disagrees with it is refused. Naming one takes precedence over asking for a new one.
    */
-  | { type: "task.send"; taskId?: string; projectId?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean }
+  | { type: "task.send"; taskId?: string; projectId?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.step"; delta: -1 | 1 }
   | { type: "task.steer-queued"; taskId?: string; messageId: string }

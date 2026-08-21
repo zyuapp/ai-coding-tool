@@ -51,9 +51,13 @@ export type Project = {
   sortIndex?: number;
 };
 
-/** Where a dragged task lands: a slot in a project's list, or in the project-less "recents" list. */
+/**
+ * Where a dragged task lands: a slot in a project's list, in one of that project's checkouts, or in
+ * the project-less "recents" list. `index` counts rows in that one list, so each list is its own.
+ */
 export type TaskDropTarget = {
   projectId: string | null;
+  worktreeId?: string;
   index: number;
 };
 
@@ -128,9 +132,16 @@ export type Task = {
   attention?: TaskAttention;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
-  /** The checkout this thread's runs happen in. Absent while it runs in the project itself. */
-  worktree?: Worktree;
-  /** Set once the user asks for a worktree; the worktree itself is made on the next send. */
+  /**
+   * The checkout this thread's runs happen in, named by id because other threads may work in the
+   * same one. Absent while the thread runs in the project itself.
+   */
+  worktreeId?: string;
+  /**
+   * When this thread's session forked into that checkout, set by its own first run there. Threads
+   * sharing a checkout fork independently, so a thread that has yet to run in one has no fork.
+   */
+  worktreeEnteredAt?: number;
   /** Absent on tasks written before threads were timestamped; {@link threadCreatedAt} fills those in. */
   createdAt?: number;
   updatedAt: number;
@@ -141,12 +152,15 @@ export type TaskStoreData = {
   version: typeof TASK_STORE_VERSION;
   tasks: Task[];
   projects: Project[];
+  worktrees: Worktree[];
   lastFolder: string | null;
 };
 
 export type StorageValues = {
   tasks: string | null;
   projects: string | null;
+  /** Absent in everything written before a checkout could hold more than one thread. */
+  worktrees: string | null;
   lastFolder: string | null;
 };
 
@@ -188,10 +202,10 @@ export function legacyProjectId(root: string) {
 }
 
 export function parseTaskStore(raw: StorageValues): TaskStoreParseResult {
-  if (raw.tasks === null && raw.projects === null && raw.lastFolder === null) {
+  if (isEmpty(raw)) {
     return {
       ok: true,
-      data: { version: TASK_STORE_VERSION, tasks: [], projects: [], lastFolder: null },
+      data: { version: TASK_STORE_VERSION, tasks: [], projects: [], worktrees: [], lastFolder: null },
       sourceVersion: 0,
       preservedV1: null,
     };
@@ -248,7 +262,7 @@ export function migrateV1ToV2(raw: StorageValues): TaskStoreParseResult {
 
   return {
     ok: true,
-    data: { version: TASK_STORE_VERSION, tasks, projects, lastFolder },
+    data: { version: TASK_STORE_VERSION, tasks, projects, worktrees: [], lastFolder },
     sourceVersion: 1,
     preservedV1: raw,
   };
@@ -258,6 +272,7 @@ export function serializeTaskStore(data: TaskStoreData): SerializedTaskStore {
   return {
     tasks: JSON.stringify(versioned(data.tasks)),
     projects: JSON.stringify(versioned(data.projects)),
+    worktrees: JSON.stringify(versioned(data.worktrees)),
     lastFolder: JSON.stringify(versioned(data.lastFolder)),
   };
 }
@@ -322,49 +337,87 @@ function migrateMessages(value: unknown, taskIndex: number, errors: string[]) {
 
 function decodeV2(raw: StorageValues):
   | { kind: "none" }
-  | { kind: "v2"; values: { tasks: unknown; projects: unknown; lastFolder: unknown } }
+  | { kind: "v2"; values: { tasks: unknown; projects: unknown; worktrees: unknown; lastFolder: unknown } }
   | { kind: "corrupt"; errors: string[] } {
-  if (raw.tasks === null && raw.projects === null && raw.lastFolder === null) return { kind: "none" };
+  if (isEmpty(raw)) return { kind: "none" };
   const errors: string[] = [];
   const tasks = parseJson(raw.tasks, "tasks", errors);
   const projects = parseJson(raw.projects, "projects", errors);
+  const worktrees = parseJson(raw.worktrees, "worktrees", errors);
   const lastFolder = parseJson(raw.lastFolder, "lastFolder", errors);
-  const values = { tasks, projects, lastFolder };
   const hasV2Marker = [tasks, projects, lastFolder].some((value) => isRecord(value) && value.version === TASK_STORE_VERSION);
   if (!hasV2Marker) return { kind: "none" };
   if (errors.length) return { kind: "corrupt", errors };
   if (![tasks, projects, lastFolder].every((value) => isRecord(value) && value.version === TASK_STORE_VERSION && "value" in value)) {
     return { kind: "corrupt", errors: ["version 2 storage must contain all three versioned values"] };
   }
+  /** Storage written before checkouts had records of their own has none; the tasks still carry them. */
+  if (worktrees !== null && !(isRecord(worktrees) && worktrees.version === TASK_STORE_VERSION && "value" in worktrees)) {
+    return { kind: "corrupt", errors: ["version 2 worktrees is not a versioned value"] };
+  }
   return {
     kind: "v2",
     values: {
       tasks: (tasks as { value: unknown }).value,
       projects: (projects as { value: unknown }).value,
+      worktrees: worktrees === null ? null : (worktrees as { value: unknown }).value,
       lastFolder: (lastFolder as { value: unknown }).value,
     },
   };
 }
 
-function parseV2(values: { tasks: unknown; projects: unknown; lastFolder: unknown }, raw: StorageValues): TaskStoreParseResult {
+function parseV2(values: { tasks: unknown; projects: unknown; worktrees: unknown; lastFolder: unknown }, raw: StorageValues): TaskStoreParseResult {
   const errors: string[] = [];
   if (!Array.isArray(values.tasks)) errors.push("v2 tasks must be an array");
   if (!Array.isArray(values.projects)) errors.push("v2 projects must be an array");
+  if (values.worktrees !== null && !Array.isArray(values.worktrees)) errors.push("v2 worktrees must be an array");
   if (values.lastFolder !== null && typeof values.lastFolder !== "string") errors.push("v2 lastFolder must be a string or null");
   const projects = Array.isArray(values.projects) ? values.projects.filter(isProject) : [];
-  const tasks = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, errors)).filter((task): task is Task => task !== null) : [];
+  const stored = Array.isArray(values.worktrees) ? values.worktrees.filter(isWorktree) : [];
+  if (Array.isArray(values.worktrees) && stored.length !== values.worktrees.length) errors.push("v2 worktrees contains an invalid value");
+  const lifted: Worktree[] = [];
+  const tasks = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, errors, lifted)).filter((task): task is Task => task !== null) : [];
   if (Array.isArray(values.projects) && projects.length !== values.projects.length) errors.push("v2 projects contains an invalid value");
   const projectIds = new Set(projects.map((project) => project.id));
   for (const task of tasks) {
     if (task.projectId && !projectIds.has(task.projectId)) errors.push(`v2 task ${task.id} references an unknown project`);
   }
   if (errors.length) return corrupt(2, errors, raw);
+  const worktrees = [...stored, ...lifted]
+    .filter((worktree, index, all) => all.findIndex((item) => item.id === worktree.id) === index)
+    .filter((worktree) => projectIds.has(worktree.projectId));
   return {
     ok: true,
-    data: { version: TASK_STORE_VERSION, tasks, projects, lastFolder: values.lastFolder as string | null },
+    data: { version: TASK_STORE_VERSION, tasks: tasks.map((task) => claiming(task, worktrees)), projects, worktrees, lastFolder: values.lastFolder as string | null },
     sourceVersion: 2,
     preservedV1: null,
   };
+}
+
+/**
+ * A reference to a checkout that is not there is dropped rather than refusing the whole store: a
+ * reconcile removes a checkout the moment nothing claims it, and a crash in that window would
+ * otherwise leave the user unable to write anything at all.
+ */
+function claiming(task: Task, worktrees: Worktree[]): Task {
+  if (!task.worktreeId || worktrees.some((worktree) => worktree.id === task.worktreeId)) return task;
+  const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = task;
+  return local;
+}
+
+/**
+ * Tasks written while a checkout belonged to exactly one thread carry it inside themselves. Lifting
+ * one out gives it a record of its own; the fork the thread had already made stays with the thread.
+ * A checkout on a thread with no project has nowhere to be listed, so it is left to be reaped.
+ */
+function liftEmbeddedWorktree(value: Record<string, any>, lifted: Worktree[]) {
+  const { worktree, ...task } = value;
+  if (!isRecord(worktree)) return value;
+  const { enteredAt, ...record } = worktree;
+  const candidate = { ...record, projectId: task.projectId };
+  if (!isWorktree(candidate)) return task;
+  lifted.push(candidate);
+  return { ...task, worktreeId: candidate.id, ...(finiteNumber(enteredAt) ? { worktreeEnteredAt: enteredAt } : {}) };
 }
 
 function parseJson(value: string | null, label: string, errors: string[]): unknown | null {
@@ -428,7 +481,8 @@ function isTaskBase(value: unknown): value is Task {
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.attention === undefined || isTaskAttention(value.attention)) &&
-    (value.worktree === undefined || isWorktree(value.worktree)) &&
+    (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
+    (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&
@@ -451,8 +505,9 @@ function dropRetiredSettings(value: unknown) {
   return task;
 }
 
-function sanitizeV2Task(raw: unknown, errors: string[]): Task | null {
-  const value = dropRetiredSettings(raw);
+function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Task | null {
+  const retired = dropRetiredSettings(raw);
+  const value = isRecord(retired) ? liftEmbeddedWorktree(retired, lifted) : retired;
   if (!isTaskBase(value)) {
     errors.push("v2 tasks contains an invalid value");
     return null;
@@ -536,6 +591,11 @@ function nonEmptyString(value: unknown): value is string {
 
 function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+/** Storage written before checkouts had records of their own carries no worktrees value at all. */
+function isEmpty(raw: StorageValues) {
+  return raw.tasks === null && raw.projects === null && (raw.worktrees ?? null) === null && raw.lastFolder === null;
 }
 
 function normalizeRoot(root: string) {

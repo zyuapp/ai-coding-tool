@@ -4,6 +4,7 @@ import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
 import { parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
+import { isWorktree, type Worktree } from "../domain/worktree.js";
 
 /** Automations are read while the app boots, so one unreadable row must not take the window with it. */
 function parseAutomationRow(data: string): Automation | null {
@@ -35,6 +36,7 @@ export class TaskDatabase {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, position INTEGER NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS worktrees (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS messages (
         task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
         id TEXT NOT NULL,
@@ -63,6 +65,42 @@ export class TaskDatabase {
       CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
     `);
     this.liftEmbeddedSubagents();
+    this.liftEmbeddedWorktrees();
+  }
+
+  /**
+   * Tasks written while a checkout belonged to exactly one thread carry it inside themselves. Giving
+   * each checkout a row of its own is what lets a second thread claim it; the fork the thread had
+   * already made stays with the thread. A checkout on a thread with no project has nowhere to be
+   * listed, so its claim goes and the next reconcile reaps the directory.
+   */
+  private liftEmbeddedWorktrees() {
+    const rows = this.database.prepare("SELECT id, data FROM tasks").all() as Array<{ id: string; data: string }>;
+    const stale = rows.flatMap((row) => {
+      const task = JSON.parse(row.data) as Record<string, unknown>;
+      return task.worktree ? [{ id: row.id, task }] : [];
+    });
+    if (!stale.length) return;
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const save = this.database.prepare("UPDATE tasks SET data = ? WHERE id = ?");
+      const saveWorktree = this.database.prepare("INSERT INTO worktrees (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data");
+      for (const { id, task } of stale) {
+        const { worktree, ...rest } = task as { worktree: Record<string, unknown> } & Record<string, unknown>;
+        const { enteredAt, ...record } = worktree;
+        const lifted = { ...record, projectId: rest.projectId };
+        if (!isWorktree(lifted)) {
+          save.run(JSON.stringify(rest), id);
+          continue;
+        }
+        saveWorktree.run(lifted.id, JSON.stringify(lifted));
+        save.run(JSON.stringify({ ...rest, worktreeId: lifted.id, ...(typeof enteredAt === "number" ? { worktreeEnteredAt: enteredAt } : {}) }), id);
+      }
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   /** Tasks written before subagents had rows of their own still carry them inside the task record. */
@@ -147,10 +185,12 @@ export class TaskDatabase {
         ...(subagents.has(task.id) ? { subagents: subagents.get(task.id) } : {}),
       }))
       .sort((left, right) => right.updatedAt - left.updatedAt);
+    const worktreeRows = this.database.prepare("SELECT data FROM worktrees").all() as Array<{ data: string }>;
     const data: TaskStoreData = {
       version: 2,
       tasks,
       projects: projectRows.map(({ data }) => JSON.parse(data) as Project),
+      worktrees: worktreeRows.map(({ data }) => JSON.parse(data) as Worktree),
       lastFolder: lastFolderRow ? JSON.parse(lastFolderRow.value) as string | null : null,
     };
     const validated = parseTaskStore(serializeTaskStore(data));
@@ -166,28 +206,68 @@ export class TaskDatabase {
     return rows.map(({ data }) => JSON.parse(data) as SubagentActivity);
   }
 
-  /** Every task's checkout of its own, so a reconcile can tell a live worktree from an abandoned one. */
+  /**
+   * The checkouts live threads still claim, so a reconcile can tell one in use from an abandoned one.
+   * Any one thread keeps a checkout, which is what lets several share it; an archived thread keeps
+   * nothing, so a checkout only archived threads claim is reaped like any other nobody is in.
+   */
   claimedWorktrees(): string[] {
-    const rows = this.database.prepare("SELECT data FROM tasks").all() as Array<{ data: string }>;
-    return rows.flatMap(({ data }) => {
-      const root = (JSON.parse(data) as { worktree?: { root?: string } }).worktree?.root;
-      return typeof root === "string" && root ? [root] : [];
-    });
+    const claimed = new Set(
+      (this.database.prepare("SELECT data FROM tasks").all() as Array<{ data: string }>)
+        .flatMap(({ data }) => {
+          const task = JSON.parse(data) as { worktreeId?: string; archivedAt?: number };
+          return typeof task.worktreeId === "string" && task.worktreeId && task.archivedAt === undefined ? [task.worktreeId] : [];
+        }),
+    );
+    return this.worktreeRecords().flatMap(({ id, root }) => claimed.has(id) && root ? [root] : []);
   }
 
-  /** Takes a checkout away from every task that claimed one of `roots`, which no longer exist. */
+  /** Every checkout the app has a record of, claimed or not, so a reconcile can see what is gone. */
+  worktreeRoots(): string[] {
+    return this.worktreeRecords().flatMap(({ root }) => root ? [root] : []);
+  }
+
+  private worktreeRecords(): Array<{ id: string; root: string | undefined }> {
+    return (this.database.prepare("SELECT id, data FROM worktrees").all() as Array<{ id: string; data: string }>)
+      .map(({ id, data }) => {
+        const root = (JSON.parse(data) as { root?: string }).root;
+        return { id, root: typeof root === "string" && root ? root : undefined };
+      });
+  }
+
+  /**
+   * Drops the checkouts at `roots`, which no longer exist, and every claim on them, so neither a
+   * thread nor a record is left pointing at a directory that is gone. Counts the threads freed.
+   */
   forgetWorktrees(roots: string[]): number {
     if (!roots.length) return 0;
     const gone = new Set(roots.map((root) => path.resolve(root)));
+    const doomed = new Set(
+      (this.database.prepare("SELECT id, data FROM worktrees").all() as Array<{ id: string; data: string }>)
+        .flatMap(({ id, data }) => {
+          const root = (JSON.parse(data) as { root?: string }).root;
+          return typeof root === "string" && root && gone.has(path.resolve(root)) ? [id] : [];
+        }),
+    );
+    if (!doomed.size) return 0;
     const rows = this.database.prepare("SELECT id, data FROM tasks").all() as Array<{ id: string; data: string }>;
     const save = this.database.prepare("UPDATE tasks SET data = ? WHERE id = ?");
+    const dropWorktree = this.database.prepare("DELETE FROM worktrees WHERE id = ?");
     let changed = 0;
-    for (const row of rows) {
-      const task = JSON.parse(row.data) as { worktree?: { root?: string } };
-      if (!task.worktree?.root || !gone.has(path.resolve(task.worktree.root))) continue;
-      const { worktree: _released, ...rest } = task;
-      save.run(JSON.stringify(rest), row.id);
-      changed += 1;
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      for (const row of rows) {
+        const task = JSON.parse(row.data) as { worktreeId?: string };
+        if (!task.worktreeId || !doomed.has(task.worktreeId)) continue;
+        const { worktreeId: _released, worktreeEnteredAt: _forked, ...rest } = task as Record<string, unknown>;
+        save.run(JSON.stringify(rest), row.id);
+        changed += 1;
+      }
+      for (const id of doomed) dropWorktree.run(id);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
     }
     return changed;
   }
@@ -210,6 +290,11 @@ export class TaskDatabase {
         this.database.exec("DELETE FROM projects");
         const insertProject = this.database.prepare("INSERT INTO projects (id, position, data) VALUES (?, ?, ?)");
         delta.projects.forEach((project, index) => insertProject.run(project.id, index, JSON.stringify(project)));
+      }
+      if (delta.worktrees) {
+        this.database.exec("DELETE FROM worktrees");
+        const insertWorktree = this.database.prepare("INSERT INTO worktrees (id, data) VALUES (?, ?)");
+        for (const worktree of delta.worktrees) insertWorktree.run(worktree.id, JSON.stringify(worktree));
       }
       if (delta.lastFolder !== undefined && writesLastFolder) {
         this.database.prepare("INSERT INTO settings (key, value) VALUES ('lastFolder', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(delta.lastFolder));

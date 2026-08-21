@@ -79,7 +79,7 @@ test("malformed storage preserves the payload and blocks writes", () => {
   });
   const loaded = store.load();
   assert.equal(loaded.ok, false);
-  assert.equal(store.save({ version: 2, tasks: [], projects: [], lastFolder: null }).ok, false);
+  assert.equal(store.save({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }).ok, false);
   assert.equal(memory.has(TASK_STORE_KEYS.v2.tasks), false);
 });
 
@@ -122,7 +122,7 @@ test("an empty store is a clean version-zero result", () => {
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.sourceVersion, 0);
-  assert.deepEqual(result.data, { version: 2, tasks: [], projects: [], lastFolder: null });
+  assert.deepEqual(result.data, { version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null });
 });
 
 test("salvages a v2 task with an invalid continuation", () => {
@@ -235,7 +235,7 @@ test("ignores an incomplete split-v2 write and recovers from intact v1", () => {
     [TASK_STORE_KEYS.v1.tasks, raw.tasks],
     [TASK_STORE_KEYS.v1.projects, raw.projects],
     [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
-    [TASK_STORE_KEYS.v2.tasks, serializeTaskStore({ version: 2, tasks: [], projects: [], lastFolder: null }).tasks],
+    [TASK_STORE_KEYS.v2.tasks, serializeTaskStore({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }).tasks],
   ]);
   const result = new TaskStore({
     getItem: (key) => memory.get(key) ?? null,
@@ -335,13 +335,13 @@ test("a corrupt v2 envelope blocks writes instead of falling back to older data"
 
   assert.equal(loaded.ok, false);
   assert.equal(loaded.sourceVersion, 2);
-  assert.equal(store.save({ version: 2, tasks: [], projects: [], lastFolder: null }).ok, false);
+  assert.equal(store.save({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }).ok, false);
 });
 
 test("a valid v2 envelope takes precedence over split and v1 values", () => {
-  const envelopeData = { version: 2, tasks: [], projects: [], lastFolder: null };
+  const envelopeData = { version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null };
   const envelope = serializeTaskStore(envelopeData);
-  const split = serializeTaskStore({ version: 2, tasks: [], projects: [], lastFolder: "/split" });
+  const split = serializeTaskStore({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: "/split" });
   const raw = legacyValues();
   const memory = new Map([
     [TASK_STORE_KEYS.v2.envelope, JSON.stringify(envelope)],
@@ -368,4 +368,58 @@ test("v1 migration deduplicates project roots with trailing separators", () => {
   if (!result.ok) return;
   assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/claudex"), root: "/work/claudex" }]);
   assert.equal(result.data.tasks[0].projectId, result.data.projects[0].id);
+});
+
+test("storage written before a checkout could hold two threads lifts the checkout out of the thread", () => {
+  const checkout = { id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "workspace-wt1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 2 };
+  const stored = {
+    id: "task-1",
+    title: "Older thread",
+    projectId: "project-1",
+    executionPolicy: "confirm",
+    messages: [],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+    worktree: { ...checkout, enteredAt: 3 },
+  };
+  const result = parseTaskStore({
+    tasks: JSON.stringify({ version: 2, value: [stored] }),
+    projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/repo" }] }),
+    worktrees: null,
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.worktrees, [{ ...checkout, projectId: "project-1" }]);
+  assert.equal(result.data.tasks[0].worktreeId, "wt1");
+  assert.equal(result.data.tasks[0].worktreeEnteredAt, 3, "the fork the thread had already made stays with the thread");
+  assert.equal(result.data.tasks[0].worktree, undefined);
+});
+
+test("a thread claiming a checkout that is not there is local again, rather than making the store unwritable", () => {
+  const stored = {
+    id: "task-1",
+    title: "Reconciled away",
+    projectId: "project-1",
+    executionPolicy: "confirm",
+    messages: [],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+    worktreeId: "wt-gone",
+    worktreeEnteredAt: 3,
+  };
+  const result = parseTaskStore({
+    tasks: JSON.stringify({ version: 2, value: [stored] }),
+    projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/repo" }] }),
+    worktrees: JSON.stringify({ version: 2, value: [] }),
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.tasks[0].worktreeId, undefined);
+  assert.equal(result.data.tasks[0].worktreeEnteredAt, undefined);
 });

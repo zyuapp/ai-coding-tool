@@ -90,6 +90,7 @@ function persistenceDelta(previous: WorkspaceState | null, next: WorkspaceState)
       }];
     }),
     ...(!previous || previous.projects !== next.projects ? { projects: next.projects } : {}),
+    ...(!previous || previous.worktrees !== next.worktrees ? { worktrees: next.worktrees } : {}),
     ...(!previous || previous.lastFolder !== next.lastFolder ? { lastFolder: next.lastFolder } : {}),
   };
 }
@@ -116,7 +117,7 @@ export function useTaskWorkspace() {
     releaseThreadWaiters(next);
     if (!persist || !persistenceReady.current || !next.writable || next.storageError) return;
     const delta = persistenceDelta(previous, next);
-    if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !("lastFolder" in delta)) return;
+    if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !delta.worktrees && !("lastFolder" in delta)) return;
     persistenceQueue.current = persistenceQueue.current
       .then(() => window.desktop.persistTaskStore(delta))
       .catch((error) => {
@@ -169,7 +170,7 @@ export function useTaskWorkspace() {
           const worktree = await window.desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: true });
           await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree });
         } catch (error) {
-          await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: errorMessage(error) });
+          await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: `Could not create the worktree: ${errorMessage(error)}` });
         }
         return;
 
@@ -547,14 +548,14 @@ export function useTaskWorkspace() {
     if (!currentRunId) return;
     const timer = window.setInterval(() => void dispatchRef.current({ type: "view.refresh-environment" }), 2_000);
     return () => window.clearInterval(timer);
-  }, [view.currentProject?.workspaceId, view.currentTask?.worktree?.workspaceId, view.currentTask?.id, currentRunId]);
+  }, [view.currentProject?.workspaceId, view.workspaceId, view.currentTask?.id, currentRunId]);
 
   return {
     ...view,
     /** The one door into the application. The named actions below are shorthand for the same commands. */
     dispatch: (command: AppCommand) => dispatchRef.current(command),
     actions: {
-      newTask: (projectId?: string) => dispatch({ type: "task.new", ...(projectId ? { projectId } : {}) }),
+      newTask: (projectId?: string, worktreeId?: string) => dispatch({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) }),
       openFolder: () => dispatch({ type: "project.open" }),
       selectTask: (taskId: string) => dispatch({ type: "task.select", taskId }),
       archiveTask: (taskId: string) => dispatch({ type: "task.archive", taskId }),

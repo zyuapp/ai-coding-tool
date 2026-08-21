@@ -37,7 +37,8 @@ export type ThreadSummary = {
   title: string;
   projectId?: string;
   projectRoot?: string;
-  /** The checkout of its own the thread works in, when it has one. */
+  /** The checkout the thread works in, when it works in one. Its id is what starts a thread there. */
+  worktreeId?: string;
   worktreeRoot?: string;
   status: "idle" | "running" | "stopped";
   archived: boolean;
@@ -62,11 +63,11 @@ export type ThreadTranscript = {
 };
 
 /**
- * The commands anything outside the window may dispatch. Starting a thread (in the project checkout
- * or in a worktree of its own), continuing, archiving and stopping one is allowed, as is driving the
- * browser panel; moving the user around the app, changing how much a thread is allowed to do, moving
- * a thread between checkouts once it exists, removing projects, clearing the browser session, and
- * answering approvals — the browser's own included — are not.
+ * The commands anything outside the window may dispatch. Starting a thread (in the project checkout,
+ * in a worktree of its own, or in one the project already has), continuing, archiving and stopping
+ * one is allowed, as is driving the browser panel; moving the user around the app, changing how much
+ * a thread is allowed to do, moving a thread between checkouts once it exists, removing projects,
+ * clearing the browser session, and answering approvals — the browser's own included — are not.
  */
 export type ExternalCommand = Extract<AppCommand, {
   type: "task.send" | "task.archive" | "run.cancel" | "browser.open" | "browser.close-tab" | "browser.select-tab" | "browser.go" | "browser.reload" | "browser.act";

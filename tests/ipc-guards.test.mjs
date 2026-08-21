@@ -157,7 +157,11 @@ test("the external command surface covers reading and writing threads, and nothi
   assert.equal(isExternalCommand({ type: "task.archive", taskId: "task-1" }), true);
   assert.equal(isExternalCommand({ type: "run.cancel", taskId: "task-1" }), true);
 
+  assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "wt1" }), true);
+
   assert.equal(isExternalCommand({ type: "task.send", text: "Look", attachments: [{ path: "/etc/passwd", labels: [] }] }), false);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "/worktrees/repo-wt1" }), true, "a path is only ever a string here; the reducer is what resolves it to a checkout the app made");
+  assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: 7 }), false);
   assert.equal(isExternalCommand({ type: "task.send" }), false);
   assert.equal(isExternalCommand({ type: "task.archive" }), false);
   assert.equal(isExternalCommand({ type: "task.set-policy", taskId: "task-1", policy: "autonomous" }), false, "the agent does not widen what a thread may do");
