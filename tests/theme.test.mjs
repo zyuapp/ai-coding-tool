@@ -65,6 +65,26 @@ test("body text clears WCAG AA on its own canvas in every theme", () => {
   }
 });
 
+/** How far a shadow moves the canvas it falls on: its alpha times its distance from that canvas. */
+function shadowWeight(tokens) {
+  const canvas = channels(tokens.get("--p-bg-0"));
+  const shadow = tokens.get("--p-shadow").split(/\s+/).map((value) => Number(value) / 255);
+  const scale = Number(tokens.get("--p-shadow-scale"));
+  const distance = canvas.reduce((total, channel, index) => total + Math.abs(channel - shadow[index]), 0) / 3;
+  return 0.45 * scale * distance;
+}
+
+test("shadows fall at one weight across the themes of a variant", () => {
+  for (const variant of ["dark", "light"]) {
+    const weights = THEMES.filter((theme) => theme.variant === variant)
+      .map((theme) => ({ id: theme.id, weight: shadowWeight(blocks.get(theme.id)) }));
+    const heaviest = weights.reduce((worst, entry) => entry.weight > worst.weight ? entry : worst);
+    const lightest = weights.reduce((best, entry) => entry.weight < best.weight ? entry : best);
+    const spread = heaviest.weight / lightest.weight;
+    assert.ok(spread <= 1.2, `${heaviest.id} casts a shadow ${spread.toFixed(2)}x the one ${lightest.id} casts`);
+  }
+});
+
 test("the semantic layer holds no colour of its own", () => {
   const literals = stylesCss
     .split("\n")

@@ -9,6 +9,12 @@
  *
  * The selector is the attribute rather than the root, so a preview tile can carry a theme the rest
  * of the window is not in.
+ *
+ * --p-shadow-scale holds the shadows to one weight across themes. A shadow is only as visible as
+ * the distance between its own colour and the canvas it falls on, and that distance is not the
+ * same in every theme: Gruvbox Dark's canvas is far lighter than Claudex Dark's, so the same black
+ * reads as a halo there and as nothing here. Each theme scales its shadows by the inverse of that
+ * distance.
  */
 :root,
 [data-theme="claudex-dark"] {
@@ -123,7 +129,7 @@
   --p-syntax-punctuation: #6b6f78;
 
   --p-shadow: 24 26 32;
-  --p-shadow-scale: 0.35;
+  --p-shadow-scale: 0.26;
   --p-scrim: 32 34 40;
 
   --p-ansi-black: #e0ddd4;
@@ -189,7 +195,7 @@
   --p-syntax-punctuation: #9399b2;
 
   --p-shadow: 0 0 0;
-  --p-shadow-scale: 1;
+  --p-shadow-scale: 0.89;
   --p-scrim: 8 8 14;
 
   --p-ansi-black: #45475a;
@@ -255,7 +261,7 @@
   --p-syntax-punctuation: #7c7f93;
 
   --p-shadow: 76 79 105;
-  --p-shadow-scale: 0.3;
+  --p-shadow-scale: 0.37;
   --p-scrim: 76 79 105;
 
   --p-ansi-black: #bcc0cc;
@@ -321,7 +327,7 @@
   --p-syntax-punctuation: #7f88b3;
 
   --p-shadow: 0 0 0;
-  --p-shadow-scale: 1;
+  --p-shadow-scale: 0.73;
   --p-scrim: 6 6 12;
 
   --p-ansi-black: #414868;
@@ -387,7 +393,7 @@
   --p-syntax-punctuation: #6b739b;
 
   --p-shadow: 47 53 80;
-  --p-shadow-scale: 0.3;
+  --p-shadow-scale: 0.35;
   --p-scrim: 47 53 80;
 
   --p-ansi-black: #b6bacb;
@@ -453,7 +459,7 @@
   --p-syntax-punctuation: #a89984;
 
   --p-shadow: 0 0 0;
-  --p-shadow-scale: 1;
+  --p-shadow-scale: 0.57;
   --p-scrim: 12 12 12;
 
   --p-ansi-black: #282828;
@@ -519,7 +525,7 @@
   --p-syntax-punctuation: #665c54;
 
   --p-shadow: 60 56 54;
-  --p-shadow-scale: 0.35;
+  --p-shadow-scale: 0.33;
   --p-scrim: 60 56 54;
 
   --p-ansi-black: #ebdbb2;
