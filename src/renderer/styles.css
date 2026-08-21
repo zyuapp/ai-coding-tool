@@ -1135,6 +1135,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 
 .empty-glyph { width: 38px; height: 38px; color: var(--quiet); }
 .empty-glyph svg { width: 100%; height: 100%; }
+.empty-state .empty-glyph, .empty-state h2, .empty-state p { user-select: none; }
 .empty-state h2 { margin: 18px 0 8px; color: var(--ink-soft); font-size: var(--text-display); font-weight: 560; line-height: 1.25; letter-spacing: -0.025em; }
 .empty-state p { max-width: 410px; margin: 0; color: var(--quiet-strong); font-size: var(--text-content); line-height: 1.55; }
 .empty-state button, .approval-actions button {
