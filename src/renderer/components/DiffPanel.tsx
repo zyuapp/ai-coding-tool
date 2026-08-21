@@ -231,7 +231,9 @@ type PanelRow =
   | { kind: "file"; key: string; file: DiffFileSummary }
   | { kind: "note"; key: string; text: string }
   | { kind: "line"; key: string; path: string; row: DiffRow; index: number }
-  | { kind: "pair"; key: string; path: string; row: SplitRow };
+  | { kind: "pair"; key: string; path: string; row: SplitRow }
+  /** The note being written, drawn under the run it is about rather than docked away from it. */
+  | { kind: "composer"; key: string };
 
 type LineRowProps = {
   row: DiffRow;
@@ -357,6 +359,20 @@ export function DiffPanel({
     // `at` reads `patches`, which is a fresh map whenever one has landed.
   }, [requests, patches]);
 
+  /**
+   * The rows a selection covers right now. Both ends have to still be in the file, and a hunk header
+   * between them ends the run: a range that jumps a header would quote lines the user never saw.
+   */
+  const span = useMemo(() => {
+    if (!selection) return null;
+    const drawing = drawn.get(selection.path);
+    const from = drawing?.indexByKey.get(selection.anchor);
+    const to = drawing?.indexByKey.get(selection.head);
+    if (!drawing || from === undefined || to === undefined) return null;
+    const rows = drawing.rows.slice(Math.min(from, to), Math.max(from, to) + 1);
+    return rows.some((row) => row.kind === "hunk") ? null : { rows, from: Math.min(from, to), to: Math.max(from, to) };
+  }, [selection, drawn]);
+
   const rows = useMemo(() => {
     const panel: PanelRow[] = [];
     for (const file of files) {
@@ -375,14 +391,23 @@ export function DiffPanel({
         panel.push({ kind: "note", key: `n:${file.path}`, text: patchNote(at(versionOf.get(file.path) ?? "")) ?? "Reading the patch…" });
         continue;
       }
+      /** The composer follows the last drawn row of the selection, whichever view drew it. */
+      const commenting = span && selection?.path === file.path;
       if (split) {
-        for (const row of drawing.pairs) panel.push({ kind: "pair", key: `${file.path}:${row.key}`, path: file.path, row });
+        for (const row of drawing.pairs) {
+          panel.push({ kind: "pair", key: `${file.path}:${row.key}`, path: file.path, row });
+          const reached = row.kind === "pair" && [row.left, row.right].some((side) => side && drawing.indexByKey.get(side.key) === span?.to);
+          if (commenting && reached) panel.push({ kind: "composer", key: `c:${file.path}` });
+        }
       } else {
-        drawing.rows.forEach((row, index) => panel.push({ kind: "line", key: `${file.path}:${row.key}`, path: file.path, row, index }));
+        drawing.rows.forEach((row, index) => {
+          panel.push({ kind: "line", key: `${file.path}:${row.key}`, path: file.path, row, index });
+          if (commenting && index === span.to) panel.push({ kind: "composer", key: `c:${file.path}` });
+        });
       }
     }
     return panel;
-  }, [files, collapsed, drawn, patches, versionOf, split]);
+  }, [files, collapsed, drawn, patches, versionOf, split, span, selection?.path]);
 
   const windowed = rows.length > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
@@ -405,19 +430,6 @@ export function DiffPanel({
     setNote("");
   }, [diff.range]);
 
-  /**
-   * The rows a selection covers right now. Both ends have to still be in the file, and a hunk header
-   * between them ends the run: a range that jumps a header would quote lines the user never saw.
-   */
-  const span = useMemo(() => {
-    if (!selection) return null;
-    const drawing = drawn.get(selection.path);
-    const from = drawing?.indexByKey.get(selection.anchor);
-    const to = drawing?.indexByKey.get(selection.head);
-    if (!drawing || from === undefined || to === undefined) return null;
-    const rows = drawing.rows.slice(Math.min(from, to), Math.max(from, to) + 1);
-    return rows.some((row) => row.kind === "hunk") ? null : { rows, from: Math.min(from, to), to: Math.max(from, to) };
-  }, [selection, drawn]);
 
   const quote = selection && span?.rows.length ? commentQuote(selection.path, span.rows, selectionSide(span.rows)) : null;
 
@@ -454,6 +466,35 @@ export function DiffPanel({
       );
     }
     if (row.kind === "note") return <p className="diff-note">{row.text}</p>;
+    if (row.kind === "composer") {
+      return (
+        <form
+          className="diff-comment"
+          onSubmit={(event) => {
+            event.preventDefault();
+            comment();
+          }}
+          onKeyDown={(event) => {
+            /** Escape drops the selection rather than reaching the shortcut that stops the run. */
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            clear();
+          }}
+        >
+          <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
+          <input
+            ref={noteRef}
+            aria-label="Note on the selected lines"
+            placeholder="What should change here?"
+            value={note}
+            onInput={(event) => setNote(event.currentTarget.value)}
+          />
+          <button type="submit" aria-label="Comment on the selected lines"><MessageSquarePlus size={15} /></button>
+          <button type="button" aria-label="Clear the selection" onClick={clear}><X size={15} /></button>
+        </form>
+      );
+    }
     const tokens = drawn.get(row.path)?.tokens ?? EMPTY_TOKENS;
     if (row.kind === "line") {
       return (
@@ -567,33 +608,6 @@ export function DiffPanel({
         )}
       </div>
 
-      {quote && (
-        <form
-          className="diff-comment"
-          onSubmit={(event) => {
-            event.preventDefault();
-            comment();
-          }}
-          onKeyDown={(event) => {
-            /** Escape drops the selection rather than reaching the shortcut that stops the run. */
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            event.stopPropagation();
-            clear();
-          }}
-        >
-          <span className="diff-comment-range">{quote.split("\n")[0]}</span>
-          <input
-            ref={noteRef}
-            aria-label="Note on the selected lines"
-            placeholder="What should change here?"
-            value={note}
-            onInput={(event) => setNote(event.currentTarget.value)}
-          />
-          <button type="submit" aria-label="Comment on the selected lines"><MessageSquarePlus size={15} /></button>
-          <button type="button" aria-label="Clear the selection" onClick={clear}><X size={15} /></button>
-        </form>
-      )}
     </section>
   );
 }

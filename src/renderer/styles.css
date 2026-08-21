@@ -2838,8 +2838,9 @@ pre {
  */
 .diff-line.selected .diff-gutter, .diff-split-cell.selected .diff-gutter { background: var(--diff-selected-line); color: var(--ink); }
 
-.diff-comment { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--surface); }
-.diff-comment-range { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }
+/** Drawn under the run it is about, inset from the gutter so it reads as a note on those lines. */
+.diff-comment { display: flex; align-items: center; gap: 6px; margin: 6px 10px 8px 44px; padding: 7px 8px; border: 1px solid var(--accent-line); border-radius: 9px; background: var(--surface); box-shadow: var(--shadow-menu); }
+.diff-comment-range { flex: none; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }
 .diff-comment input { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-meta); }
 .diff-comment input:focus-visible { outline: 2px solid var(--focus-ring); }
 .diff-comment button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }

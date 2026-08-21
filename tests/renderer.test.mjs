@@ -3776,6 +3776,12 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   assert.equal(view.container.querySelectorAll(".diff-line.selected").length, 2, "shift extends the selection");
   assert.match(view.container.querySelector(".diff-comment-range").textContent, /^src\/app\.ts:L2-L3$/);
 
+  /** The note is written among the lines it is about, not docked away below the whole review. */
+  const drawn = [...view.container.querySelectorAll(".diff-files .diff-line, .diff-files .diff-comment")];
+  const composer = drawn.findIndex((node) => node.classList.contains("diff-comment"));
+  assert.ok(composer > 0, "the composer is drawn with the rows, inside the scroller");
+  assert.ok(drawn[composer - 1].classList.contains("selected"), "it follows the last selected line");
+
   const note = view.container.querySelector('.diff-comment input');
   await act(async () => {
     note.value = "Name these properly";
