@@ -15,6 +15,7 @@ import {
   type DiffFile,
   type DiffFileSummary,
   type DiffRange,
+  type DiffLineKind,
   type DiffRow,
   type DiffSide,
   type SplitRow,
@@ -27,8 +28,11 @@ import { useDismissibleLayer } from "../focus";
 const BASE_MENU = "diff:base";
 const COMPARE_MENU = "diff:compare";
 
-/** The two sides that are not branches: the commit the checkout is on, and what is on disk right now. */
-const HEAD_SIDE = { label: "HEAD (this checkout)", value: "HEAD" };
+/**
+ * The two sides that are not branches: the commit the checkout is on, and what is on disk right now.
+ * Both are short, because the dock is narrow and a truncated side reads as a truncated branch name.
+ */
+const HEAD_SIDE = { label: "HEAD", value: "HEAD" };
 const WORKING_SIDE = { label: "Working tree", value: "" };
 
 /** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
@@ -36,6 +40,12 @@ const ROW_HEIGHT = 20;
 
 /** Above this many rows the review is windowed; a short one is cheaper, and steadier, drawn whole. */
 const VIRTUALIZE_ABOVE = 200;
+
+/**
+ * Two columns need room for two. Below this the dock leaves each side a few words per line, which
+ * reads worse than one column, so the review stays in one whatever the thread last chose.
+ */
+const SPLIT_MIN_WIDTH = 620;
 
 export type DiffPanelProps = {
   diff: DiffState;
@@ -74,6 +84,12 @@ function splitPath(path: string) {
   return cut === -1 ? { folder: "", name: path } : { folder: path.slice(0, cut + 1), name: path.slice(cut + 1) };
 }
 
+/** Why a file can be in the list and still have no lines under it. */
+function emptyPatchNote(file: DiffFileSummary) {
+  if (file.additions === 0 && file.deletions === 0) return "No changes to the file's contents";
+  return "Nothing to show for this comparison";
+}
+
 /** What a patch that is not lines to read has to say instead. */
 function patchNote(patch: PatchState | undefined) {
   if (!patch || patch.status === "reading") return "Reading the patch…";
@@ -102,6 +118,7 @@ function SidePicker({ id, label, value, extra, workspaceId, openMenu, onSetOpenM
   const menu = useRef<HTMLDivElement>(null);
   useDismissibleLayer(open, [row, menu], () => onSetOpenMenu(null), trigger);
   const branches = useBranches(workspaceId, open);
+  const shown = value === extra.value ? extra.label : value;
 
   return (
     <div ref={row} className="diff-side" data-popover-menu>
@@ -109,13 +126,13 @@ function SidePicker({ id, label, value, extra, workspaceId, openMenu, onSetOpenM
         ref={trigger}
         className="diff-side-trigger"
         type="button"
-        aria-label={label}
+        aria-label={`${label}: ${shown}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={!workspaceId}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
-        <code title={value === extra.value ? extra.label : value}>{value === extra.value ? extra.label : value}</code>
+        <code title={shown}>{shown}</code>
         <ChevronDown size={13} />
       </button>
       {open && (
@@ -163,6 +180,16 @@ function tokenizeFile(file: DiffFile) {
   return tokens;
 }
 
+/**
+ * What a gutter announces. A line number alone is ambiguous: a deletion and the addition replacing it
+ * often carry the same number, and in two columns both sides would read the same.
+ */
+function rowLabel(row: Extract<DiffRow, { kind: DiffLineKind }>) {
+  if (row.kind === "add") return `Added line ${row.newLine}`;
+  if (row.kind === "delete") return `Removed line ${row.oldLine}`;
+  return `Unchanged line ${row.newLine}`;
+}
+
 /** Which side a selection names: the old one only when every line in it was taken away. */
 function selectionSide(rows: DiffRow[]): DiffSide {
   const lines = rows.filter((row) => row.kind !== "hunk");
@@ -190,8 +217,12 @@ function drawFile(file: DiffFile): DrawnFile {
   };
 }
 
-/** Where a comment is being taken: a file, and a run of its rows in the order one column draws them. */
-type Selection = { path: string; from: number; to: number };
+/**
+ * Where a comment is being taken: a file, and the two rows its run is bounded by. Rows are named by
+ * key rather than by position, so a patch read again under the user either still has those rows or
+ * the selection is dropped — it can never quietly come to mean different lines.
+ */
+type Selection = { path: string; anchor: string; head: string };
 
 /** Every drawn line of the panel, flat, so one window covers the whole review rather than each file. */
 type PanelRow =
@@ -215,7 +246,7 @@ function LineRow({ row, tokens, selected, onSelect }: LineRowProps) {
       <button
         className="diff-gutter"
         type="button"
-        aria-label={`Line ${row.newLine ?? row.oldLine}`}
+        aria-label={rowLabel(row)}
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <span>{row.oldLine ?? ""}</span>
@@ -243,10 +274,10 @@ function SplitCell({ row, tokens, side, selected, onSelect }: SplitCellProps) {
       <button
         className="diff-gutter static"
         type="button"
-        aria-label={`Line ${side === "old" ? row.oldLine : row.newLine}`}
+        aria-label={rowLabel(row)}
         onClick={(event) => onSelect(event.shiftKey)}
       >
-        {side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}
+        <span>{side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}</span>
       </button>
       <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
@@ -272,23 +303,54 @@ export function DiffPanel({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [note, setNote] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const noteRef = useRef<HTMLInputElement>(null);
+  const [roomForTwo, setRoomForTwo] = useState(true);
+  const split = diff.split && roomForTwo;
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    /** A panel that has not been laid out yet measures zero, which is no answer rather than "too narrow". */
+    const measure = () => setRoomForTwo((width) => panel.clientWidth === 0 ? width : panel.clientWidth >= SPLIT_MIN_WIDTH);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
 
   /** Only the files that are open and have lines in them are worth reading a patch for. */
   const requests = useMemo<PatchRequest[]>(
     () => files
       .filter((file) => !file.binary && !collapsed.has(file.path))
-      .map((file) => ({ path: file.path, version: `${file.path}|${fileFingerprint(file)}` })),
+      .map((file) => ({
+        path: file.path,
+        ...(file.previousPath ? { previousPath: file.previousPath } : {}),
+        version: `${file.path}|${fileFingerprint(file)}`,
+      })),
     [files, collapsed],
   );
   const { patches, at } = usePatches(workspaceId, diff.range, requests);
   const versionOf = useMemo(() => new Map(files.map((file) => [file.path, `${file.path}|${fileFingerprint(file)}`])), [files]);
 
+  /**
+   * Parsing and tokenizing a file is the expensive part of drawing it, so each one is kept against the
+   * version it was drawn from. Without this, one patch landing would redraw every file already on
+   * screen, which on a large review is the whole diff through a grammar again for every file in it.
+   */
+  const drawings = useRef(new Map<string, DrawnFile>());
   const drawn = useMemo(() => {
     const built = new Map<string, DrawnFile>();
+    const held = drawings.current;
+    const kept = new Map<string, DrawnFile>();
     for (const request of requests) {
       const patch = at(request.version);
-      if (patch?.status === "available") built.set(request.path, drawFile(patch.file));
+      if (patch?.status !== "available") continue;
+      const drawing = held.get(request.version) ?? drawFile(patch.file);
+      kept.set(request.version, drawing);
+      built.set(request.path, drawing);
     }
+    drawings.current = kept;
     return built;
     // `at` reads `patches`, which is a fresh map whenever one has landed.
   }, [requests, patches]);
@@ -303,18 +365,22 @@ export function DiffPanel({
         continue;
       }
       const drawing = drawn.get(file.path);
+      if (drawing && drawing.rows.length === 0) {
+        panel.push({ kind: "note", key: `n:${file.path}`, text: emptyPatchNote(file) });
+        continue;
+      }
       if (!drawing) {
         panel.push({ kind: "note", key: `n:${file.path}`, text: patchNote(at(versionOf.get(file.path) ?? "")) ?? "Reading the patch…" });
         continue;
       }
-      if (diff.split) {
+      if (split) {
         for (const row of drawing.pairs) panel.push({ kind: "pair", key: `${file.path}:${row.key}`, path: file.path, row });
       } else {
         drawing.rows.forEach((row, index) => panel.push({ kind: "line", key: `${file.path}:${row.key}`, path: file.path, row, index }));
       }
     }
     return panel;
-  }, [files, collapsed, drawn, patches, versionOf, diff.split]);
+  }, [files, collapsed, drawn, patches, versionOf, split]);
 
   const windowed = rows.length > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
@@ -326,28 +392,39 @@ export function DiffPanel({
     initialRect: { width: 420, height: 720 },
   });
 
+  /** The caret goes to the note when a run is first picked, and stays wherever the user puts it after. */
+  useEffect(() => {
+    if (selection) noteRef.current?.focus();
+  }, [selection?.path, selection?.anchor]);
+
   /** A comparison that changes is a different set of lines, so a range picked in the last one is gone. */
   useEffect(() => {
     setSelection(null);
     setNote("");
-  }, [diff.range, diff.split]);
+  }, [diff.range]);
 
-  const selectedRows = selection ? drawn.get(selection.path)?.rows.slice(selection.from, selection.to + 1) ?? [] : [];
-  const quote = selection && selectedRows.length > 0 ? commentQuote(selection.path, selectedRows, selectionSide(selectedRows)) : null;
+  /**
+   * The rows a selection covers right now. Both ends have to still be in the file, and a hunk header
+   * between them ends the run: a range that jumps a header would quote lines the user never saw.
+   */
+  const span = useMemo(() => {
+    if (!selection) return null;
+    const drawing = drawn.get(selection.path);
+    const from = drawing?.indexByKey.get(selection.anchor);
+    const to = drawing?.indexByKey.get(selection.head);
+    if (!drawing || from === undefined || to === undefined) return null;
+    const rows = drawing.rows.slice(Math.min(from, to), Math.max(from, to) + 1);
+    return rows.some((row) => row.kind === "hunk") ? null : { rows, from: Math.min(from, to), to: Math.max(from, to) };
+  }, [selection, drawn]);
 
-  const select = (path: string, index: number, extend: boolean) => {
-    setSelection((current) => extend && current?.path === path
-      ? { path, from: Math.min(current.from, index), to: Math.max(current.to, index) }
-      : { path, from: index, to: index });
-  };
+  const quote = selection && span?.rows.length ? commentQuote(selection.path, span.rows, selectionSide(span.rows)) : null;
 
   const selectByKey = (path: string, key: string, extend: boolean) => {
-    const index = drawn.get(path)?.indexByKey.get(key);
-    if (index !== undefined) select(path, index, extend);
+    setSelection((current) => extend && current?.path === path ? { ...current, head: key } : { path, anchor: key, head: key });
   };
 
   const isSelected = (path: string, index: number | undefined) =>
-    index !== undefined && selection?.path === path && index >= selection.from && index <= selection.to;
+    index !== undefined && selection?.path === path && span !== null && index >= span.from && index <= span.to;
 
   const clear = () => {
     setSelection(null);
@@ -382,7 +459,7 @@ export function DiffPanel({
           row={row.row}
           tokens={tokens}
           selected={isSelected(row.path, row.index)}
-          onSelect={(extend) => select(row.path, row.index, extend)}
+          onSelect={(extend) => selectByKey(row.path, row.row.key, extend)}
         />
       );
     }
@@ -419,7 +496,7 @@ export function DiffPanel({
       : { kind: "branches", base: nextBase, compare: nextCompare === WORKING_SIDE.value ? null : nextCompare };
 
   return (
-    <section className="diff-panel" aria-label="Changes">
+    <section className="diff-panel" aria-label="Changes" ref={panelRef}>
       <header className="diff-toolbar">
         <div className="diff-compare">
           <SidePicker
@@ -447,12 +524,14 @@ export function DiffPanel({
         <div className="diff-toolbar-actions">
           <button
             type="button"
-            aria-label={diff.split ? "Show one column" : "Show two columns"}
-            aria-pressed={diff.split}
-            className={diff.split ? "on" : ""}
+            aria-label={split ? "Show one column" : "Show two columns"}
+            aria-pressed={split}
+            className={split ? "on" : ""}
+            disabled={!roomForTwo}
+            title={roomForTwo ? undefined : "Widen the panel to compare in two columns"}
             onClick={() => onSetSplit(!diff.split)}
           >
-            {diff.split ? <Rows3 size={15} /> : <Columns2 size={15} />}
+            {split ? <Rows3 size={15} /> : <Columns2 size={15} />}
           </button>
           <button type="button" aria-label="Read the comparison again" onClick={onRefresh}>
             <RefreshCw size={15} className={diff.loading ? "spinning" : ""} />
@@ -494,12 +573,19 @@ export function DiffPanel({
             event.preventDefault();
             comment();
           }}
+          onKeyDown={(event) => {
+            /** Escape drops the selection rather than reaching the shortcut that stops the run. */
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            clear();
+          }}
         >
           <span className="diff-comment-range">{quote.split("\n")[0]}</span>
           <input
+            ref={noteRef}
             aria-label="Note on the selected lines"
             placeholder="What should change here?"
-            autoFocus
             value={note}
             onInput={(event) => setNote(event.currentTarget.value)}
           />
@@ -533,6 +619,7 @@ function FileHeader({ file, open, viewed, onToggle, onOpenFile, onSetViewed }: F
         <span className="diff-file-name" title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
           <em>{folder}</em>{name}
         </span>
+        {file.previousPath && <span className="diff-file-renamed" title={`Renamed from ${file.previousPath}`}>renamed</span>}
         {!file.binary && <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
       </button>
       <button

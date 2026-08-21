@@ -758,14 +758,33 @@ function initialRange(state: WorkspaceState, diff: DiffState): DiffRange {
   return baseline ? { kind: "branches", base: baseline, compare: null } : diff.range;
 }
 
-/** Asks for a comparison, and records what was asked so a list that lands late can be recognised. */
-function readDiff(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
-  const workspaceId = currentWorkspaceId(state);
+/**
+ * Asks for a comparison, and records in the same breath which checkout was asked. The two have to move
+ * together: a reply is only accepted when it names the checkout and comparison the dock is holding, so
+ * an effect issued without writing that down is an answer the reducer would throw away.
+ */
+function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
   if (!workspaceId) return settled(withDiff(state, owner, { ...patch, range, workspaceId: null, result: null, loading: false }));
   return settled(
     withDiff(state, owner, { ...patch, range, workspaceId, loading: true }),
     [{ type: "read-diff", owner, workspaceId, range }],
   );
+}
+
+/** The same, for the thread the user is looking at. */
+function readDiff(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
+  return readDiffFrom(state, owner, currentWorkspaceId(state), range, patch);
+}
+
+/**
+ * A thread whose checkout changed is reviewing the wrong one until it reads again. Nothing to do for a
+ * thread with no review open, which is most of them.
+ */
+function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
+  const diff = state.diffs[taskId];
+  if (!diff) return settled(state);
+  const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === taskId));
+  return diff.workspaceId === workspaceId ? settled(state) : readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
 }
 
 /** Settings stop waiting for a keystroke the moment they are no longer the thing in front. */
@@ -781,8 +800,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const worktree = worktreeById(state, input.worktreeId);
       const projectId = worktree?.projectId ?? input.projectId ?? null;
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
+      /** A fresh draft compares its own project, not whatever the last draft was left looking at. */
+      const { [DRAFT_DOCK]: _lastDraft, ...diffs } = state.diffs;
       return settled({
         ...state,
+        diffs,
         currentId: null,
         draftProjectId: projectId,
         draftBranch: null,
@@ -1005,12 +1027,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (task.worktreeId) return settled(settling);
       const worktree: Worktree = { ...input.worktree, projectId: task.projectId };
       const note = createTaskMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);
-      return settled(applyTask({ ...settling, worktrees: [...settling.worktrees, worktree] }, input.taskId, (item) => ({
+      return rereadDiff(applyTask({ ...settling, worktrees: [...settling.worktrees, worktree] }, input.taskId, (item) => ({
         ...item,
         worktreeId: worktree.id,
         messages: [...item.messages, note],
         updatedAt: now(),
-      })));
+      })), input.taskId);
     }
 
     case "worktree.failed":
@@ -1024,14 +1046,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const text = commit
         ? `Returned to the project checkout. Uncommitted work was committed as ${shortCommit ?? commit.slice(0, 7)}, and the worktree was removed.`
         : "Returned to the project checkout. The worktree had nothing uncommitted, and was removed.";
-      return settled(dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)));
+      return rereadDiff(dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)), input.taskId);
     }
 
     case "worktree.deleted": {
       const task = state.tasks.find((item) => item.id === input.taskId);
       const worktree = worktreeFor(state, task);
       if (!worktree) return settled(state);
-      return settled(dropWorktree(state, worktree.id, () => createTaskMessage("system", "Worktree deleted. Back on the project checkout.")));
+      return rereadDiff(dropWorktree(state, worktree.id, () => createTaskMessage("system", "Worktree deleted. Back on the project checkout.")), input.taskId);
     }
 
     case "task.send": {
@@ -1274,12 +1296,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
       const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));
+      /** A review the thread has open is only as current as the run that was writing under it. */
+      const settledDiff = finished && workspaceId && next.diffs[event.taskId]
+        ? readDiffFrom(next, event.taskId, workspaceId, next.diffs[event.taskId].range)
+        : settled(next);
+      next = settledDiff.state;
       const environment: WorkspaceEffect[] = finished && workspaceId
-        ? [
-            { type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId },
-            /** A review the thread has open is only as current as the run that was writing under it. */
-            ...(next.diffs[event.taskId] ? [{ type: "read-diff" as const, owner: event.taskId, workspaceId, range: next.diffs[event.taskId].range }] : []),
-          ]
+        ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }, ...settledDiff.effects]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, environment);
       const drained = drainQueue(next, event.taskId, event.status);
@@ -1918,9 +1941,15 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ...(entering && updated.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, updated),
   };
+  /**
+   * A review carried over from the draft was read against the project, and against a dock that no
+   * longer exists, so it is asked for again under the thread and the checkout the send settled on.
+   */
+  const handed = focusing && state.diffs[DRAFT_DOCK];
+  const reviewing = handed ? readDiffFrom(drained, task.id, workspace.id, handed.range) : settled(drained);
   return settled(
-    pending.draftKey ? withPastes(withAnnotations(withPrompt(drained, pending.draftKey, ""), pending.draftKey, []), pending.draftKey, []) : drained,
-    [{ type: "start-run", command }, ...titling],
+    pending.draftKey ? withPastes(withAnnotations(withPrompt(reviewing.state, pending.draftKey, ""), pending.draftKey, []), pending.draftKey, []) : reviewing.state,
+    [{ type: "start-run", command }, ...titling, ...reviewing.effects],
   );
 }
 

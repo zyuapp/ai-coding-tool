@@ -11,7 +11,7 @@ export type PatchState =
  * A file to read. `version` names that file at those counts, so it is both the cache's key and what
  * makes a file that has been rewritten under the user get read again rather than drawn from before.
  */
-export type PatchRequest = { path: string; version: string };
+export type PatchRequest = { path: string; previousPath?: string; version: string };
 
 /** How many patches are read at once. Git is a process per file, so they are not all asked for. */
 const CONCURRENCY = 4;
@@ -24,7 +24,7 @@ const CONCURRENCY = 4;
  * A fresh map is published on every arrival, so whatever draws these can memoise on it.
  */
 export function usePatches(workspaceId: string | undefined, range: DiffRange, requests: PatchRequest[]) {
-  const key = rangeKey(range);
+  const key = `${workspaceId ?? ""}|${rangeKey(range)}`;
   const cache = useRef(new Map<string, PatchState>());
   const [patches, setPatches] = useState<Map<string, PatchState>>(cache.current);
   const wanted = requests.map((request) => request.version).join("\n");
@@ -42,7 +42,7 @@ export function usePatches(workspaceId: string | undefined, range: DiffRange, re
       while (!cancelled) {
         const request = queue.shift();
         if (!request) return;
-        const state = await window.desktop.diffPatch(workspaceId, range, request.path)
+        const state = await window.desktop.diffPatch(workspaceId, range, request.path, request.previousPath)
           .then((result): PatchState => result.status === "available"
             ? { status: "available", file: parseFilePatch(result.patch, request.path) }
             : result)
@@ -54,9 +54,31 @@ export function usePatches(workspaceId: string | undefined, range: DiffRange, re
     };
     void Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, read));
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      /**
+       * A read that never finished must not be remembered as still reading, or its file never loads
+       * again. That covers both the ones still queued and the one a worker was part way through.
+       */
+      for (const request of missing) {
+        const held = `${key}|${request.version}`;
+        if (cache.current.get(held)?.status === "reading") cache.current.delete(held);
+      }
+    };
     /** Keyed by what the comparison reduces to and by what is being asked for, not by fresh objects. */
   }, [workspaceId, key, wanted]);
+
+  /** Nothing outside the comparison on screen is worth holding, so the cache cannot grow past it. */
+  useEffect(() => {
+    const live = new Set(requests.map((request) => `${key}|${request.version}`));
+    let dropped = false;
+    for (const held of [...cache.current.keys()]) {
+      if (live.has(held)) continue;
+      cache.current.delete(held);
+      dropped = true;
+    }
+    if (dropped) setPatches(new Map(cache.current));
+  }, [key, wanted]);
 
   return { patches, at: (version: string) => patches.get(`${key}|${version}`) };
 }

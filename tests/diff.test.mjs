@@ -17,7 +17,7 @@ import {
   rangeKey,
   splitRows,
 } from "../dist/main/domain/diff.js";
-import { diffPatch, diffSummary } from "../dist/main/main/workspace/git-diff.mjs";
+import { diffPatch, diffSummary, readNumstat } from "../dist/main/main/workspace/git-diff.mjs";
 import { UnknownWorkspaceError } from "../dist/main/main/workspace/workspace-service.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -63,6 +63,7 @@ test("a patch parses into hunks that keep both sides' line numbers", () => {
   assert.equal(file.hunks.length, 1);
   const [hunk] = file.hunks;
   assert.equal(hunk.header, "export function app()");
+  assert.deepEqual([hunk.oldStart, hunk.oldLines, hunk.newStart, hunk.newLines], [1, 4, 1, 5]);
   assert.deepEqual(hunk.rows.map((row) => [row.kind, row.oldLine, row.newLine]), [
     ["context", 1, 1],
     ["delete", 2, null],
@@ -92,7 +93,7 @@ test("the missing-newline marker annotates rather than adding a line", () => {
 test("rows are drawn flat, with each hunk headed by one of its own", () => {
   const rows = diffRows(parseFilePatch(PATCH, "src/app.ts"));
   assert.equal(rows[0].kind, "hunk");
-  assert.match(rows[0].text, /^@@ -1 \+1 @@ export function app\(\)$/);
+  assert.equal(rows[0].text, "@@ -1,4 +1,5 @@ export function app()");
   assert.equal(rows.length, 6);
   assert.equal(new Set(rows.map((row) => row.key)).size, rows.length);
 });
@@ -238,6 +239,52 @@ test("a patch is read for one file, and an untracked one is diffed against empti
   const fresh = await diffPatch("fixture", { kind: "uncommitted" }, "fresh.txt", workspaces(root));
   assert.equal(fresh.status, "available");
   assert.deepEqual(parseFilePatch(fresh.patch, "fresh.txt").hunks[0].rows.map((row) => row.text), ["brand", "new"]);
+});
+
+test("a repository with no commits lists what it holds instead of failing", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "claudex-diff-empty-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await git(root, "init", "-b", "main");
+  await git(root, "config", "user.email", "tests@example.com");
+  await git(root, "config", "user.name", "Claudex Tests");
+  await writeFile(path.join(root, "first.txt"), "one\ntwo\n");
+
+  const result = await diffSummary("fixture", { kind: "uncommitted" }, workspaces(root));
+  assert.equal(result.status, "available");
+  assert.deepEqual(result.files.map((file) => [file.path, file.additions]), [["first.txt", 2]]);
+
+  const patch = await diffPatch("fixture", { kind: "uncommitted" }, "first.txt", workspaces(root));
+  assert.equal(patch.status, "available");
+  assert.deepEqual(parseFilePatch(patch.patch, "first.txt").hunks[0].rows.map((row) => row.text), ["one", "two"]);
+});
+
+test("a path is a path, not a glob, however it is spelt", async (t) => {
+  const root = await repository();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(path.join(root, "tracked.txt"), "one\nTWO\n");
+
+  /** Without literal pathspecs this would match `tracked.txt` and report another file's changes. */
+  const result = await diffPatch("fixture", { kind: "uncommitted" }, "tr*.txt", workspaces(root));
+  assert.equal(result.status, "available");
+  assert.equal(result.patch.trim(), "", "nothing is named by that path");
+});
+
+test("a rename's patch shows what changed, not the whole file over again", async (t) => {
+  const root = await repository();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await git(root, "mv", "tracked.txt", "moved.txt");
+  await writeFile(path.join(root, "moved.txt"), "one\ntwo\nthree\n");
+
+  const named = await diffPatch("fixture", { kind: "uncommitted" }, "moved.txt", workspaces(root), "tracked.txt");
+  assert.equal(named.status, "available");
+  const rows = parseFilePatch(named.patch, "moved.txt").hunks[0].rows;
+  assert.deepEqual(rows.filter((row) => row.kind === "add").map((row) => row.text), ["three"]);
+  assert.equal(rows.filter((row) => row.kind === "delete").length, 0, "the old path is not re-added");
+});
+
+test("a file whose name holds a tab is still one file", () => {
+  const files = readNumstat("2\t1\ttabbed\tname.txt\0", new Map());
+  assert.deepEqual(files.map((file) => [file.path, file.additions, file.deletions]), [["tabbed\tname.txt", 2, 1]]);
 });
 
 test("a patch outside the workspace is refused rather than read", async (t) => {

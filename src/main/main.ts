@@ -1059,15 +1059,16 @@ ipcMain.handle("workspace:diff-summary", async (event, workspaceId: unknown, ran
   }
 });
 
-ipcMain.handle("workspace:diff-patch", async (event, workspaceId: unknown, range: unknown, filePath: unknown) => {
+ipcMain.handle("workspace:diff-patch", async (event, workspaceId: unknown, range: unknown, filePath: unknown, previousPath: unknown) => {
   if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
   if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
   if (typeof filePath !== "string" || filePath.length === 0 || filePath.length > 4_096) return { status: "error", message: "Invalid path." } as const;
+  if (previousPath !== undefined && (typeof previousPath !== "string" || previousPath.length === 0 || previousPath.length > 4_096)) return { status: "error", message: "Invalid path." } as const;
   const { isDiffRange } = await import("../domain/diff.js");
   if (!isDiffRange(range)) return { status: "error", message: "Invalid comparison." } as const;
   try {
     const { diffPatch } = await import("./workspace/git-diff.mjs");
-    return await diffPatch(workspaceId, range, filePath, getWorkspaceService());
+    return await diffPatch(workspaceId, range, filePath, getWorkspaceService(), previousPath);
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
   }

@@ -252,6 +252,63 @@ test("the review a draft was composing follows the thread that send creates", ()
   assert.equal(started.state.diffs.draft, undefined);
 });
 
+test("a review composed in the draft is asked for again under the thread the send creates", () => {
+  const opened = reduce(workspace(), { type: "diff.toggle" });
+  /** The read is still in flight: the draft's dock is handed over before any list comes back. */
+  const drafted = run(opened.state, [{ type: "view.set-prompt", prompt: "Look at this" }]);
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, {
+    type: "run.resolved",
+    pendingId: Object.keys(sending.state.pendingRuns)[0],
+    workspace: { id: "workspace-a", kind: "project", root: "/repo" },
+  });
+  const taskId = started.effects.find((effect) => effect.type === "start-run").command.taskId;
+
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "read-diff"), [
+    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: { kind: "uncommitted" } },
+  ], "the read is re-issued under the new thread");
+
+  /** The reply the draft asked for is stale and drops; the one the thread asked for lands. */
+  const stale = reduce(started.state, { type: "diff.loaded", owner: "draft", workspaceId: "workspace-a", range: { kind: "uncommitted" }, result: summary([file("ghost.ts")]) });
+  assert.equal(diffFor(stale.state, taskId).loading, true);
+
+  const landed = reduce(stale.state, { type: "diff.loaded", owner: taskId, workspaceId: "workspace-a", range: { kind: "uncommitted" }, result: summary([file("a.ts")]) });
+  assert.equal(diffFor(landed.state, taskId).loading, false);
+  assert.deepEqual(diffFor(landed.state, taskId).result.files.map((item) => item.path), ["a.ts"]);
+});
+
+test("a thread that moves into a worktree reviews the checkout it moved to", () => {
+  const withTask = workspace({
+    tasks: [{ id: "task-a", title: "a", projectId: PROJECT.id, executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
+    currentId: "task-a",
+    draftProjectId: null,
+  });
+  const reviewed = reviewing(withTask, [file("a.ts")]);
+  const moved = reduce(reviewed, {
+    type: "worktree.created",
+    taskId: "task-a",
+    worktree: { id: "wt1", root: "/worktrees/wt1", workspaceId: "workspace-wt", baseCommit: "abcdef1234", createdAt: 2, lastUsedAt: 2 },
+  });
+
+  assert.deepEqual(moved.effects.filter((effect) => effect.type === "read-diff"), [
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: { kind: "uncommitted" } },
+  ]);
+  assert.equal(diffFor(moved.state, "task-a").workspaceId, "workspace-wt");
+  assert.equal(diffFor(moved.state, "task-a").result, null, "the old checkout's list is not what this one holds");
+
+  const landed = reduce(moved.state, { type: "diff.loaded", owner: "task-a", workspaceId: "workspace-wt", range: { kind: "uncommitted" }, result: summary([file("b.ts")]) });
+  assert.deepEqual(diffFor(landed.state, "task-a").result.files.map((item) => item.path), ["b.ts"]);
+});
+
+test("a fresh draft compares its own project, not the last draft's", () => {
+  const reviewed = run(reviewing(workspace(), [file("a.ts")]), [
+    { type: "diff.set-range", range: { kind: "branches", base: "other-project-branch", compare: null } },
+  ]);
+  const fresh = reduce(reviewed, { type: "task.new" });
+
+  assert.deepEqual(diffFor(fresh.state, "draft").range, { kind: "uncommitted" });
+});
+
 test("a checkout the app cannot name leaves the review with nothing to read", () => {
   const homeless = { ...emptyWorkspaceState() };
   const opened = reduce(homeless, { type: "diff.toggle" });

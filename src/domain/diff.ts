@@ -31,7 +31,9 @@ export type DiffRow =
 export type DiffHunk = {
   header: string;
   oldStart: number;
+  oldLines: number;
   newStart: number;
+  newLines: number;
   rows: Array<Extract<DiffRow, { kind: DiffLineKind }>>;
 };
 
@@ -73,7 +75,15 @@ export function parseFilePatch(patch: string, fallbackPath: string): DiffFile {
     if (header) {
       oldLine = Number(header[1]);
       newLine = Number(header[3]);
-      current = { header: header[5].trim(), oldStart: oldLine, newStart: newLine, rows: [] };
+      /** A range without a count is one line long, which is how Git writes `@@ -1 +1 @@`. */
+      current = {
+        header: header[5].trim(),
+        oldStart: oldLine,
+        oldLines: header[2] === undefined ? 1 : Number(header[2]),
+        newStart: newLine,
+        newLines: header[4] === undefined ? 1 : Number(header[4]),
+        rows: [],
+      };
       hunks.push(current);
       continue;
     }
@@ -106,8 +116,9 @@ export function diffRows(file: DiffFile): DiffRow[] {
   ]);
 }
 
+/** The header Git itself writes, counts and all, so a hunk reads the same here as anywhere else. */
 function hunkLabel(hunk: DiffHunk) {
-  const range = `@@ -${hunk.oldStart} +${hunk.newStart} @@`;
+  const range = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
   return hunk.header ? `${range} ${hunk.header}` : range;
 }
 

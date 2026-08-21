@@ -3820,7 +3820,15 @@ test("a comment can be taken from either column of the two-column view", async (
   await act(async () => { view.container.querySelector('button[aria-label="Show two columns"]').click(); });
 
   const gutters = [...view.container.querySelectorAll(".diff-split-cell .diff-gutter")];
-  await act(async () => { gutters.find((gutter) => gutter.getAttribute("aria-label") === "Line 3").click(); });
+  /** Each side says what happened to its line, so the two columns never announce the same thing. */
+  assert.deepEqual(gutters.map((gutter) => gutter.getAttribute("aria-label")), [
+    "Unchanged line 1",
+    "Unchanged line 1",
+    "Removed line 2",
+    "Added line 2",
+    "Added line 3",
+  ]);
+  await act(async () => { gutters.find((gutter) => gutter.getAttribute("aria-label") === "Added line 3").click(); });
 
   assert.match(view.container.querySelector(".diff-comment-range").textContent, /^src\/app\.ts:L3$/);
   await view.unmount();
@@ -3833,11 +3841,13 @@ test("the two sides are picked apart, and remote branches are offered to compare
   await openReview(view);
 
   const sides = () => [...view.container.querySelectorAll(".diff-side-trigger code")].map((code) => code.textContent);
-  assert.deepEqual(sides(), ["HEAD (this checkout)", "Working tree"], "uncommitted work reads as HEAD against disk");
+  assert.deepEqual(sides(), ["HEAD", "Working tree"], "uncommitted work reads as HEAD against disk");
 
-  await act(async () => { view.container.querySelector('button[aria-label="Base"]').click(); });
+  /** The trigger names the side and what it is set to, so a screen reader hears the comparison. */
+  assert.equal(view.container.querySelector('.diff-side button').getAttribute("aria-label"), "Base: HEAD");
+  await act(async () => { view.container.querySelector('button[aria-label^="Base"]').click(); });
   const options = [...document.querySelectorAll('.branch-menu [role="option"]')].map((option) => option.textContent);
-  assert.equal(options[0], "HEAD (this checkout)", "the side that is not a branch comes first, inside the list");
+  assert.equal(options[0], "HEAD", "the side that is not a branch comes first, inside the list");
   assert.ok(options.includes("origin/main"), "a remote branch can be a base");
 
   await act(async () => { [...document.querySelectorAll('.branch-menu [role="option"]')].find((option) => option.textContent === "origin/main").click(); });

@@ -135,6 +135,7 @@
   --diff-hunk-surface: #171d26;
   --diff-hunk-ink: #7d92ad;
   --diff-gutter-ink: #5f666f;
+  --diff-absent: #14181e; /* the side a two-column row has nothing on */
   --diff-selected: #24303f;
   --diff-selected-line: #3d5a80;
 
@@ -1040,6 +1041,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   cursor: pointer;
 }
 .branch-menu button:hover { background: var(--surface-menu-hover); color: var(--ink-soft); }
+/** The option that is not a branch is set apart from the branches under it. */
+.branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
 /** A name too long for the list is cut off; it is never worth a second line. */
 .branch-menu button > span {
   min-width: 0;
@@ -2759,12 +2762,13 @@ pre {
 .diff-side-trigger:hover:not(:disabled) { border-color: var(--line-bright); }
 .diff-side-trigger:disabled { opacity: 0.5; cursor: default; }
 .diff-side-trigger code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); }
-.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
 .diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
 .diff-toolbar-actions button:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .diff-toolbar-actions button.on { background: var(--surface-active); color: var(--accent); }
+.diff-toolbar-actions button:disabled { opacity: 0.35; cursor: default; }
+.diff-toolbar-actions button:disabled:hover { background: none; color: var(--quiet-strong); }
 .diff-toolbar-actions .spinning { animation: diff-spin 1s linear infinite; }
 @keyframes diff-spin { to { transform: rotate(360deg); } }
 
@@ -2781,14 +2785,18 @@ pre {
 .diff-file-open { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 4px; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
 .diff-file-caret { display: grid; place-items: center; color: var(--quiet-soft); }
 .diff-file-icon { display: grid; place-items: center; color: var(--quiet-strong); }
-.diff-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-family: var(--mono); }
-.diff-file-name em { font-style: normal; color: var(--quiet); }
+/** The folder gives way and the filename stays: truncating the other way round hides what matters. */
+.diff-file-name { display: flex; flex: 1; min-width: 0; white-space: nowrap; font-family: var(--mono); }
+.diff-file-name em { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; color: inherit; opacity: 0.65; }
+.diff-file-name span { flex: 0 0 auto; overflow: hidden; text-overflow: ellipsis; }
+.diff-file-renamed { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.02em; }
 .diff-file-editor { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--quiet-soft); opacity: 0; cursor: pointer; }
-.diff-file-row:hover .diff-file-editor { opacity: 1; }
+.diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible { opacity: 1; }
+.diff-file-editor:focus-visible { outline: 2px solid var(--focus-ring); }
 .diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
 .diff-file-viewed { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; }
 .diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; }
-.diff-file-viewed svg { color: var(--quiet-soft); opacity: 0.35; }
+.diff-file-viewed svg { color: var(--quiet-soft); opacity: 0.7; }
 .diff-file-viewed:hover svg { opacity: 0.8; }
 .diff-file-viewed:has(input:checked) svg { color: var(--success); opacity: 1; }
 .diff-file-viewed:has(input:focus-visible) { outline: 2px solid var(--focus-ring); }
@@ -2798,9 +2806,11 @@ pre {
 .diff-line.hunk { padding: 2px 10px; background: var(--diff-hunk-surface); color: var(--diff-hunk-ink); }
 .diff-line.add { background: var(--diff-add-surface); }
 .diff-line.delete { background: var(--diff-del-surface); }
-.diff-line.selected { background: var(--diff-selected); box-shadow: inset 2px 0 0 var(--diff-selected-line); }
-.diff-gutter { display: flex; flex: none; align-self: stretch; gap: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
+.diff-line.selected { background: var(--diff-selected); }
+/** A wrapped line is taller than one row, so the number sits on its first visual line rather than its middle. */
+.diff-gutter { display: flex; flex: none; align-self: stretch; align-items: flex-start; gap: 0; padding: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
 .diff-gutter span { display: block; width: 44px; padding-right: 8px; }
+.diff-gutter:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .diff-gutter:hover { color: var(--ink-dim); }
 .diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
 .diff-line.delete .diff-gutter { background: var(--diff-del-gutter); }
@@ -2809,15 +2819,22 @@ pre {
 .diff-line code { flex: 1; min-width: 0; padding-right: 12px; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .diff-split-row { display: grid; grid-template-columns: 1fr 1fr; }
-.diff-split-cell { display: flex; align-items: flex-start; min-height: 20px; border-right: 1px solid var(--line-soft); }
+.diff-split-cell { display: flex; align-items: flex-start; min-height: 20px; }
+.diff-split-cell:first-child { border-right: 1px solid var(--line-soft); }
 .diff-split-cell.add { background: var(--diff-add-surface); }
 .diff-split-cell.delete { background: var(--diff-del-surface); }
-.diff-split-cell.empty { background: var(--sunken); }
-.diff-split-cell.selected { background: var(--diff-selected); box-shadow: inset 2px 0 0 var(--diff-selected-line); }
+.diff-split-cell.empty { background: var(--diff-absent); }
+.diff-split-cell.selected { background: var(--diff-selected); }
 .diff-split-cell code { flex: 1; min-width: 0; padding-right: 8px; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
-.diff-gutter.static { display: block; flex: none; align-self: stretch; width: 40px; padding-right: 8px; }
+.diff-gutter.static span { width: 40px; }
 .diff-split-cell.add .diff-gutter { background: var(--diff-add-gutter); }
 .diff-split-cell.delete .diff-gutter { background: var(--diff-del-gutter); }
+
+/**
+ * The gutter carries the selection. It comes after the add and delete fills because it has to beat
+ * them: a tint on the row alone is lost under the colour the row already has.
+ */
+.diff-line.selected .diff-gutter, .diff-split-cell.selected .diff-gutter { background: var(--diff-selected-line); color: var(--ink); }
 
 .diff-comment { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--surface); }
 .diff-comment-range { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }

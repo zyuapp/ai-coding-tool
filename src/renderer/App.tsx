@@ -216,6 +216,8 @@ export function App() {
       badge: unreviewedFiles,
       render: () => (
         <DiffPanel
+          /** Per thread, so a selection or a half-typed note never carries into another thread's review. */
+          key={workspace.currentTask?.id ?? "draft"}
           diff={workspace.diff}
           {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
           openMenu={workspace.openMenu}

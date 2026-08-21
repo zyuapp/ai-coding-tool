@@ -71,8 +71,11 @@ function shiki() {
  * A block of code as coloured tokens, one array per line. Whole blocks rather than single lines,
  * because a line tokenized alone has lost whatever string or comment opened above it.
  */
+/** Past this a block is not worth a grammar: the pause is longer than the colour is useful. */
+const HIGHLIGHT_LIMIT = 100_000;
+
 export function highlightBlock(code: string, lang: string | null): ThemedToken[][] | null {
-  if (!lang || !code) return null;
+  if (!lang || !code || code.length > HIGHLIGHT_LIMIT) return null;
   const engine = shiki();
   if (!engine || !engine.getLoadedLanguages().includes(lang)) return null;
   try {

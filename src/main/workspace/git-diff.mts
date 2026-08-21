@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { DiffFileStatus, DiffFileSummary, DiffRange } from "../../domain/diff.js";
+import { rangeKey, type DiffFileStatus, type DiffFileSummary, type DiffRange } from "../../domain/diff.js";
 import type { DiffPatchResult, DiffSummaryResult } from "../../contracts/ipc.js";
 import { UnknownWorkspaceError, type WorkspaceService } from "./workspace-service.mjs";
 
@@ -16,8 +16,21 @@ export const PATCH_LIMIT = 2_000_000;
 /** How much unchanged code surrounds each hunk. Three is what Git and every review tool default to. */
 const CONTEXT = 3;
 
+/** How long a resolved base is reused for. Long enough for one review's patches, short enough to move. */
+const BASE_TTL_MS = 30_000;
+
+/** How many untracked files are measured at once, since each one is a Git process of its own. */
+const UNTRACKED_CONCURRENCY = 8;
+
+/**
+ * `--literal-pathspecs` so a path is a path: without it a filename holding `*`, `?` or `[` is a glob
+ * and matches other files. The diffs themselves add `--relative`, so every path is named from the
+ * workspace root — which is what `ls-files` answers with, and what the renderer opens.
+ */
+const GIT_OPTIONS = ["--literal-pathspecs"];
+
 async function run(root: string, args: string[], limit = PATCH_LIMIT) {
-  const { stdout } = await execFileAsync("git", args, { cwd: root, timeout: TIMEOUT_MS, maxBuffer: limit * 2 });
+  const { stdout } = await execFileAsync("git", [...GIT_OPTIONS, ...args], { cwd: root, timeout: TIMEOUT_MS, maxBuffer: limit });
   return stdout;
 }
 
@@ -39,8 +52,20 @@ async function runAllowingDifferences(root: string, args: string[]) {
  * Where a comparison starts. Branch comparisons measure from where the two sides last agreed, so a
  * base that has moved ahead does not report its own commits as the thread's work.
  */
+/** Git's own empty tree, which is what a repository with no commits has to be compared against. */
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+async function hasCommits(root: string) {
+  try {
+    await run(root, ["rev-parse", "--verify", "--quiet", "HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveBase(root: string, range: DiffRange) {
-  if (range.kind === "uncommitted") return "HEAD";
+  if (range.kind === "uncommitted") return await hasCommits(root) ? "HEAD" : EMPTY_TREE;
   const head = range.compare ?? "HEAD";
   try {
     const mergeBase = (await run(root, ["merge-base", range.base, head])).trim();
@@ -51,11 +76,22 @@ async function resolveBase(root: string, range: DiffRange) {
   return range.base;
 }
 
+/** Where each comparison starts, kept so a review of many files asks Git once rather than once a file. */
+const bases = new Map<string, Promise<string>>();
+
 /** The revisions a `git diff` for this range takes, with the working tree left as the absent side. */
 async function revisions(root: string, range: DiffRange) {
-  const base = await resolveBase(root, range);
+  const key = `${root}\u0000${rangeKey(range)}`;
+  let base = bases.get(key);
+  if (!base) {
+    base = resolveBase(root, range);
+    bases.set(key, base);
+    /** A base is only as current as the refs behind it, so it is not remembered for long. */
+    setTimeout(() => bases.delete(key), BASE_TTL_MS).unref?.();
+  }
   const compare = range.kind === "uncommitted" ? null : range.compare;
-  return compare ? [base, compare] : [base];
+  const resolved = await base;
+  return compare ? [resolved, compare] : [resolved];
 }
 
 /**
@@ -73,7 +109,7 @@ async function untrackedSummary(root: string, file: string): Promise<DiffFileSum
   if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
   try {
     const metadata = await lstat(candidate);
-    if (!metadata.isFile()) return null;
+    if (!metadata.isFile() && !metadata.isSymbolicLink()) return null;
     const patch = await runAllowingDifferences(root, ["diff", "--numstat", "-z", "--no-index", "--", "/dev/null", file]);
     const [added, deleted] = patch.split("\0")[0]?.split("\t") ?? [];
     const binary = added === "-" || deleted === "-";
@@ -83,20 +119,31 @@ async function untrackedSummary(root: string, file: string): Promise<DiffFileSum
   }
 }
 
+/** Each untracked file costs a Git process, so a repository full of them is worked through in batches. */
+async function measureUntracked(root: string, files: string[]) {
+  const measured: Array<DiffFileSummary | null> = [];
+  for (let cursor = 0; cursor < files.length; cursor += UNTRACKED_CONCURRENCY) {
+    measured.push(...await Promise.all(files.slice(cursor, cursor + UNTRACKED_CONCURRENCY).map((file) => untrackedSummary(root, file))));
+  }
+  return measured;
+}
+
 const STATUSES: Record<string, DiffFileStatus> = { A: "added", D: "deleted", R: "renamed", C: "added", M: "modified", T: "modified" };
 
 /**
  * `--numstat -z` writes counts and paths, and a rename writes both of its paths, so records are read
  * with a cursor rather than split into fixed groups.
  */
-function readNumstat(output: string, statuses: Map<string, DiffFileStatus>) {
+export function readNumstat(output: string, statuses: Map<string, DiffFileStatus>) {
   const fields = output.split("\0");
   const files: DiffFileSummary[] = [];
   for (let index = 0; index < fields.length; index += 1) {
     const record = fields[index];
     if (!record) continue;
-    const [added, deleted, inlinePath] = record.split("\t");
+    const [added, deleted, ...rest] = record.split("\t");
     if (added === undefined || deleted === undefined) continue;
+    /** Only the counts are tab-delimited; whatever follows is one path, tabs and all. */
+    const inlinePath = rest.length ? rest.join("\t") : undefined;
     let previousPath: string | undefined;
     let filePath = inlinePath;
     if (!filePath) {
@@ -150,13 +197,13 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
     const root = resolved.workspace.root;
     const revs = await revisions(root, range);
     const [numstat, nameStatus, untracked] = await Promise.all([
-      run(root, ["diff", "--numstat", "-z", "--find-renames", ...revs, "--"]),
-      run(root, ["diff", "--name-status", "-z", "--find-renames", ...revs, "--"]),
+      run(root, ["diff", "--numstat", "-z", "--relative", "--find-renames", ...revs, "--"]),
+      run(root, ["diff", "--name-status", "-z", "--relative", "--find-renames", ...revs, "--"]),
       /** Only a comparison that ends at the working tree can have files Git has never seen. */
       range.kind === "uncommitted" || range.compare === null ? untrackedFiles(root) : Promise.resolve([]),
     ]);
     const tracked = readNumstat(numstat, readNameStatus(nameStatus));
-    const fresh = (await Promise.all(untracked.map((file) => untrackedSummary(root, file)))).filter((file): file is DiffFileSummary => file !== null);
+    const fresh = (await measureUntracked(root, untracked)).filter((file): file is DiffFileSummary => file !== null);
     const files = [...tracked, ...fresh].sort((a, b) => a.path.localeCompare(b.path));
     return {
       status: "available",
@@ -170,7 +217,7 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
   }
 }
 
-export async function diffPatch(workspaceId: string, range: DiffRange, filePath: string, workspaces: WorkspaceService): Promise<DiffPatchResult> {
+export async function diffPatch(workspaceId: string, range: DiffRange, filePath: string, workspaces: WorkspaceService, previousPath?: string): Promise<DiffPatchResult> {
   let resolved;
   try {
     resolved = await workspaces.resolve(workspaceId);
@@ -186,7 +233,9 @@ export async function diffPatch(workspaceId: string, range: DiffRange, filePath:
 
   try {
     const revs = await revisions(root, range);
-    const patch = await run(root, ["diff", `-U${CONTEXT}`, "--find-renames", ...revs, "--", filePath]);
+    /** Both sides of a rename, or Git sees only the new path and calls the whole file an addition. */
+    const paths = previousPath && previousPath !== filePath ? [previousPath, filePath] : [filePath];
+    const patch = await run(root, ["diff", `-U${CONTEXT}`, "--relative", "--find-renames", ...revs, "--", ...paths]);
     /** Nothing tracked answers for a file Git has never seen, so it is diffed against emptiness. */
     if (patch.trim()) return { status: "available", patch };
     const fresh = await runAllowingDifferences(root, ["diff", `-U${CONTEXT}`, "--no-index", "--", "/dev/null", filePath]);
