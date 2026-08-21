@@ -47,6 +47,8 @@ export type Project = {
   id: string;
   root: string;
   workspaceId?: string;
+  /** Sidebar position. Only the user moves it. */
+  sortIndex?: number;
 };
 
 /** Where a dragged task lands: a slot in a project's list, or in the project-less "recents" list. */
@@ -407,7 +409,7 @@ function isMessageKind(value: string): value is TaskMessageKind {
 }
 
 function isProject(value: unknown): value is Project {
-  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId));
+  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId)) && (value.sortIndex === undefined || finiteNumber(value.sortIndex));
 }
 
 function isTaskBase(value: unknown): value is Task {

@@ -1249,6 +1249,29 @@ test("a dropped thread moves without unfolding the sidebar the user folded", () 
   assert.deepEqual([...moved.state.expandedProjects], []);
 });
 
+test("a dropped folder takes its new place in the sidebar and keeps it", () => {
+  const state = workspace({
+    projects: [
+      { id: "project-1", root: "/one", sortIndex: 0 },
+      { id: "project-2", root: "/two", sortIndex: 1 },
+      { id: "project-3", root: "/three", sortIndex: 2 },
+    ],
+  });
+
+  const moved = reduce(state, { type: "project.move", projectId: "project-3", index: 0 });
+  assert.deepEqual(deriveView(moved.state).projects.map((project) => project.id), ["project-3", "project-1", "project-2"]);
+
+  const again = reduce(moved.state, { type: "project.move", projectId: "project-3", index: 0 });
+  assert.equal(again.state, moved.state, "a drop that changes nothing leaves the state alone");
+});
+
+test("a folder just opened lands above the ones the user already ordered", () => {
+  const state = workspace({ projects: [{ id: "project-1", root: "/one", sortIndex: 0 }] });
+  const opened = reduce(state, { type: "project.opened", workspace: { id: "workspace-2", root: "/two" } });
+
+  assert.deepEqual(deriveView(opened.state).projects.map((project) => project.root), ["/two", "/one"]);
+});
+
 test("the user's own page visit opens a dock tab of its own and allows that origin from then on", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/claudex" });
   const [tab] = dock(opened.state).browserTabs;

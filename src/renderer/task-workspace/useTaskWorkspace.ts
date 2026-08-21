@@ -563,6 +563,7 @@ export function useTaskWorkspace() {
       renameTask: (taskId: string, title: string) => dispatch({ type: "task.rename", taskId, title }),
       moveTask: (taskId: string, target: TaskDropTarget) => dispatch({ type: "task.move", taskId, target }),
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
+      moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),
       setProjectsOpen: (open: boolean) => dispatch({ type: "view.set-projects-open", open }),
       setRecentsOpen: (open: boolean) => dispatch({ type: "view.set-recents-open", open }),

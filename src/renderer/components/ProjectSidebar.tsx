@@ -9,6 +9,8 @@ import { ShowMore } from "./ShowMore";
 import { useDismissibleLayer } from "../focus";
 
 const RECENTS_DROPPABLE = "recents";
+const PROJECTS_DROPPABLE = "projects";
+const PROJECT_DRAG = "project";
 const PROJECT_TASK_LIMIT = 10;
 
 const ATTENTION_LABELS: Record<TaskAttention, string> = {
@@ -77,6 +79,7 @@ export type ProjectSidebarProps = {
   onArchiveTask: (taskId: string) => void;
   onRenameTask: (taskId: string, title: string) => void;
   onMoveTask: (taskId: string, target: TaskDropTarget) => void;
+  onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
 };
 
@@ -111,6 +114,7 @@ export function ProjectSidebar({
   onArchiveTask,
   onRenameTask,
   onMoveTask,
+  onMoveProject,
   onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
@@ -118,9 +122,9 @@ export function ProjectSidebar({
   const renameInput = useRef<HTMLInputElement>(null);
   const taskReturn = useRef<HTMLElement>(null);
   useDismissibleLayer(renamingId !== null, [renameInput], () => renameInput.current?.blur(), taskReturn);
-  /** A folded row becomes a thin drop strip for the length of a drag, so a collapsed folder is a
-   *  place to drop into without unfolding. Set before capture: a `display: none` droppable has no
-   *  bounds for the library to measure. */
+  /** A folded row becomes a thin drop strip for the length of a thread drag, so a collapsed folder is
+   *  a place to drop into without unfolding. Set before capture: a `display: none` droppable has no
+   *  bounds for the library to measure. A folder drag takes no threads, so it leaves the folding alone. */
   const [dragging, setDragging] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
 
@@ -139,10 +143,12 @@ export function ProjectSidebar({
     });
   }
 
-  function finishDrag({ draggableId, source, destination }: DropResult) {
+  /** One context carries both drags; `type` says which list the drop belongs to. */
+  function finishDrag({ draggableId, type, source, destination }: DropResult) {
     setDragging(false);
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+    if (type === PROJECT_DRAG) return onMoveProject(draggableId, destination.index);
     onMoveTask(draggableId, {
       projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
       index: destination.index,
@@ -256,7 +262,10 @@ export function ProjectSidebar({
   );
 
   return (
-    <DragDropContext onBeforeCapture={() => setDragging(true)} onDragEnd={finishDrag}>
+    <DragDropContext
+      onBeforeCapture={({ draggableId }) => setDragging(!projects.some((project) => project.id === draggableId))}
+      onDragEnd={finishDrag}
+    >
     <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
       <div className="traffic-space">
         <div className="thread-nav">
@@ -280,58 +289,73 @@ export function ProjectSidebar({
           </button>
           <button className="section-action add-project" onClick={onOpenFolder} aria-label="Add project">＋</button>
         </div>
-        {projectsOpen && <nav className="project-list" aria-label="Projects">
-          {projects.map((project) => {
-            const projectTasks = orderedTasks.filter((task) => task.projectId === project.id);
-            const expanded = expandedProjects.has(project.id);
-            const attentionCount = projectTasks.filter((task) => task.attention).length;
-            const shown = visibleCount(projectTasks, project.id);
-            const hidden = projectTasks.length - shown;
-            return (
-              <section className="project-group" key={project.id}>
-                <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`}>
-                  <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
-                    <span className="folder-icon"><FolderIcon /></span>
-                    <span>{projectName(project.root)}</span>
-                  </button>
-                  {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
-                  <PopoverMenu
-                    id={`project:${project.id}`}
-                    openMenu={openMenu}
-                    onSetOpenMenu={onSetOpenMenu}
-                    label={`More options for ${projectName(project.root)}`}
-                    className="project-menu"
-                    items={[
-                      { label: "New task", onSelect: () => onNewTask(project.id) },
-                      { label: expanded ? "Collapse" : "Expand", onSelect: () => onToggleProject(project.id) },
-                      { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
-                    ]}
-                  />
-                  <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project.root)}`}><SquarePen size={16} /></button>
-                </div>
-                <Droppable droppableId={project.id} type="task">
-                  {(provided) => (
-                    <div
-                      className={`project-tasks ${expanded ? "" : dragging ? "drop-strip" : "collapsed"}`}
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                    >
-                      {expanded && projectTasks.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-                {expanded && (hidden > 0 || showAllTasks.has(project.id)) && (
-                  <ShowMore
-                    label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
-                    expanded={showAllTasks.has(project.id)}
-                    onSelect={() => toggleShowAll(project.id)}
-                  />
-                )}
-              </section>
-            );
-          })}
-        </nav>}
+        {projectsOpen && <Droppable droppableId={PROJECTS_DROPPABLE} type={PROJECT_DRAG}>
+          {(list) => (
+            <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
+              {projects.map((project, projectIndex) => {
+                const projectTasks = orderedTasks.filter((task) => task.projectId === project.id);
+                const expanded = expandedProjects.has(project.id);
+                const attentionCount = projectTasks.filter((task) => task.attention).length;
+                const shown = visibleCount(projectTasks, project.id);
+                const hidden = projectTasks.length - shown;
+                return (
+                  <Draggable draggableId={project.id} index={projectIndex} key={project.id}>
+                    {(dragged: DraggableProvided, snapshot) => (
+                      <section
+                        className={`project-group ${snapshot.isDragging ? "is-dragging" : ""}`}
+                        ref={dragged.innerRef}
+                        {...dragged.draggableProps}
+                      >
+                        {/** The header row is the handle. The library swallows the click a drag ends on,
+                          *  so the row keeps its click-to-fold. */}
+                        <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`} {...dragged.dragHandleProps}>
+                          <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
+                            <span className="folder-icon"><FolderIcon /></span>
+                            <span>{projectName(project.root)}</span>
+                          </button>
+                          {!expanded && attentionCount > 0 && <span className="project-attention-count">{attentionCount}</span>}
+                          <PopoverMenu
+                            id={`project:${project.id}`}
+                            openMenu={openMenu}
+                            onSetOpenMenu={onSetOpenMenu}
+                            label={`More options for ${projectName(project.root)}`}
+                            className="project-menu"
+                            items={[
+                              { label: "New task", onSelect: () => onNewTask(project.id) },
+                              { label: expanded ? "Collapse" : "Expand", onSelect: () => onToggleProject(project.id) },
+                              { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
+                            ]}
+                          />
+                          <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project.root)}`}><SquarePen size={16} /></button>
+                        </div>
+                        <Droppable droppableId={project.id} type="task">
+                          {(provided) => (
+                            <div
+                              className={`project-tasks ${expanded ? "" : dragging ? "drop-strip" : "collapsed"}`}
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                            >
+                              {expanded && projectTasks.slice(0, shown).map((task, index) => taskRow(task, index, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
+                              {provided.placeholder}
+                            </div>
+                          )}
+                        </Droppable>
+                        {expanded && (hidden > 0 || showAllTasks.has(project.id)) && (
+                          <ShowMore
+                            label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
+                            expanded={showAllTasks.has(project.id)}
+                            onSelect={() => toggleShowAll(project.id)}
+                          />
+                        )}
+                      </section>
+                    )}
+                  </Draggable>
+                );
+              })}
+              {list.placeholder}
+            </nav>
+          )}
+        </Droppable>}
 
         <div className="section-heading recents-heading">
           <button className="section-toggle" onClick={() => onSetRecentsOpen(!recentsOpen)} aria-expanded={recentsOpen}>

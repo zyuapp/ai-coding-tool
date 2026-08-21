@@ -275,6 +275,7 @@ export function App() {
         onOpenFolder={workspace.actions.openFolder}
         onToggleProject={workspace.actions.toggleProject}
         onRemoveProject={workspace.actions.removeProject}
+        onMoveProject={workspace.actions.moveProject}
         onSetProjectsOpen={workspace.actions.setProjectsOpen}
         onSetRecentsOpen={workspace.actions.setRecentsOpen}
         onSetOpenMenu={workspace.actions.setOpenMenu}

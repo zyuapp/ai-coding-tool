@@ -1,4 +1,5 @@
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type TaskRunStatus } from "./task-workspace.js";
+import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
 import { backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -241,7 +242,7 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
   return {
     ...emptyWorkspaceState(storageError),
     tasks: backfillSortIndex(tasks),
-    projects,
+    projects: backfillProjectSortIndex(projects),
     lastFolder: data.lastFolder,
     currentId: firstTask?.id ?? null,
     history: firstTask ? [firstTask.id] : [],
@@ -545,7 +546,7 @@ export function deriveView(state: WorkspaceState) {
   const dock = dockFor(state, owner);
   return {
     tasks: listedTasks,
-    projects: state.projects,
+    projects: orderProjects(state.projects),
     orderedTasks: orderTasks(visibleTasks),
     archivedTasks: listedTasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
     recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt),

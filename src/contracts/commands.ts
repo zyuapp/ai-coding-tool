@@ -71,6 +71,8 @@ export type PasteCommand =
 
 export type ProjectCommand =
   | { type: "project.open" }
+  /** `index` counts the folders in the sidebar with the moved one already taken out. */
+  | { type: "project.move"; projectId: string; index: number }
   | { type: "project.remove"; projectId: string };
 
 /** Discarding a worktree takes everything uncommitted in it; only {@link TaskCommand} preserves work. */

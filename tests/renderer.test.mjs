@@ -423,7 +423,7 @@ test("the sidebar steps through visited threads", async () => {
     onGoForward() {},
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   assert.ok(view.container.querySelector('button[aria-label="Go forward"]').disabled, "nothing ahead to go forward to");
@@ -2124,7 +2124,7 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const marks = (label) => [...view.container.querySelectorAll(`[aria-label="${label}"]`)]
@@ -2159,7 +2159,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
     onRemoveProject: (id) => { removed.push(id); },
     onSetProjectsOpen() {}, onSetRecentsOpen() {},
     onSetOpenMenu: (menu) => { opened.push(menu); },
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
   const view = await mount(sidebar(null));
@@ -2178,6 +2178,50 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   await act(async () => { items[2].click(); });
   assert.deepEqual(removed, ["project-1"]);
   assert.equal(opened.at(-1), null, "choosing an item closes the menu without the item saying so");
+  await view.unmount();
+});
+
+test("a folder is lifted by its own row, and lifting one leaves every folded folder folded", async () => {
+  const moves = [];
+  const projects = [{ id: "first-project", root: "/first", sortIndex: 0 }, { id: "second-project", root: "/second", sortIndex: 1 }];
+  const view = await mount(React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects,
+    orderedTasks: [],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    worktreeTaskIds: new Set(),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    settingsOpen: false,
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {},
+    onMoveProject: (projectId, index) => { moves.push([projectId, index]); },
+    onOpenSettings() {},
+  }));
+
+  const handle = view.container.querySelector('[data-rfd-drag-handle-draggable-id="second-project"]');
+  assert.ok(handle, "a folder is draggable");
+  assert.ok(handle.className.includes("project-row"), "the header row is the handle, so there is nothing extra to aim at");
+
+  await act(async () => {
+    handle.focus();
+    handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: " ", keyCode: 32, bubbles: true, cancelable: true }));
+  });
+  const folded = view.container.querySelector('[data-rfd-droppable-id="first-project"]');
+  assert.ok(folded.className.includes("collapsed"), "a folder drag carries no threads, so it opens no drop strips");
+
+  await act(async () => {
+    handle.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
+  });
+  assert.deepEqual(moves, [], "an abandoned drag moves nothing");
   await view.unmount();
 });
 
@@ -2207,7 +2251,7 @@ test("a collapsed folder takes a drop as a strip the drag can measure, still fol
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const shutList = () => view.container.querySelector('[data-rfd-droppable-id="shut-project"]');

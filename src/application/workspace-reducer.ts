@@ -1,6 +1,7 @@
 import { clampQuote, promptWithAnnotations } from "./annotations.js";
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
 import { pasteTitle, promptWithPastes } from "./pastes.js";
+import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
 import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import {
   applyRunEvent,
@@ -946,7 +947,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const id = legacyProjectId(input.workspace.root);
       const projects = state.projects.some((project) => project.id === id)
         ? state.projects.map((project) => project.id === id ? { ...project, root: input.workspace.root, workspaceId: input.workspace.id } : project)
-        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id }, ...state.projects];
+        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id, sortIndex: nextProjectSortIndex(state.projects) }, ...state.projects];
       return settled({
         ...state,
         projects,
@@ -956,6 +957,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         actionError: null,
         expandedProjects: new Set(state.expandedProjects).add(id),
       });
+    }
+
+    case "project.move": {
+      const projects = moveProjectInList(state.projects, input.projectId, input.index);
+      if (projects === state.projects) return settled(state);
+      return settled({ ...state, projects, openMenu: null });
     }
 
     case "project.remove": {

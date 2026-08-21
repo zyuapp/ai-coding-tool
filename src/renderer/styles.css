@@ -514,7 +514,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .project-row:hover .project-attention-count,
 .project-row:has(.project-menu.open) .project-attention-count { visibility: hidden; }
 .task-entry.is-dragging > .project-task-row,
-.task-entry.is-dragging > .task-row {
+.task-entry.is-dragging > .task-row,
+.project-group.is-dragging > .project-row {
   background: var(--surface-active);
   color: var(--ink);
   box-shadow: var(--shadow-drag);
