@@ -957,6 +957,34 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .empty-state .thread-start button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
+/** The two modes sit in one track, so the choice reads as a switch rather than a row of buttons. */
+.thread-start-mode {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+  border-radius: 12px;
+  padding: 3px;
+  background: var(--chip);
+}
+.empty-state .thread-start .thread-start-mode button {
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0 12px;
+  color: var(--quiet-strong);
+  font-size: var(--text-control);
+  font-weight: 520;
+}
+.empty-state .thread-start .thread-start-mode button:hover { background: transparent; color: var(--ink-faint); }
+.empty-state .thread-start .thread-start-mode button[aria-checked="true"],
+.empty-state .thread-start .thread-start-mode button[aria-checked="true"]:hover {
+  border-color: var(--line);
+  background: var(--surface-active);
+  color: var(--ink-soft);
+}
+.thread-start-mode button > svg { flex: none; color: inherit; }
 .thread-start-field > button > span {
   min-width: 0;
   overflow: hidden;
