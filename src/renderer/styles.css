@@ -495,6 +495,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   place-items: center;
   transition: opacity 90ms ease;
 }
+/** Fading the marks makes them a stacking context, which paints them over the actions layer; nothing
+ *  in them is interactive, so they never take the click that lands on the action underneath. */
+.row-marks { pointer-events: none; }
 .row-actions { opacity: 0; pointer-events: none; }
 .task-entry:hover .row-actions,
 .row-actions:has(:focus-visible) { opacity: 1; pointer-events: auto; }
