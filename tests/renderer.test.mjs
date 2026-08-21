@@ -3782,7 +3782,7 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   assert.ok(composer > 0, "the composer is drawn with the rows, inside the scroller");
   assert.ok(drawn[composer - 1].classList.contains("selected"), "it follows the last selected line");
 
-  const note = view.container.querySelector('.diff-comment input');
+  const note = view.container.querySelector('.diff-comment textarea');
   await act(async () => {
     note.value = "Name these properly";
     note.dispatchEvent(new dom.window.Event("input", { bubbles: true }));

@@ -2838,11 +2838,18 @@ pre {
  */
 .diff-line.selected .diff-gutter, .diff-split-cell.selected .diff-gutter { background: var(--diff-selected-line); color: var(--ink); }
 
-/** Drawn under the run it is about, inset from the gutter so it reads as a note on those lines. */
-.diff-comment { display: flex; align-items: center; gap: 6px; margin: 6px 10px 8px 44px; padding: 7px 8px; border: 1px solid var(--accent-line); border-radius: 9px; background: var(--surface); box-shadow: var(--shadow-menu); }
-.diff-comment-range { flex: none; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }
-.diff-comment input { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-meta); }
-.diff-comment input:focus-visible { outline: 2px solid var(--focus-ring); }
-.diff-comment button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
-.diff-comment button:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.diff-comment button[type="submit"]:hover { color: var(--accent); }
+/**
+ * Drawn under the run it is about, inset from the gutter so it reads as a note on those lines, and
+ * shaped like the composer it feeds: the lines it names, somewhere to write, and one way to send.
+ */
+.diff-comment { margin: 8px 12px 10px 44px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-composer); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+.diff-comment:focus-within { border-color: var(--line-strong); }
+.diff-comment header { display: flex; align-items: center; gap: 6px; padding: 8px 8px 0 12px; color: var(--quiet-strong); }
+.diff-comment-range { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: var(--text-meta); }
+.diff-comment textarea { display: block; width: 100%; min-height: 34px; max-height: 180px; resize: none; padding: 6px 12px 2px; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--text-control); line-height: 1.5; field-sizing: content; }
+.diff-comment textarea::placeholder { color: var(--quiet-soft); }
+.diff-comment footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 8px 12px; }
+.diff-comment-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet-soft); font-size: var(--text-meta); }
+.diff-comment header button { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border: 0; border-radius: 7px; background: none; color: var(--quiet-soft); cursor: pointer; }
+.diff-comment header button:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.diff-comment .send-button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; }

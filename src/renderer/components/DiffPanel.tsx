@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState } from "../../application/workspace-state";
 import {
@@ -308,7 +308,7 @@ export function DiffPanel({
   const [note, setNote] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const noteRef = useRef<HTMLInputElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const [roomForTwo, setRoomForTwo] = useState(true);
   const split = diff.split && roomForTwo;
 
@@ -476,22 +476,37 @@ export function DiffPanel({
           }}
           onKeyDown={(event) => {
             /** Escape drops the selection rather than reaching the shortcut that stops the run. */
-            if (event.key !== "Escape") return;
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              clear();
+              return;
+            }
+            /** Enter sends the note the way it sends a message; a newline needs Shift, as it does there. */
+            if (event.key !== "Enter" || event.shiftKey) return;
             event.preventDefault();
-            event.stopPropagation();
-            clear();
+            comment();
           }}
         >
-          <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
-          <input
+          <header>
+            <MessageSquarePlus size={13} aria-hidden="true" />
+            <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
+            <button type="button" aria-label="Clear the selection" onClick={clear}><X size={14} /></button>
+          </header>
+          <textarea
             ref={noteRef}
+            rows={1}
             aria-label="Note on the selected lines"
             placeholder="What should change here?"
             value={note}
             onInput={(event) => setNote(event.currentTarget.value)}
           />
-          <button type="submit" aria-label="Comment on the selected lines"><MessageSquarePlus size={15} /></button>
-          <button type="button" aria-label="Clear the selection" onClick={clear}><X size={15} /></button>
+          <footer>
+            <span className="diff-comment-hint">Enter to add, Shift + Enter for a new line</span>
+            <button className="send-button" type="submit" aria-label="Comment on the selected lines" disabled={!note.trim()}>
+              <ArrowUp size={17} />
+            </button>
+          </footer>
         </form>
       );
     }
