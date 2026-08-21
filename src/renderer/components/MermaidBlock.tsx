@@ -142,24 +142,25 @@ export function MermaidBlock({ source }: { source: string }) {
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
-    void import("mermaid").then(async ({ default: mermaid }) => {
-      if (!initialized) {
-        const scheme = getComputedStyle(document.documentElement).colorScheme;
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "strict",
-          theme: scheme === "light" ? "default" : "dark",
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
-        });
-        initialized = true;
-      }
+    void (async () => {
       try {
+        const { default: mermaid } = await import("mermaid");
+        if (!initialized) {
+          const scheme = getComputedStyle(document.documentElement).colorScheme;
+          mermaid.initialize({
+            startOnLoad: false,
+            securityLevel: "strict",
+            theme: scheme === "light" ? "default" : "dark",
+            fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          });
+          initialized = true;
+        }
         const { svg } = await mermaid.render(`mermaid-${id}`, source);
         if (!cancelled) setResult({ source, diagram: naturalDiagram(svg) });
       } catch (error) {
         if (!cancelled) setResult({ source, error: error instanceof Error ? error.message : String(error) });
       }
-    });
+    })();
     return () => { cancelled = true; };
   }, [id, source, visible]);
 
