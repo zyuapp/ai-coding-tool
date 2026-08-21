@@ -52,7 +52,6 @@ export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string | null>(null);
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
@@ -85,7 +84,7 @@ export function App() {
     />
   ) : null;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
-  const inspectedWorkflow = workspace.workflows.find((workflow) => workflow.id === selectedWorkflow);
+  const inspectedWorkflow = workspace.inspectedWorkflow;
 
   function addSideChat() {
     void workspace.dispatch({ type: "side-chat.open", chatId: crypto.randomUUID() });
@@ -150,16 +149,7 @@ export function App() {
 
   useEffect(() => {
     if (!workspace.dockPanels.includes("agents")) setSelectedSubagent(null);
-    if (!workspace.dockPanels.includes("workflow")) setSelectedWorkflow(null);
   }, [workspace.dockPanels]);
-
-  /** A workflow outlives the run that started it, so its panel closes only once the workflow record is gone. */
-  useEffect(() => {
-    if (selectedWorkflow && !workspace.workflows.some((workflow) => workflow.id === selectedWorkflow)) {
-      setSelectedWorkflow(null);
-      if (workspace.dockPanels.includes("workflow")) void workspace.actions.closeDockPanel("workflow");
-    }
-  }, [workspace.actions, workspace.dockPanels, workspace.workflows, selectedWorkflow]);
 
   useEffect(() => {
     /** Esc serves whatever is nearest: an overlay claims it first, then a menu, the find bar, and last the run. */
@@ -182,8 +172,7 @@ export function App() {
   }, [workspace.actions]);
 
   const openWorkflow = useCallback((id: string) => {
-    setSelectedWorkflow(id);
-    void workspace.actions.openDockPanel("workflow");
+    void workspace.actions.openWorkflow(id);
   }, [workspace.actions]);
 
   const dockPanels: DockPanel[] = [

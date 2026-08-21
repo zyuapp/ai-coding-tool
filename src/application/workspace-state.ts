@@ -10,6 +10,7 @@ import { findHits, type FindHit, type FindResults, type FindTarget } from "../do
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { TerminalSession } from "../domain/terminal.js";
+import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type Worktree } from "../domain/worktree.js";
@@ -52,7 +53,7 @@ export type ThreadLocation =
 /** What a thread is waiting on before it can work: a checkout being made, or a run finding one. */
 export type ThreadWait = "worktree" | "run";
 
-/** A checkout with the threads working in it, which is how the sidebar nests them under a project. */
+/** A checkout with the threads working in it, which is how a project offers starting one more there. */
 export type WorktreeGroup = {
   worktree: Worktree;
   tasks: Task[];
@@ -148,6 +149,8 @@ export type ThreadDock = {
   open: boolean;
   panels: string[];
   tab: string;
+  /** The workflow the dock's workflow panel is following, kept per thread the way its panels are. */
+  workflowId: string | null;
   browserTabs: BrowserTab[];
   browserTabId: string | null;
   terminals: TerminalSession[];
@@ -398,6 +401,7 @@ export const EMPTY_DOCK: ThreadDock = {
   open: false,
   panels: [],
   tab: DOCK_PICKER,
+  workflowId: null,
   browserTabs: [],
   browserTabId: null,
   terminals: [],
@@ -416,6 +420,16 @@ export function dockOwner(state: Pick<WorkspaceState, "currentId" | "sideChats">
 
 export function dockFor(state: Pick<WorkspaceState, "docks">, owner: string): ThreadDock {
   return state.docks[owner] ?? EMPTY_DOCK;
+}
+
+/** A workflow by id, wherever it is kept: a dock follows one workflow, not one thread's list. */
+export function workflowById(state: Pick<WorkspaceState, "workflows">, id: string | null): Workflow | undefined {
+  if (!id) return undefined;
+  for (const workflows of Object.values(state.workflows)) {
+    const found = workflows.find((workflow) => workflow.id === id);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 export function withDock(state: WorkspaceState, owner: string, patch: Partial<ThreadDock>): WorkspaceState {
@@ -719,11 +733,13 @@ export function deriveView(state: WorkspaceState) {
     subagents: currentTask?.subagents ?? [],
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
     workflows: (state.currentId ? state.workflows[state.currentId] : undefined) ?? [],
+    /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
+    inspectedWorkflow: workflowById(state, dock.workflowId) ?? null,
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktreeId).map((task) => task.id)),
-    /** The checkouts the sidebar nests threads under, each with the threads that claim it. */
+    /** The checkouts a project has, each with the threads that claim it. */
     worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({
       worktree,
       tasks: orderTasks(visibleTasks.filter((task) => task.worktreeId === worktree.id)),

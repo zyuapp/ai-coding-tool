@@ -620,6 +620,7 @@ export function useTaskWorkspace() {
       closeTab: () => dispatch({ type: "view.close-tab" }),
       openDockPanel: (panel: string) => dispatch({ type: "view.open-dock-panel", panel }),
       closeDockPanel: (panel: string) => dispatch({ type: "view.close-dock-panel", panel }),
+      openWorkflow: (workflowId: string) => dispatch({ type: "view.open-workflow", workflowId }),
       selectDockTab: (tab: string) => dispatch({ type: "view.select-dock-tab", tab }),
       toggleDiff: () => dispatch({ type: "diff.toggle" }),
       refreshDiff: () => dispatch({ type: "diff.refresh" }),

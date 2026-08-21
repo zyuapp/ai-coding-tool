@@ -189,6 +189,8 @@ export type ViewCommand =
   | { type: "view.set-dock-open"; open: boolean }
   | { type: "view.open-dock-panel"; panel: string }
   | { type: "view.close-dock-panel"; panel: string }
+  /** Opens the workflow panel on one workflow. The dock remembers which, so leaving and coming back lands back on it. */
+  | { type: "view.open-workflow"; workflowId: string }
   | { type: "view.select-dock-tab"; tab: string }
   /** The tab in that position, counting from zero, with -1 for the last one. */
   | { type: "view.select-dock-index"; index: number }

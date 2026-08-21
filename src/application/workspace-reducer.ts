@@ -15,7 +15,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { annotationsFor, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -696,6 +696,20 @@ function prunedFind(state: WorkspaceState, before: WorkspaceState): WorkspaceSta
   return { ...state, focusedTerminalId, ...(gone ? { find: null, findResults: null } : {}) };
 }
 
+/** A dock follows a workflow only while its record is there, so a run that clears one closes its panel. */
+function prunedWorkflowPanels(state: WorkspaceState): WorkspaceState {
+  const stale = Object.entries(state.docks).filter(([, dock]) => dock.workflowId && !workflowById(state, dock.workflowId));
+  if (!stale.length) return state;
+  let next = state;
+  for (const [owner] of stale) {
+    const dock = dockFor(next, owner);
+    const panels = dock.panels.filter((panel) => panel !== WORKFLOW_PANEL);
+    const tab = dock.tab === WORKFLOW_PANEL ? dockTabAfterClosing(next, owner, WORKFLOW_PANEL) : dock.tab;
+    next = withDock(next, owner, { workflowId: null, panels, tab });
+  }
+  return next;
+}
+
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else
  * driving the app); events report what the outside world did back. Nothing here touches Electron.
@@ -709,7 +723,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
     }, settled(state));
   }
   const applied = apply(state, input);
-  const transition = { state: prunedFind(applied.state, state), effects: applied.effects };
+  const transition = { state: prunedWorkflowPanels(prunedFind(applied.state, state)), effects: applied.effects };
   if (transition.state.currentId === state.currentId) return transition;
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
@@ -763,6 +777,9 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
 
 /** The dock tab the review is drawn in, which the picker and the composer both name. */
 export const DIFF_PANEL = "diff";
+
+/** The dock tab one workflow is followed in. */
+export const WORKFLOW_PANEL = "workflow";
 
 /** The checkout the thread in front works in: what Git is read from, for its diff as for its status. */
 function currentWorkspaceId(state: WorkspaceState) {
@@ -1700,12 +1717,23 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return { state: read.state, effects: [...effects, ...read.effects] };
     }
 
+    case "view.open-workflow": {
+      const listed = state.currentId ? state.workflows[state.currentId] ?? [] : [];
+      if (!listed.some((workflow) => workflow.id === input.workflowId)) return settled(state);
+      const opened = withDock(state, dockOwner(state), { workflowId: input.workflowId });
+      return apply(opened, { type: "view.open-dock-panel", panel: WORKFLOW_PANEL });
+    }
+
     case "view.close-dock-panel": {
       const owner = dockOwner(state);
       const dock = dockFor(state, owner);
       if (!dock.panels.includes(input.panel)) return settled(state);
       const tab = dock.tab === input.panel ? dockTabAfterClosing(state, owner, input.panel) : dock.tab;
-      const closed = withDock(state, owner, { panels: dock.panels.filter((panel) => panel !== input.panel), tab });
+      const closed = withDock(state, owner, {
+        panels: dock.panels.filter((panel) => panel !== input.panel),
+        tab,
+        ...(input.panel === WORKFLOW_PANEL ? { workflowId: null } : {}),
+      });
       return settled(closed, browserEffectsForTab(closed, owner, tab));
     }
 

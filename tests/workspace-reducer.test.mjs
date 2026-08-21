@@ -2035,6 +2035,57 @@ test("every thread keeps a dock of its own, panels, pages and shells alike", () 
   assert.equal(dock(hidden.state).open, false);
 });
 
+test("the workflow a thread's panel is following survives a move to another thread and back", () => {
+  const state = {
+    ...workspace(),
+    tasks: [task("task-1"), task("task-2")],
+    currentId: "task-1",
+    history: ["task-1"],
+    historyIndex: 0,
+    workflows: { "task-1": [{ id: "wf-1", name: "review-changes", description: "Review changed files", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 }] },
+  };
+
+  const opened = reduce(state, { type: "view.open-workflow", workflowId: "wf-1" });
+  assert.deepEqual(dock(opened.state).panels, ["workflow"]);
+  assert.equal(dock(opened.state).workflowId, "wf-1");
+  assert.equal(deriveView(opened.state).inspectedWorkflow.name, "review-changes");
+
+  const away = reduce(opened.state, { type: "task.select", taskId: "task-2" });
+  assert.equal(deriveView(away.state).inspectedWorkflow, null, "another thread's dock follows no workflow");
+  assert.deepEqual(dock(away.state, "task-1").panels, ["workflow"], "and leaving does not close the panel behind you");
+
+  const back = reduce(away.state, { type: "task.select", taskId: "task-1" });
+  assert.equal(deriveView(back.state).inspectedWorkflow.id, "wf-1", "the panel comes back on the workflow it was following");
+
+  const closed = reduce(back.state, { type: "view.close-dock-panel", panel: "workflow" });
+  assert.equal(dock(closed.state).workflowId, null, "closing the panel lets the workflow go");
+});
+
+test("a workflow panel closes once the record it was following is gone", () => {
+  const workflow = { id: "wf-1", name: "review-changes", description: "Review changed files", status: "completed", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
+  const state = {
+    ...workspace(),
+    tasks: [task("task-1"), task("task-2")],
+    currentId: "task-1",
+    workflows: { "task-1": [workflow], "task-2": [{ ...workflow, id: "wf-2" }] },
+  };
+
+  const opened = run(state, [
+    { type: "view.open-workflow", workflowId: "wf-1" },
+    { type: "view.open-dock-panel", panel: "agents" },
+  ]);
+  const following = reduce(opened, { type: "view.open-workflow", workflowId: "wf-2" });
+  assert.equal(dock(following.state, "task-1").workflowId, "wf-1", "a workflow in another thread is not this dock's to open");
+
+  const dropped = reduce(opened, { type: "workflow.event", event: { type: "workflow.finished", taskId: "task-1", id: "wf-1", status: "completed" } });
+  assert.equal(dock(dropped.state).workflowId, "wf-1", "a workflow that finishes is still there to read");
+
+  const cleared = { ...opened, workflows: { "task-2": opened.workflows["task-2"] } };
+  const pruned = reduce(cleared, { type: "view.set-dock-open", open: true });
+  assert.deepEqual(dock(pruned.state).panels, ["agents"], "the panel goes with the record it was drawing");
+  assert.equal(dock(pruned.state).workflowId, null);
+});
+
 test("a run drives its own thread's dock, whichever thread the user is looking at", () => {
   const state = { ...workspace(), tasks: [task("task-1"), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
 
