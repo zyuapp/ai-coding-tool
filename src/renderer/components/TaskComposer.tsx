@@ -79,6 +79,8 @@ export type TaskComposerProps = {
   actions?: ComposerAction[];
   /** Set while the thread cannot take a message at all, as a side chat cannot before its fork exists. */
   disabled?: boolean;
+  /** Set while a send already given is still finding the checkout it runs in, so nothing sends twice. */
+  waiting?: boolean;
   mode: ExecutionPolicy;
   model: AgentModel;
   effort: AgentEffort;
@@ -113,6 +115,7 @@ export function TaskComposer({
   surface = "main",
   actions = [],
   disabled = false,
+  waiting = false,
   mode,
   model,
   effort,
@@ -221,7 +224,7 @@ export function TaskComposer({
 
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
-    if (sending || disabled || (steer && !runActive)) return;
+    if (sending || waiting || disabled || (steer && !runActive)) return;
     if (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0) return;
     if (attachments.length === 0) {
       onSend([], steer);
@@ -438,7 +441,7 @@ export function TaskComposer({
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && (disabled || sending || (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0))}
+              disabled={!runActive && (disabled || sending || waiting || (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0))}
               onClick={runActive ? onCancel : () => void submit()}
               aria-label={sendLabel(surface, runActive)}
             >

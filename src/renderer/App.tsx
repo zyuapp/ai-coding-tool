@@ -328,6 +328,7 @@ export function App() {
               folder={workspace.folder}
               status={workspace.status}
               compacting={workspace.compacting}
+              waitingOn={workspace.waitingOn}
               streamingTail={workspace.streamingTail}
               scrollContainerRef={transcriptRef}
               startOptions={!workspace.currentTask && (
@@ -521,6 +522,7 @@ export function App() {
           effort={workspace.effort}
           contextUsage={workspace.currentTask?.contextUsage}
           runActive={workspace.runActive}
+          waiting={workspace.waitingOn !== null}
           queuedMessages={workspace.queuedMessages}
           annotations={workspace.annotations}
           pastes={workspace.pastes}

@@ -1799,7 +1799,7 @@ async function expand(details) {
   });
 }
 
-function timelineView(messages, status, streamingTail, runEndedAt, find) {
+function timelineView(messages, status, streamingTail, runEndedAt, find, waitingOn) {
   const scroller = document.createElement("div");
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
@@ -1810,7 +1810,7 @@ function timelineView(messages, status, streamingTail, runEndedAt, find) {
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, folder: "/p", status, compacting: false, streamingTail, scrollContainerRef: { current: scroller }, find,
+    currentTask: task, folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
   });
 }
 
@@ -2871,6 +2871,49 @@ test("the session panel's thread menu offers the hand-off its location allows, a
 
   await view.render(panel(worktree, "session:location", true));
   assert.equal(view.container.querySelector('[role="menuitem"]').disabled, true, "a running thread cannot change where it works");
+
+  await view.render(panel({ kind: "creating" }, "session:location"));
+  assert.match(view.container.querySelector(".session-location-row span:nth-of-type(2)").textContent, /Creating worktree/);
+  assert.equal(view.container.querySelector('[role="menuitem"]').disabled, true, "a checkout being made cannot be asked for twice");
+  await view.unmount();
+});
+
+test("a thread waiting on its checkout says so in the transcript, and its composer holds", async () => {
+  window.desktop = fakeDesktop();
+  const messages = transcript({ kind: "user", text: "Refactor the loader" });
+
+  const view = await mount(timelineView(messages, "idle"));
+  assert.equal(view.container.querySelector(".waiting-row"), null, "an idle thread is not waiting on anything");
+
+  await view.render(timelineView(messages, "idle", undefined, undefined, undefined, "worktree"));
+  const waiting = view.container.querySelector(".waiting-row");
+  assert.match(waiting.textContent, /Creating worktree/);
+  assert.equal(waiting.getAttribute("role"), "status", "the wait is announced rather than only drawn");
+
+  await view.render(timelineView(messages, "idle", undefined, undefined, undefined, "run"));
+  assert.match(view.container.querySelector(".waiting-row").textContent, /Starting/);
+  await view.unmount();
+});
+
+test("the send button holds while the checkout a send needs is still being made", async () => {
+  window.desktop = fakeDesktop();
+  const sent = [];
+  const composer = (waiting) => React.createElement(TaskComposer, {
+    prompt: "Refactor the loader", folder: "/project", workspaceId: "workspace-1", mode: "confirm", model: "opus", effort: "medium",
+    runActive: false, waiting, queuedMessages: [],
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {},
+    onSend: () => { sent.push("sent"); }, onCancel() {},
+  });
+
+  const view = await mount(composer(true));
+  const send = view.container.querySelector(".send-button");
+  assert.equal(send.disabled, true, "a second Enter is refused visibly rather than swallowed");
+  await act(async () => { send.click(); });
+  assert.deepEqual(sent, []);
+
+  await view.render(composer(false));
+  await act(async () => { view.container.querySelector(".send-button").click(); });
+  assert.deepEqual(sent, ["sent"], "the button works again once the checkout has landed");
   await view.unmount();
 });
 
@@ -3088,7 +3131,11 @@ test("resolving a run reports what the branch or the worktree could not do", asy
   const failed = await resolveRunWorkspace(effect, desktop);
 
   assert.deepEqual(calls, [["create", "workspace-a", "feature-x"]], "the branch is made before anything tries to start from it");
-  assert.deepEqual(failed, { type: "run.unresolved", pendingId: "pending-2", message: "Your local changes would be overwritten." });
+  assert.deepEqual(failed, {
+    type: "run.unresolved",
+    pendingId: "pending-2",
+    message: "Could not check out feature-x: Your local changes would be overwritten.",
+  }, "Git says what went wrong, and the message says what was being attempted");
 });
 
 test("resolving a run through the picker insists on the same folder", async () => {

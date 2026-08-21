@@ -1,10 +1,10 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, GitFork, ListCollapse, MessageSquareQuote, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, FolderSymlink, GitFork, ListCollapse, MessageSquareQuote, X, type LucideIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
-import type { FindView } from "../../application/workspace-state";
+import type { FindView, ThreadWait } from "../../application/workspace-state";
 import type { FindHit } from "../../domain/find";
 import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
@@ -315,6 +315,8 @@ export type ConversationTimelineProps = {
   folder: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
+  /** What the thread is waiting on before a run of its own can start, which can take minutes. */
+  waitingOn?: ThreadWait | null;
   streamingTail?: StreamingTail | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   empty?: { icon: LucideIcon; title: string; description: string };
@@ -332,7 +334,7 @@ export type ConversationTimelineProps = {
   onAnnotateSide?: (quote: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, streamingTail, scrollContainerRef, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -667,6 +669,13 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
           {marker.number}
         </button>
       ))}
+      {waitingOn && (
+        <div className="waiting-row" role="status" aria-live="polite">
+          <FolderSymlink aria-hidden="true" />
+          <span>{waitingOn === "worktree" ? "Creating worktree…" : "Starting…"}</span>
+          <span className="activity-dots" aria-hidden="true"><i /><i /><i /></span>
+        </div>
+      )}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
           <ListCollapse aria-hidden="true" />

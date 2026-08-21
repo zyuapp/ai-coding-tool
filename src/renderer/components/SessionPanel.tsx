@@ -52,9 +52,18 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
 type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
   & Pick<SessionPanelProps, "runActive" | "openMenu" | "onSetOpenMenu" | "onSetWorktree">;
 
+/** What the row says, and what its menu offers, for each place a thread can be. */
+function locationLabel(location: ThreadLocation) {
+  if (location.kind === "creating") return { text: "Creating worktree…", title: "A checkout of its own is being made" };
+  if (location.kind === "worktree") return { text: "Worktree", title: location.worktree.root };
+  return { text: "Local", title: "Runs in your project checkout" };
+}
+
 /** One entry: it says where the thread works, and its menu carries the only move it has. */
 function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktree }: LocationRowProps) {
   const inWorktree = location.kind === "worktree";
+  const creating = location.kind === "creating";
+  const { text, title } = locationLabel(location);
 
   return (
     <div className="session-location">
@@ -67,12 +76,13 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
         popoverClassName="session-menu-popover"
         items={[{
           label: inWorktree ? "Return to local" : "Hand off to worktree",
-          disabled: runActive,
+          disabled: runActive || creating,
           onSelect: () => onSetWorktree(!inWorktree),
         }]}
       >
-        <span className="session-row-icon">{inWorktree ? <FolderSymlink size={18} /> : <House size={18} />}</span>
-        <span title={inWorktree ? location.worktree.root : "Runs in your project checkout"}>{inWorktree ? "Worktree" : "Local"}</span>
+        <span className="session-row-icon">{inWorktree || creating ? <FolderSymlink size={18} /> : <House size={18} />}</span>
+        <span title={title}>{text}</span>
+        {creating && <span className="activity-dots" aria-hidden="true"><i /><i /><i /></span>}
       </PopoverMenu>
     </div>
   );
