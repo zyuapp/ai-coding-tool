@@ -512,6 +512,16 @@ function clearWorktree(state: WorkspaceState, taskId: string, note: ReturnType<t
   }));
 }
 
+/**
+ * Hands back the checkout of every thread that is leaving, so no directory outlives the thread that
+ * held it. A release commits what is still loose in there first, exactly as switching back would.
+ */
+function releaseWorktrees(tasks: Task[]): WorkspaceEffect[] {
+  return tasks.flatMap((task) => task.worktree
+    ? [{ type: "release-worktree" as const, taskId: task.id, worktreeId: task.worktree.id, root: task.worktree.root, title: task.title }]
+    : []);
+}
+
 function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
   return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
 }
@@ -695,9 +705,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return next ? apply(state, { type: "task.select", taskId: next.id }) : settled(state);
     }
 
-    /** Archiving a running task cancels its run; the task leaves the sidebar without waiting for the run to settle. */
+    /**
+     * Archiving a running task cancels its run; the task leaves the sidebar without waiting for the
+     * run to settle. Its checkout goes back too, so an archived thread never holds one for good.
+     */
     case "task.archive": {
       const active = state.activeRuns[input.taskId];
+      const archived = state.tasks.filter((task) => task.id === input.taskId);
       return settled({
         ...state,
         tasks: state.tasks.map((task) => task.id === input.taskId ? { ...task, archivedAt: now() } : task),
@@ -705,6 +719,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       }, [
         ...retireAutomations(state, [input.taskId]),
         ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
+        /** Cancelling first, so nothing is still working in the checkout when it is handed back. */
+        ...releaseWorktrees(archived),
       ]);
     }
 
@@ -717,7 +733,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "task.clear-archive": {
       if (state.tasks.every((task) => task.archivedAt === undefined)) return settled(state);
-      const discarded = new Set(state.tasks.filter((task) => task.archivedAt !== undefined).map((task) => task.id));
+      const archived = state.tasks.filter((task) => task.archivedAt !== undefined);
+      const discarded = new Set(archived.map((task) => task.id));
       /** A fork of a thread that is gone has nowhere left to be shown, so it goes with it. */
       const forks = closeSideChats(state, state.sideChats.filter((chat) => discarded.has(chat.sourceTaskId)));
       const disposed = disposeDocks(forks.state, discarded);
@@ -728,7 +745,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
           tasks,
           currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
         },
-        effects: [...forks.effects, ...disposed.effects],
+        /** Without this the checkouts would linger until the next launch reconciled them away. */
+        effects: [...forks.effects, ...disposed.effects, ...releaseWorktrees(archived)],
       };
     }
 
@@ -835,7 +853,16 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "worktree.created": {
       const task = state.tasks.find((item) => item.id === input.taskId);
-      if (!task || task.worktree) return settled(state);
+      /**
+       * A thread that was archived or discarded while its checkout was being made has nothing left to
+       * work in it. The checkout is seconds old and untouched, so it goes now rather than waiting for
+       * the next launch to reap it.
+       */
+      if (!task || task.archivedAt !== undefined) {
+        if (task?.worktree) return settled(state);
+        return settled(state, [{ type: "delete-worktree", taskId: input.taskId, root: input.worktree.root }]);
+      }
+      if (task.worktree) return settled(state);
       const note = createTaskMessage("system", `Moved into a worktree at ${input.worktree.root}`, `Detached at ${input.worktree.baseCommit.slice(0, 7)}`);
       return settled(applyTask(state, input.taskId, (item) => ({
         ...item,
