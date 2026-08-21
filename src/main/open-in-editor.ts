@@ -11,7 +11,14 @@ const PLATFORM = process.platform as Platform;
  */
 function launch({ command, args }: Launch) {
   return new Promise<boolean>((resolve) => {
-    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    /** Some launchers spawn throws over outright, such as a `.cmd` on Windows without a shell. */
+    let child;
+    try {
+      child = spawn(command, args, { detached: true, stdio: "ignore" });
+    } catch {
+      resolve(false);
+      return;
+    }
     child.once("error", () => resolve(false));
     child.once("spawn", () => {
       child.unref();
