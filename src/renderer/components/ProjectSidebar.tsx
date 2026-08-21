@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, Folders, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
+import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
 import { projectName, threadActivityAt } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
@@ -18,6 +18,9 @@ const WORKTREE_DROPPABLE = "worktree:";
 const PROJECTS_DROPPABLE = "projects";
 const PROJECT_DRAG = "project";
 const PROJECT_TASK_LIMIT = 10;
+
+/** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
+type RowAction = "archive" | "dismiss" | "none";
 
 const ATTENTION_LABELS: Record<TaskAttention, string> = {
   finished: "Finished",
@@ -202,10 +205,11 @@ export function ProjectSidebar({
 
   /**
    * Every task row ends in the same trailing group, and its last cell holds both the status mark and
-   * the row's own action, so the two share one center. Priority rows dismiss where the rest archive:
-   * taking the dot off is the only thing that list is for, and archiving stays on the row's menu.
+   * the row's own action, so the two share one center. Activity mode offers dismissing on a priority
+   * row and nothing on the others, rather than two different icons in one view; archiving a thread
+   * there is on its menu.
    */
-  const taskMarks = (task: Task, action: "archive" | "dismiss") => (
+  const taskMarks = (task: Task, action: RowAction) => (
     <span className="task-row-marks">
       {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label="Works in a worktree" />}
       {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
@@ -216,35 +220,34 @@ export function ProjectSidebar({
               className={`task-attention ${task.attention} ${task.attentionRead ? "read" : ""}`}
               aria-label={`${ATTENTION_LABELS[task.attention]}${task.attentionRead ? ", read" : ""}`}
             />}
-        {action === "dismiss"
-          ? <button
-              className="task-archive task-dismiss"
-              type="button"
-              aria-label={`Dismiss ${task.title}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onDismissTask(task.id);
-              }}
-            >
-              <Check size={13} aria-hidden="true" />
-            </button>
-          : <button
-              className="task-archive"
-              type="button"
-              aria-label={`Archive ${task.title}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onArchiveTask(task.id);
-              }}
-            >
-              <Archive size={13} aria-hidden="true" />
-            </button>}
+        {action === "dismiss" && <button
+          className="task-archive task-dismiss"
+          type="button"
+          aria-label={`Dismiss ${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDismissTask(task.id);
+          }}
+        >
+          <Check size={13} aria-hidden="true" />
+        </button>}
+        {action === "archive" && <button
+          className="task-archive"
+          type="button"
+          aria-label={`Archive ${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onArchiveTask(task.id);
+          }}
+        >
+          <Archive size={13} aria-hidden="true" />
+        </button>}
       </span>
     </span>
   );
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (task: Task, className: string, content: React.ReactNode, action: "archive" | "dismiss") => (
+  const rowBody = (task: Task, className: string, content: React.ReactNode, action: RowAction) => (
     <>
     <div
       className={className}
@@ -318,7 +321,7 @@ export function ProjectSidebar({
   );
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
-  const activityRow = (task: Task, action: "archive" | "dismiss") => (
+  const activityRow = (task: Task, action: RowAction) => (
     <div className="task-entry" key={task.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, task.id)}>
       {rowBody(task, `task-row ${task.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
@@ -339,22 +342,14 @@ export function ProjectSidebar({
     <DragDropContext onDragEnd={finishDrag}>
     <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
       <div className="traffic-space">
-        <div className="sidebar-modes" role="group" aria-label="Sidebar view">
-          <button
-            className={`thread-nav-button ${mode === "projects" ? "active" : ""}`}
-            type="button"
-            aria-label="Group threads by project"
-            aria-pressed={mode === "projects"}
-            onClick={() => onSetMode("projects")}
-          >
-            <Folders size={15} aria-hidden="true" />
-          </button>
+        <div className="sidebar-modes">
+          {/** One switch, not a pair: pressed ranks the threads, released puts them back under their folders. */}
           <button
             className={`thread-nav-button ${mode === "activity" ? "active" : ""}`}
             type="button"
             aria-label="Rank threads by activity"
             aria-pressed={mode === "activity"}
-            onClick={() => onSetMode("activity")}
+            onClick={() => onSetMode(mode === "activity" ? "projects" : "activity")}
           >
             <Inbox size={15} aria-hidden="true" />
           </button>
@@ -390,12 +385,9 @@ export function ProjectSidebar({
                     <CheckCheck size={16} aria-hidden="true" />
                   </button>
                 )}
-                {key === "threads" && (
-                  <button className="section-action" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
-                )}
               </div>
               {sections[key] && <nav className="task-list" aria-label={label}>
-                {tasks.map((task) => activityRow(task, key === "priority" ? "dismiss" : "archive"))}
+                {tasks.map((task) => activityRow(task, key === "priority" ? "dismiss" : "none"))}
               </nav>}
             </section>
           );

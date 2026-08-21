@@ -488,9 +488,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
 .task-archive:hover { background: var(--control-hover); color: var(--ink); }
 .task-dismiss:hover { color: var(--info); }
-.task-entry:hover .task-automation,
-.task-entry:hover .task-worktree,
-.task-entry:hover .row-slot > :not(.task-archive) { visibility: hidden; }
+/** The marks step aside for the action that replaces them. A row offering none keeps them. */
+.task-entry:hover:has(.task-archive) .task-automation,
+.task-entry:hover:has(.task-archive) .task-worktree,
+.task-entry:hover .row-slot:has(.task-archive) > :not(.task-archive) { visibility: hidden; }
 .project-task-row {
   width: 100%;
   min-width: 0;

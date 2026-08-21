@@ -554,9 +554,9 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     "the priority list trades archive for dismiss",
   );
   assert.deepEqual(
-    [...view.container.querySelectorAll('nav[aria-label="Running"] .task-archive, nav[aria-label="Threads"] .task-archive')].map((button) => button.getAttribute("aria-label")),
-    ["Archive busy", "Archive quiet"],
-    "and the other two lists keep it",
+    [...view.container.querySelectorAll('nav[aria-label="Running"] .task-archive, nav[aria-label="Threads"] .task-archive')],
+    [],
+    "and the other two offer nothing, rather than a second icon meaning something else",
   );
 
   await act(async () => { view.container.querySelector('[aria-label="Dismiss asked"]').click(); });
@@ -1592,9 +1592,12 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
 
+  const toggle = () => view.container.querySelector('[aria-label="Rank threads by activity"]');
   assert.equal(view.container.querySelector('nav[aria-label="Priority"]'), null, "the sidebar opens grouped by project");
+  assert.equal(toggle().getAttribute("aria-pressed"), "false");
 
-  await act(async () => { view.container.querySelector('[aria-label="Rank threads by activity"]').click(); });
+  await act(async () => { toggle().click(); });
+  assert.equal(toggle().getAttribute("aria-pressed"), "true");
 
   const priority = () => [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-row-text > span')].map((row) => row.textContent);
   assert.deepEqual(priority(), ["Blocked task"]);
@@ -1615,6 +1618,12 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
     ["Blocked task", "Quiet task"],
     "a dismissed thread drops into the chronological list",
   );
+
+  /** The one switch carries both directions, so pressing it again puts the folders back. */
+  await act(async () => { toggle().click(); });
+  assert.equal(toggle().getAttribute("aria-pressed"), "false");
+  assert.equal(view.container.querySelector('nav[aria-label="Priority"]'), null);
+  assert.ok(view.container.querySelector(".project-list"), "the folders come back");
   await view.unmount();
 });
 

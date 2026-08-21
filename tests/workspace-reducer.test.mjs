@@ -280,6 +280,21 @@ test("dismissing the read dots leaves the ones the user has not looked at", () =
   assert.equal(reduce(cleared, { type: "task.dismiss-read" }).state, cleared, "a second pass has nothing left to take");
 });
 
+test("a run watched to the end still earns a dot, dimmed because it was watched", () => {
+  const state = workspace({
+    tasks: [task("task-a")],
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running" } },
+    focused: true,
+    currentId: "task-a",
+  });
+
+  const { state: next } = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } });
+
+  assert.equal(next.tasks[0].attention, "finished", "watching it settle does not settle it for the user");
+  assert.equal(next.tasks[0].attentionRead, true);
+  assert.equal(reduce(next, { type: "task.dismiss-read" }).state.tasks[0].attention, undefined, "so one bulk dismissal clears it");
+});
+
 test("a fresh dot on a thread already read counts as unread again", () => {
   const state = workspace({
     tasks: [task("task-a", { attention: "finished", attentionRead: true })],

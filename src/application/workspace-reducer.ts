@@ -1212,9 +1212,19 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(state, event);
       const attention = attentionFor(event);
-      /** A fresh dot is unread again, however read the one it replaces was. */
-      let next = attention && !(state.focused && state.currentId === event.taskId)
-        ? applyTask(applied, event.taskId, ({ attentionRead: _read, ...task }) => ({ ...task, attention }))
+      /**
+       * Every settled run earns a dot, because the dot is a list the user clears rather than a
+       * report of what they missed. Watching one settle counts as reading it, so that dot lands
+       * dimmed and already answerable by a dismissal; a fresh one is unread however read the dot
+       * it replaces was.
+       */
+      const watched = state.focused && state.currentId === event.taskId;
+      let next = attention
+        ? applyTask(applied, event.taskId, ({ attentionRead: _read, ...task }) => ({
+            ...task,
+            attention,
+            ...(watched ? { attentionRead: true as const } : {}),
+          }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
