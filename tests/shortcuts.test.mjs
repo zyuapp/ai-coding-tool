@@ -149,6 +149,21 @@ test("going back with a keystroke moves the cursor rather than recording a visit
   assert.equal(reduce(state, { type: "view.shortcut", action: "nav.forward", surface: "any" }).state.currentId, "b");
 });
 
+test("a keystroke that moves the user somewhere leaves the settings sheet behind", () => {
+  const state = workspace({ tasks: [task("a"), task("b")], currentId: "a", settingsOpen: true, history: ["a"], historyIndex: 0 });
+
+  const started = reduce(state, { type: "view.shortcut", action: "thread.new", surface: "any" });
+  assert.equal(started.state.settingsOpen, false, "a new thread is not started behind the sheet");
+  assert.equal(started.state.currentId, null);
+
+  const stepped = reduce(state, { type: "view.shortcut", action: "thread.next", surface: "any" });
+  assert.equal(stepped.state.settingsOpen, false);
+  assert.equal(stepped.state.currentId, "b");
+
+  const cancelled = reduce(state, { type: "view.shortcut", action: "run.cancel", surface: "any" });
+  assert.equal(cancelled.state.settingsOpen, true, "stopping a run is not moving anywhere");
+});
+
 test("a new tab answers with whatever the panel is showing", () => {
   const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
   const shell = reduce(state, { type: "view.shortcut", action: "tab.new", surface: "any" });

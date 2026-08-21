@@ -757,11 +757,13 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
   if (tab !== null) return [{ type: "view.select-dock-index", index: tab }];
   const projectId = currentProjectId(state);
   const newThread: AppCommand = { type: "task.new", ...(projectId ? { projectId } : {}) };
+  /** Settings are drawn over the whole window, so a keystroke that moves the user somewhere leaves them. */
+  const leaving: AppCommand[] = state.settingsOpen || state.computerUseSetup ? [{ type: "view.set-settings-open", open: false }] : [];
   switch (action) {
-    case "thread.new": return [newThread];
-    case "thread.new-worktree": return [newThread, { type: "task.set-worktree", worktree: true }];
-    case "thread.previous": return [{ type: "task.step", delta: -1 }];
-    case "thread.next": return [{ type: "task.step", delta: 1 }];
+    case "thread.new": return [...leaving, newThread];
+    case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];
+    case "thread.previous": return [...leaving, { type: "task.step", delta: -1 }];
+    case "thread.next": return [...leaving, { type: "task.step", delta: 1 }];
     case "run.cancel": return [{ type: "run.cancel" }];
     case "run.allow": return [{ type: "run.decide", allow: true }];
     case "run.deny": return [{ type: "run.decide", allow: false }];
@@ -773,8 +775,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
       const delta = action === "find.next" ? 1 as const : -1 as const;
       return state.find ? [{ type: "view.find-step", delta }] : [{ type: "view.find-open", target: findTargetFor(state, surface) }];
     }
-    case "nav.back": return [surface === "browser" ? { type: "browser.go", delta: -1 } : { type: "view.go-back" }];
-    case "nav.forward": return [surface === "browser" ? { type: "browser.go", delta: 1 } : { type: "view.go-forward" }];
+    case "nav.back": return surface === "browser" ? [{ type: "browser.go", delta: -1 }] : [...leaving, { type: "view.go-back" }];
+    case "nav.forward": return surface === "browser" ? [{ type: "browser.go", delta: 1 }] : [...leaving, { type: "view.go-forward" }];
     case "page.reload": return [{ type: "browser.reload" }];
     case "tab.new": return [{ type: "view.new-tab" }];
     case "tab.close": return [{ type: "view.close-tab" }];
