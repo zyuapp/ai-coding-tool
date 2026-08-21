@@ -2,6 +2,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type Automa
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
 import type { CliStatus } from "../domain/cli.js";
+import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
@@ -187,6 +188,10 @@ export type DesktopAPI = {
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: RunEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
+  /** The files a comparison touches, with their counts. Cheap enough to read whenever a run ends. */
+  diffSummary(workspaceId: WorkspaceId, range: DiffRange): Promise<DiffSummaryResult>;
+  /** One file's patch, read only once that file is opened. */
+  diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string): Promise<DiffPatchResult>;
   /** The local branches a thread can start from, newest first. */
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
   /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */
@@ -317,6 +322,19 @@ export type AvailableCommand = {
 
 export type CommandDiscoveryResult =
   | { status: "available"; commands: AvailableCommand[] }
+  | { status: "error"; message: string };
+
+/** A comparison's file list. Patches are fetched one at a time and never travel with the list. */
+export type DiffSummaryResult =
+  | { status: "available"; range: DiffRange; files: DiffFileSummary[]; additions: number; deletions: number }
+  | { status: "unavailable"; reason: "missing" | "not-directory" | "inaccessible" | "changed" }
+  | { status: "unknown"; workspaceId: WorkspaceId }
+  | { status: "error"; message: string };
+
+/** One file's patch, as Git wrote it. `too-large` names the ceiling rather than truncating a patch. */
+export type DiffPatchResult =
+  | { status: "available"; patch: string }
+  | { status: "too-large"; limit: number }
   | { status: "error"; message: string };
 
 export type ChangedFilesResult =

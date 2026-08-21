@@ -26,6 +26,8 @@ export type SessionPanelProps = {
   onSelect: (id: string) => void;
   onOpenAgents: () => void;
   onOpenAutomations: () => void;
+  /** Opens the review, or closes it when it is already the tab in front. */
+  onToggleChanges: () => void;
   onOpenWorkflow: (id: string) => void;
   onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
@@ -133,7 +135,7 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
@@ -144,7 +146,13 @@ export function SessionPanel({ environment, hasProject, workspaceId, location, r
         <h2 className="session-title">Session</h2>
             <div className="session-environment">
               {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetWorktree={onSetWorktree} />}
-              <div className="session-row">
+              <button
+                className="session-row session-row-action"
+                type="button"
+                aria-label="Review changes"
+                disabled={!hasProject}
+                onClick={onToggleChanges}
+              >
                 <span className="session-row-icon"><FileDiff size={18} /></span>
                 <span>Changes</span>
                 {available && (
@@ -152,7 +160,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, location, r
                     <strong>+{available.additions}</strong><em>−{available.deletions}</em>
                   </span>
                 )}
-              </div>
+              </button>
               <BranchRow
                 branch={available?.branch ?? null}
                 {...(workspaceId ? { workspaceId } : {})}

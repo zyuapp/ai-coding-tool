@@ -1,6 +1,7 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
+import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
@@ -12,7 +13,19 @@ import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | FileCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | TerminalCommand | ViewCommand;
+
+/** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
+export type DiffCommand =
+  /** Opens the panel, or closes it when it is already the tab in front. */
+  | { type: "diff.toggle" }
+  | { type: "diff.refresh" }
+  | { type: "diff.set-range"; range: DiffRange }
+  /** Null closes the open file and leaves the list. */
+  | { type: "diff.select-file"; path: string | null }
+  | { type: "diff.set-viewed"; path: string; viewed: boolean }
+  | { type: "diff.set-wrap"; wrap: boolean }
+  | { type: "diff.set-split"; split: boolean };
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =

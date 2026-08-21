@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlarmClock, Bot, Boxes, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
+import { AlarmClock, Bot, Boxes, FileDiff, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
 import { ConversationTimeline } from "./components/ConversationTimeline";
+import { DiffPanel } from "./components/DiffPanel";
 import { MessageLinkProvider, type MessageLinkActions } from "./components/MarkdownMessage";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
@@ -20,6 +21,7 @@ import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { browserTabTitle } from "../domain/browser";
+import { DIFF_PANEL } from "../application/workspace-reducer";
 import { sentPrompts } from "../domain/task";
 import { moveListFocus, useDismissibleLayer } from "./focus";
 
@@ -54,6 +56,10 @@ export function App() {
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
+  /** The tab counts what is still to read, so ticking files off empties it the way working down a list should. */
+  const unreviewedFiles = workspace.diff.result?.status === "available"
+    ? workspace.diff.result.files.filter((file) => !workspace.diff.viewed[file.path]).length
+    : 0;
   const rightDockOpen = workspace.dockOpen;
   const activeRightTab = workspace.dockTab;
   const addMenuOpen = workspace.openMenu === ADD_TAB_MENU;
@@ -200,6 +206,31 @@ export function App() {
       render: () => (inspectedWorkflow
         ? <WorkflowPanel workflow={inspectedWorkflow} onStop={workspace.actions.stopBackgroundProcess} />
         : <p className="session-empty">This workflow is no longer running.</p>),
+    },
+    {
+      id: DIFF_PANEL,
+      title: "Changes",
+      description: "Review the diff and comment on it",
+      command: "diff",
+      icon: FileDiff,
+      badge: unreviewedFiles,
+      render: () => (
+        <DiffPanel
+          diff={workspace.diff}
+          {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
+          openMenu={workspace.openMenu}
+          onSetOpenMenu={workspace.actions.setOpenMenu}
+          onSetRange={workspace.actions.setDiffRange}
+          onSelectFile={workspace.actions.selectDiffFile}
+          onSetViewed={workspace.actions.setDiffViewed}
+          onSetWrap={workspace.actions.setDiffWrap}
+          onSetSplit={workspace.actions.setDiffSplit}
+          onRefresh={workspace.actions.refreshDiff}
+          {...(workspace.environment?.status === "available" && workspace.environment.baseline ? { baseline: workspace.environment.baseline } : {})}
+          onOpenFile={(path) => void workspace.dispatch({ type: "file.open", path })}
+          onComment={(quote, note) => void workspace.dispatch({ type: "annotation.add", quote, ...(note ? { note } : {}) })}
+        />
+      ),
     },
     {
       id: "automation",
@@ -375,6 +406,7 @@ export function App() {
               inspectSubagent(id);
               openRightTab("agents");
             }}
+            onToggleChanges={workspace.actions.toggleDiff}
             onOpenAgents={() => openRightTab("agents")}
             onOpenAutomations={() => openRightTab("automation")}
             onOpenWorkflow={openWorkflow}

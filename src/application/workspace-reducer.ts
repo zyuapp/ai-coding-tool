@@ -14,7 +14,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { annotationsFor, findTargetFor, browserTarget, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDock, withPastes, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -23,6 +23,7 @@ import type {
   BrowserPageEvent,
   CancelRunCommand,
   ChangedFilesResult,
+  DiffSummaryResult,
   RunEvent,
   StartRunCommand,
   SteerRunCommand,
@@ -31,6 +32,7 @@ import type {
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
+import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
 import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
@@ -58,6 +60,8 @@ export type WorkspaceEvent =
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.deleted"; taskId: string }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
+  /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
+  | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
   | { type: "browser.updated"; page: BrowserPageEvent }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
@@ -92,6 +96,7 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
+  | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }
@@ -338,15 +343,22 @@ function shownPageEffects(state: WorkspaceState): WorkspaceEffect[] {
 /** The dock a draft was composed in belongs to the thread that send creates, pages, shells and all. */
 function handOverDraftDock(state: WorkspaceState, taskId: string): WorkspaceState {
   const { [DRAFT_DOCK]: draft, ...docks } = state.docks;
-  return draft ? { ...state, docks: { ...docks, [taskId]: draft } } : state;
+  const { [DRAFT_DOCK]: draftDiff, ...diffs } = state.diffs;
+  const moved = draft ? { ...state, docks: { ...docks, [taskId]: draft } } : state;
+  return draftDiff ? { ...moved, diffs: { ...diffs, [taskId]: draftDiff } } : moved;
 }
 
 /** A thread that is gone for good takes its dock with it: its pages close and its shells stop. */
 function disposeDocks(state: WorkspaceState, owners: Iterable<string>): WorkspaceTransition {
   const docks = { ...state.docks };
+  const diffs = { ...state.diffs };
   const effects: WorkspaceEffect[] = [];
   let emptied = false;
   for (const owner of owners) {
+    if (diffs[owner]) {
+      delete diffs[owner];
+      emptied = true;
+    }
     const dock = docks[owner];
     if (!dock) continue;
     effects.push(...dock.browserTabs.map((tab): WorkspaceEffect => ({ type: "browser.close", tabId: tab.id })));
@@ -354,7 +366,7 @@ function disposeDocks(state: WorkspaceState, owners: Iterable<string>): Workspac
     delete docks[owner];
     emptied = true;
   }
-  return emptied ? { state: { ...state, docks }, effects } : settled(state);
+  return emptied ? { state: { ...state, docks, diffs }, effects } : settled(state);
 }
 
 function withPending(state: WorkspaceState, pending: PendingRun): WorkspaceState {
@@ -722,6 +734,38 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     default: return [];
   }
+}
+
+/** The dock tab the review is drawn in, which the picker and the composer both name. */
+export const DIFF_PANEL = "diff";
+
+/** The checkout the thread in front works in: what Git is read from, for its diff as for its status. */
+function currentWorkspaceId(state: WorkspaceState) {
+  const currentTask = state.tasks.find((task) => task.id === state.currentId);
+  if (currentTask) return taskWorkspaceId(state, currentTask);
+  return state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined;
+}
+
+/**
+ * What a review opens on. The session panel counts from where HEAD left the origin default branch, so
+ * a review reached from that row starts on the same comparison and reports the same totals. Without
+ * an origin to measure from there is nothing but the working tree, which is what it falls back to.
+ */
+function initialRange(state: WorkspaceState, diff: DiffState): DiffRange {
+  if (diff.result !== null) return diff.range;
+  const counted = state.environment && state.environment.workspaceId === currentWorkspaceId(state) ? state.environment.result : null;
+  const baseline = counted?.status === "available" ? counted.baseline : null;
+  return baseline ? { kind: "branches", base: baseline, compare: null } : diff.range;
+}
+
+/** Asks for a comparison, and records what was asked so a list that lands late can be recognised. */
+function readDiff(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
+  const workspaceId = currentWorkspaceId(state);
+  if (!workspaceId) return settled(withDiff(state, owner, { ...patch, range, workspaceId: null, result: null, loading: false }));
+  return settled(
+    withDiff(state, owner, { ...patch, range, workspaceId, loading: true }),
+    [{ type: "read-diff", owner, workspaceId, range }],
+  );
 }
 
 /** Settings stop waiting for a keystroke the moment they are no longer the thing in front. */
@@ -1231,7 +1275,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
       const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));
       const environment: WorkspaceEffect[] = finished && workspaceId
-        ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }]
+        ? [
+            { type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId },
+            /** A review the thread has open is only as current as the run that was writing under it. */
+            ...(next.diffs[event.taskId] ? [{ type: "read-diff" as const, owner: event.taskId, workspaceId, range: next.diffs[event.taskId].range }] : []),
+          ]
         : [];
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, environment);
       const drained = drainQueue(next, event.taskId, event.status);
@@ -1319,10 +1367,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.refresh-environment": {
       const currentTask = state.tasks.find((task) => task.id === state.currentId);
-      const currentProject = currentTask
-        ? projectFor(state, currentTask)
-        : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-      const workspaceId = currentTask ? taskWorkspaceId(state, currentTask) : currentProject?.workspaceId;
+      const workspaceId = currentWorkspaceId(state);
       if (!workspaceId) return settled(state.environment === null ? state : { ...state, environment: null });
       const taskId = currentTask?.id;
       const runId = taskId ? state.lastRunIds[taskId] : undefined;
@@ -1332,6 +1377,63 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         ...(taskId ? { taskId } : {}),
         ...(runId ? { runId } : {}),
       }]);
+    }
+
+    case "diff.toggle": {
+      const dock = dockFor(state, dockOwner(state));
+      const showing = dock.open && dock.tab === DIFF_PANEL;
+      return apply(state, showing
+        ? { type: "view.close-dock-panel", panel: DIFF_PANEL }
+        : { type: "view.open-dock-panel", panel: DIFF_PANEL });
+    }
+
+    case "diff.refresh": {
+      const owner = dockOwner(state);
+      return readDiff(state, owner, diffFor(state, owner).range);
+    }
+
+    case "diff.set-range": {
+      const owner = dockOwner(state);
+      if (rangeKey(diffFor(state, owner).range) === rangeKey(input.range)) return settled(state);
+      /** A different comparison is a different set of files, so nothing carries over but the layout. */
+      return readDiff(state, owner, input.range, { result: null, file: null, viewed: {} });
+    }
+
+    case "diff.select-file": {
+      const owner = dockOwner(state);
+      return settled(withDiff(state, owner, { file: input.path }));
+    }
+
+    case "diff.set-viewed": {
+      const owner = dockOwner(state);
+      const diff = diffFor(state, owner);
+      const file = diff.result?.status === "available" ? diff.result.files.find((item) => item.path === input.path) : undefined;
+      if (!file) return settled(state);
+      const { [input.path]: _cleared, ...rest } = diff.viewed;
+      return settled(withDiff(state, owner, {
+        viewed: input.viewed ? { ...rest, [input.path]: fileFingerprint(file) } : rest,
+        /** Ticking the open file off closes it, which is what makes working down the list one click. */
+        ...(input.viewed && diff.file === input.path ? { file: null } : {}),
+      }));
+    }
+
+    case "diff.set-wrap":
+      return settled(withDiff(state, dockOwner(state), { wrap: input.wrap }));
+
+    case "diff.set-split":
+      return settled(withDiff(state, dockOwner(state), { split: input.split }));
+
+    case "diff.loaded": {
+      const diff = diffFor(state, input.owner);
+      if (!diffMatches(diff, input.workspaceId, input.range)) return settled(state);
+      const viewed = retainedViews(diff.viewed, input.result);
+      const present = input.result.status === "available" ? new Set(input.result.files.map((file) => file.path)) : null;
+      return settled(withDiff(state, input.owner, {
+        result: input.result,
+        loading: false,
+        viewed,
+        ...(present && diff.file && !present.has(diff.file) ? { file: null } : {}),
+      }));
     }
 
     case "environment.updated": {
@@ -1531,7 +1633,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const dock = dockFor(state, owner);
       const panels = dock.panels.includes(input.panel) ? dock.panels : [...dock.panels, input.panel];
       const opened = withDock(state, owner, { open: true, panels, tab: input.panel });
-      return settled(opened, browserEffectsForTab(opened, owner, input.panel));
+      const effects = browserEffectsForTab(opened, owner, input.panel);
+      /** However the review is reached, it opens on a list read now rather than one read last time. */
+      if (input.panel !== DIFF_PANEL) return settled(opened, effects);
+      const diff = diffFor(opened, owner);
+      const read = readDiff(opened, owner, initialRange(opened, diff));
+      return { state: read.state, effects: [...effects, ...read.effects] };
     }
 
     case "view.close-dock-panel": {

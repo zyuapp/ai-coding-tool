@@ -699,6 +699,8 @@ function fakeDesktop(overrides = {}) {
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], current: "main" }),
+    diffSummary: async (workspaceId, range) => ({ status: "available", range, files: [], additions: 0, deletions: 0 }),
+    diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
     createBranch: async () => {},
     createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
@@ -1481,7 +1483,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 5);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 6);
   await view.unmount();
 });
 
@@ -3641,5 +3643,154 @@ test("a folder lifts from a press on its name, which is a button", async () => {
     name.click();
   });
   assert.deepEqual(folded, ["second-project"], "a press that goes nowhere still folds the row");
+  await view.unmount();
+});
+
+const REVIEW_PATCH = [
+  "--- a/src/app.ts",
+  "+++ b/src/app.ts",
+  "@@ -1,3 +1,4 @@",
+  " const first = 1;",
+  "-const second = 2;",
+  "+const second = 22;",
+  "+const third = 3;",
+  "",
+].join("\n");
+
+function seedReviewableProject() {
+  localStorage.clear();
+  localStorage.setItem("claudex.store.v2", JSON.stringify({
+    tasks: JSON.stringify({ version: 2, value: [{
+      id: "review-task",
+      title: "Review",
+      executionPolicy: "confirm",
+      messages: [],
+      continuationStatus: "none",
+      lastChangeSnapshot: { files: [], capturedAt: 1 },
+      projectId: "project-1",
+      updatedAt: 2,
+    }] }),
+    projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }] }),
+    lastFolder: JSON.stringify({ version: 2, value: "/project" }),
+  }));
+}
+
+/** Opens the session panel, which is where the Changes row that reaches the review lives. */
+async function showSession(view) {
+  await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
+}
+
+/** A desktop whose comparison holds one changed file with a patch to draw. */
+function reviewableDesktop() {
+  return fakeDesktop({
+    diffSummary: async (workspaceId, range) => ({
+      status: "available",
+      range,
+      files: [{ path: "src/app.ts", status: "modified", additions: 2, deletions: 1, binary: false }],
+      additions: 2,
+      deletions: 1,
+    }),
+    diffPatch: async () => ({ status: "available", patch: REVIEW_PATCH }),
+  });
+}
+
+test("the session panel's Changes row opens the review, and the same click closes it", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await showSession(view);
+
+  const tabs = () => [...view.container.querySelectorAll('.right-dock-tab [role="tab"]')].map((tab) => tab.textContent);
+  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+
+  assert.deepEqual(tabs(), ["Changes1"], "the review opens as the dock's tab, counting the file still to read");
+  assert.equal(view.container.querySelector(".diff-file-name").textContent, "src/app.ts");
+  assert.match(view.container.querySelector(".diff-progress").textContent, /0 of 1 viewed/);
+
+  /** The dock takes the session panel's place, so the row that opened the review is closed from the tab. */
+  await act(async () => { view.container.querySelector('.right-dock-tab.active button[aria-label="Close Changes"]').click(); });
+  assert.deepEqual(tabs(), [], "closing the tab puts the review away");
+  await showSession(view);
+  assert.ok(view.container.querySelector('button[aria-label="Review changes"]'), "the row is back to open it again");
+  await view.unmount();
+});
+
+test("an opened file draws its patch with both sides' line numbers", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await showSession(view);
+  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+
+  const lines = [...view.container.querySelectorAll(".diff-line")];
+  assert.equal(lines[0].className, "diff-line hunk");
+  assert.deepEqual(
+    lines.slice(1).map((line) => [...line.querySelectorAll(".diff-gutter span")].map((cell) => cell.textContent)),
+    [["1", "1"], ["2", ""], ["", "2"], ["", "3"]],
+  );
+  assert.deepEqual(lines.slice(1).map((line) => line.className.replace("diff-line ", "")), ["context", "delete", "add", "add"]);
+  await view.unmount();
+});
+
+test("a file's lines are coloured by the grammar its extension names", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await showSession(view);
+  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+
+  const coloured = [...view.container.querySelectorAll(".diff-line code span")];
+  assert.ok(coloured.length > 0, "the grammar produced tokens");
+  assert.ok(coloured.every((token) => token.style.color.startsWith("var(--syntax")|| token.style.color.startsWith("var(--code")), "every colour comes from a token");
+  assert.ok(coloured.some((token) => token.textContent === "const" && token.style.color === "var(--syntax-keyword)"));
+  await view.unmount();
+});
+
+test("a range picked in the gutter becomes a composer pill naming the file and its lines", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await showSession(view);
+  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+
+  const gutters = [...view.container.querySelectorAll(".diff-gutter")];
+  await act(async () => { gutters[2].click(); });
+  await act(async () => { gutters[3].dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: true })); });
+
+  assert.equal(view.container.querySelectorAll(".diff-line.selected").length, 2, "shift extends the selection");
+  assert.match(view.container.querySelector(".diff-comment-range").textContent, /^src\/app\.ts:L2-L3$/);
+
+  const note = view.container.querySelector('.diff-comment input');
+  await act(async () => {
+    note.value = "Name these properly";
+    note.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+  });
+  await act(async () => { view.container.querySelector('button[aria-label="Comment on the selected lines"]').click(); });
+
+  const pill = view.container.querySelector(".annotation-pill");
+  assert.ok(pill, "the note lands in the composer as a pill");
+  assert.match(pill.getAttribute("title"), /src\/app\.ts:L2-L3/);
+  assert.match(pill.getAttribute("title"), /\+const second = 22;/);
+  assert.match(pill.getAttribute("title"), /— Name these properly/);
+  assert.equal(view.container.querySelector(".diff-comment"), null, "commenting clears the selection");
+  await view.unmount();
+});
+
+test("ticking the open file off closes it and empties the tab's count", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await showSession(view);
+  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+  assert.ok(view.container.querySelector(".diff-file-view"), "the patch is open");
+
+  await act(async () => { view.container.querySelector('input[aria-label="Mark src/app.ts viewed"]').click(); });
+
+  assert.equal(view.container.querySelector(".diff-file-view"), null);
+  assert.match(view.container.querySelector(".diff-progress").textContent, /1 of 1 viewed/);
   await view.unmount();
 });

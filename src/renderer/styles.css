@@ -125,6 +125,33 @@
   --ansi-bright-cyan: #8ad6d1;
   --ansi-bright-white: #e6e4df;
 
+  /* Diff: full-bleed fills behind body text, so lower in chroma than the chips they resemble */
+  --diff-add-surface: #16241c;
+  --diff-add-line: #2c4c38;
+  --diff-add-gutter: #1c3125;
+  --diff-del-surface: #271a1c;
+  --diff-del-line: #543035;
+  --diff-del-gutter: #332225;
+  --diff-hunk-surface: #171d26;
+  --diff-hunk-ink: #7d92ad;
+  --diff-gutter-ink: #5f666f;
+  --diff-selected: #24303f;
+  --diff-selected-line: #3d5a80;
+
+  /* Syntax, for the diff and anything else that draws code */
+  --syntax-comment: #6b7580;
+  --syntax-string: #9ec97f;
+  --syntax-number: #d9a760;
+  --syntax-constant: #d9a760;
+  --syntax-keyword: #c58fd6;
+  --syntax-operator: #8ab5e1;
+  --syntax-function: #6f9ed6;
+  --syntax-type: #63bfba;
+  --syntax-variable: #c7d2dd;
+  --syntax-tag: #e06c75;
+  --syntax-attribute: #d9a760;
+  --syntax-punctuation: #8b939c;
+
   /* Shadows and scrims */
   --shadow-menu: 0 12px 30px rgba(0, 0, 0, 0.38);
   --shadow-popover: 0 16px 40px rgba(0, 0, 0, 0.42);
@@ -2722,3 +2749,84 @@ pre {
   .right-dock { position: absolute; z-index: 30; inset: 0; border-left: 0; }
   .right-dock-resizer { display: none; }
 }
+
+/* Diff panel */
+.diff-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.diff-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+.diff-range { position: relative; display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; padding: 4px 8px; border: 0; border-radius: 8px; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-control); text-align: left; cursor: pointer; }
+.diff-range:hover { background: var(--surface-hover); }
+.diff-range > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-toolbar-actions { display: flex; gap: 2px; }
+.diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
+.diff-toolbar-actions button:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.diff-toolbar-actions button.on { background: var(--surface-active); color: var(--accent); }
+.diff-toolbar-actions .spinning { animation: diff-spin 1s linear infinite; }
+@keyframes diff-spin { to { transform: rotate(360deg); } }
+
+.diff-branches { display: flex; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line-soft); }
+.diff-branch { position: relative; flex: 1; min-width: 0; }
+.diff-branch-trigger { display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+.diff-branch-trigger:hover:not(:disabled) { border-color: var(--line-bright); }
+.diff-branch-trigger:disabled { opacity: 0.5; cursor: default; }
+.diff-branch-label { color: var(--quiet); }
+.diff-branch-trigger code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.diff-branch-extra { position: absolute; z-index: 3; display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 8px 8px 0 0; background: var(--surface-menu); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+.diff-branch-extra:hover { background: var(--surface-menu-hover); }
+
+.diff-progress { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 7px 12px; color: var(--quiet); font-size: var(--text-meta); }
+.diff-files { flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
+.diff-file { border-bottom: 1px solid var(--line-soft); }
+.diff-file.viewed .diff-file-name { color: var(--quiet-soft); }
+.diff-file-row { display: grid; grid-template-columns: minmax(0, 1fr) 24px 24px; align-items: center; gap: 2px; padding: 0 8px 0 4px; }
+.diff-file-row:hover { background: var(--surface-hover); }
+.diff-file.open .diff-file-row { background: var(--surface-active); }
+.diff-file-open { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 7px 4px; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.diff-file-icon { display: grid; place-items: center; color: var(--quiet-strong); }
+.diff-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-family: var(--mono); }
+.diff-file-name em { font-style: normal; color: var(--quiet); }
+.diff-file-editor { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--quiet-soft); opacity: 0; cursor: pointer; }
+.diff-file-row:hover .diff-file-editor { opacity: 1; }
+.diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
+.diff-file-viewed { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; }
+.diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; }
+.diff-file-viewed svg { color: var(--quiet-soft); opacity: 0.35; }
+.diff-file-viewed:hover svg { opacity: 0.8; }
+.diff-file-viewed:has(input:checked) svg { color: var(--success); opacity: 1; }
+.diff-file-viewed:has(input:focus-visible) { outline: 2px solid var(--focus-ring); }
+.diff-note { margin: 0; padding: 8px 12px 10px 34px; color: var(--quiet); font-size: var(--text-meta); }
+
+.diff-file-view { border-top: 1px solid var(--line-soft); }
+.diff-scroll { max-height: 62vh; overflow: auto; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
+.diff-scroll:not(.wrapped) { overflow-x: auto; }
+.diff-window { position: relative; width: 100%; }
+.diff-window-row { position: absolute; top: 0; left: 0; width: 100%; }
+.diff-line { display: flex; align-items: flex-start; min-height: 20px; white-space: pre; }
+.diff-line.hunk { padding: 2px 10px; background: var(--diff-hunk-surface); color: var(--diff-hunk-ink); }
+.diff-line.add { background: var(--diff-add-surface); }
+.diff-line.delete { background: var(--diff-del-surface); }
+.diff-line.selected { background: var(--diff-selected); box-shadow: inset 2px 0 0 var(--diff-selected-line); }
+.diff-gutter { display: flex; flex: none; gap: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; cursor: pointer; user-select: none; }
+.diff-gutter span { display: inline-block; width: 44px; padding-right: 8px; text-align: right; }
+.diff-gutter:hover { color: var(--ink-dim); }
+.diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
+.diff-line.delete .diff-gutter { background: var(--diff-del-gutter); }
+.diff-marker { flex: none; width: 14px; text-align: center; color: var(--diff-gutter-ink); }
+.diff-line code { flex: 1; min-width: 0; padding-right: 12px; color: var(--code-ink); font-family: inherit; }
+.diff-line code.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.diff-split-row { display: grid; grid-template-columns: 1fr 1fr; }
+.diff-split-cell { display: flex; align-items: flex-start; min-height: 20px; white-space: pre; border-right: 1px solid var(--line-soft); }
+.diff-split-cell.add { background: var(--diff-add-surface); }
+.diff-split-cell.delete { background: var(--diff-del-surface); }
+.diff-split-cell.empty { background: var(--sunken); }
+.diff-split-cell code { flex: 1; min-width: 0; overflow: hidden; padding-right: 8px; color: var(--code-ink); font-family: inherit; }
+.diff-split-cell code.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-gutter.static { flex: none; width: 44px; padding-right: 8px; text-align: right; color: var(--diff-gutter-ink); }
+
+.diff-comment { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--surface); }
+.diff-comment-range { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }
+.diff-comment input { flex: 1; min-width: 0; padding: 6px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-meta); }
+.diff-comment input:focus-visible { outline: 2px solid var(--focus-ring); }
+.diff-comment button { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }
+.diff-comment button:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.diff-comment button[type="submit"]:hover { color: var(--accent); }

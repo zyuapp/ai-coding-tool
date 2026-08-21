@@ -1,7 +1,8 @@
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type TaskRunStatus } from "./task-workspace.js";
 import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
 import { activitySections, backfillSortIndex, orderTasks } from "./task-order.js";
-import type { ChangedFilesResult } from "../contracts/ipc.js";
+import type { ChangedFilesResult, DiffSummaryResult } from "../contracts/ipc.js";
+import { fileFingerprint, rangeKey, UNCOMMITTED, type DiffRange } from "../domain/diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
@@ -120,6 +121,24 @@ export type FindState = {
 export type DraftBranch = { name: string; create: boolean };
 
 /**
+ * One thread's review of its own checkout: what it is comparing, which file is open, and which files
+ * it has ticked off. Only the file list is held; a patch is content, so it is read when a file opens
+ * and never becomes state, the way a page's contents and a shell's scrollback never do.
+ */
+export type DiffState = {
+  range: DiffRange;
+  /** The checkout the list was read from, so a thread that moves does not read a stale one. */
+  workspaceId: string | null;
+  result: DiffSummaryResult | null;
+  loading: boolean;
+  file: string | null;
+  /** Ticked-off paths, each against the counts it had when ticked, so a file that moves un-ticks. */
+  viewed: Record<string, string>;
+  wrap: boolean;
+  split: boolean;
+};
+
+/**
  * One thread's right dock: whether it is showing, which panels are open as tabs, which tab is on top,
  * and the pages and shells that thread opened. A page and a shell belong to the thread that asked for
  * one, so a run drives its own dock and never the dock of whichever thread the user is looking at.
@@ -178,6 +197,8 @@ export type WorkspaceState = {
   composerFocus: number;
   /** One dock per thread, keyed by thread id, so moving between threads leaves each one as it was. */
   docks: Record<string, ThreadDock>;
+  /** One review per thread, keyed the way `docks` is, so each thread keeps its own place in a diff. */
+  diffs: Record<string, DiffState>;
   /** The find bar, and what a page or a shell reported after searching itself. */
   find: FindState | null;
   findResults: FindResults | null;
@@ -233,6 +254,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     capturingShortcut: null,
     composerFocus: 0,
     docks: {},
+    diffs: {},
     find: null,
     findResults: null,
     focusedTerminalId: null,
@@ -392,6 +414,40 @@ export function dockFor(state: Pick<WorkspaceState, "docks">, owner: string): Th
 
 export function withDock(state: WorkspaceState, owner: string, patch: Partial<ThreadDock>): WorkspaceState {
   return { ...state, docks: { ...state.docks, [owner]: { ...dockFor(state, owner), ...patch } } };
+}
+
+export const EMPTY_DIFF: DiffState = {
+  range: UNCOMMITTED,
+  workspaceId: null,
+  result: null,
+  loading: false,
+  file: null,
+  viewed: {},
+  wrap: false,
+  split: false,
+};
+
+export function diffFor(state: Pick<WorkspaceState, "diffs">, owner: string): DiffState {
+  return state.diffs[owner] ?? EMPTY_DIFF;
+}
+
+export function withDiff(state: WorkspaceState, owner: string, patch: Partial<DiffState>): WorkspaceState {
+  return { ...state, diffs: { ...state.diffs, [owner]: { ...diffFor(state, owner), ...patch } } };
+}
+
+/**
+ * The ticks that survive a fresh list: a file whose counts moved has changed since it was read, so
+ * it comes back unread rather than staying ticked against work the user has not seen.
+ */
+export function retainedViews(viewed: Record<string, string>, result: DiffSummaryResult) {
+  if (result.status !== "available") return viewed;
+  const fingerprints = new Map(result.files.map((file) => [file.path, fileFingerprint(file)]));
+  return Object.fromEntries(Object.entries(viewed).filter(([path, mark]) => fingerprints.get(path) === mark));
+}
+
+/** Whether a landed list still answers what its dock is asking, which a slow read may not. */
+export function diffMatches(diff: DiffState, workspaceId: string, range: DiffRange) {
+  return diff.workspaceId === workspaceId && rangeKey(diff.range) === rangeKey(range);
 }
 
 /** Which dock holds a page or a shell, for the events and commands that only name its id. */
@@ -684,6 +740,8 @@ export function deriveView(state: WorkspaceState) {
     settingsOpen: state.settingsOpen || state.computerUseSetup,
     dockOpen: dock.open,
     dockPanels: dock.panels,
+    /** The review this thread has open, whether or not the panel drawing it is the tab in front. */
+    diff: diffFor(state, owner),
     dockTab: dock.tab,
     browserTabs: dock.browserTabs,
     browserApproval: state.browserApproval,

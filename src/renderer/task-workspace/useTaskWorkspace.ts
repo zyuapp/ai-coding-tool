@@ -6,6 +6,7 @@ import type { AppCommand } from "../../contracts/commands";
 import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
+import type { DiffRange } from "../../domain/diff";
 import { terminalLineLimit } from "../../domain/terminal";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivity } from "../../domain/run";
@@ -205,6 +206,21 @@ export function useTaskWorkspace() {
           await dispatch({ type: "environment.updated", workspaceId: effect.workspaceId, ...(effect.taskId ? { taskId: effect.taskId } : {}), ...(effect.runId ? { runId: effect.runId } : {}), result });
         } catch (error) {
           await dispatch({ type: "environment.updated", workspaceId: effect.workspaceId, result: { status: "error", message: errorMessage(error) } });
+        }
+        return;
+
+      case "read-diff":
+        try {
+          const result = await window.desktop.diffSummary(effect.workspaceId, effect.range);
+          await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result });
+        } catch (error) {
+          await dispatch({
+            type: "diff.loaded",
+            owner: effect.owner,
+            workspaceId: effect.workspaceId,
+            range: effect.range,
+            result: { status: "error", message: errorMessage(error) },
+          });
         }
         return;
 
@@ -605,6 +621,13 @@ export function useTaskWorkspace() {
       openDockPanel: (panel: string) => dispatch({ type: "view.open-dock-panel", panel }),
       closeDockPanel: (panel: string) => dispatch({ type: "view.close-dock-panel", panel }),
       selectDockTab: (tab: string) => dispatch({ type: "view.select-dock-tab", tab }),
+      toggleDiff: () => dispatch({ type: "diff.toggle" }),
+      refreshDiff: () => dispatch({ type: "diff.refresh" }),
+      setDiffRange: (range: DiffRange) => dispatch({ type: "diff.set-range", range }),
+      selectDiffFile: (path: string | null) => dispatch({ type: "diff.select-file", path }),
+      setDiffViewed: (path: string, viewed: boolean) => dispatch({ type: "diff.set-viewed", path, viewed }),
+      setDiffWrap: (wrap: boolean) => dispatch({ type: "diff.set-wrap", wrap }),
+      setDiffSplit: (split: boolean) => dispatch({ type: "diff.set-split", split }),
       openBrowser: (url: string, newTab = false) => dispatch({ type: "browser.open", url, ...(newTab ? { newTab } : {}) }),
       newBrowserTab: () => dispatch({ type: "browser.new-tab" }),
       selectBrowserTab: (tabId: string) => dispatch({ type: "browser.select-tab", tabId }),
