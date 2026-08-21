@@ -1,5 +1,5 @@
 # How we work
-- We are the sole owners of the codebase. No need to make branches for any changes. We are allowed to make quick changes and push them directly to the main branch.
+- We are the sole owners of the codebase. No need to make branches for any changes. We are allowed to make quick changes and push them directly to the main branch. Commit your work when you are done even if it is not verified. 
 - I often ask you to make multiple changes on the main branch in different thread so only commit the changes that are requested in the thread.
 - This AGENTS.md is for me to decide what is important and what is not. You should not make any changes to it unless I ask you to do so.
 
