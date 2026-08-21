@@ -2759,6 +2759,8 @@ pre {
 .diff-compare { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; color: var(--quiet-strong); }
 .diff-side { position: relative; flex: 1; min-width: 0; }
 .diff-side-trigger { display: flex; align-items: center; gap: 5px; width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+/** Which side this is, said rather than drawn: an arrow between the two reads as a merge. */
+.diff-side-label { flex: none; color: var(--quiet); }
 .diff-side-trigger:hover:not(:disabled) { border-color: var(--line-bright); }
 .diff-side-trigger:disabled { opacity: 0.5; cursor: default; }
 .diff-side-trigger code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); }

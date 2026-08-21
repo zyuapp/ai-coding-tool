@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState } from "../../application/workspace-state";
 import {
@@ -133,6 +133,7 @@ function SidePicker({ id, label, value, extra, workspaceId, openMenu, onSetOpenM
         disabled={!workspaceId}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
+        <span className="diff-side-label" aria-hidden="true">{label}</span>
         <code title={shown}>{shown}</code>
         <ChevronDown size={13} />
       </button>
@@ -510,7 +511,6 @@ export function DiffPanel({
             onSetOpenMenu={onSetOpenMenu}
             onPick={(picked) => onSetRange(rangeFrom(picked, compare))}
           />
-          <ArrowRight size={13} aria-hidden="true" />
           <SidePicker
             id={COMPARE_MENU}
             label="Compare"
