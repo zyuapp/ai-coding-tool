@@ -1634,6 +1634,11 @@ pre {
 .storage-error span { flex: 1; min-width: 0; }
 .storage-error button { flex: none; display: grid; place-items: center; border: 0; padding: 2px; background: none; color: inherit; cursor: pointer; }
 
+/**
+ * The shadow belongs to the scrolling frame rather than the card inside it. A scroll container
+ * clips its children to its own box, which cut the card's shadow away everywhere the two met and
+ * left it pooling in the four pockets the rounded corners open up.
+ */
 .session-panel {
   position: absolute;
   z-index: 7;
@@ -1642,6 +1647,8 @@ pre {
   width: min(260px, calc(100% - 44px));
   max-height: calc(100% - 110px);
   overflow: auto;
+  border-radius: 16px;
+  box-shadow: var(--shadow-panel);
   animation: panel-in 150ms ease-out;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
@@ -1651,7 +1658,6 @@ pre {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--surface);
-  box-shadow: var(--shadow-panel);
 }
 .subagent-inspector {
   min-width: 0;
