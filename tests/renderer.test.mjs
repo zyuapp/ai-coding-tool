@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -9,8 +9,36 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http:
 for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader", "DOMParser", "innerWidth", "innerHeight"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
+/** Every callback in a frame gets one timestamp, so a component's pace cannot depend on how many others asked for a frame. */
 let animationTime = 0;
-for (const [name, value] of [["requestAnimationFrame", (fn) => setTimeout(() => fn(animationTime += 33), 0)], ["cancelAnimationFrame", (id) => clearTimeout(id)]]) {
+let frameId = 0;
+let held = false;
+let drain = null;
+const queuedFrames = new Map();
+function runFrame() {
+  clearTimeout(drain);
+  drain = null;
+  animationTime += 33;
+  /** Only the frames asked for before this one, and only while a frame ahead has not cancelled them. */
+  for (const id of [...queuedFrames.keys()]) {
+    const callback = queuedFrames.get(id);
+    if (!callback) continue;
+    queuedFrames.delete(id);
+    callback(animationTime);
+  }
+}
+function scheduleFrame() {
+  if (held || drain || queuedFrames.size === 0) return;
+  drain = setTimeout(runFrame, 0);
+}
+/** Holds frames until the returned resume, so a test can mount without the reveal running ahead of it. */
+function holdFrames() {
+  held = true;
+  return () => { held = false; scheduleFrame(); };
+}
+/** A test that fails before it resumes must not leave the next one frozen. */
+beforeEach(() => { held = false; });
+for (const [name, value] of [["requestAnimationFrame", (fn) => { const id = (frameId += 1); queuedFrames.set(id, fn); scheduleFrame(); return id; }], ["cancelAnimationFrame", (id) => queuedFrames.delete(id)]]) {
   Object.defineProperty(globalThis, name, { configurable: true, value });
   Object.defineProperty(dom.window, name, { configurable: true, value });
 }
@@ -2409,6 +2437,11 @@ function streaming(props, flush = false) {
   return React.createElement(RevealedTextProvider, { flush }, React.createElement(StreamingText, { id: "m1", streaming: true, ...props }));
 }
 
+/** Runs whole animation frames; the reveal advances a fixed amount per frame, so a test that wants it partway counts frames rather than sleeping. */
+async function frames(count) {
+  for (let drawn = 0; drawn < count; drawn += 1) await act(async () => { runFrame(); });
+}
+
 /** Waits out the reveal loop, which paces itself against the real clock rather than frame count. */
 async function settle(view, timeoutMs = 3000) {
   const deadline = Date.now() + timeoutMs;
@@ -2424,15 +2457,16 @@ async function settle(view, timeoutMs = 3000) {
 
 test("streamed text arrives progressively instead of landing whole", async () => {
   const tail = "Checking the reducer before anything else.";
+  const resume = holdFrames();
   const view = await mount(streaming({ committed: "", tail }));
 
   const steps = [];
-  const deadline = Date.now() + 3000;
-  while (Date.now() < deadline && steps.at(-1) !== tail) {
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 2)); });
+  for (let drawn = 0; drawn < 40 && steps.at(-1) !== tail; drawn += 1) {
+    await frames(1);
     const current = view.container.textContent;
     if (steps.at(-1) !== current) steps.push(current);
   }
+  resume();
 
   assert.equal(steps.at(-1), tail);
   assert.ok(steps.length >= 3, `expected a progressive reveal, saw ${JSON.stringify(steps)}`);
@@ -2442,8 +2476,10 @@ test("streamed text arrives progressively instead of landing whole", async () =>
 
 test("a stopped run flushes the backlog instead of typing it out", async () => {
   const tail = Array.from({ length: 8 }, (_, index) => `Sentence ${index} of a backlog the paced reveal would still be typing.`).join(" ");
+  const resume = holdFrames();
   const view = await mount(streaming({ committed: "", tail }));
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+  await frames(3);
+  resume();
   assert.notEqual(view.container.textContent, tail, "the reveal is still mid-backlog");
 
   await view.render(streaming({ committed: "", tail }, true));
@@ -2594,9 +2630,10 @@ test("a turn that settles keeps reading out rather than snapping to the end", as
     currentTask: { id: "t1", title: "T", executionPolicy: "confirm", messages: list, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
     folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
   });
+  const resume = holdFrames();
   const view = await mount(timeline(messages, "running", { messageId: "reply-1", text: body }));
   const reading = () => [...view.container.querySelectorAll(".stream-word")].reduce((total, node) => total + node.textContent.length, 0);
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+  await frames(3);
   const midway = reading();
   assert.ok(midway > 0 && midway < body.length, `the reveal should be under way and short of ${body.length}, was ${midway}`);
 
@@ -2606,6 +2643,7 @@ test("a turn that settles keeps reading out rather than snapping to the end", as
   assert.ok(reading() >= midway, "settling rewound the reveal");
   assert.ok(reading() < body.length, `settling jumped straight to ${reading()} characters`);
 
+  resume();
   await settle(view, 8000);
   assert.match(view.container.textContent, /word word/, "the settled turn never finished reading out");
   assert.equal(view.container.querySelector(".stream-word"), null, "finished text is parsed rather than left mid-reveal");
