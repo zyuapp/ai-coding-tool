@@ -1283,11 +1283,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const applied = applyRunEvent(state, event);
       const outcome = outcomeFor(event);
       /**
-       * Every settled run earns a dot, watched or not, so a thread that finishes under the user's
-       * eye ranks with the rest instead of dropping among the idle ones. A fresh dot is unread
-       * however read the one it replaces was.
+       * A settled run leaves its verdict for the user to read, unless they were reading the thread
+       * as it settled, which is reading it.
        */
-      let next = outcome
+      const watching = state.focused && state.currentId === event.taskId;
+      let next = outcome && !watching
         ? applyTask(applied, event.taskId, (task) => ({ ...task, outcome }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };

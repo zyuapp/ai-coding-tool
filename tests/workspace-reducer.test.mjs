@@ -281,18 +281,24 @@ test("one dismissal takes the dot off every thread carrying one", () => {
   assert.equal(reduce(cleared, { type: "task.dismiss-all" }).state, cleared, "a second pass has nothing left to take");
 });
 
-test("a run watched to the end earns the same unread dot as one that settles away", () => {
-  const state = workspace({
+test("a run watched to the end leaves no dot, having been read as it settled", () => {
+  const watched = workspace({
     tasks: [task("task-a"), task("task-b")],
     activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running" } },
     focused: true,
     currentId: "task-a",
   });
+  const settle = { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } };
 
-  const { state: next } = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } });
+  const { state: next } = reduce(watched, settle);
+  assert.equal(next.tasks[0].outcome, undefined);
+  assert.deepEqual(deriveView(next).activityTasks.priority, [], "so it does not ask for what the user just watched");
 
-  assert.equal(next.tasks[0].outcome, "finished", "watching it settle does not settle it for the user");
-  assert.deepEqual(deriveView(next).activityTasks.priority.map((item) => item.id), ["task-a"], "so it ranks with the rest rather than dropping among the idle threads");
+  const elsewhere = reduce({ ...watched, currentId: "task-b" }, settle).state;
+  assert.equal(elsewhere.tasks[0].outcome, "finished", "a thread the user was not on still asks");
+
+  const away = reduce({ ...watched, focused: false }, settle).state;
+  assert.equal(away.tasks[0].outcome, "finished", "and so does one settling behind an unfocused window");
 });
 
 test("selecting a thread takes its dot off", () => {
