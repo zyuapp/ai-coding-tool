@@ -624,7 +624,7 @@ export function useTaskWorkspace() {
       toggleDiff: () => dispatch({ type: "diff.toggle" }),
       refreshDiff: () => dispatch({ type: "diff.refresh" }),
       setDiffRange: (range: DiffRange) => dispatch({ type: "diff.set-range", range }),
-      selectDiffFile: (path: string | null) => dispatch({ type: "diff.select-file", path }),
+      setDiffCollapsed: (path: string, collapsed: boolean) => dispatch({ type: "diff.set-collapsed", path, collapsed }),
       setDiffViewed: (path: string, viewed: boolean) => dispatch({ type: "diff.set-viewed", path, viewed }),
       setDiffSplit: (split: boolean) => dispatch({ type: "diff.set-split", split }),
       openBrowser: (url: string, newTab = false) => dispatch({ type: "browser.open", url, ...(newTab ? { newTab } : {}) }),

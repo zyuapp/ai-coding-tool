@@ -21,8 +21,8 @@ export type DiffCommand =
   | { type: "diff.toggle" }
   | { type: "diff.refresh" }
   | { type: "diff.set-range"; range: DiffRange }
-  /** Null closes the open file and leaves the list. */
-  | { type: "diff.select-file"; path: string | null }
+  /** Folds one file shut, or opens it again. Every file starts open. */
+  | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
   | { type: "diff.set-viewed"; path: string; viewed: boolean }
   | { type: "diff.set-split"; split: boolean };
 

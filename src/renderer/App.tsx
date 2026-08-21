@@ -221,11 +221,10 @@ export function App() {
           openMenu={workspace.openMenu}
           onSetOpenMenu={workspace.actions.setOpenMenu}
           onSetRange={workspace.actions.setDiffRange}
-          onSelectFile={workspace.actions.selectDiffFile}
+          onSetCollapsed={workspace.actions.setDiffCollapsed}
           onSetViewed={workspace.actions.setDiffViewed}
           onSetSplit={workspace.actions.setDiffSplit}
           onRefresh={workspace.actions.refreshDiff}
-          {...(workspace.environment?.status === "available" && workspace.environment.baseline ? { baseline: workspace.environment.baseline } : {})}
           onOpenFile={(path) => void workspace.dispatch({ type: "file.open", path })}
           onComment={(quote, note) => void workspace.dispatch({ type: "annotation.add", quote, ...(note ? { note } : {}) })}
         />

@@ -121,9 +121,9 @@ export type FindState = {
 export type DraftBranch = { name: string; create: boolean };
 
 /**
- * One thread's review of its own checkout: what it is comparing, which file is open, and which files
- * it has ticked off. Only the file list is held; a patch is content, so it is read when a file opens
- * and never becomes state, the way a page's contents and a shell's scrollback never do.
+ * One thread's review of its own checkout: what it is comparing, which files it has folded away, and
+ * which it has ticked off. Only the file list is held; a patch is content, so it is read when its
+ * file is drawn and never becomes state, the way a page's contents and a shell's scrollback never do.
  */
 export type DiffState = {
   range: DiffRange;
@@ -131,7 +131,8 @@ export type DiffState = {
   workspaceId: string | null;
   result: DiffSummaryResult | null;
   loading: boolean;
-  file: string | null;
+  /** Files folded shut. Everything is open until the user says otherwise, so a review reads top to bottom. */
+  collapsed: string[];
   /** Ticked-off paths, each against the counts it had when ticked, so a file that moves un-ticks. */
   viewed: Record<string, string>;
   split: boolean;
@@ -420,7 +421,7 @@ export const EMPTY_DIFF: DiffState = {
   workspaceId: null,
   result: null,
   loading: false,
-  file: null,
+  collapsed: [],
   viewed: {},
   split: false,
 };

@@ -1,53 +1,50 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, ChevronDown, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState } from "../../application/workspace-state";
 import {
   commentQuote,
   diffRows,
+  fileFingerprint,
   hunkText,
   hunkTextIndex,
   languageForPath,
-  rangeLabel,
   splitRows,
   UNCOMMITTED,
   type DiffFile,
   type DiffFileSummary,
-  type DiffPair,
   type DiffRange,
   type DiffRow,
   type DiffSide,
+  type SplitRow,
 } from "../../domain/diff";
 import { highlightBlock, type ThemedToken } from "../diff/highlight";
-import { usePatch } from "../diff/use-patch";
+import { usePatches, type PatchRequest, type PatchState } from "../diff/use-patch";
 import { BranchMenu, useBranches } from "./BranchMenu";
-import { PopoverMenu } from "./PopoverMenu";
 import { useDismissibleLayer } from "../focus";
 
-export const RANGE_MENU = "diff:range";
 const BASE_MENU = "diff:base";
 const COMPARE_MENU = "diff:compare";
 
-/** The working tree as a comparison side, which is not a branch and so is named rather than listed. */
-const WORKING_TREE = "working tree";
-
-/** Above this many rows the patch is windowed; a short file is cheaper drawn whole. */
-const VIRTUALIZE_ABOVE = 60;
+/** The two sides that are not branches: the commit the checkout is on, and what is on disk right now. */
+const HEAD_SIDE = { label: "HEAD (this checkout)", value: "HEAD" };
+const WORKING_SIDE = { label: "Working tree", value: "" };
 
 /** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
 const ROW_HEIGHT = 20;
+
+/** Above this many rows the review is windowed; a short one is cheaper, and steadier, drawn whole. */
+const VIRTUALIZE_ABOVE = 200;
 
 export type DiffPanelProps = {
   diff: DiffState;
   workspaceId?: string;
   onSetRange: (range: DiffRange) => void;
-  onSelectFile: (path: string | null) => void;
+  onSetCollapsed: (path: string, collapsed: boolean) => void;
   onSetViewed: (path: string, viewed: boolean) => void;
   onSetSplit: (split: boolean) => void;
   onRefresh: () => void;
-  /** The ref the session panel counts from, which is the base a branch comparison opens on. */
-  baseline?: string;
   onOpenFile: (path: string) => void;
   /** A selected range and the note taken on it, which becomes a pill in the composer. */
   onComment: (quote: string, note: string) => void;
@@ -77,19 +74,28 @@ function splitPath(path: string) {
   return cut === -1 ? { folder: "", name: path } : { folder: path.slice(0, cut + 1), name: path.slice(cut + 1) };
 }
 
-type BranchPickerProps = {
+/** What a patch that is not lines to read has to say instead. */
+function patchNote(patch: PatchState | undefined) {
+  if (!patch || patch.status === "reading") return "Reading the patch…";
+  if (patch.status === "error") return patch.message;
+  if (patch.status === "too-large") return `Patch is larger than ${Math.round(patch.limit / 1_000_000)} MB — open it in your editor.`;
+  return null;
+}
+
+type SidePickerProps = {
   id: string;
   label: string;
+  /** The side as it is being compared: a branch name, or the extra option's own value. */
   value: string;
+  extra: { label: string; value: string };
   workspaceId?: string;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
-  onPick: (branch: string) => void;
-  /** Offered above the branches, for the side that can also be whatever is on disk right now. */
-  extra?: string;
+  onPick: (value: string) => void;
 };
 
-function BranchPicker({ id, label, value, workspaceId, openMenu, onSetOpenMenu, onPick, extra }: BranchPickerProps) {
+/** One side of the comparison: the branches the checkout knows, plus the one thing that is not a branch. */
+function SidePicker({ id, label, value, extra, workspaceId, openMenu, onSetOpenMenu, onPick }: SidePickerProps) {
   const open = openMenu === id;
   const row = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -98,10 +104,10 @@ function BranchPicker({ id, label, value, workspaceId, openMenu, onSetOpenMenu, 
   const branches = useBranches(workspaceId, open);
 
   return (
-    <div ref={row} className="diff-branch" data-popover-menu>
+    <div ref={row} className="diff-side" data-popover-menu>
       <button
         ref={trigger}
-        className="diff-branch-trigger"
+        className="diff-side-trigger"
         type="button"
         aria-label={label}
         aria-haspopup="listbox"
@@ -109,36 +115,22 @@ function BranchPicker({ id, label, value, workspaceId, openMenu, onSetOpenMenu, 
         disabled={!workspaceId}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
-        <span className="diff-branch-label">{label}</span>
-        <code title={value}>{value}</code>
+        <code title={value === extra.value ? extra.label : value}>{value === extra.value ? extra.label : value}</code>
         <ChevronDown size={13} />
       </button>
       {open && (
-        <>
-          {extra && (
-            <button
-              className="diff-branch-extra"
-              type="button"
-              onClick={() => {
-                onSetOpenMenu(null);
-                onPick(extra);
-              }}
-            >
-              {extra}
-              {value === extra && <Check size={13} />}
-            </button>
-          )}
-          <BranchMenu
-            menuRef={menu}
-            anchor={row.current}
-            branches={branches}
-            selected={value === extra ? null : value}
-            onPick={(branch) => {
-              onSetOpenMenu(null);
-              onPick(branch);
-            }}
-          />
-        </>
+        <BranchMenu
+          menuRef={menu}
+          anchor={row.current}
+          branches={branches}
+          includeRemotes
+          extra={extra}
+          selected={value}
+          onPick={(picked) => {
+            onSetOpenMenu(null);
+            onPick(picked);
+          }}
+        />
       )}
     </div>
   );
@@ -177,15 +169,46 @@ function selectionSide(rows: DiffRow[]): DiffSide {
   return lines.length > 0 && lines.every((row) => row.kind === "delete") ? "old" : "new";
 }
 
-type UnifiedRowProps = {
+/**
+ * One file's patch as everything drawing it needs: the rows in one column and in two, the tokens they
+ * are coloured with, and where each row sits in the one order a selection is measured in.
+ */
+type DrawnFile = {
+  rows: DiffRow[];
+  pairs: SplitRow[];
+  tokens: Map<string, ThemedToken[]>;
+  indexByKey: Map<string, number>;
+};
+
+function drawFile(file: DiffFile): DrawnFile {
+  const rows = diffRows(file);
+  return {
+    rows,
+    pairs: splitRows(file),
+    tokens: tokenizeFile(file),
+    indexByKey: new Map(rows.map((row, index) => [row.key, index])),
+  };
+}
+
+/** Where a comment is being taken: a file, and a run of its rows in the order one column draws them. */
+type Selection = { path: string; from: number; to: number };
+
+/** Every drawn line of the panel, flat, so one window covers the whole review rather than each file. */
+type PanelRow =
+  | { kind: "file"; key: string; file: DiffFileSummary }
+  | { kind: "note"; key: string; text: string }
+  | { kind: "line"; key: string; path: string; row: DiffRow; index: number }
+  | { kind: "pair"; key: string; path: string; row: SplitRow };
+
+type LineRowProps = {
   row: DiffRow;
-  tokens: ThemedToken[] | undefined;
+  tokens: Map<string, ThemedToken[]>;
   selected: boolean;
   onSelect: (extend: boolean) => void;
 };
 
-/** One line of the unified view. Its gutter is the only thing that selects, the way a review reads. */
-function UnifiedRow({ row, tokens, selected, onSelect }: UnifiedRowProps) {
+/** One line of the one-column view. Its gutter is the only thing that selects, the way a review reads. */
+function LineRow({ row, tokens, selected, onSelect }: LineRowProps) {
   if (row.kind === "hunk") return <div className="diff-line hunk">{row.text}</div>;
   return (
     <div className={`diff-line ${row.kind}${selected ? " selected" : ""}`}>
@@ -198,148 +221,34 @@ function UnifiedRow({ row, tokens, selected, onSelect }: UnifiedRowProps) {
         <span>{row.oldLine ?? ""}</span>
         <span>{row.newLine ?? ""}</span>
       </button>
-      <span className="diff-marker" aria-hidden="true">{row.kind === "add" ? "+" : row.kind === "delete" ? "\u2212" : " "}</span>
-      <code><RowText text={row.text} tokens={tokens} /></code>
-    </div>
-  );
-}
-
-/** One column of the two-column view, which selects nothing: a comment names a row, and a pair is two. */
-function SplitCell({ row, tokens, side }: { row: DiffRow | null; tokens: Map<string, ThemedToken[]>; side: DiffSide }) {
-  if (!row || row.kind === "hunk") return <div className="diff-split-cell empty" />;
-  return (
-    <div className={`diff-split-cell ${row.kind}`}>
-      <span className="diff-gutter static">{side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}</span>
+      <span className="diff-marker" aria-hidden="true">{row.kind === "add" ? "+" : row.kind === "delete" ? "−" : " "}</span>
       <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
   );
 }
 
-function SplitView({ file, tokens }: { file: DiffFile; tokens: Map<string, ThemedToken[]> }) {
-  const pairs = useMemo(() => splitRows(file), [file]);
-  return (
-    <>
-      {pairs.map((pair) => "kind" in pair && pair.kind === "hunk"
-        ? <div className="diff-line hunk" key={pair.key}>{pair.text}</div>
-        : (
-          <div className="diff-split-row" key={pair.key}>
-            <SplitCell row={(pair as DiffPair).left} tokens={tokens} side="old" />
-            <SplitCell row={(pair as DiffPair).right} tokens={tokens} side="new" />
-          </div>
-        ))}
-    </>
-  );
-}
-
-type FileViewProps = {
-  path: string;
-  file: DiffFile;
-  split: boolean;
-  onComment: (quote: string, note: string) => void;
+type SplitCellProps = {
+  row: DiffRow | null;
+  tokens: Map<string, ThemedToken[]>;
+  side: DiffSide;
+  selected: boolean;
+  onSelect: (extend: boolean) => void;
 };
 
-/** The open file: its rows, and the bar a selected range is commented from. */
-function FileView({ path, file, split, onComment }: FileViewProps) {
-  const rows = useMemo(() => diffRows(file), [file]);
-  const tokens = useMemo(() => tokenizeFile(file), [file]);
-  const [anchor, setAnchor] = useState<number | null>(null);
-  const [head, setHead] = useState<number | null>(null);
-  const [note, setNote] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  /** A fresh file is a fresh set of rows, so a range selected in the last one no longer names lines. */
-  useLayoutEffect(() => {
-    setAnchor(null);
-    setHead(null);
-    setNote("");
-  }, [file]);
-
-  const selection = anchor === null || head === null ? null : { from: Math.min(anchor, head), to: Math.max(anchor, head) };
-  const selected = selection ? rows.slice(selection.from, selection.to + 1) : [];
-  const windowed = !split && rows.length > VIRTUALIZE_ABOVE;
-  const virtualizer = useVirtualizer({
-    count: windowed ? rows.length : 0,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    getItemKey: (index) => rows[index]?.key ?? index,
-    overscan: 20,
-    initialRect: { width: 420, height: 720 },
-  });
-
-  const select = (index: number, extend: boolean) => {
-    if (extend && anchor !== null) setHead(index);
-    else {
-      setAnchor(index);
-      setHead(index);
-    }
-  };
-
-  const clear = () => {
-    setAnchor(null);
-    setHead(null);
-    setNote("");
-  };
-
-  const comment = () => {
-    if (selected.length === 0) return;
-    onComment(commentQuote(path, selected, selectionSide(selected)), note.trim());
-    clear();
-  };
-
+/** One column of the two-column view. Either side's gutter selects, and both colour the same way. */
+function SplitCell({ row, tokens, side, selected, onSelect }: SplitCellProps) {
+  if (!row || row.kind === "hunk") return <div className="diff-split-cell empty" />;
   return (
-    <div className="diff-file-view">
-      <div className="diff-scroll" ref={scrollRef}>
-        {split && <SplitView file={file} tokens={tokens} />}
-        {!split && !windowed && rows.map((row, index) => (
-          <UnifiedRow
-            key={row.key}
-            row={row}
-            tokens={tokens.get(row.key)}
-            selected={selection !== null && index >= selection.from && index <= selection.to}
-            onSelect={(extend) => select(index, extend)}
-          />
-        ))}
-        {!split && windowed && (
-          <div className="diff-window" style={{ height: virtualizer.getTotalSize() }}>
-            {virtualizer.getVirtualItems().map((item) => (
-              <div
-                className="diff-window-row"
-                key={item.key}
-                ref={virtualizer.measureElement}
-                data-index={item.index}
-                style={{ transform: `translateY(${item.start}px)` }}
-              >
-                <UnifiedRow
-                  row={rows[item.index]}
-                  tokens={tokens.get(rows[item.index].key)}
-                  selected={selection !== null && item.index >= selection.from && item.index <= selection.to}
-                  onSelect={(extend) => select(item.index, extend)}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {selection && (
-        <form
-          className="diff-comment"
-          onSubmit={(event) => {
-            event.preventDefault();
-            comment();
-          }}
-        >
-          <span className="diff-comment-range">{commentQuote(path, selected, selectionSide(selected)).split("\n")[0]}</span>
-          <input
-            aria-label="Note on the selected lines"
-            placeholder="What should change here?"
-            autoFocus
-            value={note}
-            onInput={(event) => setNote(event.currentTarget.value)}
-          />
-          <button type="submit" aria-label="Comment on the selected lines"><MessageSquarePlus size={15} /></button>
-          <button type="button" aria-label="Clear the selection" onClick={clear}><X size={15} /></button>
-        </form>
-      )}
+    <div className={`diff-split-cell ${row.kind}${selected ? " selected" : ""}`}>
+      <button
+        className="diff-gutter static"
+        type="button"
+        aria-label={`Line ${side === "old" ? row.oldLine : row.newLine}`}
+        onClick={(event) => onSelect(event.shiftKey)}
+      >
+        {side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}
+      </button>
+      <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
   );
 }
@@ -348,41 +257,193 @@ export function DiffPanel({
   diff,
   workspaceId,
   onSetRange,
-  onSelectFile,
+  onSetCollapsed,
   onSetViewed,
   onSetSplit,
   onRefresh,
-  baseline,
   onOpenFile,
   onComment,
   openMenu,
   onSetOpenMenu,
 }: DiffPanelProps) {
-  const patch = usePatch(workspaceId, diff.range, diff.file);
   const available = diff.result?.status === "available" ? diff.result : null;
-  const files = available?.files ?? [];
+  const files = useMemo(() => available?.files ?? [], [available]);
+  const collapsed = useMemo(() => new Set(diff.collapsed), [diff.collapsed]);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [note, setNote] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  /** Only the files that are open and have lines in them are worth reading a patch for. */
+  const requests = useMemo<PatchRequest[]>(
+    () => files
+      .filter((file) => !file.binary && !collapsed.has(file.path))
+      .map((file) => ({ path: file.path, version: `${file.path}|${fileFingerprint(file)}` })),
+    [files, collapsed],
+  );
+  const { patches, at } = usePatches(workspaceId, diff.range, requests);
+  const versionOf = useMemo(() => new Map(files.map((file) => [file.path, `${file.path}|${fileFingerprint(file)}`])), [files]);
+
+  const drawn = useMemo(() => {
+    const built = new Map<string, DrawnFile>();
+    for (const request of requests) {
+      const patch = at(request.version);
+      if (patch?.status === "available") built.set(request.path, drawFile(patch.file));
+    }
+    return built;
+    // `at` reads `patches`, which is a fresh map whenever one has landed.
+  }, [requests, patches]);
+
+  const rows = useMemo(() => {
+    const panel: PanelRow[] = [];
+    for (const file of files) {
+      panel.push({ kind: "file", key: `f:${file.path}`, file });
+      if (collapsed.has(file.path)) continue;
+      if (file.binary) {
+        panel.push({ kind: "note", key: `n:${file.path}`, text: "Binary file" });
+        continue;
+      }
+      const drawing = drawn.get(file.path);
+      if (!drawing) {
+        panel.push({ kind: "note", key: `n:${file.path}`, text: patchNote(at(versionOf.get(file.path) ?? "")) ?? "Reading the patch…" });
+        continue;
+      }
+      if (diff.split) {
+        for (const row of drawing.pairs) panel.push({ kind: "pair", key: `${file.path}:${row.key}`, path: file.path, row });
+      } else {
+        drawing.rows.forEach((row, index) => panel.push({ kind: "line", key: `${file.path}:${row.key}`, path: file.path, row, index }));
+      }
+    }
+    return panel;
+  }, [files, collapsed, drawn, patches, versionOf, diff.split]);
+
+  const windowed = rows.length > VIRTUALIZE_ABOVE;
+  const virtualizer = useVirtualizer({
+    count: windowed ? rows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    getItemKey: (index) => rows[index]?.key ?? index,
+    overscan: 24,
+    initialRect: { width: 420, height: 720 },
+  });
+
+  /** A comparison that changes is a different set of lines, so a range picked in the last one is gone. */
+  useEffect(() => {
+    setSelection(null);
+    setNote("");
+  }, [diff.range, diff.split]);
+
+  const selectedRows = selection ? drawn.get(selection.path)?.rows.slice(selection.from, selection.to + 1) ?? [] : [];
+  const quote = selection && selectedRows.length > 0 ? commentQuote(selection.path, selectedRows, selectionSide(selectedRows)) : null;
+
+  const select = (path: string, index: number, extend: boolean) => {
+    setSelection((current) => extend && current?.path === path
+      ? { path, from: Math.min(current.from, index), to: Math.max(current.to, index) }
+      : { path, from: index, to: index });
+  };
+
+  const selectByKey = (path: string, key: string, extend: boolean) => {
+    const index = drawn.get(path)?.indexByKey.get(key);
+    if (index !== undefined) select(path, index, extend);
+  };
+
+  const isSelected = (path: string, index: number | undefined) =>
+    index !== undefined && selection?.path === path && index >= selection.from && index <= selection.to;
+
+  const clear = () => {
+    setSelection(null);
+    setNote("");
+  };
+
+  const comment = () => {
+    if (!quote) return;
+    onComment(quote, note.trim());
+    clear();
+  };
+
+  /** One panel row, drawn the same whether the review is windowed or laid out whole. */
+  const draw = (row: PanelRow) => {
+    if (row.kind === "file") {
+      return (
+        <FileHeader
+          file={row.file}
+          open={!collapsed.has(row.file.path)}
+          viewed={Boolean(diff.viewed[row.file.path])}
+          onToggle={() => onSetCollapsed(row.file.path, !collapsed.has(row.file.path))}
+          onOpenFile={onOpenFile}
+          onSetViewed={onSetViewed}
+        />
+      );
+    }
+    if (row.kind === "note") return <p className="diff-note">{row.text}</p>;
+    const tokens = drawn.get(row.path)?.tokens ?? EMPTY_TOKENS;
+    if (row.kind === "line") {
+      return (
+        <LineRow
+          row={row.row}
+          tokens={tokens}
+          selected={isSelected(row.path, row.index)}
+          onSelect={(extend) => select(row.path, row.index, extend)}
+        />
+      );
+    }
+    if (row.row.kind === "hunk") return <div className="diff-line hunk">{row.row.text}</div>;
+    const { left, right } = row.row;
+    const indexOf = (side: DiffRow | null) => side ? drawn.get(row.path)?.indexByKey.get(side.key) : undefined;
+    return (
+      <div className="diff-split-row">
+        <SplitCell
+          row={left}
+          tokens={tokens}
+          side="old"
+          selected={isSelected(row.path, indexOf(left))}
+          onSelect={(extend) => left && selectByKey(row.path, left.key, extend)}
+        />
+        <SplitCell
+          row={right}
+          tokens={tokens}
+          side="new"
+          selected={isSelected(row.path, indexOf(right))}
+          onSelect={(extend) => right && selectByKey(row.path, right.key, extend)}
+        />
+      </div>
+    );
+  };
+
   const viewedCount = files.filter((file) => diff.viewed[file.path]).length;
   const message = summaryMessage(diff.result, workspaceId);
-  const branches = diff.range.kind === "branches" ? diff.range : null;
+  const base = diff.range.kind === "uncommitted" ? HEAD_SIDE.value : diff.range.base;
+  const compare = diff.range.kind === "uncommitted" ? WORKING_SIDE.value : diff.range.compare ?? WORKING_SIDE.value;
+  const rangeFrom = (nextBase: string, nextCompare: string): DiffRange =>
+    nextBase === HEAD_SIDE.value && nextCompare === WORKING_SIDE.value
+      ? UNCOMMITTED
+      : { kind: "branches", base: nextBase, compare: nextCompare === WORKING_SIDE.value ? null : nextCompare };
 
   return (
     <section className="diff-panel" aria-label="Changes">
       <header className="diff-toolbar">
-        <PopoverMenu
-          id={RANGE_MENU}
-          openMenu={openMenu}
-          onSetOpenMenu={onSetOpenMenu}
-          label="What to compare"
-          className="diff-range"
-          popoverClassName="session-menu-popover"
-          items={[
-            { label: "Uncommitted changes", onSelect: () => onSetRange(UNCOMMITTED) },
-            { label: "Compare branches", onSelect: () => onSetRange({ kind: "branches", base: branches?.base ?? baseline ?? "main", compare: branches?.compare ?? null }) },
-          ]}
-        >
-          <span>{rangeLabel(diff.range)}</span>
-          <ChevronDown size={13} />
-        </PopoverMenu>
+        <div className="diff-compare">
+          <SidePicker
+            id={BASE_MENU}
+            label="Base"
+            value={base}
+            extra={HEAD_SIDE}
+            {...(workspaceId ? { workspaceId } : {})}
+            openMenu={openMenu}
+            onSetOpenMenu={onSetOpenMenu}
+            onPick={(picked) => onSetRange(rangeFrom(picked, compare))}
+          />
+          <ArrowRight size={13} aria-hidden="true" />
+          <SidePicker
+            id={COMPARE_MENU}
+            label="Compare"
+            value={compare}
+            extra={WORKING_SIDE}
+            {...(workspaceId ? { workspaceId } : {})}
+            openMenu={openMenu}
+            onSetOpenMenu={onSetOpenMenu}
+            onPick={(picked) => onSetRange(rangeFrom(base, picked))}
+          />
+        </div>
         <div className="diff-toolbar-actions">
           <button
             type="button"
@@ -399,30 +460,6 @@ export function DiffPanel({
         </div>
       </header>
 
-      {branches && (
-        <div className="diff-branches">
-          <BranchPicker
-            id={BASE_MENU}
-            label="Base"
-            value={branches.base}
-            {...(workspaceId ? { workspaceId } : {})}
-            openMenu={openMenu}
-            onSetOpenMenu={onSetOpenMenu}
-            onPick={(branch) => onSetRange({ ...branches, base: branch })}
-          />
-          <BranchPicker
-            id={COMPARE_MENU}
-            label="Compare"
-            value={branches.compare ?? WORKING_TREE}
-            {...(workspaceId ? { workspaceId } : {})}
-            openMenu={openMenu}
-            onSetOpenMenu={onSetOpenMenu}
-            extra={WORKING_TREE}
-            onPick={(branch) => onSetRange({ ...branches, compare: branch === WORKING_TREE ? null : branch })}
-          />
-        </div>
-      )}
-
       {available && files.length > 0 && (
         <p className="diff-progress">
           <span>{viewedCount} of {files.length} viewed</span>
@@ -431,55 +468,90 @@ export function DiffPanel({
       )}
       {message && <p className="session-note">{message}</p>}
 
-      <div className="diff-files" role="list" aria-label="Changed files">
-        {files.map((file) => {
-          const { folder, name } = splitPath(file.path);
-          const open = diff.file === file.path;
-          const viewed = Boolean(diff.viewed[file.path]);
-          return (
-            <div className={`diff-file ${open ? "open" : ""}${viewed ? " viewed" : ""}`.trimEnd()} role="listitem" key={file.path}>
-              <div className="diff-file-row">
-                <button
-                  className="diff-file-open"
-                  type="button"
-                  aria-expanded={open}
-                  onClick={() => onSelectFile(open ? null : file.path)}
-                >
-                  <span className="diff-file-icon"><StatusIcon status={file.status} /></span>
-                  <span className="diff-file-name" title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
-                    <em>{folder}</em>{name}
-                  </span>
-                  {!file.binary && <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
-                </button>
-                <button
-                  className="diff-file-editor"
-                  type="button"
-                  aria-label={`Open ${file.path} in your editor`}
-                  onClick={() => onOpenFile(file.path)}
-                >
-                  <FileSymlink size={14} />
-                </button>
-                <label className="diff-file-viewed">
-                  <input
-                    type="checkbox"
-                    aria-label={`Mark ${file.path} viewed`}
-                    checked={viewed}
-                    onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
-                  />
-                  <Check size={14} aria-hidden="true" />
-                </label>
+      <div className="diff-files" ref={scrollRef} aria-label="Changed files">
+        {!windowed && rows.map((row) => <div key={row.key}>{draw(row)}</div>)}
+        {windowed && (
+          <div className="diff-window" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((item) => rows[item.index] ? (
+              <div
+                className="diff-window-row"
+                key={item.key}
+                ref={virtualizer.measureElement}
+                data-index={item.index}
+                style={{ transform: `translateY(${item.start}px)` }}
+              >
+                {draw(rows[item.index])}
               </div>
-              {open && file.binary && <p className="diff-note">Binary file</p>}
-              {open && !file.binary && patch?.status === "reading" && <p className="diff-note">Reading the patch…</p>}
-              {open && !file.binary && patch?.status === "error" && <p className="diff-note">{patch.message}</p>}
-              {open && !file.binary && patch?.status === "too-large" && <p className="diff-note">Patch is larger than {Math.round(patch.limit / 1_000_000)} MB — open it in your editor.</p>}
-              {open && !file.binary && patch?.status === "available" && (
-                <FileView path={file.path} file={patch.file} split={diff.split} onComment={onComment} />
-              )}
-            </div>
-          );
-        })}
+            ) : null)}
+          </div>
+        )}
       </div>
+
+      {quote && (
+        <form
+          className="diff-comment"
+          onSubmit={(event) => {
+            event.preventDefault();
+            comment();
+          }}
+        >
+          <span className="diff-comment-range">{quote.split("\n")[0]}</span>
+          <input
+            aria-label="Note on the selected lines"
+            placeholder="What should change here?"
+            autoFocus
+            value={note}
+            onInput={(event) => setNote(event.currentTarget.value)}
+          />
+          <button type="submit" aria-label="Comment on the selected lines"><MessageSquarePlus size={15} /></button>
+          <button type="button" aria-label="Clear the selection" onClick={clear}><X size={15} /></button>
+        </form>
+      )}
     </section>
+  );
+}
+
+const EMPTY_TOKENS = new Map<string, ThemedToken[]>();
+
+type FileHeaderProps = {
+  file: DiffFileSummary;
+  open: boolean;
+  viewed: boolean;
+  onToggle: () => void;
+  onOpenFile: (path: string) => void;
+  onSetViewed: (path: string, viewed: boolean) => void;
+};
+
+/** The row a file is headed by: what happened to it, what it cost, and whether it has been read. */
+function FileHeader({ file, open, viewed, onToggle, onOpenFile, onSetViewed }: FileHeaderProps) {
+  const { folder, name } = splitPath(file.path);
+  return (
+    <div className={`diff-file-row ${viewed ? "viewed" : ""}`.trimEnd()}>
+      <button className="diff-file-open" type="button" aria-expanded={open} onClick={onToggle}>
+        <span className="diff-file-caret" aria-hidden="true">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
+        <span className="diff-file-icon"><StatusIcon status={file.status} /></span>
+        <span className="diff-file-name" title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
+          <em>{folder}</em>{name}
+        </span>
+        {!file.binary && <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
+      </button>
+      <button
+        className="diff-file-editor"
+        type="button"
+        aria-label={`Open ${file.path} in your editor`}
+        onClick={() => onOpenFile(file.path)}
+      >
+        <FileSymlink size={14} />
+      </button>
+      <label className="diff-file-viewed">
+        <input
+          type="checkbox"
+          aria-label={`Mark ${file.path} viewed`}
+          checked={viewed}
+          onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
+        />
+        <Check size={14} aria-hidden="true" />
+      </label>
+    </div>
   );
 }

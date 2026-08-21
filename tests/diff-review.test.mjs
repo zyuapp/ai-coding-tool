@@ -90,13 +90,12 @@ test("a list that no longer answers what the dock asked is dropped", () => {
 test("changing the comparison starts a fresh read and keeps nothing but the layout", () => {
   const reviewed = run(reviewing(workspace(), [file("a.ts")]), [
     { type: "diff.set-viewed", path: "a.ts", viewed: true },
-    { type: "diff.select-file", path: "a.ts" },
     { type: "diff.set-split", split: true },
   ]);
   const changed = reduce(reviewed, { type: "diff.set-range", range: { kind: "branches", base: "main", compare: null } });
 
   assert.deepEqual(diff(changed.state).viewed, {});
-  assert.equal(diff(changed.state).file, null);
+  assert.deepEqual(diff(changed.state).collapsed, []);
   assert.equal(diff(changed.state).split, true, "how it is drawn is not what is being compared");
   assert.equal(changed.effects.filter((effect) => effect.type === "read-diff").length, 1);
 });
@@ -108,14 +107,47 @@ test("asking for the comparison already on screen reads nothing again", () => {
   assert.deepEqual(same.effects, []);
 });
 
-test("ticking the open file off closes it, so the list is worked down by one click", () => {
-  const reviewed = run(reviewing(workspace(), [file("a.ts"), file("b.ts")]), [
-    { type: "diff.select-file", path: "a.ts" },
-    { type: "diff.set-viewed", path: "a.ts", viewed: true },
-  ]);
+test("every file starts open, and ticking one off folds it away", () => {
+  const opened = reviewing(workspace(), [file("a.ts"), file("b.ts")]);
+  assert.deepEqual(diff(opened).collapsed, [], "nothing is folded until the user folds it");
 
-  assert.equal(diff(reviewed).file, null);
+  const reviewed = run(opened, [{ type: "diff.set-viewed", path: "a.ts", viewed: true }]);
+  assert.deepEqual(diff(reviewed).collapsed, ["a.ts"]);
   assert.deepEqual(Object.keys(diff(reviewed).viewed), ["a.ts"]);
+
+  const untucked = run(reviewed, [{ type: "diff.set-viewed", path: "a.ts", viewed: false }]);
+  assert.deepEqual(diff(untucked).collapsed, [], "unticking opens it again");
+});
+
+test("a file folded by hand stays folded through a fresh list", () => {
+  const folded = run(reviewing(workspace(), [file("a.ts"), file("b.ts")]), [
+    { type: "diff.set-collapsed", path: "a.ts", collapsed: true },
+  ]);
+  const reread = reduce(folded, {
+    type: "diff.loaded",
+    owner: "draft",
+    workspaceId: "workspace-a",
+    range: { kind: "uncommitted" },
+    result: summary([file("a.ts"), file("b.ts")]),
+  });
+
+  assert.deepEqual(diff(reread.state).collapsed, ["a.ts"]);
+});
+
+test("a ticked file that changes comes back open as well as unread", () => {
+  const reviewed = run(reviewing(workspace(), [file("a.ts", 1)]), [{ type: "diff.set-viewed", path: "a.ts", viewed: true }]);
+  assert.deepEqual(diff(reviewed).collapsed, ["a.ts"]);
+
+  const rewritten = reduce(reviewed, {
+    type: "diff.loaded",
+    owner: "draft",
+    workspaceId: "workspace-a",
+    range: { kind: "uncommitted" },
+    result: summary([file("a.ts", 9)]),
+  });
+
+  assert.deepEqual(diff(rewritten.state).viewed, {});
+  assert.deepEqual(diff(rewritten.state).collapsed, [], "it is worth reading again, so it is open again");
 });
 
 test("a file that changes again comes back unread", () => {
@@ -134,8 +166,10 @@ test("a file that changes again comes back unread", () => {
   assert.deepEqual(Object.keys(diff(rewritten.state).viewed), ["b.ts"], "only the file that moved is unticked");
 });
 
-test("a file that is gone from the list stops being the open one", () => {
-  const reviewed = run(reviewing(workspace(), [file("a.ts"), file("b.ts")]), [{ type: "diff.select-file", path: "a.ts" }]);
+test("a file that is gone from the list stops being folded", () => {
+  const reviewed = run(reviewing(workspace(), [file("a.ts"), file("b.ts")]), [
+    { type: "diff.set-collapsed", path: "a.ts", collapsed: true },
+  ]);
   const rewritten = reduce(reviewed, {
     type: "diff.loaded",
     owner: "draft",
@@ -144,7 +178,7 @@ test("a file that is gone from the list stops being the open one", () => {
     result: summary([file("b.ts")]),
   });
 
-  assert.equal(diff(rewritten.state).file, null);
+  assert.deepEqual(diff(rewritten.state).collapsed, []);
 });
 
 test("ticking a file the list does not have changes nothing", () => {
@@ -182,12 +216,12 @@ test("a review belongs to its thread, so each keeps its own place", () => {
     currentId: "task-a",
     draftProjectId: null,
   });
-  const first = run(reviewing(twoThreads, [file("a.ts")]), [{ type: "diff.select-file", path: "a.ts" }]);
+  const first = run(reviewing(twoThreads, [file("a.ts")]), [{ type: "diff.set-collapsed", path: "a.ts", collapsed: true }]);
   const second = run(first, [{ type: "task.select", taskId: "task-b" }]);
 
-  assert.equal(diffFor(second, "task-a").file, "a.ts");
-  assert.equal(diffFor(second, "task-b").file, null);
-  assert.equal(deriveView(second).diff.file, null, "the view shows the thread in front");
+  assert.deepEqual(diffFor(second, "task-a").collapsed, ["a.ts"]);
+  assert.deepEqual(diffFor(second, "task-b").collapsed, []);
+  assert.deepEqual(deriveView(second).diff.collapsed, [], "the view shows the thread in front");
 });
 
 test("a thread that goes for good takes its review with it", () => {

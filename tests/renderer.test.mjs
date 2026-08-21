@@ -698,7 +698,7 @@ function fakeDesktop(overrides = {}) {
     enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
-    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], current: "main" }),
+    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
     diffSummary: async (workspaceId, range) => ({ status: "available", range, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
@@ -3675,6 +3675,14 @@ function seedReviewableProject() {
   }));
 }
 
+/** Opens the review from the session panel and lets its patches land. */
+async function openReview(view) {
+  await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+  /** Patches are read a file at a time, so the list arrives a turn before the lines in it do. */
+  await act(async () => {});
+}
+
 /** Opens the session panel, which is where the Changes row that reaches the review lives. */
 async function showSession(view) {
   await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
@@ -3715,21 +3723,22 @@ test("the session panel's Changes row opens the review, and the same click close
   await view.unmount();
 });
 
-test("an opened file draws its patch with both sides' line numbers", async () => {
+test("a file is drawn expanded, with both sides' line numbers, without being opened first", async () => {
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
-  await showSession(view);
-  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
-  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+  await openReview(view);
 
   const lines = [...view.container.querySelectorAll(".diff-line")];
-  assert.equal(lines[0].className, "diff-line hunk");
+  assert.equal(lines[0].className, "diff-line hunk", "the patch is already on screen");
   assert.deepEqual(
     lines.slice(1).map((line) => [...line.querySelectorAll(".diff-gutter span")].map((cell) => cell.textContent)),
     [["1", "1"], ["2", ""], ["", "2"], ["", "3"]],
   );
   assert.deepEqual(lines.slice(1).map((line) => line.className.replace("diff-line ", "")), ["context", "delete", "add", "add"]);
+
+  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+  assert.equal(view.container.querySelectorAll(".diff-line").length, 0, "the header folds it away");
   await view.unmount();
 });
 
@@ -3737,9 +3746,7 @@ test("a file's lines are coloured by the grammar its extension names", async () 
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
-  await showSession(view);
-  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
-  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+  await openReview(view);
 
   const coloured = [...view.container.querySelectorAll(".diff-line code span")];
   assert.ok(coloured.length > 0, "the grammar produced tokens");
@@ -3752,9 +3759,7 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
-  await showSession(view);
-  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
-  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
+  await openReview(view);
 
   const gutters = [...view.container.querySelectorAll(".diff-gutter")];
   await act(async () => { gutters[2].click(); });
@@ -3779,18 +3784,63 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   await view.unmount();
 });
 
-test("ticking the open file off closes it and empties the tab's count", async () => {
+test("ticking a file off folds its patch away and empties the tab's count", async () => {
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
-  await showSession(view);
-  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
-  await act(async () => { view.container.querySelector(".diff-file-open").click(); });
-  assert.ok(view.container.querySelector(".diff-file-view"), "the patch is open");
+  await openReview(view);
+  assert.ok(view.container.querySelectorAll(".diff-line").length > 0, "the patch is open");
 
   await act(async () => { view.container.querySelector('input[aria-label="Mark src/app.ts viewed"]').click(); });
 
-  assert.equal(view.container.querySelector(".diff-file-view"), null);
+  assert.equal(view.container.querySelectorAll(".diff-line").length, 0);
   assert.match(view.container.querySelector(".diff-progress").textContent, /1 of 1 viewed/);
+  assert.deepEqual([...view.container.querySelectorAll('.right-dock-tab [role="tab"]')].map((tab) => tab.textContent), ["Changes"]);
+  await view.unmount();
+});
+
+test("the two-column view colours its lines the way the one-column view does", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  await act(async () => { view.container.querySelector('button[aria-label="Show two columns"]').click(); });
+
+  assert.ok(view.container.querySelector(".diff-split-row"), "the patch is drawn in two columns");
+  const coloured = [...view.container.querySelectorAll(".diff-split-cell code span")];
+  assert.ok(coloured.some((token) => token.textContent === "const" && token.style.color === "var(--syntax-keyword)"));
+  await view.unmount();
+});
+
+test("a comment can be taken from either column of the two-column view", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  await act(async () => { view.container.querySelector('button[aria-label="Show two columns"]').click(); });
+
+  const gutters = [...view.container.querySelectorAll(".diff-split-cell .diff-gutter")];
+  await act(async () => { gutters.find((gutter) => gutter.getAttribute("aria-label") === "Line 3").click(); });
+
+  assert.match(view.container.querySelector(".diff-comment-range").textContent, /^src\/app\.ts:L3$/);
+  await view.unmount();
+});
+
+test("the two sides are picked apart, and remote branches are offered to compare against", async () => {
+  seedReviewableProject();
+  window.desktop = reviewableDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+
+  const sides = () => [...view.container.querySelectorAll(".diff-side-trigger code")].map((code) => code.textContent);
+  assert.deepEqual(sides(), ["HEAD (this checkout)", "Working tree"], "uncommitted work reads as HEAD against disk");
+
+  await act(async () => { view.container.querySelector('button[aria-label="Base"]').click(); });
+  const options = [...document.querySelectorAll('.branch-menu [role="option"]')].map((option) => option.textContent);
+  assert.equal(options[0], "HEAD (this checkout)", "the side that is not a branch comes first, inside the list");
+  assert.ok(options.includes("origin/main"), "a remote branch can be a base");
+
+  await act(async () => { [...document.querySelectorAll('.branch-menu [role="option"]')].find((option) => option.textContent === "origin/main").click(); });
+  assert.deepEqual(sides(), ["origin/main", "Working tree"]);
   await view.unmount();
 });

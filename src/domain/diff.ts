@@ -106,7 +106,7 @@ export function diffRows(file: DiffFile): DiffRow[] {
   ]);
 }
 
-export function hunkLabel(hunk: DiffHunk) {
+function hunkLabel(hunk: DiffHunk) {
   const range = `@@ -${hunk.oldStart} +${hunk.newStart} @@`;
   return hunk.header ? `${range} ${hunk.header}` : range;
 }
@@ -168,7 +168,7 @@ export function languageForPath(path: string) {
 }
 
 /** Which line numbers a row carries on a given side, for turning a selection into a range. */
-export function lineOn(row: DiffRow, side: DiffSide) {
+function lineOn(row: DiffRow, side: DiffSide) {
   if (row.kind === "hunk") return null;
   return side === "old" ? row.oldLine : row.newLine;
 }
@@ -207,11 +207,6 @@ export function rangeKey(range: DiffRange) {
   return range.kind === "uncommitted" ? "uncommitted" : `branches:${range.base}:${range.compare ?? ""}`;
 }
 
-export function rangeLabel(range: DiffRange) {
-  if (range.kind === "uncommitted") return "Uncommitted";
-  return `${range.base} → ${range.compare ?? "working tree"}`;
-}
-
 export function isDiffRange(value: unknown): value is DiffRange {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -223,31 +218,35 @@ export function isDiffRange(value: unknown): value is DiffRange {
 }
 
 /** A line of the two-column view: what the old side had beside what the new side has. */
-export type DiffPair = { key: string; left: DiffRow | null; right: DiffRow | null };
+export type DiffPair = { kind: "pair"; key: string; left: DiffRow | null; right: DiffRow | null };
+
+export type SplitRow = Extract<DiffRow, { kind: "hunk" }> | DiffPair;
 
 /**
  * The same rows in two columns. Deletions and the additions that replaced them are drawn on one line
- * so a rewrite reads across rather than down; a run that is longer on one side leaves gaps.
+ * so a rewrite reads across rather than down; a run that is longer on one side leaves gaps. Rows keep
+ * the keys {@link diffRows} gives them, so both views look their tokens up the same way.
  */
-export function splitRows(file: DiffFile): Array<{ kind: "hunk"; key: string; text: string } | DiffPair> {
+export function splitRows(file: DiffFile): SplitRow[] {
   return file.hunks.flatMap((hunk, index) => {
+    const keyed = hunk.rows.map((row) => ({ ...row, key: `${index}:${row.key}` }));
     const pairs: DiffPair[] = [];
     let cursor = 0;
-    while (cursor < hunk.rows.length) {
-      const row = hunk.rows[cursor];
+    while (cursor < keyed.length) {
+      const row = keyed[cursor];
       if (row.kind === "context") {
-        pairs.push({ key: `${index}:${row.key}`, left: row, right: row });
+        pairs.push({ kind: "pair", key: row.key, left: row, right: row });
         cursor += 1;
         continue;
       }
-      const deletions: typeof hunk.rows = [];
-      const additions: typeof hunk.rows = [];
-      while (cursor < hunk.rows.length && hunk.rows[cursor].kind === "delete") deletions.push(hunk.rows[cursor++]);
-      while (cursor < hunk.rows.length && hunk.rows[cursor].kind === "add") additions.push(hunk.rows[cursor++]);
+      const deletions: typeof keyed = [];
+      const additions: typeof keyed = [];
+      while (cursor < keyed.length && keyed[cursor].kind === "delete") deletions.push(keyed[cursor++]);
+      while (cursor < keyed.length && keyed[cursor].kind === "add") additions.push(keyed[cursor++]);
       for (let offset = 0; offset < Math.max(deletions.length, additions.length); offset += 1) {
         const left = deletions[offset] ?? null;
         const right = additions[offset] ?? null;
-        pairs.push({ key: `${index}:${left?.key ?? ""}:${right?.key ?? ""}`, left, right });
+        pairs.push({ kind: "pair", key: `${left?.key ?? ""}|${right?.key ?? ""}`, left, right });
       }
     }
     return [{ kind: "hunk" as const, key: `h${index}`, text: hunkLabel(hunk) }, ...pairs];

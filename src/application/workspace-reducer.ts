@@ -1396,12 +1396,17 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const owner = dockOwner(state);
       if (rangeKey(diffFor(state, owner).range) === rangeKey(input.range)) return settled(state);
       /** A different comparison is a different set of files, so nothing carries over but the layout. */
-      return readDiff(state, owner, input.range, { result: null, file: null, viewed: {} });
+      return readDiff(state, owner, input.range, { result: null, collapsed: [], viewed: {} });
     }
 
-    case "diff.select-file": {
+    case "diff.set-collapsed": {
       const owner = dockOwner(state);
-      return settled(withDiff(state, owner, { file: input.path }));
+      const collapsed = diffFor(state, owner).collapsed;
+      return settled(withDiff(state, owner, {
+        collapsed: input.collapsed
+          ? (collapsed.includes(input.path) ? collapsed : [...collapsed, input.path])
+          : collapsed.filter((path) => path !== input.path),
+      }));
     }
 
     case "diff.set-viewed": {
@@ -1412,8 +1417,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const { [input.path]: _cleared, ...rest } = diff.viewed;
       return settled(withDiff(state, owner, {
         viewed: input.viewed ? { ...rest, [input.path]: fileFingerprint(file) } : rest,
-        /** Ticking the open file off closes it, which is what makes working down the list one click. */
-        ...(input.viewed && diff.file === input.path ? { file: null } : {}),
+        /** Ticking a file off folds it away, which is what makes working down the list one click. */
+        collapsed: input.viewed
+          ? (diff.collapsed.includes(input.path) ? diff.collapsed : [...diff.collapsed, input.path])
+          : diff.collapsed.filter((path) => path !== input.path),
       }));
     }
 
@@ -1429,7 +1436,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         result: input.result,
         loading: false,
         viewed,
-        ...(present && diff.file && !present.has(diff.file) ? { file: null } : {}),
+        /** A file whose tick was dropped changed under the user, so it comes back open to be read again. */
+        ...(present ? { collapsed: diff.collapsed.filter((path) => present.has(path) && !(diff.viewed[path] && !viewed[path])) } : {}),
       }));
     }
 

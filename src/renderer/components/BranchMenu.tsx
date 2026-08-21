@@ -82,15 +82,24 @@ export type BranchMenuProps = {
   /** The row to hang off, for a list whose surroundings would otherwise clip it. */
   anchor?: HTMLElement | null;
   menuRef?: RefObject<HTMLDivElement | null>;
+  /** Remote branches too, for a list that compares against them rather than moving onto one. */
+  includeRemotes?: boolean;
+  /**
+   * An option above the branches that is not one: the working tree, or the commit the checkout is on.
+   * A list that offers one is choosing a side to compare, so it does not offer to make a branch.
+   */
+  extra?: { label: string; value: string };
 };
 
-/** The list a branch is chosen from: every local branch, narrowed by search, and the name to make. */
-export function BranchMenu({ branches, selected, onPick, anchor, menuRef }: BranchMenuProps) {
+/** The list a branch is chosen from: the branches, narrowed by search, and the name to make. */
+export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra }: BranchMenuProps) {
   const [query, setQuery] = useState("");
   const anchored = useAnchoredStyle(anchor);
-  const names = branches?.status === "available" ? branches.branches : [];
+  const available = branches?.status === "available" ? branches : null;
+  const names = available ? [...available.branches, ...(includeRemotes ? available.remotes : [])] : [];
   const matches = matchBranches(names, query);
-  const naming = newBranchName(names, query);
+  const naming = extra ? null : newBranchName(names, query);
+  const showExtra = extra && matchBranches([extra.label], query).length > 0;
 
   const menu = (
     <div ref={menuRef} className={`branch-menu ${anchor ? "anchored" : ""}`.trimEnd()} data-popover-menu style={anchored ?? undefined} onKeyDown={moveListFocus}>
@@ -109,7 +118,13 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef }: Bran
             <Plus size={14} />
           </button>
         )}
-        {matches.length === 0 && !naming && <p className="branch-menu-empty">{branches ? "No branch matches" : "Reading branches…"}</p>}
+        {showExtra && (
+          <button className="branch-menu-extra" type="button" role="option" aria-selected={extra.value === selected} onClick={() => onPick(extra.value, false)}>
+            <span>{extra.label}</span>
+            {extra.value === selected && <Check size={14} />}
+          </button>
+        )}
+        {matches.length === 0 && !naming && !showExtra && <p className="branch-menu-empty">{branches ? "No branch matches" : "Reading branches…"}</p>}
         {matches.map((name) => (
           <button type="button" key={name} role="option" aria-selected={name === selected} onClick={() => onPick(name, false)}>
             <span>{name}</span>

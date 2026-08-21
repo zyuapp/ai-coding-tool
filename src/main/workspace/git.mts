@@ -98,12 +98,20 @@ export async function listWorktrees(repositoryPath: string) {
   return output.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
 }
 
-/** Local branches, newest first, with the one the checkout is on. A detached head reports none. */
+/**
+ * Branches newest first, with the one the checkout is on. Local ones are what a thread can start from
+ * or move onto; the remote ones are only ever compared against, so they are listed apart. A detached
+ * head reports no current branch.
+ */
 export async function listBranches(root: string) {
-  const output = await git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads"]);
-  const branches = output.split("\n").map((line) => line.trim()).filter(Boolean);
+  const [local, remote] = await Promise.all([
+    git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads"]),
+    git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/remotes"]),
+  ]);
+  const names = (output: string) => output.split("\n").map((line) => line.trim()).filter(Boolean);
   const current = (await tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]))?.trim() || null;
-  return { branches, current };
+  /** `origin/HEAD` is a pointer at another of these rather than a branch of its own. */
+  return { branches: names(local), remotes: names(remote).filter((name) => !name.endsWith("/HEAD")), current };
 }
 
 /** Makes `branch` at the checkout's HEAD. Git refuses a name the repository already has. */

@@ -122,13 +122,23 @@ test("a comment on one line names that line alone", () => {
 });
 
 test("deletions and the additions replacing them are paired across the two columns", () => {
-  const pairs = splitRows(parseFilePatch(PATCH, "src/app.ts")).filter((row) => row.kind !== "hunk");
+  const pairs = splitRows(parseFilePatch(PATCH, "src/app.ts")).filter((row) => row.kind === "pair");
   assert.deepEqual(pairs.map((pair) => [pair.left?.kind ?? null, pair.right?.kind ?? null]), [
     ["context", "context"],
     ["delete", "add"],
     [null, "add"],
     ["context", "context"],
   ]);
+});
+
+test("both views key their rows the same way, so both find the same tokens", () => {
+  const file = parseFilePatch(PATCH, "src/app.ts");
+  const unified = new Set(diffRows(file).map((row) => row.key));
+  const pairs = splitRows(file).filter((row) => row.kind === "pair");
+  const sides = pairs.flatMap((pair) => [pair.left, pair.right]).filter(Boolean);
+
+  assert.ok(sides.length > 0);
+  for (const row of sides) assert.ok(unified.has(row.key), `${row.key} is not a key the one-column view uses`);
 });
 
 test("a grammar is chosen by extension, and an unreadable one asks for none", () => {
