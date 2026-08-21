@@ -1,4 +1,4 @@
-import { Check, ChevronDown, FolderGit2, FolderSymlink, GitBranch, Hammer, MessageCircle, X } from "lucide-react";
+import { Check, ChevronDown, FolderGit2, FolderSymlink, GitBranch, X } from "lucide-react";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import { BranchMenu, useBranches } from "./BranchMenu";
@@ -50,20 +50,14 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
     <div className="thread-start" aria-label="How this thread starts">
       {/** Chat and work are the two shapes a thread has; everything else here only refines work. */}
       <div className="thread-start-mode" role="radiogroup" aria-label="Mode">
-        <button type="button" role="radio" aria-checked={!project} onClick={() => { if (project) onSelectProject(undefined); }}>
-          <MessageCircle size={15} />
-          <span>Chat</span>
-        </button>
-        <button type="button" role="radio" aria-checked={Boolean(project)} onClick={() => { if (!project) onSelectProject(projects[0]?.id); }}>
-          <Hammer size={15} />
-          <span>Work</span>
-        </button>
+        <button type="button" role="radio" aria-checked={!project} onClick={() => { if (project) onSelectProject(undefined); }}>Chat</button>
+        <button type="button" role="radio" aria-checked={Boolean(project)} onClick={() => { if (!project) onSelectProject(projects[0]?.id); }}>Work</button>
       </div>
 
       {project && <>
         <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
           <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
-            <FolderGit2 size={15} />
+            <FolderGit2 size={14} />
             <span>{projectName(project.root)}</span>
             <ChevronDown size={14} />
           </button>
@@ -98,7 +92,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         ) : (<>
         <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
           <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
-            <GitBranch size={15} />
+            <GitBranch size={14} />
             <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
             {branch?.create && <small>new</small>}
             <ChevronDown size={14} />
@@ -117,10 +111,10 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
           )}
         </div>
 
-        <label className="thread-start-check">
-          <input type="checkbox" checked={worktree} onChange={(event) => onSetWorktree(event.target.checked)} />
+        <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
+          <FolderSymlink size={14} />
           <span>Worktree</span>
-        </label>
+        </button>
         </>)}
       </>}
     </div>

@@ -3188,8 +3188,9 @@ test("the start options say where a thread begins, and searching narrows the bra
   const project = view.container.querySelector('button[aria-label="Project"]');
   assert.match(project.textContent, /claudex/, "the project the thread starts in is filled in already");
   assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
-  assert.deepEqual([...view.container.querySelectorAll(".thread-start-check")].map((label) => label.textContent), ["Worktree"]);
-  assert.equal(view.container.querySelector(".thread-start-check input").checked, false, "a worktree is only ever asked for");
+  const worktreeToggle = view.container.querySelector(".thread-start-toggle");
+  assert.equal(worktreeToggle.textContent, "Worktree");
+  assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
   const modes = [...view.container.querySelectorAll('.thread-start-mode [role="radio"]')];
   assert.deepEqual(modes.map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "false"], ["Work", "true"]], "a thread in a project is work");
 
@@ -3220,7 +3221,7 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.render(options({ name: "fix-loader", create: false }, false));
   const branchTrigger = view.container.querySelector('button[aria-label="Starting branch"]');
   assert.match(branchTrigger.textContent, /fix-loader/);
-  await act(async () => { view.container.querySelector('.thread-start-check input').click(); });
+  await act(async () => { view.container.querySelector(".thread-start-toggle").click(); });
   assert.deepEqual(chosen.worktree, [true]);
 
   await act(async () => { branchTrigger.click(); });
@@ -3257,7 +3258,7 @@ test("a chat thread asks nothing but its mode, and turning to work starts it in 
   assert.deepEqual(modes.map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "true"], ["Work", "false"]], "a thread with no project is a chat");
   assert.equal(view.container.querySelector('button[aria-label="Project"]'), null, "a chat has no project to name");
   assert.equal(view.container.querySelector('button[aria-label="Starting branch"]'), null, "and no branch to start from");
-  assert.equal(view.container.querySelector(".thread-start-check"), null, "and no checkout to cut");
+  assert.equal(view.container.querySelector(".thread-start-toggle"), null, "and no checkout to cut");
 
   await act(async () => { modes[0].click(); });
   assert.deepEqual(chosen, [], "the mode it is already in asks for nothing");
