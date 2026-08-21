@@ -2171,14 +2171,46 @@ test("a running turn collapses its tool calls behind the newest one", async () =
   );
   const view = await mount(timelineView(messages, "running"));
 
-  const run = view.container.querySelector(".work-group");
-  assert.equal(run.querySelector(".work-label").textContent, "Read");
+  const run = view.container.querySelector(".work-run");
+  assert.equal(run.querySelector(".work-arg").textContent, "Read");
   assert.equal(run.querySelector(".work-count").textContent, "+2");
   assert.equal(view.container.querySelector(".work-note").textContent, "I'll investigate.");
   assert.equal(view.container.querySelectorAll(".work-steps").length, 0);
 
   await expand(run);
-  assert.deepEqual([...view.container.querySelectorAll(".work-steps .work-row .work-label")].map((step) => step.textContent), ["Bash", "Grep", "Read"]);
+  assert.deepEqual([...view.container.querySelectorAll(".work-steps .work-row .work-tool")].map((step) => step.textContent), ["Bash", "Grep", "Read"]);
+  await view.unmount();
+});
+
+test("a run of tool calls leads with the argument, not the tool name", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "tool", text: "Bash", detail: JSON.stringify({ command: "git status --short" }) },
+    { kind: "tool", text: "Bash", detail: JSON.stringify({ command: "yarn tsc --noEmit" }) },
+  );
+  const view = await mount(timelineView(messages, "running"));
+
+  const run = view.container.querySelector(".work-run");
+  assert.equal(run.querySelector(".work-arg").textContent, "$yarn tsc --noEmit");
+
+  await expand(run);
+  assert.deepEqual([...run.querySelectorAll(".work-row .work-arg")].map((step) => step.textContent), ["$git status --short", "$yarn tsc --noEmit"]);
+  assert.equal(run.querySelector(".work-row .work-tool"), null, "a run of one tool names it once, in its own summary");
+  await view.unmount();
+});
+
+test("a run of mixed tools names the tool on every call", async () => {
+  const messages = transcript(
+    { kind: "user", text: "Fix it" },
+    { kind: "tool", text: "Read", detail: JSON.stringify({ file_path: "/repo/src/renderer/styles.css" }) },
+    { kind: "tool", text: "Grep", detail: JSON.stringify({ pattern: "work-row", path: "src/renderer" }) },
+  );
+  const view = await mount(timelineView(messages, "running"));
+
+  const run = view.container.querySelector(".work-run");
+  await expand(run);
+  assert.deepEqual([...run.querySelectorAll(".work-row .work-tool")].map((step) => step.textContent), ["Read", "Grep"]);
+  assert.deepEqual([...run.querySelectorAll(".work-row .work-arg")].map((step) => step.textContent), ["…/renderer/styles.css", "work-row in src/renderer"]);
   await view.unmount();
 });
 
@@ -2199,8 +2231,8 @@ test("a settled turn folds its steps behind the final answer", async () => {
 
   await expand(settled);
   assert.equal(view.container.querySelector(".work-note").textContent, "I'll investigate.");
-  const run = view.container.querySelectorAll(".work-group")[1];
-  assert.equal(run.querySelector(".work-label").textContent, "Grep");
+  const run = view.container.querySelector(".work-run");
+  assert.equal(run.querySelector(".work-arg").textContent, "Grep");
   assert.equal(run.querySelector(".work-count").textContent, "+1");
 
   await view.unmount();
@@ -2239,7 +2271,7 @@ test("a settled turn times each step it folds away", async () => {
   const settled = settledView.container.querySelector(".work-group");
   assert.equal(settled.querySelector(".work-time").textContent, "3s");
   await expand(settled);
-  const run = settledView.container.querySelectorAll(".work-group")[1];
+  const run = settledView.container.querySelector(".work-run");
   assert.equal(run.querySelector(".work-time").textContent, "2s");
   await expand(run);
   assert.deepEqual([...run.querySelectorAll(".work-row .work-time")].map((time) => time.textContent), ["1s", "1s"]);
@@ -2253,7 +2285,8 @@ test("a running turn counts up until its work ends", async (t) => {
     { id: "l1", at: 95_000, kind: "tool", text: "Grep", detail: "two" },
   ];
   const view = await mount(timelineView(running, "running"));
-  const elapsed = () => view.container.querySelector(".work-group .work-time").textContent;
+  /** The turn's own elapsed: the outermost fold's, whichever fold a running or settled turn draws. */
+  const elapsed = () => view.container.querySelector(".work-time").textContent;
 
   assert.equal(elapsed(), "1m 0s");
   await act(async () => { t.mock.timers.tick(4_000); });
@@ -2275,7 +2308,8 @@ test("a stopped turn freezes at the moment its run ended", async (t) => {
     { id: "l1", at: 95_000, kind: "tool", text: "Grep", detail: "two" },
   ];
   const view = await mount(timelineView(running, "running"));
-  const elapsed = () => view.container.querySelector(".work-group .work-time").textContent;
+  /** The turn's own elapsed: the outermost fold's, whichever fold a running or settled turn draws. */
+  const elapsed = () => view.container.querySelector(".work-time").textContent;
 
   assert.equal(elapsed(), "1m 0s");
   await view.render(timelineView(running, "stopped", null, 102_000));

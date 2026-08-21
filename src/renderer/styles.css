@@ -1199,34 +1199,64 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .mermaid-error summary { color: var(--danger-soft); cursor: pointer; }
 .mermaid-error pre { margin-bottom: 0; }
 .message.tool { margin: 0; }
-.work-row { border-bottom: 1px solid var(--line-soft); }
-.work-row > summary, .work-group > summary {
+/* A run of tool calls is one card, so the calls inside it need no divider of their own. */
+.work-run, .work-row { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--sunken); }
+.work-steps > .work-row { border: 0; border-radius: 8px; background: none; }
+.work-row > summary, .work-group > summary, .work-run > summary {
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 37px;
-  padding: 0 1px;
+  min-height: 33px;
+  border-radius: 8px;
+  padding: 0 8px;
   color: var(--quiet-strong);
   font-size: var(--text-meta);
   cursor: pointer;
   list-style: none;
 }
-.work-row > summary::-webkit-details-marker, .work-group > summary::-webkit-details-marker { display: none; }
-.work-row > summary::after, .work-group > summary::after { content: "›"; color: var(--quiet-soft); font-size: 18px; transition: transform 140ms ease; }
-.work-row[open] > summary::after, .work-group[open] > summary::after { transform: rotate(90deg); }
+.work-run > summary { min-height: 38px; padding: 0 11px; }
+.work-row > summary:hover, .work-group > summary:hover, .work-run > summary:hover { background: var(--wash); }
+.work-row > summary::-webkit-details-marker, .work-group > summary::-webkit-details-marker, .work-run > summary::-webkit-details-marker { display: none; }
+.work-row > summary::after, .work-group > summary::after, .work-run > summary::after { content: "›"; flex: none; color: var(--quiet-soft); font-size: 18px; transition: transform 140ms ease; }
+.work-row[open] > summary::after, .work-group[open] > summary::after, .work-run[open] > summary::after { transform: rotate(90deg); }
 .work-lead { color: var(--muted-soft); }
+/* Durations and counts sit in one right-aligned cluster, so a run's times read as a column. */
+.work-meta { flex: none; display: flex; align-items: center; gap: 9px; margin-left: auto; }
 .work-time { flex: none; color: var(--quiet-strong); font-variant-numeric: tabular-nums; }
 .work-summary { color: var(--quiet-strong); }
-.work-label {
+.work-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--muted-soft);
+}
+/* Drawn only for a run of mixed tools; a run of one names its tool once, in its own summary. */
+.work-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--quiet-soft); }
+.work-dot.family-shell { background: var(--success-soft); }
+.work-dot.family-read { background: var(--info); }
+.work-dot.family-write { background: var(--ansi-yellow); }
+.work-dot.family-search { background: var(--ansi-magenta); }
+.work-dot.family-web { background: var(--ansi-cyan); }
+.work-dot.family-agent { background: var(--accent-soft); }
+.work-tool { flex: none; color: var(--muted-soft); }
+.work-arg {
   min-width: 0;
+  flex: 1;
   overflow: hidden;
-  color: var(--quiet-soft);
-  font: var(--text-meta)/1.3 ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color: var(--muted-strong);
+  font: var(--text-meta)/1.4 ui-monospace, "SFMono-Regular", Menlo, monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.work-sigil { margin-right: 6px; color: var(--quiet-soft); }
+/* How much of the run's slowest call this one took, so a long run shows where the time went. */
+.work-bar { flex: none; width: 46px; height: 3px; border-radius: 2px; background: var(--meter-track); overflow: hidden; }
+.work-bar > span { display: block; height: 100%; border-radius: 2px; background: var(--quiet-soft); }
 .message.turn { display: flex; flex-direction: column; gap: 17px; }
-.work-group { border-bottom: 1px solid var(--line-soft); }
 .work-count {
   flex: none;
   border-radius: 999px;
@@ -1237,7 +1267,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-variant-numeric: tabular-nums;
 }
 .work-steps { padding: 2px 0 10px 13px; border-left: 1px solid var(--line-soft); }
-.work-steps > .work-row:last-child, .work-steps > .work-group:last-child { border-bottom: 0; }
+.work-run > .work-steps { padding: 1px 5px 7px; border-left: 0; }
+.work-row > pre { margin: 1px 8px 9px; }
+.work-steps > .work-row > pre { background: var(--surface); }
 .work-note { padding: 9px 0; color: var(--muted-strong); }
 /** Text that has not formed a Markdown block yet, styled as the paragraph it is about to become. */
 .stream-word { animation: stream-word 180ms ease-out both; }

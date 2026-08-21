@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, FolderSymlink, GitFork, ListCollapse, MessageSquareQuote, X, type LucideIcon } from "lucide-react";
+import { Bot, ChevronDown, FileText, FolderSymlink, GitFork, Globe, ListCollapse, MessageSquareQuote, PenLine, Search, Terminal, Wrench, X, type LucideIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
@@ -7,6 +7,7 @@ import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView, ThreadWait } from "../../application/workspace-state";
 import type { FindHit } from "../../domain/find";
 import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../domain/task";
+import { describeToolCall, type ToolFamily } from "../../domain/tool-call";
 import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -237,12 +238,41 @@ function Fold({ className, summary, holds, messageId, children }: { className: s
   );
 }
 
-function ToolStep({ step }: { step: TimedStep }) {
+const FAMILY_ICONS: Record<ToolFamily, LucideIcon> = {
+  shell: Terminal,
+  read: FileText,
+  write: PenLine,
+  search: Search,
+  web: Globe,
+  agent: Bot,
+  other: Wrench,
+};
+
+function ToolGlyph({ family }: { family: ToolFamily }) {
+  const Icon = FAMILY_ICONS[family];
+  return <span className="work-glyph" aria-hidden="true"><Icon size={12} strokeWidth={1.75} /></span>;
+}
+
+function stepDuration(step: TimedStep): number | null {
+  return step.endsAt === null ? null : Math.max(0, step.endsAt - step.message.at);
+}
+
+/**
+ * One call. `named` draws the tool it was, which only a run of mixed tools needs: a run of one tool
+ * says so once in its own summary, and repeating it there is what buried the argument to begin with.
+ * `share` is how much of the run's slowest call this one took, so a long run shows where it went.
+ */
+function ToolStep({ step, named = true, share }: { step: TimedStep; named?: boolean; share?: number }) {
+  const call = describeToolCall(step.message.text, step.message.detail);
+  const label = call.argument || step.message.text;
   const summary = (
     <>
-      <span className="work-lead">Worked</span>
-      <Elapsed startedAt={step.message.at} endsAt={step.endsAt} />
-      <span className="work-label">{step.message.text}</span>
+      {named && <><span className={`work-dot family-${call.family}`} aria-hidden="true" /><span className="work-tool">{step.message.text}</span></>}
+      <span className="work-arg" title={`${step.message.text} · ${label}`}>{call.sigil && <span className="work-sigil">{call.sigil}</span>}{label}</span>
+      <span className="work-meta">
+        {share !== undefined && <span className="work-bar" aria-hidden="true"><span style={{ width: `${Math.round(share * 100)}%` }} /></span>}
+        <Elapsed startedAt={step.message.at} endsAt={step.endsAt} />
+      </span>
     </>
   );
   return <Fold className="work-row" holds={[step.message.id]} messageId={step.message.id} summary={summary}>{() => <pre>{step.message.detail}</pre>}</Fold>;
@@ -252,17 +282,32 @@ function ToolStep({ step }: { step: TimedStep }) {
 function ToolRun({ steps }: { steps: TimedStep[] }) {
   if (steps.length === 1) return <ToolStep step={steps[0]!} />;
   const hidden = steps.length - 1;
+  const newest = steps.at(-1)!;
+  const call = describeToolCall(newest.message.text, newest.message.detail);
+  const uniform = steps.every((step) => step.message.text === steps[0]!.message.text);
+  const longest = Math.max(...steps.map((step) => stepDuration(step) ?? 0));
   const summary = (
     <>
-      <span className="work-lead">Worked</span>
-      <Elapsed startedAt={steps[0]!.message.at} endsAt={steps.at(-1)!.endsAt} />
-      <span className="work-label">{steps.at(-1)!.message.text}</span>
-      <span className="work-count" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</span>
+      <ToolGlyph family={call.family} />
+      <span className="work-arg" title={`${newest.message.text} · ${call.argument || newest.message.text}`}>
+        {call.sigil && <span className="work-sigil">{call.sigil}</span>}{call.argument || newest.message.text}
+      </span>
+      <span className="work-meta">
+        <span className="work-count" aria-label={`${hidden} earlier tool ${hidden === 1 ? "call" : "calls"}`}>+{hidden}</span>
+        <Elapsed startedAt={steps[0]!.message.at} endsAt={newest.endsAt} />
+      </span>
     </>
   );
   return (
-    <Fold className="work-group" holds={steps.map((step) => step.message.id)} summary={summary}>
-      {() => <div className="work-steps">{steps.map((step) => <ToolStep key={step.message.id} step={step} />)}</div>}
+    <Fold className="work-run" holds={steps.map((step) => step.message.id)} summary={summary}>
+      {() => (
+        <div className="work-steps">
+          {steps.map((step) => {
+            const took = stepDuration(step);
+            return <ToolStep key={step.message.id} step={step} named={!uniform} share={longest > 0 && took !== null ? took / longest : undefined} />;
+          })}
+        </div>
+      )}
     </Fold>
   );
 }
