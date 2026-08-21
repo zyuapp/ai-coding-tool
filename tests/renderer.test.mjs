@@ -2006,6 +2006,57 @@ function timelineView(messages, status, streamingTail, runEndedAt, find, waiting
   });
 }
 
+test("a thread reopens where its reader left it, and one left at the foot reopens there", async () => {
+  const scroller = document.createElement("div");
+  Object.defineProperty(scroller, "offsetWidth", { value: 860 });
+  Object.defineProperty(scroller, "offsetHeight", { value: 900 });
+  Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 900 });
+  Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 4000 });
+  let offset = 0;
+  Object.defineProperty(scroller, "scrollTop", { configurable: true, get: () => offset, set: (next) => { offset = next; } });
+  const scrolls = [];
+  scroller.scrollTo = ({ top }) => { scrolls.push(top); offset = top; };
+  document.body.append(scroller);
+  const scrollContainerRef = { current: scroller };
+  const thread = (id, count) => React.createElement(ConversationTimeline, {
+    currentTask: {
+      id, title: id, executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
+      lastChangeSnapshot: { files: [], capturedAt: 1 },
+      messages: transcript(...Array.from({ length: count }, (_, index) => ({ kind: index % 2 === 0 ? "user" : "assistant", text: `${id} ${index}` }))),
+    },
+    folder: "/p", status: "idle", compacting: false, waitingOn: null, scrollContainerRef,
+  });
+  const scrollTo = async (top) => {
+    await act(async () => {
+      scroller.scrollTop = top;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+  };
+  /** The transcript places itself in a frame, which the shimmed one runs on a timer. */
+  const settle = async () => { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await view.render(thread("foot", 12));
+  await settle();
+  await scrollTo(4000 - 900);
+
+  scrolls.length = 0;
+  await view.render(thread("read", 12));
+  await settle();
+  assert.ok(scrolls.length > 0, "returning to a thread places its view");
+  assert.ok(!scrolls.includes(4000), "a thread left mid-transcript does not reopen at its foot");
+
+  scrolls.length = 0;
+  await view.render(thread("foot", 12));
+  await settle();
+  assert.equal(scrolls.at(-1), 4000, "a thread left at its foot reopens there");
+
+  await view.unmount();
+  scroller.remove();
+});
+
 test("find opens the fold the match it is showing was written into", async () => {
   const messages = transcript(
     { kind: "user", text: "Fix it" },

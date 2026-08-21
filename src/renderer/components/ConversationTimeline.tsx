@@ -356,6 +356,10 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   /** A message whose top is held at the top of the view, rather than following the newest line. */
   const anchored = useRef<string | null>(null);
   const restoreScroll = useRef<() => void>(() => {});
+  /** Where each thread was left: the row at the top of the view, or its foot when the reader stayed there. */
+  const readingPoints = useRef(new Map<string, { groupId: string | null; pinned: boolean }>());
+  /** A thread's saved row, held until that thread has drawn enough for the row to be found again. */
+  const restoring = useRef<{ taskId: string; groupId: string } | null>(null);
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */
   const answerId = streamingTail?.messageId ?? (lastMessage?.kind === "assistant" ? lastMessage.id : undefined);
@@ -413,16 +417,23 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     const scroller = scrollContainerRef.current;
     const timeline = timelineRef.current;
     if (!scroller || !timeline || typeof ResizeObserver === "undefined") return;
-    pinnedToBottom.current = true;
-    detached.current = false;
+    const taskId = currentTask?.id;
+    const left = taskId ? readingPoints.current.get(taskId) : undefined;
+    const pinned = left?.pinned ?? true;
+    pinnedToBottom.current = pinned;
+    detached.current = !pinned;
     anchored.current = null;
-    setAtBottom(true);
+    restoring.current = !pinned && taskId && left?.groupId ? { taskId, groupId: left.groupId } : null;
+    setAtBottom(pinned);
     let frame = 0;
     const onScroll = () => {
       const bottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
       pinnedToBottom.current = bottom;
       if (bottom) detached.current = false;
       setAtBottom(bottom);
+      if (!taskId) return;
+      const top = virtualizer.getVirtualItemForOffset(scroller.scrollTop);
+      readingPoints.current.set(taskId, { groupId: top ? String(top.key) : null, pinned: bottom });
     };
     /** Only a gesture means the reader took over; our own scrolling also fires scroll events. */
     const onGesture = () => {
@@ -430,7 +441,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       anchored.current = null;
     };
     const place = () => {
-      const anchor = anchored.current && timeline.querySelector(`[data-message-id="${anchored.current}"]`);
+      const anchor = anchored.current && timeline.querySelector(`[data-message-id="${anchored.current}"], [data-group-id="${anchored.current}"]`);
       if (anchor) {
         scroller.scrollTo({ top: scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16 });
         return;
@@ -446,6 +457,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     scroller.addEventListener("wheel", onGesture, { passive: true });
     scroller.addEventListener("touchmove", onGesture, { passive: true });
     observer.observe(timeline);
+    restoreScroll.current();
     return () => {
       cancelAnimationFrame(frame);
       scroller.removeEventListener("scroll", onScroll);
@@ -453,7 +465,24 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       scroller.removeEventListener("touchmove", onGesture);
       observer.disconnect();
     };
-  }, [currentTask?.id, scrollContainerRef]);
+  }, [currentTask?.id, scrollContainerRef, virtualizer]);
+
+  /** A thread opens where it was left: its saved row goes back to the top, once there is a row to put there. */
+  useEffect(() => {
+    const target = restoring.current;
+    if (!target || target.taskId !== currentTask?.id || !groups.length) return;
+    restoring.current = null;
+    const row = rowOfMessage.get(target.groupId);
+    if (row === undefined) {
+      pinnedToBottom.current = true;
+      detached.current = false;
+      setAtBottom(true);
+    } else {
+      anchored.current = target.groupId;
+      virtualizer.scrollToIndex(row, { align: "start" });
+    }
+    restoreScroll.current();
+  }, [currentTask?.id, groups.length, rendered, rowOfMessage, virtualizer]);
 
   /** An answer is read from its first line, so the view holds its top instead of chasing the last. */
   useEffect(() => {
@@ -606,6 +635,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
             <div
               className={`timeline-row ${message?.kind ?? "turn"}`}
               data-index={item.index}
+              data-group-id={group.id}
               data-message-id={message?.id}
               key={item.key}
               ref={virtualizer.measureElement}
