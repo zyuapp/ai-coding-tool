@@ -3438,3 +3438,48 @@ test("the session panel lists a workflow as a process and opens its panel", asyn
   assert.equal(view.container.querySelector('button[aria-label="Stop review-changes"]'), null, "a workflow that ended keeps its row without a stop");
   await view.unmount();
 });
+
+test("a folder lifts from a press on its name, which is a button", async () => {
+  const moves = [];
+  const folded = [];
+  const projects = [{ id: "first-project", root: "/first", sortIndex: 0 }, { id: "second-project", root: "/second", sortIndex: 1 }];
+  const view = await mount(React.createElement(ProjectSidebar, {
+    compactOpen: false,
+    inactive: false,
+    projects,
+    orderedTasks: [],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    worktreeGroups: [],
+    worktreeTaskIds: new Set(),
+    projectsOpen: true,
+    recentsOpen: true,
+    openMenu: null,
+    settingsOpen: false,
+    onNewTask() {}, onOpenFolder() {}, onRemoveProject() {},
+    onToggleProject: (projectId) => { folded.push(projectId); },
+    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {},
+    onMoveProject: (projectId, index) => { moves.push([projectId, index]); },
+    onOpenSettings() {},
+  }));
+
+  const name = view.container.querySelectorAll(".project-main")[1];
+  const mouse = (type, target, y) => target.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: 10, clientY: y }));
+  await act(async () => { mouse("mousedown", name, 40); });
+  await act(async () => { mouse("mousemove", dom.window, 4); });
+  assert.ok(view.container.querySelector(".project-group.is-dragging"), "a press on the folder's name lifts it");
+  await act(async () => { mouse("mouseup", dom.window, 4); });
+
+  await act(async () => {
+    mouse("mousedown", name, 40);
+    mouse("mouseup", name, 40);
+    name.click();
+  });
+  assert.deepEqual(folded, ["second-project"], "a press that goes nowhere still folds the row");
+  await view.unmount();
+});

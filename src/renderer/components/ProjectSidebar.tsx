@@ -319,15 +319,16 @@ export function ProjectSidebar({
                 const shown = visibleCount(loose, project.id);
                 const hidden = loose.length - shown;
                 return (
-                  <Draggable draggableId={project.id} index={projectIndex} key={project.id}>
+                  <Draggable draggableId={project.id} index={projectIndex} key={project.id} disableInteractiveElementBlocking>
                     {(dragged: DraggableProvided, snapshot) => (
                       <section
                         className={`project-group ${snapshot.isDragging ? "is-dragging" : ""}`}
                         ref={dragged.innerRef}
                         {...dragged.draggableProps}
                       >
-                        {/** The header row is the handle. The library swallows the click a drag ends on,
-                          *  so the row keeps its click-to-fold. */}
+                        {/** The header row is the handle, buttons and all: the library refuses to lift from a
+                          *  button unless told otherwise, and the row is nothing but buttons. It swallows the
+                          *  click a drag ends on, so the row keeps its click-to-fold. */}
                         <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`} {...dragged.dragHandleProps}>
                           <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
                             <span className="folder-icon"><FolderIcon /></span>
