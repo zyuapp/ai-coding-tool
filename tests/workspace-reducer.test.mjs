@@ -829,7 +829,7 @@ test("a send that carries its own text starts a thread without touching the draf
     { type: "view.set-prompt", prompt: "Half-typed thought" },
   ]);
 
-  const sending = reduce(drafted, { type: "task.send", projectId: "project-1", text: "Implement item 1" });
+  const sending = reduce(drafted, { type: "task.send", project: "project-1", text: "Implement item 1" });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "workspace-1", kind: "project", root: "/project" } });
 
   const [start] = started.effects;
@@ -837,6 +837,21 @@ test("a send that carries its own text starts a thread without touching the draf
   assert.equal(started.state.tasks[0].projectId, "project-1");
   assert.equal(started.state.currentId, null, "an agent's send does not move the user");
   assert.equal(started.state.prompts["draft:"], "Half-typed thought", "the composer keeps what the user was typing");
+});
+
+test("a thread can be started in another project by name, and a name that matches nothing is refused", () => {
+  const state = workspace({ projects: [
+    { id: "project-1", root: "/code/app", workspaceId: "workspace-1" },
+    { id: "project-2", root: "/code/site", workspaceId: "workspace-2" },
+  ] });
+
+  const sending = reduce(state, { type: "task.send", project: "site", text: "Implement item 1" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "workspace-2", kind: "project", root: "/code/site" } });
+  assert.equal(started.state.tasks[0].projectId, "project-2");
+
+  const missing = reduce(state, { type: "task.send", project: "nowhere", text: "Implement item 1" });
+  assert.deepEqual(missing.effects, []);
+  assert.match(missing.state.actionError, /No project matches "nowhere". Open projects: app \(\/code\/app\), site \(\/code\/site\)./);
 });
 
 test("several sends can start their own threads at once, unlike the composer's one draft", () => {
@@ -1047,7 +1062,7 @@ test("a worktree that could not be made leaves the thread where it was", () => {
 test("a thread another thread starts in a worktree gets one on its first run", () => {
   const drafted = projected();
 
-  const sending = reduce(drafted, { type: "task.send", text: "Refactor the loader", projectId: PROJECT.id, worktree: true });
+  const sending = reduce(drafted, { type: "task.send", text: "Refactor the loader", project: PROJECT.id, worktree: true });
   assert.deepEqual(sending.effects[0].createWorktree, { projectRoot: "/repo", carryChanges: false }, "a thread with no history has nothing to carry");
   assert.equal(deriveView(sending.state).waitingOn, null, "a thread another agent started is not the draft the user is looking at");
 
@@ -1314,7 +1329,7 @@ test("a checkout that is not there, or is another project's, refuses the send ra
   assert.deepEqual(missing.effects, []);
   assert.equal(missing.state.actionError, WORKSPACE_ERRORS.worktreeMissing);
 
-  const elsewhere = reduce(state, { type: "task.send", text: "Go", worktreeId: worktree.id, projectId: other.id });
+  const elsewhere = reduce(state, { type: "task.send", text: "Go", worktreeId: worktree.id, project: other.id });
   assert.deepEqual(elsewhere.effects, []);
   assert.equal(elsewhere.state.actionError, WORKSPACE_ERRORS.worktreeElsewhere);
 });

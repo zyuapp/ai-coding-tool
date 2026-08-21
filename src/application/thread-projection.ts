@@ -1,7 +1,7 @@
 import { runStatusFor } from "./task-workspace.js";
 import { projectFor, sideChatIds, worktreeFor, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
-import { threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
+import { findProject, threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
 
 /** Enough of a message to recognise what happened without carrying a whole transcript. */
 const MESSAGE_TEXT_LIMIT = 2_000;
@@ -13,9 +13,8 @@ export function resolveScope(state: WorkspaceState, callerTaskId: string, projec
     const projectId = state.tasks.find((task) => task.id === callerTaskId)?.projectId;
     return projectId ? { kind: "project", projectId } : { kind: "projectless" };
   }
-  const match = state.projects.find((item) => item.id === project || item.root === project);
-  if (!match) return { error: `No project matches "${project}". Open projects: ${state.projects.map((item) => item.root).join(", ") || "none"}.` };
-  return { kind: "project", projectId: match.id };
+  const match = findProject(state.projects, project);
+  return "error" in match ? { error: match.error } : { kind: "project", projectId: match.project.id };
 }
 
 /** A thread is working while a run is going, resolving, or still queued behind the one that is. */

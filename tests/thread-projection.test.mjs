@@ -46,6 +46,23 @@ test("threads are scoped to a project, and the caller's own project is what \"cu
   assert.deepEqual(threadSummaries(state, { scope: { kind: "all" } }, NOW).map((thread) => thread.id).sort(), ["in-app", "loose"]);
 });
 
+test("a project answers to its folder name, and a reference that matches nothing says what is open", () => {
+  const state = workspace([task("loose")]);
+
+  assert.deepEqual(resolveScope(state, "loose", "site"), { kind: "project", projectId: "project-site" });
+  assert.deepEqual(resolveScope(state, "loose", "SITE"), { kind: "project", projectId: "project-site" }, "the folder name is not case sensitive");
+  assert.deepEqual(resolveScope(state, "loose", "/code/site/"), { kind: "project", projectId: "project-site" }, "a trailing separator is still the same folder");
+  assert.deepEqual(resolveScope(state, "loose", "project-site"), { kind: "project", projectId: "project-site" }, "the id still resolves");
+
+  const missing = resolveScope(state, "loose", "nowhere").error;
+  assert.match(missing, /No project matches "nowhere"/);
+  assert.match(missing, /app \(\/code\/app\), site \(\/code\/site\)/, "the error is what discovery there is");
+
+  const twins = workspace([task("loose")], { projects: [{ id: "a", root: "/one/app" }, { id: "b", root: "/two/app" }] });
+  assert.match(resolveScope(twins, "loose", "app").error, /More than one open project is named "app"/);
+  assert.deepEqual(resolveScope(twins, "loose", "/two/app"), { kind: "project", projectId: "b" }, "the path settles it");
+});
+
 test("idleness counts real activity, not the last write to the thread", () => {
   const state = workspace([
     task("chatting", { messages: [message("hello", NOW - HOUR)], updatedAt: NOW }),

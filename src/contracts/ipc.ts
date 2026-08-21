@@ -523,7 +523,7 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
   const named = command.taskId === undefined || isString(command.taskId);
   if (command.type === "task.send") {
     return named
-      && (command.projectId === undefined || isString(command.projectId))
+      && (command.project === undefined || isString(command.project))
       && isString(command.text, MAX_PROMPT_LENGTH)
       && command.attachments === undefined
       && (command.steer === undefined || typeof command.steer === "boolean")

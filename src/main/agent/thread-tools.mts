@@ -12,7 +12,7 @@ const DEFAULT_WAIT_MS = 5 * MINUTE;
 const threadIdField = z.string().describe("The ID of the thread, as list_threads reports it.");
 
 const projectField = z.string().optional().describe(
-  "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project folder path.",
+  "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
 );
 
 function elapsed(ms: number) {
@@ -117,12 +117,12 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
       "Start a new Claudex thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. Pass worktree to give it an isolated checkout, which is what you want when it edits the same files as this thread.",
       {
         prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
-        projectId: z.string().optional().describe("Which project the thread belongs to. Defaults to this thread's project."),
+        project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project."),
         worktree: z.boolean().optional().describe("Run the new thread in its own git worktree, detached at whatever the project has checked out, so its edits never touch the project checkout."),
         worktreeId: z.string().optional().describe("Start the thread in a worktree that already exists, as list_threads reports it, so it works alongside the threads already in there. Takes precedence over worktree."),
       },
       async (args) => report(async () => {
-        const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.projectId ? { projectId: args.projectId } : {}), ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}) });
+        const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.project ? { project: args.project } : {}), ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}) });
         return thread ? `Started ${describe(thread, now())}` : "The thread did not start.";
       }),
     ),

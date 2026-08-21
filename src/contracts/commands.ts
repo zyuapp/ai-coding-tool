@@ -61,11 +61,12 @@ export type TaskCommand =
    * While a run is going the message is queued instead; `steer` pushes it into that run straight away.
    * `text` sends that message instead of the composer draft and leaves the draft alone: only the
    * composer's own send falls back to the current task, so a send carrying `text` and no `taskId`
-   * always starts a new task, in `projectId`. `worktree` starts that new task in a checkout of its
-   * own; `worktreeId` starts it in one the project already has, and names the project itself, so a
-   * `projectId` that disagrees with it is refused. Naming one takes precedence over asking for a new one.
+   * always starts a new task, in `project` — its folder name, its path, or its id. `worktree` starts
+   * that new task in a checkout of its own; `worktreeId` starts it in one the project already has,
+   * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
+   * precedence over asking for a new one.
    */
-  | { type: "task.send"; taskId?: string; projectId?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.step"; delta: -1 | 1 }
   | { type: "task.steer-queued"; taskId?: string; messageId: string }

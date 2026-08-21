@@ -426,8 +426,8 @@ export function useTaskWorkspace() {
       }
       /** A new thread with no project named belongs where the thread that asked for it lives. */
       const callerProjectId = before.tasks.find((task) => task.id === request.taskId)?.projectId;
-      const targeted = command.type === "task.send" && command.taskId === undefined && command.projectId === undefined && callerProjectId
-        ? { ...command, projectId: callerProjectId }
+      const targeted = command.type === "task.send" && command.taskId === undefined && command.project === undefined && callerProjectId
+        ? { ...command, project: callerProjectId }
         : command;
       const known = new Set(before.tasks.map((task) => task.id));
       await dispatchRef.current(targeted);

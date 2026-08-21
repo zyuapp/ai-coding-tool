@@ -81,8 +81,8 @@ test("reading a thread says what it left out rather than dumping the transcript"
 test("starting, messaging, archiving and stopping go through the command surface", async () => {
   const bridge = fakeBridge();
 
-  const started = await toolNamed(bridge, "start_thread").handler({ prompt: "Implement item 1", projectId: "project-app" }, {});
-  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Implement item 1", projectId: "project-app" }]);
+  const started = await toolNamed(bridge, "start_thread").handler({ prompt: "Implement item 1", project: "app" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["command", { type: "task.send", text: "Implement item 1", project: "app" }]);
   assert.match(textOf(started), /^Started Rework the sidebar \[task-new\]/);
 
   await toolNamed(bridge, "start_thread").handler({ prompt: "Take the other half", worktree: true, worktreeId: "wt1" }, {});

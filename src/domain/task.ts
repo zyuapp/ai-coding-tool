@@ -212,6 +212,21 @@ export function legacyProjectId(root: string) {
   return `legacy-project-${encodeURIComponent(normalizeRoot(root))}`;
 }
 
+/**
+ * A project as something outside the app may name it: its folder name, its path, or its id.
+ * An id is never asked for, so a reference that matches nothing answers with what is open.
+ */
+export function findProject(projects: Project[], reference: string): { project: Project } | { error: string } {
+  const wanted = reference.trim();
+  const exact = projects.find((project) => project.id === wanted || normalizeRoot(project.root) === normalizeRoot(wanted));
+  if (exact) return { project: exact };
+  const named = projects.filter((project) => projectName(project.root).toLowerCase() === wanted.toLowerCase());
+  if (named.length === 1) return { project: named[0] };
+  const open = projects.map((project) => `${projectName(project.root)} (${project.root})`).join(", ") || "none";
+  if (named.length > 1) return { error: `More than one open project is named "${reference}": ${named.map((project) => project.root).join(", ")}. Name the folder path instead.` };
+  return { error: `No project matches "${reference}". Open projects: ${open}.` };
+}
+
 export function parseTaskStore(raw: StorageValues): TaskStoreParseResult {
   if (isEmpty(raw)) {
     return {

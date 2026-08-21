@@ -39,7 +39,7 @@ import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget 
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
-import { clampTitle, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, findProject, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -1098,16 +1098,18 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       }
       /**
        * Which checkout a thread yet to exist starts in: one the caller named, else the one the draft
-       * is pointed at. The checkout says which project the thread belongs to, so a `projectId` that
+       * is pointed at. The checkout says which project the thread belongs to, so a `project` that
        * disagrees is a contradiction rather than something to silently pick a winner for.
        */
       const namedWorktreeId = task ? undefined : (input.worktreeId ?? (draftKey === undefined ? undefined : state.draftWorktreeId ?? undefined));
       const namedWorktree = namedWorktreeId ? worktreeById(state, namedWorktreeId) : undefined;
       if (namedWorktreeId && !namedWorktree) return settled({ ...state, actionError: WORKTREE_MISSING_ERROR });
-      if (namedWorktree && input.projectId && input.projectId !== namedWorktree.projectId) {
+      const named = input.project === undefined ? undefined : findProject(state.projects, input.project);
+      if (named && "error" in named) return settled({ ...state, actionError: named.error });
+      if (namedWorktree && named && named.project.id !== namedWorktree.projectId) {
         return settled({ ...state, actionError: WORKTREE_ELSEWHERE_ERROR });
       }
-      const projectId = task?.projectId ?? namedWorktree?.projectId ?? input.projectId ?? (draftKey === undefined ? null : state.draftProjectId);
+      const projectId = task?.projectId ?? namedWorktree?.projectId ?? named?.project.id ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       if (projectId && !project) return settled({ ...state, actionError: MISSING_PROJECT_ERROR });
       const pending: PendingRun = {
