@@ -149,6 +149,7 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const list = useRef<HTMLElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
   const taskReturn = useRef<HTMLElement>(null);
   useDismissibleLayer(renamingId !== null, [renameInput], () => renameInput.current?.blur(), taskReturn);
@@ -158,6 +159,11 @@ export function ProjectSidebar({
     tasks.map((task) => [task.id, worktreeName(worktree)] as const)));
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
   const worktreeLabel = (taskId: string) => `Works in ${checkoutNames.get(taskId) ?? "a worktree"}`;
+
+  /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
+  useLayoutEffect(() => {
+    list.current?.querySelector<HTMLElement>(".task-row.active, .project-task-row.active")?.scrollIntoView({ block: "nearest" });
+  }, [currentId]);
 
   /** A folder shows its first ten tasks, and enough more to keep the open one in view. */
   function visibleCount(projectTasks: Task[], projectId: string) {
@@ -341,7 +347,7 @@ export function ProjectSidebar({
 
   return (
     <DragDropContext onDragEnd={finishDrag}>
-    <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
+    <aside ref={list} className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
       <div className="traffic-space">
         <div className="sidebar-modes">
           {/** One switch, not a pair: pressed ranks the threads, released puts them back under their folders. */}

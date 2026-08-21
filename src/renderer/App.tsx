@@ -256,8 +256,8 @@ export function App() {
   const dockFocus = workspace.dockFocus;
   const focusTokenFor = (tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0;
 
-  /** A page holds the keys itself, so the window must not take them back while one is in front. */
-  const pageInFront = rightDockOpen && !settingsVisible && workspace.browserTabs.some((tab) => tab.id === activeRightTab && tab.url);
+  /** A page the app handed the keyboard to is holding it on purpose, and must not have it taken back. */
+  const pageTookKeys = dockFocus !== null && dockFocus.tab === activeRightTab && workspace.browserTabs.some((tab) => tab.id === dockFocus.tab && tab.url);
 
   const browserTab = workspace.browserTabs.find((tab) => tab.id === activeRightTab);
   const shownTerminal = workspace.terminals.find((terminal) => terminal.id === activeRightTab);
@@ -279,14 +279,14 @@ export function App() {
    * page or the settings sheet is the one holding it.
    */
   useEffect(() => {
-    if (pageInFront || settingsVisible) return;
+    if (pageTookKeys || settingsVisible) return;
     const frame = requestAnimationFrame(() => {
       const active = document.activeElement;
       const stranded = !active || active === document.body || !active.isConnected || active.closest("[hidden],[inert]") !== null;
       if (stranded) void dispatchRef.current({ type: "view.focus-composer" });
     });
     return () => cancelAnimationFrame(frame);
-  }, [rightDockOpen, sidebarOpen, settingsVisible, pageInFront, dockFocus, activeRightTab]);
+  }, [rightDockOpen, sidebarOpen, settingsVisible, pageTookKeys, dockFocus, activeRightTab]);
 
   const messageLinks = useMemo<MessageLinkActions>(() => ({
     selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),

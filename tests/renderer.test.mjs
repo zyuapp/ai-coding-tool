@@ -52,6 +52,7 @@ for (const prototype of [dom.window.HTMLInputElement.prototype, dom.window.HTMLT
   prototype.detachEvent = () => {};
 }
 dom.window.HTMLElement.prototype.scrollTo = () => {};
+dom.window.HTMLElement.prototype.scrollIntoView = () => {};
 dom.window.Element.prototype.getAnimations = () => [];
 
 /** xterm ships a broken `module` field, so it is bundled here the way the real build bundles it. */
@@ -489,6 +490,51 @@ test("workspace header keeps session summary and right panel controls separate",
   assert.equal(sidebarToggles, 1);
   assert.equal(summaryToggles, 1);
   assert.equal(rightPanelToggles, 1);
+  await view.unmount();
+});
+
+test("the sidebar follows the thread the keyboard steps to", async () => {
+  const thread = (id) => ({
+    id, title: id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  });
+  const scrolled = [];
+  const original = dom.window.HTMLElement.prototype.scrollIntoView;
+  dom.window.HTMLElement.prototype.scrollIntoView = function (options) { scrolled.push({ className: this.className, options }); };
+  const sidebar = (currentId) => React.createElement(ProjectSidebar, {
+    open: true,
+    inactive: false,
+    projects: [],
+    orderedTasks: [thread("first"), thread("second")],
+    recentTasks: [thread("first"), thread("second")],
+    currentId,
+    draftProjectId: null,
+    expandedProjects: new Set(),
+    runningTaskIds: new Set(),
+    blockedTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    worktreeGroups: [],
+    worktreeTaskIds: new Set(),
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    openMenu: null,
+    settingsOpen: false,
+    canGoBack: false,
+    canGoForward: false,
+    onGoBack() {}, onGoForward() {},
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {},
+    onDismissTask() {}, onDismissAll() {},
+    onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+  });
+
+  const view = await mount(sidebar("first"));
+  await view.render(sidebar("second"));
+  dom.window.HTMLElement.prototype.scrollIntoView = original;
+
+  assert.deepEqual(scrolled.at(-1), { className: "task-row active", options: { block: "nearest" } }, "the row now open is brought into view");
   await view.unmount();
 });
 
