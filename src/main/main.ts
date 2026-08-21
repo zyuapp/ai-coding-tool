@@ -53,6 +53,8 @@ let updateRestartScheduled = false;
 let reopenArgs: string[] | null = null;
 /** Folders the `claudex` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
+/** Settles once the checkouts on disk and the records that claim them agree, which a read waits on. */
+let worktreesReconciled: Promise<void> = Promise.resolve();
 let rendererListening = false;
 
 type RunState = {
@@ -513,8 +515,8 @@ function legacyWorktreesRoots(userData: string) {
 }
 
 /**
- * Brings the worktrees on disk back in line with the threads that claim them, before the window can
- * read either. A checkout no thread claims is reaped, and a thread claiming a checkout that is gone
+ * Brings the worktrees on disk back in line with the threads that claim them, before the store is
+ * read. A checkout no thread claims is reaped, and a thread claiming a checkout that is gone
  * becomes local again, so neither side is left pointing at something that is not there.
  */
 async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeService) {
@@ -550,7 +552,8 @@ app.whenReady().then(async () => {
   worktreeService = new WorktreeServiceConstructor({ worktreesRoot: WORKTREES_ROOT, legacyRoots: legacyWorktreesRoots(userData), workspaces: workspaceService });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)] });
-  await reconcileWorktrees(taskDatabase, worktreeService);
+  /** Git is slow enough to be worth overlapping with the window; only the store read has to wait. */
+  worktreesReconciled = reconcileWorktrees(taskDatabase, worktreeService);
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, dispatchAutomation, {
     onChange: (automations) => {
@@ -579,6 +582,13 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+/**
+ * How long the quit Electron runs is given before the process leaves anyway. A quit that arrived as
+ * a signal rather than from the menu never reaches `will-quit` on its own, so the app would sit
+ * there with no window; everything worth keeping is already on disk by the time this starts.
+ */
+const QUIT_GRACE = 500;
+
 app.on("before-quit", (event) => {
   if (quitState === "ready") {
     agent?.kill();
@@ -595,8 +605,10 @@ app.on("before-quit", (event) => {
     .catch((error) => console.error("Could not stop computer use:", error))
     .finally(() => {
       quitState = "ready";
+      taskDatabase?.close();
       if (restartRequested) scheduleRestart(reopenArgs?.length ? reopenArgs : undefined);
       app.quit();
+      setTimeout(() => app.exit(0), QUIT_GRACE).unref();
     });
 });
 
@@ -695,9 +707,10 @@ ipcMain.on("computer-use:restart", (event) => {
   app.quit();
 });
 
-ipcMain.handle("task-store:load", (event) => {
+ipcMain.handle("task-store:load", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (!taskDatabase) throw new Error("Task database is not ready.");
+  await worktreesReconciled;
   return taskDatabase.load();
 });
 

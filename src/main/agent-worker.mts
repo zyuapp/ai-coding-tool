@@ -28,9 +28,22 @@ const coordinators = {
   side: new RunCoordinator(providers.side, (event) => parentPort.postMessage(event), coordinatorOptions),
 };
 
+function closeSessions() {
+  for (const provider of Object.values(providers)) provider.closeAll();
+}
+
 /** Sessions outlive the runs that used them, so leaving takes them down explicitly. */
-for (const signal of ["exit", "SIGTERM", "SIGINT"] as const) {
-  process.on(signal, () => { for (const provider of Object.values(providers)) provider.closeAll(); });
+process.on("exit", closeSessions);
+/**
+ * Listening for a termination signal replaces Node's own handler, which would have ended the
+ * process, so each one has to end it itself. A worker that stays up holds the quit open until the
+ * parent gives up waiting and kills it.
+ */
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    closeSessions();
+    process.exit(0);
+  });
 }
 
 parentPort.on("message", ({ data }) => {
