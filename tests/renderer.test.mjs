@@ -1650,7 +1650,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
   await view.unmount();
 });
 
-test("a run that settles out of sight is flagged, and the window coming back reads it off", async () => {
+test("a run settling on the thread on screen leaves it nothing to read, even behind a blurred window", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
   await act(async () => { workspace.get().actions.setPrompt("Inspect the app"); });
@@ -1661,10 +1661,10 @@ test("a run that settles out of sight is flagged, and the window coming back rea
   await act(async () => {
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 1, status: "succeeded" });
   });
-  assert.equal(workspace.get().currentTask.outcome, "finished");
+  assert.equal(workspace.get().currentTask.outcome, undefined);
 
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.equal(workspace.get().currentTask.outcome, undefined, "the thread was already on screen, so coming back reads it");
+  assert.equal(workspace.get().currentTask.outcome, undefined, "and coming back finds nothing asking");
   await workspace.view.unmount();
 });
 

@@ -1283,11 +1283,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const applied = applyRunEvent(state, event);
       const outcome = outcomeFor(event);
       /**
-       * A settled run leaves its verdict for the user to read, unless they were reading the thread
-       * as it settled, which is reading it.
+       * A settled run leaves its verdict for the user to read. The thread already on screen is the
+       * one thread they cannot have missed, so it never asks.
        */
-      const watching = state.focused && state.currentId === event.taskId;
-      let next = outcome && !watching
+      let next = outcome && state.currentId !== event.taskId
         ? applyTask(applied, event.taskId, (task) => ({ ...task, outcome }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };

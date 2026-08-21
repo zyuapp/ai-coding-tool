@@ -240,22 +240,22 @@ test("changed files from a superseded run never overwrite the snapshot", () => {
   assert.deepEqual(current.state.tasks[0].lastChangeSnapshot.files, ["fresh"]);
 });
 
-test("a run that settles out of focus flags the task and refreshes its project", () => {
+test("a run that settles off screen flags its thread and refreshes its project", () => {
   const state = workspace({
-    tasks: [task("task-a", { projectId: "project-1" })],
+    tasks: [task("task-a", { projectId: "project-1" }), task("task-b")],
     projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }],
     activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running" } },
     focused: false,
-    currentId: "task-a",
+    currentId: "task-b",
   });
 
   const settled = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } });
   assert.equal(settled.state.tasks[0].outcome, "finished");
   assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }]);
 
-  const focused = reduce(settled.state, { type: "view.set-focused", focused: true });
-  assert.equal(focused.state.tasks[0].outcome, undefined, "coming back to the window reads the dot, which takes it off");
-  assert.deepEqual(deriveView(focused.state).activityTasks.priority, [], "so the thread stops asking");
+  const opened = reduce(settled.state, { type: "task.select", taskId: "task-a" });
+  assert.equal(opened.state.tasks[0].outcome, undefined, "opening the thread reads the dot, which takes it off");
+  assert.deepEqual(deriveView(opened.state).activityTasks.priority, [], "so the thread stops asking");
 });
 
 test("a dot can be dismissed without opening the thread it is on", () => {
@@ -281,7 +281,7 @@ test("one dismissal takes the dot off every thread carrying one", () => {
   assert.equal(reduce(cleared, { type: "task.dismiss-all" }).state, cleared, "a second pass has nothing left to take");
 });
 
-test("a run watched to the end leaves no dot, having been read as it settled", () => {
+test("the thread on screen never asks to be read, whatever its run does", () => {
   const watched = workspace({
     tasks: [task("task-a"), task("task-b")],
     activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running" } },
@@ -294,11 +294,11 @@ test("a run watched to the end leaves no dot, having been read as it settled", (
   assert.equal(next.tasks[0].outcome, undefined);
   assert.deepEqual(deriveView(next).activityTasks.priority, [], "so it does not ask for what the user just watched");
 
-  const elsewhere = reduce({ ...watched, currentId: "task-b" }, settle).state;
-  assert.equal(elsewhere.tasks[0].outcome, "finished", "a thread the user was not on still asks");
+  const behind = reduce({ ...watched, focused: false }, settle).state;
+  assert.equal(behind.tasks[0].outcome, undefined, "an unfocused window changes nothing; the thread is still the one on screen");
 
-  const away = reduce({ ...watched, focused: false }, settle).state;
-  assert.equal(away.tasks[0].outcome, "finished", "and so does one settling behind an unfocused window");
+  const elsewhere = reduce({ ...watched, currentId: "task-b" }, settle).state;
+  assert.equal(elsewhere.tasks[0].outcome, "finished", "a thread the user is not on does ask");
 });
 
 test("selecting a thread takes its dot off", () => {
