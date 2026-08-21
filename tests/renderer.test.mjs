@@ -603,12 +603,12 @@ test("activity mode ranks threads into priority, running, and the rest, and only
   assert.equal(view.container.querySelector('nav[aria-label="Priority"] .task-spinner'), null);
 
   assert.deepEqual(
-    [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-archive')].map((button) => button.getAttribute("aria-label")),
+    [...view.container.querySelectorAll('nav[aria-label="Priority"] .row-action')].map((button) => button.getAttribute("aria-label")),
     ["Dismiss unread", "Dismiss seen"],
     "the priority list trades archive for dismiss, and a question has nothing to dismiss",
   );
   assert.deepEqual(
-    [...view.container.querySelectorAll('nav[aria-label="Running"] .task-archive, nav[aria-label="Threads"] .task-archive')],
+    [...view.container.querySelectorAll('nav[aria-label="Running"] .row-action, nav[aria-label="Threads"] .row-action')],
     [],
     "and the other two offer nothing, rather than a second icon meaning something else",
   );
@@ -1754,7 +1754,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
   assert.equal(view.container.querySelector(".task-attention.failed"), null, "reading the thread takes the dot off");
   assert.deepEqual([...view.container.querySelectorAll(".task-dismiss")], [], "projects mode never offers a dismissal");
   assert.deepEqual(
-    [...view.container.querySelectorAll(".project-task-row .task-archive")].map((button) => button.getAttribute("aria-label")),
+    [...view.container.querySelectorAll(".project-task-row .row-action")].map((button) => button.getAttribute("aria-label")),
     ["Archive Open task", "Archive Waiting task"],
     "archiving is a projects-mode row's only trailing action",
   );

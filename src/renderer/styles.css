@@ -179,6 +179,7 @@
   --text-display: 21px;
   --text-badge: 10px;
   --row-slot: 22px;
+  --row-slots: 3;
   --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
@@ -472,36 +473,46 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-entry { position: relative; min-width: 0; }
 .context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; width: max-content; min-width: 128px; }
 .context-menu-popover button { white-space: nowrap; }
-/** The status mark and the archive action share the slot's single cell, so a row keeps
- *  the same center hovered or not, whatever marks precede the slot. */
-.row-slot {
+/**
+ * A row's trailing rail: one set of slots with two layers of icons over them, the marks a row carries
+ * at rest and the actions it offers hovered. Both fill the rail from its right edge, so an action
+ * lands on the mark it stands in for, and the rail is the same width on every row, so the slots line
+ * up down the list. A layer with nothing in it is not drawn, and a row with no actions keeps its
+ * marks hovered.
+ */
+.row-rail {
   flex: none;
+  display: grid;
+  width: calc(var(--row-slots) * var(--row-slot));
+  height: var(--row-slot);
+}
+.row-layer {
+  grid-area: 1 / 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--row-slot);
+  justify-content: end;
+  place-items: center;
+  transition: opacity 90ms ease;
+}
+.row-actions { opacity: 0; pointer-events: none; }
+.task-entry:hover .row-actions,
+.row-actions:has(:focus-visible) { opacity: 1; pointer-events: auto; }
+.task-entry:hover .row-rail:has(.row-actions) .row-marks,
+.row-rail:has(.row-actions :focus-visible) .row-marks { opacity: 0; }
+.row-action {
   width: var(--row-slot);
   height: var(--row-slot);
-  display: grid;
-  place-items: center;
-}
-.row-slot > * { grid-area: 1 / 1; }
-.task-archive {
-  width: 100%;
-  height: 100%;
   display: grid;
   place-items: center;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted-strong);
-  opacity: 0;
-  pointer-events: none;
   cursor: pointer;
 }
-.task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
-.task-archive:hover { background: var(--control-hover); color: var(--ink); }
+.row-action:hover { background: var(--control-hover); color: var(--ink); }
 .task-dismiss:hover { color: var(--info); }
-/** The marks step aside for the action that replaces them. A row offering none keeps them. */
-.task-entry:hover:has(.task-archive) .task-automation,
-.task-entry:hover:has(.task-archive) .task-worktree,
-.task-entry:hover .row-slot:has(.task-archive) > :not(.task-archive) { visibility: hidden; }
 .project-task-row {
   width: 100%;
   min-width: 0;
@@ -1890,7 +1901,6 @@ pre {
 .automation-actions button:disabled { opacity: 0.45; }
 .automation-actions button:first-child { margin-right: auto; padding: 0 10px; }
 .automation-actions .automation-remove:hover { border-color: var(--danger-line); color: var(--danger); }
-.task-row-marks { display: flex; align-items: center; gap: 7px; }
 .task-automation { flex: none; color: var(--quiet-strong); }
 .task-worktree { flex: none; color: var(--info-soft); }
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 12px 8px; }

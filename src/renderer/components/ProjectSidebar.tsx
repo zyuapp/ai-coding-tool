@@ -207,51 +207,68 @@ export function ProjectSidebar({
     if (sidebar) sidebar.style.setProperty("--sidebar-width", `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`);
   }
 
+  /** What a thread is: the checkout it works in, the schedule it runs on, and what it is doing now. */
+  const rowMarks = (task: Task): React.ReactNode[] => [
+    worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
+    automatedTaskIds.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label="Runs on a schedule" />,
+    blockedTaskIds.has(task.id)
+      ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
+      : runningTaskIds.has(task.id)
+        ? <TaskSpinner key="status" />
+        : task.outcome && task.outcomeUnread && <span
+            key="status"
+            className={`task-attention ${task.outcome}`}
+            aria-label={OUTCOME_LABELS[task.outcome]}
+          />,
+  ].filter(Boolean);
+
   /**
-   * Every task row ends in the same trailing group, and its last cell holds both the status mark and
-   * the row's own action, so the two share one center. A thread waiting on the user is marked as
-   * asking rather than as merely busy. Activity mode offers dismissing on a priority row carrying a
-   * verdict - a thread still asking has nothing to dismiss - and nothing on the others, rather than
-   * two different icons in one view; archiving a thread there is on its menu.
+   * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
+   * carrying a verdict - a thread still asking has nothing to dismiss - and nothing on the others,
+   * rather than two different icons in one view; archiving a thread there is on its menu.
    */
-  const taskMarks = (task: Task, action: RowAction) => (
-    <span className="task-row-marks">
-      {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />}
-      {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
-      <span className="row-slot">
-        {blockedTaskIds.has(task.id)
-          ? <span className="task-attention approval" aria-label={BLOCKED_LABEL} />
-          : runningTaskIds.has(task.id)
-            ? <TaskSpinner />
-            : task.outcome && task.outcomeUnread && <span
-                className={`task-attention ${task.outcome}`}
-                aria-label={OUTCOME_LABELS[task.outcome]}
-              />}
-        {action === "dismiss" && <button
-          className="task-archive task-dismiss"
-          type="button"
-          aria-label={`Dismiss ${task.title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onDismissTask(task.id);
-          }}
-        >
-          <Check size={13} aria-hidden="true" />
-        </button>}
-        {action === "archive" && <button
-          className="task-archive"
-          type="button"
-          aria-label={`Archive ${task.title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onArchiveTask(task.id);
-          }}
-        >
-          <Archive size={13} aria-hidden="true" />
-        </button>}
+  const rowActions = (task: Task, action: RowAction): React.ReactNode[] => [
+    action === "dismiss" && <button
+      key="dismiss"
+      className="row-action task-dismiss"
+      type="button"
+      aria-label={`Dismiss ${task.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onDismissTask(task.id);
+      }}
+    >
+      <Check size={13} aria-hidden="true" />
+    </button>,
+    action === "archive" && <button
+      key="archive"
+      className="row-action task-archive"
+      type="button"
+      aria-label={`Archive ${task.title}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onArchiveTask(task.id);
+      }}
+    >
+      <Archive size={13} aria-hidden="true" />
+    </button>,
+  ].filter(Boolean);
+
+  /**
+   * Every task row ends in the same rail: two layers of icons over one set of slots, the marks it
+   * carries at rest and the actions it offers hovered. Both fill the rail from its right edge, so an
+   * action lands on the mark it stands in for, and every rail is the same width, so the slots line up
+   * down the list. A layer that gains an icon keeps the other layer's geometry.
+   */
+  const taskRail = (task: Task, action: RowAction) => {
+    const actions = rowActions(task, action);
+    return (
+      <span className="row-rail">
+        <span className="row-layer row-marks">{rowMarks(task)}</span>
+        {actions.length > 0 && <span className="row-layer row-actions">{actions}</span>}
       </span>
-    </span>
-  );
+    );
+  };
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
   const rowBody = (task: Task, className: string, content: React.ReactNode, action: RowAction) => (
@@ -293,7 +310,7 @@ export function ProjectSidebar({
             }}
             onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
           />
-        : <>{content}{taskMarks(task, action)}</>}
+        : <>{content}{taskRail(task, action)}</>}
     </div>
     {openMenu === `task:${task.id}` && <ContextMenu
       position={taskMenuPosition}
