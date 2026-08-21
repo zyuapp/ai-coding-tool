@@ -501,6 +501,18 @@ async function checkForUpdates() {
 }
 
 /**
+ * Worktrees live outside app data: the path has no space in it for a project's own tooling to trip
+ * over, no retired brand for the user to read in `git worktree list`, and multi-gigabyte checkouts
+ * stay out of the backups app data is swept into.
+ */
+const WORKTREES_ROOT = path.join(homedir(), ".claudex", "worktrees");
+
+/** Where the app kept worktrees before, still its own: reconciled and released, never created in. */
+function legacyWorktreesRoots(userData: string) {
+  return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
+}
+
+/**
  * Brings the worktrees on disk back in line with the threads that claim them, before the window can
  * read either. A checkout no thread claims is reaped, and a thread claiming a checkout that is gone
  * becomes local again, so neither side is left pointing at something that is not there.
@@ -534,10 +546,9 @@ app.whenReady().then(async () => {
     projectlessRoot: path.join(userData, "projectless"),
   });
   const { WorktreeService: WorktreeServiceConstructor } = await import("./workspace/worktrees.mjs");
-  const worktreesRoot = path.join(userData, "worktrees");
-  worktreeService = new WorktreeServiceConstructor({ worktreesRoot, workspaces: workspaceService });
+  worktreeService = new WorktreeServiceConstructor({ worktreesRoot: WORKTREES_ROOT, legacyRoots: legacyWorktreesRoots(userData), workspaces: workspaceService });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
-  taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoot });
+  taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)] });
   await reconcileWorktrees(taskDatabase, worktreeService);
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, dispatchAutomation, {

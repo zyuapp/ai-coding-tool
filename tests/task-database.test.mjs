@@ -173,10 +173,11 @@ test("SQLite automation storage keeps one row per task and drops unreadable rows
   }
 });
 
-test("a project folder inside the app's own worktrees is refused, and the rest of the delta still lands", async () => {
+test("a project folder inside any of the app's own worktree roots is refused, and the rest of the delta still lands", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
   const worktreesRoot = path.join(directory, "worktrees");
-  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoot });
+  const legacyRoot = path.join(directory, "legacy-worktrees");
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoots: [worktreesRoot, legacyRoot] });
   const task = {
     id: "task-1",
     title: "Worktree work",
@@ -193,7 +194,7 @@ test("a project folder inside the app's own worktrees is refused, and the rest o
 
     database.persist({
       projects: [{ id: "project-1", root: path.join(worktreesRoot, "work-9aefd881") }],
-      lastFolder: path.join(worktreesRoot, "work-9aefd881"),
+      lastFolder: path.join(legacyRoot, "work-9aefd881"),
       tasks: [{ task: { ...task, updatedAt: 3 }, messages: [
         { index: 0, message: { id: "user-1", kind: "user", text: "Still saved", at: 1 } },
       ] }],
@@ -201,7 +202,7 @@ test("a project folder inside the app's own worktrees is refused, and the rest o
 
     const loaded = database.load();
     assert.deepEqual(loaded.projects, [{ id: "project-1", root: "/work" }], "the folder on disk outlives a bad write");
-    assert.equal(loaded.lastFolder, "/work");
+    assert.equal(loaded.lastFolder, "/work", "the root the app used before is refused just the same");
     assert.equal(loaded.tasks[0].updatedAt, 3, "the transcript still saves");
     assert.deepEqual(loaded.tasks[0].messages.map((message) => message.text), ["Still saved"]);
     assert.equal(errors.length, 1, "and the refusal is said out loud");
@@ -215,7 +216,7 @@ test("a project folder inside the app's own worktrees is refused, and the rest o
 test("a project folder that merely starts with the worktrees root's name is still allowed", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
   const worktreesRoot = path.join(directory, "worktrees");
-  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoot });
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoots: [worktreesRoot] });
   try {
     database.persist({ projects: [{ id: "project-1", root: `${worktreesRoot}-mine` }], tasks: [] });
     assert.deepEqual(database.load().projects, [{ id: "project-1", root: `${worktreesRoot}-mine` }]);

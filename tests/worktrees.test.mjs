@@ -422,6 +422,26 @@ test("branch names git would read as options are refused", async () => {
   await assert.rejects(checkoutBranch(root, "-b"), /Invalid ref name/);
 });
 
+test("a checkout under the root the app used before is still reconciled and still owned", async () => {
+  const root = await repository();
+  const legacyRoot = await temporaryDirectory("legacy-worktrees");
+  const registry = workspaces();
+  const before = new WorktreeService({ worktreesRoot: legacyRoot, workspaces: registry });
+  const claimed = await before.create({ projectRoot: root, carryChanges: false });
+  const abandoned = await before.create({ projectRoot: root, carryChanges: false });
+
+  const worktreesRoot = await temporaryDirectory("worktrees");
+  const moved = new WorktreeService({ worktreesRoot, legacyRoots: [legacyRoot], workspaces: registry });
+  const made = await moved.create({ projectRoot: root, carryChanges: false });
+  const { reaped } = await moved.reconcile({ claimed: [claimed.root, made.root], repositories: [root] });
+
+  assert.equal(path.dirname(made.root), worktreesRoot, "new checkouts only ever land in the current root");
+  assert.deepEqual(reaped, [abandoned.root], "and the old root is swept the same way the current one is");
+  assert.equal(await exists(claimed.root), true, "a checkout its thread still claims is left where it is");
+  await moved.delete(claimed.root);
+  assert.equal(await exists(claimed.root), false, "a thread can still hand back a checkout made before the move");
+});
+
 test("a reconcile leaves a worktrees root that has never been used alone", async () => {
   const root = await repository();
   const worktrees = await service();

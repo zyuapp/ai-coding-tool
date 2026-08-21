@@ -26,6 +26,8 @@ export const WORKTREE_INCLUDE_FILE = ".worktreeinclude";
 
 export type WorktreeServiceOptions = {
   worktreesRoot: string;
+  /** Roots the app used before, still its own: reconciled and reaped, but never created in again. */
+  legacyRoots?: string[];
   workspaces: WorkspaceService;
 };
 
@@ -62,10 +64,13 @@ export type WorktreeSnapshot = {
 
 export class WorktreeService {
   private readonly worktreesRoot: string;
+  /** Every root the app owns checkouts in, newest first. Only the first one is created in. */
+  private readonly ownedRoots: string[];
   private readonly workspaces: WorkspaceService;
 
   constructor(options: WorktreeServiceOptions) {
     this.worktreesRoot = options.worktreesRoot;
+    this.ownedRoots = [...new Set([options.worktreesRoot, ...options.legacyRoots ?? []])];
     this.workspaces = options.workspaces;
   }
 
@@ -118,7 +123,7 @@ export class WorktreeService {
   }
 
   /**
-   * Reaps every checkout under the worktrees root that no thread claims, which is what a worktree
+   * Reaps every checkout under a root the app owns that no thread claims, which is what a worktree
    * outliving its thread looks like from here: a crash between making one and recording it, a
    * thread deleted while it held one, or a release that never finished. Whatever such a checkout
    * still holds is committed and kept reachable first, exactly as returning to local would.
@@ -127,22 +132,24 @@ export class WorktreeService {
     /** Claimed roots come from the registry realpath'd; the disk is read literally. Compare like with like. */
     const claimed = new Set(await Promise.all(request.claimed.map(canonicalPath)));
     const reaped: string[] = [];
-    for (const entry of await readdir(this.worktreesRoot, { withFileTypes: true }).catch(() => [])) {
-      if (!entry.isDirectory()) continue;
-      const root = path.join(this.worktreesRoot, entry.name);
-      if (claimed.has(await canonicalPath(root))) continue;
-      /** One directory that cannot be read is not a reason to leave every other one behind. */
-      try {
-        await this.release({
-          worktreeId: worktreeIdFromDirectoryName(entry.name),
-          root,
-          taskId: null,
-          title: entry.name,
-          release: "evicted",
-        });
-        reaped.push(root);
-      } catch (error) {
-        console.error(`Could not reap the worktree at ${root}:`, error);
+    for (const base of this.ownedRoots) {
+      for (const entry of await readdir(base, { withFileTypes: true }).catch(() => [])) {
+        if (!entry.isDirectory()) continue;
+        const root = path.join(base, entry.name);
+        if (claimed.has(await canonicalPath(root))) continue;
+        /** One directory that cannot be read is not a reason to leave every other one behind. */
+        try {
+          await this.release({
+            worktreeId: worktreeIdFromDirectoryName(entry.name),
+            root,
+            taskId: null,
+            title: entry.name,
+            release: "evicted",
+          });
+          reaped.push(root);
+        } catch (error) {
+          console.error(`Could not reap the worktree at ${root}:`, error);
+        }
       }
     }
     /** A registration outlives its directory whenever one is removed from outside the app. */
@@ -169,9 +176,12 @@ export class WorktreeService {
     return { commit, shortCommit: commit ? await shortCommit(request.root, commit) : null, ref };
   }
 
-  /** Everything here acts only inside the worktrees root; any other path is refused outright. */
+  /** Everything here acts only inside a root the app owns; any other path is refused outright. */
   private async assertOwned(root: string) {
-    const roots = [await canonicalPath(this.worktreesRoot), path.resolve(this.worktreesRoot)];
+    const roots = [
+      ...await Promise.all(this.ownedRoots.map((owned) => canonicalPath(owned))),
+      ...this.ownedRoots.map((owned) => path.resolve(owned)),
+    ];
     const candidates = [await canonicalPath(root), path.resolve(root)];
     const owned = roots.some((base) => candidates.some((candidate) => candidate.startsWith(`${base}${path.sep}`)));
     if (!owned) throw new Error(`Not a Claudex worktree: ${root}`);

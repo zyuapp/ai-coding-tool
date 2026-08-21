@@ -15,20 +15,19 @@ function parseAutomationRow(data: string): Automation | null {
   }
 }
 
-/** A project folder can never be a checkout the app made for a thread. */
-export function projectRootsAreOwn(projects: Array<{ root: string }>, worktreesRoot: string | undefined) {
-  if (!worktreesRoot) return true;
-  const owned = `${path.resolve(worktreesRoot)}${path.sep}`;
-  return !projects.some((project) => path.resolve(project.root).startsWith(owned));
+/** A project folder can never be a checkout the app made for a thread, under any root it has used. */
+export function projectRootsAreOwn(projects: Array<{ root: string }>, worktreesRoots: string[]) {
+  const owned = worktreesRoots.map((root) => `${path.resolve(root)}${path.sep}`);
+  return !projects.some((project) => owned.some((root) => path.resolve(project.root).startsWith(root)));
 }
 
 export class TaskDatabase {
   private readonly database: DatabaseSync;
-  private readonly worktreesRoot: string | undefined;
+  private readonly worktreesRoots: string[];
   private closed = false;
 
-  constructor(file: string, options: { worktreesRoot?: string } = {}) {
-    this.worktreesRoot = options.worktreesRoot;
+  constructor(file: string, options: { worktreesRoots?: string[] } = {}) {
+    this.worktreesRoots = options.worktreesRoots ?? [];
     this.database = new DatabaseSync(file);
     this.database.exec(`
       PRAGMA journal_mode = WAL;
@@ -199,9 +198,9 @@ export class TaskDatabase {
      * delta that would move either into the app's worktrees is dropped instead of written. The rest
      * of the delta still lands: losing transcripts is a worse answer than keeping the folder on disk.
      */
-    const writesProjects = !delta.projects || projectRootsAreOwn(delta.projects, this.worktreesRoot);
+    const writesProjects = !delta.projects || projectRootsAreOwn(delta.projects, this.worktreesRoots);
     const writesLastFolder = delta.lastFolder === undefined
-      || projectRootsAreOwn(delta.lastFolder ? [{ root: delta.lastFolder }] : [], this.worktreesRoot);
+      || projectRootsAreOwn(delta.lastFolder ? [{ root: delta.lastFolder }] : [], this.worktreesRoots);
     if (!writesProjects || !writesLastFolder) {
       console.error("Refused to record a folder inside the app's worktrees directory.", { projects: delta.projects, lastFolder: delta.lastFolder });
     }
