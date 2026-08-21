@@ -90,13 +90,13 @@ test("a list that no longer answers what the dock asked is dropped", () => {
 test("changing the comparison starts a fresh read and keeps nothing but the layout", () => {
   const reviewed = run(reviewing(workspace(), [file("a.ts")]), [
     { type: "diff.set-viewed", path: "a.ts", viewed: true },
-    { type: "diff.set-split", split: true },
+    { type: "diff.set-split", split: false },
   ]);
   const changed = reduce(reviewed, { type: "diff.set-range", range: { kind: "branches", base: "main", compare: null } });
 
   assert.deepEqual(diff(changed.state).viewed, {});
   assert.deepEqual(diff(changed.state).collapsed, []);
-  assert.equal(diff(changed.state).split, true, "how it is drawn is not what is being compared");
+  assert.equal(diff(changed.state).split, false, "how it is drawn is not what is being compared");
   assert.equal(changed.effects.filter((effect) => effect.type === "read-diff").length, 1);
 });
 
@@ -105,6 +105,10 @@ test("asking for the comparison already on screen reads nothing again", () => {
   const same = reduce(reviewed, { type: "diff.set-range", range: { kind: "uncommitted" } });
 
   assert.deepEqual(same.effects, []);
+});
+
+test("a review opens side by side", () => {
+  assert.equal(diff(reviewing(workspace(), [file("a.ts")])).split, true);
 });
 
 test("every file starts open, and ticking one off folds it away", () => {

@@ -42,10 +42,11 @@ const ROW_HEIGHT = 20;
 const VIRTUALIZE_ABOVE = 200;
 
 /**
- * Two columns need room for two. Below this the dock leaves each side a few words per line, which
- * reads worse than one column, so the review stays in one whatever the thread last chose.
+ * Two columns need room for two. The dock opens wider than this, so a review is side by side unless
+ * the user has narrowed it; below here each side is down to a few words a line and one column reads
+ * better, so the review falls back whatever the thread last chose.
  */
-const SPLIT_MIN_WIDTH = 620;
+const SPLIT_MIN_WIDTH = 520;
 
 export type DiffPanelProps = {
   diff: DiffState;

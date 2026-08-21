@@ -3683,6 +3683,11 @@ async function openReview(view) {
   await act(async () => {});
 }
 
+/** A review opens side by side, so the one-column view is what a test has to ask for. */
+async function showOneColumn(view) {
+  await act(async () => { view.container.querySelector('button[aria-label="Show one column"]').click(); });
+}
+
 /** Opens the session panel, which is where the Changes row that reaches the review lives. */
 async function showSession(view) {
   await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
@@ -3728,6 +3733,7 @@ test("a file is drawn expanded, with both sides' line numbers, without being ope
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
+  await showOneColumn(view);
 
   const lines = [...view.container.querySelectorAll(".diff-line")];
   assert.equal(lines[0].className, "diff-line hunk", "the patch is already on screen");
@@ -3747,6 +3753,7 @@ test("a file's lines are coloured by the grammar its extension names", async () 
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
+  await showOneColumn(view);
 
   const coloured = [...view.container.querySelectorAll(".diff-line code span")];
   assert.ok(coloured.length > 0, "the grammar produced tokens");
@@ -3760,6 +3767,7 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
+  await showOneColumn(view);
 
   const gutters = [...view.container.querySelectorAll(".diff-gutter")];
   await act(async () => { gutters[2].click(); });
@@ -3804,9 +3812,8 @@ test("the two-column view colours its lines the way the one-column view does", a
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
-  await act(async () => { view.container.querySelector('button[aria-label="Show two columns"]').click(); });
 
-  assert.ok(view.container.querySelector(".diff-split-row"), "the patch is drawn in two columns");
+  assert.ok(view.container.querySelector(".diff-split-row"), "a review opens in two columns");
   const coloured = [...view.container.querySelectorAll(".diff-split-cell code span")];
   assert.ok(coloured.some((token) => token.textContent === "const" && token.style.color === "var(--syntax-keyword)"));
   await view.unmount();
@@ -3817,7 +3824,6 @@ test("a comment can be taken from either column of the two-column view", async (
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
   await openReview(view);
-  await act(async () => { view.container.querySelector('button[aria-label="Show two columns"]').click(); });
 
   const gutters = [...view.container.querySelectorAll(".diff-split-cell .diff-gutter")];
   /** Each side says what happened to its line, so the two columns never announce the same thing. */

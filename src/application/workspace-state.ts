@@ -423,7 +423,7 @@ export const EMPTY_DIFF: DiffState = {
   loading: false,
   collapsed: [],
   viewed: {},
-  split: false,
+  split: true,
 };
 
 export function diffFor(state: Pick<WorkspaceState, "diffs">, owner: string): DiffState {
