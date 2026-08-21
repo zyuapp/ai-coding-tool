@@ -16,7 +16,7 @@ const threadInstructions = `Claudex holds the user's other threads, and the clau
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the claudex-automation tools instead of looping yourself or reaching for cron. An automation runs the same prompt on its own schedule with no user present, so write the prompt to stand alone and carry its own stop condition. When a scheduled run is what is executing and that stop condition is met, call the stop tool; nothing else ends an automation.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails. If only request_setup is available, call it instead of telling the user to install or configure anything.`;
 
-/** How long a thread's session waits for another turn before giving its process back. */
+/** How long a thread's session waits, with nothing left running under it, before giving its process back. */
 const IDLE_SESSION_MS = 15 * 60 * 1_000;
 /** How many threads keep a session warm. Beyond this the least recently used idle one is let go. */
 const MAX_LIVE_SESSIONS = 4;
@@ -76,7 +76,7 @@ export class ClaudeAgentProvider implements AgentProvider {
   /** One warm session per thread: the process it holds is what makes a second turn cheap. */
   private readonly sessions = new Map<string, Held>();
 
-  constructor(private readonly queryFactory: QueryFactory = query) {}
+  constructor(private readonly queryFactory: QueryFactory = query, private readonly idleMs: number = IDLE_SESSION_MS) {}
 
   async execute(input: ProviderRunInput): Promise<ProviderResult> {
     const held = this.sessionFor(input);
@@ -101,7 +101,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     const held = this.sessions.get(input.taskId);
     const reusable = held?.session.live
       && held.session.key === key
-      && !held.session.busy
+      && !held.session.answering
       && !input.forkContinuation
       && held.session.continues(continuationOf(input));
     if (held && reusable) {
@@ -112,21 +112,32 @@ export class ClaudeAgentProvider implements AgentProvider {
     }
     if (held) this.release(input.taskId, held);
     this.evict();
-    const session = new ClaudeSession(key, () => {
-      if (this.sessions.get(input.taskId)?.session === session) this.sessions.delete(input.taskId);
-    });
+    const session = new ClaudeSession(
+      key,
+      () => {
+        if (this.sessions.get(input.taskId)?.session === session) this.sessions.delete(input.taskId);
+      },
+      () => {
+        const settled = this.sessions.get(input.taskId);
+        if (settled?.session === session) this.rest(input.taskId, settled);
+      },
+    );
     const opened: Held = { session, usedAt: Date.now() };
     this.sessions.set(input.taskId, opened);
     session.open((prompt, canUseTool) => this.queryFactory(this.options(input, prompt, canUseTool)), input);
     return opened;
   }
 
-  /** A session with no turn to answer is kept warm for a while, then handed back. */
+  /**
+   * A session with nothing left to do is kept warm for a while, then handed back. Work the agent left
+   * running is not nothing: the deadline finds the session busy and starts over, so a workflow that runs
+   * for hours is never on a clock, and the session it holds is still reclaimed once the work stops.
+   */
   private rest(taskId: string, held: Held) {
     if (this.sessions.get(taskId) !== held || !held.session.live) return;
     held.usedAt = Date.now();
     clearTimeout(held.idle);
-    held.idle = setTimeout(() => this.release(taskId, held), IDLE_SESSION_MS);
+    held.idle = setTimeout(() => (held.session.busy ? this.rest(taskId, held) : this.release(taskId, held)), this.idleMs);
     held.idle.unref?.();
   }
 

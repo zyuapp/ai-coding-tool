@@ -663,3 +663,121 @@ test("the live session is handed back so a background process can be stopped mid
   await controls.stopProcess("bash-1");
   assert.deepEqual(capture.stopped, ["bash-1"]);
 });
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** A live session per open, so a pool test can watch each process separately. */
+function poolQueryFactory(capture = {}) {
+  capture.sessions = [];
+  return (options) => {
+    const pending = [];
+    let wake = null;
+    const session = {
+      options,
+      closed: false,
+      emit: (message) => { pending.push(message); wake?.(); wake = null; },
+      async *[Symbol.asyncIterator]() {
+        for (;;) {
+          while (pending.length) yield pending.shift();
+          await new Promise((resolve) => { wake = resolve; });
+        }
+      },
+      interrupt: async () => { session.interrupted = true; },
+      setPermissionMode: async () => {},
+      close() { session.closed = true; },
+    };
+    session.sent = [];
+    void (async () => { for await (const message of options.prompt) session.sent.push(message.message.content); })();
+    capture.sessions.push(session);
+    return session;
+  };
+}
+
+/** Runs one turn against the newest session, delivering the given messages before the turn's result. */
+async function poolTurn(provider, capture, overrides = {}, ...messages) {
+  const running = provider.execute(input(overrides));
+  await tick();
+  const session = capture.sessions.at(-1);
+  for (const message of messages) session.emit(message);
+  session.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
+  return { session, result: await running };
+}
+
+const running = (...ids) => ({
+  type: "system",
+  subtype: "background_tasks_changed",
+  tasks: ids.map((id) => ({ task_id: id, task_type: "local_workflow", description: "Review changed files" })),
+});
+
+test("a session with work still running outlives the idle deadline, and is let go once the work stops", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), 5);
+
+  const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
+  await delay(60);
+  assert.equal(session.closed, false, "the workflow the turn left running is not on the turn's clock");
+
+  session.emit(running());
+  await delay(60);
+  assert.equal(session.closed, true, "the session is handed back once nothing is running under it");
+});
+
+test("a session with work still running is passed over when the pool has to let one go", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture));
+
+  await poolTurn(provider, capture, {}, running("wf-1"));
+  for (const taskId of ["task-2", "task-3", "task-4", "task-5"]) await poolTurn(provider, capture, { taskId });
+
+  const [workflow, oldestIdle] = capture.sessions;
+  assert.equal(workflow.closed, false, "the least recently used session is still running a workflow");
+  assert.equal(oldestIdle.closed, true, "the pool gives up the oldest session with nothing running instead");
+  provider.closeAll();
+});
+
+test("work outstanding when a run is cancelled holds the session no longer than the work does", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), 5);
+  const abortController = new AbortController();
+
+  const cancelled = provider.execute(input({ abortController }));
+  await tick();
+  const [session] = capture.sessions;
+  session.emit(running("wf-1"));
+  await tick();
+  abortController.abort();
+  session.emit({ type: "result", subtype: "success", is_error: false, result: "stopped" });
+  assert.deepEqual(await cancelled, { status: "cancelled" });
+
+  await delay(60);
+  assert.equal(session.closed, false, "cancelling the turn does not cancel what it left running");
+  session.emit(running());
+  await delay(60);
+  assert.equal(session.closed, true, "and the session is not pinned once that work stops");
+});
+
+test("a turn that fails gives its session up even with work outstanding", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), 5);
+
+  const failing = provider.execute(input());
+  await tick();
+  const [session] = capture.sessions;
+  session.emit(running("wf-1"));
+  session.emit({ type: "result", subtype: "error_during_execution", is_error: true, errors: ["broke"] });
+  assert.deepEqual(await failing, { status: "failed", message: "broke" });
+  assert.equal(session.closed, true);
+
+  await poolTurn(provider, capture, { prompt: "and again" });
+  assert.equal(capture.sessions.length, 2, "the failed session is not left in the pool to be reused or reaped");
+  provider.closeAll();
+});
+
+test("quitting closes a session that still has work running", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture));
+
+  const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
+  provider.closeAll();
+  assert.equal(session.closed, true);
+});

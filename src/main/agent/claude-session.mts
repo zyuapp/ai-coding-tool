@@ -120,15 +120,23 @@ export class ClaudeSession {
   private outcome: ProviderResult | null = null;
   /** The workflows running here. One outlives the turn that started it, so the set outlives the turn too. */
   private readonly workflowIds = new Set<string>();
+  /** Every background task the CLI last reported live, by id. Replaced whole, so it holds nothing the CLI has let go of. */
+  private readonly backgroundTaskIds = new Set<string>();
   /** What the CLI called this session. A later run resumes it by this id. */
   sessionId?: string;
   private model?: string;
   private effort?: string;
 
-  constructor(readonly key: string, private readonly onEnded: () => void) {}
+  constructor(readonly key: string, private readonly onEnded: () => void, private readonly onIdle: () => void = () => {}) {}
 
-  get busy() {
+  /** A turn is in flight, so the session owes an answer before it can take another. */
+  get answering() {
     return this.turn !== null;
+  }
+
+  /** Anything closing the session would cut short: the turn it owes, or work the agent left running behind it. */
+  get busy() {
+    return this.answering || this.backgroundTaskIds.size > 0;
   }
 
   get live() {
@@ -193,6 +201,7 @@ export class ClaudeSession {
   close() {
     if (this.ended) return;
     this.ended = true;
+    this.backgroundTaskIds.clear();
     this.settle({ status: "cancelled" });
     this.wake(null);
     this.query?.close();
@@ -274,6 +283,8 @@ export class ClaudeSession {
 
   private receive(message: SDKMessage) {
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
+    /** Taken before the turn guard: what the agent leaves running outlives the turn that started it. */
+    if (message.type === "system" && message.subtype === "background_tasks_changed") this.trackBackground(message.tasks);
     const turn = this.turn;
     if (!turn) return;
     const { input } = turn;
@@ -404,6 +415,18 @@ export class ClaudeSession {
       }
       this.settle({ status: "succeeded" });
     }
+  }
+
+  /**
+   * The CLI reports its live tasks as a level rather than as start and finish bookends, so the session
+   * swaps its whole set for each payload: a bookend it never saw, or saw twice, cannot leave the session
+   * holding work that has already stopped.
+   */
+  private trackBackground(tasks: { task_id: string }[]) {
+    const wasRunning = this.backgroundTaskIds.size > 0;
+    this.backgroundTaskIds.clear();
+    for (const task of tasks) this.backgroundTaskIds.add(task.task_id);
+    if (wasRunning && !this.busy) this.onIdle();
   }
 
   private readonly canUseTool: CanUseTool = async (toolName, toolInput, options) => {
