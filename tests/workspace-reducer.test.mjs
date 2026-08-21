@@ -253,9 +253,12 @@ test("a run that settles off screen flags its thread and refreshes its project",
   assert.equal(settled.state.tasks[0].outcome, "finished");
   assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }]);
 
+  assert.equal(settled.state.tasks[0].outcomeUnread, true);
+
   const opened = reduce(settled.state, { type: "task.select", taskId: "task-a" });
-  assert.equal(opened.state.tasks[0].outcome, undefined, "opening the thread reads the dot, which takes it off");
-  assert.deepEqual(deriveView(opened.state).activityTasks.priority, [], "so the thread stops asking");
+  assert.equal(opened.state.tasks[0].outcomeUnread, undefined, "opening the thread takes the mark off");
+  assert.equal(opened.state.tasks[0].outcome, "finished", "but the verdict keeps its place in Priority");
+  assert.deepEqual(deriveView(opened.state).activityTasks.priority.map((item) => item.id), ["task-a"]);
 });
 
 test("a dot can be dismissed without opening the thread it is on", () => {
@@ -281,7 +284,7 @@ test("one dismissal takes the dot off every thread carrying one", () => {
   assert.equal(reduce(cleared, { type: "task.dismiss-all" }).state, cleared, "a second pass has nothing left to take");
 });
 
-test("the thread on screen never asks to be read, whatever its run does", () => {
+test("the thread on screen ranks into priority unmarked, having been read as it settled", () => {
   const watched = workspace({
     tasks: [task("task-a"), task("task-b")],
     activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running" } },
@@ -291,23 +294,28 @@ test("the thread on screen never asks to be read, whatever its run does", () => 
   const settle = { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } };
 
   const { state: next } = reduce(watched, settle);
-  assert.equal(next.tasks[0].outcome, undefined);
-  assert.deepEqual(deriveView(next).activityTasks.priority, [], "so it does not ask for what the user just watched");
+  assert.equal(next.tasks[0].outcome, "finished");
+  assert.equal(next.tasks[0].outcomeUnread, undefined, "the user watched it end, so nothing marks it");
+  assert.deepEqual(deriveView(next).activityTasks.priority.map((item) => item.id), ["task-a"], "and it still leaves the running list for priority");
 
   const behind = reduce({ ...watched, focused: false }, settle).state;
-  assert.equal(behind.tasks[0].outcome, undefined, "an unfocused window changes nothing; the thread is still the one on screen");
+  assert.equal(behind.tasks[0].outcomeUnread, undefined, "an unfocused window changes nothing; the thread is still the one on screen");
 
   const elsewhere = reduce({ ...watched, currentId: "task-b" }, settle).state;
-  assert.equal(elsewhere.tasks[0].outcome, "finished", "a thread the user is not on does ask");
+  assert.equal(elsewhere.tasks[0].outcomeUnread, true, "a thread the user is not on is marked");
 });
 
-test("selecting a thread takes its dot off", () => {
-  const state = workspace({ tasks: [task("task-a", { outcome: "failed" }), task("task-b")], currentId: "task-b" });
+test("selecting a thread takes its mark off and leaves it ranked", () => {
+  const state = workspace({ tasks: [task("task-a", { outcome: "failed", outcomeUnread: true }), task("task-b")], currentId: "task-b" });
 
   const { state: next } = reduce(state, { type: "task.select", taskId: "task-a" });
 
-  assert.equal(next.tasks[0].outcome, undefined);
-  assert.deepEqual(deriveView(next).activityTasks.priority, []);
+  assert.equal(next.tasks[0].outcomeUnread, undefined);
+  assert.deepEqual(deriveView(next).activityTasks.priority.map((item) => item.id), ["task-a"], "reading is not filing it away");
+
+  const filed = reduce(next, { type: "task.dismiss", taskId: "task-a" });
+  assert.equal(filed.state.tasks[0].outcome, undefined);
+  assert.deepEqual(deriveView(filed.state).activityTasks.priority, []);
 });
 
 test("a new run supersedes the verdict of the one before it", () => {

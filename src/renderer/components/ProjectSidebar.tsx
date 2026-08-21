@@ -223,7 +223,7 @@ export function ProjectSidebar({
           ? <span className="task-attention approval" aria-label={BLOCKED_LABEL} />
           : runningTaskIds.has(task.id)
             ? <TaskSpinner />
-            : task.outcome && <span
+            : task.outcome && task.outcomeUnread && <span
                 className={`task-attention ${task.outcome}`}
                 aria-label={OUTCOME_LABELS[task.outcome]}
               />}

@@ -199,19 +199,21 @@ function outcomeFor(event: RunEvent): TaskOutcome | null {
   return null;
 }
 
-/** The dot says the user has not seen how the run ended, so landing on the thread takes it off. */
+/**
+ * Landing on a thread takes its mark off. The verdict stays, so the thread keeps its place in
+ * Priority until the user files it away.
+ */
 function readOutcome(state: WorkspaceState, taskId: string | null): WorkspaceState {
-  if (!taskId) return state;
-  const tasks = withoutOutcome(state.tasks, new Set([taskId]));
-  return tasks === state.tasks ? state : { ...state, tasks };
+  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.outcomeUnread)) return state;
+  return applyTask(state, taskId, ({ outcomeUnread: _read, ...task }) => task);
 }
 
-/** Takes the dot off the named threads, leaving the list alone when none of them carry one. */
+/** Retires the named threads' verdicts, leaving the list alone when none of them carry one. */
 function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
   if (!tasks.some((task) => dismissing.has(task.id) && task.outcome)) return tasks;
   return tasks.map((task) => {
     if (!dismissing.has(task.id) || !task.outcome) return task;
-    const { outcome: _gone, ...rest } = task;
+    const { outcome: _gone, outcomeUnread: _read, ...rest } = task;
     return rest;
   });
 }
@@ -1283,11 +1285,15 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const applied = applyRunEvent(state, event);
       const outcome = outcomeFor(event);
       /**
-       * A settled run leaves its verdict for the user to read. The thread already on screen is the
-       * one thread they cannot have missed, so it never asks.
+       * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the
+       * user was not already on is marked unread by it; the one on screen they cannot have missed.
        */
-      let next = outcome && state.currentId !== event.taskId
-        ? applyTask(applied, event.taskId, (task) => ({ ...task, outcome }))
+      let next = outcome
+        ? applyTask(applied, event.taskId, (task) => ({
+            ...task,
+            outcome,
+            ...(state.currentId === event.taskId ? {} : { outcomeUnread: true as const }),
+          }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);

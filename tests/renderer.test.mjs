@@ -509,7 +509,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
     activityTasks: {
-      priority: [thread("asked", { projectId: "project-1" }), thread("seen", { outcome: "finished" })],
+      priority: [thread("asked", { projectId: "project-1" }), thread("unread", { outcome: "finished", outcomeUnread: true }), thread("seen", { outcome: "finished" })],
       running: [thread("busy")],
       threads: [thread("quiet")],
     },
@@ -529,7 +529,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
   }));
 
   const listed = (label) => [...view.container.querySelectorAll(`nav[aria-label="${label}"] .task-row-text > span`)].map((row) => row.textContent);
-  assert.deepEqual(listed("Priority"), ["asked", "seen"]);
+  assert.deepEqual(listed("Priority"), ["asked", "unread", "seen"]);
   assert.deepEqual(listed("Running"), ["busy"]);
   assert.deepEqual(listed("Threads"), ["quiet"]);
   assert.equal(view.container.querySelector('[data-rfd-draggable-id]'), null, "activity mode ranks its own rows, so none of them drag");
@@ -539,7 +539,11 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     /^project · /,
     "a flat list still says which folder a thread lives in",
   );
-  assert.equal(view.container.querySelector(".task-attention.finished").className, "task-attention finished");
+  assert.deepEqual(
+    [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-attention.finished')].length,
+    1,
+    "a verdict the user has read ranks without a mark of its own",
+  );
   assert.equal(
     view.container.querySelector('nav[aria-label="Priority"] [aria-label="Needs approval"]').className,
     "task-attention approval",
@@ -549,7 +553,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
 
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-archive')].map((button) => button.getAttribute("aria-label")),
-    ["Dismiss seen"],
+    ["Dismiss unread", "Dismiss seen"],
     "the priority list trades archive for dismiss, and a question has nothing to dismiss",
   );
   assert.deepEqual(
@@ -559,7 +563,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
   );
 
   await act(async () => { view.container.querySelector('[aria-label="Dismiss seen"]').click(); });
-  assert.deepEqual(dismissed, ["seen"]);
+  assert.deepEqual(dismissed, ["seen"], "a read row still offers to be filed away");
 
   await act(async () => { view.container.querySelector('[aria-label="Dismiss all"]').click(); });
   assert.equal(clearedAll, 1);
@@ -1589,7 +1593,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
 test("the sidebar switches to activity mode, and dismissing there takes the dot off for good", async () => {
   seedProjectTasks([
     { id: "quiet", title: "Quiet task", sortIndex: 0, updatedAt: 5, createdAt: 5 },
-    { id: "settled", title: "Settled task", sortIndex: 1, updatedAt: 9, createdAt: 9, outcome: "finished" },
+    { id: "settled", title: "Settled task", sortIndex: 1, updatedAt: 9, createdAt: 9, outcome: "finished", outcomeUnread: true },
   ]);
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
@@ -1608,10 +1612,13 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
     ["Quiet task"],
   );
 
-  /** Opening it reads the verdict, which takes the row out of the list. */
+  /** Opening it reads the mark off, and leaves the verdict holding its place. */
   await act(async () => { view.container.querySelector('nav[aria-label="Priority"] .task-row').click(); });
-  assert.deepEqual(priority(), []);
+  assert.deepEqual(priority(), ["Settled task"]);
   assert.equal(view.container.querySelector(".task-attention.finished"), null);
+
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss Settled task"]').click(); });
+  assert.deepEqual(priority(), []);
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent),
     ["Settled task", "Quiet task"],
@@ -1629,7 +1636,7 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
 test("opening a dotted row in projects mode takes its dot off", async () => {
   seedProjectTasks([
     { id: "open", title: "Open task", sortIndex: 0, updatedAt: 2 },
-    { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, outcome: "failed" },
+    { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, outcome: "failed", outcomeUnread: true },
   ]);
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
@@ -1650,7 +1657,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
   await view.unmount();
 });
 
-test("a run settling on the thread on screen leaves it nothing to read, even behind a blurred window", async () => {
+test("a run settling on the thread on screen ranks it without marking it, even behind a blurred window", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
   await act(async () => { workspace.get().actions.setPrompt("Inspect the app"); });
@@ -1661,10 +1668,11 @@ test("a run settling on the thread on screen leaves it nothing to read, even beh
   await act(async () => {
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 1, status: "succeeded" });
   });
-  assert.equal(workspace.get().currentTask.outcome, undefined);
+  assert.equal(workspace.get().currentTask.outcome, "finished");
+  assert.equal(workspace.get().currentTask.outcomeUnread, undefined);
 
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.equal(workspace.get().currentTask.outcome, undefined, "and coming back finds nothing asking");
+  assert.equal(workspace.get().currentTask.outcomeUnread, undefined, "and coming back finds nothing marked");
   await workspace.view.unmount();
 });
 
