@@ -199,10 +199,11 @@ function outcomeFor(event: RunEvent): TaskOutcome | null {
   return null;
 }
 
-/** Landing on a dotted thread dims its dot. Only a dismissal takes the dot away. */
-function seeOutcome(state: WorkspaceState, taskId: string | null): WorkspaceState {
-  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.outcome && !task.outcomeSeen)) return state;
-  return applyTask(state, taskId, (task) => ({ ...task, outcomeSeen: true }));
+/** The dot says the user has not seen how the run ended, so landing on the thread takes it off. */
+function readOutcome(state: WorkspaceState, taskId: string | null): WorkspaceState {
+  if (!taskId) return state;
+  const tasks = withoutOutcome(state.tasks, new Set([taskId]));
+  return tasks === state.tasks ? state : { ...state, tasks };
 }
 
 /** Takes the dot off the named threads, leaving the list alone when none of them carry one. */
@@ -210,7 +211,7 @@ function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
   if (!tasks.some((task) => dismissing.has(task.id) && task.outcome)) return tasks;
   return tasks.map((task) => {
     if (!dismissing.has(task.id) || !task.outcome) return task;
-    const { outcome: _gone, outcomeSeen: _seen, ...rest } = task;
+    const { outcome: _gone, ...rest } = task;
     return rest;
   });
 }
@@ -822,7 +823,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "task.select": {
       const task = state.tasks.find((item) => item.id === input.taskId);
       const project = projectFor(state, task);
-      return settled(seeOutcome({
+      return settled(readOutcome({
         ...state,
         currentId: input.taskId,
         draftProjectId: task?.projectId ?? null,
@@ -836,9 +837,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(tasks === state.tasks ? state : { ...state, tasks });
     }
 
-    case "task.dismiss-read": {
-      const seen = new Set(state.tasks.filter((task) => task.outcome && task.outcomeSeen).map((task) => task.id));
-      return settled(seen.size ? { ...state, tasks: withoutOutcome(state.tasks, seen) } : state);
+    case "task.dismiss-all": {
+      const dotted = new Set(state.tasks.filter((task) => task.outcome).map((task) => task.id));
+      return settled(dotted.size ? { ...state, tasks: withoutOutcome(state.tasks, dotted) } : state);
     }
 
     /** Walks the sidebar. From a draft the list is entered from whichever end the step comes from. */
@@ -1287,7 +1288,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
        * however read the one it replaces was.
        */
       let next = outcome
-        ? applyTask(applied, event.taskId, ({ outcomeSeen: _seen, ...task }) => ({ ...task, outcome }))
+        ? applyTask(applied, event.taskId, (task) => ({ ...task, outcome }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
@@ -1826,7 +1827,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (index === null) return settled(state);
       const taskId = state.history[index];
       const task = state.tasks.find((item) => item.id === taskId);
-      return settled(seeOutcome({
+      return settled(readOutcome({
         ...state,
         historyIndex: index,
         currentId: taskId,
@@ -1838,7 +1839,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.set-focused":
       return input.focused
-        ? settled(seeOutcome({ ...state, focused: true }, state.currentId))
+        ? settled(readOutcome({ ...state, focused: true }, state.currentId))
         : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
 
     case "view.find-open": {

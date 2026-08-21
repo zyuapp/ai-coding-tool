@@ -493,7 +493,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
   });
   const dismissed = [];
-  let clearedRead = 0;
+  let clearedAll = 0;
   const view = await mount(React.createElement(ProjectSidebar, {
     open: true,
     inactive: false,
@@ -509,7 +509,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
     activityTasks: {
-      priority: [thread("asked", { projectId: "project-1" }), thread("seen", { outcome: "finished", outcomeSeen: true })],
+      priority: [thread("asked", { projectId: "project-1" }), thread("seen", { outcome: "finished" })],
       running: [thread("busy")],
       threads: [thread("quiet")],
     },
@@ -524,7 +524,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
     onSelectTask() {}, onArchiveTask() {}, onRenameTask() {},
     onDismissTask: (taskId) => { dismissed.push(taskId); },
-    onDismissRead: () => { clearedRead += 1; },
+    onDismissAll: () => { clearedAll += 1; },
     onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
@@ -539,7 +539,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     /^project · /,
     "a flat list still says which folder a thread lives in",
   );
-  assert.equal(view.container.querySelector(".task-attention.finished").classList.contains("read"), true);
+  assert.equal(view.container.querySelector(".task-attention.finished").className, "task-attention finished");
   assert.equal(
     view.container.querySelector('nav[aria-label="Priority"] [aria-label="Needs approval"]').className,
     "task-attention approval",
@@ -561,12 +561,12 @@ test("activity mode ranks threads into priority, running, and the rest, and only
   await act(async () => { view.container.querySelector('[aria-label="Dismiss seen"]').click(); });
   assert.deepEqual(dismissed, ["seen"]);
 
-  await act(async () => { view.container.querySelector('[aria-label="Dismiss all read"]').click(); });
-  assert.equal(clearedRead, 1);
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss all"]').click(); });
+  assert.equal(clearedAll, 1);
   await view.unmount();
 });
 
-test("only the priority heading offers to dismiss what has been read", async () => {
+test("only the priority heading offers to dismiss every dot at once", async () => {
   const thread = (id, overrides = {}) => ({
     id, title: id, executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
@@ -595,17 +595,16 @@ test("only the priority heading offers to dismiss what has been read", async () 
     onGoBack() {}, onGoForward() {},
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {}, onDismissTask() {}, onDismissRead() {},
+    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {}, onDismissTask() {}, onDismissAll() {},
     onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
-  const view = await mount(sidebar([thread("unread", { outcome: "failed" })]));
-  assert.equal(view.container.querySelector('[aria-label="Dismiss all read"]'), null, "nothing read yet, so the heading offers nothing");
-  assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "1");
+  const view = await mount(sidebar([]));
+  assert.equal(view.container.querySelector('[aria-label="Dismiss all"]'), null, "no dot to take off, so the heading offers nothing");
 
-  await view.render(sidebar([thread("unread", { outcome: "failed" }), thread("seen", { outcome: "finished", outcomeSeen: true })]));
-  assert.ok(view.container.querySelector('[aria-label="Dismiss all read"]'), "one read dot is enough to offer it");
-  assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "2");
+  await view.render(sidebar([thread("done", { outcome: "failed" })]));
+  assert.ok(view.container.querySelector('[aria-label="Dismiss all"]'), "one dot is enough to offer it");
+  assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "1");
   await view.unmount();
 });
 
@@ -636,7 +635,7 @@ test("the sidebar steps through visited threads", async () => {
     onGoForward() {},
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   assert.ok(view.container.querySelector('button[aria-label="Go forward"]').disabled, "nothing ahead to go forward to");
@@ -1609,13 +1608,10 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
     ["Quiet task"],
   );
 
-  /** Opening it leaves it where it is; only the check takes it out of the list. */
+  /** Opening it reads the verdict, which takes the row out of the list. */
   await act(async () => { view.container.querySelector('nav[aria-label="Priority"] .task-row').click(); });
-  assert.deepEqual(priority(), ["Settled task"]);
-  assert.equal(view.container.querySelector(".task-attention.finished").classList.contains("read"), true);
-
-  await act(async () => { view.container.querySelector('[aria-label="Dismiss Settled task"]').click(); });
   assert.deepEqual(priority(), []);
+  assert.equal(view.container.querySelector(".task-attention.finished"), null);
   assert.deepEqual(
     [...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent),
     ["Settled task", "Quiet task"],
@@ -1630,7 +1626,7 @@ test("the sidebar switches to activity mode, and dismissing there takes the dot 
   await view.unmount();
 });
 
-test("opening an unread row dims its dot and leaves the dot in place", async () => {
+test("opening a dotted row in projects mode takes its dot off", async () => {
   seedProjectTasks([
     { id: "open", title: "Open task", sortIndex: 0, updatedAt: 2 },
     { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, outcome: "failed" },
@@ -1640,15 +1636,11 @@ test("opening an unread row dims its dot and leaves the dot in place", async () 
 
   const dot = view.container.querySelector(".task-attention.failed");
   assert.equal(dot?.getAttribute("aria-label"), "Failed");
-  assert.equal(dot.classList.contains("read"), false);
 
   const waiting = [...view.container.querySelectorAll(".project-task-row")].find((row) => row.textContent.includes("Waiting task"));
   await act(async () => { waiting.click(); });
 
-  const read = view.container.querySelector(".task-attention.failed");
-  assert.ok(read, "the dot survives being looked at");
-  assert.equal(read.classList.contains("read"), true);
-  assert.equal(read.getAttribute("aria-label"), "Failed, read");
+  assert.equal(view.container.querySelector(".task-attention.failed"), null, "reading the thread takes the dot off");
   assert.deepEqual([...view.container.querySelectorAll(".task-dismiss")], [], "projects mode never offers a dismissal");
   assert.deepEqual(
     [...view.container.querySelectorAll(".project-task-row .task-archive")].map((button) => button.getAttribute("aria-label")),
@@ -1658,7 +1650,7 @@ test("opening an unread row dims its dot and leaves the dot in place", async () 
   await view.unmount();
 });
 
-test("a run that settles out of sight is flagged, and the window coming back only reads it", async () => {
+test("a run that settles out of sight is flagged, and the window coming back reads it off", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
   await act(async () => { workspace.get().actions.setPrompt("Inspect the app"); });
@@ -1672,11 +1664,7 @@ test("a run that settles out of sight is flagged, and the window coming back onl
   assert.equal(workspace.get().currentTask.outcome, "finished");
 
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.equal(workspace.get().currentTask.outcome, "finished");
-  assert.equal(workspace.get().currentTask.outcomeSeen, true);
-
-  await act(async () => { workspace.get().actions.dismissTask(start.taskId); });
-  assert.equal(workspace.get().currentTask.outcome, undefined);
+  assert.equal(workspace.get().currentTask.outcome, undefined, "the thread was already on screen, so coming back reads it");
   await workspace.view.unmount();
 });
 
@@ -2403,7 +2391,7 @@ test("the sidebar nests a checkout's threads under it, and its row starts anothe
     onNewTask(projectId, worktreeId) { started.push([projectId, worktreeId]); },
     onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const group = view.container.querySelector(".worktree-group");
@@ -2450,7 +2438,7 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const marks = (label) => [...view.container.querySelectorAll(`[aria-label="${label}"]`)]
@@ -2488,7 +2476,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
     onRemoveProject: (id) => { removed.push(id); },
     onSetMode() {}, onSetSectionOpen() {},
     onSetOpenMenu: (menu) => { opened.push(menu); },
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
   const view = await mount(sidebar(null));
@@ -2584,7 +2572,7 @@ test("a thread drag leaves a folded folder folded, and opens no gap where it sit
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const folded = () => [...view.container.querySelectorAll('[data-rfd-droppable-id="shut-project"], .task-list')];

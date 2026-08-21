@@ -319,7 +319,7 @@ export function App() {
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
         onDismissTask={workspace.actions.dismissTask}
-        onDismissRead={workspace.actions.dismissReadTasks}
+        onDismissAll={workspace.actions.dismissAllTasks}
         onRenameTask={workspace.actions.renameTask}
         onMoveTask={workspace.actions.moveTask}
         onOpenSettings={openSettings}

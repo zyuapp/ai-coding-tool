@@ -254,30 +254,31 @@ test("a run that settles out of focus flags the task and refreshes its project",
   assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }]);
 
   const focused = reduce(settled.state, { type: "view.set-focused", focused: true });
-  assert.equal(focused.state.tasks[0].outcome, "finished", "coming back to the window reads the dot rather than taking it away");
-  assert.equal(focused.state.tasks[0].outcomeSeen, true);
-
-  const dismissed = reduce(focused.state, { type: "task.dismiss", taskId: "task-a" });
-  assert.equal(dismissed.state.tasks[0].outcome, undefined, "only a dismissal takes the dot off");
-  assert.equal(dismissed.state.tasks[0].outcomeSeen, undefined);
+  assert.equal(focused.state.tasks[0].outcome, undefined, "coming back to the window reads the dot, which takes it off");
+  assert.deepEqual(deriveView(focused.state).activityTasks.priority, [], "so the thread stops asking");
 });
 
-test("dismissing the read dots leaves the ones the user has not looked at", () => {
+test("a dot can be dismissed without opening the thread it is on", () => {
+  const state = workspace({ tasks: [task("task-a", { outcome: "finished" }), task("task-b")], currentId: "task-b" });
+
+  const dismissed = reduce(state, { type: "task.dismiss", taskId: "task-a" });
+  assert.equal(dismissed.state.tasks[0].outcome, undefined);
+  assert.equal(dismissed.state.currentId, "task-b", "and dismissing does not carry the user there");
+});
+
+test("one dismissal takes the dot off every thread carrying one", () => {
   const state = workspace({
     tasks: [
-      task("read-a", { outcome: "finished", outcomeSeen: true }),
-      task("unread", { outcome: "failed" }),
-      task("read-b", { outcome: "failed", outcomeSeen: true }),
+      task("done", { outcome: "finished" }),
+      task("broke", { outcome: "failed" }),
+      task("quiet"),
     ],
   });
 
-  const { state: cleared } = reduce(state, { type: "task.dismiss-read" });
+  const { state: cleared } = reduce(state, { type: "task.dismiss-all" });
 
-  assert.deepEqual(
-    cleared.tasks.map((item) => item.outcome),
-    [undefined, "failed", undefined],
-  );
-  assert.equal(reduce(cleared, { type: "task.dismiss-read" }).state, cleared, "a second pass has nothing left to take");
+  assert.deepEqual(cleared.tasks.map((item) => item.outcome), [undefined, undefined, undefined]);
+  assert.equal(reduce(cleared, { type: "task.dismiss-all" }).state, cleared, "a second pass has nothing left to take");
 });
 
 test("a run watched to the end earns the same unread dot as one that settles away", () => {
@@ -291,33 +292,26 @@ test("a run watched to the end earns the same unread dot as one that settles awa
   const { state: next } = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } });
 
   assert.equal(next.tasks[0].outcome, "finished", "watching it settle does not settle it for the user");
-  assert.equal(next.tasks[0].outcomeSeen, undefined);
   assert.deepEqual(deriveView(next).activityTasks.priority.map((item) => item.id), ["task-a"], "so it ranks with the rest rather than dropping among the idle threads");
 });
 
-test("a fresh dot on a thread already read counts as unread again", () => {
-  const state = workspace({
-    tasks: [task("task-a", { outcome: "finished", outcomeSeen: true })],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-2", sequence: 0, status: "running" } },
-    focused: false,
-    currentId: "task-a",
-  });
+test("selecting a thread takes its dot off", () => {
+  const state = workspace({ tasks: [task("task-a", { outcome: "failed" }), task("task-b")], currentId: "task-b" });
 
-  const { state: next } = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-2", sequence: 1, status: "failed" } });
+  const { state: next } = reduce(state, { type: "task.select", taskId: "task-a" });
 
-  assert.equal(next.tasks[0].outcome, "failed");
-  assert.equal(next.tasks[0].outcomeSeen, undefined);
+  assert.equal(next.tasks[0].outcome, undefined);
+  assert.deepEqual(deriveView(next).activityTasks.priority, []);
 });
 
 test("a new run supersedes the verdict of the one before it", () => {
-  const state = run(workspace({ tasks: [task("task-a", { outcome: "finished", outcomeSeen: true })], currentId: "task-a" }), [
+  const state = run(workspace({ tasks: [task("task-a", { outcome: "finished" })], currentId: "task-a" }), [
     { type: "view.set-prompt", prompt: "Try again" },
   ]);
   const sending = reduce(state, { type: "task.send", attachments: [] });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
 
   assert.equal(started.state.tasks[0].outcome, undefined, "the old verdict does not outlive the run it described");
-  assert.equal(started.state.tasks[0].outcomeSeen, undefined);
   const view = deriveView(started.state);
   assert.deepEqual(view.activityTasks.priority, [], "a working thread is never in Priority");
   assert.deepEqual(view.activityTasks.running.map((item) => item.id), ["task-a"]);
@@ -354,7 +348,7 @@ test("every visible thread lands in exactly one activity section", () => {
     tasks: [
       task("idle"),
       task("settled", { outcome: "finished" }),
-      task("seen", { outcome: "failed", outcomeSeen: true }),
+      task("seen", { outcome: "failed" }),
       task("working", { outcome: "finished" }),
       task("asking", { outcome: "failed" }),
       task("archived", { outcome: "finished", archivedAt: 2 }),

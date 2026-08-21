@@ -137,10 +137,8 @@ export type Task = {
   lastChangeSnapshot: ChangeSnapshot;
   /** Sidebar position. Only the user moves it; run activity never does. */
   sortIndex?: number;
-  /** The verdict of the newest settled run, until a dismissal or the next run supersedes it. */
+  /** The verdict of the newest settled run, until reading the thread, a dismissal or the next run supersedes it. */
   outcome?: TaskOutcome;
-  /** Set once the user has looked at the thread since that verdict landed. Only a dismissal takes the dot away. */
-  outcomeSeen?: true;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**
@@ -492,7 +490,6 @@ function isTaskBase(value: unknown): value is Task {
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.outcome === undefined || isTaskOutcome(value.outcome)) &&
-    (value.outcomeSeen === undefined || value.outcomeSeen === true) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&

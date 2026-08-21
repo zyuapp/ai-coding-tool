@@ -584,7 +584,7 @@ export function useTaskWorkspace() {
       moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),
       dismissTask: (taskId: string) => dispatch({ type: "task.dismiss", taskId }),
-      dismissReadTasks: () => dispatch({ type: "task.dismiss-read" }),
+      dismissAllTasks: () => dispatch({ type: "task.dismiss-all" }),
       setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
       setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),

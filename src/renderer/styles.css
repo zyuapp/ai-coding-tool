@@ -568,7 +568,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .task-attention.failed { background: var(--danger); }
 .task-attention.approval { background: var(--accent); }
 /** A dot the user has already looked at, still waiting to be dismissed. */
-.task-attention.read { opacity: 0.4; }
 .project-attention-count {
   position: absolute;
   top: 50%;

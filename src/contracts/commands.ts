@@ -38,7 +38,7 @@ export type TaskCommand =
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
   /** The same for every dotted thread the user has already looked at, leaving the unseen ones alone. */
-  | { type: "task.dismiss-read" }
+  | { type: "task.dismiss-all" }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   /** Without a `taskId` the setting also becomes the draft the next new task starts from. */
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }

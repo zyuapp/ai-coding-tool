@@ -101,9 +101,9 @@ export type ProjectSidebarProps = {
   onSetOpenMenu: (menu: string | null) => void;
   onSelectTask: (taskId: string) => void;
   onArchiveTask: (taskId: string) => void;
-  /** Takes the dot off one thread, and off every dotted thread already read. */
+  /** Takes the dot off one thread, and off every thread carrying one. */
   onDismissTask: (taskId: string) => void;
-  onDismissRead: () => void;
+  onDismissAll: () => void;
   onRenameTask: (taskId: string, title: string) => void;
   onMoveTask: (taskId: string, target: TaskDropTarget) => void;
   onMoveProject: (projectId: string, index: number) => void;
@@ -143,7 +143,7 @@ export function ProjectSidebar({
   onSelectTask,
   onArchiveTask,
   onDismissTask,
-  onDismissRead,
+  onDismissAll,
   onRenameTask,
   onMoveTask,
   onMoveProject,
@@ -224,8 +224,8 @@ export function ProjectSidebar({
           : runningTaskIds.has(task.id)
             ? <TaskSpinner />
             : task.outcome && <span
-                className={`task-attention ${task.outcome} ${task.outcomeSeen ? "read" : ""}`}
-                aria-label={`${OUTCOME_LABELS[task.outcome]}${task.outcomeSeen ? ", read" : ""}`}
+                className={`task-attention ${task.outcome}`}
+                aria-label={OUTCOME_LABELS[task.outcome]}
               />}
         {action === "dismiss" && <button
           className="task-archive task-dismiss"
@@ -378,7 +378,7 @@ export function ProjectSidebar({
       <div className="sidebar-scroll">
         {mode === "activity" && ACTIVITY_SECTIONS.map(({ key, label }) => {
           const tasks = activityTasks[key];
-          const readCount = key === "priority" ? tasks.filter((task) => task.outcome && task.outcomeSeen).length : 0;
+          const dottedCount = key === "priority" ? tasks.filter((task) => task.outcome).length : 0;
           return (
             <section className="activity-group" key={key}>
               <div className="section-heading activity-heading">
@@ -387,8 +387,8 @@ export function ProjectSidebar({
                   <span className="section-chevron" aria-hidden="true" />
                   {tasks.length > 0 && <span className="section-count">{tasks.length}</span>}
                 </button>
-                {key === "priority" && readCount > 0 && (
-                  <button className="section-action" onClick={onDismissRead} aria-label="Dismiss all read">
+                {key === "priority" && dottedCount > 0 && (
+                  <button className="section-action" onClick={onDismissAll} aria-label="Dismiss all">
                     <CheckCheck size={16} aria-hidden="true" />
                   </button>
                 )}
