@@ -1,4 +1,4 @@
-import { AlarmClock, ChevronDown, FileDiff, GitBranch, House } from "lucide-react";
+import { AlarmClock, ChevronDown, FileDiff, FolderSymlink, GitBranch, House } from "lucide-react";
 import { useRef } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
@@ -71,7 +71,7 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
           onSelect: () => onSetWorktree(!inWorktree),
         }]}
       >
-        <span className="session-row-icon">{inWorktree ? <GitBranch size={18} /> : <House size={18} />}</span>
+        <span className="session-row-icon">{inWorktree ? <FolderSymlink size={18} /> : <House size={18} />}</span>
         <span title={inWorktree ? location.worktree.root : "Runs in your project checkout"}>{inWorktree ? "Worktree" : "Local"}</span>
       </PopoverMenu>
     </div>

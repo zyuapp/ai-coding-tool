@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { AlarmClock, Archive, ChevronLeft, ChevronRight, GitBranch, Settings, SquarePen } from "lucide-react";
+import { AlarmClock, Archive, ChevronLeft, ChevronRight, FolderSymlink, Settings, SquarePen } from "lucide-react";
 import { projectName } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
@@ -169,7 +169,7 @@ export function ProjectSidebar({
    *  status mark and the archive action, so the two share one center. */
   const taskMarks = (task: Task) => (
     <span className="task-row-marks">
-      {worktreeTaskIds.has(task.id) && <GitBranch className="task-worktree" size={13} aria-label="Works in a worktree" />}
+      {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label="Works in a worktree" />}
       {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
       <span className="row-slot">
         {runningTaskIds.has(task.id)
