@@ -14,7 +14,8 @@ export type ThreadStartOptionsProps = {
   worktree: boolean;
   /** Names the checkout the thread starts in when the user picked one the project already has. */
   startsInWorktree?: string;
-  onSelectProject: (projectId: string) => void;
+  /** No project starts the thread as a chat, in a scratch workspace of its own. */
+  onSelectProject: (projectId?: string) => void;
   /** `create` names a branch the repository does not have yet, made when the thread starts. */
   onSelectBranch: (branch: string | null, create?: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
@@ -108,6 +109,15 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         <span>Worktree</span>
       </label>
       </>))}
+
+      <label className="thread-start-check">
+        <input
+          type="checkbox"
+          checked={!project}
+          onChange={(event) => onSelectProject(event.target.checked ? undefined : projects[0]?.id)}
+        />
+        <span>Just chat</span>
+      </label>
     </div>
   );
 }

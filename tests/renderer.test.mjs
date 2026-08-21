@@ -3188,7 +3188,14 @@ test("the start options say where a thread begins, and searching narrows the bra
   const project = view.container.querySelector('button[aria-label="Project"]');
   assert.match(project.textContent, /claudex/, "the project the thread starts in is filled in already");
   assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
-  assert.equal(view.container.querySelector('.thread-start-check input').checked, false, "a worktree is only ever asked for");
+  assert.deepEqual([...view.container.querySelectorAll(".thread-start-check")].map((label) => label.textContent), ["Worktree", "Just chat"]);
+  const [worktreeCheck, chatCheck] = view.container.querySelectorAll(".thread-start-check input");
+  assert.equal(worktreeCheck.checked, false, "a worktree is only ever asked for");
+  assert.equal(chatCheck.checked, false, "a thread in a project is not just a chat");
+
+  await act(async () => { chatCheck.click(); });
+  assert.deepEqual(chosen.project, [undefined], "asking for a chat leaves the project behind");
+  chosen.project.length = 0;
 
   await act(async () => { project.click(); });
   const projectOptions = [...view.container.querySelectorAll('[role="option"]')];
@@ -3245,9 +3252,15 @@ test("a thread with no project still offers one to pick, and nothing a project h
   }));
 
   const project = view.container.querySelector('button[aria-label="Project"]');
+  const checks = () => [...view.container.querySelectorAll(".thread-start-check")].map((label) => label.textContent);
   assert.match(project.textContent, /No project/, "a self-contained thread says it has no project");
   assert.equal(view.container.querySelector('button[aria-label="Starting branch"]'), null, "with no project there is no branch to start from");
-  assert.equal(view.container.querySelector(".thread-start-check"), null, "and no checkout to cut");
+  assert.deepEqual(checks(), ["Just chat"], "the only question left is whether this stays a chat");
+  assert.equal(view.container.querySelector(".thread-start-check input").checked, true);
+
+  await act(async () => { view.container.querySelector(".thread-start-check input").click(); });
+  assert.deepEqual(chosen, ["project-a"], "leaving the chat starts the thread in the first project");
+  chosen.length = 0;
 
   await act(async () => { project.click(); });
   const projectOptions = [...view.container.querySelectorAll('[role="option"]')];
