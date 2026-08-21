@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { parseFilePatch, rangeKey, type DiffFile, type DiffRange } from "../../domain/diff";
+import { languageForPath, parseFilePatch, rangeKey, type DiffFile, type DiffRange } from "../../domain/diff";
+import { ensureLanguage } from "./highlight";
 
 export type PatchState =
   | { status: "reading" }
@@ -42,11 +43,15 @@ export function usePatches(workspaceId: string | undefined, range: DiffRange, re
       while (!cancelled) {
         const request = queue.shift();
         if (!request) return;
-        const state = await window.desktop.diffPatch(workspaceId, range, request.path, request.previousPath)
-          .then((result): PatchState => result.status === "available"
-            ? { status: "available", file: parseFilePatch(result.patch, request.path) }
-            : result)
-          .catch((error: unknown): PatchState => ({ status: "error", message: error instanceof Error ? error.message : String(error) }));
+        /** The grammar is fetched beside the patch, so the lines are coloured the moment they are drawn. */
+        const [state] = await Promise.all([
+          window.desktop.diffPatch(workspaceId, range, request.path, request.previousPath)
+            .then((result): PatchState => result.status === "available"
+              ? { status: "available", file: parseFilePatch(result.patch, request.path) }
+              : result)
+            .catch((error: unknown): PatchState => ({ status: "error", message: error instanceof Error ? error.message : String(error) })),
+          ensureLanguage(languageForPath(request.path)),
+        ]);
         if (cancelled) return;
         cache.current.set(`${key}|${request.version}`, state);
         setPatches(new Map(cache.current));

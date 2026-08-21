@@ -1,24 +1,34 @@
-import { createHighlighterCoreSync, type HighlighterCore, type ThemedToken, type ThemeRegistrationRaw } from "shiki/core";
+import { createHighlighterCoreSync, type HighlighterCore, type LanguageRegistration, type ThemedToken, type ThemeRegistrationRaw } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import css from "@shikijs/langs/css";
-import go from "@shikijs/langs/go";
-import html from "@shikijs/langs/html";
-import javascript from "@shikijs/langs/javascript";
-import json from "@shikijs/langs/json";
-import jsx from "@shikijs/langs/jsx";
-import markdown from "@shikijs/langs/markdown";
-import python from "@shikijs/langs/python";
-import rust from "@shikijs/langs/rust";
-import shellscript from "@shikijs/langs/shellscript";
-import sql from "@shikijs/langs/sql";
-import toml from "@shikijs/langs/toml";
-import tsx from "@shikijs/langs/tsx";
-import typescript from "@shikijs/langs/typescript";
-import yaml from "@shikijs/langs/yaml";
 
 export type { ThemedToken };
 
-const LANGS = [css, go, html, javascript, json, jsx, markdown, python, rust, shellscript, sql, toml, tsx, typescript, yaml];
+/**
+ * A grammar is a few hundred kilobytes and most reviews touch two or three languages, so each one is
+ * fetched the first time a file asks for it rather than bundled into the window. {@link ensureLanguage}
+ * is awaited alongside the patch it is for, which keeps the colouring itself synchronous: by the time
+ * there are lines to draw, the grammar that reads them is already registered.
+ */
+const GRAMMARS: Record<string, () => Promise<{ default: LanguageRegistration[] }>> = {
+  css: () => import("@shikijs/langs/css"),
+  go: () => import("@shikijs/langs/go"),
+  html: () => import("@shikijs/langs/html"),
+  javascript: () => import("@shikijs/langs/javascript"),
+  json: () => import("@shikijs/langs/json"),
+  jsx: () => import("@shikijs/langs/jsx"),
+  markdown: () => import("@shikijs/langs/markdown"),
+  python: () => import("@shikijs/langs/python"),
+  rust: () => import("@shikijs/langs/rust"),
+  shellscript: () => import("@shikijs/langs/shellscript"),
+  sql: () => import("@shikijs/langs/sql"),
+  toml: () => import("@shikijs/langs/toml"),
+  tsx: () => import("@shikijs/langs/tsx"),
+  typescript: () => import("@shikijs/langs/typescript"),
+  yaml: () => import("@shikijs/langs/yaml"),
+};
+
+/** The languages already asked for, so a second file of the same kind waits on the first's fetch. */
+const fetched = new Map<string, Promise<void>>();
 
 /**
  * Colours are `var()` rather than hex, so a theme redefines them the way it redefines every other
@@ -58,13 +68,28 @@ function shiki() {
   try {
     highlighter = createHighlighterCoreSync({
       themes: [THEME],
-      langs: LANGS,
+      langs: [],
       engine: createJavaScriptRegexEngine({ forgiving: true }),
     });
   } catch {
     unavailable = true;
   }
   return highlighter;
+}
+
+/** Registers the grammar a path needs. Resolves either way: a language nothing can read draws plain. */
+export async function ensureLanguage(lang: string | null) {
+  const engine = lang ? shiki() : null;
+  if (!lang || !engine || engine.getLoadedLanguages().includes(lang)) return;
+  let pending = fetched.get(lang);
+  if (!pending) {
+    const load = GRAMMARS[lang];
+    pending = load
+      ? load().then((grammar) => engine.loadLanguage(grammar.default)).then(() => undefined).catch(() => undefined)
+      : Promise.resolve();
+    fetched.set(lang, pending);
+  }
+  await pending;
 }
 
 /**
