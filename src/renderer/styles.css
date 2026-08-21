@@ -871,7 +871,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   position: absolute;
   z-index: 4;
   top: 14px;
-  left: clamp(20px, 4vw, 64px);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   border-radius: 9px;
@@ -891,6 +892,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .thread-mode button:hover { color: var(--ink-faint); }
 .thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink-soft); }
+/** The session panel takes the right of the strip, so the mode centres on what is left of it. */
+.workspace.summary-open .work-area > .thread-mode { transform: translateX(calc(-50% - 141px)); }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
 .workspace.summary-open .work-area > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
