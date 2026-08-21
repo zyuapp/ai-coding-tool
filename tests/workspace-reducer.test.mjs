@@ -2155,6 +2155,28 @@ test("stopping a background process marks the row and asks the run, once", () =>
   assert.deepEqual(reduce(workspace({ tasks: [task("task-a")], currentId: "task-a" }), { type: "run.stop-process", processId: "bash-1" }).effects, [], "no run, nothing to stop");
 });
 
+test("a workflow's frames land on its thread with no run to carry them", () => {
+  const idle = workspace({ tasks: [task("task-a")], currentId: "task-a" });
+  const started = reduce(idle, {
+    type: "workflow.event",
+    event: { type: "workflow.started", taskId: "task-a", id: "wf-1", name: "review-changes", description: "Review changed files" },
+  });
+  assert.equal(started.state.workflows["task-a"][0].status, "running");
+
+  const finished = reduce(started.state, {
+    type: "workflow.event",
+    event: { type: "workflow.finished", taskId: "task-a", id: "wf-1", status: "completed", summary: "Dynamic workflow completed" },
+  });
+  assert.equal(finished.state.workflows["task-a"][0].status, "completed");
+  assert.deepEqual(deriveView(finished.state).workflows, finished.state.workflows["task-a"]);
+
+  const stranger = reduce(idle, {
+    type: "workflow.event",
+    event: { type: "workflow.started", taskId: "task-gone", id: "wf-2", name: "spec", description: "Write the spec" },
+  });
+  assert.deepEqual(stranger.state, idle, "a thread that is gone keeps nothing");
+});
+
 test("stopping a workflow reaches the run the same way a process does", () => {
   const workflow = {
     id: "wf-1",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyRunEvent } from "../dist/main/application/task-workspace.js";
+import { applyRunEvent, applyWorkflowEvent } from "../dist/main/application/task-workspace.js";
 
 function task(id) {
   return {
@@ -258,31 +258,25 @@ test("background processes are replaced whole, keep a stop already asked for, an
 });
 
 test("a workflow's frames replace its tree, and a run cut short stops what was still going", () => {
-  const started = applyRunEvent(state(), {
+  const started = applyWorkflowEvent(state(), {
     type: "workflow.started",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 1,
     id: "wf-1",
     name: "review-changes",
     description: "Review changed files across dimensions",
   });
-  const first = applyRunEvent(started, {
+  const first = applyWorkflowEvent(started, {
     type: "workflow.progress",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 2,
     id: "wf-1",
     phases: [{ index: 0, title: "Review" }],
     agents: [{ index: 0, label: "review:bugs", state: "running" }, { index: 1, label: "review:perf", state: "queued" }],
     totalTokens: 1_200,
     totalToolCalls: 4,
   });
-  const second = applyRunEvent(first, {
+  const second = applyWorkflowEvent(first, {
     type: "workflow.progress",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 3,
     id: "wf-1",
     phases: [{ index: 0, title: "Review" }],
     agents: [{ index: 0, label: "review:bugs", state: "done" }],
@@ -305,13 +299,13 @@ test("a workflow's frames replace its tree, and a run cut short stops what was s
 });
 
 test("a workflow keeps how it ended, and the next run carries only what is still running", () => {
-  const running = applyRunEvent(applyRunEvent(state(), {
-    type: "workflow.started", taskId: "task-a", runId: "run-a", sequence: 1, id: "wf-1", name: "spec", description: "Write the spec",
+  const running = applyWorkflowEvent(applyWorkflowEvent(state(), {
+    type: "workflow.started", taskId: "task-a", id: "wf-1", name: "spec", description: "Write the spec",
   }), {
-    type: "workflow.progress", taskId: "task-a", runId: "run-a", sequence: 2, id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }], totalTokens: 10, totalToolCalls: 1,
+    type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }], totalTokens: 10, totalToolCalls: 1,
   });
-  const finished = applyRunEvent(running, {
-    type: "workflow.finished", taskId: "task-a", runId: "run-a", sequence: 3, id: "wf-1", status: "completed", summary: 'Dynamic workflow "spec" completed',
+  const finished = applyWorkflowEvent(running, {
+    type: "workflow.finished", taskId: "task-a", id: "wf-1", status: "completed", summary: 'Dynamic workflow "spec" completed',
   });
 
   assert.equal(finished.workflows["task-a"][0].status, "completed");
@@ -328,8 +322,24 @@ test("a workflow keeps how it ended, and the next run carries only what is still
   });
   assert.deepEqual(carried.workflows["task-a"].map((workflow) => workflow.id), ["wf-1"]);
 
-  const refreshed = applyRunEvent(carried, {
-    type: "workflow.progress", taskId: "task-a", runId: "run-b", sequence: 2, id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }, { index: 1, label: "review", state: "running" }], totalTokens: 40, totalToolCalls: 3,
+  const refreshed = applyWorkflowEvent(carried, {
+    type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }, { index: 1, label: "review", state: "running" }], totalTokens: 40, totalToolCalls: 3,
   });
   assert.equal(refreshed.workflows["task-a"][0].agents.length, 2, "the carried workflow keeps taking frames under the new run");
+});
+
+test("a workflow reports to its thread with no run of its own left going", () => {
+  const idle = { ...state(), activeRuns: {}, runStatuses: {} };
+  const started = applyWorkflowEvent(idle, {
+    type: "workflow.started", taskId: "task-a", id: "wf-1", name: "review-changes", description: "Review changed files",
+  });
+  const progressed = applyWorkflowEvent(started, {
+    type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "review:bugs", state: "running" }], totalTokens: 10, totalToolCalls: 1,
+  });
+  const finished = applyWorkflowEvent(progressed, {
+    type: "workflow.finished", taskId: "task-a", id: "wf-1", status: "completed", summary: "Dynamic workflow completed",
+  });
+
+  assert.equal(finished.workflows["task-a"][0].status, "completed");
+  assert.equal(finished.workflows["task-a"][0].agents.length, 1);
 });

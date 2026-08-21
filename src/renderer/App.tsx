@@ -153,7 +153,7 @@ export function App() {
     if (!workspace.dockPanels.includes("workflow")) setSelectedWorkflow(null);
   }, [workspace.dockPanels]);
 
-  /** A workflow lives with the run that drove it, so its panel closes when that record goes. */
+  /** A workflow outlives the run that started it, so its panel closes only once the workflow record is gone. */
   useEffect(() => {
     if (selectedWorkflow && !workspace.workflows.some((workflow) => workflow.id === selectedWorkflow)) {
       setSelectedWorkflow(null);

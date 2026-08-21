@@ -6,6 +6,7 @@ import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-or
 import {
   applyRunEvent,
   applyTask,
+  applyWorkflowEvent,
   automationRunLabel,
   automationRunPrompt,
   createTaskMessage,
@@ -28,6 +29,7 @@ import type {
   StartRunCommand,
   SteerRunCommand,
   StopProcessCommand,
+  WorkflowEvent,
 } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
@@ -50,6 +52,8 @@ export type WorkspaceEvent =
   | { type: "action.failed"; message: string }
   | { type: "project.opened"; workspace: WorkspaceRecord }
   | { type: "run.event"; event: RunEvent }
+  /** A workflow reports to its thread rather than to a run, which may be long over by then. */
+  | { type: "workflow.event"; event: WorkflowEvent }
   | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord; worktree?: CreatedWorktree }
   | { type: "run.unresolved"; pendingId: string; message: string }
   | { type: "automation.fired"; fire: AutomationFire }
@@ -1310,6 +1314,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, environment);
       const drained = drainQueue(next, event.taskId, event.status);
       return settled(drained.state, [...environment, ...drained.effects]);
+    }
+
+    case "workflow.event": {
+      const { event } = input;
+      if (!state.tasks.some((task) => task.id === event.taskId)) return settled(state);
+      return settled(applyWorkflowEvent(state, event));
     }
 
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */

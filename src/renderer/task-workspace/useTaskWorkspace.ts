@@ -483,7 +483,7 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
-    return window.desktop.onAgentEvent((event) => void dispatchRef.current({ type: "run.event", event }));
+    return window.desktop.onAgentEvent((event) => void dispatchRef.current("runId" in event ? { type: "run.event", event } : { type: "workflow.event", event }));
   }, []);
 
   useEffect(() => {

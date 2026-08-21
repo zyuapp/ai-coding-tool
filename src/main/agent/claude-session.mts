@@ -2,6 +2,7 @@ import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-a
 import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
 import { contextWindowLimit } from "../../domain/run.js";
 import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { WorkflowReport } from "../../contracts/ipc.js";
 import type { ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
@@ -120,6 +121,8 @@ export class ClaudeSession {
   private outcome: ProviderResult | null = null;
   /** The workflows running here. One outlives the turn that started it, so the set outlives the turn too. */
   private readonly workflowIds = new Set<string>();
+  /** Where those workflows report. Taken when the session opens: they belong to the thread, not to a run. */
+  private reportWorkflow: (report: WorkflowReport) => void = () => {};
   /** Every background task the CLI last reported live, by id. Replaced whole, so it holds nothing the CLI has let go of. */
   private readonly backgroundTaskIds = new Set<string>();
   /** What the CLI called this session. A later run resumes it by this id. */
@@ -146,6 +149,7 @@ export class ClaudeSession {
   open(opener: SessionOpener, seed: ProviderRunInput) {
     this.model = seed.model;
     this.effort = seed.effort;
+    this.reportWorkflow = seed.reportWorkflow;
     this.query = opener(this.stream(), this.canUseTool);
     void this.pump();
   }
@@ -285,6 +289,7 @@ export class ClaudeSession {
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
     /** Taken before the turn guard: what the agent leaves running outlives the turn that started it. */
     if (message.type === "system" && message.subtype === "background_tasks_changed") this.trackBackground(message.tasks);
+    if (this.receiveWorkflow(message)) return;
     const turn = this.turn;
     if (!turn) return;
     const { input } = turn;
@@ -305,35 +310,6 @@ export class ClaudeSession {
       });
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
       input.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
-    } else if (message.type === "system" && message.subtype === "task_started" && message.task_type === "local_workflow") {
-      this.workflowIds.add(message.task_id);
-      input.emit({
-        type: "workflow.started",
-        id: message.task_id,
-        name: message.workflow_name ?? message.description,
-        description: message.description,
-      });
-    } else if (message.type === "system" && message.subtype === "task_progress" && this.workflowIds.has(message.task_id)) {
-      /** The tree rides along with some frames and not others; a frame without one has nothing to say. */
-      const progress = parseWorkflowProgress(workflowProgressOf(message));
-      if (progress) {
-        input.emit({
-          type: "workflow.progress",
-          id: message.task_id,
-          phases: progress.phases,
-          agents: progress.agents,
-          totalTokens: message.usage.total_tokens,
-          totalToolCalls: message.usage.tool_uses,
-        });
-      }
-    } else if (message.type === "system" && message.subtype === "task_notification" && this.workflowIds.has(message.task_id)) {
-      this.workflowIds.delete(message.task_id);
-      input.emit({
-        type: "workflow.finished",
-        id: message.task_id,
-        status: message.status === "completed" ? "completed" : message.status === "failed" ? "failed" : "stopped",
-        summary: message.summary,
-      });
     } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
       turn.subagentIds.add(message.task_id);
       if (message.tool_use_id) turn.subagentByToolUse.set(message.tool_use_id, message.task_id);
@@ -415,6 +391,47 @@ export class ClaudeSession {
       }
       this.settle({ status: "succeeded" });
     }
+  }
+
+  /** Whether the message belonged to a workflow. Read before the turn guard, so a workflow reports between turns too. */
+  private receiveWorkflow(message: SDKMessage) {
+    if (message.type !== "system") return false;
+    if (message.subtype === "task_started" && message.task_type === "local_workflow") {
+      this.workflowIds.add(message.task_id);
+      this.reportWorkflow({
+        type: "workflow.started",
+        id: message.task_id,
+        name: message.workflow_name ?? message.description,
+        description: message.description,
+      });
+      return true;
+    }
+    if (message.subtype === "task_progress" && this.workflowIds.has(message.task_id)) {
+      /** The tree rides along with some frames and not others; a frame without one has nothing to say. */
+      const progress = parseWorkflowProgress(workflowProgressOf(message));
+      if (progress) {
+        this.reportWorkflow({
+          type: "workflow.progress",
+          id: message.task_id,
+          phases: progress.phases,
+          agents: progress.agents,
+          totalTokens: message.usage.total_tokens,
+          totalToolCalls: message.usage.tool_uses,
+        });
+      }
+      return true;
+    }
+    if (message.subtype === "task_notification" && this.workflowIds.has(message.task_id)) {
+      this.workflowIds.delete(message.task_id);
+      this.reportWorkflow({
+        type: "workflow.finished",
+        id: message.task_id,
+        status: message.status === "completed" ? "completed" : message.status === "failed" ? "failed" : "stopped",
+        summary: message.summary,
+      });
+      return true;
+    }
+    return false;
   }
 
   /**

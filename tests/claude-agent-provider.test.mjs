@@ -21,6 +21,7 @@ function input(overrides = {}) {
     attach() {},
     authorize: async () => "allow",
     emit() {},
+    reportWorkflow() {},
     ...overrides,
   };
 }
@@ -621,36 +622,43 @@ test("only background tasks that are processes of their own are reported, and th
   ]);
 });
 
-test("a workflow started in one turn keeps reporting in the next", async () => {
+test("a workflow keeps reporting between the turns of the session it runs under", async () => {
   const capture = {};
   const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
-  const emitted = [];
-  const emit = (event) => emitted.push(event);
+  const reported = [];
+  const reportWorkflow = (report) => reported.push(report);
 
-  await turn(capture, provider.execute(input({ emit })),
+  await turn(capture, provider.execute(input({ reportWorkflow })),
     { type: "system", subtype: "init", session_id: "session-1" },
     { type: "system", subtype: "task_started", task_type: "local_workflow", task_id: "wf-1", workflow_name: "review-changes", description: "Review changed files" });
 
-  const continuation = { provider: "claude", value: "session-1" };
-  await turn(capture, provider.execute(input({ continuation, emit, prompt: "and again" })),
-    {
-      type: "system",
-      subtype: "task_progress",
-      task_id: "wf-1",
-      workflow_progress: [
-        { type: "workflow_phase", index: 0, title: "Review" },
-        { type: "workflow_agent", index: 0, label: "review:bugs", state: "progress", startedAt: 5 },
-      ],
-      usage: { total_tokens: 1_200, tool_uses: 4 },
-    },
-    { type: "system", subtype: "task_notification", task_id: "wf-1", status: "completed", summary: "Dynamic workflow completed" });
+  capture.emit({
+    type: "system",
+    subtype: "task_progress",
+    task_id: "wf-1",
+    workflow_progress: [
+      { type: "workflow_phase", index: 0, title: "Review" },
+      { type: "workflow_agent", index: 0, label: "review:bugs", state: "progress", startedAt: 5 },
+    ],
+    usage: { total_tokens: 1_200, tool_uses: 4 },
+  });
+  capture.emit({ type: "system", subtype: "task_notification", task_id: "wf-1", status: "completed", summary: "Dynamic workflow completed" });
+  await tick();
+  await tick();
 
-  assert.equal(capture.opens, 1);
-  assert.deepEqual(emitted.filter((event) => event.type.startsWith("workflow.")).map((event) => event.type), [
+  assert.deepEqual(reported.map((report) => report.type), [
     "workflow.started",
     "workflow.progress",
     "workflow.finished",
-  ], "the turn that started the workflow does not own it");
+  ], "a workflow with no turn to report under still reports");
+  assert.equal(reported[2].status, "completed");
+
+  const continuation = { provider: "claude", value: "session-1" };
+  await turn(capture, provider.execute(input({ continuation, reportWorkflow, prompt: "and again" })),
+    { type: "system", subtype: "task_started", task_type: "local_workflow", task_id: "wf-2", workflow_name: "migrate", description: "Migrate call sites" });
+
+  assert.equal(capture.opens, 1);
+  assert.deepEqual(reported.at(-1), { type: "workflow.started", id: "wf-2", name: "migrate", description: "Migrate call sites" });
   provider.closeAll();
 });
 

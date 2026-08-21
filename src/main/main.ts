@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWorkflowEvent, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
@@ -88,7 +88,7 @@ function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
   return Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
 }
 
-function sendToRenderer(event: RunEvent) {
+function sendToRenderer(event: AgentEvent) {
   if (window && !window.isDestroyed()) window.webContents.send("run:event", event);
 }
 
@@ -236,6 +236,8 @@ function startAgent() {
   });
   agent.on("message", (event: unknown) => {
     if (isRunEvent(event)) publishRunEvent(event);
+    /** No run to gate it: the workflow it comes from outlives the run that started it. */
+    else if (isWorkflowEvent(event)) sendToRenderer(event);
     else if (isAutomationRequest(event)) void handleAutomationRequest(event);
     else if (isThreadRequest(event)) handleThreadRequest(event);
   });

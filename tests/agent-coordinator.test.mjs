@@ -82,6 +82,26 @@ test("late output from a cancelled run cannot reach the replacement run", async 
   assert.deepEqual(statuses(events, "run-new"), ["running", "succeeded"]);
 });
 
+test("a workflow's report reaches the thread once its run is over", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-w", "run-w"));
+  await tick();
+  const { input, resolve } = provider.runs[0];
+  input.reportWorkflow({ type: "workflow.started", id: "wf-1", name: "review-changes", description: "Review changed files" });
+  resolve({ status: "succeeded" });
+  await tick();
+  input.reportWorkflow({ type: "workflow.finished", id: "wf-1", status: "completed", summary: "Dynamic workflow completed" });
+
+  assert.deepEqual(events.filter((event) => event.type.startsWith("workflow.")), [
+    { type: "workflow.started", id: "wf-1", name: "review-changes", description: "Review changed files", taskId: "task-w" },
+    { type: "workflow.finished", id: "wf-1", status: "completed", summary: "Dynamic workflow completed", taskId: "task-w" },
+  ], "a settled run is no reason to hold back what its workflow is still doing");
+  assert.deepEqual(statuses(events, "run-w"), ["running", "succeeded"]);
+});
+
 test("approval is scoped to the run and resumes only after its decision", async () => {
   const provider = new FakeProvider();
   const events = [];

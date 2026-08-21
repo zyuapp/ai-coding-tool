@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { InternalStartRunCommand, RunEvent } from "../../contracts/ipc.js";
+import type { AgentEvent, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AutomationBridge, ProviderEvent, BrowserBridge, RunControls, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
@@ -45,7 +45,7 @@ export class RunCoordinator {
 
   constructor(
     private readonly provider: AgentProvider,
-    private readonly emit: (event: RunEvent) => void,
+    private readonly emit: (event: AgentEvent) => void,
     private readonly options: CoordinatorOptions = {},
   ) {}
 
@@ -126,6 +126,7 @@ export class RunCoordinator {
         attach: (controls) => { active.controls = controls; },
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),
+        reportWorkflow: (report) => this.reportWorkflow(active.taskId, report),
       });
       if (!this.isCurrent(active) || active.terminal) return;
       this.finish(active, result.status, result.message);
@@ -155,9 +156,11 @@ export class RunCoordinator {
     if (event.type === "subagent.activity") this.publish(active, event);
     if (event.type === "subagent.finished") this.publish(active, event);
     if (event.type === "background.changed") this.publish(active, event);
-    if (event.type === "workflow.started") this.publish(active, event);
-    if (event.type === "workflow.progress") this.publish(active, event);
-    if (event.type === "workflow.finished") this.publish(active, event);
+  }
+
+  /** A workflow answers to the thread rather than to a run, so nothing about a run's state holds it back. */
+  private reportWorkflow(taskId: string, report: WorkflowReport) {
+    this.emit({ ...report, taskId });
   }
 
   private queueTail(active: ActiveRun, messageId: string, text: string) {

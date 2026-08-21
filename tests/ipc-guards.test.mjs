@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse } from "../dist/main/contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../dist/main/contracts/ipc.js";
 
 const command = {
   type: "start",
@@ -101,6 +101,23 @@ test("run event guard validates every subagent event", () => {
     { ...valid[4], summary: 42 },
   ];
   for (const event of invalid) assert.equal(isRunEvent(event), false, JSON.stringify(event));
+});
+
+test("workflow events name a thread instead of a run", () => {
+  const started = { type: "workflow.started", taskId: "task-1", id: "wf-1", name: "review-changes", description: "Review changed files" };
+  assert.equal(isWorkflowEvent(started), true);
+  assert.equal(isRunEvent({ ...started, runId: "run-1", sequence: 1 }), false, "a run event guard does not vouch for a workflow");
+  assert.equal(isWorkflowEvent({ ...started, taskId: "" }), false);
+  assert.equal(isWorkflowEvent({ ...started, type: "run.started" }), false);
+
+  const progress = { type: "workflow.progress", taskId: "task-1", id: "wf-1", phases: [{ index: 0, title: "Review" }], agents: [{ index: 0, label: "review:bugs", state: "running" }], totalTokens: 10, totalToolCalls: 1 };
+  assert.equal(isWorkflowEvent(progress), true);
+  assert.equal(isWorkflowEvent({ ...progress, agents: [{ index: 0, label: "review:bugs", state: "thinking" }] }), false);
+  assert.equal(isWorkflowEvent({ ...progress, totalTokens: -1 }), false);
+
+  const finished = { type: "workflow.finished", taskId: "task-1", id: "wf-1", status: "completed", summary: "Dynamic workflow completed" };
+  assert.equal(isWorkflowEvent(finished), true);
+  assert.equal(isWorkflowEvent({ ...finished, status: "running" }), false);
 });
 
 test("run guards enforce numeric and string boundaries", () => {

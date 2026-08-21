@@ -1,4 +1,4 @@
-import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AutomationRequest, type RunEvent } from "../contracts/ipc.js";
+import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type AgentEvent, type AutomationRequest } from "../contracts/ipc.js";
 import type { ThreadRequest } from "../contracts/threads.js";
 import { ClaudeAgentProvider } from "./agent/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
@@ -8,7 +8,7 @@ import { isWritePathInside } from "./path-policy.mjs";
 
 type ParentPort = {
   on(event: "message", listener: (event: { data: unknown }) => void): void;
-  postMessage(message: RunEvent | AutomationRequest | ThreadRequest): void;
+  postMessage(message: AgentEvent | AutomationRequest | ThreadRequest): void;
 };
 
 const parentPort = (process as typeof process & { parentPort: ParentPort }).parentPort;

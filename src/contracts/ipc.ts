@@ -187,7 +187,7 @@ export type DesktopAPI = {
   planUsage(): Promise<PlanUsage>;
   restartForComputerUse(): void;
   send(command: RunCommand): void;
-  onAgentEvent(listener: (event: RunEvent) => void): () => void;
+  onAgentEvent(listener: (event: AgentEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
   /** The files a comparison touches, with their counts. Cheap enough to read whenever a run ends. */
   diffSummary(workspaceId: WorkspaceId, range: DiffRange): Promise<DiffSummaryResult>;
@@ -368,17 +368,6 @@ export type RunEvent =
   | (RunEventBase & { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string })
   /** Every background process the run still has. Replaces the set rather than amending it. */
   | (RunEventBase & { type: "background.changed"; processes: BackgroundProcess[] })
-  | (RunEventBase & { type: "workflow.started"; id: string; name: string; description: string })
-  /** The workflow's whole tree as it stands. Replaces the record rather than amending it. */
-  | (RunEventBase & {
-      type: "workflow.progress";
-      id: string;
-      phases: WorkflowPhase[];
-      agents: WorkflowAgent[];
-      totalTokens: number;
-      totalToolCalls: number;
-    })
-  | (RunEventBase & { type: "workflow.finished"; id: string; status: Exclude<WorkflowStatus, "running">; summary: string })
   | (RunEventBase & {
       type: "approval.requested";
       approvalId: string;
@@ -389,6 +378,19 @@ export type RunEvent =
   | (RunEventBase & { type: "continuation.updated"; continuation: Continuation })
   /** A steered message reached the agent, so it is part of this run rather than the next one. */
   | (RunEventBase & { type: "queued.delivered"; messageId: string });
+
+/** What a workflow reports as it runs. The thread it belongs to is added on the way out of the agent process. */
+export type WorkflowReport =
+  | { type: "workflow.started"; id: string; name: string; description: string }
+  /** The workflow's whole tree as it stands. Replaces the record rather than amending it. */
+  | { type: "workflow.progress"; id: string; phases: WorkflowPhase[]; agents: WorkflowAgent[]; totalTokens: number; totalToolCalls: number }
+  | { type: "workflow.finished"; id: string; status: Exclude<WorkflowStatus, "running">; summary: string };
+
+/** A workflow outlives the run that started it, so what it reports is the thread's rather than a run's. */
+export type WorkflowEvent = WorkflowReport & { taskId: string };
+
+/** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
+export type AgentEvent = RunEvent | WorkflowEvent;
 
 const MAX_ID_LENGTH = 256;
 /** A wait holds a tool call open, so it is bounded rather than left to the caller. */
@@ -645,16 +647,22 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";
   if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "background.changed") return Array.isArray(event.processes) && event.processes.every(isBackgroundProcess);
-  if (event.type === "workflow.started") return isString(event.id) && isString(event.name, 100_000) && isString(event.description, 100_000);
-  if (event.type === "workflow.progress") {
-    return isString(event.id)
-      && Array.isArray(event.phases) && event.phases.every(isWorkflowPhase)
-      && Array.isArray(event.agents) && event.agents.every(isWorkflowAgent)
-      && isCount(event.totalTokens) && isCount(event.totalToolCalls);
-  }
-  if (event.type === "workflow.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   if (event.type === "queued.delivered") return isString(event.messageId);
+  return false;
+}
+
+export function isWorkflowEvent(value: unknown): value is WorkflowEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Record<string, unknown>;
+  if (!isString(event.taskId) || !isString(event.id)) return false;
+  if (event.type === "workflow.started") return isString(event.name, 100_000) && isString(event.description, 100_000);
+  if (event.type === "workflow.progress") {
+    return Array.isArray(event.phases) && event.phases.every(isWorkflowPhase)
+      && Array.isArray(event.agents) && event.agents.every(isWorkflowAgent)
+      && isCount(event.totalTokens) && isCount(event.totalToolCalls);
+  }
+  if (event.type === "workflow.finished") return (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   return false;
 }

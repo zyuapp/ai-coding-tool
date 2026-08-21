@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, RunEvent, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
+import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
@@ -25,8 +25,8 @@ const api: DesktopAPI = {
   restartForComputerUse: () => ipcRenderer.send("computer-use:restart"),
   planUsage: () => ipcRenderer.invoke("usage:plan"),
   send: (command: RunCommand) => ipcRenderer.send("run:command", command),
-  onAgentEvent: (listener: (event: RunEvent) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: RunEvent) => listener(payload);
+  onAgentEvent: (listener: (event: AgentEvent) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: AgentEvent) => listener(payload);
     ipcRenderer.on("run:event", handler);
     return () => ipcRenderer.removeListener("run:event", handler);
   },

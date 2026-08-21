@@ -1,4 +1,4 @@
-import type { RunEvent } from "../contracts/ipc.js";
+import type { RunEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import type { Annotation, PastedText, Task, TaskMessage } from "../domain/task.js";
@@ -135,6 +135,35 @@ function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, 
     else subagents[index] = update(subagents[index]);
     return { ...task, subagents, updatedAt: now() };
   });
+}
+
+/** What a workflow reports, kept by its thread: the run that started it may be long over. */
+export function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: WorkflowEvent): T {
+  if (event.type === "workflow.started") {
+    return updateWorkflow(state, event.taskId, event.id, (existing) => ({
+      ...(existing ?? { phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      status: "running",
+    }));
+  }
+  if (event.type === "workflow.progress") {
+    return updateWorkflow(state, event.taskId, event.id, (existing) => ({
+      ...(existing ?? { id: event.id, name: event.id, description: "Dynamic workflow", status: "running" as const, startedAt: now() }),
+      phases: event.phases,
+      agents: event.agents,
+      totalTokens: event.totalTokens,
+      totalToolCalls: event.totalToolCalls,
+    }));
+  }
+  return updateWorkflow(state, event.taskId, event.id, (existing) => ({
+    ...(existing ?? { id: event.id, name: event.id, description: "Dynamic workflow", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
+    status: event.status,
+    finishedAt: now(),
+    stopping: false,
+    ...(event.summary ? { summary: event.summary } : {}),
+  }));
 }
 
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
@@ -278,33 +307,6 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       startedAt: existing?.startedAt ?? now(),
       finishedAt: now(),
       activity: existing?.activity ?? [],
-    }));
-  }
-  if (event.type === "workflow.started") {
-    return updateWorkflow(withSequence, event.taskId, event.id, (existing) => ({
-      ...(existing ?? { phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
-      id: event.id,
-      name: event.name,
-      description: event.description,
-      status: "running",
-    }));
-  }
-  if (event.type === "workflow.progress") {
-    return updateWorkflow(withSequence, event.taskId, event.id, (existing) => ({
-      ...(existing ?? { id: event.id, name: event.id, description: "Dynamic workflow", status: "running" as const, startedAt: now() }),
-      phases: event.phases,
-      agents: event.agents,
-      totalTokens: event.totalTokens,
-      totalToolCalls: event.totalToolCalls,
-    }));
-  }
-  if (event.type === "workflow.finished") {
-    return updateWorkflow(withSequence, event.taskId, event.id, (existing) => ({
-      ...(existing ?? { id: event.id, name: event.id, description: "Dynamic workflow", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
-      status: event.status,
-      finishedAt: now(),
-      stopping: false,
-      ...(event.summary ? { summary: event.summary } : {}),
     }));
   }
   /** A stop already asked for stays marked until the run stops reporting that process. */
