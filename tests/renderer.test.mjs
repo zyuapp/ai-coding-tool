@@ -46,6 +46,11 @@ for (const target of [globalThis, dom.window]) {
   Object.defineProperty(target, "ResizeObserver", { configurable: true, value: ResizeObserverStub });
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+/** React watches the focused field through the event methods only IE ever had, which jsdom has not. */
+for (const prototype of [dom.window.HTMLInputElement.prototype, dom.window.HTMLTextAreaElement.prototype]) {
+  prototype.attachEvent = () => {};
+  prototype.detachEvent = () => {};
+}
 dom.window.HTMLElement.prototype.scrollTo = () => {};
 dom.window.Element.prototype.getAnimations = () => [];
 
@@ -766,6 +771,7 @@ function fakeDesktop(overrides = {}) {
     onShortcut: (next) => { shortcutPressed = next; return () => {}; },
     onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
     closeWindow: () => { browserCalls.push(["close-window"]); },
+    focusWindow: () => { browserCalls.push(["focus-window"]); },
     ...overrides,
   };
 }
@@ -1028,8 +1034,6 @@ test("one outside pointer press dismisses the slash menu until the draft changes
   const view = await mount(React.createElement(Harness));
   const textarea = view.container.querySelector("textarea");
   const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
-  textarea.attachEvent = () => {};
-  textarea.detachEvent = () => {};
   await act(async () => {
     textarea.focus();
     setValue.call(textarea, "/");
@@ -1081,8 +1085,6 @@ test("a slash action runs at once and clears the draft", async () => {
   const scrolled = [];
   const originalScrollIntoView = dom.window.HTMLElement.prototype.scrollIntoView;
   dom.window.HTMLElement.prototype.scrollIntoView = function (options) { scrolled.push({ id: this.id, options }); };
-  textarea.attachEvent = () => {};
-  textarea.detachEvent = () => {};
 
   await act(async () => {
     textarea.focus();
@@ -1131,8 +1133,6 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
   const view = await mount(React.createElement(Harness));
   const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
   const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
-  textarea.attachEvent = () => {};
-  textarea.detachEvent = () => {};
   const press = (key) => act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key })); });
   const type = (text) => act(async () => {
     setValue.call(textarea, text);
@@ -1195,8 +1195,6 @@ test("a skill completes anywhere in the draft, where an action is not offered", 
   const view = await mount(React.createElement(Harness));
   const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
   const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
-  textarea.attachEvent = () => {};
-  textarea.detachEvent = () => {};
   const type = async (value, inputType = "insertText") => {
     await act(async () => {
       textarea.focus();
@@ -1294,8 +1292,6 @@ test("the side surface keeps the slash palette but never offers to fork a fork",
   const view = await mount(React.createElement(Harness));
   const textarea = view.container.querySelector('textarea[aria-label="Side chat prompt"]');
   const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
-  textarea.attachEvent = () => {};
-  textarea.detachEvent = () => {};
   await act(async () => {
     textarea.focus();
     setValue.call(textarea, "/s");
@@ -1454,6 +1450,36 @@ test("closing subagent details returns to the agents tab", async () => {
   assert.ok(view.container.querySelector(".subagent-inspector"));
   await act(async () => { view.container.querySelector('button[aria-label="Close subagent details"]').click(); });
   assert.ok(view.container.querySelector('.agents-panel button[aria-label="Open Complete agent details"]'));
+
+  await view.unmount();
+});
+
+test("a view opened in the dock takes the caret with it", async () => {
+  localStorage.clear();
+  localStorage.setItem("claudex.store.v2", JSON.stringify({
+    tasks: JSON.stringify({ version: 2, value: [{
+      id: "task-1",
+      title: "Inspect",
+      executionPolicy: "confirm",
+      messages: [],
+      continuation: { provider: "claude", value: "main-session" },
+      continuationStatus: "available",
+      lastChangeSnapshot: { files: [], capturedAt: 1 },
+      updatedAt: 2,
+    }] }),
+    projects: JSON.stringify({ version: 2, value: [] }),
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  }));
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
+  await act(async () => { view.container.querySelector('button[aria-label="Open Side chat panel"]').click(); });
+  assert.equal(document.activeElement, view.container.querySelector('textarea[aria-label="Side chat prompt"]'), "the chat is opened to type in");
+
+  await act(async () => { view.container.querySelector('button[aria-label="Add right panel tab"]').click(); });
+  await act(async () => { [...view.container.querySelectorAll('[role="menuitem"]')].find((item) => item.textContent.includes("Browser")).click(); });
+  assert.equal(document.activeElement, view.container.querySelector('.browser-bar input[aria-label="Address"]'), "a page with no address yet asks for one");
 
   await view.unmount();
 });

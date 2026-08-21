@@ -2048,6 +2048,37 @@ test("a run drives its own thread's dock, whichever thread the user is looking a
   assert.equal(shown.effects.at(-1).type, "browser.show");
 });
 
+test("a view the user opens in the dock is handed the keyboard, and a run's own page is not", () => {
+  const state = { ...workspace(), tasks: [task("task-1", { continuation: { provider: "claude", value: "main-session" } }), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1" };
+
+  const shell = reduce(state, { type: "terminal.open", cwd: "/tmp" });
+  const terminalId = dock(shell.state).terminals[0].id;
+  assert.deepEqual(shell.state.dockFocus, { owner: "task-1", tab: terminalId, count: 1 });
+  assert.equal(deriveView(shell.state).dockFocus.tab, terminalId);
+
+  const chat = reduce(shell.state, { type: "side-chat.open", chatId: "chat-1" });
+  assert.deepEqual(chat.state.dockFocus, { owner: "task-1", tab: "chat-1", count: 2 });
+
+  const page = reduce(chat.state, { type: "browser.new-tab" });
+  assert.equal(page.state.dockFocus.tab, dock(page.state).browserTabs[0].id, "a blank page is opened to type an address into");
+
+  const stepped = reduce(page.state, { type: "view.select-dock-index", index: 1 });
+  assert.equal(stepped.state.dockFocus.tab, terminalId, "the tab a keystroke names takes the keys with it");
+
+  const byRun = reduce(stepped.state, { type: "browser.open", taskId: "task-2", url: "https://two.example" });
+  assert.deepEqual(byRun.state.dockFocus, stepped.state.dockFocus, "a run's own page never takes the keyboard");
+  assert.equal(deriveView(byRun.state).dockFocus.tab, terminalId);
+});
+
+test("a new thread is opened to type in, so the caret and the keys go to its composer", () => {
+  const reading = run(workspace(), [{ type: "browser.new-tab" }]);
+  const started = reduce(reading, { type: "task.new" });
+
+  assert.equal(started.state.composerFocus, reading.composerFocus + 1);
+  assert.deepEqual(started.effects, [{ type: "focus-window" }], "a page in the panel is holding the keys until the window takes them back");
+  assert.deepEqual(reduce(started.state, { type: "view.focus-composer" }).effects, [{ type: "focus-window" }]);
+});
+
 test("a restored page waits for the panel to show it before it loads", () => {
   const restored = reduce(workspace(), {
     type: "preferences.loaded",

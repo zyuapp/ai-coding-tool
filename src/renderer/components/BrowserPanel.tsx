@@ -9,6 +9,8 @@ export type BrowserPanelProps = {
   approval: BrowserApproval | null;
   /** False whenever something else is over the panel: the page is a native view, not an element. */
   visible: boolean;
+  /** Bumped whenever something asks this tab to take the keyboard. */
+  focusToken?: number;
   /** The find bar, when it is this page being searched. It sits above the page rather than over it. */
   find?: ReactNode;
   onOpen: (url: string) => void;
@@ -17,7 +19,7 @@ export type BrowserPanelProps = {
   onDecide: (allow: boolean) => void;
 };
 
-export function BrowserPanel({ tab, approval, visible, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
+export function BrowserPanel({ tab, approval, visible, focusToken = 0, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const addressInput = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState(tab.url);
@@ -32,6 +34,14 @@ export function BrowserPanel({ tab, approval, visible, find, onOpen, onGo, onRel
   useEffect(() => {
     if (!editing) setAddress(tab.url);
   }, [tab.url, tab.id, editing]);
+
+  /** A tab asked for is one to read; a tab with no page yet is one to type an address into. */
+  useEffect(() => {
+    if (!focusToken) return;
+    if (tab.url) void window.desktop.focusBrowserTab(tab.id);
+    else addressInput.current?.focus();
+    /** Only a fresh request moves the keys, so the page this tab lands on later leaves them where they are. */
+  }, [focusToken]);
 
   /** Main draws the page over this rectangle, so every layout change has to be reported. */
   useEffect(() => {

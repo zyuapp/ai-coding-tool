@@ -6,13 +6,15 @@ export type TerminalPanelProps = {
   terminal: TerminalSession;
   /** False whenever something else is over the panel, so a hidden terminal keeps the size it had. */
   visible: boolean;
+  /** Bumped whenever something asks the shell to take the keyboard. */
+  focusToken?: number;
   /** The find bar, when it is this shell being searched. */
   find?: ReactNode;
   onInput: (terminalId: string, data: string) => void;
   onResize: (terminalId: string, cols: number, rows: number) => void;
 };
 
-export function TerminalPanel({ terminal, visible, find, onInput, onResize }: TerminalPanelProps) {
+export function TerminalPanel({ terminal, visible, focusToken = 0, find, onInput, onResize }: TerminalPanelProps) {
   const viewport = useRef<HTMLDivElement>(null);
   /**
    * Held in a ref rather than named as a dependency: showing a view moves its element into the
@@ -24,6 +26,10 @@ export function TerminalPanel({ terminal, visible, find, onInput, onResize }: Te
   const [drawError, setDrawError] = useState<string | null>(null);
 
   useEffect(() => onTerminalInput(onInput), [onInput]);
+
+  useEffect(() => {
+    if (focusToken) focusTerminalView(terminal.id);
+  }, [focusToken, terminal.id]);
 
   useEffect(() => { resized.current = onResize; }, [onResize]);
 

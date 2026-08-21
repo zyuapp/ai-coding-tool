@@ -262,6 +262,10 @@ export function App() {
     .filter((launcher) => !launcher.disabled)
     .map(({ command, description, open }) => ({ name: command, description, run: open }));
 
+  /** Which dock tab was last asked to take the keyboard, as the count the view watches. */
+  const dockFocus = workspace.dockFocus;
+  const focusTokenFor = (tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0;
+
   const browserTab = workspace.browserTabs.find((tab) => tab.id === activeRightTab);
   const shownTerminal = workspace.terminals.find((terminal) => terminal.id === activeRightTab);
 
@@ -508,6 +512,7 @@ export function App() {
                 <div>
                   <BrowserPanel
                     tab={browserTab}
+                    focusToken={focusTokenFor(browserTab.id)}
                     {...(find?.target.kind === "browser" && find.target.tabId === browserTab.id ? { find: findBar } : {})}
                     approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}
                     visible={browserPageVisible}
@@ -522,6 +527,7 @@ export function App() {
                 <div>
                   <TerminalPanel
                     terminal={shownTerminal}
+                    focusToken={focusTokenFor(shownTerminal.id)}
                     {...(find?.target.kind === "terminal" && find.target.terminalId === shownTerminal.id ? { find: findBar } : {})}
                     visible={rightDockOpen && !settingsVisible}
                     onInput={(terminalId, data) => void workspace.actions.sendToTerminal(terminalId, data)}
@@ -533,6 +539,7 @@ export function App() {
                 <div key={chat.id} hidden={activeRightTab !== chat.id}>
                   <SideChat
                     chat={chat}
+                    focusToken={focusTokenFor(chat.id)}
                     source={workspace.currentTask!}
                     project={workspace.currentProject}
                     onPrompt={(prompt) => void workspace.dispatch({ type: "view.set-prompt", taskId: chat.id, prompt })}

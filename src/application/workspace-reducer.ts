@@ -236,6 +236,19 @@ function showDockTab(state: WorkspaceState, owner: string, tab: string): Workspa
   return withDock(state, owner, { open: true, tab });
 }
 
+/** Hands a dock tab the keyboard. The view watches the count rather than being told to focus. */
+function focusDockTab(state: WorkspaceState, owner: string, tab: string): WorkspaceState {
+  return { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
+}
+
+/** Puts the caret in the composer, taking the keys back from a page that swallows them. */
+function focusComposer(state: WorkspaceState): WorkspaceState {
+  return { ...state, composerFocus: state.composerFocus + 1 };
+}
+
+/** The window has the keys again, which a page in the panel is otherwise holding. */
+const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];
+
 function withBrowserTabs(state: WorkspaceState, owner: string, browserTabs: BrowserTab[]): WorkspaceState {
   return withDock(state, owner, { browserTabs });
 }
@@ -259,14 +272,16 @@ function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabI
   const target = newTab ? undefined : browserTarget(dockFor(remembered, owner), tabId);
   const cleared = { ...remembered, browserApproval: null, actionError: null };
   if (target) {
-    const navigating = withDock(patchBrowserTab(showDockTab(cleared, owner, target.id), owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
+    const shown = withDock(patchBrowserTab(showDockTab(cleared, owner, target.id), owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
+    const navigating = byUser ? focusDockTab(shown, owner, target.id) : shown;
     return settled(navigating, [
       { type: "browser.navigate", tabId: target.id, url },
       ...persistView(navigating),
     ]);
   }
   const tab: BrowserTab = { id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
-  const opened = withDock(showDockTab(cleared, owner, tab.id), owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
+  const shown = withDock(showDockTab(cleared, owner, tab.id), owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
+  const opened = byUser ? focusDockTab(shown, owner, tab.id) : shown;
   return settled(opened, [
     { type: "browser.open", tabId: tab.id, url },
     { type: "browser.show", tabId: tab.id },
@@ -812,7 +827,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
       /** A fresh draft compares its own project, not whatever the last draft was left looking at. */
       const { [DRAFT_DOCK]: _lastDraft, ...diffs } = state.diffs;
-      return settled({
+      /** A new thread is asked for in order to type in it, so the caret goes to the empty composer. */
+      return settled(focusComposer({
         ...state,
         diffs,
         currentId: null,
@@ -823,7 +839,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         actionError: null,
         lastFolder: project?.root ?? state.lastFolder,
         expandedProjects: projectId ? new Set(state.expandedProjects).add(projectId) : state.expandedProjects,
-      });
+      }), TAKE_KEYS);
     }
 
     case "task.select": {
@@ -1372,7 +1388,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         sideChats: [...state.sideChats, { id: input.chatId, sourceTaskId: source.id, error: null }],
         sideChatSequence: sequence,
       };
-      return settled(showDockTab(opened, source.id, input.chatId));
+      return settled(focusDockTab(showDockTab(opened, source.id, input.chatId), source.id, input.chatId));
     }
 
     case "side-chat.close": {
@@ -1574,7 +1590,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.focus-composer":
-      return settled({ ...state, composerFocus: state.composerFocus + 1 });
+      return settled(focusComposer(state), TAKE_KEYS);
 
     case "view.set-shortcut": {
       if (!shortcutAction(input.action)) return settled(state);
@@ -1696,12 +1712,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.select-dock-tab": {
       const owner = dockOwner(state);
       const kind = dockTabKind(state, owner, input.tab);
-      const selected = withDock(state, owner, {
+      const shown = withDock(state, owner, {
         tab: input.tab,
         open: true,
         ...(kind === "browser" ? { browserTabId: input.tab } : {}),
         ...(kind === "terminal" ? { terminalId: input.tab } : {}),
       });
+      const selected = focusDockTab(shown, owner, input.tab);
       return settled(selected, browserEffectsForTab(selected, owner, input.tab));
     }
 
@@ -1715,8 +1732,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "browser.new-tab": {
-      const { state: opened, tab } = withBlankTab(state, dockOwner(state));
-      return settled(opened, [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }]);
+      const owner = dockOwner(state);
+      const { state: opened, tab } = withBlankTab(state, owner);
+      return settled(focusDockTab(opened, owner, tab.id), [{ type: "browser.open", tabId: tab.id }, { type: "browser.show", tabId: tab.id }]);
     }
 
     case "browser.decide": {
@@ -1783,7 +1801,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         terminals: [...dock.terminals, terminal],
         terminalId: terminal.id,
       });
-      return settled(opened, [{ type: "terminal.start", terminalId: terminal.id, cwd }]);
+      return settled(focusDockTab(opened, owner, terminal.id), [{ type: "terminal.start", terminalId: terminal.id, cwd }]);
     }
 
     case "terminal.select": {

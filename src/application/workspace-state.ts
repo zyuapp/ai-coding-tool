@@ -195,6 +195,11 @@ export type WorkspaceState = {
   capturingShortcut: string | null;
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   composerFocus: number;
+  /**
+   * The dock view that last asked for the keyboard: whose dock it is in, which tab, and a count
+   * bumped each time one asks. A view takes the keys when the count it is drawn with changes.
+   */
+  dockFocus: { owner: string; tab: string; count: number } | null;
   /** One dock per thread, keyed by thread id, so moving between threads leaves each one as it was. */
   docks: Record<string, ThreadDock>;
   /** One review per thread, keyed the way `docks` is, so each thread keeps its own place in a diff. */
@@ -253,6 +258,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     shortcuts: {},
     capturingShortcut: null,
     composerFocus: 0,
+    dockFocus: null,
     docks: {},
     diffs: {},
     find: null,
@@ -743,6 +749,8 @@ export function deriveView(state: WorkspaceState) {
     shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut,
     composerFocus: state.composerFocus,
+    /** Only the dock on screen can take the keys, so a request in another thread's dock is not drawn. */
+    dockFocus: state.dockFocus?.owner === owner ? state.dockFocus : null,
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
     dockOpen: dock.open,

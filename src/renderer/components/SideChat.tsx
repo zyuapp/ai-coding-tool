@@ -7,8 +7,10 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
+  /** Bumped whenever something asks this chat to take the caret. */
+  focusToken?: number;
   source: Task;
   project?: Project;
   onPrompt: (prompt: string) => void;
@@ -61,6 +63,7 @@ export function SideChat({ chat, source, project, onPrompt, onAnnotateAdd, onAnn
       </div>
       {chat.error && <p className="side-chat-error" role="alert">{chat.error}</p>}
       <TaskComposer
+        focusToken={focusToken}
         prompt={chat.prompt}
         folder={project?.root ?? ""}
         {...(project?.workspaceId ? { workspaceId: project.workspaceId } : {})}
