@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { editorCandidates, editorLaunch, editorName, textHandlerLaunch } from "../dist/main/domain/editors.js";
+import { editorCandidates, editorLaunch, textHandlerLaunch } from "../dist/main/domain/editors.js";
 
 test("a candidate carries the line in whatever form its editor takes", () => {
   const candidates = editorCandidates("darwin", "/checkout/src/app.mts", 119);
@@ -43,9 +43,4 @@ test("the floor opens a file as text rather than by its extension", () => {
   assert.deepEqual(textHandlerLaunch("darwin", "/f.mts"), { command: "open", args: ["-t", "/f.mts"] });
   assert.deepEqual(textHandlerLaunch("win32", "C:\\f.mts"), { command: "notepad.exe", args: ["C:\\f.mts"] });
   assert.equal(textHandlerLaunch("linux", "/f.mts"), null, "nothing on Linux skips the extension mapping");
-});
-
-test("editors are named for anywhere that has to say which one it found", () => {
-  assert.equal(editorName("vscode"), "Visual Studio Code");
-  assert.equal(editorName("nothing"), "nothing");
 });

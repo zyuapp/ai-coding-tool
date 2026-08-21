@@ -16,7 +16,6 @@ export type Candidate = Launch & { id: string };
 
 type Editor = {
   id: string;
-  name: string;
   /** Launcher locations by platform, in the order they are worth trying. */
   locations: Partial<Record<Platform, string[]>>;
   args: (file: string, line: number | null) => string[];
@@ -31,7 +30,6 @@ const suffixArgs = (file: string, line: number | null) => [line ? `${file}:${lin
 const EDITORS: Editor[] = [
   {
     id: "cursor",
-    name: "Cursor",
     locations: {
       darwin: ["/Applications/Cursor.app/Contents/Resources/app/bin/cursor", "cursor"],
       win32: ["cursor.cmd"],
@@ -41,7 +39,6 @@ const EDITORS: Editor[] = [
   },
   {
     id: "vscode",
-    name: "Visual Studio Code",
     locations: {
       darwin: ["/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code", "code"],
       win32: ["code.cmd"],
@@ -51,7 +48,6 @@ const EDITORS: Editor[] = [
   },
   {
     id: "windsurf",
-    name: "Windsurf",
     locations: {
       darwin: ["/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf", "windsurf"],
       win32: ["windsurf.cmd"],
@@ -61,7 +57,6 @@ const EDITORS: Editor[] = [
   },
   {
     id: "zed",
-    name: "Zed",
     locations: {
       darwin: ["/Applications/Zed.app/Contents/MacOS/cli", "zed"],
       linux: ["zed"],
@@ -70,7 +65,6 @@ const EDITORS: Editor[] = [
   },
   {
     id: "sublime",
-    name: "Sublime Text",
     locations: {
       darwin: ["/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl", "subl"],
       win32: ["subl.exe"],
@@ -80,7 +74,6 @@ const EDITORS: Editor[] = [
   },
   {
     id: "jetbrains",
-    name: "JetBrains IDE",
     locations: {
       darwin: ["idea", "webstorm"],
       win32: ["idea.bat", "webstorm.bat"],
@@ -89,10 +82,6 @@ const EDITORS: Editor[] = [
     args: (file, line) => (line ? ["--line", String(line), file] : [file]),
   },
 ];
-
-export function editorName(id: string) {
-  return EDITORS.find((editor) => editor.id === id)?.name ?? id;
-}
 
 /** Every launcher worth trying on this platform, best first, flattened across editors. */
 export function editorCandidates(platform: Platform, file: string, line: number | null): Candidate[] {
