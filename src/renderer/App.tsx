@@ -256,7 +256,6 @@ export function App() {
   const dockFocus = workspace.dockFocus;
   const focusTokenFor = (tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0;
 
-  const panelViews = useRef(new Map<string, HTMLDivElement | null>());
   /** A page holds the keys itself, so the window must not take them back while one is in front. */
   const pageInFront = rightDockOpen && !settingsVisible && workspace.browserTabs.some((tab) => tab.id === activeRightTab && tab.url);
 
@@ -273,10 +272,6 @@ export function App() {
   /** Held still, so a link in a settled message is not a fresh handler on every render of the shell. */
   const dispatchRef = useRef(workspace.dispatch);
   dispatchRef.current = workspace.dispatch;
-
-  useEffect(() => {
-    if (dockFocus) panelViews.current.get(dockFocus.tab)?.focus();
-  }, [dockFocus]);
 
   /**
    * A view taken off screen leaves the caret nowhere a keystroke can reach, and a window with no
@@ -519,8 +514,7 @@ export function App() {
                 </div>
               </div>
               {dockPanels.map((panel) => (
-                /** A panel has no field to put a caret in, so the panel itself takes the keys and scrolls. */
-                <div key={panel.id} ref={(element) => { panelViews.current.set(panel.id, element); }} tabIndex={-1} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
+                <div key={panel.id} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
               ))}
               {/** A page is a native view main draws over the panel, so only the one on top is ever drawn. */}
               {browserTab && (
