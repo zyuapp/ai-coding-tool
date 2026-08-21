@@ -1,12 +1,13 @@
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type TaskRunStatus } from "./task-workspace.js";
 import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
-import { backfillSortIndex, orderTasks } from "./task-order.js";
+import { activitySections, backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
 import { findHits, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
+import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
@@ -164,8 +165,9 @@ export type WorkspaceState = {
   /** Pasted blocks waiting in each composer, keyed the way `prompts` is. */
   pastes: Record<string, PastedText[]>;
   expandedProjects: Set<string>;
-  projectsOpen: boolean;
-  recentsOpen: boolean;
+  /** Which of the sidebar's lists are unfolded, across both of its modes. */
+  sections: SidebarSections;
+  sidebarMode: SidebarMode;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   settingsOpen: boolean;
@@ -222,8 +224,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     annotations: {},
     pastes: {},
     expandedProjects: new Set(),
-    projectsOpen: true,
-    recentsOpen: true,
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    sidebarMode: "projects",
     sidebarOpen: true,
     sessionPanelOpen: false,
     settingsOpen: false,
@@ -351,6 +353,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
   return {
     sessionPanelOpen: state.sessionPanelOpen,
     sidebarOpen: state.sidebarOpen,
+    sidebarMode: state.sidebarMode,
     shortcuts: state.shortcuts,
     browserTabs,
     browserOrigins: state.browserOrigins,
@@ -625,6 +628,8 @@ export function deriveView(state: WorkspaceState) {
     tasks: listedTasks,
     projects: orderProjects(state.projects),
     orderedTasks: orderTasks(visibleTasks),
+    /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
+    activityTasks: activitySections(visibleTasks, busyTaskIds(state)),
     archivedTasks: listedTasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
     recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt),
     currentTask,
@@ -668,8 +673,8 @@ export function deriveView(state: WorkspaceState) {
     actionError: state.actionError,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
-    projectsOpen: state.projectsOpen,
-    recentsOpen: state.recentsOpen,
+    sections: state.sections,
+    sidebarMode: state.sidebarMode,
     sidebarOpen: state.sidebarOpen,
     sessionPanelOpen: state.sessionPanelOpen,
     shortcuts: shortcutSettings(state.shortcuts),

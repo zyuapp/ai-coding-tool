@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
-import { AlarmClock, Archive, ChevronLeft, ChevronRight, FolderSymlink, Settings, SquarePen } from "lucide-react";
-import { projectName } from "../../domain/task";
+import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, Folders, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
+import { projectName, threadActivityAt } from "../../domain/task";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskAttention } from "../../domain/task";
+import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
+import type { ActivitySections } from "../../application/task-order";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu, PopoverMenu } from "./PopoverMenu";
 import { ShowMore } from "./ShowMore";
@@ -22,6 +24,13 @@ const ATTENTION_LABELS: Record<TaskAttention, string> = {
   failed: "Failed",
   approval: "Needs approval",
 };
+
+/** The activity mode's three lists, top to bottom, with the heading each is drawn under. */
+const ACTIVITY_SECTIONS = [
+  { key: "priority", label: "Priority" },
+  { key: "running", label: "Running" },
+  { key: "threads", label: "Threads" },
+] as const satisfies ReadonlyArray<{ key: keyof ActivitySections & SidebarSection; label: string }>;
 
 function TaskSpinner() {
   const ref = useRef<HTMLSpanElement>(null);
@@ -66,8 +75,10 @@ export type ProjectSidebarProps = {
   worktreeTaskIds: Set<string>;
   /** The checkouts threads nest under, with the threads in each. Grouped by project when rendered. */
   worktreeGroups: WorktreeGroup[];
-  projectsOpen: boolean;
-  recentsOpen: boolean;
+  /** The same threads ranked by what wants the user, which is what activity mode draws. */
+  activityTasks: ActivitySections;
+  mode: SidebarMode;
+  sections: SidebarSections;
   openMenu: string | null;
   settingsOpen: boolean;
   canGoBack: boolean;
@@ -79,11 +90,14 @@ export type ProjectSidebarProps = {
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
-  onSetProjectsOpen: (open: boolean) => void;
-  onSetRecentsOpen: (open: boolean) => void;
+  onSetMode: (mode: SidebarMode) => void;
+  onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSelectTask: (taskId: string) => void;
   onArchiveTask: (taskId: string) => void;
+  /** Takes the dot off one thread, and off every dotted thread already read. */
+  onDismissTask: (taskId: string) => void;
+  onDismissRead: () => void;
   onRenameTask: (taskId: string, title: string) => void;
   onMoveTask: (taskId: string, target: TaskDropTarget) => void;
   onMoveProject: (projectId: string, index: number) => void;
@@ -103,8 +117,9 @@ export function ProjectSidebar({
   automatedTaskIds,
   worktreeTaskIds,
   worktreeGroups,
-  projectsOpen,
-  recentsOpen,
+  activityTasks,
+  mode,
+  sections,
   openMenu,
   settingsOpen,
   canGoBack,
@@ -115,11 +130,13 @@ export function ProjectSidebar({
   onOpenFolder,
   onToggleProject,
   onRemoveProject,
-  onSetProjectsOpen,
-  onSetRecentsOpen,
+  onSetMode,
+  onSetSectionOpen,
   onSetOpenMenu,
   onSelectTask,
   onArchiveTask,
+  onDismissTask,
+  onDismissRead,
   onRenameTask,
   onMoveTask,
   onMoveProject,
@@ -183,30 +200,106 @@ export function ProjectSidebar({
     if (sidebar) sidebar.style.setProperty("--sidebar-width", `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`);
   }
 
-  /** Every task row ends in the same trailing group, and its last cell holds both the
-   *  status mark and the archive action, so the two share one center. */
-  const taskMarks = (task: Task) => (
+  /**
+   * Every task row ends in the same trailing group, and its last cell holds both the status mark and
+   * the row's own action, so the two share one center. Priority rows dismiss where the rest archive:
+   * taking the dot off is the only thing that list is for, and archiving stays on the row's menu.
+   */
+  const taskMarks = (task: Task, action: "archive" | "dismiss") => (
     <span className="task-row-marks">
       {worktreeTaskIds.has(task.id) && <FolderSymlink className="task-worktree" size={13} aria-label="Works in a worktree" />}
       {automatedTaskIds.has(task.id) && <AlarmClock className="task-automation" size={13} aria-label="Runs on a schedule" />}
       <span className="row-slot">
         {runningTaskIds.has(task.id)
           ? <TaskSpinner />
-          : task.attention && <span className={`task-attention ${task.attention}`} aria-label={ATTENTION_LABELS[task.attention]} />}
-        <button
-          className="task-archive"
-          type="button"
-          aria-label={`Archive ${task.title}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onArchiveTask(task.id);
-          }}
-        >
-          <Archive size={13} aria-hidden="true" />
-        </button>
+          : task.attention && <span
+              className={`task-attention ${task.attention} ${task.attentionRead ? "read" : ""}`}
+              aria-label={`${ATTENTION_LABELS[task.attention]}${task.attentionRead ? ", read" : ""}`}
+            />}
+        {action === "dismiss"
+          ? <button
+              className="task-archive task-dismiss"
+              type="button"
+              aria-label={`Dismiss ${task.title}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDismissTask(task.id);
+              }}
+            >
+              <Check size={13} aria-hidden="true" />
+            </button>
+          : <button
+              className="task-archive"
+              type="button"
+              aria-label={`Archive ${task.title}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onArchiveTask(task.id);
+              }}
+            >
+              <Archive size={13} aria-hidden="true" />
+            </button>}
       </span>
     </span>
   );
+
+  /** The row itself, which is the same whether the list around it lets it be dragged or not. */
+  const rowBody = (task: Task, className: string, content: React.ReactNode, action: "archive" | "dismiss") => (
+    <>
+    <div
+      className={className}
+      onClick={() => onSelectTask(task.id)}
+      onDoubleClick={(event) => startRename(task.id, event.currentTarget.closest(".task-entry"))}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        taskReturn.current = event.currentTarget.closest(".task-entry");
+        const row = event.currentTarget.getBoundingClientRect();
+        const menuHeight = 80;
+        setTaskMenuPosition({
+          left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
+          top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
+        });
+        onSetOpenMenu(`task:${task.id}`);
+      }}
+      title={task.title}
+    >
+      {renamingId === task.id
+        ? <input
+            ref={renameInput}
+            className="task-rename"
+            aria-label={`Rename ${task.title}`}
+            autoFocus
+            defaultValue={task.title}
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            /** The row selects on Enter and dragging claims the arrow and space keys. */
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Enter") commitRename(task.id, event.currentTarget.value);
+              else if (event.key === "Escape") {
+                event.preventDefault();
+                setRenamingId(null);
+              }
+            }}
+            onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
+          />
+        : <>{content}{taskMarks(task, action)}</>}
+    </div>
+    {openMenu === `task:${task.id}` && <ContextMenu
+      position={taskMenuPosition}
+      returnFocus={taskReturn}
+      onSetOpenMenu={onSetOpenMenu}
+      items={[
+        { label: "Rename", onSelect: () => startRename(task.id) },
+        { label: "Archive", onSelect: () => onArchiveTask(task.id) },
+      ]}
+    />}
+    </>
+  );
+
+  const selectOnEnter = (event: React.KeyboardEvent, taskId: string) => {
+    if (event.key === "Enter") onSelectTask(taskId);
+  };
 
   const taskRow = (task: Task, index: number, className: string, content: React.ReactNode) => (
     <Draggable draggableId={task.id} index={index} key={task.id}>
@@ -216,67 +309,56 @@ export function ProjectSidebar({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") onSelectTask(task.id);
-          }}
+          onKeyDown={(event) => selectOnEnter(event, task.id)}
         >
-          <div
-            className={className}
-            onClick={() => onSelectTask(task.id)}
-            onDoubleClick={(event) => startRename(task.id, event.currentTarget.closest(".task-entry"))}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              taskReturn.current = event.currentTarget.closest(".task-entry");
-              const row = event.currentTarget.getBoundingClientRect();
-              const menuHeight = 80;
-              setTaskMenuPosition({
-                left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
-                top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
-              });
-              onSetOpenMenu(`task:${task.id}`);
-            }}
-            title={task.title}
-          >
-            {renamingId === task.id
-              ? <input
-                  ref={renameInput}
-                  className="task-rename"
-                  aria-label={`Rename ${task.title}`}
-                  autoFocus
-                  defaultValue={task.title}
-                  onClick={(event) => event.stopPropagation()}
-                  onDoubleClick={(event) => event.stopPropagation()}
-                  /** The row selects on Enter and dragging claims the arrow and space keys. */
-                  onKeyDown={(event) => {
-                    event.stopPropagation();
-                    if (event.key === "Enter") commitRename(task.id, event.currentTarget.value);
-                    else if (event.key === "Escape") {
-                      event.preventDefault();
-                      setRenamingId(null);
-                    }
-                  }}
-                  onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
-                />
-              : <>{content}{taskMarks(task)}</>}
-          </div>
-          {openMenu === `task:${task.id}` && <ContextMenu
-            position={taskMenuPosition}
-            returnFocus={taskReturn}
-            onSetOpenMenu={onSetOpenMenu}
-            items={[
-              { label: "Rename", onSelect: () => startRename(task.id) },
-              { label: "Archive", onSelect: () => onArchiveTask(task.id) },
-            ]}
-          />}
+          {rowBody(task, className, content, "archive")}
         </div>
       )}
     </Draggable>
   );
 
+  /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
+  const activityRow = (task: Task, action: "archive" | "dismiss") => (
+    <div className="task-entry" key={task.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, task.id)}>
+      {rowBody(task, `task-row ${task.id === currentId ? "active" : ""}`, (
+        <span className="task-row-text">
+          <span>{task.title}</span>
+          <small>{activityMeta(task)}</small>
+        </span>
+      ), action)}
+    </div>
+  );
+
+  /** What a row says under its title in activity mode: which folder it lives in, and when it last moved. */
+  function activityMeta(task: Task) {
+    const project = projects.find((item) => item.id === task.projectId);
+    return [project && projectName(project.root), formatTime(threadActivityAt(task))].filter(Boolean).join(" · ");
+  }
+
   return (
     <DragDropContext onDragEnd={finishDrag}>
     <aside className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
       <div className="traffic-space">
+        <div className="sidebar-modes" role="group" aria-label="Sidebar view">
+          <button
+            className={`thread-nav-button ${mode === "projects" ? "active" : ""}`}
+            type="button"
+            aria-label="Group threads by project"
+            aria-pressed={mode === "projects"}
+            onClick={() => onSetMode("projects")}
+          >
+            <Folders size={15} aria-hidden="true" />
+          </button>
+          <button
+            className={`thread-nav-button ${mode === "activity" ? "active" : ""}`}
+            type="button"
+            aria-label="Rank threads by activity"
+            aria-pressed={mode === "activity"}
+            onClick={() => onSetMode("activity")}
+          >
+            <Inbox size={15} aria-hidden="true" />
+          </button>
+        </div>
         <div className="thread-nav">
           <button className="thread-nav-button" type="button" aria-label="Go back" disabled={!canGoBack} onClick={onGoBack}>
             <ChevronLeft size={16} aria-hidden="true" />
@@ -292,13 +374,41 @@ export function ProjectSidebar({
       </button>
 
       <div className="sidebar-scroll">
+        {mode === "activity" && ACTIVITY_SECTIONS.map(({ key, label }) => {
+          const tasks = activityTasks[key];
+          const readCount = key === "priority" ? tasks.filter((task) => task.attentionRead).length : 0;
+          return (
+            <section className="activity-group" key={key}>
+              <div className="section-heading activity-heading">
+                <button className="section-toggle" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
+                  <span>{label}</span>
+                  <span className="section-chevron" aria-hidden="true" />
+                  {tasks.length > 0 && <span className="section-count">{tasks.length}</span>}
+                </button>
+                {key === "priority" && readCount > 0 && (
+                  <button className="section-action" onClick={onDismissRead} aria-label="Dismiss all read">
+                    <CheckCheck size={16} aria-hidden="true" />
+                  </button>
+                )}
+                {key === "threads" && (
+                  <button className="section-action" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
+                )}
+              </div>
+              {sections[key] && <nav className="task-list" aria-label={label}>
+                {tasks.map((task) => activityRow(task, key === "priority" ? "dismiss" : "archive"))}
+              </nav>}
+            </section>
+          );
+        })}
+
+        {mode === "projects" && <>
         <div className="section-heading projects-heading">
-          <button className="section-toggle" onClick={() => onSetProjectsOpen(!projectsOpen)} aria-expanded={projectsOpen}>
+          <button className="section-toggle" onClick={() => onSetSectionOpen("projects", !sections.projects)} aria-expanded={sections.projects}>
             <span>Projects</span><span className="section-chevron" aria-hidden="true" />
           </button>
           <button className="section-action add-project" onClick={onOpenFolder} aria-label="Add project">＋</button>
         </div>
-        {projectsOpen && <Droppable droppableId={PROJECTS_DROPPABLE} type={PROJECT_DRAG}>
+        {sections.projects && <Droppable droppableId={PROJECTS_DROPPABLE} type={PROJECT_DRAG}>
           {(list) => (
             <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
               {projects.map((project, projectIndex) => {
@@ -400,7 +510,7 @@ export function ProjectSidebar({
         </Droppable>}
 
         <div className="section-heading recents-heading">
-          <button className="section-toggle" onClick={() => onSetRecentsOpen(!recentsOpen)} aria-expanded={recentsOpen}>
+          <button className="section-toggle" onClick={() => onSetSectionOpen("recents", !sections.recents)} aria-expanded={sections.recents}>
             <span>Recents</span><span className="section-chevron" aria-hidden="true" />
           </button>
           <PopoverMenu
@@ -414,7 +524,7 @@ export function ProjectSidebar({
           />
           <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
         </div>
-        {recentsOpen && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
+        {sections.recents && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
           {(provided, snapshot) => (
             <nav className="task-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
               {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
@@ -426,6 +536,7 @@ export function ProjectSidebar({
             </nav>
           )}
         </Droppable>}
+        </>}
       </div>
       <button className={`sidebar-settings ${settingsOpen ? "active" : ""}`} type="button" aria-pressed={settingsOpen} onClick={onOpenSettings}>
         <Settings size={17} aria-hidden="true" />

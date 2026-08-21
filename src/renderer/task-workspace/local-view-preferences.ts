@@ -7,6 +7,7 @@ export function loadViewPreferences(): ViewPreferences {
   return {
     sessionPanelOpen: stored.sessionPanelOpen ?? window.innerWidth >= 1400,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
+    sidebarMode: stored.sidebarMode ?? "projects",
     shortcuts: stored.shortcuts ?? {},
     browserTabs: stored.browserTabs ?? {},
     browserOrigins: stored.browserOrigins ?? [],

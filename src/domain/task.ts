@@ -130,6 +130,8 @@ export type Task = {
   /** Sidebar position. Only the user moves it; run activity never does. */
   sortIndex?: number;
   attention?: TaskAttention;
+  /** Set once the user has looked at the thread since the dot appeared. Only a dismissal takes the dot away. */
+  attentionRead?: true;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**
@@ -481,6 +483,7 @@ function isTaskBase(value: unknown): value is Task {
     isRecord(value.lastChangeSnapshot) && Array.isArray(value.lastChangeSnapshot.files) && value.lastChangeSnapshot.files.every((file) => typeof file === "string") && finiteNumber(value.lastChangeSnapshot.capturedAt) &&
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.attention === undefined || isTaskAttention(value.attention)) &&
+    (value.attentionRead === undefined || value.attentionRead === true) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&

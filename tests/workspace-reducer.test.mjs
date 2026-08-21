@@ -252,7 +252,44 @@ test("a run that settles out of focus flags the task and refreshes its project",
   assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }]);
 
   const focused = reduce(settled.state, { type: "view.set-focused", focused: true });
-  assert.equal(focused.state.tasks[0].attention, undefined);
+  assert.equal(focused.state.tasks[0].attention, "finished", "coming back to the window reads the dot rather than taking it away");
+  assert.equal(focused.state.tasks[0].attentionRead, true);
+
+  const dismissed = reduce(focused.state, { type: "task.dismiss", taskId: "task-a" });
+  assert.equal(dismissed.state.tasks[0].attention, undefined, "only a dismissal takes the dot off");
+  assert.equal(dismissed.state.tasks[0].attentionRead, undefined);
+});
+
+test("dismissing the read dots leaves the ones the user has not looked at", () => {
+  const state = workspace({
+    tasks: [
+      task("read-a", { attention: "finished", attentionRead: true }),
+      task("unread", { attention: "failed" }),
+      task("read-b", { attention: "approval", attentionRead: true }),
+    ],
+  });
+
+  const { state: cleared } = reduce(state, { type: "task.dismiss-read" });
+
+  assert.deepEqual(
+    cleared.tasks.map((item) => item.attention),
+    [undefined, "failed", undefined],
+  );
+  assert.equal(reduce(cleared, { type: "task.dismiss-read" }).state, cleared, "a second pass has nothing left to take");
+});
+
+test("a fresh dot on a thread already read counts as unread again", () => {
+  const state = workspace({
+    tasks: [task("task-a", { attention: "finished", attentionRead: true })],
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-2", sequence: 0, status: "running" } },
+    focused: false,
+    currentId: "task-a",
+  });
+
+  const { state: next } = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-2", sequence: 1, status: "failed" } });
+
+  assert.equal(next.tasks[0].attention, "failed");
+  assert.equal(next.tasks[0].attentionRead, undefined);
 });
 
 test("a side chat forks the source thread once, then continues on its own branch", () => {
@@ -390,12 +427,12 @@ test("closing a side chat cancels its run, and leaving the thread leaves the cha
 });
 
 test("the panel and sidebar choices are persisted and survive the store loading", () => {
-  const restored = run(workspace(), [{ type: "preferences.loaded", preferences: { sessionPanelOpen: true, sidebarOpen: false } }]);
+  const restored = run(workspace(), [{ type: "preferences.loaded", preferences: { sessionPanelOpen: true, sidebarOpen: false, sidebarMode: "projects" } }]);
   assert.equal(restored.sessionPanelOpen, true);
   assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false, sidebarOpen: false, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { sessionPanelOpen: false, sidebarOpen: false, sidebarMode: "projects", shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
@@ -405,6 +442,21 @@ test("the panel and sidebar choices are persisted and survive the store loading"
   const loaded = reduce(restored, { type: "store.loaded", data: { tasks: [], projects: [], lastFolder: null } });
   assert.equal(loaded.state.sessionPanelOpen, true);
   assert.equal(loaded.state.sidebarOpen, false);
+});
+
+test("the sidebar's shape outlives the window, and which of its lists are folded does not", () => {
+  const state = workspace();
+  assert.equal(state.sidebarMode, "projects");
+
+  const ranked = reduce(state, { type: "view.set-sidebar-mode", mode: "activity" });
+  assert.equal(ranked.state.sidebarMode, "activity");
+  assert.equal(ranked.effects[0]?.preferences.sidebarMode, "activity");
+  assert.deepEqual(reduce(ranked.state, { type: "view.set-sidebar-mode", mode: "activity" }).effects, [], "an unchanged shape writes nothing");
+
+  const folded = reduce(ranked.state, { type: "view.set-section-open", section: "priority", open: false });
+  assert.equal(folded.state.sections.priority, false);
+  assert.equal(folded.state.sections.running, true, "folding one list leaves the others alone");
+  assert.deepEqual(folded.effects, [], "a fold is this session's only");
 });
 
 /** A task mid-run, which is the only state in which a message can be queued or steered. */

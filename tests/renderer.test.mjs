@@ -495,6 +495,120 @@ test("workspace header keeps session summary and right panel controls separate",
   await view.unmount();
 });
 
+test("activity mode ranks threads into priority, running, and the rest, and only priority dismisses", async () => {
+  const thread = (id, overrides = {}) => ({
+    id, title: id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const dismissed = [];
+  let clearedRead = 0;
+  const view = await mount(React.createElement(ProjectSidebar, {
+    open: true,
+    inactive: false,
+    projects: [{ id: "project-1", root: "/work/project" }],
+    orderedTasks: [],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(),
+    runningTaskIds: new Set(["busy"]),
+    automatedTaskIds: new Set(),
+    worktreeGroups: [],
+    worktreeTaskIds: new Set(),
+    activityTasks: {
+      priority: [thread("asked", { attention: "approval", projectId: "project-1" }), thread("seen", { attention: "finished", attentionRead: true })],
+      running: [thread("busy")],
+      threads: [thread("quiet")],
+    },
+    mode: "activity",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    openMenu: null,
+    settingsOpen: false,
+    canGoBack: false,
+    canGoForward: false,
+    onGoBack() {}, onGoForward() {},
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {},
+    onDismissTask: (taskId) => { dismissed.push(taskId); },
+    onDismissRead: () => { clearedRead += 1; },
+    onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+  }));
+
+  const listed = (label) => [...view.container.querySelectorAll(`nav[aria-label="${label}"] .task-row-text > span`)].map((row) => row.textContent);
+  assert.deepEqual(listed("Priority"), ["asked", "seen"]);
+  assert.deepEqual(listed("Running"), ["busy"]);
+  assert.deepEqual(listed("Threads"), ["quiet"]);
+  assert.equal(view.container.querySelector('[data-rfd-draggable-id]'), null, "activity mode ranks its own rows, so none of them drag");
+
+  assert.match(
+    view.container.querySelector('nav[aria-label="Priority"] .task-row-text > small').textContent,
+    /^project · /,
+    "a flat list still says which folder a thread lives in",
+  );
+  assert.equal(view.container.querySelector(".task-attention.finished").classList.contains("read"), true);
+
+  assert.deepEqual(
+    [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-archive')].map((button) => button.getAttribute("aria-label")),
+    ["Dismiss asked", "Dismiss seen"],
+    "the priority list trades archive for dismiss",
+  );
+  assert.deepEqual(
+    [...view.container.querySelectorAll('nav[aria-label="Running"] .task-archive, nav[aria-label="Threads"] .task-archive')].map((button) => button.getAttribute("aria-label")),
+    ["Archive busy", "Archive quiet"],
+    "and the other two lists keep it",
+  );
+
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss asked"]').click(); });
+  assert.deepEqual(dismissed, ["asked"]);
+
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss all read"]').click(); });
+  assert.equal(clearedRead, 1);
+  await view.unmount();
+});
+
+test("only the priority heading offers to dismiss what has been read", async () => {
+  const thread = (id, overrides = {}) => ({
+    id, title: id, executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
+  });
+  const sidebar = (priority) => React.createElement(ProjectSidebar, {
+    open: true,
+    inactive: false,
+    projects: [],
+    orderedTasks: [],
+    recentTasks: [],
+    currentId: null,
+    draftProjectId: null,
+    expandedProjects: new Set(),
+    runningTaskIds: new Set(),
+    automatedTaskIds: new Set(),
+    worktreeGroups: [],
+    worktreeTaskIds: new Set(),
+    activityTasks: { priority, running: [], threads: [] },
+    mode: "activity",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    openMenu: null,
+    settingsOpen: false,
+    canGoBack: false,
+    canGoForward: false,
+    onGoBack() {}, onGoForward() {},
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {}, onDismissTask() {}, onDismissRead() {},
+    onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+  });
+
+  const view = await mount(sidebar([thread("unread", { attention: "failed" })]));
+  assert.equal(view.container.querySelector('[aria-label="Dismiss all read"]'), null, "nothing read yet, so the heading offers nothing");
+  assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "1");
+
+  await view.render(sidebar([thread("unread", { attention: "failed" }), thread("seen", { attention: "finished", attentionRead: true })]));
+  assert.ok(view.container.querySelector('[aria-label="Dismiss all read"]'), "one read dot is enough to offer it");
+  assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "2");
+  await view.unmount();
+});
+
 test("the sidebar steps through visited threads", async () => {
   let backSteps = 0;
   const view = await mount(React.createElement(ProjectSidebar, {
@@ -510,8 +624,9 @@ test("the sidebar steps through visited threads", async () => {
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
-    projectsOpen: true,
-    recentsOpen: true,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
     canGoBack: true,
@@ -519,8 +634,8 @@ test("the sidebar steps through visited threads", async () => {
     onGoBack: () => { backSteps += 1; },
     onGoForward() {},
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
-    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   assert.ok(view.container.querySelector('button[aria-label="Go forward"]').disabled, "nothing ahead to go forward to");
@@ -1469,7 +1584,41 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   await view.unmount();
 });
 
-test("an unread row shows why it wants attention until it is opened", async () => {
+test("the sidebar switches to activity mode, and dismissing there takes the dot off for good", async () => {
+  seedProjectTasks([
+    { id: "quiet", title: "Quiet task", sortIndex: 0, updatedAt: 5, createdAt: 5 },
+    { id: "asked", title: "Blocked task", sortIndex: 1, updatedAt: 9, createdAt: 9, attention: "approval" },
+  ]);
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+
+  assert.equal(view.container.querySelector('nav[aria-label="Priority"]'), null, "the sidebar opens grouped by project");
+
+  await act(async () => { view.container.querySelector('[aria-label="Rank threads by activity"]').click(); });
+
+  const priority = () => [...view.container.querySelectorAll('nav[aria-label="Priority"] .task-row-text > span')].map((row) => row.textContent);
+  assert.deepEqual(priority(), ["Blocked task"]);
+  assert.deepEqual(
+    [...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent),
+    ["Quiet task"],
+  );
+
+  /** Opening it leaves it where it is; only the check takes it out of the list. */
+  await act(async () => { view.container.querySelector('nav[aria-label="Priority"] .task-row').click(); });
+  assert.deepEqual(priority(), ["Blocked task"]);
+  assert.equal(view.container.querySelector(".task-attention.approval").classList.contains("read"), true);
+
+  await act(async () => { view.container.querySelector('[aria-label="Dismiss Blocked task"]').click(); });
+  assert.deepEqual(priority(), []);
+  assert.deepEqual(
+    [...view.container.querySelectorAll('nav[aria-label="Threads"] .task-row-text > span')].map((row) => row.textContent),
+    ["Blocked task", "Quiet task"],
+    "a dismissed thread drops into the chronological list",
+  );
+  await view.unmount();
+});
+
+test("opening an unread row dims its dot and leaves the dot in place", async () => {
   seedProjectTasks([
     { id: "open", title: "Open task", sortIndex: 0, updatedAt: 2 },
     { id: "waiting", title: "Waiting task", sortIndex: 1, updatedAt: 1, attention: "approval" },
@@ -1479,14 +1628,19 @@ test("an unread row shows why it wants attention until it is opened", async () =
 
   const dot = view.container.querySelector(".task-attention.approval");
   assert.equal(dot?.getAttribute("aria-label"), "Needs approval");
+  assert.equal(dot.classList.contains("read"), false);
 
   const waiting = [...view.container.querySelectorAll(".project-task-row")].find((row) => row.textContent.includes("Waiting task"));
   await act(async () => { waiting.click(); });
-  assert.equal(view.container.querySelector(".task-attention"), null);
+
+  const read = view.container.querySelector(".task-attention.approval");
+  assert.ok(read, "the dot survives being looked at");
+  assert.equal(read.classList.contains("read"), true);
+  assert.equal(read.getAttribute("aria-label"), "Needs approval, read");
   await view.unmount();
 });
 
-test("a run that settles out of sight is flagged, and clears when the window comes back", async () => {
+test("a run that settles out of sight is flagged, and the window coming back only reads it", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);
   await act(async () => { workspace.get().actions.setPrompt("Inspect the app"); });
@@ -1500,6 +1654,10 @@ test("a run that settles out of sight is flagged, and clears when the window com
   assert.equal(workspace.get().currentTask.attention, "finished");
 
   await act(async () => { window.dispatchEvent(new Event("focus")); });
+  assert.equal(workspace.get().currentTask.attention, "finished");
+  assert.equal(workspace.get().currentTask.attentionRead, true);
+
+  await act(async () => { workspace.get().actions.dismissTask(start.taskId); });
   assert.equal(workspace.get().currentTask.attention, undefined);
   await workspace.view.unmount();
 });
@@ -2218,14 +2376,15 @@ test("the sidebar nests a checkout's threads under it, and its row starts anothe
     automatedTaskIds: new Set(),
     worktreeGroups: [{ worktree, tasks: [thread("in-checkout", { worktreeId: "wt1" })] }],
     worktreeTaskIds: new Set(["in-checkout"]),
-    projectsOpen: true,
-    recentsOpen: true,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
     onNewTask(projectId, worktreeId) { started.push([projectId, worktreeId]); },
     onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
-    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const group = view.container.querySelector(".worktree-group");
@@ -2264,13 +2423,14 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
     automatedTaskIds: new Set(["scheduled-task", "scheduled-chat"]),
     worktreeGroups: [],
     worktreeTaskIds: new Set(["plain-task"]),
-    projectsOpen: true,
-    recentsOpen: true,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
-    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const marks = (label) => [...view.container.querySelectorAll(`[aria-label="${label}"]`)]
@@ -2298,15 +2458,16 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
-    projectsOpen: true,
-    recentsOpen: true,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu,
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {},
     onRemoveProject: (id) => { removed.push(id); },
-    onSetProjectsOpen() {}, onSetRecentsOpen() {},
+    onSetMode() {}, onSetSectionOpen() {},
     onSetOpenMenu: (menu) => { opened.push(menu); },
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
   const view = await mount(sidebar(null));
@@ -2344,12 +2505,13 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
-    projectsOpen: true,
-    recentsOpen: true,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
-    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
     onSelectTask() {}, onArchiveTask() {}, onMoveTask() {},
     onMoveProject: (projectId, index) => { moves.push([projectId, index]); },
     onOpenSettings() {},
@@ -2392,13 +2554,14 @@ test("a thread drag leaves a folded folder folded, and opens no gap where it sit
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
-    projectsOpen: true,
-    recentsOpen: false,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: false, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
-    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
+    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissRead() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const folded = () => [...view.container.querySelectorAll('[data-rfd-droppable-id="shut-project"], .task-list')];
@@ -3443,13 +3606,14 @@ test("a folder lifts from a press on its name, which is a button", async () => {
     automatedTaskIds: new Set(),
     worktreeGroups: [],
     worktreeTaskIds: new Set(),
-    projectsOpen: true,
-    recentsOpen: true,
+    activityTasks: { priority: [], running: [], threads: [] },
+    mode: "projects",
+    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
     onNewTask() {}, onOpenFolder() {}, onRemoveProject() {},
     onToggleProject: (projectId) => { folded.push(projectId); },
-    onSetProjectsOpen() {}, onSetRecentsOpen() {}, onSetOpenMenu() {},
+    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
     onSelectTask() {}, onArchiveTask() {}, onMoveTask() {},
     onMoveProject: (projectId, index) => { moves.push([projectId, index]); },
     onOpenSettings() {},

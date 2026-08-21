@@ -210,10 +210,13 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  /** The window's traffic lights own the left of this strip, so everything here stays to the right. */
   justify-content: flex-end;
+  gap: 10px;
   -webkit-app-region: drag;
 }
-.thread-nav { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.thread-nav, .sidebar-modes { display: flex; align-items: center; gap: 1px; -webkit-app-region: no-drag; }
+.thread-nav-button.active { background: var(--surface-active); color: var(--ink-dim); }
 .thread-nav-button {
   width: 26px;
   height: 26px;
@@ -267,6 +270,22 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .projects-heading { grid-template-columns: minmax(0, 1fr) 31px; padding-right: 0; margin-top: 8px; }
 .projects-heading .section-action { width: 31px; }
 .recents-heading { margin-top: 12px; }
+/** Activity mode's three headings share one shape: label, fold, count, and at most one action. */
+.activity-heading { grid-template-columns: minmax(0, 1fr) 35px; padding-right: 3px; }
+.activity-group + .activity-group .activity-heading { margin-top: 12px; }
+.section-count {
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: var(--chip);
+  color: var(--ink-dim);
+  font-size: var(--text-badge);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
 .section-toggle,
 .section-action,
 .menu-trigger {
@@ -468,6 +487,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .task-entry:hover .task-archive, .task-archive:focus-visible { opacity: 1; pointer-events: auto; }
 .task-archive:hover { background: var(--control-hover); color: var(--ink); }
+.task-dismiss:hover { color: var(--info); }
 .task-entry:hover .task-automation,
 .task-entry:hover .task-worktree,
 .task-entry:hover .row-slot > :not(.task-archive) { visibility: hidden; }
@@ -518,6 +538,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .task-attention.failed { background: var(--danger); }
 .task-attention.approval { background: var(--accent); }
+/** A dot the user has already looked at, still waiting to be dismissed. */
+.task-attention.read { opacity: 0.4; }
 .project-attention-count {
   position: absolute;
   top: 50%;
@@ -544,6 +566,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   box-shadow: var(--shadow-drag);
 }
 .task-list { min-height: 8px; }
+.activity-group .task-entry:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; border-radius: 10px; }
 .task-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

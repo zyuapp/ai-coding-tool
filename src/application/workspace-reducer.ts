@@ -195,9 +195,20 @@ function attentionFor(event: RunEvent): TaskAttention | null {
   return null;
 }
 
-function withoutAttention(state: WorkspaceState, taskId: string | null): WorkspaceState {
-  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.attention)) return state;
-  return applyTask(state, taskId, ({ attention: _seen, ...task }) => task);
+/** Landing on a dotted thread dims its dot. Only a dismissal takes the dot away. */
+function readAttention(state: WorkspaceState, taskId: string | null): WorkspaceState {
+  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.attention && !task.attentionRead)) return state;
+  return applyTask(state, taskId, (task) => ({ ...task, attentionRead: true }));
+}
+
+/** Takes the dot off the named threads, leaving the list alone when none of them carry one. */
+function withoutAttention(tasks: Task[], dismissing: Set<string>): Task[] {
+  if (!tasks.some((task) => dismissing.has(task.id) && task.attention)) return tasks;
+  return tasks.map((task) => {
+    if (!dismissing.has(task.id) || !task.attention) return task;
+    const { attention: _gone, attentionRead: _read, ...rest } = task;
+    return rest;
+  });
 }
 
 /** An archived task is unreachable, so its automation would tick forever with nowhere to run. */
@@ -742,13 +753,23 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "task.select": {
       const task = state.tasks.find((item) => item.id === input.taskId);
       const project = projectFor(state, task);
-      return settled(withoutAttention({
+      return settled(readAttention({
         ...state,
         currentId: input.taskId,
         draftProjectId: task?.projectId ?? null,
         lastFolder: project?.root ?? state.lastFolder,
         actionError: null,
       }, input.taskId));
+    }
+
+    case "task.dismiss": {
+      const tasks = withoutAttention(state.tasks, new Set([input.taskId]));
+      return settled(tasks === state.tasks ? state : { ...state, tasks });
+    }
+
+    case "task.dismiss-read": {
+      const read = new Set(state.tasks.filter((task) => task.attention && task.attentionRead).map((task) => task.id));
+      return settled(read.size ? { ...state, tasks: withoutAttention(state.tasks, read) } : state);
     }
 
     /** Walks the sidebar. From a draft the list is entered from whichever end the step comes from. */
@@ -1191,8 +1212,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(state, event);
       const attention = attentionFor(event);
+      /** A fresh dot is unread again, however read the one it replaces was. */
       let next = attention && !(state.focused && state.currentId === event.taskId)
-        ? applyTask(applied, event.taskId, (task) => ({ ...task, attention }))
+        ? applyTask(applied, event.taskId, ({ attentionRead: _read, ...task }) => ({ ...task, attention }))
         : applied;
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
@@ -1327,6 +1349,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         ...state,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
         sidebarOpen: input.preferences.sidebarOpen,
+        sidebarMode: input.preferences.sidebarMode,
         shortcuts: input.preferences.shortcuts ?? {},
         docks,
         browserOrigins: input.preferences.browserOrigins ?? [],
@@ -1380,11 +1403,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({ ...state, expandedProjects });
     }
 
-    case "view.set-projects-open":
-      return settled({ ...state, projectsOpen: input.open });
+    case "view.set-section-open":
+      return settled({ ...state, sections: { ...state.sections, [input.section]: input.open } });
 
-    case "view.set-recents-open":
-      return settled({ ...state, recentsOpen: input.open });
+    case "view.set-sidebar-mode": {
+      if (state.sidebarMode === input.mode) return settled(state);
+      const next = { ...state, sidebarMode: input.mode };
+      return settled(next, persistView(next));
+    }
 
     case "view.set-sidebar-open": {
       if (state.sidebarOpen === input.open) return settled(state);
@@ -1658,7 +1684,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (index === null) return settled(state);
       const taskId = state.history[index];
       const task = state.tasks.find((item) => item.id === taskId);
-      return settled(withoutAttention({
+      return settled(readAttention({
         ...state,
         historyIndex: index,
         currentId: taskId,
@@ -1670,7 +1696,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.set-focused":
       return input.focused
-        ? settled(withoutAttention({ ...state, focused: true }, state.currentId))
+        ? settled(readAttention({ ...state, focused: true }, state.currentId))
         : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
 
     case "view.find-open": {

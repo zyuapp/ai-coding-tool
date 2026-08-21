@@ -266,8 +266,9 @@ export function App() {
         automatedTaskIds={workspace.automatedTaskIds}
         worktreeTaskIds={workspace.worktreeTaskIds}
         worktreeGroups={workspace.worktreeGroups}
-        projectsOpen={workspace.projectsOpen}
-        recentsOpen={workspace.recentsOpen}
+        activityTasks={workspace.activityTasks}
+        mode={workspace.sidebarMode}
+        sections={workspace.sections}
         openMenu={workspace.openMenu}
         settingsOpen={settingsVisible}
         canGoBack={workspace.canGoBack}
@@ -279,11 +280,13 @@ export function App() {
         onToggleProject={workspace.actions.toggleProject}
         onRemoveProject={workspace.actions.removeProject}
         onMoveProject={workspace.actions.moveProject}
-        onSetProjectsOpen={workspace.actions.setProjectsOpen}
-        onSetRecentsOpen={workspace.actions.setRecentsOpen}
+        onSetMode={workspace.actions.setSidebarMode}
+        onSetSectionOpen={workspace.actions.setSectionOpen}
         onSetOpenMenu={workspace.actions.setOpenMenu}
         onSelectTask={workspace.actions.selectTask}
         onArchiveTask={workspace.actions.archiveTask}
+        onDismissTask={workspace.actions.dismissTask}
+        onDismissRead={workspace.actions.dismissReadTasks}
         onRenameTask={workspace.actions.renameTask}
         onMoveTask={workspace.actions.moveTask}
         onOpenSettings={openSettings}

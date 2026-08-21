@@ -7,6 +7,7 @@ import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import { terminalLineLimit } from "../../domain/terminal";
+import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivity } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
@@ -566,8 +567,10 @@ export function useTaskWorkspace() {
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
       moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),
-      setProjectsOpen: (open: boolean) => dispatch({ type: "view.set-projects-open", open }),
-      setRecentsOpen: (open: boolean) => dispatch({ type: "view.set-recents-open", open }),
+      dismissTask: (taskId: string) => dispatch({ type: "task.dismiss", taskId }),
+      dismissReadTasks: () => dispatch({ type: "task.dismiss-read" }),
+      setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
+      setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
       setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),

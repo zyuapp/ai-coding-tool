@@ -2,6 +2,7 @@ import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { FindTarget } from "../domain/find.js";
+import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
 import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
@@ -22,6 +23,10 @@ export type TaskCommand =
   | { type: "task.restore"; taskId: string }
   | { type: "task.clear-archive" }
   | { type: "task.rename"; taskId: string; title: string }
+  /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
+  | { type: "task.dismiss"; taskId: string }
+  /** The same for every dotted thread the user has already looked at, leaving the unseen ones alone. */
+  | { type: "task.dismiss-read" }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
   /** Without a `taskId` the setting also becomes the draft the next new task starts from. */
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }
@@ -148,8 +153,9 @@ export type ViewCommand =
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   | { type: "view.dismiss-action-error" }
   | { type: "view.toggle-project"; projectId: string }
-  | { type: "view.set-projects-open"; open: boolean }
-  | { type: "view.set-recents-open"; open: boolean }
+  /** Folds one of the sidebar's lists, whichever mode draws it. */
+  | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
+  | { type: "view.set-sidebar-mode"; mode: SidebarMode }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */

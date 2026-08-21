@@ -1,6 +1,7 @@
 import type { KeyValueStorage } from "./task-store.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
+import { isSidebarMode } from "../domain/sidebar.js";
 
 export const VIEW_PREFERENCES_KEY = "claudex.view-preferences.v1";
 
@@ -47,6 +48,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     return {
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
+      ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),
       ...(shortcuts ? { shortcuts } : {}),
       ...(browserTabs ? { browserTabs } : {}),
       ...(browserOrigins ? { browserOrigins } : {}),

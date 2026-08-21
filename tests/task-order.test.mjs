@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { backfillSortIndex, moveTask, nextSortIndex, orderTasks } from "../dist/main/application/task-order.js";
+import { activitySections, backfillSortIndex, moveTask, nextSortIndex, orderTasks } from "../dist/main/application/task-order.js";
 
 function task(id, overrides = {}) {
   return {
@@ -90,4 +90,35 @@ test("a thread reorders inside its own checkout and is never carried out of one 
 
   assert.equal(moveTask(tasks, "first", { projectId: "project-1", index: 0 }), tasks, "a checkout places its own threads, so nothing drags one into the project's list");
   assert.equal(moveTask(tasks, "loose", { projectId: "project-1", worktreeId: "wt1", index: 0 }), tasks, "and nothing drags one in either");
+});
+
+test("activity ranks a dotted thread above a running one, and every thread appears once", () => {
+  const tasks = [
+    task("quiet", { createdAt: 1 }),
+    task("busy", { createdAt: 2 }),
+    task("asked", { createdAt: 3, attention: "approval" }),
+    task("newest", { createdAt: 9 }),
+    /** Dotted and running at once, which is a thread whose next run started after the last one settled. */
+    task("both", { createdAt: 4, attention: "finished" }),
+  ];
+
+  const sections = activitySections(tasks, new Set(["busy", "both"]));
+
+  assert.deepEqual(sections.priority.map((item) => item.id), ["both", "asked"]);
+  assert.deepEqual(sections.running.map((item) => item.id), ["busy"]);
+  assert.deepEqual(sections.threads.map((item) => item.id), ["newest", "quiet"]);
+  assert.equal(
+    [...sections.priority, ...sections.running, ...sections.threads].length,
+    tasks.length,
+    "the three lists partition the threads rather than repeating any",
+  );
+});
+
+test("activity dates a thread by what it last did, not by every write to it", () => {
+  const tasks = [
+    task("stale-run", { createdAt: 1, runEndedAt: 50, updatedAt: 99 }),
+    task("fresh-message", { createdAt: 2, messages: [{ id: "m", kind: "user", text: "hi", at: 80 }], updatedAt: 3 }),
+  ];
+
+  assert.deepEqual(activitySections(tasks, new Set()).threads.map((item) => item.id), ["fresh-message", "stale-run"]);
 });

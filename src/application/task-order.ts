@@ -1,4 +1,22 @@
-import type { Task, TaskDropTarget } from "../domain/task.js";
+import { threadActivityAt, type Task, type TaskDropTarget } from "../domain/task.js";
+
+/** The activity sidebar's three lists, in the order they are drawn. */
+export type ActivitySections = Record<"priority" | "running" | "threads", Task[]>;
+
+/**
+ * Ranks threads by what wants the user rather than by where they live. A thread carrying a dot leads
+ * however busy it is, so a question never hides among the runs, and every thread appears once.
+ */
+export function activitySections(tasks: Task[], running: Set<string>): ActivitySections {
+  const recent = [...tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
+  const waiting = recent.filter((task) => task.attention);
+  const rest = recent.filter((task) => !task.attention);
+  return {
+    priority: waiting,
+    running: rest.filter((task) => running.has(task.id)),
+    threads: rest.filter((task) => !running.has(task.id)),
+  };
+}
 
 /**
  * Sidebar order. `sortIndex` wins so rows never move on their own; tasks stored before
