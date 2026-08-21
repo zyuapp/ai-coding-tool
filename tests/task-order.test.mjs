@@ -108,13 +108,26 @@ test("activity leads with the threads that want the user, and every thread appea
   const sections = activitySections(tasks, new Set(["busy", "both", "asked", "asked-again"]), new Set(["asked", "asked-again"]));
 
   assert.deepEqual(sections.priority.map((item) => item.id), ["asked-again", "settled", "asked"]);
-  assert.deepEqual(sections.running.map((item) => item.id), ["both", "busy"], "a working thread ranks by its work, however its last run ended");
+  assert.deepEqual(sections.running.map((item) => item.id), ["busy", "both"], "a working thread keeps its sidebar place, however its last run ended");
   assert.deepEqual(sections.threads.map((item) => item.id), ["newest", "quiet"]);
   assert.deepEqual(
     [...sections.priority, ...sections.running, ...sections.threads].map((item) => item.id).sort(),
     tasks.map((item) => item.id).sort(),
     "the three lists partition the threads rather than repeating or losing any",
   );
+});
+
+test("running holds the sidebar's order, so a thread speaking never moves the rows", () => {
+  const tasks = [
+    task("first", { sortIndex: 0, createdAt: 1 }),
+    task("second", { sortIndex: 1, createdAt: 2 }),
+  ];
+  const busy = new Set(["first", "second"]);
+
+  assert.deepEqual(activitySections(tasks, busy, new Set()).running.map((item) => item.id), ["first", "second"]);
+
+  const spoke = [tasks[0], { ...tasks[1], messages: [{ id: "m", kind: "assistant", text: "working", at: 500 }] }];
+  assert.deepEqual(activitySections(spoke, busy, new Set()).running.map((item) => item.id), ["first", "second"]);
 });
 
 test("a thread carrying a verdict ranks in Priority only while it is idle", () => {

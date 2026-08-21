@@ -7,13 +7,16 @@ export type ActivitySections = Record<"priority" | "running" | "threads", Task[]
  * Ranks threads by what wants the user rather than by where they live. A thread leads when it is
  * blocked on the user, or when it is idle and its last run left a verdict; a thread still working
  * belongs among the runs however it ended last time. Every thread appears once.
+ *
+ * Running holds its rows in the sidebar's own order instead, because ranking live threads by their
+ * newest activity reshuffles the list under the user every time one of them speaks.
  */
 export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<string>): ActivitySections {
   const recent = [...tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
   const idle = (task: Task) => !busy.has(task.id) && !blocked.has(task.id);
   return {
     priority: recent.filter((task) => blocked.has(task.id) || (idle(task) && task.outcome)),
-    running: recent.filter((task) => busy.has(task.id) && !blocked.has(task.id)),
+    running: orderTasks(tasks).filter((task) => busy.has(task.id) && !blocked.has(task.id)),
     threads: recent.filter((task) => idle(task) && !task.outcome),
   };
 }
