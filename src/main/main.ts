@@ -40,7 +40,8 @@ if (!singleInstance) {
   console.log("Claudex is already running. Bringing that window forward instead of starting a second one.");
   app.exit(0);
 }
-app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
+/** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
+if (app.isPackaged) app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
 
 const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
