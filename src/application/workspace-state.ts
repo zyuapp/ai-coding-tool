@@ -260,6 +260,8 @@ export type WorkspaceState = {
   storageError: string | null;
   actionError: string | null;
   writable: boolean;
+  /** Whether the stored threads have answered. Until they have, there is nothing to say is empty. */
+  restored: boolean;
 };
 
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
@@ -328,6 +330,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     storageError,
     actionError: null,
     writable: storageError === null,
+    restored: false,
   };
 }
 
@@ -820,6 +823,7 @@ export function deriveView(state: WorkspaceState) {
     environment,
     storageError: state.storageError,
     actionError: state.actionError,
+    restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
     sections: state.sections,

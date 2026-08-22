@@ -385,6 +385,8 @@ export type ConversationTimelineProps = {
   /** Reports where this thread's reader has settled, which the workspace keeps for the return trip. */
   onReadingPointMove?: (point: ReadingPoint) => void;
   empty?: { icon: LucideIcon; title: string; description: string };
+  /** False while the stored threads are still on their way, when an empty transcript means nothing. */
+  restored?: boolean;
   /** Shown under the empty state, where a thread that does not exist yet is set up. */
   startOptions?: ReactNode;
   /** The find bar, when it is this transcript being searched, and the match it is showing. */
@@ -399,7 +401,7 @@ export type ConversationTimelineProps = {
   onAnnotateSide?: (quote: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -739,6 +741,8 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   }
 
   if (!currentTask?.messages.length && !streamingTail) {
+    /** A transcript that has nothing yet because nothing has been read is not a transcript with nothing in it. */
+    if (!restored) return <div className="empty-state" />;
     const EmptyIcon = empty?.icon;
     return (
       <div className="empty-state">

@@ -392,6 +392,7 @@ export function App() {
                 if (workspace.currentTask) void workspace.dispatch({ type: "view.reading-point", taskId: workspace.currentTask.id, point });
               }}
               scrollContainerRef={transcriptRef}
+              restored={workspace.restored}
               startOptions={!workspace.currentTask && (
                 <ThreadStartOptions
                   projects={workspace.projects}

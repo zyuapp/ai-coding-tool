@@ -481,6 +481,7 @@ export function useTaskWorkspace() {
         const backfill = persistenceDelta({ ...stateRef.current, tasks: data.tasks }, stateRef.current);
         if (backfill.tasks.length || backfill.removedTasks) await window.desktop.persistTaskStore(backfill);
       } else {
+        await dispatchRef.current({ type: "store.absent" });
         await window.desktop.persistTaskStore(persistenceDelta(null, stateRef.current));
       }
       persistenceReady.current = true;

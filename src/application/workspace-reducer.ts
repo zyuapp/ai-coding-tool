@@ -52,6 +52,8 @@ import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.j
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
   | { type: "store.loaded"; data: TaskStoreData }
+  /** The store has nothing to hand over: a first run, with no threads to restore. */
+  | { type: "store.absent" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
@@ -1548,7 +1550,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "store.loaded":
-      return settled(withStoreData(state, input.data));
+      return settled({ ...withStoreData(state, input.data), restored: true });
+
+    case "store.absent":
+      return settled({ ...state, restored: true });
 
     case "preferences.loaded": {
       /** A restored page keeps its record and gets its view back when the panel first shows it. */
@@ -1580,7 +1585,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "store.failed":
-      return settled({ ...state, writable: false, storageError: input.message });
+      return settled({ ...state, writable: false, storageError: input.message, restored: true });
 
     case "action.failed":
       return settled({ ...state, actionError: input.message });

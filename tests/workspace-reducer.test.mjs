@@ -191,6 +191,13 @@ test("a load lands a session that has gone nowhere on the newest thread", () => 
   assert.deepEqual(loaded.state.history, ["stored"]);
 });
 
+test("nothing is empty until the store has answered, whatever it answers", () => {
+  assert.equal(workspace().restored, false);
+  assert.equal(reduce(workspace(), { type: "store.loaded", data: STORE_ANSWER }).state.restored, true);
+  assert.equal(reduce(workspace(), { type: "store.absent" }).state.restored, true);
+  assert.equal(reduce(workspace(), { type: "store.failed", message: "unreadable" }).state.restored, true);
+});
+
 test("a draft typed before the load is still there, and still where it was typed, after", () => {
   const typed = run(workspace(), [
     { type: "view.set-prompt", prompt: "the first message after a restart" },
