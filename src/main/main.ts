@@ -9,6 +9,7 @@ import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js
 import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
+import { DEFAULT_CAPTURE_OPTIONS, isCaptureOptions } from "../domain/capture.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import { desktopAccelerator, formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalLineLimit } from "../domain/terminal.js";
@@ -217,8 +218,8 @@ function handleKey(input: Electron.Input, surface: ShortcutSurface): boolean {
   return true;
 }
 
-/** Whether the shutter plays, which the window owns and hands over as the user changes it. */
-let captureSound = true;
+/** How a grab announces itself. The window owns the choice and hands it over as the user changes it. */
+let captureOptions = DEFAULT_CAPTURE_OPTIONS;
 
 /** Says what happened where the user already is, since taking the window would take their place. */
 function notify(title: string, body: string) {
@@ -226,12 +227,14 @@ function notify(title: string, body: string) {
 }
 
 async function captureWindowToComposer() {
-  const shot = await captureFrontmostWindow(captureSound);
+  const shot = await captureFrontmostWindow(captureOptions.sound);
   if (shot.status === "captured") {
     try {
       const file = await writeAttachment(shot.png);
       sendToWindow("window:screenshot", { app: shot.app, title: shot.title, path: file });
-      notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
+      /** Only ever after the capture: coming forward makes this app the frontmost one. */
+      if (captureOptions.focus) revealWindow();
+      else notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
     } catch (error) {
       notify("Could not keep the screenshot", error instanceof Error ? error.message : String(error));
     }
@@ -868,9 +871,9 @@ ipcMain.on("shortcuts:set", (event, overrides: unknown) => {
   claimDesktopShortcut();
 });
 
-ipcMain.on("capture:set-sound", (event, playing: unknown) => {
-  if (!trustedSender(event) || typeof playing !== "boolean") return;
-  captureSound = playing;
+ipcMain.on("capture:set-options", (event, options: unknown) => {
+  if (!trustedSender(event) || !isCaptureOptions(options)) return;
+  captureOptions = options;
 });
 
 ipcMain.on("shortcuts:capture", (event, capturing: unknown) => {

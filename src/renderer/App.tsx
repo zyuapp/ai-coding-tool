@@ -623,6 +623,7 @@ export function App() {
           allowedOrigins={workspace.browserOrigins}
           shortcuts={workspace.shortcuts}
           captureSound={workspace.captureSound}
+          captureFocus={workspace.captureFocus}
           capturingShortcut={workspace.capturingShortcut}
           onSetTheme={(theme) => void workspace.actions.setTheme(theme)}
           onSetUiFont={(font) => void workspace.actions.setUiFont(font)}
@@ -632,7 +633,7 @@ export function App() {
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}
-          onSetCaptureSound={(playing) => void workspace.dispatch({ type: "view.set-capture-sound", playing })}
+          onSetCaptureOptions={(options) => void workspace.dispatch({ type: "view.set-capture-options", options })}
           onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
           onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
           onResetShortcuts={() => void workspace.actions.resetShortcuts()}

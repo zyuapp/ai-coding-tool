@@ -332,8 +332,8 @@ export function useTaskWorkspace() {
         window.desktop.setShortcuts(effect.overrides);
         return;
 
-      case "apply-capture-sound":
-        window.desktop.setCaptureSound(effect.playing);
+      case "apply-capture-options":
+        window.desktop.setCaptureOptions(effect.options);
         return;
 
       case "capture-shortcut":
@@ -540,7 +540,7 @@ export function useTaskWorkspace() {
     if (!("desktop" in window)) return;
     /** Preferences are read before the first render, so the bindings they hold reach main from here. */
     window.desktop.setShortcuts(stateRef.current.shortcuts);
-    window.desktop.setCaptureSound(stateRef.current.captureSound);
+    window.desktop.setCaptureOptions({ sound: stateRef.current.captureSound, focus: stateRef.current.captureFocus });
     const stopListening = window.desktop.onShortcut(({ action, surface }) => void dispatchRef.current({ type: "view.shortcut", action, surface }));
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void dispatchRef.current({ type: "shortcut.captured", binding }));
     const stopRefusals = window.desktop.onDesktopShortcutRefused((binding) => void dispatchRef.current({

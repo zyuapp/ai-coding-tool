@@ -73,17 +73,25 @@ test("a composer takes no more images than a message may carry", () => {
   assert.match(filled.actionError, /up to 6 images/);
 });
 
-test("the shutter plays by default, and turning it off reaches the desktop and the store", () => {
+test("a grab sounds and comes forward by default, and either choice reaches the desktop and the store", () => {
   const state = workspaceWithTasks();
-  assert.equal(state.captureSound, true, "a grab says so out loud until the user says otherwise");
-  assert.equal(deriveView(state).captureSound, true);
+  assert.deepEqual([state.captureSound, state.captureFocus], [true, true], "a grab announces itself until the user says otherwise");
+  assert.deepEqual([deriveView(state).captureSound, deriveView(state).captureFocus], [true, true]);
 
-  const quiet = reduce(state, { type: "view.set-capture-sound", playing: false });
-  assert.equal(quiet.state.captureSound, false);
-  assert.deepEqual(quiet.effects.map((effect) => effect.type), ["persist-preferences", "apply-capture-sound"]);
+  const quiet = reduce(state, { type: "view.set-capture-options", options: { sound: false, focus: true } });
+  assert.deepEqual([quiet.state.captureSound, quiet.state.captureFocus], [false, true]);
+  assert.deepEqual(quiet.effects.map((effect) => effect.type), ["persist-preferences", "apply-capture-options"]);
   assert.equal(quiet.effects[0].preferences.captureSound, false);
-  assert.equal(quiet.effects[1].playing, false);
+  assert.deepEqual(quiet.effects[1].options, { sound: false, focus: true });
 
-  assert.deepEqual(reduce(quiet.state, { type: "view.set-capture-sound", playing: false }).effects, [], "an unchanged choice writes nothing");
-  assert.equal(reduce(quiet.state, { type: "view.set-capture-sound", playing: true }).state.captureSound, true);
+  const stays = reduce(quiet.state, { type: "view.set-capture-options", options: { sound: false, focus: false } });
+  assert.equal(stays.state.captureFocus, false);
+
+  assert.deepEqual(reduce(stays.state, { type: "view.set-capture-options", options: { sound: false, focus: false } }).effects, [], "an unchanged choice writes nothing");
+});
+
+test("an image arriving asks for the caret, so the caption is typed where the shot landed", () => {
+  const state = workspaceWithTasks();
+  const staged = reduce(state, { type: "image.add", path: "/attachments/one.png", label: "Figma" }).state;
+  assert.equal(staged.composerFocus, state.composerFocus + 1);
 });

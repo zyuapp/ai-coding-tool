@@ -1,6 +1,7 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { CaptureOptions } from "../domain/capture.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { FindResults } from "../domain/find.js";
@@ -272,8 +273,8 @@ export type DesktopAPI = {
   onWindowScreenshot(listener: (shot: WindowScreenshot) => void): () => void;
   /** A desktop-wide binding another app already holds, which leaves the action with no keystroke. */
   onDesktopShortcutRefused(listener: (binding: string) => void): () => void;
-  /** Whether grabbing a window plays the shutter. Main owns the sound, so it is told rather than asked. */
-  setCaptureSound(playing: boolean): void;
+  /** How a grab announces itself. Main owns both, so it is told rather than asked. */
+  setCaptureOptions(options: CaptureOptions): void;
   /** The theme's ground and canvas, which the platform's own window frame is drawn from. */
   setTheme(theme: WindowTheme): void;
   /** The keystrokes main matches, so a shortcut works inside a page the window never hears from. */

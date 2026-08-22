@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { CaptureOptions } from "./domain/capture";
 import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { WorkspaceRecord } from "./domain/workspace";
@@ -117,7 +118,7 @@ const api: DesktopAPI = {
     ipcRenderer.on("window:shortcut-refused", handler);
     return () => ipcRenderer.removeListener("window:shortcut-refused", handler);
   },
-  setCaptureSound: (playing: boolean) => ipcRenderer.send("capture:set-sound", playing),
+  setCaptureOptions: (options: CaptureOptions) => ipcRenderer.send("capture:set-options", options),
   setTheme: (theme: WindowTheme) => ipcRenderer.send("theme:set", theme),
   setShortcuts: (overrides: ShortcutOverrides) => ipcRenderer.send("shortcuts:set", overrides),
   setShortcutCapture: (capturing: boolean) => ipcRenderer.send("shortcuts:capture", capturing),

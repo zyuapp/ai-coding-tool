@@ -41,6 +41,7 @@ import { nextTheme, themeById, themeOrDefault } from "../domain/theme.js";
 import { monoFontById, monoFontOrDefault, stepTextSize, textSizeById, textSizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
+import type { CaptureOptions } from "../domain/capture.js";
 import { clampTitle, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
@@ -133,7 +134,7 @@ export type WorkspaceEffect =
   | { type: "close-window" }
   /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */
   | { type: "apply-shortcuts"; overrides: ShortcutOverrides }
-  | { type: "apply-capture-sound"; playing: boolean }
+  | { type: "apply-capture-options"; options: CaptureOptions }
   /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
   | { type: "capture-shortcut"; capturing: boolean }
   /**
@@ -1563,6 +1564,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         terminalSize: textSizeOrDefault(input.preferences.terminalSize).id,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
         captureSound: input.preferences.captureSound ?? true,
+        captureFocus: input.preferences.captureFocus ?? true,
         sidebarOpen: input.preferences.sidebarOpen,
         sidebarMode: input.preferences.sidebarMode,
         shortcuts: input.preferences.shortcuts ?? {},
@@ -1609,7 +1611,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const key = input.taskId ?? promptKey(state);
       if (!input.path) return settled(state);
       if (imagesFor(state, key).length >= MAX_ATTACHMENTS) return settled({ ...state, actionError: TOO_MANY_IMAGES_ERROR });
-      return settled(withImages(state, key, [...imagesFor(state, key), { id: crypto.randomUUID(), path: input.path, label: input.label }]));
+      const staged = withImages(state, key, [...imagesFor(state, key), { id: crypto.randomUUID(), path: input.path, label: input.label }]);
+      /** An image only ever arrives to be captioned, so the caret goes where the caption is typed. */
+      return settled(focusComposer(staged));
     }
 
     case "image.remove": {
@@ -1735,10 +1739,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       })));
     }
 
-    case "view.set-capture-sound": {
-      if (state.captureSound === input.playing) return settled(state);
-      const next = { ...state, captureSound: input.playing };
-      return settled(next, [...persistView(next), { type: "apply-capture-sound", playing: input.playing }]);
+    case "view.set-capture-options": {
+      const next = { ...state, captureSound: input.options.sound, captureFocus: input.options.focus };
+      if (next.captureSound === state.captureSound && next.captureFocus === state.captureFocus) return settled(state);
+      return settled(next, [...persistView(next), { type: "apply-capture-options", options: input.options }]);
     }
 
     case "view.set-session-panel-open": {

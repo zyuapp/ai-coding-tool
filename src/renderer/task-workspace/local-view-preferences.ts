@@ -14,6 +14,7 @@ export function loadViewPreferences(): ViewPreferences {
     terminalSize: stored.terminalSize ?? DEFAULT_TEXT_SIZE,
     sessionPanelOpen: stored.sessionPanelOpen ?? window.innerWidth >= 1400,
     captureSound: stored.captureSound ?? true,
+    captureFocus: stored.captureFocus ?? true,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
     sidebarMode: stored.sidebarMode ?? "projects",
     shortcuts: stored.shortcuts ?? {},

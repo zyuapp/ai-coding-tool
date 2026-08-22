@@ -1,6 +1,7 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
+import type { CaptureOptions } from "../domain/capture.js";
 import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
@@ -198,7 +199,7 @@ export type ViewCommand =
   | { type: "view.set-sidebar-mode"; mode: SidebarMode }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
-  | { type: "view.set-capture-sound"; playing: boolean }
+  | { type: "view.set-capture-options"; options: CaptureOptions }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
   | { type: "view.set-settings-open"; open: boolean }

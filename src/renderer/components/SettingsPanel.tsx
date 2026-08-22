@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
+import type { CaptureOptions } from "../../domain/capture";
 import { MAC } from "../platform";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import { themeFamilies } from "../../domain/theme";
@@ -43,8 +44,9 @@ export type SettingsPanelProps = {
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
   shortcuts: ShortcutSetting[];
-  /** Whether grabbing a window plays the shutter. */
+  /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
   captureSound: boolean;
+  captureFocus: boolean;
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
   onSetTheme: (theme: string) => void;
@@ -55,7 +57,7 @@ export type SettingsPanelProps = {
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
   onClearBrowserData: () => void;
-  onSetCaptureSound: (playing: boolean) => void;
+  onSetCaptureOptions: (options: CaptureOptions) => void;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
   onResetShortcuts: () => void;
@@ -143,6 +145,7 @@ export function SettingsPanel({
   allowedOrigins,
   shortcuts,
   captureSound,
+  captureFocus,
   capturingShortcut,
   onSetTheme,
   onSetUiFont,
@@ -152,7 +155,7 @@ export function SettingsPanel({
   onRestoreTask,
   onClearArchive,
   onClearBrowserData,
-  onSetCaptureSound,
+  onSetCaptureOptions,
   onCaptureShortcut,
   onSetShortcut,
   onResetShortcuts,
@@ -438,8 +441,21 @@ export function SettingsPanel({
               <p>The only feedback that lands as the shot is taken, rather than a moment after it.</p>
             </div>
             <div className="setting-row-action">
-              <button type="button" aria-pressed={captureSound} onClick={() => onSetCaptureSound(!captureSound)}>
+              <button type="button" aria-pressed={captureSound} onClick={() => onSetCaptureOptions({ sound: !captureSound, focus: captureFocus })}>
                 {captureSound ? "Turn off" : "Turn on"}
+              </button>
+            </div>
+          </div>
+
+          <div className="setting-row">
+            <span className={`setting-status ${captureFocus ? "granted" : ""}`}>{captureFocus && <Check size={13} />}</span>
+            <div>
+              <strong>Come forward with the shot</strong>
+              <p>Claudex takes the screen once the window is grabbed, with the caret already in the composer. Off leaves you where you were.</p>
+            </div>
+            <div className="setting-row-action">
+              <button type="button" aria-pressed={captureFocus} onClick={() => onSetCaptureOptions({ sound: captureSound, focus: !captureFocus })}>
+                {captureFocus ? "Turn off" : "Turn on"}
               </button>
             </div>
           </div>

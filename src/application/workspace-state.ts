@@ -213,8 +213,9 @@ export type WorkspaceState = {
   sidebarMode: SidebarMode;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
-  /** Whether grabbing a window plays the shutter. */
+  /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
   captureSound: boolean;
+  captureFocus: boolean;
   settingsOpen: boolean;
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
@@ -289,6 +290,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     sidebarOpen: true,
     sessionPanelOpen: false,
     captureSound: true,
+    captureFocus: true,
     settingsOpen: false,
     shortcuts: {},
     capturingShortcut: null,
@@ -423,6 +425,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     terminalSize: state.terminalSize,
     sessionPanelOpen: state.sessionPanelOpen,
     captureSound: state.captureSound,
+    captureFocus: state.captureFocus,
     sidebarOpen: state.sidebarOpen,
     sidebarMode: state.sidebarMode,
     shortcuts: state.shortcuts,
@@ -822,6 +825,7 @@ export function deriveView(state: WorkspaceState) {
     sidebarOpen: state.sidebarOpen,
     sessionPanelOpen: state.sessionPanelOpen,
     captureSound: state.captureSound,
+    captureFocus: state.captureFocus,
     shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut,
     composerFocus: state.composerFocus,
