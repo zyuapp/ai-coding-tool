@@ -198,6 +198,7 @@ export type ViewCommand =
   | { type: "view.set-sidebar-mode"; mode: SidebarMode }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
+  | { type: "view.set-capture-sound"; playing: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
   | { type: "view.set-settings-open"; open: boolean }

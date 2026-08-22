@@ -1,8 +1,27 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { systemPreferences } from "electron";
+
+/** macOS's own screenshot shutter, which is the sound the gesture already means to everyone. */
+const SHUTTER = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Grab.aif";
+
+/**
+ * The shutter, played beside the capture rather than after it. `screencapture` is told not to make
+ * a sound of its own, so this stays one choice rather than two that can disagree.
+ */
+export function playShutter() {
+  if (process.platform !== "darwin" || !existsSync(SHUTTER)) return;
+  try {
+    const player = spawn("/usr/bin/afplay", [SHUTTER], { detached: true, stdio: "ignore" });
+    player.once("error", () => undefined);
+    player.unref();
+  } catch {
+    /** A shutter that will not play is not worth failing the capture over. */
+  }
+}
 
 export type WindowShot =
   | { status: "captured"; app: string; title: string; png: string }
@@ -47,7 +66,7 @@ async function frontmostWindow(): Promise<Pick> {
 }
 
 /** Grabs the window the user is in without taking the keyboard from it. macOS only. */
-export async function captureFrontmostWindow(): Promise<WindowShot> {
+export async function captureFrontmostWindow(sound: boolean): Promise<WindowShot> {
   if (process.platform !== "darwin") return { status: "failed", message: "Window capture is currently available only on macOS." };
   if (systemPreferences.getMediaAccessStatus("screen") !== "granted") return { status: "denied" };
   let directory: string | null = null;
@@ -58,6 +77,7 @@ export async function captureFrontmostWindow(): Promise<WindowShot> {
     directory = await mkdtemp(path.join(tmpdir(), "claudex-shot-"));
     const file = path.join(directory, "window.png");
     await run("/usr/sbin/screencapture", [`-l${window.windowId}`, "-x", "-o", file]);
+    if (sound) playShutter();
     const png = await readFile(file);
     if (png.byteLength === 0) return { status: "denied" };
     return { status: "captured", app: window.app, title: window.title ?? "", png: png.toString("base64") };

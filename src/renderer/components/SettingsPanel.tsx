@@ -43,6 +43,8 @@ export type SettingsPanelProps = {
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
   shortcuts: ShortcutSetting[];
+  /** Whether grabbing a window plays the shutter. */
+  captureSound: boolean;
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
   onSetTheme: (theme: string) => void;
@@ -53,6 +55,7 @@ export type SettingsPanelProps = {
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
   onClearBrowserData: () => void;
+  onSetCaptureSound: (playing: boolean) => void;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
   onResetShortcuts: () => void;
@@ -139,6 +142,7 @@ export function SettingsPanel({
   terminalSize,
   allowedOrigins,
   shortcuts,
+  captureSound,
   capturingShortcut,
   onSetTheme,
   onSetUiFont,
@@ -148,6 +152,7 @@ export function SettingsPanel({
   onRestoreTask,
   onClearArchive,
   onClearBrowserData,
+  onSetCaptureSound,
   onCaptureShortcut,
   onSetShortcut,
   onResetShortcuts,
@@ -416,6 +421,28 @@ export function SettingsPanel({
           </div>
 
           {cliError && <p className="settings-error" role="alert">{cliError}</p>}
+        </section>
+
+        <section className="settings-group" aria-labelledby="capture-heading">
+          <div className="settings-group-heading">
+            <div>
+              <h3 id="capture-heading">Grabbing a window</h3>
+              <p>The shortcut attaches the window you are in without taking you out of it.</p>
+            </div>
+          </div>
+
+          <div className="setting-row">
+            <span className={`setting-status ${captureSound ? "granted" : ""}`}>{captureSound && <Check size={13} />}</span>
+            <div>
+              <strong>Shutter sound</strong>
+              <p>The only feedback that lands as the shot is taken, rather than a moment after it.</p>
+            </div>
+            <div className="setting-row-action">
+              <button type="button" aria-pressed={captureSound} onClick={() => onSetCaptureSound(!captureSound)}>
+                {captureSound ? "Turn off" : "Turn on"}
+              </button>
+            </div>
+          </div>
         </section>
       </main>
       )}

@@ -54,6 +54,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(textSizeById(value.readingSize) ? { readingSize: value.readingSize as string } : {}),
       ...(textSizeById(value.terminalSize) ? { terminalSize: value.terminalSize as string } : {}),
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
+      ...(typeof value.captureSound === "boolean" ? { captureSound: value.captureSound } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
       ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),
       ...(shortcuts ? { shortcuts } : {}),

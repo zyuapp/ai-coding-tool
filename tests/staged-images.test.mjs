@@ -72,3 +72,18 @@ test("a composer takes no more images than a message may carry", () => {
   assert.equal(filled.images["task-1"].length, MAX_ATTACHMENTS);
   assert.match(filled.actionError, /up to 6 images/);
 });
+
+test("the shutter plays by default, and turning it off reaches the desktop and the store", () => {
+  const state = workspaceWithTasks();
+  assert.equal(state.captureSound, true, "a grab says so out loud until the user says otherwise");
+  assert.equal(deriveView(state).captureSound, true);
+
+  const quiet = reduce(state, { type: "view.set-capture-sound", playing: false });
+  assert.equal(quiet.state.captureSound, false);
+  assert.deepEqual(quiet.effects.map((effect) => effect.type), ["persist-preferences", "apply-capture-sound"]);
+  assert.equal(quiet.effects[0].preferences.captureSound, false);
+  assert.equal(quiet.effects[1].playing, false);
+
+  assert.deepEqual(reduce(quiet.state, { type: "view.set-capture-sound", playing: false }).effects, [], "an unchanged choice writes nothing");
+  assert.equal(reduce(quiet.state, { type: "view.set-capture-sound", playing: true }).state.captureSound, true);
+});

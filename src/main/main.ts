@@ -217,13 +217,16 @@ function handleKey(input: Electron.Input, surface: ShortcutSurface): boolean {
   return true;
 }
 
+/** Whether the shutter plays, which the window owns and hands over as the user changes it. */
+let captureSound = true;
+
 /** Says what happened where the user already is, since taking the window would take their place. */
 function notify(title: string, body: string) {
   if (Notification.isSupported()) new Notification({ title, body, silent: true }).show();
 }
 
 async function captureWindowToComposer() {
-  const shot = await captureFrontmostWindow();
+  const shot = await captureFrontmostWindow(captureSound);
   if (shot.status === "captured") {
     try {
       const file = await writeAttachment(shot.png);
@@ -863,6 +866,11 @@ ipcMain.on("shortcuts:set", (event, overrides: unknown) => {
   if (!trustedSender(event) || !isShortcutOverrides(overrides)) return;
   shortcuts = resolveShortcuts(overrides);
   claimDesktopShortcut();
+});
+
+ipcMain.on("capture:set-sound", (event, playing: unknown) => {
+  if (!trustedSender(event) || typeof playing !== "boolean") return;
+  captureSound = playing;
 });
 
 ipcMain.on("shortcuts:capture", (event, capturing: unknown) => {

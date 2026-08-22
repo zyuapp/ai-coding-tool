@@ -117,6 +117,7 @@ const api: DesktopAPI = {
     ipcRenderer.on("window:shortcut-refused", handler);
     return () => ipcRenderer.removeListener("window:shortcut-refused", handler);
   },
+  setCaptureSound: (playing: boolean) => ipcRenderer.send("capture:set-sound", playing),
   setTheme: (theme: WindowTheme) => ipcRenderer.send("theme:set", theme),
   setShortcuts: (overrides: ShortcutOverrides) => ipcRenderer.send("shortcuts:set", overrides),
   setShortcutCapture: (capturing: boolean) => ipcRenderer.send("shortcuts:capture", capturing),

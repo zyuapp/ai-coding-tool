@@ -133,6 +133,7 @@ export type WorkspaceEffect =
   | { type: "close-window" }
   /** The keystrokes the window matches. Only main sees the ones a page in the panel swallows. */
   | { type: "apply-shortcuts"; overrides: ShortcutOverrides }
+  | { type: "apply-capture-sound"; playing: boolean }
   /** While settings wait for a keystroke, main hands every one of them over instead of acting. */
   | { type: "capture-shortcut"; capturing: boolean }
   /**
@@ -1561,6 +1562,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         readingSize: textSizeOrDefault(input.preferences.readingSize).id,
         terminalSize: textSizeOrDefault(input.preferences.terminalSize).id,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
+        captureSound: input.preferences.captureSound ?? true,
         sidebarOpen: input.preferences.sidebarOpen,
         sidebarMode: input.preferences.sidebarMode,
         shortcuts: input.preferences.shortcuts ?? {},
@@ -1731,6 +1733,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
           ? { ...subagent, activity: [...input.activity, ...subagent.activity.filter((item) => !stored.has(item.id))] }
           : subagent),
       })));
+    }
+
+    case "view.set-capture-sound": {
+      if (state.captureSound === input.playing) return settled(state);
+      const next = { ...state, captureSound: input.playing };
+      return settled(next, [...persistView(next), { type: "apply-capture-sound", playing: input.playing }]);
     }
 
     case "view.set-session-panel-open": {

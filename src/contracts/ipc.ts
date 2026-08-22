@@ -272,6 +272,8 @@ export type DesktopAPI = {
   onWindowScreenshot(listener: (shot: WindowScreenshot) => void): () => void;
   /** A desktop-wide binding another app already holds, which leaves the action with no keystroke. */
   onDesktopShortcutRefused(listener: (binding: string) => void): () => void;
+  /** Whether grabbing a window plays the shutter. Main owns the sound, so it is told rather than asked. */
+  setCaptureSound(playing: boolean): void;
   /** The theme's ground and canvas, which the platform's own window frame is drawn from. */
   setTheme(theme: WindowTheme): void;
   /** The keystrokes main matches, so a shortcut works inside a page the window never hears from. */
