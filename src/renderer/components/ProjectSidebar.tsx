@@ -160,6 +160,17 @@ export function ProjectSidebar({
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
   const worktreeLabel = (taskId: string) => `Works in ${checkoutNames.get(taskId) ?? "a worktree"}`;
 
+  /**
+   * How wide every rail is: the most marks any one thread carries, and never less than the one slot
+   * an action needs. Reserving a slot no thread fills only pushes the marks away from the titles.
+   */
+  const railSlots = [...orderedTasks, ...recentTasks].reduce((widest, task) => Math.max(widest, markCount(task)), 1);
+
+  function markCount(task: Task) {
+    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || (task.outcome && task.outcomeUnread);
+    return Number(worktreeTaskIds.has(task.id)) + Number(automatedTaskIds.has(task.id)) + Number(Boolean(status));
+  }
+
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
   useLayoutEffect(() => {
     list.current?.querySelector<HTMLElement>(".task-row.active, .project-task-row.active")?.scrollIntoView({ block: "nearest" });
@@ -364,7 +375,12 @@ export function ProjectSidebar({
 
   return (
     <DragDropContext onDragEnd={finishDrag}>
-    <aside ref={list} className={`sidebar ${open ? "compact-open" : "hidden"}`} inert={inactive || !open}>
+    <aside
+      ref={list}
+      className={`sidebar ${open ? "compact-open" : "hidden"}`}
+      inert={inactive || !open}
+      style={{ "--row-slots": railSlots } as React.CSSProperties}
+    >
       <div className="traffic-space">
         <div className="sidebar-modes">
           {/** One switch, not a pair: pressed ranks the threads, released puts them back under their folders. */}
