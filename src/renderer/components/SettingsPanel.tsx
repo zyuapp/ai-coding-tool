@@ -1,17 +1,18 @@
-import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal, Type } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
 import type { CaptureOptions } from "../../domain/capture";
 import { MAC } from "../platform";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
-import { themeFamilies } from "../../domain/theme";
-import { MONO_FONTS, TEXT_SIZES, UI_FONTS } from "../../domain/typography";
+import type { ThemeMode } from "../../domain/theme";
+import { TextSettings } from "./TextSettings";
+import { ThemeSettings } from "./ThemeSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
 
-export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
+export type SettingsSection = "theme" | "text" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -34,13 +35,14 @@ export type SettingsPanelProps = {
   /** The page settings opens on, which computer-use setup asks for by name. */
   initialSection?: SettingsSection;
   archivedTasks: Task[];
-  /** The theme in effect, by id. */
+  /** The theme in effect, by id, and the ground the user asked for. */
   theme: string;
-  /** The families in effect, and the two sizes that follow the user. */
+  themeMode: ThemeMode;
+  /** The families in effect, and the two sizes in px that follow the user. */
   uiFont: string;
   monoFont: string;
-  readingSize: string;
-  terminalSize: string;
+  readingSize: number;
+  terminalSize: number;
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
   shortcuts: ShortcutSetting[];
@@ -49,11 +51,12 @@ export type SettingsPanelProps = {
   captureFocus: boolean;
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
-  onSetTheme: (theme: string) => void;
+  onSetThemeFamily: (family: string) => void;
+  onSetThemeMode: (mode: ThemeMode) => void;
   onSetUiFont: (font: string) => void;
   onSetMonoFont: (font: string) => void;
-  onSetReadingSize: (size: string) => void;
-  onSetTerminalSize: (size: string) => void;
+  onSetReadingSize: (size: number) => void;
+  onSetTerminalSize: (size: number) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
   onClearBrowserData: () => void;
@@ -63,81 +66,12 @@ export type SettingsPanelProps = {
   onResetShortcuts: () => void;
 };
 
-/** The window in miniature: a sidebar, a message, a shell line, and a diff row, all in the theme's own tokens. */
-function ThemePreview() {
-  return (
-    <span className="theme-preview" aria-hidden="true">
-      <span className="theme-preview-sidebar">
-        <i /><i /><i />
-      </span>
-      <span className="theme-preview-body">
-        <span className="theme-preview-bubble"><i /><i /></span>
-        <span className="theme-preview-shell">
-          <i className="ansi-green" /><i className="ansi-blue" /><i className="ansi-yellow" /><i className="ansi-magenta" />
-        </span>
-        <span className="theme-preview-diff">
-          <i className="added" /><i className="removed" />
-        </span>
-      </span>
-    </span>
-  );
-}
-
-/** The card paints itself in the family it names, so the sample is the face the window will use. */
-function FontChoices({ fonts, chosen, sample, attribute, onChoose }: {
-  fonts: { id: string; label: string }[];
-  chosen: string;
-  sample: ReactNode;
-  attribute: "data-ui-font" | "data-mono-font";
-  onChoose: (id: string) => void;
-}) {
-  return (
-    <div className="theme-choices">
-      {fonts.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          className={`theme-choice${option.id === chosen ? " chosen" : ""}`}
-          aria-pressed={option.id === chosen}
-          {...{ [attribute]: option.id }}
-          onClick={() => onChoose(option.id)}
-        >
-          <span className="font-preview" aria-hidden="true">{sample}</span>
-          <span className="theme-choice-name">
-            {option.label}
-            {option.id === chosen && <Check size={13} aria-hidden="true" />}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** The four steps, as one control. Which step is in effect is what the sample beside it is drawn at. */
-function SizeSteps({ label, chosen, onChoose }: { label: string; chosen: string; onChoose: (id: string) => void }) {
-  return (
-    <div className="setting-row-action size-steps" role="group" aria-label={label}>
-      {TEXT_SIZES.map((size) => (
-        <button
-          key={size.id}
-          type="button"
-          className={size.id === chosen ? "chosen" : ""}
-          aria-pressed={size.id === chosen}
-          aria-label={size.label}
-          onClick={() => onChoose(size.id)}
-        >
-          {size.short}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function SettingsPanel({
   onClose,
   initialSection = "general",
   archivedTasks,
   theme,
+  themeMode,
   uiFont,
   monoFont,
   readingSize,
@@ -147,7 +81,8 @@ export function SettingsPanel({
   captureSound,
   captureFocus,
   capturingShortcut,
-  onSetTheme,
+  onSetThemeFamily,
+  onSetThemeMode,
   onSetUiFont,
   onSetMonoFont,
   onSetReadingSize,
@@ -264,9 +199,13 @@ export function SettingsPanel({
         </button>
         <h1>Settings</h1>
         <nav aria-label="Settings sections">
-          <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => setSection("appearance")}>
+          <button className={section === "theme" ? "active" : ""} type="button" aria-current={section === "theme" ? "page" : undefined} onClick={() => setSection("theme")}>
             <Palette size={17} aria-hidden="true" />
-            <span>Appearance</span>
+            <span>Theme</span>
+          </button>
+          <button className={section === "text" ? "active" : ""} type="button" aria-current={section === "text" ? "page" : undefined} onClick={() => setSection("text")}>
+            <Type size={17} aria-hidden="true" />
+            <span>Text</span>
           </button>
           <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => setSection("general")}>
             <SlidersHorizontal size={17} aria-hidden="true" />
@@ -295,99 +234,24 @@ export function SettingsPanel({
         </nav>
       </aside>
 
-      {section === "appearance" && (
+      {section === "theme" && (
       <main className="settings-main">
-        <div className="settings-page-heading">
-          <h2>Appearance</h2>
-          <p>Every colour in the window comes from the theme, including the terminal and the code viewer. The type is yours to set too.</p>
-        </div>
+        <ThemeSettings theme={theme} themeMode={themeMode} onSetFamily={onSetThemeFamily} onSetMode={onSetThemeMode} />
+      </main>
+      )}
 
-        {themeFamilies().map(({ family, themes }) => (
-          <section className="settings-group" key={family} aria-label={family}>
-            <div className="settings-group-heading">
-              <div><h3>{family}</h3></div>
-            </div>
-            <div className="theme-choices">
-              {themes.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`theme-choice${option.id === theme ? " chosen" : ""}`}
-                  aria-pressed={option.id === theme}
-                  data-theme={option.id}
-                  onClick={() => onSetTheme(option.id)}
-                >
-                  <ThemePreview />
-                  <span className="theme-choice-name">
-                    {option.label}
-                    {option.id === theme && <Check size={13} aria-hidden="true" />}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        <section className="settings-group" aria-labelledby="ui-font-heading">
-          <div className="settings-group-heading">
-            <div>
-              <h3 id="ui-font-heading">Interface font</h3>
-              <p>What the window itself is set in: its threads, its menus, and what Claude writes back.</p>
-            </div>
-          </div>
-          <FontChoices
-            fonts={UI_FONTS}
-            chosen={uiFont}
-            attribute="data-ui-font"
-            sample={<><strong>Threads</strong><em>Aa Bb Gg 0123</em></>}
-            onChoose={onSetUiFont}
-          />
-        </section>
-
-        <section className="settings-group" aria-labelledby="mono-font-heading">
-          <div className="settings-group-heading">
-            <div>
-              <h3 id="mono-font-heading">Code and terminal font</h3>
-              <p>What code, diffs, and every shell are set in.</p>
-            </div>
-          </div>
-          <FontChoices
-            fonts={MONO_FONTS}
-            chosen={monoFont}
-            attribute="data-mono-font"
-            sample={<><strong>0O1lI {"{}"}</strong><em className="added">+ added</em></>}
-            onChoose={onSetMonoFont}
-          />
-        </section>
-
-        <section className="settings-group" aria-labelledby="text-size-heading">
-          <div className="settings-group-heading">
-            <div>
-              <h3 id="text-size-heading">Text size</h3>
-              <p>Only these two follow you. The sidebar, the tabs, and the menus keep the size they were drawn at.</p>
-            </div>
-          </div>
-
-          <div className="setting-row">
-            <span className="setting-status" />
-            <div>
-              <strong>Reading size</strong>
-              <p>How big a conversation reads.</p>
-              <p className="size-sample">Ran the tests — three failed in the parser.</p>
-            </div>
-            <SizeSteps label="Reading size" chosen={readingSize} onChoose={onSetReadingSize} />
-          </div>
-
-          <div className="setting-row">
-            <span className="setting-status" />
-            <div>
-              <strong>Terminal</strong>
-              <p>How big every shell draws.</p>
-              <p className="size-sample terminal">$ git status</p>
-            </div>
-            <SizeSteps label="Terminal size" chosen={terminalSize} onChoose={onSetTerminalSize} />
-          </div>
-        </section>
+      {section === "text" && (
+      <main className="settings-main">
+        <TextSettings
+          uiFont={uiFont}
+          monoFont={monoFont}
+          readingSize={readingSize}
+          terminalSize={terminalSize}
+          onSetUiFont={onSetUiFont}
+          onSetMonoFont={onSetMonoFont}
+          onSetReadingSize={onSetReadingSize}
+          onSetTerminalSize={onSetTerminalSize}
+        />
       </main>
       )}
 

@@ -144,6 +144,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       openPath: async () => "",
     },
     session: {
+      defaultSession: { setPermissionRequestHandler() {} },
       fromPartition: () => ({
         setUserAgent() {},
         webRequest: { onBeforeSendHeaders() {} },

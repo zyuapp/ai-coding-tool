@@ -5,6 +5,7 @@ import type { CaptureOptions } from "../domain/capture.js";
 import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
+import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
 import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
@@ -191,11 +192,18 @@ export type ViewCommand =
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
-  /** The families and sizes the window sets type in. An id the app does not ship is ignored. */
+  /** The family to paint, on whichever ground the mode in effect asks for. */
+  | { type: "view.set-theme-family"; family: string; systemDark: boolean }
+  /** The ground to paint on, which "auto" hands back to the system's own appearance. */
+  | { type: "view.set-theme-mode"; mode: ThemeMode; systemDark: boolean }
+  /** The system changed its appearance, which only a window set to "auto" repaints for. */
+  | { type: "view.system-scheme"; dark: boolean }
+  /** The families the window sets type in. An id the app neither ships nor can name is ignored. */
   | { type: "view.set-ui-font"; font: string }
   | { type: "view.set-mono-font"; font: string }
-  | { type: "view.set-reading-size"; size: string }
-  | { type: "view.set-terminal-size"; size: string }
+  /** The two sizes that follow the user, in px, clamped to the range each one offers. */
+  | { type: "view.set-reading-size"; size: number }
+  | { type: "view.set-terminal-size"; size: number }
   | { type: "view.set-sidebar-mode"; mode: SidebarMode }
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }

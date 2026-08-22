@@ -1,17 +1,20 @@
 import type { ShortcutOverrides } from "../domain/shortcuts.js";
+import type { ThemeMode } from "../domain/theme.js";
 import type { SidebarMode } from "../domain/sidebar.js";
 
 /** Presentation choices the window remembers between launches. */
 export type ViewPreferences = {
   /** The theme the window paints in, by id. Themes the app no longer ships fall back to the default. */
   theme: string;
-  /** The family the window's chrome and prose are set in, by id. */
+  /** The ground the user asked for, which "auto" leaves to the system's own appearance. */
+  themeMode: ThemeMode;
+  /** The family the window's chrome and prose are set in, by id or as an installed family's name. */
   uiFont: string;
-  /** The family code, diffs, and the terminal are set in, by id. */
+  /** The family code, diffs, and the terminal are set in, by id or as an installed family's name. */
   monoFont: string;
-  /** How big a conversation reads, and how big the terminal draws. Chrome follows neither. */
-  readingSize: string;
-  terminalSize: string;
+  /** How big a conversation reads, and how big the terminal draws, in px. Chrome follows neither. */
+  readingSize: number;
+  terminalSize: number;
   sessionPanelOpen: boolean;
   sidebarOpen: boolean;
   /** Whether grabbing a window plays the shutter, which is the only feedback that lands as it happens. */

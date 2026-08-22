@@ -189,9 +189,10 @@
 }
 
 /**
- * The two families, and the two sizes the user is allowed to move. The chrome sizes above are
- * deliberately not among them: a bigger conversation must leave every row, tab, and badge where it
- * was. A card carrying one of these attributes paints itself in that choice, which is how a picker
+ * The families the app bundles a face for. The two sizes the user is allowed to move are written
+ * straight onto the root instead, since they are px rather than a rung with a name; the chrome
+ * sizes above stay put, so a bigger conversation leaves every row, tab, and badge where it was.
+ * A card carrying one of these attributes paints itself in that choice, which is how a picker
  * shows the face it is offering.
  */
 [data-ui-font="inter"] { --ui-font: "Inter Variable", var(--system-ui-font); }
@@ -201,14 +202,6 @@
 [data-mono-font="jetbrains-mono"] { --mono: "JetBrains Mono Variable", var(--system-mono-font); }
 [data-mono-font="fira-code"] { --mono: "Fira Code Variable", var(--system-mono-font); }
 [data-mono-font="source-code-pro"] { --mono: "Source Code Pro Variable", var(--system-mono-font); }
-
-[data-reading-size="small"] { --text-content: 13px; }
-[data-reading-size="large"] { --text-content: 17px; }
-[data-reading-size="larger"] { --text-content: 19px; }
-
-[data-terminal-size="small"] { --terminal-text: 11px; }
-[data-terminal-size="large"] { --terminal-text: 13px; }
-[data-terminal-size="larger"] { --terminal-text: 15px; }
 
 :root {
   font-family: var(--ui-font);
@@ -1460,6 +1453,11 @@ pre {
  * in the colours it offers rather than in a picture of them.
  */
 .theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding-bottom: 22px; }
+.theme-choices.compact { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 11px; }
+.theme-choices.compact .theme-preview, .theme-choices.compact .font-preview { height: 58px; }
+.theme-choices.compact .font-preview { gap: 4px; padding: 0 10px; }
+.theme-choices.compact .font-preview strong { font-size: 15px; }
+.theme-choices.compact .theme-choice-name { padding: 7px 9px; }
 .theme-choice {
   display: flex;
   flex-direction: column;
@@ -1504,27 +1502,113 @@ pre {
 .theme-choice[data-ui-font] .font-preview { font-family: var(--ui-font); }
 .theme-choice[data-mono-font] .font-preview { font-family: var(--mono); }
 
-.setting-row-action.size-steps { gap: 0; }
-.setting-row-action.size-steps button {
-  min-width: 38px;
+/** One axis of a two-axis choice: which ground, or which of a handful of named modes. */
+.segmented { display: flex; gap: 0; }
+.segmented button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid var(--line-strong);
   border-left-width: 0;
-  padding: 5px 0;
+  border-radius: 0;
+  padding: 6px 11px;
   background: var(--control-soft);
   color: var(--muted-strong);
   font-size: var(--text-meta);
   font-weight: 560;
   cursor: pointer;
 }
-.setting-row-action.size-steps button:first-child { border-left-width: 1px; border-radius: 8px 0 0 8px; }
-.setting-row-action.size-steps button:last-child { border-radius: 0 8px 8px 0; }
-.setting-row-action.size-steps button:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.setting-row-action.size-steps button.chosen { border-color: var(--accent); background: var(--surface-active); color: var(--ink); }
-.setting-row-action.size-steps button.chosen + button { border-left-color: var(--accent); }
+.segmented button:first-child { border-left-width: 1px; border-radius: 8px 0 0 8px; }
+.segmented button:last-child { border-radius: 0 8px 8px 0; }
+.segmented button:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.segmented button.chosen { border-color: var(--accent); background: var(--surface-active); color: var(--ink); }
+.segmented button.chosen + button { border-left-color: var(--accent); }
+.segmented button svg { flex: none; }
+
+/** A size in px rather than on a rung with a name, so the range is the range. */
+.size-slider { display: flex; align-items: center; gap: 10px; }
+.size-slider input[type="range"] { width: 108px; accent-color: var(--accent); cursor: pointer; }
+.size-stepper { display: flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--control-soft); }
+.size-stepper button {
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 7px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+.size-stepper button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
+.size-stepper button:disabled { color: var(--quiet); cursor: default; }
+.size-stepper output {
+  min-width: 40px;
+  color: var(--ink-dim);
+  font-size: var(--text-meta);
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.size-slider .size-reset:disabled { border-color: var(--line); color: var(--quiet); }
 
 /** Drawn from the same tokens the choice sets, so the sample is the size it is offering. */
 .setting-row p.size-sample { margin-top: 9px; color: var(--ink-soft); font-size: var(--text-content); line-height: 1.5; }
 .setting-row p.size-sample.terminal { font: var(--terminal-text)/1.5 var(--mono); color: var(--code-ink); }
+
+/** What the page adds up to, so the choices in effect read without scrolling to find their ticks. */
+.settings-page-heading p.settings-summary {
+  margin-top: 12px;
+  color: var(--muted-strong);
+  font-size: var(--text-meta);
+  font-weight: 560;
+}
+
+/** The families this machine has, which are only names until the user asks for them. */
+.installed-fonts { padding-bottom: 22px; }
+.installed-fonts button {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 7px 11px;
+  background: var(--control);
+  color: var(--ink-dim);
+  font-size: var(--text-meta);
+  font-weight: 560;
+  cursor: pointer;
+}
+.installed-fonts button:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.installed-fonts.open { display: flex; flex-direction: column; gap: 9px; }
+.installed-fonts-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 10px; background: var(--control-soft); }
+.installed-fonts-search svg { flex: none; color: var(--quiet-strong); }
+.installed-fonts-search input { width: 100%; border: 0; padding: 8px 0; background: transparent; color: var(--ink); font-size: var(--text-control); }
+.installed-fonts-search input:focus { outline: none; }
+.installed-fonts-list {
+  max-height: 268px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 5px;
+  list-style: none;
+}
+.installed-fonts-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--text-control);
+  font-weight: 400;
+  text-align: left;
+}
+.installed-fonts-list button:hover { background: var(--wash); color: var(--ink); }
+.installed-fonts-list button.chosen { background: var(--surface-active); color: var(--ink); }
+.installed-fonts-list button svg { flex: none; color: var(--accent); }
+.installed-fonts-empty { margin: 0 0 22px; color: var(--quiet-strong); font-size: var(--text-meta); }
 
 .theme-preview { display: flex; height: 84px; background: var(--canvas); }
 .theme-preview i { display: block; border-radius: 2px; }

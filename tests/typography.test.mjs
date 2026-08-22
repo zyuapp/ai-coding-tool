@@ -3,14 +3,17 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   DEFAULT_MONO_FONT,
-  DEFAULT_TEXT_SIZE,
   DEFAULT_UI_FONT,
   MONO_FONTS,
-  TEXT_SIZES,
+  READING_SIZE,
+  TERMINAL_SIZE,
   UI_FONTS,
+  customFontFamily,
+  customFontId,
   monoFontOrDefault,
-  stepTextSize,
-  textSizeOrDefault,
+  sizeById,
+  sizeOrDefault,
+  stepSize,
   uiFontOrDefault,
 } from "../dist/main/domain/typography.js";
 
@@ -61,33 +64,52 @@ test("every family the stylesheet names is one the app bundles a face for", asyn
   }
 });
 
-test("a size step moves only the one token it is for, so no chrome follows it", () => {
-  for (const [id, tokens] of blocks("data-reading-size")) assert.deepEqual([...tokens.keys()], ["--text-content"], `${id}`);
-  for (const [id, tokens] of blocks("data-terminal-size")) assert.deepEqual([...tokens.keys()], ["--terminal-text"], `${id}`);
+test("a size is written onto the root rather than picked from blocks, so the stylesheet declares none", () => {
+  assert.equal(blocks("data-reading-size").size, 0);
+  assert.equal(blocks("data-terminal-size").size, 0);
 });
 
-/** The px each step declares, with the default read off the token block the steps override. */
-function ladder(attribute, token) {
-  const declared = blocks(attribute);
-  const base = Number.parseFloat(new RegExp(`${token}:\\s*(\\d+)px`).exec(stylesCss)[1]);
-  return TEXT_SIZES.map((size) => size.id === DEFAULT_TEXT_SIZE ? base : Number.parseFloat(declared.get(size.id).get(token)));
-}
+test("the token each range writes over is the one the stylesheet already declares in px", () => {
+  for (const [range, token] of [[READING_SIZE, "--text-content"], [TERMINAL_SIZE, "--terminal-text"]]) {
+    const declared = Number.parseFloat(new RegExp(`${token}:\\s*(\\d+)px`).exec(stylesCss)[1]);
+    assert.equal(declared, range.default, `${token}`);
+  }
+});
 
-test("both ladders cover every step and climb", () => {
-  for (const [attribute, token] of [["data-reading-size", "--text-content"], ["data-terminal-size", "--terminal-text"]]) {
-    assert.deepEqual([...blocks(attribute).keys()].sort(), TEXT_SIZES.map((size) => size.id).filter((id) => id !== DEFAULT_TEXT_SIZE).sort());
-    const sizes = ladder(attribute, token);
-    for (let index = 1; index < sizes.length; index += 1) {
-      assert.ok(sizes[index] > sizes[index - 1], `${attribute} goes ${sizes[index - 1]}px then ${sizes[index]}px`);
+test("a range spans its default and every rung it used to offer", () => {
+  for (const range of [READING_SIZE, TERMINAL_SIZE]) {
+    assert.ok(range.min < range.default && range.default < range.max);
+    for (const [rung, px] of Object.entries(range.legacy)) {
+      assert.equal(sizeById(range, rung), px, rung);
+      assert.ok(px >= range.min && px <= range.max, `${rung} lands outside the range`);
     }
   }
 });
 
-test("the steps hold at the ends rather than wrapping, and an unknown id lands on the default", () => {
-  assert.equal(stepTextSize(TEXT_SIZES[0].id, -1).id, TEXT_SIZES[0].id);
-  assert.equal(stepTextSize(TEXT_SIZES.at(-1).id, 1).id, TEXT_SIZES.at(-1).id);
-  assert.equal(stepTextSize(TEXT_SIZES[0].id, 1).id, TEXT_SIZES[1].id);
-  assert.equal(textSizeOrDefault("a-size-we-dropped").id, DEFAULT_TEXT_SIZE);
+test("a size outside the range is no size at all, and an unreadable one lands on the default", () => {
+  assert.equal(sizeById(READING_SIZE, READING_SIZE.max + 1), undefined);
+  assert.equal(sizeById(READING_SIZE, READING_SIZE.min - 1), undefined);
+  assert.equal(sizeById(READING_SIZE, "a-size-we-dropped"), undefined);
+  assert.equal(sizeOrDefault(READING_SIZE, "a-size-we-dropped"), READING_SIZE.default);
+  assert.equal(sizeOrDefault(READING_SIZE, null), READING_SIZE.default);
+});
+
+test("the size holds at the ends rather than wrapping", () => {
+  assert.equal(stepSize(READING_SIZE, READING_SIZE.min, -1), READING_SIZE.min);
+  assert.equal(stepSize(READING_SIZE, READING_SIZE.max, 1), READING_SIZE.max);
+  assert.equal(stepSize(READING_SIZE, READING_SIZE.default, 1), READING_SIZE.default + 1);
+});
+
+test("a family the app only knows the name of survives a round trip, and one that could break the stack does not", () => {
+  assert.equal(customFontFamily(customFontId("Helvetica Neue")), "Helvetica Neue");
+  assert.equal(uiFontOrDefault(customFontId("Helvetica Neue")).label, "Helvetica Neue");
+  for (const hostile of ['Fake", monospace; color: red; --x: "', "Fake\\", "Fake'", "", "A".repeat(65)]) {
+    assert.equal(customFontFamily(customFontId(hostile)), undefined, hostile);
+    assert.equal(uiFontOrDefault(customFontId(hostile)).id, DEFAULT_UI_FONT, hostile);
+  }
+});
+
+test("a face the app no longer ships lands on the system's own", () => {
   assert.equal(uiFontOrDefault("a-face-we-dropped").id, DEFAULT_UI_FONT);
   assert.equal(monoFontOrDefault("a-face-we-dropped").id, DEFAULT_MONO_FONT);
 });

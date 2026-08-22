@@ -19,6 +19,8 @@ import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
 export type WindowTheme = {
   variant: "dark" | "light";
   canvas: string;
+  /** Whether the renderer took this ground from the system, in which case native chrome asks it too. */
+  follow?: boolean;
 };
 
 export type WorkspaceId = string;
@@ -690,11 +692,12 @@ export function isWorkflowEvent(value: unknown): value is WorkflowEvent {
   return false;
 }
 
-/** A theme arriving from the renderer, which the window trusts no further than its own two fields. */
+/** A theme arriving from the renderer, which the window trusts no further than its own three fields. */
 export function isWindowTheme(value: unknown): value is WindowTheme {
   if (!value || typeof value !== "object") return false;
   const theme = value as Record<string, unknown>;
   return (theme.variant === "dark" || theme.variant === "light")
     && typeof theme.canvas === "string"
-    && /^#[0-9a-fA-F]{6}$/.test(theme.canvas);
+    && /^#[0-9a-fA-F]{6}$/.test(theme.canvas)
+    && (theme.follow === undefined || typeof theme.follow === "boolean");
 }

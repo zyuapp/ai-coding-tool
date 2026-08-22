@@ -616,6 +616,7 @@ export function App() {
           initialSection={workspace.computerUseSetup ? "computer-use" : "general"}
           archivedTasks={workspace.archivedTasks}
           theme={workspace.theme}
+          themeMode={workspace.themeMode}
           uiFont={workspace.uiFont}
           monoFont={workspace.monoFont}
           readingSize={workspace.readingSize}
@@ -625,7 +626,8 @@ export function App() {
           captureSound={workspace.captureSound}
           captureFocus={workspace.captureFocus}
           capturingShortcut={workspace.capturingShortcut}
-          onSetTheme={(theme) => void workspace.actions.setTheme(theme)}
+          onSetThemeFamily={(family) => void workspace.actions.setThemeFamily(family)}
+          onSetThemeMode={(mode) => void workspace.actions.setThemeMode(mode)}
           onSetUiFont={(font) => void workspace.actions.setUiFont(font)}
           onSetMonoFont={(font) => void workspace.actions.setMonoFont(font)}
           onSetReadingSize={(size) => void workspace.actions.setReadingSize(size)}

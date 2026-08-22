@@ -15,7 +15,8 @@ import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { displayShortcut } from "../../domain/shortcuts";
 import { MAC } from "../platform";
-import { applyTheme } from "../theme";
+import type { ThemeMode } from "../../domain/theme";
+import { applyTheme, systemPrefersDark } from "../theme";
 import { applyTypography } from "../typography";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, onTerminalResize, searchTerminalView } from "./terminal-views";
@@ -581,7 +582,24 @@ export function useTaskWorkspace() {
 
   const view = useMemo(() => deriveView(state), [state]);
 
-  useEffect(() => { applyTheme(view.theme); }, [view.theme]);
+  useEffect(() => { applyTheme(view.theme, view.themeMode === "auto"); }, [view.theme, view.themeMode]);
+
+  /**
+   * Only a window set to "auto" reads the system's appearance, and it can only read it truthfully
+   * once the platform has stopped being told which ground to use — so it re-reads after applying.
+   */
+  useEffect(() => {
+    if (view.themeMode !== "auto") return;
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const follow = () => void dispatchRef.current({ type: "view.system-scheme", dark: media.matches });
+    const settle = requestAnimationFrame(follow);
+    media.addEventListener("change", follow);
+    return () => {
+      cancelAnimationFrame(settle);
+      media.removeEventListener("change", follow);
+    };
+  }, [view.themeMode, view.theme]);
 
   useEffect(() => {
     applyTypography({ uiFont: view.uiFont, monoFont: view.monoFont, readingSize: view.readingSize, terminalSize: view.terminalSize });
@@ -616,10 +634,13 @@ export function useTaskWorkspace() {
       dismissAllTasks: () => dispatch({ type: "task.dismiss-all" }),
       setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
       setTheme: (theme: string) => dispatch({ type: "view.set-theme", theme }),
+      setThemeFamily: (family: string) => dispatch({ type: "view.set-theme-family", family, systemDark: systemPrefersDark() }),
+      setThemeMode: (mode: ThemeMode) => dispatch({ type: "view.set-theme-mode", mode, systemDark: systemPrefersDark() }),
+      setSystemScheme: (dark: boolean) => dispatch({ type: "view.system-scheme", dark }),
       setUiFont: (font: string) => dispatch({ type: "view.set-ui-font", font }),
       setMonoFont: (font: string) => dispatch({ type: "view.set-mono-font", font }),
-      setReadingSize: (size: string) => dispatch({ type: "view.set-reading-size", size }),
-      setTerminalSize: (size: string) => dispatch({ type: "view.set-terminal-size", size }),
+      setReadingSize: (size: number) => dispatch({ type: "view.set-reading-size", size }),
+      setTerminalSize: (size: number) => dispatch({ type: "view.set-terminal-size", size }),
       setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),

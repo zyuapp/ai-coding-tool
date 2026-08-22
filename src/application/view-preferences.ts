@@ -2,8 +2,8 @@ import type { KeyValueStorage } from "./task-store.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { isSidebarMode } from "../domain/sidebar.js";
-import { themeById } from "../domain/theme.js";
-import { monoFontById, textSizeById, uiFontById } from "../domain/typography.js";
+import { isThemeMode, themeById } from "../domain/theme.js";
+import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../domain/typography.js";
 
 export const VIEW_PREFERENCES_KEY = "claudex.view-preferences.v1";
 
@@ -47,12 +47,15 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const browserTabs = urlsByThread(value.browserTabs);
     const browserOrigins = urlList(value.browserOrigins);
     const shortcuts = bindings(value.shortcuts);
+    const reading = sizeById(READING_SIZE, value.readingSize);
+    const terminal = sizeById(TERMINAL_SIZE, value.terminalSize);
     return {
       ...(themeById(value.theme) ? { theme: value.theme as string } : {}),
+      ...(isThemeMode(value.themeMode) ? { themeMode: value.themeMode } : {}),
       ...(uiFontById(value.uiFont) ? { uiFont: value.uiFont as string } : {}),
       ...(monoFontById(value.monoFont) ? { monoFont: value.monoFont as string } : {}),
-      ...(textSizeById(value.readingSize) ? { readingSize: value.readingSize as string } : {}),
-      ...(textSizeById(value.terminalSize) ? { terminalSize: value.terminalSize as string } : {}),
+      ...(reading !== undefined ? { readingSize: reading } : {}),
+      ...(terminal !== undefined ? { terminalSize: terminal } : {}),
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
       ...(typeof value.captureSound === "boolean" ? { captureSound: value.captureSound } : {}),
       ...(typeof value.captureFocus === "boolean" ? { captureFocus: value.captureFocus } : {}),

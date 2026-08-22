@@ -1,10 +1,13 @@
 /** Whether a theme paints on a dark or a light ground, which native chrome and Mermaid follow. */
 export type ThemeVariant = "dark" | "light";
 
+/** The ground the user asked for. "auto" hands the choice to the system's own appearance. */
+export type ThemeMode = ThemeVariant | "auto";
+
 export type Theme = {
   id: string;
   label: string;
-  /** The family the picker groups by, so pairs sit together. */
+  /** The family the picker offers, which holds one theme per variant. */
   family: string;
   variant: ThemeVariant;
   /** The theme's --p-bg-0, which the window paints before the renderer has drawn anything. */
@@ -23,6 +26,7 @@ export const THEMES: Theme[] = [
 ];
 
 export const DEFAULT_THEME = "claudex-dark";
+export const DEFAULT_THEME_MODE: ThemeMode = "dark";
 
 const BY_ID = new Map(THEMES.map((entry) => [entry.id, entry]));
 
@@ -35,19 +39,38 @@ export function themeOrDefault(id: unknown): Theme {
   return themeById(id) ?? BY_ID.get(DEFAULT_THEME)!;
 }
 
-/** The families in the order the picker draws them, each with its variants. */
-export function themeFamilies(): { family: string; themes: Theme[] }[] {
-  const families: { family: string; themes: Theme[] }[] = [];
-  for (const entry of THEMES) {
-    const group = families.find((item) => item.family === entry.family);
-    if (group) group.themes.push(entry);
-    else families.push({ family: entry.family, themes: [entry] });
-  }
-  return families;
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "dark" || value === "light" || value === "auto";
 }
 
-/** The theme after this one in the list, which the keyboard walks in a ring. */
+export function themeModeOrDefault(value: unknown): ThemeMode {
+  return isThemeMode(value) ? value : DEFAULT_THEME_MODE;
+}
+
+/** The families the picker draws, in the order they were declared. */
+export function themeFamilies(): string[] {
+  return [...new Set(THEMES.map((entry) => entry.family))];
+}
+
+/** Which ground a mode lands on, which only "auto" needs the system's own appearance to answer. */
+export function variantFor(mode: ThemeMode, systemDark: boolean): ThemeVariant {
+  if (mode === "auto") return systemDark ? "dark" : "light";
+  return mode;
+}
+
+/**
+ * The one theme in a family that paints on this ground. A family that has never heard of the
+ * variant, or of the name, falls back to the default's family so the caller always gets a theme.
+ */
+export function themeFor(family: unknown, variant: ThemeVariant): Theme {
+  return THEMES.find((entry) => entry.family === family && entry.variant === variant)
+    ?? THEMES.find((entry) => entry.family === themeOrDefault(DEFAULT_THEME).family && entry.variant === variant)!;
+}
+
+/** The family after this theme's, on the ground it already paints, which the keyboard walks in a ring. */
 export function nextTheme(id: unknown): Theme {
-  const index = THEMES.findIndex((entry) => entry.id === themeOrDefault(id).id);
-  return THEMES[(index + 1) % THEMES.length];
+  const current = themeOrDefault(id);
+  const families = themeFamilies();
+  const next = families[(families.indexOf(current.family) + 1) % families.length];
+  return themeFor(next, current.variant);
 }

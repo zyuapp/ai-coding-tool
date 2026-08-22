@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, Notification, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, Notification, protocol, session, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
@@ -427,9 +427,19 @@ function loadWindowTheme(): WindowTheme {
   }
 }
 
+/**
+ * The app's own window loads only bundled content, so it keeps the blanket grant it has always had.
+ * It is spelled out here because the font picker asks for `local-fonts`, which Chromium prompts for.
+ * The browser panel runs in its own partition and is untouched by this.
+ */
+function grantAppWindowPermissions() {
+  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(true));
+}
+
 function applyWindowTheme(theme: WindowTheme) {
   windowTheme = theme;
-  nativeTheme.themeSource = theme.variant;
+  /** Following means leaving the platform to its own appearance, which is what the renderer is reading. */
+  nativeTheme.themeSource = theme.follow ? "system" : theme.variant;
   if (window && !window.isDestroyed()) window.setBackgroundColor(theme.canvas);
 }
 
@@ -639,6 +649,7 @@ async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeSer
 app.whenReady().then(async () => {
   if (!singleInstance) return;
   const userData = app.getPath("userData");
+  grantAppWindowPermissions();
   applyWindowTheme(loadWindowTheme());
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
   workspaceService = new WorkspaceServiceConstructor({
@@ -863,7 +874,7 @@ ipcMain.on("automation:ack", (event, ack: unknown) => {
 
 ipcMain.on("theme:set", (event, theme: unknown) => {
   if (!trustedSender(event) || !isWindowTheme(theme)) return;
-  if (theme.variant === windowTheme.variant && theme.canvas === windowTheme.canvas) return;
+  if (theme.variant === windowTheme.variant && theme.canvas === windowTheme.canvas && Boolean(theme.follow) === Boolean(windowTheme.follow)) return;
   applyWindowTheme(theme);
   rememberWindowTheme(theme);
 });

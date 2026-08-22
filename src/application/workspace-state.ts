@@ -13,8 +13,8 @@ import { findHits, type FindHit, type FindResults, type FindTarget } from "../do
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { TerminalSession } from "../domain/terminal.js";
-import { DEFAULT_THEME } from "../domain/theme.js";
-import { DEFAULT_MONO_FONT, DEFAULT_TEXT_SIZE, DEFAULT_UI_FONT } from "../domain/typography.js";
+import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
+import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
@@ -205,11 +205,13 @@ export type WorkspaceState = {
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
   theme: string;
-  /** The two families the window sets type in, and the two sizes that follow the user. */
+  /** The ground the user asked for, which "auto" leaves to the system's own appearance. */
+  themeMode: ThemeMode;
+  /** The two families the window sets type in, and the two sizes in px that follow the user. */
   uiFont: string;
   monoFont: string;
-  readingSize: string;
-  terminalSize: string;
+  readingSize: number;
+  terminalSize: number;
   sidebarMode: SidebarMode;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
@@ -282,10 +284,11 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     expandedProjects: new Set(),
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     theme: DEFAULT_THEME,
+    themeMode: DEFAULT_THEME_MODE,
     uiFont: DEFAULT_UI_FONT,
     monoFont: DEFAULT_MONO_FONT,
-    readingSize: DEFAULT_TEXT_SIZE,
-    terminalSize: DEFAULT_TEXT_SIZE,
+    readingSize: READING_SIZE.default,
+    terminalSize: TERMINAL_SIZE.default,
     sidebarMode: "projects",
     sidebarOpen: true,
     sessionPanelOpen: false,
@@ -419,6 +422,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
   }
   return {
     theme: state.theme,
+    themeMode: state.themeMode,
     uiFont: state.uiFont,
     monoFont: state.monoFont,
     readingSize: state.readingSize,
@@ -817,6 +821,7 @@ export function deriveView(state: WorkspaceState) {
     expandedProjects: state.expandedProjects,
     sections: state.sections,
     theme: state.theme,
+    themeMode: state.themeMode,
     uiFont: state.uiFont,
     monoFont: state.monoFont,
     readingSize: state.readingSize,

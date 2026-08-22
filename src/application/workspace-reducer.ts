@@ -37,8 +37,8 @@ import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "
 import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
 import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
-import { nextTheme, themeById, themeOrDefault } from "../domain/theme.js";
-import { monoFontById, monoFontOrDefault, stepTextSize, textSizeById, textSizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
+import { isThemeMode, nextTheme, themeById, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../domain/theme.js";
+import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, stepSize, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import type { CaptureOptions } from "../domain/capture.js";
@@ -791,8 +791,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     case "appearance.cycle-theme": return [{ type: "view.set-theme", theme: nextTheme(state.theme).id }];
-    case "appearance.larger-text": return [{ type: "view.set-reading-size", size: stepTextSize(state.readingSize, 1).id }];
-    case "appearance.smaller-text": return [{ type: "view.set-reading-size", size: stepTextSize(state.readingSize, -1).id }];
+    case "appearance.larger-text": return [{ type: "view.set-reading-size", size: stepSize(READING_SIZE, state.readingSize, 1) }];
+    case "appearance.smaller-text": return [{ type: "view.set-reading-size", size: stepSize(READING_SIZE, state.readingSize, -1) }];
     default: return [];
   }
 }
@@ -1558,10 +1558,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({
         ...state,
         theme: themeOrDefault(input.preferences.theme).id,
+        themeMode: themeModeOrDefault(input.preferences.themeMode),
         uiFont: uiFontOrDefault(input.preferences.uiFont).id,
         monoFont: monoFontOrDefault(input.preferences.monoFont).id,
-        readingSize: textSizeOrDefault(input.preferences.readingSize).id,
-        terminalSize: textSizeOrDefault(input.preferences.terminalSize).id,
+        readingSize: sizeOrDefault(READING_SIZE, input.preferences.readingSize),
+        terminalSize: sizeOrDefault(TERMINAL_SIZE, input.preferences.terminalSize),
         sessionPanelOpen: input.preferences.sessionPanelOpen,
         captureSound: input.preferences.captureSound ?? true,
         captureFocus: input.preferences.captureFocus ?? true,
@@ -1647,9 +1648,35 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({ ...state, sections: { ...state.sections, [input.section]: input.open } });
 
     case "view.set-theme": {
-      if (!themeById(input.theme) || state.theme === input.theme) return settled(state);
-      const next = { ...state, theme: input.theme };
+      const chosen = themeById(input.theme);
+      if (!chosen) return settled(state);
+      /** Naming a theme outright also names the ground it paints on, so the picker stays honest. */
+      if (state.theme === chosen.id && state.themeMode === chosen.variant) return settled(state);
+      const next = { ...state, theme: chosen.id, themeMode: chosen.variant };
       return settled(next, persistView(next));
+    }
+
+    case "view.set-theme-family": {
+      const chosen = themeFor(input.family, variantFor(state.themeMode, input.systemDark));
+      if (chosen.family !== input.family || state.theme === chosen.id) return settled(state);
+      const next = { ...state, theme: chosen.id };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-theme-mode": {
+      if (!isThemeMode(input.mode)) return settled(state);
+      const chosen = themeFor(themeOrDefault(state.theme).family, variantFor(input.mode, input.systemDark));
+      if (state.themeMode === input.mode && state.theme === chosen.id) return settled(state);
+      const next = { ...state, themeMode: input.mode, theme: chosen.id };
+      return settled(next, persistView(next));
+    }
+
+    case "view.system-scheme": {
+      if (state.themeMode !== "auto") return settled(state);
+      const chosen = themeFor(themeOrDefault(state.theme).family, variantFor("auto", input.dark));
+      if (state.theme === chosen.id) return settled(state);
+      /** The system's own choice is not the user's, so it repaints the window without being written down. */
+      return settled({ ...state, theme: chosen.id });
     }
 
     case "view.set-ui-font": {
@@ -1665,14 +1692,16 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.set-reading-size": {
-      if (!textSizeById(input.size) || state.readingSize === input.size) return settled(state);
-      const next = { ...state, readingSize: input.size };
+      const size = sizeById(READING_SIZE, input.size);
+      if (size === undefined || state.readingSize === size) return settled(state);
+      const next = { ...state, readingSize: size };
       return settled(next, persistView(next));
     }
 
     case "view.set-terminal-size": {
-      if (!textSizeById(input.size) || state.terminalSize === input.size) return settled(state);
-      const next = { ...state, terminalSize: input.size };
+      const size = sizeById(TERMINAL_SIZE, input.size);
+      if (size === undefined || state.terminalSize === size) return settled(state);
+      const next = { ...state, terminalSize: size };
       return settled(next, persistView(next));
     }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { DEFAULT_THEME, THEMES, nextTheme, themeById, themeOrDefault } from "../dist/main/domain/theme.js";
+import { DEFAULT_THEME, DEFAULT_THEME_MODE, THEMES, isThemeMode, nextTheme, themeById, themeFamilies, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../dist/main/domain/theme.js";
 
 const themesCss = await readFile(new URL("../src/renderer/themes.css", import.meta.url), "utf8");
 const stylesCss = await readFile(new URL("../src/renderer/styles.css", import.meta.url), "utf8");
@@ -116,9 +116,41 @@ test("the semantic layer holds no colour of its own", () => {
   assert.deepEqual(literals, [], "a semantic token picked a hex instead of deriving from a primitive");
 });
 
-test("the keyboard walks the themes in a ring, and an unknown id lands on the default", () => {
-  assert.equal(nextTheme(THEMES.at(-1).id).id, THEMES[0].id);
-  assert.equal(nextTheme(THEMES[0].id).id, THEMES[1].id);
+test("every family ships one theme per ground, which is what the picker's two axes assume", () => {
+  for (const family of themeFamilies()) {
+    for (const variant of ["dark", "light"]) {
+      const matching = THEMES.filter((theme) => theme.family === family && theme.variant === variant);
+      assert.equal(matching.length, 1, `${family} has ${matching.length} ${variant} themes`);
+      assert.equal(themeFor(family, variant).id, matching[0].id);
+    }
+  }
+  assert.equal(themeFamilies().length * 2, THEMES.length);
+});
+
+test("a family the app no longer ships falls back to one it does, on the ground that was asked for", () => {
+  assert.equal(themeFor("A Palette We Dropped", "light").variant, "light");
+  assert.equal(themeFor("A Palette We Dropped", "dark").family, themeOrDefault(DEFAULT_THEME).family);
+});
+
+test("the keyboard walks the families in a ring without changing the ground it is on", () => {
+  const families = themeFamilies();
+  for (const variant of ["dark", "light"]) {
+    const first = themeFor(families[0], variant);
+    assert.equal(nextTheme(first.id).family, families[1]);
+    assert.equal(nextTheme(first.id).variant, variant);
+    assert.equal(nextTheme(themeFor(families.at(-1), variant).id).family, families[0]);
+  }
   assert.equal(themeOrDefault("a-theme-we-dropped").id, DEFAULT_THEME);
-  assert.equal(nextTheme("a-theme-we-dropped").id, THEMES[1].id, "an unknown id walks on from the default");
+  assert.equal(nextTheme("a-theme-we-dropped").family, themeFamilies()[1], "an unknown id walks on from the default");
+});
+
+test("a mode names a ground, and only \"auto\" asks the system for one", () => {
+  assert.equal(variantFor("dark", true), "dark");
+  assert.equal(variantFor("dark", false), "dark");
+  assert.equal(variantFor("light", true), "light");
+  assert.equal(variantFor("auto", true), "dark");
+  assert.equal(variantFor("auto", false), "light");
+  assert.equal(themeModeOrDefault("a-mode-we-dropped"), DEFAULT_THEME_MODE);
+  for (const mode of ["dark", "light", "auto"]) assert.ok(isThemeMode(mode), mode);
+  assert.ok(!isThemeMode("system"));
 });
