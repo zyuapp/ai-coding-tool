@@ -21,6 +21,7 @@ import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode"
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import { openInEditor } from "./open-in-editor.js";
+import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
@@ -232,9 +233,11 @@ async function captureWindowToComposer() {
     try {
       const file = await writeAttachment(shot.png);
       sendToWindow("window:screenshot", { app: shot.app, title: shot.title, path: file });
-      /** Only ever after the capture: coming forward makes this app the frontmost one. */
-      if (captureOptions.focus) revealWindow();
-      else notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
+      /** Only ever after the capture: neither the flash nor coming forward belongs in the shot. */
+      if (captureOptions.focus) {
+        flashWindow(shot.frame);
+        revealWindow();
+      } else notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
     } catch (error) {
       notify("Could not keep the screenshot", error instanceof Error ? error.message : String(error));
     }

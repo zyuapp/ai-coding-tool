@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { systemPreferences } from "electron";
+import type { WindowFrame } from "./capture-flash.js";
 
 /** macOS's own screenshot shutter, which is the sound the gesture already means to everyone. */
 const SHUTTER = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Grab.aif";
@@ -24,7 +25,7 @@ export function playShutter() {
 }
 
 export type WindowShot =
-  | { status: "captured"; app: string; title: string; png: string }
+  | { status: "captured"; app: string; title: string; png: string; frame: WindowFrame }
   | { status: "denied" }
   | { status: "no-window"; app: string }
   | { status: "failed"; message: string };
@@ -49,11 +50,13 @@ var found = windows.find(function (window) {
     && window.kCGWindowBounds.Height > 60;
 });
 JSON.stringify(found
-  ? { app: app, pid: pid, windowId: found.kCGWindowNumber, title: found.kCGWindowName || "" }
+  ? { app: app, pid: pid, windowId: found.kCGWindowNumber, title: found.kCGWindowName || "", bounds: found.kCGWindowBounds }
   : { app: app, pid: pid, windowId: null });
 `;
 
-type Pick = { app: string; pid: number; windowId: number | null; title?: string };
+type CoreGraphicsBounds = { X: number; Y: number; Width: number; Height: number };
+
+type Pick = { app: string; pid: number; windowId: number | null; title?: string; bounds?: CoreGraphicsBounds };
 
 function run(command: string, args: string[]) {
   return new Promise<string>((resolve, reject) => {
@@ -80,7 +83,9 @@ export async function captureFrontmostWindow(sound: boolean): Promise<WindowShot
     if (sound) playShutter();
     const png = await readFile(file);
     if (png.byteLength === 0) return { status: "denied" };
-    return { status: "captured", app: window.app, title: window.title ?? "", png: png.toString("base64") };
+    const bounds = window.bounds ?? { X: 0, Y: 0, Width: 0, Height: 0 };
+    const frame = { x: bounds.X, y: bounds.Y, width: bounds.Width, height: bounds.Height };
+    return { status: "captured", app: window.app, title: window.title ?? "", png: png.toString("base64"), frame };
   } catch (error) {
     return { status: "failed", message: error instanceof Error ? error.message : String(error) };
   } finally {
