@@ -190,13 +190,13 @@ export function SettingsPanel({
         </button>
         <h1>Settings</h1>
         <nav aria-label="Settings sections">
-          <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => setSection("appearance")}>
-            <Palette size={17} aria-hidden="true" />
-            <span>Appearance</span>
-          </button>
           <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => setSection("general")}>
             <SlidersHorizontal size={17} aria-hidden="true" />
             <span>General</span>
+          </button>
+          <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => setSection("appearance")}>
+            <Palette size={17} aria-hidden="true" />
+            <span>Appearance</span>
           </button>
           <button className={section === "computer-use" ? "active" : ""} type="button" aria-current={section === "computer-use" ? "page" : undefined} onClick={() => setSection("computer-use")}>
             <MonitorCog size={17} aria-hidden="true" />

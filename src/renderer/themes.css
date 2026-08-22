@@ -55,6 +55,7 @@
   --p-success: #72c66b;
   --p-danger: #e06c75;
   --p-alert: #ff453a;
+  --p-pr-merged: #a371f7;
   /** Text on a saturated fill: light where those fills are dark, dark where they are pastel. */
   --p-on-hue: #e9f2fc;
 
@@ -122,6 +123,7 @@
   --p-success: #3f8a3a;
   --p-danger: #c14049;
   --p-alert: #d92c20;
+  --p-pr-merged: #8250df;
   --p-on-hue: #ffffff;
 
   --p-syntax-comment: #8a8f98;
@@ -188,6 +190,7 @@
   --p-success: #a6e3a1;
   --p-danger: #f38ba8;
   --p-alert: #eba0ac;
+  --p-pr-merged: #cba6f7;
   --p-on-hue: #11111b;
 
   --p-syntax-comment: #6c7086;
@@ -254,6 +257,7 @@
   --p-success: #40a02b;
   --p-danger: #d20f39;
   --p-alert: #e64553;
+  --p-pr-merged: #8839ef;
   --p-on-hue: #ffffff;
 
   --p-syntax-comment: #8c8fa1;
@@ -320,6 +324,7 @@
   --p-success: #9ece6a;
   --p-danger: #f7768e;
   --p-alert: #db4b4b;
+  --p-pr-merged: #bb9af7;
   --p-on-hue: #c0caf5;
 
   --p-syntax-comment: #565f89;
@@ -386,6 +391,7 @@
   --p-success: #587539;
   --p-danger: #f52a65;
   --p-alert: #f52a65;
+  --p-pr-merged: #9854f1;
   --p-on-hue: #ffffff;
 
   --p-syntax-comment: #848cb5;
@@ -452,6 +458,7 @@
   --p-success: #b8bb26;
   --p-danger: #fb4934;
   --p-alert: #fb4934;
+  --p-pr-merged: #d3869b;
   --p-on-hue: #fbf1c7;
 
   --p-syntax-comment: #928374;
@@ -518,6 +525,7 @@
   --p-success: #79740e;
   --p-danger: #9d0006;
   --p-alert: #cc241d;
+  --p-pr-merged: #8f3f71;
   --p-on-hue: #fbf1c7;
 
   --p-syntax-comment: #928374;

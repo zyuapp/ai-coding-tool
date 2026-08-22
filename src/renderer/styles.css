@@ -104,6 +104,9 @@
   --danger-line: color-mix(in srgb, var(--p-danger) 32%, var(--p-bg-5));
   --danger-line-hover: color-mix(in srgb, var(--p-danger) 45%, var(--p-bg-5));
 
+  /* Merged, which no other state borrows: a pull request nobody has to look at again */
+  --pr-merged: var(--p-pr-merged);
+
   /* Alert, for marks drawn over an image */
   --alert: var(--p-alert);
   --alert-hover: color-mix(in srgb, var(--p-alert) 82%, var(--p-on-hue));
@@ -2009,7 +2012,7 @@ pre {
 /** The one row that is a link out. Its icon carries the state, and the colour only says it again. */
 .session-pull-request { text-decoration: none; }
 .session-pull-request .session-row-icon[data-state="open"] { color: var(--success); }
-.session-pull-request .session-row-icon[data-state="merged"] { color: var(--accent); }
+.session-pull-request .session-row-icon[data-state="merged"] { color: var(--pr-merged); }
 .session-pull-request .session-row-icon[data-state="closed"] { color: var(--danger); }
 /** The panel is narrow, so the list takes the row's width and cuts the names that outrun it. */
 .session-count { color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
