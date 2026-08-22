@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { browserTarget, deriveView, dockFor, dockOwner, emptyWorkspaceState, sideChatIds, stateFromData, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
-import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
+import { browserTarget, deriveView, dockFor, dockOwner, emptyWorkspaceState, promptKey, sideChatIds, stateFromData, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
+import type { ThreadHandleOption } from "../../domain/thread-handles";
+import { resolveScope, threadBusy, threadHandleOptions, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
 import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
@@ -582,6 +583,18 @@ export function useTaskWorkspace() {
 
   const view = useMemo(() => deriveView(state), [state]);
 
+  /** The `@` menu's threads, per draft, since which threads are in scope depends on the draft. */
+  const threadHandlesFor = useMemo(() => {
+    const cached = new Map<string, ThreadHandleOption[]>();
+    return (draftKey: string) => {
+      const known = cached.get(draftKey);
+      if (known) return known;
+      const options = threadHandleOptions(state, draftKey);
+      cached.set(draftKey, options);
+      return options;
+    };
+  }, [state]);
+
   useEffect(() => { applyTheme(view.theme, view.themeMode === "auto"); }, [view.theme, view.themeMode]);
 
   /**
@@ -616,6 +629,8 @@ export function useTaskWorkspace() {
 
   return {
     ...view,
+    threadHandles: threadHandlesFor(promptKey(state)),
+    threadHandlesFor,
     /** The one door into the application. The named actions below are shorthand for the same commands. */
     dispatch: (command: AppCommand) => dispatchRef.current(command),
     actions: {

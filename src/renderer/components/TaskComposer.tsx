@@ -1,4 +1,4 @@
-import { Command, CornerDownRight, Sparkles, X } from "lucide-react";
+import { Command, CornerDownRight, MessagesSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RunAttachment, type StagedImage } from "../../domain/task";
@@ -6,6 +6,7 @@ import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
 import { pasteRidesAsPill } from "../../application/pastes";
 import type { AvailableCommand } from "../../contracts/ipc";
+import { handleTokenAt, rankThreadHandles, type ThreadHandleOption } from "../../domain/thread-handles";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { ComposerSettings } from "./ComposerSettings";
@@ -33,6 +34,9 @@ function commandTokenAt(text: string, caret: number) {
   const query = text.slice(0, caret).match(/(?:^|\s)\/([^\s/]*)$/)?.[1];
   return query === undefined ? null : { query: query.toLowerCase(), start: caret - query.length - 1 };
 }
+
+/** How many threads the `@` menu shows at once; the query is what reaches past them. */
+const THREAD_MENU_LIMIT = 8;
 
 function commandMatches(entry: MenuEntry, query: string) {
   return entry.name.toLowerCase().startsWith(query) || entry.aliases.some((alias) => alias.toLowerCase().startsWith(query));
@@ -82,6 +86,8 @@ export type TaskComposerProps = {
   surface?: "main" | "side";
   /** Runnable `/` entries. A surface that performs none, as a side chat does, passes none. */
   actions?: ComposerAction[];
+  /** Threads the `@` menu offers, newest first. A surface that names none passes none. */
+  threads?: ThreadHandleOption[];
   /** Set while the thread cannot take a message at all, as a side chat cannot before its fork exists. */
   disabled?: boolean;
   /** Set while a send already given is still finding the checkout it runs in, so nothing sends twice. */
@@ -122,6 +128,7 @@ export function TaskComposer({
   workspaceId,
   surface = "main",
   actions = [],
+  threads = [],
   disabled = false,
   waiting = false,
   mode,
@@ -150,10 +157,12 @@ export function TaskComposer({
 }: TaskComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const commandMenuRef = useRef<HTMLDivElement>(null);
+  const threadMenuRef = useRef<HTMLDivElement>(null);
   const [commands, setCommands] = useState<AvailableCommand[]>([]);
   const [commandsLoading, setCommandsLoading] = useState(true);
   const [commandsToken, setCommandsToken] = useState(0);
   const [selectedCommand, setSelectedCommand] = useState(0);
+  const [selectedThread, setSelectedThread] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
   const [caret, setCaret] = useState(0);
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
@@ -179,6 +188,13 @@ export function TaskComposer({
   const matchingCommands = token === null ? [] : menuEntries.filter((entry) => commandMatches(entry, token.query));
   const commandMenuOpen = inputFocused && token !== null && dismissedPrompt !== prompt;
   useDismissibleLayer(commandMenuOpen, [textareaRef, commandMenuRef], () => setDismissedPrompt(prompt), textareaRef);
+
+  const threadToken = handleTokenAt(prompt, Math.min(caret, prompt.length));
+  const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query).slice(0, THREAD_MENU_LIMIT);
+  const threadMenuOpen = inputFocused && threadToken !== null && matchingThreads.length > 0 && dismissedPrompt !== prompt;
+  useDismissibleLayer(threadMenuOpen, [textareaRef, threadMenuRef], () => setDismissedPrompt(prompt), textareaRef);
+  /** Where the list stops belonging to this project, so the divider sits above that row. */
+  const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
   const sentTexts = [...history, ...queuedMessages.map((message) => message.text)];
   const recallable = sentTexts.filter((text, index) => text.trim() !== "" && text !== sentTexts[index - 1]);
@@ -217,6 +233,16 @@ export function TaskComposer({
     setDismissedPrompt(nextPrompt);
     setInputFocused(true);
     setPendingCaret(token.start + inserted.length);
+  }
+
+  function chooseThread(option: ThreadHandleOption) {
+    if (!threadToken) return;
+    const inserted = `@${option.handle} `;
+    const nextPrompt = prompt.slice(0, threadToken.start) + inserted + prompt.slice(threadToken.start + 1 + threadToken.query.length);
+    onPromptChange(nextPrompt);
+    setDismissedPrompt(nextPrompt);
+    setInputFocused(true);
+    setPendingCaret(threadToken.start + inserted.length);
   }
 
   async function attachPasted(files: File[]) {
@@ -347,6 +373,15 @@ export function TaskComposer({
     commandMenuRef.current?.querySelector(`#slash-command-${selectedCommand}`)?.scrollIntoView?.({ block: "nearest" });
   }, [commandMenuOpen, selectedCommand]);
 
+  useEffect(() => {
+    setSelectedThread(0);
+  }, [threadToken?.query]);
+
+  useEffect(() => {
+    if (!threadMenuOpen) return;
+    threadMenuRef.current?.querySelector(`#thread-mention-${selectedThread}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [threadMenuOpen, selectedThread]);
+
   return (
     <footer className={`composer-wrap ${surface}`}>
       {queuedMessages.length > 0 && (
@@ -391,6 +426,29 @@ export function TaskComposer({
               {matchingCommands.length === 0 && <p className="command-empty">No matching commands</p>}
             </div>
             {commandsLoading && <div className="command-menu-status">Loading installed skills…</div>}
+          </div>
+        )}
+        {threadMenuOpen && (
+          <div className="command-menu thread-menu" ref={threadMenuRef} id="thread-mention-menu" role="listbox" aria-label="Threads">
+            <div className="command-menu-heading"><MessagesSquare size={14} aria-hidden="true" /><span>Threads</span><kbd>↑↓</kbd></div>
+            <div className="command-menu-list">
+              {matchingThreads.map((option, index) => (
+                <button
+                  type="button"
+                  id={`thread-mention-${index}`}
+                  key={option.id}
+                  className={`command-option ${index === selectedThread ? "selected" : ""} ${index === firstElsewhere && index > 0 ? "elsewhere" : ""}`}
+                  role="option"
+                  aria-selected={index === selectedThread}
+                  onMouseEnter={() => setSelectedThread(index)}
+                  onClick={() => chooseThread(option)}
+                >
+                  <span className={`command-mark thread ${option.running ? "running" : ""}`} aria-hidden="true"><MessagesSquare size={15} /></span>
+                  <span className="command-copy"><strong>{option.title}</strong><small>@{option.handle}</small></span>
+                  <span className="command-source">{option.inScope ? (option.running ? "Running" : "") : option.project ?? "No project"}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} />}
@@ -442,9 +500,25 @@ export function TaskComposer({
           onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
           onFocus={() => setInputFocused(true)}
           onBlur={(event) => {
-            if (!commandMenuRef.current?.contains(event.relatedTarget as Node)) setInputFocused(false);
+            const menus = [commandMenuRef.current, threadMenuRef.current];
+            if (!menus.some((menu) => menu?.contains(event.relatedTarget as Node))) setInputFocused(false);
           }}
           onKeyDown={(event) => {
+            if (threadMenuOpen && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+              event.preventDefault();
+              setSelectedThread((current) => (current + (event.key === "ArrowDown" ? 1 : matchingThreads.length - 1)) % matchingThreads.length);
+              return;
+            }
+            if (threadMenuOpen && event.key === "Escape") {
+              event.preventDefault();
+              setDismissedPrompt(prompt);
+              return;
+            }
+            if (threadMenuOpen && matchingThreads[selectedThread] && (event.key === "Enter" || event.key === "Tab")) {
+              event.preventDefault();
+              chooseThread(matchingThreads[selectedThread]);
+              return;
+            }
             if (commandMenuOpen && matchingCommands.length > 0 && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
               event.preventDefault();
               setSelectedCommand((current) => (current + (event.key === "ArrowDown" ? 1 : matchingCommands.length - 1)) % matchingCommands.length);
@@ -484,9 +558,13 @@ export function TaskComposer({
           placeholder={composerPlaceholder(surface, folder, disabled)}
           aria-label={surface === "side" ? "Side chat prompt" : "Task prompt"}
           aria-autocomplete="list"
-          aria-controls={commandMenuOpen ? "slash-command-menu" : undefined}
-          aria-expanded={commandMenuOpen}
-          aria-activedescendant={commandMenuOpen && matchingCommands[selectedCommand] ? `slash-command-${selectedCommand}` : undefined}
+          aria-controls={commandMenuOpen ? "slash-command-menu" : threadMenuOpen ? "thread-mention-menu" : undefined}
+          aria-expanded={commandMenuOpen || threadMenuOpen}
+          aria-activedescendant={
+            commandMenuOpen && matchingCommands[selectedCommand] ? `slash-command-${selectedCommand}`
+              : threadMenuOpen && matchingThreads[selectedThread] ? `thread-mention-${selectedThread}`
+                : undefined
+          }
           rows={2}
         />
         <div className="composer-bar">

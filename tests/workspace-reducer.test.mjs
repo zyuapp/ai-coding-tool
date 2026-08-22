@@ -2418,3 +2418,32 @@ test("stopping a workflow reaches the run the same way a process does", () => {
   });
   assert.deepEqual(reduce(ended, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a workflow that already ended has nothing to stop");
 });
+
+test("a draft's @handle becomes a link on the way out, and one naming nothing is left as typed", () => {
+  const named = {
+    id: "t-named",
+    title: "Sink the mode choices",
+    executionPolicy: "confirm",
+    messages: [],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 0 },
+    createdAt: 0,
+    updatedAt: 0,
+  };
+  const drafted = run(workspace({ tasks: [named] }), [
+    { type: "view.set-prompt", prompt: "compare with @sink-the-mode-choices and @nobody" },
+  ]);
+  const sending = reduce(drafted, { type: "task.send", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+
+  const sent = "compare with [Sink the mode choices](claudex://thread/t-named) and @nobody";
+  assert.equal(started.effects[0].command.prompt, sent);
+  assert.equal(started.state.tasks.find((task) => task.id !== "t-named").messages[0].text, sent);
+});
+
+test("a send that carries its own text is not a draft, so its @ is left alone", () => {
+  const sending = reduce(workspace(), { type: "task.send", text: "email me at zhuocheng@gmail.com", attachments: [] });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+
+  assert.equal(started.effects[0].command.prompt, "email me at zhuocheng@gmail.com");
+});

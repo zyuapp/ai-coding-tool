@@ -9,6 +9,7 @@ import { worktreeName } from "../../domain/worktree";
 import type { ActivitySections } from "../../application/task-order";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu, PopoverMenu } from "./PopoverMenu";
+import { threadLink } from "../../domain/thread-handles";
 import { ShowMore } from "./ShowMore";
 import { useDismissibleLayer } from "../focus";
 
@@ -292,7 +293,7 @@ export function ProjectSidebar({
         event.preventDefault();
         taskReturn.current = event.currentTarget.closest(".task-entry");
         const row = event.currentTarget.getBoundingClientRect();
-        const menuHeight = 80;
+        const menuHeight = 112;
         setTaskMenuPosition({
           left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
           top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
@@ -329,6 +330,7 @@ export function ProjectSidebar({
       onSetOpenMenu={onSetOpenMenu}
       items={[
         { label: "Rename", onSelect: () => startRename(task.id) },
+        { label: "Copy reference", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
         { label: "Archive", onSelect: () => onArchiveTask(task.id) },
       ]}
     />}

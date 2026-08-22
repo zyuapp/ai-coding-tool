@@ -1,7 +1,8 @@
 import { runStatusFor } from "./task-workspace.js";
 import { projectFor, sideChatIds, worktreeFor, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
-import { findProject, threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
+import { findProject, projectName, threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
+import { threadHandles, type ThreadHandleOption } from "../domain/thread-handles.js";
 
 /** Enough of a message to recognise what happened without carrying a whole transcript. */
 const MESSAGE_TEXT_LIMIT = 2_000;
@@ -25,7 +26,7 @@ export function threadBusy(state: WorkspaceState, threadId: string): boolean {
 }
 
 export function threadWaitResult(state: WorkspaceState, threadId: string, timedOut: boolean): ThreadWaitResult | null {
-  const task = state.tasks.find((item) => item.id === threadId);
+  const task = findThread(state, threadId);
   if (!task) return null;
   const reply = [...task.messages].reverse().find((message) => message.kind === "assistant")?.text ?? null;
   return { thread: threadSummary(state, task), timedOut, reply };
@@ -66,8 +67,45 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
   return filter.limit === undefined ? summaries : summaries.slice(0, Math.max(0, filter.limit));
 }
 
+/**
+ * The threads a draft may name, keyed by the draft rather than the thread, since a draft can be
+ * older than the thread it starts. Every project is offered, since a query searches them all;
+ * `inScope` is what keeps an unqualified `@` to the project the draft is being written in.
+ */
+export function threadHandleOptions(state: WorkspaceState, draftKey: string): ThreadHandleOption[] {
+  const forked = sideChatIds(state);
+  const caller = state.tasks.find((task) => task.id === draftKey);
+  /** A draft belonging to no thread yet is being written wherever the sidebar is pointed. */
+  const projectId = caller ? caller.projectId ?? null : state.draftProjectId;
+  return threadHandles(state.tasks
+    .filter((task) => task.id !== draftKey && !forked.has(task.id) && task.archivedAt === undefined)
+    .map((task) => {
+      const project = projectFor(state, task);
+      return {
+        id: task.id,
+        title: task.title,
+        project: project ? projectName(project.root) : null,
+        inScope: (task.projectId ?? null) === projectId,
+        running: threadBusy(state, task.id),
+        lastActivityAt: threadActivityAt(task),
+      };
+    }));
+}
+
+/** The thread a reference names: its id, an unambiguous id prefix, or its title. Newest wins. */
+export function findThread(state: WorkspaceState, reference: string): Task | null {
+  const wanted = reference.trim().toLowerCase();
+  if (!wanted) return null;
+  const exact = state.tasks.find((task) => task.id.toLowerCase() === wanted);
+  if (exact) return exact;
+  const recent = [...state.tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
+  return recent.find((task) => task.title.trim().toLowerCase() === wanted)
+    ?? recent.find((task) => task.id.toLowerCase().startsWith(wanted))
+    ?? null;
+}
+
 export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES): ThreadTranscript | null {
-  const task = state.tasks.find((item) => item.id === threadId);
+  const task = findThread(state, threadId);
   if (!task) return null;
   const kept = limit >= task.messages.length ? task.messages : task.messages.slice(task.messages.length - Math.max(0, limit));
   return {

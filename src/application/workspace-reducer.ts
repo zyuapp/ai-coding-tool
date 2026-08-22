@@ -1,6 +1,8 @@
 import { clampQuote, promptWithAnnotations } from "./annotations.js";
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
 import { pasteTitle, promptWithPastes } from "./pastes.js";
+import { threadHandleOptions } from "./thread-projection.js";
+import { expandThreadHandles } from "../domain/thread-handles.js";
 import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
 import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import {
@@ -1125,7 +1127,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const attachments = input.attachments ?? [];
       /** A send that carries its own text is not the composer's: it neither reads nor clears a draft. */
       const draftKey = input.text === undefined ? input.taskId ?? promptKey(state) : undefined;
-      const text = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
+      const drafted = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
+      /** `@handles` are a composer affordance, so only a draft's own text is read for them. */
+      const text = draftKey === undefined ? drafted : expandThreadHandles(drafted, threadHandleOptions(state, draftKey));
       /** The anchors mark drafts in the transcript; the sent message keeps only quote and note. */
       const annotations = (draftKey === undefined ? [] : annotationsFor(state, draftKey)).map(({ anchor: _anchored, ...annotation }) => annotation);
       const pastes = draftKey === undefined ? [] : pastesFor(state, draftKey);

@@ -9,7 +9,7 @@ export const THREAD_SERVER_NAME = "claudex-threads";
 const MINUTE = 60_000;
 const DEFAULT_WAIT_MS = 5 * MINUTE;
 
-const threadIdField = z.string().describe("The ID of the thread, as list_threads reports it.");
+const threadIdField = z.string().describe("The thread, named by the ID list_threads reports, an unambiguous prefix of it, or its exact title.");
 
 const projectField = z.string().optional().describe(
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
