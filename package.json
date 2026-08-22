@@ -9,8 +9,9 @@
   "main": "dist/main/main/main.js",
   "scripts": {
     "build": "vite build && tsc -p tsconfig.main.json",
-    "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "test": "npm run build && node --test --test-timeout=20000 tests/*.test.mjs",
+    "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && npm run lint",
+    "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
+    "test": "npm run lint && npm run build && node --test --test-timeout=20000 tests/*.test.mjs",
     "prepare:cua": "node scripts/prepare-cua-driver.mjs",
     "start": "npm run prepare:cua && npm run build && electron .",
     "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never"
@@ -31,6 +32,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@babel/core": "^8.0.1",
+    "@babel/eslint-parser": "^8.0.1",
+    "@babel/plugin-syntax-jsx": "^8.0.1",
+    "@babel/preset-typescript": "^8.0.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@tanstack/react-virtual": "^3.14.9",
     "@types/node": "^26.2.0",
@@ -43,6 +48,7 @@
     "@xterm/xterm": "^6.0.0",
     "electron": "^43.4.0",
     "electron-builder": "^26.15.3",
+    "eslint": "^10.9.0",
     "jsdom": "^30.0.1",
     "lucide-react": "^1.31.0",
     "mermaid": "^11.16.1",
