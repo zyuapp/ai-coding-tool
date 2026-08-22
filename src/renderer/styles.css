@@ -176,6 +176,10 @@
   --scrim: rgb(var(--p-scrim) / 0.85);
   --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
 
+  /* Motion. Every panel that slides in from a window edge shares this duration and curve. */
+  --panel-slide-time: 500ms;
+  --panel-slide-ease: cubic-bezier(0.32, 0.72, 0, 1);
+
   /* Type and metrics */
   --text-meta: 12px;
   --text-control: 14px;
@@ -244,7 +248,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  transition: margin-left 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: margin-left var(--panel-slide-time) var(--panel-slide-ease);
 }
 /** Hiding slides the sidebar off the left edge at its own width, so its contents never reflow. */
 .sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width, 280px)); }
@@ -644,15 +648,17 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   position: relative;
   min-width: 0;
   flex: 1;
+  --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), calc(100vw - 320px));
   display: grid;
   grid-template-rows: 72px minmax(0, 1fr) auto;
+  /** The dock's track takes the width the dock's own margin leaves it, so it is 0 while the dock is away. */
+  grid-template-columns: minmax(0, 1fr) auto;
   background: var(--canvas);
 }
-.workspace.dock-open { grid-template-columns: minmax(0, 1fr) min(var(--right-dock-width, clamp(380px, 40vw, 620px)), calc(100% - 320px)); }
 .topbar {
   position: relative;
   z-index: 3;
-  transition: padding-left 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: padding-left var(--panel-slide-time) var(--panel-slide-ease);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -736,6 +742,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .right-dock {
   position: relative;
   min-width: 0;
+  width: var(--dock-width);
   display: grid;
   grid-template-rows: 50px minmax(0, 1fr);
   /** Clipped rather than hidden, with room for the resize handle to straddle the dock's own edge. */
@@ -745,15 +752,22 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   background: var(--sunken);
   grid-column: 2;
   grid-row: 1 / 4;
-  animation: inspector-in 160ms ease-out;
+  transition: margin-right var(--panel-slide-time) var(--panel-slide-ease), visibility 0s;
 }
-.right-dock[hidden] { display: none; }
+/** Hiding slides the dock off the right edge at its own width, so its contents never reflow. */
+.right-dock[hidden] {
+  display: grid;
+  visibility: hidden;
+  margin-right: calc(-1 * var(--dock-width));
+  transition: margin-right var(--panel-slide-time) var(--panel-slide-ease), visibility 0s linear var(--panel-slide-time);
+}
 /**
  * Expanded, the dock spans the grid and lays over the column it came from. The column keeps its
  * layout, so restoring costs no reflow and the transcript comes back where it was left.
  */
+.workspace.dock-full { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
 .workspace.dock-full > :not(.right-dock) { visibility: hidden; }
-.workspace.dock-full .right-dock { grid-column: 1 / -1; z-index: 4; }
+.workspace.dock-full .right-dock { position: absolute; inset: 0; width: auto; grid-column: 1 / -1; z-index: 4; }
 .workspace.dock-full .right-dock-resizer { display: none; }
 /** The dock now owns the window's top edge, so its tab strip drags the window and clears the traffic lights. */
 .workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
@@ -3043,7 +3057,7 @@ pre {
     max-width: none;
     box-shadow: var(--shadow-sidebar);
     transform: translateX(-100%);
-    transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+    transition: transform var(--panel-slide-time) var(--panel-slide-ease);
     visibility: hidden;
   }
   /** The sidebar floats over the workspace here, so the topbar always clears the traffic lights. */
@@ -3090,7 +3104,7 @@ pre {
 @media (max-width: 760px) {
   .workspace.dock-open { display: block; }
   .workspace.dock-open > :not(.right-dock) { visibility: hidden; }
-  .right-dock { position: absolute; z-index: 30; inset: 0; border-left: 0; }
+  .right-dock { position: absolute; z-index: 30; inset: 0; width: auto; border-left: 0; }
   .right-dock-resizer { display: none; }
 }
 
