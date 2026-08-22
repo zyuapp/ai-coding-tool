@@ -4286,8 +4286,8 @@ function seedReviewableProject() {
 async function openReview(view) {
   await act(async () => { view.container.querySelector('button[aria-label="Show session summary"]').click(); });
   await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
-  /** Patches are read a file at a time, so the list arrives a turn before the lines in it do. */
-  await act(async () => {});
+  /** Names are held back until a patch lands, and the first patch waits on its grammar being imported. */
+  for (let turn = 0; turn < 100 && !view.container.querySelector(".diff-file-row"); turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 }
 
 /** A review opens side by side, so the one-column view is what a test has to ask for. */
@@ -4318,10 +4318,9 @@ test("the session panel's Changes row opens the review, and the same click close
   seedReviewableProject();
   window.desktop = reviewableDesktop();
   const view = await mount(React.createElement(App));
-  await showSession(view);
 
   const tabs = () => [...view.container.querySelectorAll('.right-dock-tab [role="tab"]')].map((tab) => tab.textContent);
-  await act(async () => { view.container.querySelector('button[aria-label="Review changes"]').click(); });
+  await openReview(view);
 
   assert.deepEqual(tabs(), ["Changes1"], "the review opens as the dock's tab, counting the file still to read");
   assert.equal(view.container.querySelector(".diff-file-name").textContent, "src/app.ts");
