@@ -33,6 +33,7 @@
   --control-hover: color-mix(in srgb, var(--p-bg-5) 40%, var(--p-bg-6));
   --chip: color-mix(in srgb, var(--p-bg-6) 85%, var(--p-fg-5)); /* counts and short labels */
   --wash: rgb(from var(--p-fg-0) r g b / 0.045); /* hover on an otherwise transparent control */
+  --wash-soft: rgb(from var(--p-fg-0) r g b / 0.028); /* a few percent of ink across a large empty area */
   --code-surface: var(--p-bg-4);
   --code-ink: var(--p-ansi-white);
   --meter-fill: var(--p-fg-4);
@@ -182,6 +183,7 @@
   --text-content: 15px;
   --text-heading: 17px;
   --text-display: 21px;
+  --text-hero: 25px;
   --text-badge: 10px;
   --terminal-text: 12px;
   --row-slot: 22px;
@@ -889,23 +891,26 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  border-radius: 9px;
-  padding: 2px;
-  background: var(--chip);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--surface-input);
 }
+/** Both labels take the same room, so the thumb slides rather than resizing under the pointer. */
 .thread-mode button {
-  min-height: 26px;
+  min-width: 72px;
+  min-height: 28px;
   border: 0;
-  border-radius: 7px;
-  padding: 0 11px;
+  border-radius: 999px;
+  padding: 0 12px;
   background: transparent;
-  color: var(--quiet-strong);
+  color: var(--quiet);
   font-size: var(--text-control);
-  font-weight: 520;
+  font-weight: 500;
   cursor: pointer;
 }
 .thread-mode button:hover { color: var(--ink-faint); }
-.thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink-soft); }
+.thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); box-shadow: var(--shadow-thumb); }
 /** The session panel takes the right of the strip, so the mode centres on what is left of it. */
 .workspace.summary-open .work-area > .thread-mode { transform: translateX(calc(-50% - 141px)); }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
@@ -981,7 +986,53 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   padding-bottom: 11vh;
   text-align: center;
 }
-.thread-start { display: flex; align-items: center; gap: 2px; margin-top: 24px; }
+/**
+ * The transcript's own empty state stands on the composer rather than in the middle of the window,
+ * so the glyph, the title, the start options and the input read as one column. The wash behind it
+ * is what keeps the space above from reading as a hole.
+ */
+.conversation > .empty-state {
+  align-content: end;
+  padding-bottom: 10px;
+  background: radial-gradient(52% 42% at 50% 64%, var(--wash-soft), transparent 72%);
+}
+.conversation > .empty-state .empty-glyph {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+  color: var(--muted-soft);
+}
+.conversation > .empty-state .empty-glyph svg { width: 21px; height: 21px; }
+.conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
+.conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
+/** Project, branch and checkout are one decision, so they sit in one track rather than three apart. */
+.thread-start {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 26px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--surface-input);
+}
+.thread-start > * { position: relative; }
+.thread-start > * + *::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: -1px;
+  width: 1px;
+  background: var(--line);
+}
+/** A hairline beside the control under the pointer would cut across its hover pill. */
+.thread-start > *:hover::before,
+.thread-start > *:hover + *::before { background: transparent; }
 .thread-start-field { position: relative; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
 .empty-state .thread-start button {
@@ -990,10 +1041,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   align-items: center;
   gap: 7px;
   max-width: 220px;
-  min-height: 32px;
+  min-height: 30px;
   border: 0;
-  border-radius: 9px;
-  padding: 0 10px;
+  border-radius: 999px;
+  padding: 0 13px;
   background: transparent;
   color: var(--ink-faint);
   font-size: var(--text-control);
@@ -1030,7 +1081,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .thread-start-popover {
   position: absolute;
   z-index: 20;
-  top: 38px;
+  top: 36px;
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
@@ -1112,7 +1163,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 /** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
 .branch-menu.anchored { position: fixed; z-index: 1000; }
 .thread-start-field .branch-menu {
-  top: 45px;
+  top: 43px;
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
@@ -1151,9 +1202,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   align-items: center;
   gap: 7px;
   max-width: 240px;
-  min-height: 32px;
-  border-radius: 9px;
-  padding: 0 5px 0 10px;
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 0 5px 0 12px;
   background: var(--chip);
   color: var(--ink-soft);
   font-size: var(--text-control);
@@ -1166,7 +1217,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   width: 24px;
   padding: 0;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 999px;
   color: var(--quiet-strong);
 }
 
