@@ -42,7 +42,7 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   const close = () => { if (details.current) details.current.open = false; };
   useDismissibleLayer(open, [details], close, summary);
 
-  return <details ref={details} className={`setting-menu ${selected.elevated ? "elevated" : ""}`} onToggle={(event) => setOpen(event.currentTarget.open)}>
+  return <details ref={details} className="setting-menu" onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary ref={summary} aria-label={label}>
       <span className="setting-axis">{axis}</span>
       <span className="setting-value">{selected.short}</span>

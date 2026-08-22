@@ -2851,8 +2851,6 @@ pre {
 .setting-axis { color: var(--quiet-soft); font-size: var(--text-meta); white-space: nowrap; }
 .setting-value { color: var(--ink-faint); white-space: nowrap; }
 .setting-menu[open] .setting-value, .setting-menu > summary:hover .setting-value { color: var(--ink); }
-/** A setting that gives up a guardrail or buys extra time says so without being asked. */
-.setting-menu.elevated .setting-value { color: var(--accent-bright); }
 .setting-popover {
   position: absolute;
   z-index: 20;
