@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AutomationBridge, ProviderEvent, BrowserBridge, RunControls, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { AgentProvider, AgentTurn, AutomationBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
 type ActiveRun = {
@@ -14,8 +14,6 @@ type ActiveRun = {
   sequence: number;
   terminal: boolean;
   approvals: Map<string, { settled: boolean; resolve: (decision: "allow" | "deny") => void }>;
-  /** Absent until the provider has a live session to hand back. */
-  controls?: RunControls;
   /** Newest streamed tail, held back until the throttle window opens. */
   pendingTail?: { messageId: string; text: string };
   tailTimer?: ReturnType<typeof setTimeout>;
@@ -83,12 +81,12 @@ export class RunCoordinator {
     return true;
   }
 
-  /** Kills one of the run's background processes. The set the run republishes is what confirms it. */
-  stopProcess(taskId: string, runId: string, processId: string) {
-    const active = this.runs.get(taskId);
-    if (!active || active.runId !== runId || active.terminal || !active.controls) return false;
-    void active.controls.stopProcess(processId).catch(() => {});
-    return true;
+  /**
+   * Kills one background process of the thread's session. It is addressed to the session rather than
+   * to a run, because a workflow outlives the run that started it and still has to be stoppable.
+   */
+  stopProcess(taskId: string, processId: string) {
+    return this.provider.stopProcess(taskId, processId);
   }
 
   decideApproval(taskId: string, runId: string, approvalId: string, allow: boolean) {
@@ -123,10 +121,10 @@ export class RunCoordinator {
         terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,
         abortController: active.abortController,
-        attach: (controls) => { active.controls = controls; },
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),
         reportWorkflow: (report) => this.reportWorkflow(active.taskId, report),
+        beginAgentTurn: () => this.beginAgentTurn(active),
       });
       if (!this.isCurrent(active) || active.terminal) return;
       this.finish(active, result.status, result.message);
@@ -161,6 +159,33 @@ export class RunCoordinator {
   /** A workflow answers to the thread rather than to a run, so nothing about a run's state holds it back. */
   private reportWorkflow(taskId: string, report: WorkflowReport) {
     this.emit({ ...report, taskId });
+  }
+
+  /**
+   * Gives a turn the agent started itself somewhere to land. It is a run like any other, so what the
+   * agent says is read where the thread's other turns are, and what it asks for is approved there too.
+   */
+  private beginAgentTurn(seed: ActiveRun): AgentTurn | null {
+    if (this.runs.has(seed.taskId)) return null;
+    const active: ActiveRun = {
+      taskId: seed.taskId,
+      runId: randomUUID(),
+      workspaceRoot: seed.workspaceRoot,
+      projectless: seed.projectless,
+      abortController: new AbortController(),
+      steering: new SteerChannel(),
+      sequence: 0,
+      terminal: false,
+      approvals: new Map(),
+    };
+    this.runs.set(active.taskId, active);
+    this.publish(active, { type: "run.started", agentInitiated: true });
+    this.publish(active, { type: "run.status", status: "running" });
+    return {
+      emit: (event) => this.handleProviderEvent(active, event),
+      authorize: (intent) => this.authorize(active, intent),
+      end: (result) => this.finish(active, result.status, result.message),
+    };
   }
 
   private queueTail(active: ActiveRun, messageId: string, text: string) {

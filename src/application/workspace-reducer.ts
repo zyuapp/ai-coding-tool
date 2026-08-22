@@ -1332,16 +1332,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     /** The kill is the agent process's to make; the row only says a stop is on its way. */
     case "run.stop-process": {
       const taskId = targetId(state, input.taskId);
-      const active = taskId ? state.activeRuns[taskId] : undefined;
-      if (!taskId || !active) return settled(state);
-      const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, runId: active.runId, processId: input.processId } }];
+      if (!taskId) return settled(state);
+      const stop: WorkspaceEffect[] = [{ type: "send-run-command", command: { type: "stop-process", taskId, processId: input.processId } }];
       const processes = state.backgroundProcesses[taskId] ?? [];
       const target = processes.find((process) => process.id === input.processId);
       if (target) {
-        return target.stopping ? settled(state) : settled(
-          withBackgroundProcesses(state, taskId, processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process)),
-          stop,
-        );
+        const marked = processes.map((process) => process.id === target.id ? { ...process, stopping: true } : process);
+        return target.stopping ? settled(state) : settled(withBackgroundProcesses(state, taskId, marked), stop);
       }
       /** A workflow is a task of the agent process like any other, so the same stop reaches it. */
       const workflows = state.workflows[taskId] ?? [];
@@ -1367,9 +1364,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "run.event": {
       const { event } = input;
-      const active = state.activeRuns[event.taskId];
+      /** A turn the agent started itself belongs to no run yet, so the thread takes one on for it. */
+      const opening = event.type === "run.started" && event.agentInitiated && !state.activeRuns[event.taskId] && state.tasks.some((task) => task.id === event.taskId);
+      const opened = opening ? beginRun(state, event.taskId, event.runId) : state;
+      const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
-      const applied = applyRunEvent(state, event);
+      const applied = applyRunEvent(opened, event);
       const outcome = outcomeFor(event);
       /**
        * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the

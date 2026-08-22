@@ -354,16 +354,12 @@ function postCommand(command: RunCommand) {
     if (!agent) throw new Error("Agent process is unavailable.");
     agent.postMessage(command);
   } catch (error) {
+    /** A stop belongs to no run, so a failure to send it has no run to report against. */
+    if (command.type === "stop-process") return;
     const state = runStates.get(runKey(command.taskId, command.runId));
+    const message = error instanceof Error ? error.message : String(error);
     if (state && !state.terminal) {
-      publishRunEvent({
-        type: "run.status",
-        taskId: command.taskId,
-        runId: command.runId,
-        sequence: state.lastSequence + 1,
-        status: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      publishRunEvent({ type: "run.status", taskId: command.taskId, runId: command.runId, sequence: state.lastSequence + 1, status: "failed", message });
     }
   }
 }
@@ -394,6 +390,8 @@ function handleRunCommand(event: IpcMainEvent, payload: unknown) {
     void dispatchStart(payload);
     return;
   }
+  /** A stop names the thread's session, which outlives its runs, so no run has to be live to send it. */
+  if (payload.type === "stop-process") return postCommand(payload);
   const key = runKey(payload.taskId, payload.runId);
   const pending = pendingStarts.get(key);
   if (pending && payload.type === "cancel") {

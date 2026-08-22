@@ -1,9 +1,9 @@
 import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
 import { contextWindowLimit } from "../../domain/run.js";
-import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { AgentModel, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
-import type { ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
+import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { BROWSER_SERVER_NAME } from "./browser-tools.mjs";
@@ -19,7 +19,7 @@ const readOnlyThreadTools = new Set([`${threadToolPrefix}list_threads`, `${threa
 const browserToolPrefix = `mcp__${BROWSER_SERVER_NAME}__`;
 const readOnlyBrowserTools = new Set([`${browserToolPrefix}browser_read`, `${browserToolPrefix}browser_tabs`]);
 
-/** The model the CLI stamps on replies it produced itself: slash commands, interrupts, error notices. */
+/** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";
 
 /** How long an interrupted turn has to come back with a result before the session is given up on. */
@@ -92,21 +92,33 @@ function appendCompleteMarkdown(buffer: MarkdownBuffer, text: string) {
 
 type Pending = { message: SDKUserMessage; delivered?: () => void };
 
-/** One turn: what the run asked for, and everything the stream builds up while answering it. */
-type Turn = {
-  input: ProviderRunInput;
-  settle: (result: ProviderResult) => void;
+/** Everything one turn builds up as it streams, and where what it produces goes. */
+type Stream = {
+  emit: (event: ProviderEvent) => void;
+  /** What the turn is answering with, which is what its context meter is measured against. */
+  model?: AgentModel;
   streamedText: Map<string, MarkdownBuffer>;
   activeMainStreamId?: string;
   subagentIds: Set<string>;
   subagentByToolUse: Map<string, string>;
+};
+
+function openStream(emit: (event: ProviderEvent) => void, model?: AgentModel): Stream {
+  return { emit, ...(model === undefined ? {} : { model }), streamedText: new Map(), subagentIds: new Set(), subagentByToolUse: new Map() };
+}
+
+/** One turn a run asked for: the stream that answers it, and the promise the answer settles. */
+type Turn = {
+  input: ProviderRunInput;
+  settle: (result: ProviderResult) => void;
+  stream: Stream;
   release: () => void;
 };
 
 export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) => Query;
 
 /**
- * One live Claude session, kept across turns. The CLI process, its MCP servers, and everything it
+ * One live Claude session, kept across turns. The agent process, its MCP servers, and everything it
  * left running in the background belong to the session, so a second turn neither pays for a new
  * process nor replays the transcript to resume it. Each turn takes the session in turn: the input
  * stream stays open between them, and the turn ends on its own result.
@@ -119,15 +131,19 @@ export class ClaudeSession {
   private ended = false;
   /** How the stream ended, kept for a run that arrives after the session is already over. */
   private outcome: ProviderResult | null = null;
+  /** The turn the agent started itself, once it has a run to report into. Only ever one at a time. */
+  private agentTurn: { turn: AgentTurn; stream: Stream } | null = null;
+  /** Opens that run. Taken when the session opens: what the agent says between runs is the thread's. */
+  private beginAgentTurn: () => AgentTurn | null = () => null;
   /** The workflows running here. One outlives the turn that started it, so the set outlives the turn too. */
   private readonly workflowIds = new Set<string>();
   /** Where those workflows report. Taken when the session opens: they belong to the thread, not to a run. */
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
-  /** Every background task the CLI last reported live, by id. Replaced whole, so it holds nothing the CLI has let go of. */
+  /** Every background task the agent process last reported live, by id. Replaced whole, so it holds nothing that has stopped. */
   private readonly backgroundTaskIds = new Set<string>();
-  /** What the CLI called this session. A later run resumes it by this id. */
+  /** What the agent process called this session. A later run resumes it by this id. */
   sessionId?: string;
-  private model?: string;
+  private model?: AgentModel;
   private effort?: string;
 
   constructor(readonly key: string, private readonly onEnded: () => void, private readonly onIdle: () => void = () => {}) {}
@@ -137,9 +153,9 @@ export class ClaudeSession {
     return this.turn !== null;
   }
 
-  /** Anything closing the session would cut short: the turn it owes, or work the agent left running behind it. */
+  /** Anything closing the session would cut short: a turn in flight, or work the agent left running behind it. */
   get busy() {
-    return this.answering || this.backgroundTaskIds.size > 0;
+    return this.answering || this.agentTurn !== null || this.backgroundTaskIds.size > 0;
   }
 
   get live() {
@@ -150,6 +166,7 @@ export class ClaudeSession {
     this.model = seed.model;
     this.effort = seed.effort;
     this.reportWorkflow = seed.reportWorkflow;
+    this.beginAgentTurn = seed.beginAgentTurn;
     this.query = opener(this.stream(), this.canUseTool);
     void this.pump();
   }
@@ -162,7 +179,8 @@ export class ClaudeSession {
   run(input: ProviderRunInput): Promise<ProviderResult> {
     const query = this.query;
     if (this.ended || !query) return Promise.resolve(this.outcome ?? { status: "failed", message: "The agent session ended before the run could start." });
-    input.attach({ stopProcess: (processId) => query.stopTask(processId) });
+    /** The run supersedes whatever the agent had going on its own, so that turn lets go of its own run. */
+    this.endAgentTurn({ status: "cancelled" });
     return new Promise<ProviderResult>((resolve) => {
       let grace: ReturnType<typeof setTimeout> | undefined;
       const interrupt = () => {
@@ -176,9 +194,7 @@ export class ClaudeSession {
       const turn: Turn = {
         input,
         settle: resolve,
-        streamedText: new Map(),
-        subagentIds: new Set(),
-        subagentByToolUse: new Map(),
+        stream: openStream((event) => input.emit(event), input.model),
         release: () => {
           clearTimeout(grace);
           input.abortController.signal.removeEventListener("abort", interrupt);
@@ -202,10 +218,16 @@ export class ClaudeSession {
     await this.drainSteering(turn);
   }
 
+  /** Kills one background process of this session: a shell, a monitor, or a workflow. */
+  stopProcess(processId: string) {
+    void this.query?.stopTask(processId)?.catch?.(() => {});
+  }
+
   close() {
     if (this.ended) return;
     this.ended = true;
     this.backgroundTaskIds.clear();
+    this.endAgentTurn({ status: "cancelled" });
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
     this.workflowIds.clear();
@@ -275,6 +297,40 @@ export class ClaudeSession {
   private finish(result: ProviderResult) {
     this.outcome = result;
     this.settle(result);
+    this.endAgentTurn(result);
+  }
+
+  /** Ends whichever turn is in flight: the one a run asked for, or the one the agent started itself. */
+  private conclude(result: ProviderResult) {
+    if (this.turn) this.settle(result);
+    else this.endAgentTurn(result);
+  }
+
+  /**
+   * Where the message goes. Between runs the agent still speaks — a workflow reports what it
+   * produced, and work that outlived its run still asks before it acts — so a turn nobody asked
+   * for is given a run of its own rather than dropped.
+   */
+  private streamFor(message: SDKMessage): Stream | null {
+    if (this.turn) return this.turn.stream;
+    if (this.agentTurn) return this.agentTurn.stream;
+    if (message.type !== "assistant" && message.type !== "stream_event") return null;
+    return this.openAgentTurn()?.stream ?? null;
+  }
+
+  private openAgentTurn() {
+    if (this.agentTurn) return this.agentTurn;
+    const turn = this.beginAgentTurn();
+    if (!turn) return null;
+    this.agentTurn = { turn, stream: openStream((event) => turn.emit(event), this.model) };
+    return this.agentTurn;
+  }
+
+  private endAgentTurn(result: ProviderResult) {
+    const open = this.agentTurn;
+    if (!open) return;
+    this.agentTurn = null;
+    open.turn.end(result);
   }
 
   private async pump() {
@@ -290,40 +346,39 @@ export class ClaudeSession {
 
   private receive(message: SDKMessage) {
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
-    /** Taken before the turn guard: what the agent leaves running outlives the turn that started it. */
+    /** Taken before the stream guard: what the agent leaves running outlives the turn that started it. */
     if (message.type === "system" && message.subtype === "background_tasks_changed") this.trackBackground(message.tasks);
     if (this.receiveWorkflow(message)) return;
-    const turn = this.turn;
-    if (!turn) return;
-    const { input } = turn;
+    const stream = this.streamFor(message);
+    if (!stream) return;
     if (message.type === "system" && message.subtype === "init") {
-      input.emit({ type: "continuation", continuation: { provider: "claude", value: message.session_id } });
+      stream.emit({ type: "continuation", continuation: { provider: "claude", value: message.session_id } });
     } else if (message.type === "system" && message.subtype === "compact_boundary") {
-      input.emit({
+      stream.emit({
         type: "compaction",
         trigger: message.compact_metadata.trigger,
         preTokens: message.compact_metadata.pre_tokens,
         ...(message.compact_metadata.post_tokens === undefined ? {} : { postTokens: message.compact_metadata.post_tokens }),
       });
     } else if (message.type === "system" && message.subtype === "status" && (message.status === "compacting" || message.compact_result)) {
-      input.emit({
+      stream.emit({
         type: "compaction-status",
         compacting: message.status === "compacting",
         ...(message.compact_result === "failed" ? { error: message.compact_error ?? "Context compaction failed." } : {}),
       });
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
-      input.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
+      stream.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
     } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
-      turn.subagentIds.add(message.task_id);
-      if (message.tool_use_id) turn.subagentByToolUse.set(message.tool_use_id, message.task_id);
-      input.emit({
+      stream.subagentIds.add(message.task_id);
+      if (message.tool_use_id) stream.subagentByToolUse.set(message.tool_use_id, message.task_id);
+      stream.emit({
         type: "subagent.started",
         id: message.task_id,
         description: message.description,
         agentType: message.subagent_type,
       });
-    } else if (message.type === "system" && message.subtype === "task_progress" && (message.subagent_type || turn.subagentIds.has(message.task_id))) {
-      input.emit({
+    } else if (message.type === "system" && message.subtype === "task_progress" && (message.subagent_type || stream.subagentIds.has(message.task_id))) {
+      stream.emit({
         type: "subagent.progress",
         id: message.task_id,
         description: message.description,
@@ -331,72 +386,72 @@ export class ClaudeSession {
         ...(message.summary ? { summary: message.summary } : {}),
         totalTokens: message.usage.total_tokens,
       });
-    } else if (message.type === "system" && message.subtype === "task_notification" && turn.subagentIds.has(message.task_id)) {
-      input.emit({
+    } else if (message.type === "system" && message.subtype === "task_notification" && stream.subagentIds.has(message.task_id)) {
+      stream.emit({
         type: "subagent.finished",
         id: message.task_id,
         status: message.status === "completed" ? "completed" : message.status,
         summary: message.summary,
       });
     } else if (message.type === "stream_event" && !message.parent_tool_use_id && message.event.type === "message_start") {
-      turn.activeMainStreamId = message.event.message.id;
-      turn.streamedText.set(turn.activeMainStreamId, { text: "", scan: emptyScan() });
-    } else if (message.type === "stream_event" && !message.parent_tool_use_id && turn.activeMainStreamId && message.event.type === "content_block_delta" && message.event.delta.type === "text_delta") {
-      const buffered = turn.streamedText.get(turn.activeMainStreamId);
+      stream.activeMainStreamId = message.event.message.id;
+      stream.streamedText.set(stream.activeMainStreamId, { text: "", scan: emptyScan() });
+    } else if (message.type === "stream_event" && !message.parent_tool_use_id && stream.activeMainStreamId && message.event.type === "content_block_delta" && message.event.delta.type === "text_delta") {
+      const buffered = stream.streamedText.get(stream.activeMainStreamId);
       if (buffered) {
         const complete = appendCompleteMarkdown(buffered, message.event.delta.text);
-        if (complete) input.emit({ type: "assistant", messageId: turn.activeMainStreamId, text: complete, append: true });
-        input.emit({ type: "assistant-tail", messageId: turn.activeMainStreamId, text: buffered.text });
+        if (complete) stream.emit({ type: "assistant", messageId: stream.activeMainStreamId, text: complete, append: true });
+        stream.emit({ type: "assistant-tail", messageId: stream.activeMainStreamId, text: buffered.text });
       }
     } else if (message.type === "assistant") {
-      const subagentId = message.parent_tool_use_id ? turn.subagentByToolUse.get(message.parent_tool_use_id) : undefined;
+      const subagentId = message.parent_tool_use_id ? stream.subagentByToolUse.get(message.parent_tool_use_id) : undefined;
       if (subagentId) {
         for (const block of message.message.content) {
           if (block.type === "text" && block.text.trim()) {
-            input.emit({ type: "subagent.activity", id: subagentId, activityId: `${message.uuid}:text`, kind: "text", text: block.text });
+            stream.emit({ type: "subagent.activity", id: subagentId, activityId: `${message.uuid}:text`, kind: "text", text: block.text });
           } else if (block.type === "tool_use") {
-            input.emit({ type: "subagent.activity", id: subagentId, activityId: block.id, kind: "tool", title: toolDisplayName(block.name, block.input), text: JSON.stringify(block.input, null, 2) });
+            stream.emit({ type: "subagent.activity", id: subagentId, activityId: block.id, kind: "tool", title: toolDisplayName(block.name, block.input), text: JSON.stringify(block.input, null, 2) });
           }
         }
         return;
       }
       const streamId = message.message.id;
-      const streamed = turn.streamedText.get(streamId);
+      const streamed = stream.streamedText.get(streamId);
       if (streamed !== undefined) {
-        if (streamed.text) input.emit({ type: "assistant", messageId: streamId, text: streamed.text, append: true });
-        turn.streamedText.delete(streamId);
-        if (turn.activeMainStreamId === streamId) turn.activeMainStreamId = undefined;
+        if (streamed.text) stream.emit({ type: "assistant", messageId: streamId, text: streamed.text, append: true });
+        stream.streamedText.delete(streamId);
+        if (stream.activeMainStreamId === streamId) stream.activeMainStreamId = undefined;
       }
       for (const block of message.message.content) {
         if (block.type === "text" && streamed === undefined && block.text.trim()) {
-          input.emit({ type: "assistant", messageId: message.uuid, text: block.text });
+          stream.emit({ type: "assistant", messageId: message.uuid, text: block.text });
         } else if (block.type === "tool_use") {
-          input.emit({ type: "tool", intent: normalizeToolIntent(block.name, block.input, block.id) });
+          stream.emit({ type: "tool", intent: normalizeToolIntent(block.name, block.input, block.id) });
         }
       }
       /** A synthetic reply costs no context and counts none, so reporting it would blank the meter. */
-      if (message.message.model !== SYNTHETIC_MODEL) {
+      if (message.message.model !== SYNTHETIC_MODEL && stream.model) {
         const usage = message.message.usage;
-        input.emit({
+        stream.emit({
           type: "usage",
           tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-          limit: contextWindowLimit(input.model),
+          limit: contextWindowLimit(stream.model),
           model: message.message.model,
         });
       }
     } else if (message.type === "result") {
       /** The open input stream keeps the session alive, so the turn's result is what ends the run. */
       if (message.subtype !== "success" || message.is_error) {
-        this.settle({ status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") });
+        this.conclude({ status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") });
         /** A turn that broke leaves a session nobody can vouch for; the next run resumes it instead. */
         this.close();
         return;
       }
-      this.settle({ status: "succeeded" });
+      this.conclude({ status: "succeeded" });
     }
   }
 
-  /** Whether the message belonged to a workflow. Read before the turn guard, so a workflow reports between turns too. */
+  /** Whether the message belonged to a workflow. Read before the stream guard, so a workflow reports between turns too. */
   private receiveWorkflow(message: SDKMessage) {
     if (message.type !== "system") return false;
     if (message.subtype === "task_started" && message.task_type === "local_workflow") {
@@ -438,9 +493,9 @@ export class ClaudeSession {
   }
 
   /**
-   * The CLI reports its live tasks as a level rather than as start and finish bookends, so the session
-   * swaps its whole set for each payload: a bookend it never saw, or saw twice, cannot leave the session
-   * holding work that has already stopped.
+   * The agent process reports its live tasks as a level rather than as start and finish bookends, so the
+   * session swaps its whole set for each payload: a bookend it never saw, or saw twice, cannot leave the
+   * session holding work that has already stopped.
    */
   private trackBackground(tasks: { task_id: string }[]) {
     const wasRunning = this.backgroundTaskIds.size > 0;
@@ -452,12 +507,15 @@ export class ClaudeSession {
   private readonly canUseTool: CanUseTool = async (toolName, toolInput, options) => {
     const turn = this.turn;
     const allow = { behavior: "allow" as const, updatedInput: toolInput, toolUseID: options.toolUseID };
+    const denied = { behavior: "deny" as const, message: "The user denied this action.", toolUseID: options.toolUseID };
     if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return allow;
-    if (!turn) return { behavior: "deny", message: "The run this call belongs to is over.", toolUseID: options.toolUseID };
-    if (turn.input.channel === "main" && turn.input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return allow;
-    const decision = await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID));
-    return decision === "allow"
-      ? allow
-      : { behavior: "deny", message: "The user denied this action.", toolUseID: options.toolUseID };
+    if (turn) {
+      if (turn.input.channel === "main" && turn.input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return allow;
+      return await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)) === "allow" ? allow : denied;
+    }
+    /** Work that outlived its run still has to ask, so the turn the agent started takes the question. */
+    const agentTurn = this.openAgentTurn();
+    if (!agentTurn) return { behavior: "deny", message: "The run this call belongs to is over.", toolUseID: options.toolUseID };
+    return await agentTurn.turn.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)) === "allow" ? allow : denied;
   };
 }

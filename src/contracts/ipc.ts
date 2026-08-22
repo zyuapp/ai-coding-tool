@@ -136,11 +136,13 @@ export type SteerRunCommand = {
   prompt: string;
 };
 
-/** Kills one background process the run started, leaving the run itself going. */
+/**
+ * Kills one background process of the thread's session, leaving the session itself going. It names
+ * the thread rather than a run: a workflow outlives the run that started it and is stopped after it.
+ */
 export type StopProcessCommand = {
   type: "stop-process";
   taskId: string;
-  runId: string;
   processId: string;
 };
 
@@ -377,7 +379,8 @@ type RunEventBase = {
 };
 
 export type RunEvent =
-  | (RunEventBase & { type: "run.started" })
+  /** `agentInitiated` marks a turn the agent started itself, which the thread takes on a run for. */
+  | (RunEventBase & { type: "run.started"; agentInitiated?: true })
   | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string })
   | (RunEventBase & { type: "assistant.delta"; messageId: string; text: string; append?: boolean })
   /** Streamed text that is not a complete Markdown block yet. Superseded by the next delta, never stored. */
@@ -513,7 +516,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
-  if (command.type === "stop-process") return isString(command.taskId) && isString(command.runId) && isString(command.processId);
+  if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
   return false;
 }
 
@@ -658,7 +661,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
   if (!isString(event.taskId) || !isString(event.runId) || typeof event.sequence !== "number" || !Number.isSafeInteger(event.sequence) || event.sequence < 1) return false;
-  if (event.type === "run.started") return true;
+  if (event.type === "run.started") return event.agentInitiated === undefined || event.agentInitiated === true;
   if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000));
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true);
   if (event.type === "assistant.tail") return isString(event.messageId) && typeof event.text === "string" && event.text.length <= MAX_PROMPT_LENGTH;

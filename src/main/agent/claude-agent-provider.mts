@@ -87,6 +87,14 @@ export class ClaudeAgentProvider implements AgentProvider {
     }
   }
 
+  /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
+  stopProcess(taskId: string, processId: string) {
+    const held = this.sessions.get(taskId);
+    if (!held?.session.live) return false;
+    held.session.stopProcess(processId);
+    return true;
+  }
+
   /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
     for (const held of [...this.sessions.values()]) {

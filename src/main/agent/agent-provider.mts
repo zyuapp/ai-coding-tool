@@ -59,9 +59,14 @@ export type ProviderEvent =
   /** The run's whole set of background processes, republished on every change. */
   | { type: "background.changed"; processes: BackgroundProcess[] };
 
-/** The levers a run only has once it is live, handed back so control can reach it mid-run. */
-export type RunControls = {
-  stopProcess(processId: string): Promise<void>;
+/**
+ * A turn the agent started itself, after the run that seeded the session had ended. A workflow
+ * reporting what it produced is one, and so is a tool call from work that outlived its run.
+ */
+export type AgentTurn = {
+  emit(event: ProviderEvent): void;
+  authorize(intent: ToolIntent): Promise<"allow" | "deny">;
+  end(result: ProviderResult): void;
 };
 
 export type ProviderRunInput = {
@@ -83,11 +88,12 @@ export type ProviderRunInput = {
   terminal?: TerminalBridge;
   steering: SteerQueue;
   abortController: AbortController;
-  attach: (controls: RunControls) => void;
   authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;
   emit: (event: ProviderEvent) => void;
   /** Kept apart from `emit`: a workflow reports to the thread, and outlasts the run that started it. */
   reportWorkflow: (report: WorkflowReport) => void;
+  /** Opens a run for a turn nobody asked for. Null when the thread already has a run of its own. */
+  beginAgentTurn: () => AgentTurn | null;
 };
 
 export type ProviderResult = {
@@ -97,4 +103,6 @@ export type ProviderResult = {
 
 export interface AgentProvider {
   execute(input: ProviderRunInput): Promise<ProviderResult>;
+  /** Kills one background process of the thread's session, whether or not a run is going. */
+  stopProcess(taskId: string, processId: string): boolean;
 }

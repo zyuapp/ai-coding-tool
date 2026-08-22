@@ -22,17 +22,17 @@ const typescript = (jsx) => ({
 // Files that predate the limits, capped at their current size so they can shrink but never grow.
 // Delete an entry once its file fits the limit above.
 const fileCaps = {
-  "src/application/workspace-reducer.ts": 1762,
-  "src/main/main.ts": 1030,
+  "src/application/workspace-reducer.ts": 1761,
+  "src/main/main.ts": 1026,
   "src/renderer/components/ConversationTimeline.tsx": 776,
-  "tests/claude-agent-provider.test.mjs": 713,
+  "tests/claude-agent-provider.test.mjs": 633,
   "tests/renderer.test.mjs": 3869,
-  "tests/workspace-reducer.test.mjs": 2032,
+  "tests/workspace-reducer.test.mjs": 2022,
 };
 
 const functionCaps = {
   "src/application/task-workspace.ts": 162,
-  "src/application/workspace-reducer.ts": 1037,
+  "src/application/workspace-reducer.ts": 1036,
   "src/renderer/App.tsx": 556,
   "src/renderer/components/ConversationTimeline.tsx": 455,
   "src/renderer/components/DiffPanel.tsx": 313,

@@ -22,9 +22,16 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 class FakeProvider {
   runs = [];
+  stopped = [];
 
   execute(input) {
     return new Promise((resolve) => this.runs.push({ input, resolve }));
+  }
+
+  stopProcess(taskId, processId) {
+    if (!this.runs.some((run) => run.input.taskId === taskId)) return false;
+    this.stopped.push([taskId, processId]);
+    return true;
   }
 }
 
@@ -418,20 +425,41 @@ test("each run reaches the workspace through a bridge scoped to its own thread",
   assert.deepEqual(provider.runs.map((run) => run.input.threads.taskId), ["task-a", "task-b"]);
 });
 
-test("stopping a background process reaches the live run's session, and only that run", async () => {
+test("stopping a background process reaches the thread's session, with or without a run", async () => {
   const provider = new FakeProvider();
   const coordinator = new RunCoordinator(provider, () => {});
 
+  assert.equal(coordinator.stopProcess("task-p", "bash-1"), false, "nothing to stop before the session is live");
+
   coordinator.start(base("task-p", "run-p"));
   await tick();
-  assert.equal(coordinator.stopProcess("task-p", "run-p", "bash-1"), false, "nothing to stop before the session is live");
-
-  const stopped = [];
-  provider.runs[0].input.attach({ stopProcess: async (processId) => { stopped.push(processId); } });
-  assert.equal(coordinator.stopProcess("task-p", "run-stale", "bash-1"), false);
-  assert.equal(coordinator.stopProcess("task-q", "run-p", "bash-1"), false);
-  assert.equal(coordinator.stopProcess("task-p", "run-p", "bash-1"), true);
+  assert.equal(coordinator.stopProcess("task-p", "bash-1"), true);
+  provider.runs[0].resolve({ status: "succeeded" });
   await tick();
+  assert.equal(coordinator.stopProcess("task-p", "wf-1"), true, "a workflow outlives its run and is still stoppable");
 
-  assert.deepEqual(stopped, ["bash-1"]);
+  assert.deepEqual(provider.stopped, [["task-p", "bash-1"], ["task-p", "wf-1"]]);
+});
+
+test("a turn the agent starts itself is given a run of its own", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-u", "run-u"));
+  await tick();
+  assert.equal(provider.runs[0].input.beginAgentTurn(), null, "the thread already has a run of its own");
+
+  provider.runs[0].resolve({ status: "succeeded" });
+  await tick();
+  const agentTurn = provider.runs[0].input.beginAgentTurn();
+  agentTurn.emit({ type: "assistant", messageId: "m-1", text: "The workflow finished." });
+  agentTurn.end({ status: "succeeded" });
+
+  const opened = events.find((event) => event.type === "run.started" && event.runId !== "run-u");
+  assert.equal(opened.agentInitiated, true);
+  const own = events.filter((event) => event.runId === opened.runId);
+  assert.deepEqual(own.map((event) => event.type), ["run.started", "run.status", "assistant.delta", "run.status"]);
+  assert.deepEqual(own.map((event) => event.sequence), [1, 2, 3, 4]);
+  assert.deepEqual(statuses(events, opened.runId), ["running", "succeeded"]);
 });

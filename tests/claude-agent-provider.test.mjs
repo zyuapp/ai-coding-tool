@@ -4,91 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../dist/main/main/agent/claude-agent-provider.mjs";
-
-function input(overrides = {}) {
-  return {
-    channel: "main",
-    taskId: "task-1",
-    prompt: "inspect the app",
-    workspaceRoot: "/tmp/project",
-    projectless: false,
-    computerUse: { status: "unavailable", message: "test" },
-    policy: "confirm",
-    model: "opus",
-    effort: "high",
-    steering: { next: () => new Promise(() => {}) },
-    abortController: new AbortController(),
-    attach() {},
-    authorize: async () => "allow",
-    emit() {},
-    reportWorkflow() {},
-    ...overrides,
-  };
-}
-
-function queryFactory(messages, capture = {}) {
-  return (options) => {
-    capture.options = options;
-    return {
-      async *[Symbol.asyncIterator]() {
-        for (const message of messages) yield message;
-      },
-      stopTask(taskId) {
-        capture.stopped = [...(capture.stopped ?? []), taskId];
-        return Promise.resolve();
-      },
-      close() {
-        capture.closed = true;
-      },
-    };
-  };
-}
-
-const tick = () => new Promise((resolve) => setImmediate(resolve));
-
-/** A session that stays open between turns, the way the CLI does in streaming input mode. */
-function liveQueryFactory(capture = {}) {
-  capture.opens = 0;
-  capture.sent = [];
-  return (options) => {
-    capture.options = options;
-    capture.opens += 1;
-    const pending = [];
-    let wake = null;
-    capture.emit = (message) => { pending.push(message); wake?.(); wake = null; };
-    void (async () => { for await (const message of options.prompt) capture.sent.push(message.message.content); })();
-    return {
-      async *[Symbol.asyncIterator]() {
-        for (;;) {
-          while (pending.length) yield pending.shift();
-          await new Promise((resolve) => { wake = resolve; });
-        }
-      },
-      interrupt: async () => { capture.interrupted = true; },
-      setModel: async (model) => { capture.model = model; },
-      setPermissionMode: async (mode) => { capture.mode = mode; },
-      applyFlagSettings: async (settings) => { capture.settings = settings; },
-      close() { capture.closed = true; },
-    };
-  };
-}
-
-/** Opens a live session and holds its turn, so the tool gate can be asked the way the CLI asks it. */
-async function liveTurn(overrides = {}) {
-  const capture = {};
-  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
-  const running = provider.execute(input(overrides));
-  await tick();
-  return {
-    ...capture.options.options,
-    capture,
-    end: async () => {
-      capture.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
-      await running;
-      provider.closeAll();
-    },
-  };
-}
+import { input, liveQueryFactory, liveTurn, queryFactory, tick, turn } from "./support/claude-session.mjs";
 
 test("packaged builds use the unpacked Claude executable", async () => {
   const resourcesPath = await mkdtemp(path.join(os.tmpdir(), "claudex-resources-"));
@@ -510,12 +426,6 @@ test("a run ends on its turn's result even though its input stream stays open", 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
 });
 
-async function turn(capture, promise, ...messages) {
-  await tick();
-  for (const message of messages) capture.emit(message);
-  capture.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
-  return promise;
-}
 
 test("a second turn keeps the session the first one warmed, and takes its settings as changes", async () => {
   const capture = {};
@@ -677,14 +587,17 @@ test("a session closing under a workflow reports the workflow stopped", async ()
     "a workflow the session took with it does not wait on a notification that can never come");
 });
 
-test("the live session is handed back so a background process can be stopped mid-run", async () => {
+test("a background process is stopped through the thread's session, after its run has ended", async () => {
   const capture = {};
-  let controls;
-  const provider = new ClaudeAgentProvider(queryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }], capture));
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
 
-  await provider.execute(input({ attach: (handed) => { controls = handed; } }));
-  await controls.stopProcess("bash-1");
-  assert.deepEqual(capture.stopped, ["bash-1"]);
+  assert.equal(provider.stopProcess("task-1", "bash-1"), false, "no session, nothing to stop");
+  await turn(capture, provider.execute(input()));
+  assert.equal(provider.stopProcess("task-gone", "bash-1"), false);
+  assert.equal(provider.stopProcess("task-1", "wf-1"), true, "the session outlives the run, so the workflow it holds is still reachable");
+  await tick();
+  assert.deepEqual(capture.stopped, ["wf-1"]);
+  provider.closeAll();
 });
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

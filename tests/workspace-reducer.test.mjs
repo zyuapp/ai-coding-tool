@@ -2408,7 +2408,7 @@ test("stopping a background process marks the row and asks the run, once", () =>
 
   const stopping = reduce(state, { type: "run.stop-process", processId: "bash-1" });
   assert.deepEqual(stopping.effects, [
-    { type: "send-run-command", command: { type: "stop-process", taskId: "task-a", runId: "run-a", processId: "bash-1" } },
+    { type: "send-run-command", command: { type: "stop-process", taskId: "task-a", processId: "bash-1" } },
   ]);
   assert.equal(stopping.state.backgroundProcesses["task-a"][0].stopping, true);
   assert.deepEqual(deriveView(stopping.state).backgroundProcesses, stopping.state.backgroundProcesses["task-a"]);
@@ -2440,7 +2440,7 @@ test("a workflow's frames land on its thread with no run to carry them", () => {
   assert.deepEqual(stranger.state, idle, "a thread that is gone keeps nothing");
 });
 
-test("stopping a workflow reaches the run the same way a process does", () => {
+test("stopping a workflow reaches the thread's session after the run that started it has ended", () => {
   const workflow = {
     id: "wf-1",
     name: "review-changes",
@@ -2452,27 +2452,17 @@ test("stopping a workflow reaches the run the same way a process does", () => {
     totalToolCalls: 1,
     startedAt: 1,
   };
-  const state = workspace({
-    tasks: [task("task-a")],
-    currentId: "task-a",
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running" } },
-    workflows: { "task-a": [workflow] },
-  });
+  const state = workspace({ tasks: [task("task-a")], currentId: "task-a", workflows: { "task-a": [workflow] } });
 
   const stopping = reduce(state, { type: "run.stop-process", processId: "wf-1" });
   assert.deepEqual(stopping.effects, [
-    { type: "send-run-command", command: { type: "stop-process", taskId: "task-a", runId: "run-a", processId: "wf-1" } },
+    { type: "send-run-command", command: { type: "stop-process", taskId: "task-a", processId: "wf-1" } },
   ]);
   assert.equal(stopping.state.workflows["task-a"][0].stopping, true);
   assert.deepEqual(deriveView(stopping.state).workflows, stopping.state.workflows["task-a"]);
 
   assert.deepEqual(reduce(stopping.state, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a stop already on its way is not repeated");
-  const ended = workspace({
-    tasks: [task("task-a")],
-    currentId: "task-a",
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running" } },
-    workflows: { "task-a": [{ ...workflow, status: "completed" }] },
-  });
+  const ended = workspace({ tasks: [task("task-a")], currentId: "task-a", workflows: { "task-a": [{ ...workflow, status: "completed" }] } });
   assert.deepEqual(reduce(ended, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a workflow that already ended has nothing to stop");
 });
 
