@@ -182,7 +182,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
 }
 
 /**
- * One size as `− 15 +`. The steppers move a px at a time; the field takes a typed number and clamps
+ * One size as `− 15 +`, in px. The steppers move a px at a time; the field takes a typed number and clamps
  * it to the range when it is committed, while Escape abandons the typing and keeps the settled size.
  */
 function SizeField({ label, range, value, onChoose }: {
@@ -225,7 +225,6 @@ function SizeField({ label, range, value, onChoose }: {
           }
         }}
       />
-      <span aria-hidden="true">px</span>
       <button type="button" aria-label={`Larger ${label.toLowerCase()}`} disabled={value >= range.max} onClick={() => onChoose(stepSize(range, value, 1))}>
         <Plus size={14} aria-hidden="true" />
       </button>

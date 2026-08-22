@@ -1437,10 +1437,10 @@ pre {
   min-width: 0;
   overflow: auto;
   padding: clamp(72px, 11vh, 112px) clamp(32px, 7vw, 96px);
-  -webkit-app-region: drag;
 }
 .settings-main > * { max-width: 780px; margin-inline: auto; }
-.settings-page-heading { margin-bottom: 48px; }
+/** The heading is where the page is dragged from; a drag region over the rest would eat its scroll. */
+.settings-page-heading { margin-bottom: 48px; -webkit-app-region: drag; }
 /** A short window spends its height on the pages themselves rather than on the space above them. */
 @media (max-height: 660px) {
   .settings-sidebar h1 { margin: 14px 10px 12px; font-size: var(--text-heading); }
@@ -1452,7 +1452,6 @@ pre {
 .settings-group {
   border-top: 1px solid var(--line-mid);
   border-bottom: 1px solid var(--line-mid);
-  -webkit-app-region: no-drag;
 }
 .settings-group-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 0; }
 .settings-group-heading h3 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 590; }
@@ -1532,7 +1531,7 @@ pre {
 .size-stepper button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
 .size-stepper button:disabled { color: var(--quiet); cursor: default; }
 .size-stepper input {
-  width: 30px;
+  width: 34px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -1540,10 +1539,9 @@ pre {
   font-size: var(--text-meta);
   font-weight: 560;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
 }
 .size-stepper input:focus { outline: none; color: var(--ink); }
-.size-stepper > span { padding-right: 3px; color: var(--quiet-strong); font-size: var(--text-meta); }
 
 /** Drawn from the same tokens the choice sets, so the sample is the size it is offering. */
 .setting-row p.size-sample { margin-top: 9px; color: var(--ink-soft); font-size: var(--text-content); line-height: 1.5; }
@@ -1669,8 +1667,10 @@ pre {
 .setting-row p { margin: 5px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
 .settings-group code { border-radius: 5px; padding: 1px 5px; background: var(--wash); color: var(--ink-dim); font: 0.9em/1.4 var(--mono); }
 .settings-group .setting-status.blank { border-color: transparent; }
-.setting-row.shortcut-row { grid-template-columns: 22px minmax(0, 1fr) minmax(212px, auto); }
-.setting-row.shortcut-row .setting-row-action { gap: 8px; }
+.setting-row.shortcut-row { grid-template-columns: 22px minmax(0, 1fr) minmax(248px, auto); }
+/** The keystroke is what the row is about, so it sits apart from the buttons that change it. */
+.setting-row.shortcut-row .setting-row-action { gap: 6px; }
+.setting-row.shortcut-row .setting-row-action > kbd, .setting-row.shortcut-row .setting-row-action > em { margin-right: 10px; }
 .setting-row-action kbd {
   min-width: 52px;
   border: 1px solid var(--line-strong);
