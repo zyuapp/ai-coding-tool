@@ -790,6 +790,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "tab.new": return [{ type: "view.new-tab" }];
     case "tab.close": return [{ type: "view.close-tab" }];
     case "dock.toggle": return [{ type: "view.set-dock-open", open: !dockFor(state, dockOwner(state)).open }];
+    case "dock.expand": return [{ type: "view.set-dock-expanded", expanded: !dockFor(state, dockOwner(state)).expanded }];
     case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     case "appearance.cycle-theme": return [{ type: "view.set-theme", theme: nextTheme(state.theme).id }];
@@ -1796,6 +1797,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const dock = dockFor(state, owner);
       if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
       if (!dock.open) return settled(state, [{ type: "close-window" }]);
+      /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */
+      if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));
       const kind = dockTabKind(state, owner, dock.tab);
       const closed = kind === "picker" ? settled(withDock(state, owner, { open: false }))
         : kind === "browser" ? apply(state, { type: "browser.close-tab", tabId: dock.tab })
@@ -1829,7 +1832,16 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (dock.open === input.open) return settled(state);
       const toggled = withDock(state, owner, { open: input.open });
       /** A panel shown is one to work in; a panel hidden must not leave a page it was drawing with the keys. */
-      if (!input.open) return settled(toggled, TAKE_KEYS);
+      if (!input.open) return settled(withDock(toggled, owner, { expanded: false }), TAKE_KEYS);
+      return dockTabKind(toggled, owner, dock.tab) === "picker" ? settled(toggled) : focusDockTab(toggled, owner, dock.tab);
+    }
+
+    case "view.set-dock-expanded": {
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      if (dock.expanded === input.expanded) return settled(state);
+      /** Taking the whole workspace is also a way of asking for the dock, so expanding shows it. */
+      const toggled = withDock(state, owner, { expanded: input.expanded, open: input.expanded || dock.open });
       return dockTabKind(toggled, owner, dock.tab) === "picker" ? settled(toggled) : focusDockTab(toggled, owner, dock.tab);
     }
 

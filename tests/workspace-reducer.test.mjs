@@ -2229,6 +2229,37 @@ test("only a page holds the keys itself; everything else in the dock needs the w
   assert.equal(shown.state.dockFocus.tab, "agents", "showing the panel again hands the tab in front the keyboard");
 });
 
+test("expanding the dock shows it, and the dock gives up the whole workspace before it gives up a tab", () => {
+  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1")], currentId: "task-1" };
+
+  const full = reduce(state, { type: "view.set-dock-expanded", expanded: true });
+  assert.equal(dockFor(full.state, dockOwner(full.state)).open, true, "asking for the whole workspace is a way of asking for the dock");
+  assert.equal(deriveView(full.state).dockExpanded, true);
+
+  const panel = reduce(full.state, { type: "view.open-dock-panel", panel: "agents" });
+  const restored = reduce(panel.state, { type: "view.close-tab" });
+  assert.equal(dockFor(restored.state, dockOwner(restored.state)).expanded, false, "the first Escape puts the dock back in its column");
+  assert.deepEqual(deriveView(restored.state).dockPanels, ["agents"], "and leaves the tab it was drawing alone");
+
+  const closed = reduce(restored.state, { type: "view.close-tab" });
+  assert.deepEqual(deriveView(closed.state).dockPanels, [], "the next one closes the tab");
+});
+
+test("a hidden dock does not come back expanded, and each thread keeps its own posture", () => {
+  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1"), task("task-2")], currentId: "task-1" };
+
+  const full = run(state, [{ type: "view.set-dock-expanded", expanded: true }]);
+  const hidden = reduce(full, { type: "view.set-dock-open", open: false });
+  assert.equal(dockFor(hidden.state, "task-1").expanded, false, "hiding the dock ends the posture it was hidden in");
+
+  const shown = reduce(hidden.state, { type: "view.set-dock-open", open: true });
+  assert.equal(deriveView(shown.state).dockExpanded, false);
+
+  const spread = run(shown.state, [{ type: "view.set-dock-expanded", expanded: true }, { type: "task.select", taskId: "task-2" }]);
+  assert.equal(deriveView(spread).dockExpanded, false, "the thread next door has a dock of its own");
+  assert.equal(dockFor(spread, "task-1").expanded, true, "and the one left behind is still as it was");
+});
+
 test("a new thread is opened to type in, so the caret and the keys go to its composer", () => {
   const reading = run(workspace(), [{ type: "browser.new-tab" }]);
   const started = reduce(reading, { type: "task.new" });

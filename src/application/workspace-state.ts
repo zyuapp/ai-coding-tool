@@ -160,6 +160,8 @@ export type DiffState = {
  */
 export type ThreadDock = {
   open: boolean;
+  /** Whether the dock is taking the whole workspace, which only a dock that is showing ever does. */
+  expanded: boolean;
   panels: string[];
   tab: string;
   /** The workflow the dock's workflow panel is following, kept per thread the way its panels are. */
@@ -446,6 +448,7 @@ export const DRAFT_DOCK = "draft";
 
 export const EMPTY_DOCK: ThreadDock = {
   open: false,
+  expanded: false,
   panels: [],
   tab: DOCK_PICKER,
   workflowId: null,
@@ -839,6 +842,7 @@ export function deriveView(state: WorkspaceState) {
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
     dockOpen: dock.open,
+    dockExpanded: dock.expanded,
     dockPanels: dock.panels,
     /** The review this thread has open, whether or not the panel drawing it is the tab in front. */
     diff: diffFor(state, owner),

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlarmClock, Bot, Boxes, FileDiff, GitFork, Globe, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
+import { AlarmClock, Bot, Boxes, FileDiff, GitFork, Globe, Maximize2, Minimize2, Plus, SquareTerminal, X, type LucideIcon } from "lucide-react";
 import { ApprovalCard } from "./components/ApprovalCard";
 import { AutomationPanel } from "./components/AutomationPanel";
 import { BrowserPanel } from "./components/BrowserPanel";
@@ -60,6 +60,7 @@ export function App() {
     ? workspace.diff.result.files.filter((file) => !workspace.diff.viewed[file.path]).length
     : 0;
   const rightDockOpen = workspace.dockOpen;
+  const rightDockExpanded = rightDockOpen && workspace.dockExpanded;
   const activeRightTab = workspace.dockTab;
   const addMenuOpen = workspace.openMenu === ADD_TAB_MENU;
   const addMenu = useRef<HTMLDivElement>(null);
@@ -339,7 +340,7 @@ export function App() {
       />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
-      <section className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""}`} inert={settingsVisible}>
+      <section className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""}`} inert={settingsVisible}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
@@ -419,7 +420,7 @@ export function App() {
             environment={workspace.environment}
             hasProject={Boolean(workspace.folder)}
             {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
-            {...(workspace.currentTask ? { location: workspace.location } : {})}
+            {...(workspace.currentTask ? { taskId: workspace.currentTask.id, location: workspace.location } : {})}
             runActive={workspace.runActive}
             openMenu={workspace.openMenu}
             onSetOpenMenu={workspace.actions.setOpenMenu}
@@ -467,7 +468,7 @@ export function App() {
                 if (panel) resizeRightDock(event.currentTarget, panel.getBoundingClientRect().left + (event.key === "ArrowLeft" ? -10 : 10));
               }}
             />
-            <div className="right-dock-tabs">
+            <div className={`right-dock-tabs ${rightDockExpanded && !sidebarOpen ? "traffic-inset" : ""}`.trimEnd()}>
               <div role="tablist" aria-label="Right panel tabs">
                 {dockTabs.map((tab) => (
                   <div className={`right-dock-tab ${activeRightTab === tab.id ? "active" : ""}`} key={tab.id}>
@@ -500,6 +501,15 @@ export function App() {
                   </div>
                 )}
               </div>
+              <button
+                className="right-dock-hide"
+                type="button"
+                aria-label={`${rightDockExpanded ? "Restore" : "Expand"} right panel`}
+                aria-pressed={rightDockExpanded}
+                onClick={() => void workspace.actions.setDockExpanded(!rightDockExpanded)}
+              >
+                {rightDockExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
               <button className="right-dock-hide" type="button" aria-label="Hide right panel" onClick={() => void workspace.actions.setDockOpen(false)}><X size={17} /></button>
             </div>
             <div className="right-dock-content">

@@ -224,6 +224,8 @@ export type ViewCommand =
   | { type: "view.new-tab" }
   /** The right dock: which panels are open as tabs, and which of them is showing. */
   | { type: "view.set-dock-open"; open: boolean }
+  /** Whether the dock takes the whole workspace. Expanding it also shows it. */
+  | { type: "view.set-dock-expanded"; expanded: boolean }
   | { type: "view.open-dock-panel"; panel: string }
   | { type: "view.close-dock-panel"; panel: string }
   /** Opens the workflow panel on one workflow. The dock remembers which, so leaving and coming back lands back on it. */

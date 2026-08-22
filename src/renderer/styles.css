@@ -747,6 +747,17 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   animation: inspector-in 160ms ease-out;
 }
 .right-dock[hidden] { display: none; }
+/**
+ * Expanded, the dock spans the grid and lays over the column it came from. The column keeps its
+ * layout, so restoring costs no reflow and the transcript comes back where it was left.
+ */
+.workspace.dock-full > :not(.right-dock) { visibility: hidden; }
+.workspace.dock-full .right-dock { grid-column: 1 / -1; z-index: 4; }
+.workspace.dock-full .right-dock-resizer { display: none; }
+/** The dock now owns the window's top edge, so its tab strip drags the window and clears the traffic lights. */
+.workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
+.workspace.dock-full .right-dock-tabs.traffic-inset { padding-left: 84px; }
+.workspace.dock-full .right-dock-tabs > div, .workspace.dock-full .right-dock-tabs button { -webkit-app-region: no-drag; }
 /** A 16px grab strip centred on the dock's edge; the line it draws stays 2px so the seam looks unchanged. */
 .right-dock-resizer {
   position: absolute;

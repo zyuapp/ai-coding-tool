@@ -686,6 +686,7 @@ export function useTaskWorkspace() {
       decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),
       dismissComputerUseSetup: () => dispatch({ type: "view.dismiss-computer-use-setup" }),
       setDockOpen: (open: boolean) => dispatch({ type: "view.set-dock-open", open }),
+      setDockExpanded: (expanded: boolean) => dispatch({ type: "view.set-dock-expanded", expanded }),
       setSettingsOpen: (open: boolean) => dispatch({ type: "view.set-settings-open", open }),
       closeTab: () => dispatch({ type: "view.close-tab" }),
       openDockPanel: (panel: string) => dispatch({ type: "view.open-dock-panel", panel }),

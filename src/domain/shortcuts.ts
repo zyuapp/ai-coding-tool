@@ -209,6 +209,7 @@ export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
   { id: "tab.new", group: "Panels", label: "New tab", description: "Another page, another shell, or a shell when the panel holds neither", surface: "any", defaultBinding: "Mod+T" },
   { id: "tab.close", group: "Panels", label: "Close", description: "Whatever is in front, then the panel, then the window", surface: "any", defaultBinding: "Mod+W" },
   { id: "dock.toggle", group: "Panels", label: "Show or hide the panel", description: "The right dock", surface: "any", defaultBinding: "Mod+\\" },
+  { id: "dock.expand", group: "Panels", label: "Expand or restore the panel", description: "The right dock across the whole workspace", surface: "any", defaultBinding: "Mod+Shift+\\" },
   { id: "sidebar.toggle", group: "Panels", label: "Show or hide the sidebar", description: "The thread list", surface: "any", defaultBinding: "Mod+B" },
   { id: "settings.toggle", group: "Panels", label: "Settings", description: "Open settings, or leave them", surface: "any", defaultBinding: "Mod+," },
   ...["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"].map((ordinal, index) => ({
