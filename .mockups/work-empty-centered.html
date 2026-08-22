@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Work empty state — centered, compact</title>
+<style>
+  :root {
+    --bg-0:#0e1117; --bg-1:#11151b; --bg-2:#151920; --bg-3:#171b20;
+    --bg-4:#1b2028; --bg-5:#20242a; --bg-6:#2a2f36;
+    --line-0:#1d2229; --line-1:#272c34; --line-2:#3a414b; --line-3:#48525f;
+    --fg-0:#e6e4df; --fg-1:#c9c8c4; --fg-2:#a9aaa7; --fg-3:#969a9f; --fg-4:#666b72; --fg-5:#55595e;
+    --accent:#d97757; --accent-bright:#ef8451;
+    --good:#7fb069; --warn:#d9b45c;
+    --ui:-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    --mono:"SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#080a0e; color:var(--fg-0); font-family:var(--ui);
+         -webkit-font-smoothing:antialiased; padding:26px 24px 56px; }
+  .page-head { max-width:1460px; margin:0 auto 20px; }
+  .page-head h1 { font-size:15px; font-weight:600; margin:0 0 4px; letter-spacing:-0.01em; }
+  .page-head p { margin:0; font-size:12.5px; color:var(--fg-4); }
+  .grid { display:grid; grid-template-columns:repeat(3, minmax(370px,1fr)); gap:22px;
+          max-width:1460px; margin:0 auto; align-items:start; }
+  .variant-label { font-size:11px; text-transform:uppercase; letter-spacing:.09em;
+                   color:var(--fg-5); margin:0 0 8px 2px; font-weight:600; }
+  .variant-note { font-size:11.5px; color:var(--fg-4); margin:10px 2px 0; line-height:1.55; }
+
+  .pane { background:var(--bg-0); border:1px solid var(--line-1); border-radius:10px;
+          overflow:hidden; display:flex; flex-direction:column; height:470px; }
+  .pane-top { height:38px; border-bottom:1px solid var(--line-0); display:flex;
+              align-items:center; justify-content:center; flex:none; }
+  .seg { display:flex; background:var(--bg-3); border-radius:7px; padding:2px; }
+  .seg button { font:inherit; font-size:12px; font-weight:500; border:0; cursor:pointer;
+                padding:3px 12px; border-radius:5px; background:transparent; color:var(--fg-4); }
+  .seg button[aria-pressed="true"] { background:var(--bg-5); color:var(--fg-0);
+                                     box-shadow:0 1px 2px rgb(0 0 0 / .3); }
+  svg { display:block; }
+
+  /* centered empty state — the shape you already have, compressed */
+  .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+           text-align:center; padding:16px 20px; gap:0; }
+  .glyph { color:var(--fg-5); margin-bottom:10px; }
+  .empty h2 { font-size:15px; font-weight:600; letter-spacing:-0.012em; margin:0; line-height:1.3; }
+  .empty h2 .mono { font-size:13.5px; }
+  .facts { font-size:11.5px; color:var(--fg-4); margin:5px 0 0; line-height:1.5;
+           display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; }
+  .facts .sep { color:var(--line-3); }
+  .mono { font-family:var(--mono); letter-spacing:-0.01em; }
+  .dot { width:5px; height:5px; border-radius:50%; display:inline-block; }
+  .dot.clean { background:var(--good); }
+  .dot.dirty { background:var(--warn); }
+
+  .verbs { display:flex; gap:5px; margin-top:14px; justify-content:center; flex-wrap:wrap; }
+  .verb { font:inherit; font-size:12px; color:var(--fg-2); background:var(--bg-3);
+          border:1px solid var(--line-1); border-radius:7px; padding:4px 10px; cursor:pointer;
+          display:inline-flex; align-items:center; gap:6px; }
+  .verb:hover { background:var(--bg-5); border-color:var(--line-2); color:var(--fg-0); }
+  .verb svg { color:var(--fg-4); }
+
+  .ctx { display:flex; align-items:center; justify-content:center; gap:3px; margin-top:16px;
+         flex-wrap:wrap; }
+  .ctxbtn { font:inherit; font-size:11.5px; color:var(--fg-3); background:transparent; border:0;
+            border-radius:6px; padding:3px 7px; cursor:pointer; display:inline-flex;
+            align-items:center; gap:5px; }
+  .ctxbtn:hover { background:var(--bg-3); color:var(--fg-1); }
+  .ctxbtn svg { color:var(--fg-4); }
+  .ctxbtn .car { color:var(--fg-5); font-size:9px; }
+  .ctx .div { width:1px; height:11px; background:var(--line-1); margin:0 3px; }
+
+  .composer { margin:0 12px 12px; border:1px solid var(--line-2); border-radius:10px;
+              background:color-mix(in srgb, var(--bg-0) 50%, var(--bg-2)); flex:none; }
+  .composer textarea { width:100%; border:0; background:transparent; resize:none; color:var(--fg-0);
+                       font:inherit; font-size:13px; padding:10px 12px 2px; outline:0; line-height:1.45; }
+  .composer textarea::placeholder { color:var(--fg-5); }
+  .rail { display:flex; align-items:center; gap:5px; padding:5px 7px 6px 9px; }
+  .rail .hint { font-size:11px; color:var(--fg-5); }
+  .send { margin-left:auto; width:23px; height:23px; border-radius:6px; border:0; cursor:pointer;
+          background:var(--bg-6); color:var(--fg-3); display:grid; place-items:center; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Work — centered, compact</h1>
+  <p>Your existing centered composition, tightened. Glyph shrinks, the instruction sentence becomes a status line, and the three verbs it used to name become the controls.</p>
+</div>
+
+<div class="grid">
+
+  <!-- ── C1 ─────────────────────────────────────────── -->
+  <div>
+    <p class="variant-label">C1 · Status line</p>
+    <div class="pane">
+      <div class="pane-top"><div class="seg"><button>Chat</button><button aria-pressed="true">Work</button></div></div>
+      <div class="empty">
+        <div class="glyph">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l1.8 2h9.2A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-10Z"/>
+          </svg>
+        </div>
+        <h2>Ready on <span class="mono">main</span></h2>
+        <p class="facts">
+          <span class="dot clean"></span> clean
+          <span class="sep">·</span> <span class="mono">0324546</span> 2h ago
+          <span class="sep">·</span> no worktree
+        </p>
+        <div class="verbs">
+          <button class="verb"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 11.5 11 2.5l2.5 2.5-9 9H2v-2.5Z"/></svg>Change</button>
+          <button class="verb"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>Investigate</button>
+          <button class="verb"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2.5v11M2.5 8h11"/></svg>Build</button>
+        </div>
+        <div class="ctx">
+          <button class="ctxbtn">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/><path d="M2.5 6.5h11"/></svg>
+            claudex <span class="car">▾</span>
+          </button>
+          <button class="ctxbtn">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4.5" cy="4" r="1.7"/><circle cx="4.5" cy="12" r="1.7"/><circle cx="11.5" cy="4" r="1.7"/><path d="M4.5 5.7v4.6M6.2 4h3.6"/></svg>
+            <span class="mono">main</span> <span class="car">▾</span>
+          </button>
+          <span class="div"></span>
+          <button class="ctxbtn">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 5.5h11v8h-11z"/><path d="M6 5.5V3h7.5v8H13"/></svg>
+            Worktree
+          </button>
+        </div>
+      </div>
+      <div class="composer">
+        <textarea rows="2" placeholder="What should change?"></textarea>
+        <div class="rail">
+          <span class="hint">/ commands · @ files</span>
+          <button class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <p class="variant-note">Glyph 64px → 22px, title 28px → 15px. The instruction sentence is gone; in its place a one-line status you can read without moving your eyes. Verbs sit directly under it.</p>
+  </div>
+
+  <!-- ── C2 ─────────────────────────────────────────── -->
+  <div>
+    <p class="variant-label">C2 · No glyph</p>
+    <div class="pane">
+      <div class="pane-top"><div class="seg"><button>Chat</button><button aria-pressed="true">Work</button></div></div>
+      <div class="empty">
+        <h2 style="display:flex;align-items:center;gap:7px">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--fg-4)" stroke-width="1.5" stroke-linejoin="round"><path d="M2 5A1 1 0 0 1 3 4h2.7l1.2 1.4H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5Z"/></svg>
+          claudex <span style="color:var(--line-3);font-weight:400">/</span> <span class="mono">main</span>
+        </h2>
+        <p class="facts">
+          <span class="dot dirty"></span> 3 uncommitted
+          <span class="sep">·</span> 2 ahead of origin
+          <span class="sep">·</span> <span class="mono">0324546</span> 2h ago
+        </p>
+        <div class="verbs">
+          <button class="verb">Change</button>
+          <button class="verb">Investigate</button>
+          <button class="verb">Build</button>
+          <button class="verb" style="color:var(--fg-4)">Review my changes</button>
+        </div>
+        <div class="ctx">
+          <button class="ctxbtn">claudex <span class="car">▾</span></button>
+          <button class="ctxbtn"><span class="mono">main</span> <span class="car">▾</span></button>
+          <span class="div"></span>
+          <button class="ctxbtn">Worktree <span style="color:var(--fg-5)">off</span></button>
+        </div>
+      </div>
+      <div class="composer">
+        <textarea rows="2" placeholder="What should change?"></textarea>
+        <div class="rail">
+          <span class="hint">/ commands · @ files</span>
+          <button class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <p class="variant-note">Folder icon folds into the title, so the block loses a whole row. Repo and branch read as one path. Dirty state earns a fourth, quieter verb that only appears when there’s something to review.</p>
+  </div>
+
+  <!-- ── C3 ─────────────────────────────────────────── -->
+  <div>
+    <p class="variant-label">C3 · Three lines</p>
+    <div class="pane">
+      <div class="pane-top"><div class="seg"><button>Chat</button><button aria-pressed="true">Work</button></div></div>
+      <div class="empty">
+        <h2 style="font-size:14px">
+          <span class="mono" style="font-size:13px;color:var(--fg-1)">claudex/main</span>
+          <span style="color:var(--fg-4);font-weight:400"> — clean, 2h ago</span>
+        </h2>
+        <div class="verbs" style="margin-top:11px">
+          <button class="verb">Change</button>
+          <button class="verb">Investigate</button>
+          <button class="verb">Build</button>
+        </div>
+      </div>
+      <div class="composer">
+        <textarea rows="2" placeholder="What should change in claudex?"></textarea>
+        <div class="rail">
+          <button class="ctxbtn" style="padding-left:0"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4.5" cy="4" r="1.7"/><circle cx="4.5" cy="12" r="1.7"/><circle cx="11.5" cy="4" r="1.7"/><path d="M4.5 5.7v4.6M6.2 4h3.6"/></svg><span class="mono">main</span> <span class="car">▾</span></button>
+          <button class="ctxbtn">Worktree</button>
+          <button class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <p class="variant-note">The floor. One title line carrying repo, branch and freshness; three verbs; everything else moves into the composer rail where it also lives once you’re typing. Same controls, no duplicated row.</p>
+  </div>
+
+</div>
+</body>
+</html>

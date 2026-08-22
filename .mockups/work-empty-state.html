@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Work empty state — compact / info-forward</title>
+<style>
+  :root {
+    --bg-0:#0e1117; --bg-1:#11151b; --bg-2:#151920; --bg-3:#171b20;
+    --bg-4:#1b2028; --bg-5:#20242a; --bg-6:#2a2f36;
+    --line-0:#1d2229; --line-1:#272c34; --line-2:#3a414b; --line-3:#48525f;
+    --fg-0:#e6e4df; --fg-1:#c9c8c4; --fg-2:#a9aaa7; --fg-3:#969a9f; --fg-4:#666b72; --fg-5:#55595e;
+    --accent:#d97757; --accent-bright:#ef8451; --accent-ink:#1b0f09;
+    --good:#7fb069; --warn:#d9b45c;
+    --ui: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    --mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:#080a0e; color:var(--fg-0);
+    font-family:var(--ui); -webkit-font-smoothing:antialiased;
+    padding:28px 24px 60px;
+  }
+  .page-head { max-width:1420px; margin:0 auto 22px; }
+  .page-head h1 { font-size:15px; font-weight:600; letter-spacing:-0.01em; margin:0 0 4px; }
+  .page-head p { margin:0; font-size:12.5px; color:var(--fg-4); }
+  .grid { display:grid; grid-template-columns:repeat(3, minmax(360px, 1fr)); gap:22px; max-width:1420px; margin:0 auto; align-items:start; }
+
+  .variant-label { font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--fg-5); margin:0 0 8px 2px; font-weight:600; }
+  .variant-note { font-size:11.5px; color:var(--fg-4); margin:10px 2px 0; line-height:1.5; }
+
+  /* panel chrome mimicking the app pane */
+  .pane {
+    background:var(--bg-0); border:1px solid var(--line-1); border-radius:10px;
+    overflow:hidden; display:flex; flex-direction:column; min-height:520px;
+  }
+  .pane-top {
+    height:38px; border-bottom:1px solid var(--line-0); display:flex; align-items:center;
+    justify-content:center; gap:0; flex:none;
+  }
+  .seg { display:flex; background:var(--bg-3); border-radius:7px; padding:2px; }
+  .seg button {
+    font:inherit; font-size:12px; font-weight:500; border:0; cursor:pointer;
+    padding:3px 12px; border-radius:5px; background:transparent; color:var(--fg-4);
+  }
+  .seg button[aria-pressed="true"] { background:var(--bg-5); color:var(--fg-0); box-shadow:0 1px 2px rgb(0 0 0 / .3); }
+
+  .body { flex:1; display:flex; flex-direction:column; min-height:0; }
+  .composer {
+    margin:0 12px 12px; border:1px solid var(--line-2); border-radius:10px;
+    background:color-mix(in srgb, var(--bg-0) 50%, var(--bg-2));
+  }
+  .composer textarea {
+    width:100%; border:0; background:transparent; resize:none; color:var(--fg-0);
+    font:inherit; font-size:13.5px; padding:11px 12px 4px; outline:0; line-height:1.45;
+  }
+  .composer textarea::placeholder { color:var(--fg-5); }
+  .composer-rail {
+    display:flex; align-items:center; gap:6px; padding:6px 8px 7px 10px; flex-wrap:wrap;
+  }
+  .send {
+    margin-left:auto; width:24px; height:24px; border-radius:6px; border:0; cursor:pointer;
+    background:var(--bg-6); color:var(--fg-3); display:grid; place-items:center; flex:none;
+  }
+  svg { display:block; }
+
+  /* ── shared micro components ─────────────────────────── */
+  .chip {
+    display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--fg-2);
+    background:var(--bg-4); border:1px solid var(--line-1); border-radius:6px;
+    padding:2.5px 7px; cursor:pointer; white-space:nowrap;
+  }
+  .chip:hover { background:var(--bg-5); border-color:var(--line-2); }
+  .chip .dim { color:var(--fg-4); }
+  .chip.ghost { background:transparent; border-color:transparent; color:var(--fg-4); padding-left:4px; padding-right:4px; }
+  .chip.ghost:hover { background:var(--bg-4); }
+  .mono { font-family:var(--mono); font-size:11px; letter-spacing:-0.01em; }
+  .dot { width:5px; height:5px; border-radius:50%; flex:none; }
+  .dot.clean { background:var(--good); }
+  .dot.dirty { background:var(--warn); }
+
+  /* ── A: state header ─────────────────────────────────── */
+  .a-head { padding:14px 14px 0; }
+  .a-title { display:flex; align-items:baseline; gap:8px; margin:0 0 2px; }
+  .a-title b { font-size:15px; font-weight:650; letter-spacing:-0.015em; }
+  .a-title span { font-size:12px; color:var(--fg-4); }
+  .a-facts {
+    display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:10px; padding-bottom:13px;
+    border-bottom:1px solid var(--line-0);
+  }
+  .fact { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--fg-2); }
+  .fact .k { color:var(--fg-5); font-size:11px; }
+  .a-scroll { flex:1; overflow:auto; padding:12px 14px 0; }
+  .group-label {
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--fg-5);
+    font-weight:600; margin:0 0 7px;
+  }
+  .starters { display:flex; flex-direction:column; gap:1px; margin:0 -6px 16px; }
+  .starter {
+    display:flex; align-items:center; gap:9px; padding:7px 6px; border-radius:7px; cursor:pointer;
+    font-size:12.5px; color:var(--fg-1);
+  }
+  .starter:hover { background:var(--bg-3); }
+  .starter .g { color:var(--fg-4); flex:none; }
+  .starter .sub { color:var(--fg-5); font-size:11.5px; margin-left:auto; }
+  .recent { display:flex; flex-direction:column; gap:1px; margin:0 -6px; }
+  .rec {
+    display:flex; align-items:center; gap:8px; padding:6px; border-radius:7px; cursor:pointer;
+    font-size:12.5px; color:var(--fg-2);
+  }
+  .rec:hover { background:var(--bg-3); }
+  .rec .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rec .when { margin-left:auto; color:var(--fg-5); font-size:11px; flex:none; }
+  .pip { width:6px; height:6px; border-radius:2px; flex:none; }
+
+  /* ── B: ledger ───────────────────────────────────────── */
+  .b-wrap { flex:1; display:flex; flex-direction:column; padding:16px 14px 0; min-height:0; }
+  .b-line { display:flex; align-items:center; gap:7px; font-size:13px; margin-bottom:14px; }
+  .b-line b { font-weight:650; letter-spacing:-0.01em; }
+  .b-line .sep { color:var(--line-3); }
+  .b-line .br { color:var(--fg-2); }
+  .ledger {
+    border:1px solid var(--line-0); border-radius:9px; overflow:hidden; background:var(--bg-1);
+    margin-bottom:14px;
+  }
+  .lrow {
+    display:flex; align-items:center; gap:10px; padding:7px 11px; font-size:12px;
+    border-bottom:1px solid var(--line-0);
+  }
+  .lrow:last-child { border-bottom:0; }
+  .lrow .k { color:var(--fg-5); width:74px; flex:none; font-size:11.5px; }
+  .lrow .v { color:var(--fg-1); display:flex; align-items:center; gap:6px; min-width:0; }
+  .lrow .v em { font-style:normal; color:var(--fg-4); }
+  .lrow .act { margin-left:auto; font-size:11px; color:var(--fg-4); cursor:pointer; flex:none; }
+  .lrow .act:hover { color:var(--accent-bright); }
+  .badge { font-size:10.5px; padding:1px 5px; border-radius:4px; background:var(--bg-5); color:var(--fg-3); }
+  .badge.up { background:color-mix(in srgb, var(--good) 18%, var(--bg-5)); color:#a9d295; }
+  .badge.dirt { background:color-mix(in srgb, var(--warn) 18%, var(--bg-5)); color:#e0c988; }
+
+  /* ── C: prompt-first ─────────────────────────────────── */
+  .c-wrap { flex:1; display:flex; flex-direction:column; justify-content:flex-end; padding:16px 12px 0; }
+  .c-kicker { padding:0 4px; margin-bottom:auto; }
+  .c-kicker h2 { font-size:14px; font-weight:600; margin:0 0 3px; letter-spacing:-0.01em; }
+  .c-kicker p { font-size:12px; color:var(--fg-4); margin:0; line-height:1.5; }
+  .c-strip { display:flex; gap:6px; padding:0 4px; margin-bottom:9px; flex-wrap:wrap; }
+  .verb {
+    flex:1; min-width:0; text-align:left; border:1px solid var(--line-1); background:var(--bg-2);
+    border-radius:8px; padding:8px 9px; cursor:pointer; font:inherit;
+  }
+  .verb:hover { background:var(--bg-4); border-color:var(--line-2); }
+  .verb b { display:block; font-size:12px; font-weight:600; color:var(--fg-1); margin-bottom:2px; }
+  .verb span { display:block; font-size:10.5px; color:var(--fg-5); line-height:1.35; }
+  .c-context {
+    display:flex; align-items:center; gap:8px; padding:8px 4px 0; margin:0 4px 10px;
+    border-top:1px solid var(--line-0); font-size:11.5px; color:var(--fg-4); flex-wrap:wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Work — empty state, three compact directions</h1>
+  <p>Same pane width. Less hero, more state. Copy shifted from instructing you to reporting where you are.</p>
+</div>
+
+<div class="grid">
+
+  <!-- ══ A ══════════════════════════════════════════════ -->
+  <div>
+    <p class="variant-label">A · State header</p>
+    <div class="pane">
+      <div class="pane-top">
+        <div class="seg"><button>Chat</button><button aria-pressed="true">Work</button></div>
+      </div>
+      <div class="body">
+        <div class="a-head">
+          <div class="a-title"><b>claudex</b><span class="mono">~/workspace/claudex</span></div>
+          <div class="a-facts">
+            <div class="fact"><span class="k">branch</span>
+              <span class="mono" style="color:var(--fg-1)">main</span>
+              <span class="dot clean"></span><span style="color:var(--fg-4);font-size:11.5px">clean</span>
+            </div>
+            <div class="fact"><span class="k">head</span><span class="mono">0324546</span><span style="color:var(--fg-4);font-size:11.5px">2h ago</span></div>
+            <div class="fact"><span class="k">worktree</span><span style="color:var(--fg-4)">none</span></div>
+          </div>
+        </div>
+        <div class="a-scroll">
+          <p class="group-label">Start</p>
+          <div class="starters">
+            <div class="starter"><svg class="g" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 11.5 11 2.5l2.5 2.5-9 9H2v-2.5Z"/></svg>Change something<span class="sub">edits + tests</span></div>
+            <div class="starter"><svg class="g" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>Investigate<span class="sub">read-only</span></div>
+            <div class="starter"><svg class="g" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2v12M2 8h12"/></svg>Build new<span class="sub">in a worktree</span></div>
+          </div>
+          <p class="group-label">Picks up where you left off</p>
+          <div class="recent">
+            <div class="rec"><span class="pip" style="background:var(--good)"></span><span class="t">Give a row's rail only the slots its marks fill</span><span class="when">2h</span></div>
+            <div class="rec"><span class="pip" style="background:var(--fg-5)"></span><span class="t">Hold a thread's place in the workspace</span><span class="when">5h</span></div>
+            <div class="rec"><span class="pip" style="background:var(--fg-5)"></span><span class="t">Show a quiet reading note while review loads</span><span class="when">1d</span></div>
+          </div>
+        </div>
+        <div class="composer" style="margin-top:14px">
+          <textarea rows="2" placeholder="What should change?"></textarea>
+          <div class="composer-rail">
+            <span class="chip"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4.5 7 2l7 3-5 2.5L2 4.5Z"/></svg>claudex</span>
+            <span class="chip"><span class="mono">main</span></span>
+            <span class="chip ghost">+ worktree</span>
+            <button class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="variant-note">Repo state is the headline. Branch, cleanliness, and last commit answer “can I just start?” before you type. Recents make the pane useful, not just empty.</p>
+  </div>
+
+  <!-- ══ B ══════════════════════════════════════════════ -->
+  <div>
+    <p class="variant-label">B · Ledger</p>
+    <div class="pane">
+      <div class="pane-top">
+        <div class="seg"><button>Chat</button><button aria-pressed="true">Work</button></div>
+      </div>
+      <div class="body">
+        <div class="b-wrap">
+          <div class="b-line">
+            <b>claudex</b><span class="sep">/</span><span class="br mono">main</span>
+            <span class="badge dirt">3 uncommitted</span>
+            <span class="badge up">2 ahead</span>
+          </div>
+
+          <div class="ledger">
+            <div class="lrow"><span class="k">Last commit</span>
+              <span class="v"><span class="mono">0324546</span><em>Give a row's rail only the slots…</em></span>
+              <span class="act">log</span>
+            </div>
+            <div class="lrow"><span class="k">Changed</span>
+              <span class="v"><span class="mono">ConversationTimeline.tsx</span><em>+2 more</em></span>
+              <span class="act">diff</span>
+            </div>
+            <div class="lrow"><span class="k">Worktree</span>
+              <span class="v"><em>running in the project checkout</em></span>
+              <span class="act">isolate</span>
+            </div>
+            <div class="lrow"><span class="k">Threads</span>
+              <span class="v">3 active <em>· 1 waiting on you</em></span>
+              <span class="act">open</span>
+            </div>
+          </div>
+
+          <p class="group-label">Common next moves</p>
+          <div style="display:flex; gap:5px; flex-wrap:wrap; margin-bottom:14px">
+            <span class="chip">Review my 3 changed files</span>
+            <span class="chip">Write tests for the last commit</span>
+            <span class="chip">Explain this module</span>
+          </div>
+        </div>
+
+        <div class="composer">
+          <textarea rows="3" placeholder="Describe the change. Files, tests, and commits follow."></textarea>
+          <div class="composer-rail">
+            <span class="chip"><span class="dot dirty"></span><span class="mono">main</span> <span class="dim">+3</span></span>
+            <span class="chip ghost">worktree off</span>
+            <button class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="variant-note">A four-row ledger of everything an agent would ask about anyway, each row carrying its own verb. Densest of the three; reads like <span class="mono">git status</span> with manners.</p>
+  </div>
+
+  <!-- ══ C ══════════════════════════════════════════════ -->
+  <div>
+    <p class="variant-label">C · Prompt-first</p>
+    <div class="pane">
+      <div class="pane-top">
+        <div class="seg"><button>Chat</button><button aria-pressed="true">Work</button></div>
+      </div>
+      <div class="body">
+        <div class="c-wrap">
+          <div class="c-kicker">
+            <h2>claudex is ready on <span class="mono" style="color:var(--fg-0)">main</span></h2>
+            <p>Working tree clean · last commit 2h ago · no worktree</p>
+          </div>
+
+          <div class="c-strip">
+            <button class="verb"><b>Change</b><span>Edit code and run the tests</span></button>
+            <button class="verb"><b>Investigate</b><span>Read, trace, explain</span></button>
+            <button class="verb"><b>Build</b><span>New feature, isolated</span></button>
+          </div>
+
+          <div class="c-context">
+            <span class="chip"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="9" rx="1.5"/><path d="M2 6.5h5"/></svg>claudex <span class="dim">▾</span></span>
+            <span class="chip"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="4" cy="4" r="1.8"/><circle cx="4" cy="12" r="1.8"/><circle cx="12" cy="4" r="1.8"/><path d="M4 5.8v4.4M5.8 4H10"/></svg><span class="mono">main</span> <span class="dim">▾</span></span>
+            <span class="chip ghost">Worktree <span class="dim">off</span></span>
+          </div>
+
+          <div class="composer">
+            <textarea rows="3" placeholder="e.g. make the empty state show repo status inline"></textarea>
+            <div class="composer-rail">
+              <span class="chip ghost">/ commands</span>
+              <span class="chip ghost">@ files</span>
+              <button class="send"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 13V3m0 0L3.5 7.5M8 3l4.5 4.5"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="variant-note">Closest to today’s shape but the copy states a fact instead of giving instructions, and the three verbs from the old sentence become buttons. Lightest change to ship.</p>
+  </div>
+
+</div>
+</body>
+</html>
