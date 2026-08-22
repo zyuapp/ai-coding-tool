@@ -2967,7 +2967,6 @@ pre {
 .setting-icon, .setting-check { display: grid; place-items: center; }
 .setting-icon { color: var(--muted-strong); }
 .setting-check { color: var(--ink-faint); }
-.setting-option.elevated strong, .setting-option.elevated small, .setting-option.elevated .setting-icon { color: var(--accent-bright); }
 .composer-actions { display: flex; align-items: center; gap: 12px; }
 .context-usage {
   position: relative;

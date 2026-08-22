@@ -3,11 +3,11 @@ import { useRef, useState } from "react";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
-type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: LucideIcon; elevated?: boolean };
+type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: LucideIcon };
 
 // ExecutionPolicy still accepts "plan"; it is left out of the picker because nobody uses it.
 const modes: Choice<ExecutionPolicy>[] = [
-  { value: "autonomous", label: "Auto mode", short: "Auto", description: "Only ask for potentially unsafe actions", icon: Zap, elevated: true },
+  { value: "autonomous", label: "Auto mode", short: "Auto", description: "Only ask for potentially unsafe actions", icon: Zap },
   { value: "allow-edits", label: "Allow all edit", short: "Edits", description: "Apply file edits without asking", icon: FileCheck2 },
   { value: "confirm", label: "Let me decide", short: "Confirm", description: "Ask before using tools or changing files", icon: Hand },
 ];
@@ -20,7 +20,7 @@ const models: Choice<AgentModel>[] = [
 ];
 
 const efforts: Choice<AgentEffort>[] = [
-  { value: "max", label: "Max effort", short: "Max", description: "Everything the model has, slowest", icon: Flame, elevated: true },
+  { value: "max", label: "Max effort", short: "Max", description: "Everything the model has, slowest", icon: Flame },
   { value: "xhigh", label: "Extra high effort", short: "Extra high", description: "Deeper than high, where the model offers it", icon: Signal },
   { value: "high", label: "High effort", short: "High", description: "Deep reasoning", icon: SignalHigh },
   { value: "medium", label: "Medium effort", short: "Medium", description: "Moderate thinking", icon: SignalMedium },
@@ -56,7 +56,7 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
           role="option"
           aria-selected={item.value === value}
           autoFocus={item.value === value}
-          className={`setting-option ${item.elevated ? "elevated" : ""}`}
+          className="setting-option"
           key={item.value}
           onClick={(event) => {
             onChange(item.value);
