@@ -1387,16 +1387,19 @@ pre {
   grid-template-columns: 260px minmax(0, 1fr);
   background: var(--canvas);
 }
+/** The way back and the title stay put; only the list of pages scrolls, so a short window never buries them. */
 .settings-sidebar {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   border-right: 1px solid var(--line);
   padding: 0 12px 18px;
   background: var(--sidebar);
 }
 .settings-traffic-space { height: 48px; flex: 0 0 auto; -webkit-app-region: drag; }
 .settings-back {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1412,7 +1415,8 @@ pre {
   -webkit-app-region: no-drag;
 }
 .settings-back:hover { background: var(--wash); color: var(--ink-soft); }
-.settings-sidebar h1 { margin: 26px 10px 22px; color: var(--ink); font-size: var(--text-display); font-weight: 610; letter-spacing: -0.03em; }
+.settings-sidebar h1 { flex: 0 0 auto; margin: 26px 10px 22px; color: var(--ink); font-size: var(--text-display); font-weight: 610; letter-spacing: -0.03em; }
+.settings-sidebar nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .settings-sidebar nav button {
   width: 100%;
   display: flex;
@@ -1437,6 +1441,12 @@ pre {
 }
 .settings-main > * { max-width: 780px; margin-inline: auto; }
 .settings-page-heading { margin-bottom: 48px; }
+/** A short window spends its height on the pages themselves rather than on the space above them. */
+@media (max-height: 660px) {
+  .settings-sidebar h1 { margin: 14px 10px 12px; font-size: var(--text-heading); }
+  .settings-main { padding-block: 36px; }
+  .settings-page-heading { margin-bottom: 28px; }
+}
 .settings-page-heading h2 { margin: 0; color: var(--ink); font-size: 28px; font-weight: 610; letter-spacing: -0.035em; }
 .settings-page-heading p { margin: 9px 0 0; color: var(--quiet-strong); font-size: var(--text-content); line-height: 1.5; }
 .settings-group {
