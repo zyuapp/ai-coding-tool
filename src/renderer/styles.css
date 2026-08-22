@@ -169,6 +169,7 @@
   --shadow-drag: 0 10px 26px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-sidebar: 20px 0 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-tooltip: 0 12px 32px rgb(var(--p-shadow) / calc(0.32 * var(--p-shadow-scale)));
+  --shadow-thumb: 0 1px 2px rgb(var(--p-shadow) / calc(0.4 * var(--p-shadow-scale))), 0 4px 10px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
   --scrim: rgb(var(--p-scrim) / 0.85);
   --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
 
@@ -1497,26 +1498,25 @@ pre {
 .theme-choice-name svg { color: var(--accent); flex: none; }
 
 /** One axis of a two-axis choice: which ground, or which of a handful of named modes. */
-.segmented { display: flex; gap: 0; }
+/** A recessed track the chosen segment sits raised in, so the choice reads before the label does. */
+.segmented { display: flex; gap: 2px; border-radius: 11px; padding: 3px; background: var(--control-soft); box-shadow: inset 0 0 0 1px var(--line-mid); }
 .segmented button {
   display: flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line-strong);
-  border-left-width: 0;
-  border-radius: 0;
-  padding: 8px 16px;
-  background: var(--control-soft);
-  color: var(--muted-strong);
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 15px;
+  background: transparent;
+  color: var(--quiet-strong);
   font-size: var(--text-meta);
   font-weight: 560;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
-.segmented button:first-child { border-left-width: 1px; border-radius: 9px 0 0 9px; }
-.segmented button:last-child { border-radius: 0 9px 9px 0; }
-.segmented button:hover { background: var(--surface-hover); color: var(--ink-dim); }
-.segmented button.chosen { border-color: var(--accent); background: var(--surface-active); color: var(--ink); }
-.segmented button.chosen + button { border-left-color: var(--accent); }
+.segmented button:hover { color: var(--ink-dim); }
+.segmented button.chosen { background: var(--control); color: var(--ink); box-shadow: var(--shadow-thumb); }
+.segmented button.chosen svg { color: var(--accent); }
 .segmented button svg { flex: none; }
 
 /** One size as `− 15 +`, where the number is a field a size can be typed straight into. */
