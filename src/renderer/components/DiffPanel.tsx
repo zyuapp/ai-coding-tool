@@ -70,9 +70,10 @@ function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
   return <FilePen size={15} />;
 }
 
-function summaryMessage(result: DiffSummaryResult | null, workspaceId: string | undefined) {
+function summaryMessage(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined) {
   if (!workspaceId) return "Open a project to review changes";
-  if (!result) return null;
+  /** A first read has nothing to draw, so one quiet line says why the list is not there yet. */
+  if (!result) return loading ? "Reading the comparison…" : null;
   if (result.status === "error") return result.message;
   if (result.status === "unknown") return "Workspace is no longer registered";
   if (result.status === "unavailable") return `Workspace is ${result.reason}`;
@@ -545,7 +546,7 @@ export function DiffPanel({
   };
 
   const viewedCount = files.filter((file) => diff.viewed[file.path]).length;
-  const message = summaryMessage(diff.result, workspaceId);
+  const message = summaryMessage(diff.result, diff.loading, workspaceId);
   const base = diff.range.kind === "uncommitted" ? HEAD_SIDE.value : diff.range.base;
   const compare = diff.range.kind === "uncommitted" ? WORKING_SIDE.value : diff.range.compare ?? WORKING_SIDE.value;
   const rangeFrom = (nextBase: string, nextCompare: string): DiffRange =>
