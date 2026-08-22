@@ -42,7 +42,7 @@ function ChoiceMenu<T extends string>({ label, heading, choices, value, onChange
   const close = () => { if (details.current) details.current.open = false; };
   useDismissibleLayer(open, [details], close, summary);
 
-  return <details ref={details} className="setting-menu" onToggle={(event) => setOpen(event.currentTarget.open)}>
+  return <details ref={details} className={`setting-menu ${selected.elevated ? "elevated" : ""}`} onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary ref={summary} aria-label={label}>
       <span className="setting-summary-icon" aria-hidden="true"><SelectedIcon size={16} /></span>
       <span className="setting-summary-label">{selected.label}</span>
