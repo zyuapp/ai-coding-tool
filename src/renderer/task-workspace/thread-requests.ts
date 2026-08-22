@@ -106,7 +106,7 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       return ok({ kind: "snapshot", snapshot: { terminalId: terminal.id, ...record, ...text } });
     }
     if (request.op === "notify") return ok(await raiseFinding(host, request.taskId, request.report));
-    if (request.op === "nothing-to-report") return ok(await reportNothing(host, request.taskId));
+    if (request.op === "nothing-to-report") return ok(await reportNothing(host, request.taskId, request.checked));
     const { command } = request;
     const before = host.state();
     /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
@@ -160,10 +160,10 @@ async function raiseFinding(host: ThreadRequestHost, taskId: string, report: Fin
 }
 
 /** A run saying it looked and found nothing, which is the only thing that earns a quiet tick silence. */
-async function reportNothing(host: ThreadRequestHost, taskId: string): Promise<FindingResult> {
+async function reportNothing(host: ThreadRequestHost, taskId: string, checked: string): Promise<FindingResult> {
   const active = scheduledRun(host.state(), taskId);
   if (!active) return { recorded: false, note: UNSCHEDULED };
-  await host.dispatch({ type: "automation.nothing-to-report", taskId });
+  await host.dispatch({ type: "automation.nothing-to-report", taskId, checked });
   if (active.notified) return { recorded: false, note: "This run already raised a finding, so it surfaces anyway and what it found stands." };
   if (!active.quiet) return { recorded: true, note: "Noted. This automation has no quiet sentence, so every run of it surfaces, this one included." };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };

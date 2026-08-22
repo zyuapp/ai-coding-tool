@@ -6,6 +6,7 @@ export type AutomationPanelProps = {
   automation: AutomationView | null;
   /** When a run on this thread last found something, which is the only proof a quiet schedule works. */
   lastFoundAt: number | null;
+  lastChecked: { at: number; note: string } | null;
   onUpdate: (patch: AutomationPatch) => void;
   onDelete: () => void;
   onRunNow: () => void;
@@ -39,11 +40,13 @@ export function formatCountdown(nextRunAt: number, at: number) {
 }
 
 /** What the panel has to answer: is this schedule alive, and has it ever found anything. */
-export function automationMeta(automation: AutomationView, lastFoundAt: number | null, at: number) {
+export function automationMeta(automation: AutomationView, lastFoundAt: number | null, lastChecked: { at: number; note: string } | null, at: number) {
   return [
     `${automation.runCount} ${automation.runCount === 1 ? "run" : "runs"}`,
     lastRunLabel(automation, at),
     lastFoundAt ? `found something ${formatMoment(lastFoundAt, at)}` : "nothing found yet",
+    /** A schedule that only ever settles in silence has nothing else to prove it is still looking. */
+    ...(lastChecked ? [`checked ${lastChecked.note} ${formatMoment(lastChecked.at, at)}`] : []),
     ...(automation.overrunCount ? [`${automation.overrunCount} dropped for overrunning`] : []),
   ].join(" · ");
 }
@@ -55,7 +58,7 @@ export function lastRunLabel(automation: AutomationView, at: number) {
   return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
 }
 
-export function AutomationPanel({ automation, lastFoundAt, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
+export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
   const [schedule, setSchedule] = useState(automation?.schedule ?? "");
   const [prompt, setPrompt] = useState(automation?.prompt ?? "");
   const [now, setNow] = useState(() => Date.now());
@@ -133,7 +136,7 @@ export function AutomationPanel({ automation, lastFoundAt, onUpdate, onDelete, o
 
         <p className="automation-meta">
           <AlarmClock size={13} aria-hidden="true" />
-          <span>{automationMeta(automation, lastFoundAt, now)}</span>
+          <span>{automationMeta(automation, lastFoundAt, lastChecked, now)}</span>
         </p>
 
         <div className="automation-actions">

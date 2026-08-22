@@ -190,6 +190,8 @@ export type Task = {
   findings?: TaskFinding[];
   /** When a run on this thread last found something. A dismissal files the findings away, not this. */
   lastFindingAt?: number;
+  /** What the last tick to settle in silence says it looked at, which is a silent schedule's proof of life. */
+  lastChecked?: { at: number; note: string };
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**
@@ -559,6 +561,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.outcomeUnread === undefined || value.outcomeUnread === true) &&
     (value.findings === undefined || Array.isArray(value.findings) && value.findings.every(isTaskFinding)) &&
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
+    (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&

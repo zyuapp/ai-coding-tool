@@ -153,10 +153,11 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
 }
 
 /** A run saying it looked and found nothing. What it says never retracts what it already surfaced. */
-export function withNothingToReport<T extends RunTransitionState>(state: T, taskId: string): T {
+export function withNothingToReport<T extends RunTransitionState>(state: T, taskId: string, checked: string, at: number): T {
   const active = scheduledRun(state, taskId);
   if (!active) return state;
-  return { ...state, activeRuns: { ...state.activeRuns, [taskId]: { ...active, reportedNothing: true } } };
+  const acknowledged = { ...state, activeRuns: { ...state.activeRuns, [taskId]: { ...active, reportedNothing: true } } };
+  return applyTask(acknowledged, taskId, (task) => ({ ...task, lastChecked: { at, note: checked } }));
 }
 
 /**

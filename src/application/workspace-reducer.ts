@@ -1453,7 +1453,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return raisedFinding(state, input);
 
     case "automation.nothing-to-report":
-      return settled(withNothingToReport(state, input.taskId));
+      return settled(withNothingToReport(state, input.taskId, input.checked, Date.now()));
 
     case "automation.save": {
       const taskId = targetId(state, input.taskId);

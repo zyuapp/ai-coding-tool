@@ -228,6 +228,7 @@ export function App() {
         <AutomationPanel
           automation={workspace.automation}
           lastFoundAt={workspace.lastFoundAt}
+          lastChecked={workspace.lastChecked}
           onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
           onDelete={() => void workspace.actions.deleteAutomation()}
           onRunNow={() => void workspace.actions.runAutomationNow()}

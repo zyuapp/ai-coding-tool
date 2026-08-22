@@ -137,7 +137,7 @@ export type AutomationCommand =
    */
   | { type: "automation.notify"; taskId: string; headline: string; detail?: string; key?: string }
   /** A scheduled run saying it looked and found nothing, which is the only thing that earns silence. */
-  | { type: "automation.nothing-to-report"; taskId: string }
+  | { type: "automation.nothing-to-report"; taskId: string; checked: string }
   | { type: "automation.save"; taskId?: string; draft: Omit<AutomationDraft, "taskId"> }
   | { type: "automation.update"; taskId?: string; patch: AutomationPatch }
   | { type: "automation.delete"; taskId?: string }

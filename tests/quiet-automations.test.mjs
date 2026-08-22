@@ -186,9 +186,20 @@ test("a tick that surfaced nothing leaves the thread exactly where it stood", ()
   assert.deepEqual(activitySections(settled.tasks, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
 });
 
+test("what a silent tick looked at is kept, since it is all such a schedule ever shows", () => {
+  const settled = settleRun(said(midRun(), { type: "automation.nothing-to-report", taskId: "task-a", checked: "the last hour of Datadog errors" })).state;
+  const [thread] = settled.tasks;
+
+  assert.equal(thread.lastChecked.note, "the last hour of Datadog errors");
+  assert.ok(thread.lastChecked.at > 0);
+  assert.equal(thread.outcome, undefined, "keeping what it checked is not the same as surfacing");
+  assert.match(automationMeta({ runCount: 3, lastStatus: "succeeded", lastStatusAt: thread.lastChecked.at }, null, thread.lastChecked, thread.lastChecked.at),
+    /nothing found yet · checked the last hour of Datadog errors /);
+});
+
 test("a quiet tick that found something bumps the thread and leads the list", () => {
   const raised = said(midRun(), { type: "automation.notify", taskId: "task-a", headline: "5xx on checkout" });
-  const settled = settleRun(said(raised, { type: "automation.nothing-to-report", taskId: "task-a" })).state;
+  const settled = settleRun(said(raised, { type: "automation.nothing-to-report", taskId: "task-a", checked: "the last hour of errors" })).state;
   const [thread] = settled.tasks;
 
   assert.equal(thread.outcome, "finished", "a run that spoke cannot be retracted into silence");
@@ -513,8 +524,8 @@ test("the automation panel says whether the schedule is alive and whether it has
   const at = Date.parse("2026-08-17T09:00:00Z");
   const automation = { id: "a", taskId: "task-a", prompt: "Poll", schedule: "*/30 * * * *", paused: false, createdAt: 1, updatedAt: 1, runCount: 48, lastRunAt: at - 60_000, lastStatusAt: at - 60_000, lastStatus: "succeeded", nextRunAt: at + 60_000, overrunCount: 2 };
 
-  assert.match(automationMeta(automation, null, at), /^48 runs · succeeded at .* · nothing found yet · 2 dropped for overrunning$/);
-  assert.match(automationMeta(automation, { id: "f", headline: "5xx", at: at - 120_000 }, at), /found something /);
+  assert.match(automationMeta(automation, null, null, at), /^48 runs · succeeded at .* · nothing found yet · 2 dropped for overrunning$/);
+  assert.match(automationMeta(automation, at - 120_000, null, at), /found something /);
 });
 
 test("the panel shows what a quiet schedule surfaces for, and lets the user take the quiet away", async () => {

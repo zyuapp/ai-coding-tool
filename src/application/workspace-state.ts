@@ -812,6 +812,8 @@ export function deriveView(state: WorkspaceState) {
     schedules: new Map(state.automations.map((automation) => [automation.taskId, automation])),
     /** When a run on this thread last found something, which is what the automation panel reports. */
     lastFoundAt: currentTask?.lastFindingAt ?? null,
+    /** What its last silent tick looked at, which is all a schedule that never speaks has to show. */
+    lastChecked: currentTask?.lastChecked ?? null,
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktreeId).map((task) => task.id)),
     /** The checkouts a project has, each with the threads that claim it. */
     worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({
