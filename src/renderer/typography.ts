@@ -51,27 +51,14 @@ function settle(choice: TypographyChoice) {
   };
 }
 
-/** The choice the window has actually settled on, which a preview paints over and then puts back. */
-let chosen: TypographyChoice | null = null;
-
 /**
  * The choice lives on the root; the stylesheet does the rest. What CSS cannot reach is redrawn
  * here: xterm holds the font it was built with, and Mermaid bakes one into its SVG.
  */
 export function applyTypography(choice: TypographyChoice): void {
-  chosen = choice;
   const changed = settle(choice);
   if (changed.monoFont || changed.terminalSize) restyleTerminalViews();
   if (changed.uiFont || changed.monoFont) redrawDiagrams();
-}
-
-/**
- * Paints type the pointer is only resting on, and passing nothing puts the settled choice back.
- * The picker covers the window, so nothing behind it is redrawn until the choice is actually made.
- */
-export function previewTypography(preview: Partial<TypographyChoice> | null): void {
-  if (!chosen) return;
-  settle({ ...chosen, ...preview });
 }
 
 /** Runs before the first render, so the window never paints type the user has already left. */

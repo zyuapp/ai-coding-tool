@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal, Type } from "lucide-react";
+import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
@@ -7,12 +7,11 @@ import type { CaptureOptions } from "../../domain/capture";
 import { MAC } from "../platform";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
-import { TextSettings } from "./TextSettings";
-import { ThemeSettings } from "./ThemeSettings";
+import { AppearanceSettings } from "./AppearanceSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
 
-export type SettingsSection = "theme" | "text" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
+export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -199,13 +198,9 @@ export function SettingsPanel({
         </button>
         <h1>Settings</h1>
         <nav aria-label="Settings sections">
-          <button className={section === "theme" ? "active" : ""} type="button" aria-current={section === "theme" ? "page" : undefined} onClick={() => setSection("theme")}>
+          <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => setSection("appearance")}>
             <Palette size={17} aria-hidden="true" />
-            <span>Theme</span>
-          </button>
-          <button className={section === "text" ? "active" : ""} type="button" aria-current={section === "text" ? "page" : undefined} onClick={() => setSection("text")}>
-            <Type size={17} aria-hidden="true" />
-            <span>Text</span>
+            <span>Appearance</span>
           </button>
           <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => setSection("general")}>
             <SlidersHorizontal size={17} aria-hidden="true" />
@@ -234,19 +229,17 @@ export function SettingsPanel({
         </nav>
       </aside>
 
-      {section === "theme" && (
+      {section === "appearance" && (
       <main className="settings-main">
-        <ThemeSettings theme={theme} themeMode={themeMode} onSetFamily={onSetThemeFamily} onSetMode={onSetThemeMode} />
-      </main>
-      )}
-
-      {section === "text" && (
-      <main className="settings-main">
-        <TextSettings
+        <AppearanceSettings
+          theme={theme}
+          themeMode={themeMode}
           uiFont={uiFont}
           monoFont={monoFont}
           readingSize={readingSize}
           terminalSize={terminalSize}
+          onSetThemeFamily={onSetThemeFamily}
+          onSetThemeMode={onSetThemeMode}
           onSetUiFont={onSetUiFont}
           onSetMonoFont={onSetMonoFont}
           onSetReadingSize={onSetReadingSize}

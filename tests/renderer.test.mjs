@@ -997,35 +997,67 @@ async function openSettingsPage(view, name) {
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === name).click(); });
 }
 
-test("the text page sets the families, and the sizes it sets are px the window writes onto the root", async () => {
+test("the appearance page sets the families through its pickers, and the sizes are px the window writes onto the root", async () => {
   localStorage.clear();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
-  await openSettingsPage(view, "Text");
+  await openSettingsPage(view, "Appearance");
 
   const root = dom.window.document.documentElement;
   assert.equal(root.dataset.uiFont, "system");
   assert.equal(root.style.getPropertyValue("--text-content"), "15px");
 
-  const card = (family) => [...view.container.querySelectorAll(".theme-choice")].find((choice) => choice.textContent.includes(family));
-  await act(async () => { card("Inter").click(); });
+  const control = (label) => view.container.querySelector(`button[aria-label="${label}"]`);
+  const pick = async (picker, name) => {
+    await act(async () => { control(picker).click(); });
+    await act(async () => { [...view.container.querySelectorAll(".font-select-list button")].find((option) => option.textContent.includes(name)).click(); });
+  };
+  await pick("Interface font", "Inter");
   assert.equal(root.dataset.uiFont, "inter");
-  await act(async () => { card("JetBrains Mono").click(); });
+  assert.equal(view.container.querySelector(".font-select-popover"), null, "choosing closes the picker");
+  await pick("Code and terminal font", "JetBrains Mono");
   assert.equal(root.dataset.monoFont, "jetbrains-mono");
 
-  const step = (label) => view.container.querySelector(`button[aria-label="${label}"]`);
-  const slider = (label) => view.container.querySelector(`input[aria-label="${label}"]`);
-  for (let click = 0; click < 4; click += 1) await act(async () => { step("Larger conversation text size").click(); });
-  await act(async () => { step("Smaller terminal text size").click(); });
+  for (let click = 0; click < 4; click += 1) await act(async () => { control("Larger conversation text size").click(); });
+  await act(async () => { control("Smaller terminal text size").click(); });
   assert.equal(root.style.getPropertyValue("--text-content"), "19px");
   assert.equal(root.style.getPropertyValue("--terminal-text"), "11px");
-  assert.equal(slider("Conversation text size").value, "19", "the slider follows the steppers, since both name one size");
 
   const stored = JSON.parse(localStorage.getItem("claudex.view-preferences.v1"));
   assert.deepEqual(
     { uiFont: stored.uiFont, monoFont: stored.monoFont, readingSize: stored.readingSize, terminalSize: stored.terminalSize },
     { uiFont: "inter", monoFont: "jetbrains-mono", readingSize: 19, terminalSize: 11 },
   );
+  await view.unmount();
+});
+
+test("a size typed into the field is clamped to the range, and Escape abandons the typing", async () => {
+  localStorage.clear();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "Appearance");
+
+  const root = dom.window.document.documentElement;
+  const field = view.container.querySelector('input[aria-label="Conversation text size"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set;
+  const type = async (text) => {
+    await act(async () => {
+      setValue.call(field, text);
+      field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+    });
+  };
+  const leave = async () => { await act(async () => { field.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true })); }); };
+
+  await type("40");
+  await leave();
+  assert.equal(root.style.getPropertyValue("--text-content"), "24px", "a typed size lands on the nearest px the range allows");
+  assert.equal(field.value, "24", "the field settles on the size that was kept");
+
+  await type("13");
+  await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+  await leave();
+  assert.equal(root.style.getPropertyValue("--text-content"), "24px", "Escape keeps the settled size");
+  assert.equal(JSON.parse(localStorage.getItem("claudex.view-preferences.v1")).readingSize, 24);
   await view.unmount();
 });
 
@@ -1040,11 +1072,11 @@ test("a size stored as a rung the app used to offer reopens at the px that rung 
   await view.unmount();
 });
 
-test("the theme page picks a palette and a ground separately, and reaching one paints the window", async () => {
+test("the appearance page picks a theme and a ground separately, and each click paints the window", async () => {
   localStorage.clear();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
-  await openSettingsPage(view, "Theme");
+  await openSettingsPage(view, "Appearance");
 
   const root = dom.window.document.documentElement;
   assert.equal(root.dataset.theme, "claudex-dark");
@@ -1052,17 +1084,10 @@ test("the theme page picks a palette and a ground separately, and reaching one p
   const card = (family) => [...view.container.querySelectorAll(".theme-choice")].find((choice) => choice.textContent.includes(family));
   const mode = (label) => [...view.container.querySelectorAll(".segmented button")].find((button) => button.textContent === label);
 
-  /** Reaching a palette paints it, and leaving puts the settled one back without storing either. */
-  await act(async () => { card("Gruvbox").focus(); });
-  assert.equal(root.dataset.theme, "gruvbox-dark");
-  await act(async () => { card("Gruvbox").blur(); });
-  assert.equal(root.dataset.theme, "claudex-dark");
-  assert.equal(localStorage.getItem("claudex.view-preferences.v1"), null);
-
   await act(async () => { card("Gruvbox").click(); });
   assert.equal(root.dataset.theme, "gruvbox-dark");
 
-  /** The ground is the other axis: it moves within the palette rather than replacing it. */
+  /** The ground is the other axis: it moves within the theme rather than replacing it. */
   await act(async () => { mode("Light").click(); });
   assert.equal(root.dataset.theme, "gruvbox-light");
 

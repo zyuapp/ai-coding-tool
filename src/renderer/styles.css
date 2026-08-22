@@ -1464,9 +1464,7 @@ pre {
  */
 .theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding-bottom: 22px; }
 .theme-choices.compact { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 11px; }
-.theme-choices.compact .theme-preview, .theme-choices.compact .font-preview { height: 58px; }
-.theme-choices.compact .font-preview { gap: 4px; padding: 0 10px; }
-.theme-choices.compact .font-preview strong { font-size: 15px; }
+.theme-choices.compact .theme-preview { height: 58px; }
 .theme-choices.compact .theme-choice-name { padding: 7px 9px; }
 .theme-choice {
   display: flex;
@@ -1496,22 +1494,6 @@ pre {
 }
 .theme-choice-name svg { color: var(--accent); flex: none; }
 
-/** The card's own family reaches the sample, since the card carries the attribute that sets it. */
-.font-preview {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 7px;
-  height: 84px;
-  padding: 0 13px;
-  background: var(--canvas);
-}
-.font-preview strong { color: var(--ink); font-size: 17px; font-weight: 560; letter-spacing: -0.01em; }
-.font-preview em { color: var(--quiet-strong); font-size: var(--text-meta); font-style: normal; }
-.font-preview em.added { color: var(--success); }
-.theme-choice[data-ui-font] .font-preview { font-family: var(--ui-font); }
-.theme-choice[data-mono-font] .font-preview { font-family: var(--mono); }
-
 /** One axis of a two-axis choice: which ground, or which of a handful of named modes. */
 .segmented { display: flex; gap: 0; }
 .segmented button {
@@ -1535,9 +1517,7 @@ pre {
 .segmented button.chosen + button { border-left-color: var(--accent); }
 .segmented button svg { flex: none; }
 
-/** A size in px rather than on a rung with a name, so the range is the range. */
-.size-slider { display: flex; align-items: center; gap: 10px; }
-.size-slider input[type="range"] { width: 108px; accent-color: var(--accent); cursor: pointer; }
+/** One size as `− 15 +`, where the number is a field a size can be typed straight into. */
 .size-stepper { display: flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--control-soft); }
 .size-stepper button {
   display: flex;
@@ -1551,56 +1531,75 @@ pre {
 }
 .size-stepper button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
 .size-stepper button:disabled { color: var(--quiet); cursor: default; }
-.size-stepper output {
-  min-width: 40px;
+.size-stepper input {
+  width: 30px;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: var(--ink-dim);
   font-size: var(--text-meta);
   font-weight: 560;
   font-variant-numeric: tabular-nums;
-  text-align: center;
+  text-align: right;
 }
-.size-slider .size-reset:disabled { border-color: var(--line); color: var(--quiet); }
+.size-stepper input:focus { outline: none; color: var(--ink); }
+.size-stepper > span { padding-right: 3px; color: var(--quiet-strong); font-size: var(--text-meta); }
 
 /** Drawn from the same tokens the choice sets, so the sample is the size it is offering. */
 .setting-row p.size-sample { margin-top: 9px; color: var(--ink-soft); font-size: var(--text-content); line-height: 1.5; }
 .setting-row p.size-sample.terminal { font: var(--terminal-text)/1.5 var(--mono); color: var(--code-ink); }
 
-/** What the page adds up to, so the choices in effect read without scrolling to find their ticks. */
-.settings-page-heading p.settings-summary {
-  margin-top: 12px;
-  color: var(--muted-strong);
-  font-size: var(--text-meta);
-  font-weight: 560;
-}
-
-/** The families this machine has, which are only names until the user asks for them. */
-.installed-fonts { padding-bottom: 22px; }
-.installed-fonts button {
+/**
+ * One font as one control: the trigger wears the face it names, and the popover under it filters
+ * the bundled families and the machine's own. A face comes from the attribute its control carries.
+ */
+.font-select { position: relative; }
+.font-select [data-ui-font] { font-family: var(--ui-font); }
+.font-select [data-mono-font] { font-family: var(--mono); }
+.font-select > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 176px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 7px 11px;
   background: var(--control);
   color: var(--ink-dim);
-  font-size: var(--text-meta);
-  font-weight: 560;
+  font-size: var(--text-control);
+  text-align: left;
   cursor: pointer;
 }
-.installed-fonts button:hover { border-color: var(--line-bright); background: var(--control-hover); }
-.installed-fonts.open { display: flex; flex-direction: column; gap: 9px; }
-.installed-fonts-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 10px; background: var(--control-soft); }
-.installed-fonts-search svg { flex: none; color: var(--quiet-strong); }
-.installed-fonts-search input { width: 100%; border: 0; padding: 8px 0; background: transparent; color: var(--ink); font-size: var(--text-control); }
-.installed-fonts-search input:focus { outline: none; }
-.installed-fonts-list {
-  max-height: 268px;
+.font-select > button:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.font-select > button svg { flex: none; color: var(--quiet-strong); }
+.font-select-popover {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 300px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 8px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+}
+.font-select-search { flex: none; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 0 10px; background: var(--control-soft); }
+.font-select-search svg { flex: none; color: var(--quiet-strong); }
+.font-select-search input { width: 100%; border: 0; padding: 8px 0; background: transparent; color: var(--ink); font-size: var(--text-control); }
+.font-select-search input:focus { outline: none; }
+.font-select-list {
+  max-height: 264px;
   overflow: auto;
   margin: 0;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 5px;
+  padding: 0;
   list-style: none;
 }
-.installed-fonts-list button {
+.font-select-list button {
   width: 100%;
   display: flex;
   align-items: center;
@@ -1614,11 +1613,13 @@ pre {
   font-size: var(--text-control);
   font-weight: 400;
   text-align: left;
+  cursor: pointer;
 }
-.installed-fonts-list button:hover { background: var(--wash); color: var(--ink); }
-.installed-fonts-list button.chosen { background: var(--surface-active); color: var(--ink); }
-.installed-fonts-list button svg { flex: none; color: var(--accent); }
-.installed-fonts-empty { margin: 0 0 22px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.font-select-list button:hover { background: var(--wash); color: var(--ink); }
+.font-select-list button.chosen { background: var(--surface-active); color: var(--ink); }
+.font-select-list button svg { flex: none; color: var(--accent); }
+.font-select-heading { margin-top: 6px; border-top: 1px solid var(--line); padding: 9px 9px 3px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; }
+.font-select-note { margin: 0; padding: 0 9px 2px; color: var(--quiet-strong); font-size: var(--text-meta); }
 
 .theme-preview { display: flex; height: 84px; background: var(--canvas); }
 .theme-preview i { display: block; border-radius: 2px; }

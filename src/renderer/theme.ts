@@ -8,19 +8,16 @@ export function systemPrefersDark(): boolean {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
 }
 
-/** The theme the window has actually settled on, which a preview paints over and then puts back. */
+/** The theme the window has settled on, so repaints only happen on a real change. */
 let settled = "";
-/** Whether that settled choice came from the system, which a preview leaves alone. */
+/** Whether that settled choice came from the system. */
 let following = false;
 
 function paint(id: string) {
   document.documentElement.dataset.theme = themeOrDefault(id).id;
 }
 
-/**
- * The platform draws the frame, the traffic lights, and the scrollbars, and it writes what it is
- * told down. A preview is not a choice, so only a settled theme is ever sent.
- */
+/** The platform draws the frame, the traffic lights, and the scrollbars, and it writes what it is told down. */
 function tellWindow(chosen: Theme) {
   if ("desktop" in window) window.desktop.setTheme({ variant: chosen.variant, canvas: chosen.canvas, follow: following });
 }
@@ -41,16 +38,6 @@ export function applyTheme(id: string, follow = false): void {
   if (!repaint) return;
   repaintTerminalViews();
   redrawDiagrams();
-}
-
-/**
- * Paints a theme the pointer is only resting on, and passing null puts the settled one back. The
- * picker covers the window, so nothing behind it is redrawn until the choice is actually made.
- */
-export function previewTheme(id: string | null): void {
-  const chosen = themeOrDefault(id ?? settled);
-  if (document.documentElement.dataset.theme === chosen.id) return;
-  paint(chosen.id);
 }
 
 /** Runs before the first render, so the window never paints a theme the user has already left. */
