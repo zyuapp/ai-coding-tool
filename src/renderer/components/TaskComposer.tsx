@@ -2,7 +2,6 @@ import { Command, CornerDownRight, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RunAttachment, type StagedImage } from "../../domain/task";
-import { attachmentUrl } from "../../application/attachments";
 import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
 import { pasteRidesAsPill } from "../../application/pastes";
@@ -60,13 +59,7 @@ function sendLabel(surface: "main" | "side", runActive: boolean) {
 
 /** Reads a file this app already wrote into the attachments directory back out as a data URL. */
 async function dataUrlOf(path: string) {
-  const blob = await (await fetch(attachmentUrl(path))).blob();
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => resolve(String(reader.result)));
-    reader.addEventListener("error", () => reject(reader.error ?? new Error("Could not read the image.")));
-    reader.readAsDataURL(blob);
-  });
+  return `data:image/png;base64,${await window.desktop.readAttachment(path)}`;
 }
 
 function readImage(file: File) {

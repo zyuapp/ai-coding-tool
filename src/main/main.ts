@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, Notification, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -1083,6 +1083,14 @@ async function writeAttachment(data: string) {
   await writeFile(file, bytes);
   return file;
 }
+
+/** Hands back an image this app wrote, for a composer that has to draw on it rather than show it. */
+ipcMain.handle("attachment:read", async (event, file: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
+  if (!saved) throw new Error("That image is not one this app is keeping.");
+  return (await readFile(saved)).toString("base64");
+});
 
 ipcMain.handle("attachment:save", async (event, data: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");

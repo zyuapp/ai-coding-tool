@@ -767,6 +767,7 @@ function fakeDesktop(overrides = {}) {
     releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
     deleteWorktree: async () => {},
     saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
+    readAttachment: async () => "iVBORw0KGgo=",
     suggestTaskTitle: async () => null,
     loadTaskStore: async () => null,
     loadSubagentActivity: async () => [],
@@ -825,7 +826,6 @@ function fakeDesktop(overrides = {}) {
     onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
     onWindowScreenshot: (next) => { windowGrabbed = next; return () => {}; },
     onDesktopShortcutRefused: (next) => { shortcutRefused = next; return () => {}; },
-    saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
     closeWindow: () => { browserCalls.push(["close-window"]); },
     focusWindow: () => { browserCalls.push(["focus-window"]); },
     ...overrides,
@@ -943,14 +943,10 @@ test("a usage read that rejects reports instead of breaking the panel", async ()
   await view.unmount();
 });
 
-test("a window grabbed by the desktop hotkey waits in the composer, and never twice", async (t) => {
+test("a window grabbed by the desktop hotkey waits in the composer, and never twice", async () => {
   localStorage.clear();
   const desktop = fakeDesktop();
   window.desktop = desktop;
-  const realFetch = globalThis.fetch;
-  /** The window's own Blob, which is the only kind its FileReader takes. */
-  globalThis.fetch = async () => ({ blob: async () => new dom.window.Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }) });
-  t.after(() => { globalThis.fetch = realFetch; });
   const view = await mount(React.createElement(App));
 
   await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/claudex-attachments/grabbed.png" }); });

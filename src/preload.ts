@@ -41,6 +41,7 @@ const api: DesktopAPI = {
   releaseWorktree: (request: ReleaseWorktreeRequest) => ipcRenderer.invoke("worktree:release", request),
   deleteWorktree: (root: string) => ipcRenderer.invoke("worktree:delete", root),
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
+  readAttachment: (file: string) => ipcRenderer.invoke("attachment:read", file),
   suggestTaskTitle: (text: string, attachments: string[]) => ipcRenderer.invoke("task-title:suggest", text, attachments),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
