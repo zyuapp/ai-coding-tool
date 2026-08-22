@@ -219,6 +219,8 @@ export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
   { id: "dock.tab-last", group: "Panels", label: "Last panel tab", description: "Show the last tab in the panel", surface: "any", defaultBinding: "Mod+9" },
 
   { id: "appearance.cycle-theme", group: "Appearance", label: "Next theme", description: "Walk the theme list without opening settings", surface: "any", defaultBinding: "Mod+Shift+T" },
+  { id: "appearance.larger-text", group: "Appearance", label: "Bigger text", description: "A step up the reading size, which the chrome does not follow", surface: "any", defaultBinding: "Mod+=" },
+  { id: "appearance.smaller-text", group: "Appearance", label: "Smaller text", description: "A step down the reading size, which the chrome does not follow", surface: "any", defaultBinding: "Mod+-" },
 ];
 
 const ACTIONS_BY_ID = new Map(SHORTCUT_ACTIONS.map((action) => [action.id, action]));

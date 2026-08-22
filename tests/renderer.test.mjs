@@ -961,6 +961,37 @@ test("computer-use setup events open settings directly", async () => {
   await view.unmount();
 });
 
+test("the appearance page sets the type, and only the conversation and the terminal follow the size", async () => {
+  localStorage.clear();
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(App));
+  await act(async () => { view.container.querySelector(".sidebar-settings").click(); });
+  await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Appearance").click(); });
+
+  const root = dom.window.document.documentElement;
+  assert.equal(root.dataset.uiFont, "system");
+  assert.equal(root.dataset.readingSize, "regular");
+
+  const card = (family) => [...view.container.querySelectorAll(".theme-choice")].find((choice) => choice.textContent.includes(family));
+  await act(async () => { card("Inter").click(); });
+  assert.equal(root.dataset.uiFont, "inter");
+  await act(async () => { card("JetBrains Mono").click(); });
+  assert.equal(root.dataset.monoFont, "jetbrains-mono");
+
+  const steps = view.container.querySelectorAll(".size-steps");
+  await act(async () => { [...steps[0].querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === "Large").click(); });
+  await act(async () => { [...steps[1].querySelectorAll("button")].find((button) => button.getAttribute("aria-label") === "Small").click(); });
+  assert.equal(root.dataset.readingSize, "large");
+  assert.equal(root.dataset.terminalSize, "small");
+
+  const stored = JSON.parse(localStorage.getItem("claudex.view-preferences.v1"));
+  assert.deepEqual(
+    { uiFont: stored.uiFont, monoFont: stored.monoFont, readingSize: stored.readingSize, terminalSize: stored.terminalSize },
+    { uiFont: "inter", monoFont: "jetbrains-mono", readingSize: "large", terminalSize: "small" },
+  );
+  await view.unmount();
+});
+
 test("context usage stays within 100% when the window shrinks below the used tokens", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(TaskComposer, {

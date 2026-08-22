@@ -14,8 +14,9 @@ import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { applyTheme } from "../theme";
+import { applyTypography } from "../typography";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
-import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, searchTerminalView } from "./terminal-views";
+import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, onTerminalResize, searchTerminalView } from "./terminal-views";
 
 export type { ApprovalView } from "../../application/task-workspace";
 
@@ -521,9 +522,11 @@ export function useTaskWorkspace() {
   useEffect(() => {
     const stopReporting = onTerminalFindResults((terminalId, results) => void dispatchRef.current({ type: "find.results", target: { kind: "terminal", terminalId }, results }));
     const stopWatching = onTerminalFocus((terminalId) => void dispatchRef.current({ type: "terminal.focus", terminalId }));
+    const stopSizing = onTerminalResize((terminalId, cols, rows) => void dispatchRef.current({ type: "terminal.resize", terminalId, cols, rows }));
     return () => {
       stopReporting();
       stopWatching();
+      stopSizing();
     };
   }, []);
 
@@ -562,6 +565,10 @@ export function useTaskWorkspace() {
 
   useEffect(() => { applyTheme(view.theme); }, [view.theme]);
 
+  useEffect(() => {
+    applyTypography({ uiFont: view.uiFont, monoFont: view.monoFont, readingSize: view.readingSize, terminalSize: view.terminalSize });
+  }, [view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
+
   const currentRunId = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
 
   useEffect(() => {
@@ -591,6 +598,10 @@ export function useTaskWorkspace() {
       dismissAllTasks: () => dispatch({ type: "task.dismiss-all" }),
       setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
       setTheme: (theme: string) => dispatch({ type: "view.set-theme", theme }),
+      setUiFont: (font: string) => dispatch({ type: "view.set-ui-font", font }),
+      setMonoFont: (font: string) => dispatch({ type: "view.set-mono-font", font }),
+      setReadingSize: (size: string) => dispatch({ type: "view.set-reading-size", size }),
+      setTerminalSize: (size: string) => dispatch({ type: "view.set-terminal-size", size }),
       setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),

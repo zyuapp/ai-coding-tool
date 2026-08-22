@@ -3,6 +3,7 @@ import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { isSidebarMode } from "../domain/sidebar.js";
 import { themeById } from "../domain/theme.js";
+import { monoFontById, textSizeById, uiFontById } from "../domain/typography.js";
 
 export const VIEW_PREFERENCES_KEY = "claudex.view-preferences.v1";
 
@@ -48,6 +49,10 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const shortcuts = bindings(value.shortcuts);
     return {
       ...(themeById(value.theme) ? { theme: value.theme as string } : {}),
+      ...(uiFontById(value.uiFont) ? { uiFont: value.uiFont as string } : {}),
+      ...(monoFontById(value.monoFont) ? { monoFont: value.monoFont as string } : {}),
+      ...(textSizeById(value.readingSize) ? { readingSize: value.readingSize as string } : {}),
+      ...(textSizeById(value.terminalSize) ? { terminalSize: value.terminalSize as string } : {}),
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
       ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),

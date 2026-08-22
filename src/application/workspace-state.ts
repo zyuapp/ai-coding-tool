@@ -14,6 +14,7 @@ import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_THEME } from "../domain/theme.js";
+import { DEFAULT_MONO_FONT, DEFAULT_TEXT_SIZE, DEFAULT_UI_FONT } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
@@ -201,6 +202,11 @@ export type WorkspaceState = {
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
   theme: string;
+  /** The two families the window sets type in, and the two sizes that follow the user. */
+  uiFont: string;
+  monoFont: string;
+  readingSize: string;
+  terminalSize: string;
   sidebarMode: SidebarMode;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
@@ -269,6 +275,10 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     expandedProjects: new Set(),
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     theme: DEFAULT_THEME,
+    uiFont: DEFAULT_UI_FONT,
+    monoFont: DEFAULT_MONO_FONT,
+    readingSize: DEFAULT_TEXT_SIZE,
+    terminalSize: DEFAULT_TEXT_SIZE,
     sidebarMode: "projects",
     sidebarOpen: true,
     sessionPanelOpen: false,
@@ -399,6 +409,10 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
   }
   return {
     theme: state.theme,
+    uiFont: state.uiFont,
+    monoFont: state.monoFont,
+    readingSize: state.readingSize,
+    terminalSize: state.terminalSize,
     sessionPanelOpen: state.sessionPanelOpen,
     sidebarOpen: state.sidebarOpen,
     sidebarMode: state.sidebarMode,
@@ -778,6 +792,10 @@ export function deriveView(state: WorkspaceState) {
     expandedProjects: state.expandedProjects,
     sections: state.sections,
     theme: state.theme,
+    uiFont: state.uiFont,
+    monoFont: state.monoFont,
+    readingSize: state.readingSize,
+    terminalSize: state.terminalSize,
     sidebarMode: state.sidebarMode,
     sidebarOpen: state.sidebarOpen,
     sessionPanelOpen: state.sessionPanelOpen,

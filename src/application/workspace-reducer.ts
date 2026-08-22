@@ -38,6 +38,7 @@ import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
 import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { nextTheme, themeById, themeOrDefault } from "../domain/theme.js";
+import { monoFontById, monoFontOrDefault, stepTextSize, textSizeById, textSizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import { clampTitle, findProject, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
@@ -786,6 +787,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     case "appearance.cycle-theme": return [{ type: "view.set-theme", theme: nextTheme(state.theme).id }];
+    case "appearance.larger-text": return [{ type: "view.set-reading-size", size: stepTextSize(state.readingSize, 1).id }];
+    case "appearance.smaller-text": return [{ type: "view.set-reading-size", size: stepTextSize(state.readingSize, -1).id }];
     default: return [];
   }
 }
@@ -1551,6 +1554,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({
         ...state,
         theme: themeOrDefault(input.preferences.theme).id,
+        uiFont: uiFontOrDefault(input.preferences.uiFont).id,
+        monoFont: monoFontOrDefault(input.preferences.monoFont).id,
+        readingSize: textSizeOrDefault(input.preferences.readingSize).id,
+        terminalSize: textSizeOrDefault(input.preferences.terminalSize).id,
         sessionPanelOpen: input.preferences.sessionPanelOpen,
         sidebarOpen: input.preferences.sidebarOpen,
         sidebarMode: input.preferences.sidebarMode,
@@ -1622,6 +1629,30 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.set-theme": {
       if (!themeById(input.theme) || state.theme === input.theme) return settled(state);
       const next = { ...state, theme: input.theme };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-ui-font": {
+      if (!uiFontById(input.font) || state.uiFont === input.font) return settled(state);
+      const next = { ...state, uiFont: input.font };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-mono-font": {
+      if (!monoFontById(input.font) || state.monoFont === input.font) return settled(state);
+      const next = { ...state, monoFont: input.font };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-reading-size": {
+      if (!textSizeById(input.size) || state.readingSize === input.size) return settled(state);
+      const next = { ...state, readingSize: input.size };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-terminal-size": {
+      if (!textSizeById(input.size) || state.terminalSize === input.size) return settled(state);
+      const next = { ...state, terminalSize: input.size };
       return settled(next, persistView(next));
     }
 

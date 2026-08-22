@@ -5,6 +5,13 @@ import type { SidebarMode } from "../domain/sidebar.js";
 export type ViewPreferences = {
   /** The theme the window paints in, by id. Themes the app no longer ships fall back to the default. */
   theme: string;
+  /** The family the window's chrome and prose are set in, by id. */
+  uiFont: string;
+  /** The family code, diffs, and the terminal are set in, by id. */
+  monoFont: string;
+  /** How big a conversation reads, and how big the terminal draws. Chrome follows neither. */
+  readingSize: string;
+  terminalSize: string;
   sessionPanelOpen: boolean;
   sidebarOpen: boolean;
   /** Which shape the sidebar reopens in. Which of its lists are folded is not remembered. */

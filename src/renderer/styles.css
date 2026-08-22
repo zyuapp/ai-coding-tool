@@ -1,4 +1,5 @@
 @import "./themes.css";
+@import "./typography.css";
 
 /**
  * Every colour in this file comes from a token below, and every token below comes from a theme
@@ -178,11 +179,36 @@
   --text-heading: 17px;
   --text-display: 21px;
   --text-badge: 10px;
+  --terminal-text: 12px;
   --row-slot: 22px;
   --row-slots: 3;
-  --ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-  --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --system-ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  --system-mono-font: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ui-font: var(--system-ui-font);
+  --mono: var(--system-mono-font);
 }
+
+/**
+ * The two families, and the two sizes the user is allowed to move. The chrome sizes above are
+ * deliberately not among them: a bigger conversation must leave every row, tab, and badge where it
+ * was. A card carrying one of these attributes paints itself in that choice, which is how a picker
+ * shows the face it is offering.
+ */
+[data-ui-font="inter"] { --ui-font: "Inter Variable", var(--system-ui-font); }
+[data-ui-font="plex-sans"] { --ui-font: "IBM Plex Sans Variable", var(--system-ui-font); }
+[data-ui-font="geist"] { --ui-font: "Geist Variable", var(--system-ui-font); }
+
+[data-mono-font="jetbrains-mono"] { --mono: "JetBrains Mono Variable", var(--system-mono-font); }
+[data-mono-font="fira-code"] { --mono: "Fira Code Variable", var(--system-mono-font); }
+[data-mono-font="source-code-pro"] { --mono: "Source Code Pro Variable", var(--system-mono-font); }
+
+[data-reading-size="small"] { --text-content: 13px; }
+[data-reading-size="large"] { --text-content: 17px; }
+[data-reading-size="larger"] { --text-content: 19px; }
+
+[data-terminal-size="small"] { --terminal-text: 11px; }
+[data-terminal-size="large"] { --terminal-text: 13px; }
+[data-terminal-size="larger"] { --terminal-text: 15px; }
 
 :root {
   font-family: var(--ui-font);
@@ -1189,10 +1215,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   line-height: 1.28;
   letter-spacing: -0.018em;
 }
-.markdown-body h1 { font-size: 24px; }
-.markdown-body h2 { font-size: 20px; }
-.markdown-body h3 { font-size: 17px; }
-.markdown-body h4, .markdown-body h5, .markdown-body h6 { font-size: var(--text-content); }
+.markdown-body h1 { font-size: 1.6em; }
+.markdown-body h2 { font-size: 1.33em; }
+.markdown-body h3 { font-size: 1.13em; }
+.markdown-body h4, .markdown-body h5, .markdown-body h6 { font-size: 1em; }
 .markdown-body strong { color: var(--ink); font-weight: 650; }
 .markdown-body a { color: var(--link); text-decoration-color: var(--link-line); text-underline-offset: 3px; }
 .markdown-body a:hover { color: var(--link-hover); text-decoration-color: currentColor; }
@@ -1480,6 +1506,44 @@ pre {
   font-weight: 560;
 }
 .theme-choice-name svg { color: var(--accent); flex: none; }
+
+/** The card's own family reaches the sample, since the card carries the attribute that sets it. */
+.font-preview {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  height: 84px;
+  padding: 0 13px;
+  background: var(--canvas);
+}
+.font-preview strong { color: var(--ink); font-size: 17px; font-weight: 560; letter-spacing: -0.01em; }
+.font-preview em { color: var(--quiet-strong); font-size: var(--text-meta); font-style: normal; }
+.font-preview em.added { color: var(--success); }
+.theme-choice[data-ui-font] .font-preview { font-family: var(--ui-font); }
+.theme-choice[data-mono-font] .font-preview { font-family: var(--mono); }
+
+.setting-row-action.size-steps { gap: 0; }
+.setting-row-action.size-steps button {
+  min-width: 38px;
+  border: 1px solid var(--line-strong);
+  border-left-width: 0;
+  padding: 5px 0;
+  background: var(--control-soft);
+  color: var(--muted-strong);
+  font-size: var(--text-meta);
+  font-weight: 560;
+  cursor: pointer;
+}
+.setting-row-action.size-steps button:first-child { border-left-width: 1px; border-radius: 8px 0 0 8px; }
+.setting-row-action.size-steps button:last-child { border-radius: 0 8px 8px 0; }
+.setting-row-action.size-steps button:hover { background: var(--surface-hover); color: var(--ink-dim); }
+.setting-row-action.size-steps button.chosen { border-color: var(--accent); background: var(--surface-active); color: var(--ink); }
+.setting-row-action.size-steps button.chosen + button { border-left-color: var(--accent); }
+
+/** Drawn from the same tokens the choice sets, so the sample is the size it is offering. */
+.setting-row p.size-sample { margin-top: 9px; color: var(--ink-soft); font-size: var(--text-content); line-height: 1.5; }
+.setting-row p.size-sample.terminal { font: var(--terminal-text)/1.5 var(--mono); color: var(--code-ink); }
 
 .theme-preview { display: flex; height: 84px; background: var(--canvas); }
 .theme-preview i { display: block; border-radius: 2px; }

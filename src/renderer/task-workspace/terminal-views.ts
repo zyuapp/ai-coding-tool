@@ -27,6 +27,7 @@ const views = new Map<string, TerminalView>();
 let publishInput: (terminalId: string, data: string) => void = () => undefined;
 let publishFocus: (terminalId: string | null) => void = () => undefined;
 let publishFind: (terminalId: string, results: FindResults) => void = () => undefined;
+let publishResize: (terminalId: string, cols: number, rows: number) => void = () => undefined;
 let xterm: Promise<{ Terminal: typeof Terminal; FitAddon: typeof FitAddon; SearchAddon: typeof SearchAddon }> | null = null;
 
 /** xterm is only needed once a shell exists, so it stays out of the startup bundle. */
@@ -57,6 +58,12 @@ export function onTerminalInput(handler: (terminalId: string, data: string) => v
 export function onTerminalFocus(handler: (terminalId: string | null) => void) {
   publishFocus = handler;
   return () => { publishFocus = () => undefined; };
+}
+
+/** The grid a shell ends up with when nothing resized its container, which only a type change does. */
+export function onTerminalResize(handler: (terminalId: string, cols: number, rows: number) => void) {
+  publishResize = handler;
+  return () => { publishResize = () => undefined; };
 }
 
 /** What a search found. The shell holds its own scrollback, so it counts its own matches. */
@@ -112,6 +119,32 @@ function terminalTheme(): Record<string, string> {
   });
 }
 
+/** The face and size the terminal draws in, read from the stylesheet the way its colours are. */
+function terminalFont() {
+  const tokens = document.defaultView?.getComputedStyle(document.documentElement);
+  const size = Number.parseFloat(tokens?.getPropertyValue("--terminal-text") ?? "");
+  return {
+    family: tokens?.getPropertyValue("--mono").trim() || "monospace",
+    size: Number.isFinite(size) && size > 0 ? size : 12,
+  };
+}
+
+/**
+ * Redraws every open shell at the type the user chose. Nothing resized the container, so the panel's
+ * observer never fires and the new grid is reported from here instead.
+ */
+export function restyleTerminalViews() {
+  const font = terminalFont();
+  for (const [terminalId, view] of views) {
+    if (!view.terminal) continue;
+    view.terminal.options.fontFamily = font.family;
+    view.terminal.options.fontSize = font.size;
+    if (!view.opened || !view.fit) continue;
+    view.fit.fit();
+    publishResize(terminalId, view.terminal.cols, view.terminal.rows);
+  }
+}
+
 /** Repaints every open shell after the theme changes, since xterm holds the colours it was built with. */
 export function repaintTerminalViews() {
   const theme = terminalTheme();
@@ -137,13 +170,14 @@ async function terminalView(terminalId: string): Promise<TerminalView> {
   const view = terminalRecord(terminalId);
   if (view.terminal) return view;
   const { Terminal, FitAddon, SearchAddon } = await loadXterm();
+  const font = terminalFont();
   /** Another caller may have raced ahead, or the terminal may be gone by now. */
   if (view.terminal || views.get(terminalId) !== view) return view;
   const terminal = new Terminal({
     allowProposedApi: true,
     scrollback: SCROLLBACK_LINES,
-    fontFamily: document.defaultView?.getComputedStyle(document.documentElement).getPropertyValue("--mono").trim() || "monospace",
-    fontSize: 12,
+    fontFamily: font.family,
+    fontSize: font.size,
     theme: terminalTheme(),
   });
   const fit = new FitAddon();

@@ -613,10 +613,18 @@ export function App() {
           initialSection={workspace.computerUseSetup ? "computer-use" : "general"}
           archivedTasks={workspace.archivedTasks}
           theme={workspace.theme}
+          uiFont={workspace.uiFont}
+          monoFont={workspace.monoFont}
+          readingSize={workspace.readingSize}
+          terminalSize={workspace.terminalSize}
           allowedOrigins={workspace.browserOrigins}
           shortcuts={workspace.shortcuts}
           capturingShortcut={workspace.capturingShortcut}
           onSetTheme={(theme) => void workspace.actions.setTheme(theme)}
+          onSetUiFont={(font) => void workspace.actions.setUiFont(font)}
+          onSetMonoFont={(font) => void workspace.actions.setMonoFont(font)}
+          onSetReadingSize={(size) => void workspace.actions.setReadingSize(size)}
+          onSetTerminalSize={(size) => void workspace.actions.setTerminalSize(size)}
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}

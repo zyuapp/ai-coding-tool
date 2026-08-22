@@ -1,0 +1,19 @@
+/**
+ * The type the window draws in. Families are bundled rather than looked for on the machine, so the
+ * sample a picker draws is the face the window will actually use; only "system" defers to the OS.
+ *
+ * Every family declares italics as well as weights, because the window turns synthesis off and a
+ * face without them would render emphasis upright.
+ */
+
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/inter/wght-italic.css";
+@import "@fontsource-variable/ibm-plex-sans/wght.css";
+@import "@fontsource-variable/ibm-plex-sans/wght-italic.css";
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght-italic.css";
+@import "@fontsource-variable/fira-code/wght.css";
+@import "@fontsource-variable/source-code-pro/wght.css";
+@import "@fontsource-variable/source-code-pro/wght-italic.css";
