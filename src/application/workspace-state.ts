@@ -45,6 +45,8 @@ export type PendingRun = {
   automationId?: string;
   /** Automation only: this tick may settle without surfacing if it earns the silence. */
   quiet?: true;
+  /** Automation only: a cron tick has nobody to answer its approvals, so the run may answer its own. */
+  unattended?: true;
   /** Queued messages this run is draining, cleared only once the run actually starts. */
   queuedIds?: string[];
   /** Set when the checkout this run needs is being made on the way, which is the slow part of resolving. */

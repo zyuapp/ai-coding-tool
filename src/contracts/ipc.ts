@@ -161,6 +161,8 @@ export type AutomationFire = {
   runNumber: number;
   /** The tick may settle without surfacing, if the run says it looked and found nothing. */
   quiet?: true;
+  /** Nobody is watching a cron tick, so its run may answer its own approvals. A pressed button is not one. */
+  unattended?: true;
   /** What the automation says is worth surfacing, carried into the run's own framing. */
   surfaceWhen?: string;
 };

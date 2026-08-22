@@ -90,7 +90,9 @@ test("thread requests are relayed to the window and only its answers reach the a
   answer(trusted, { type: "thread.response", requestId: "request-1", ok: true, result: [{ id: "task-1" }] });
 
   const answered = agent.messages.filter((message) => message.type === "thread.response");
-  assert.deepEqual(answered.map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
+  const refused = answered.find((message) => message.requestId === "malformed");
+  assert.equal(refused.ok, false, "a request no guard could read is refused rather than dropped, which would hang its tool call");
+  assert.deepEqual(answered.filter((message) => message.requestId === "request-1").map((message) => message.result), [[{ id: "task-1" }]], "an answer settles its request once");
 });
 
 test("a bound keystroke is taken from the window's menu and handed to whatever is in front", async () => {

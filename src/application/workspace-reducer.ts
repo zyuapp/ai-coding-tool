@@ -1412,6 +1412,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         attachments: [],
         ...(fire.policy ? { policy: fire.policy } : {}),
         ...(fire.quiet ? { quiet: true as const } : {}),
+        ...(fire.unattended ? { unattended: true as const } : {}),
         automationId: fire.automationId,
       };
       return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false)]);
@@ -2197,7 +2198,7 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   /** Taken before the label lands, so a tick that settles unseen rolls that back with the rest of it. */
   return settled(beginRun(withMessage, taskId, pending.runId, { origin: "automation", quiet: pending.quiet === true }, threadMark(task)), [
     /** Only a tick that settles unseen answers its own questions; every other run waits for the user as it always has. */
-    { type: "start-run", command: { ...startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy), ...(pending.quiet ? { unattended: true as const } : {}) } },
+    { type: "start-run", command: { ...startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy), ...(pending.unattended ? { unattended: true as const } : {}) } },
     ...ack(pending, true),
   ]);
 }

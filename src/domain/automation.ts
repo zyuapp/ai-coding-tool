@@ -106,7 +106,7 @@ export function isAutomationDraft(value: unknown): value is AutomationDraft {
     && (draft.timezone === undefined || isText(draft.timezone, MAX_AUTOMATION_TIMEZONE))
     && (draft.policy === undefined || isPolicy(draft.policy))
     /** Absent keeps whatever the schedule already surfaces for; empty is what takes the quiet off. */
-    && (draft.surfaceWhen === undefined || draft.surfaceWhen === "" || isText(draft.surfaceWhen, MAX_SURFACE_WHEN))
+    && (draft.surfaceWhen === undefined || isText(draft.surfaceWhen, MAX_SURFACE_WHEN))
     && (draft.paused === undefined || typeof draft.paused === "boolean");
 }
 
@@ -141,6 +141,13 @@ export const DECLINES_BEFORE_SURFACING = 3;
  * a run the user asked for is watched by construction, and a one-shot deletes itself when it runs, so
  * a quiet one would disappear having said nothing at all.
  */
+/**
+ * What kind of tick this is. Only a cron tick of a quiet schedule may settle unseen, never a run the
+ * user asked for and never a one-shot. `unattended` is the wider fact: a cron tick has nobody to
+ * answer for it, so its run may answer its own approvals.
+ */
+export type TickKind = { quiet: boolean; unattended: boolean };
+
 export function quietTick(automation: Automation, manual: boolean) {
   return !manual && automation.surfaceWhen !== undefined && !isOneShotSchedule(automation.schedule);
 }

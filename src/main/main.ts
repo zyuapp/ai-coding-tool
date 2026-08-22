@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
 import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
-import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
+import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus, type TickKind } from "../domain/automation.js";
 import { DEFAULT_CAPTURE_OPTIONS, isCaptureOptions } from "../domain/capture.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import { desktopAccelerator, formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -125,13 +125,13 @@ function getAutomationScheduler() {
 }
 
 /** Hands the tick to the renderer, which owns the transcript, then waits for that run to settle. */
-async function dispatchAutomation(automation: Automation, quiet: boolean): Promise<AutomationRunStatus> {
+async function dispatchAutomation(automation: Automation, tick: TickKind): Promise<AutomationRunStatus> {
   if (!window || window.isDestroyed()) return "skipped";
   const runId = randomUUID();
   const dispatch: AutomationDispatchState = {};
   automationDispatches.set(runId, dispatch);
   try {
-    const fire = automationFire(automation, runId, quiet);
+    const fire = automationFire(automation, runId, tick);
     // Armed before the tick leaves main so a run that settles immediately still reports back.
     const settled = new Promise<AutomationRunStatus>((resolve) => { dispatch.settle = resolve; });
     const started = await new Promise<boolean>((resolve) => {

@@ -316,16 +316,16 @@ test("what a schedule surfaces for survives every rewrite of it, and is what mak
 
 test("the button the user pressed is never a quiet tick, and neither is a one-shot", async (t) => {
   const ticks = [];
-  const scheduler = schedulerFor(t, memoryStore(), async (automation, quiet) => { ticks.push([automation.taskId, quiet]); return "succeeded"; });
+  const scheduler = schedulerFor(t, memoryStore(), async (automation, tick) => { ticks.push([automation.taskId, tick]); return "succeeded"; });
   scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
 
   await scheduler.runNow("task-1");
-  assert.deepEqual(ticks, [["task-1", false]], "the panel's button is only reachable with the user watching");
+  assert.deepEqual(ticks, [["task-1", { quiet: false, unattended: false }]], "the panel's button is only reachable with the user watching");
 
   const soon = new Date(Date.now() + 1_500).toISOString();
   scheduler.save({ taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error." });
   await new Promise((resolve) => setTimeout(resolve, 2_500));
-  assert.deepEqual(ticks.slice(1), [["task-2", false]], "a one-shot that vanishes when it runs must leave a trace of having run");
+  assert.deepEqual(ticks.slice(1), [["task-2", { quiet: false, unattended: true }]], "a one-shot that vanishes when it runs must leave a trace of having run");
 });
 
 test("which ticks may settle unseen", () => {

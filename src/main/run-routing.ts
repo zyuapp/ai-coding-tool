@@ -1,11 +1,11 @@
 import type { AutomationFire, RunEvent } from "../contracts/ipc.js";
-import type { Automation, AutomationRunStatus } from "../domain/automation.js";
+import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
 
 /** Far longer than any honest scheduled run, so only a run that never reports back reaches it. */
 export const AUTOMATION_SETTLE_TIMEOUT = 6 * 60 * 60_000;
 
 /** The tick as the window receives it. Whether it may be quiet is the scheduler's decision, not this one's. */
-export function automationFire(automation: Automation, runId: string, quiet: boolean): AutomationFire {
+export function automationFire(automation: Automation, runId: string, tick: TickKind): AutomationFire {
   return {
     automationId: automation.id,
     taskId: automation.taskId,
@@ -13,7 +13,8 @@ export function automationFire(automation: Automation, runId: string, quiet: boo
     prompt: automation.prompt,
     ...(automation.policy === undefined ? {} : { policy: automation.policy }),
     /** The sentence only travels with a tick that may act on it: a watched run is framed as any other. */
-    ...(quiet ? { quiet: true as const, surfaceWhen: automation.surfaceWhen } : {}),
+    ...(tick.quiet ? { quiet: true as const, surfaceWhen: automation.surfaceWhen } : {}),
+    ...(tick.unattended ? { unattended: true as const } : {}),
     runNumber: automation.runCount + 1,
   };
 }

@@ -38,7 +38,7 @@ const PROJECTLESS = { id: "projectless", kind: "projectless", root: "/tmp" };
 
 /** Runs a tick all the way to its start, which is where the run's provenance is settled. */
 function fire(overrides = {}) {
-  const tick = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2, ...overrides };
+  const tick = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2, unattended: true, ...overrides };
   const pending = reduce(workspace({ tasks: [task("task-a")] }), { type: "automation.fired", fire: tick });
   return reduce(pending.state, { type: "run.resolved", pendingId: pending.effects[0].pendingId, workspace: PROJECTLESS });
 }
@@ -57,8 +57,15 @@ test("a scheduled run is the scheduler's, unattended, and never quiet unless the
     notified: false,
     reportedNothing: false,
     messagesBefore: 1,
+    before: { updatedAt: 1 },
   });
   assert.equal(fire({ quiet: true }).state.activeRuns["task-a"].quiet, true);
+});
+
+test("a tick the user pressed the button for is watched, so its approvals stay theirs to answer", () => {
+  const pressed = fire({ unattended: undefined });
+
+  assert.equal(pressed.effects[0].command.unattended, undefined);
 });
 
 test("a run the user sent is theirs, and nothing about it is inferred as quiet or unattended", () => {
@@ -116,13 +123,21 @@ test("what the automation last did names the moment of the status, not of the la
 
 /** A thread mid-tick, with the provenance the scheduler gave the run. */
 function midRun(run = {}, taskOverrides = {}) {
+  const started = task("task-a", {
+    createdAt: 10,
+    messages: [{ id: "label", kind: "user", text: "Poll", detail: "Automation run #2", quiet: true, at: 10 }],
+    ...taskOverrides,
+  });
+  /** What the tick found the thread looking like, which is what an unseen one puts back. */
+  const before = {
+    updatedAt: started.updatedAt,
+    ...(started.runEndedAt === undefined ? {} : { runEndedAt: started.runEndedAt }),
+    ...(started.outcome === undefined ? {} : { outcome: started.outcome }),
+    ...(started.outcomeUnread ? { outcomeUnread: true } : {}),
+  };
   return workspace({
-    tasks: [task("task-a", {
-      createdAt: 10,
-      messages: [{ id: "label", kind: "user", text: "Poll", detail: "Automation run #2", quiet: true, at: 10 }],
-      ...taskOverrides,
-    })],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, reportedNothing: false, messagesBefore: 1, ...run } },
+    tasks: [started],
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, reportedNothing: false, messagesBefore: 1, before, ...run } },
     runStatuses: { "task-a": "running" },
   });
 }
@@ -350,10 +365,10 @@ test("a tick the scheduler said is quiet labels its own message quiet from the s
 });
 
 /** Fires a tick at a thread that cannot take it, with the scheduler's count of the ones before it. */
-function declined(consecutiveDeclines) {
+function declined(consecutiveDeclines, tasks = [task("task-a")]) {
   const automation = { id: "automation-1", taskId: "task-a", prompt: "Poll", schedule: "* * * * *", paused: false, createdAt: 100, updatedAt: 100, runCount: 4, lastRunAt: 900, consecutiveDeclines };
   const busy = workspace({
-    tasks: [task("task-a")],
+    tasks,
     automations: [{ ...automation, nextRunAt: null }],
     activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin: "composer", quiet: false, notified: false, reportedNothing: false, messagesBefore: 0 } },
     runStatuses: { "task-a": "running" },
@@ -376,8 +391,9 @@ test("a schedule turned away three times running says so out loud on its thread"
   assert.equal(finding.key, "declined:automation-1");
   assert.equal(third.effects[1].notice.headline, finding.headline);
 
-  const fourth = declined(3);
-  assert.equal(fourth.state.tasks[0].findings, undefined, "it is said once, not on every tick after");
+  const fourth = declined(3, third.state.tasks);
+  assert.deepEqual(fourth.effects.map((effect) => effect.type), ["automation.ack"], "it is said once, not on every tick after");
+  assert.equal(fourth.state.tasks[0].findings.length, 1);
 });
 
 test("what the scheduler counts about declines is reset by a run that actually happened", () => {

@@ -11,6 +11,7 @@ import {
   type AutomationPatch,
   type AutomationRunStatus,
   type AutomationView,
+  type TickKind,
 } from "../../domain/automation.js";
 
 export type AutomationStore = {
@@ -19,12 +20,8 @@ export type AutomationStore = {
   deleteAutomation(id: string): void;
 };
 
-/**
- * Resolves when the scheduled run reaches a terminal state, so overrun protection can hold the next
- * tick. `quiet` is the scheduler's alone to decide: only a cron tick of a quiet schedule may settle
- * unseen, never a run the user asked for and never a one-shot, which would vanish without a trace.
- */
-export type AutomationDispatch = (automation: Automation, quiet: boolean) => Promise<AutomationRunStatus>;
+/** Resolves when the scheduled run reaches a terminal state, so overrun protection can hold the next tick. */
+export type AutomationDispatch = (automation: Automation, tick: TickKind) => Promise<AutomationRunStatus>;
 
 export type AutomationSchedulerOptions = {
   now?: () => number;
@@ -192,7 +189,7 @@ export class AutomationScheduler {
     this.firing.add(id);
     let status: AutomationRunStatus;
     try {
-      status = await this.dispatch(automation, quietTick(automation, manual));
+      status = await this.dispatch(automation, { quiet: quietTick(automation, manual), unattended: !manual });
     } catch {
       status = "failed";
     } finally {
