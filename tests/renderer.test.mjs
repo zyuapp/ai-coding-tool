@@ -66,7 +66,7 @@ const { DiagramViewer, naturalDiagram } = await vite.ssrLoadModule("/src/rendere
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
-const { drawAnnotations, wrapLabel } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
+const { badgeRadius, drawAnnotations, placeBadges } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline, READING_SETTLE_MS } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
 const { StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
@@ -1466,6 +1466,7 @@ function recordingContext() {
     strokeRect: () => { calls.strokes += 1; },
     fillRect: () => {},
     beginPath: () => {},
+    arc: () => {},
     moveTo: () => {},
     lineTo: () => {},
     closePath: () => {},
@@ -1482,24 +1483,44 @@ test("arrows draw without a mark and never renumber the boxes around them", () =
     { kind: "box", x: 0.5, y: 0.5, width: 0.2, height: 0.2, text: "second" },
   ], 1000, 800);
 
-  assert.deepEqual(context.calls.text, ["1. first", "2. second"]);
+  assert.deepEqual(context.calls.text, ["1", "2"]);
   assert.equal(context.calls.strokes, 2);
-  assert.equal(context.calls.fills, 1);
 });
 
-test("a long note wraps onto several chip lines instead of running off the image", () => {
+test("a mark carries its number alone, however long the note behind it is", () => {
   const context = recordingContext();
   drawAnnotations(context, [
-    { kind: "box", x: 0.1, y: 0.4, width: 0.2, height: 0.2, text: "this note is long enough to need more than one line of chip" },
+    { kind: "box", x: 0.1, y: 0.4, width: 0.2, height: 0.2, text: "this note is long enough to have needed more than one line of chip" },
   ], 1000, 800);
 
-  assert.ok(context.calls.text.length > 1);
-  assert.equal(context.calls.text.join(" "), "1. this note is long enough to need more than one line of chip");
+  assert.deepEqual(context.calls.text, ["1"]);
 });
 
-test("a word wider than the chip is split rather than overflowing it", () => {
-  const context = recordingContext();
-  assert.deepEqual(wrapLabel(context, "aaaaaaaaaa bb", 35), ["aaaaa", "aaaaa", "bb"]);
+test("badges on boxes drawn over each other are moved apart rather than stacked", () => {
+  const radius = badgeRadius(1000, 800);
+  const spots = placeBadges([
+    { x: 300, y: 300, width: 200, height: 160 },
+    { x: 306, y: 304, width: 200, height: 160 },
+    { x: 312, y: 308, width: 200, height: 160 },
+  ], 1000, 800);
+
+  assert.equal(spots.length, 3);
+  for (let one = 0; one < spots.length; one += 1) {
+    for (let other = one + 1; other < spots.length; other += 1) {
+      assert.ok(
+        Math.hypot(spots[one].x - spots[other].x, spots[one].y - spots[other].y) >= radius * 2,
+        `badges ${one + 1} and ${other + 1} overlap`,
+      );
+    }
+  }
+});
+
+test("a badge on a box at the edge stays inside the image", () => {
+  const radius = badgeRadius(1000, 800);
+  const [corner] = placeBadges([{ x: 0, y: 0, width: 120, height: 90 }], 1000, 800);
+
+  assert.ok(corner.x >= radius && corner.x <= 1000 - radius);
+  assert.ok(corner.y >= radius && corner.y <= 800 - radius);
 });
 
 test("the side surface keeps the slash palette but never offers to fork a fork", async () => {

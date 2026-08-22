@@ -2782,22 +2782,28 @@ pre {
 .annotator-frame[data-tool="arrow"] canvas {
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cpath d='M3 17L13.4 6.6' stroke='%23fff' stroke-width='3.4' stroke-linecap='round'/%3E%3Cpath d='M3 17L13.4 6.6' stroke='%23ff453a' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M17.4 2.6l-1.7 6.6-4.9-4.9z' fill='%23ff453a' stroke='%23fff' stroke-width='1.1' stroke-linejoin='round'/%3E%3C/svg%3E") 3 17, crosshair;
 }
-.annotator-delete {
+.annotator-marktools {
   position: absolute;
   z-index: 3;
+  display: flex;
+  gap: 3px;
+  transform: translate(-50%, -50%);
+}
+.annotator-marktool {
   width: 19px;
   height: 19px;
   display: grid;
   place-items: center;
-  transform: translate(-50%, -50%);
-  border: 1px solid var(--alert-line);
+  border: 1px solid var(--line-bright);
   border-radius: 999px;
   padding: 0;
-  background: var(--alert);
-  color: var(--alert-ink);
+  background: var(--surface-menu);
+  color: var(--ink);
   cursor: pointer;
 }
-.annotator-delete:hover { background: var(--alert-hover); }
+.annotator-marktool:hover { background: var(--surface-hover); }
+.annotator-marktool.remove { border-color: var(--alert-line); background: var(--alert); color: var(--alert-ink); }
+.annotator-marktool.remove:hover { background: var(--alert-hover); }
 .annotator-label {
   position: absolute;
   z-index: 2;

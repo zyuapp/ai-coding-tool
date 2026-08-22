@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, SquarePen, X } from "lucide-react";
+import { ArrowUpRight, Check, Pencil, SquarePen, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
@@ -70,43 +70,77 @@ function drawArrow(context: CanvasRenderingContext2D, annotation: Annotation, wi
   context.fill();
 }
 
-/** Greedy word wrap; a word longer than the line is split so it can never overflow the chip. */
-export function wrapLabel(context: CanvasRenderingContext2D, label: string, maxWidth: number) {
-  const lines: string[] = [];
-  let line = "";
-  const push = () => { if (line) { lines.push(line); line = ""; } };
-  label.split(/\s+/).filter(Boolean).forEach((word) => {
-    let rest = word;
-    while (context.measureText(rest).width > maxWidth) {
-      push();
-      let cut = 1;
-      while (cut < rest.length && context.measureText(rest.slice(0, cut + 1)).width <= maxWidth) cut += 1;
-      lines.push(rest.slice(0, cut));
-      rest = rest.slice(cut);
-    }
-    const candidate = line ? `${line} ${rest}` : rest;
-    if (line && context.measureText(candidate).width > maxWidth) {
-      push();
-      line = rest;
-      return;
-    }
-    line = candidate;
-  });
-  push();
-  return lines.length > 0 ? lines : [label];
+const BADGE_INK = "#ffffff";
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+export function badgeRadius(width: number, height: number) {
+  return Math.max(11, Math.round(Math.max(width, height) * 0.013));
 }
 
+/** Corners first, outside then inside, so a badge leaves the marked area clear whenever it can. */
+function spotsAround(box: Rect, radius: number) {
+  const { x, y, width, height } = box;
+  return [
+    { x: x - radius, y: y - radius },
+    { x: x + width + radius, y: y - radius },
+    { x: x - radius, y: y + height + radius },
+    { x: x + width + radius, y: y + height + radius },
+    { x: x + radius, y: y + radius },
+    { x: x + width - radius, y: y + radius },
+    { x: x + radius, y: y + height - radius },
+    { x: x + width - radius, y: y + height - radius },
+  ];
+}
+
+/**
+ * Where each box's badge sits, in image pixels. Boxes drawn close together would stack their badges
+ * on the same corner, so each one takes the first spot no earlier badge already holds.
+ */
+export function placeBadges(boxes: Rect[], width: number, height: number) {
+  const radius = badgeRadius(width, height);
+  const placed: Point[] = [];
+  boxes.forEach((box) => {
+    const spots = spotsAround(box, radius).map((spot) => ({
+      x: Math.min(Math.max(spot.x, radius), Math.max(width - radius, radius)),
+      y: Math.min(Math.max(spot.y, radius), Math.max(height - radius, radius)),
+    }));
+    const free = spots.find((spot) => placed.every((taken) => Math.hypot(spot.x - taken.x, spot.y - taken.y) >= radius * 2));
+    placed.push(free ?? spots[0]);
+  });
+  return placed;
+}
+
+function drawBadge(context: CanvasRenderingContext2D, center: Point, radius: number, mark: string) {
+  context.beginPath();
+  context.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  context.fillStyle = MARK_COLOR;
+  context.fill();
+  context.lineWidth = Math.max(1, radius * 0.14);
+  context.strokeStyle = BADGE_INK;
+  context.stroke();
+  context.fillStyle = BADGE_INK;
+  context.fillText(mark, center.x, center.y);
+}
+
+/**
+ * Marks carry their number and nothing else: the notes travel with the prompt as text, so drawing
+ * them again would only cover the screenshot they describe.
+ */
 export function drawAnnotations(context: CanvasRenderingContext2D, annotations: Annotation[], width: number, height: number) {
-  const scale = Math.max(width, height);
-  const stroke = Math.max(2, Math.round(scale * 0.003));
-  const fontSize = Math.max(11, Math.round(scale * 0.011));
-  const padX = Math.round(fontSize * 0.5);
-  const padY = Math.round(fontSize * 0.32);
-  const lineHeight = Math.round(fontSize * 1.3);
-  const maxTextWidth = Math.max(fontSize * 6, width * 0.4 - padX * 2);
+  const stroke = Math.max(2, Math.round(Math.max(width, height) * 0.003));
+  const radius = badgeRadius(width, height);
+  const boxes = annotations.filter((annotation) => annotation.kind === "box").map((annotation) => ({
+    x: annotation.x * width,
+    y: annotation.y * height,
+    width: Math.max(annotation.width * width, stroke),
+    height: Math.max(annotation.height * height, stroke),
+  }));
+  const centers = placeBadges(boxes, width, height);
   context.lineJoin = "round";
   context.textBaseline = "middle";
-  context.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif`;
+  context.textAlign = "center";
+  context.font = `700 ${Math.round(radius * 1.1)}px -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif`;
   // Only boxes are numbered, so arrows never shift the marks the prompt refers to.
   let mark = 0;
   annotations.forEach((annotation) => {
@@ -114,26 +148,13 @@ export function drawAnnotations(context: CanvasRenderingContext2D, annotations: 
       drawArrow(context, annotation, width, height, stroke);
       return;
     }
+    const box = boxes[mark];
+    const center = centers[mark];
     mark += 1;
-    const x = annotation.x * width;
-    const y = annotation.y * height;
-    const boxWidth = Math.max(annotation.width * width, stroke);
-    const boxHeight = Math.max(annotation.height * height, stroke);
     context.lineWidth = stroke;
     context.strokeStyle = MARK_COLOR;
-    context.strokeRect(x + stroke / 2, y + stroke / 2, Math.max(boxWidth - stroke, 1), Math.max(boxHeight - stroke, 1));
-    const label = annotation.text.trim() ? `${mark}. ${annotation.text.trim()}` : `${mark}`;
-    const lines = wrapLabel(context, label, maxTextWidth);
-    const chipWidth = Math.max(...lines.map((line) => context.measureText(line).width)) + padX * 2;
-    const chipHeight = lines.length * lineHeight + padY * 2;
-    const chipX = Math.max(0, Math.min(x, width - chipWidth));
-    const chipY = y - chipHeight - stroke < 0 ? y + stroke : y - chipHeight - stroke;
-    context.fillStyle = MARK_COLOR;
-    context.fillRect(chipX, chipY, chipWidth, chipHeight);
-    context.fillStyle = "#ffffff";
-    lines.forEach((line, index) => {
-      context.fillText(line, chipX + padX, chipY + padY + index * lineHeight + lineHeight / 2);
-    });
+    context.strokeRect(box.x + stroke / 2, box.y + stroke / 2, Math.max(box.width - stroke, 1), Math.max(box.height - stroke, 1));
+    drawBadge(context, center, radius, String(mark));
   });
 }
 
@@ -173,6 +194,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
   const [hovered, setHovered] = useState<number | null>(null);
   const [draft, setDraft] = useState<Annotation | null>(null);
   const [pending, setPending] = useState<Omit<Annotation, "kind" | "text"> | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
   const [label, setLabel] = useState("");
   useModalFocus(dialogRef);
 
@@ -211,28 +233,28 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
     context.drawImage(image, 0, 0, frame.width, frame.height);
     const live: Annotation[] = [
       ...shapes,
-      ...(pending ? [{ kind: "box" as const, ...pending, text: label }] : []),
+      ...(pending ? [{ kind: "box" as const, ...pending, text: "" }] : []),
       ...(draft ? [draft] : []),
     ];
     drawAnnotations(context, live, frame.width, frame.height);
-  }, [image, frame, shapes, draft, pending, label]);
+  }, [image, frame, shapes, draft, pending]);
 
   useEffect(() => {
-    if (pending) labelRef.current?.focus();
-  }, [pending]);
+    if (!pending && editing === null) return;
+    labelRef.current?.focus();
+    if (editing !== null) labelRef.current?.select();
+  }, [pending, editing]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
-      if (pending) {
-        setPending(null);
-        setLabel("");
-      } else onCancel();
+      if (pending || editing !== null) closeLabel();
+      else onCancel();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [pending, onCancel]);
+  }, [pending, editing, onCancel]);
 
   function pointAt(event: { clientX: number; clientY: number; currentTarget: HTMLCanvasElement }): Point {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -262,11 +284,24 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
     return null;
   }
 
-  function commitPending() {
-    if (!pending) return;
-    setShapes((current) => [...current, { kind: "box", ...pending, text: label.trim() }]);
+  function closeLabel() {
     setPending(null);
+    setEditing(null);
     setLabel("");
+  }
+
+  /** Writes the note being typed onto the box it belongs to, whether that box is new or already drawn. */
+  function commitLabel() {
+    const at = editing;
+    if (at !== null) setShapes((current) => current.map((shape, index) => (index === at ? { ...shape, text: label.trim() } : shape)));
+    else if (pending) setShapes((current) => [...current, { kind: "box", ...pending, text: label.trim() }]);
+    else return;
+    closeLabel();
+  }
+
+  /** The number a box is drawn with, so what a control says matches what the screenshot shows. */
+  function markNumber(index: number) {
+    return shapes.slice(0, index + 1).filter((shape) => shape.kind === "box").length;
   }
 
   function apply() {
@@ -275,6 +310,9 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
   }
 
   const activeTool = tools.find((entry) => entry.value === tool)!;
+  const composing = pending !== null || editing !== null;
+  /** The box the note being typed belongs to: a rect just drawn, or one already on the image. */
+  const composeAt = pending ?? (editing === null ? null : shapes[editing] ?? null);
 
   // Portalled to the body: the composer's stacking context sits below the topbar, which would paint over the overlay.
   return createPortal(
@@ -291,7 +329,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                   className={`annotator-tool ${entry.value === tool ? "active" : ""}`}
                   aria-pressed={entry.value === tool}
                   onClick={() => {
-                    commitPending();
+                    commitLabel();
                     setTool(entry.value);
                   }}
                 >
@@ -316,7 +354,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                 style={{ width: `${frame.width}px`, height: `${frame.height}px` }}
                 aria-label="Screenshot canvas"
                 onPointerDown={(event) => {
-                  if (pending) return;
+                  if (composing) return;
                   setHovered(null);
                   event.currentTarget.setPointerCapture(event.pointerId);
                   const point = pointAt(event);
@@ -326,7 +364,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                 onPointerMove={(event) => {
                   const point = pointAt(event);
                   if (!origin) {
-                    setHovered(markAt(point));
+                    setHovered(composing ? null : markAt(point));
                     return;
                   }
                   setDraft({ kind: tool, ...(tool === "arrow" ? arrowBetween(origin, point) : normalizeRect(origin, point)), text: "" });
@@ -347,28 +385,47 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                   setPending(rect);
                 }}
               />
-              {hovered !== null && shapes[hovered] && !pending && (
-                <button
-                  type="button"
-                  className="annotator-delete"
+              {hovered !== null && shapes[hovered] && !composing && (
+                <div
+                  className="annotator-marktools"
                   style={{
                     left: `${(shapes[hovered].x + shapes[hovered].width) * frame.width}px`,
                     top: `${(shapes[hovered].kind === "arrow" ? shapes[hovered].y + shapes[hovered].height : shapes[hovered].y) * frame.height}px`,
                   }}
-                  aria-label={`Delete ${shapes[hovered].kind} ${hovered + 1}`}
-                  onClick={() => {
-                    setShapes((current) => current.filter((_, at) => at !== hovered));
-                    setHovered(null);
-                  }}
+                  onPointerEnter={() => setHovered(hovered)}
                 >
-                  <X size={11} />
-                </button>
+                  {shapes[hovered].kind === "box" && (
+                    <button
+                      type="button"
+                      className="annotator-marktool"
+                      aria-label={`Edit note on mark ${markNumber(hovered)}`}
+                      onClick={() => {
+                        setLabel(shapes[hovered].text);
+                        setEditing(hovered);
+                        setHovered(null);
+                      }}
+                    >
+                      <Pencil size={11} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="annotator-marktool remove"
+                    aria-label={shapes[hovered].kind === "arrow" ? "Delete arrow" : `Delete mark ${markNumber(hovered)}`}
+                    onClick={() => {
+                      setShapes((current) => current.filter((_, at) => at !== hovered));
+                      setHovered(null);
+                    }}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
               )}
-              {pending && (
+              {composeAt && (
                 <input
                   ref={labelRef}
                   className="annotator-label"
-                  style={{ left: `${pending.x * frame.width}px`, top: `${(pending.y + pending.height) * frame.height + 8}px` }}
+                  style={{ left: `${composeAt.x * frame.width}px`, top: `${(composeAt.y + composeAt.height) * frame.height + 8}px` }}
                   value={label}
                   placeholder="What's wrong here? (Enter to add)"
                   aria-label="Annotation note"
@@ -376,11 +433,10 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      commitPending();
+                      commitLabel();
                     } else if (event.key === "Escape") {
                       event.preventDefault();
-                      setPending(null);
-                      setLabel("");
+                      closeLabel();
                     }
                   }}
                 />
@@ -390,7 +446,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
           </div>
         </div>
         <footer className="annotator-bar">
-          <span className="annotator-count">{shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"} — point at one to remove it`}</span>
+          <span className="annotator-count">{shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"} — point at one to edit or remove it`}</span>
           <button type="button" className="annotator-action" onClick={onCancel}>Cancel</button>
           <button type="button" className="annotator-action primary" disabled={!image} onClick={apply}>
             <Check size={15} /> Done
