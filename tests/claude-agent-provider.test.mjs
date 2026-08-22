@@ -662,6 +662,21 @@ test("a workflow keeps reporting between the turns of the session it runs under"
   provider.closeAll();
 });
 
+test("a session closing under a workflow reports the workflow stopped", async () => {
+  const capture = {};
+  const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
+  const reported = [];
+
+  await turn(capture, provider.execute(input({ reportWorkflow: (report) => reported.push(report) })),
+    { type: "system", subtype: "task_started", task_type: "local_workflow", task_id: "wf-1", workflow_name: "review-changes", description: "Review changed files" });
+
+  provider.closeAll();
+  await tick();
+
+  assert.deepEqual(reported.at(-1), { type: "workflow.finished", id: "wf-1", status: "stopped", summary: "" },
+    "a workflow the session took with it does not wait on a notification that can never come");
+});
+
 test("the live session is handed back so a background process can be stopped mid-run", async () => {
   const capture = {};
   let controls;

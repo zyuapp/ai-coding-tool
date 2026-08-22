@@ -206,6 +206,9 @@ export class ClaudeSession {
     if (this.ended) return;
     this.ended = true;
     this.backgroundTaskIds.clear();
+    /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
+    for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
+    this.workflowIds.clear();
     this.settle({ status: "cancelled" });
     this.wake(null);
     this.query?.close();
