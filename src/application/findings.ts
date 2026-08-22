@@ -132,6 +132,12 @@ export function dismissableTasks(tasks: Task[]): Task[] {
   return tasks.filter((task) => task.outcome || hasFindings(task));
 }
 
+/** Whether the thread is turning ticks away because the user is using it themselves. */
+function userIsHere(state: WorkspaceState, taskId: string): boolean {
+  return state.activeRuns[taskId]?.origin === "composer"
+    || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.origin === "composer");
+}
+
 /** The run a scheduled tick is executing, and nothing else. Silence is only ever a schedule's to earn. */
 export function scheduledRun(state: RunTransitionState, taskId: string): ActiveRun | undefined {
   const active = state.activeRuns[taskId];
@@ -203,6 +209,8 @@ export function declinedTick(state: WorkspaceState, fire: AutomationFire, task?:
   const acked: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
   const automation = state.automations.find((item) => item.id === fire.automationId);
   if (!task || !automation || declineCount(automation) + 1 < DECLINES_BEFORE_SURFACING) return { state, effects: acked };
+  /** A thread its own user is working in is not a broken schedule: they are here, and the ticks resume when they stop. */
+  if (userIsHere(state, fire.taskId)) return { state, effects: acked };
   const key = `declined:${automation.id}`;
   /**
    * Once per stretch of declines, however many the scheduler counted before the workspace saw one:

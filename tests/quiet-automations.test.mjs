@@ -376,12 +376,12 @@ test("a tick the scheduler said is quiet labels its own message quiet from the s
 });
 
 /** Fires a tick at a thread that cannot take it, with the scheduler's count of the ones before it. */
-function declined(consecutiveDeclines, tasks = [task("task-a")]) {
+function declined(consecutiveDeclines, tasks = [task("task-a")], origin = "automation") {
   const automation = { id: "automation-1", taskId: "task-a", prompt: "Poll", schedule: "* * * * *", paused: false, createdAt: 100, updatedAt: 100, runCount: 4, lastRunAt: 900, consecutiveDeclines };
   const busy = workspace({
     tasks,
     automations: [{ ...automation, nextRunAt: null }],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin: "composer", quiet: false, notified: false, reportedNothing: false, messagesBefore: 0 } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, reportedNothing: false, messagesBefore: 0 } },
     runStatuses: { "task-a": "running" },
   });
   return reduce(busy, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });
@@ -401,6 +401,10 @@ test("a schedule turned away three times running says so out loud on its thread"
   assert.match(finding.headline, /has not been able to run since/);
   assert.equal(finding.key, "declined:automation-1");
   assert.equal(third.effects[1].notice.headline, finding.headline);
+
+  const chatting = declined(2, [task("task-a")], "composer");
+  assert.deepEqual(chatting.effects.map((effect) => effect.type), ["automation.ack"], "a thread its own user is working in is not a broken schedule");
+  assert.equal(chatting.state.tasks[0].findings, undefined);
 
   const fourth = declined(3, third.state.tasks);
   assert.deepEqual(fourth.effects.map((effect) => effect.type), ["automation.ack"], "it is said once, not on every tick after");
