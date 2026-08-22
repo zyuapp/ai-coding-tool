@@ -4,16 +4,19 @@ import type { SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type AnnotationAnchor, type RunAttachment, type Project, type Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
+import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
   source: Task;
   project?: Project;
+  /** Threads this chat's `@` menu offers. */
+  threads?: ThreadHandleOption[];
   onPrompt: (prompt: string) => void;
   onAnnotateAdd: (draft: { quote: string; note: string; anchor: AnnotationAnchor }) => void;
   onAnnotateNote: (annotationId: string, note: string) => void;
@@ -82,6 +85,7 @@ export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAn
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}
+        threads={threads ?? []}
         images={chat.images}
         history={sentPrompts(chat.task.messages)}
         surface="side"

@@ -1401,6 +1401,62 @@ test("a skill completes anywhere in the draft, where an action is not offered", 
   await view.unmount();
 });
 
+test("the @ menu offers threads, keeps browsing in this project, and completes to a handle", async () => {
+  const threads = [
+    { id: "t-1", title: "Raise the dock", handle: "raise-the-dock", project: "app", inScope: true, running: false, lastActivityAt: 3 },
+    { id: "t-2", title: "Raise the panel", handle: "site/raise-the-panel", project: "site", inScope: false, running: false, lastActivityAt: 2 },
+  ];
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return React.createElement(TaskComposer, {
+      prompt,
+      folder: "/project",
+      workspaceId: "workspace-1",
+      mode: "confirm",
+      model: "opus",
+      runActive: false,
+      threads,
+      onPromptChange: setPrompt,
+      onModeChange() {},
+      onModelChange() {},
+      queuedMessages: [],
+      onSteerQueued() {},
+      onDropQueued() {},
+      onSend() {},
+      onCancel() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+  const setValue = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value").set;
+  const type = async (value) => {
+    await act(async () => {
+      textarea.focus();
+      setValue.call(textarea, value);
+      textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
+      textarea.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  };
+  const offered = () => [...view.container.querySelectorAll('.thread-menu [role="option"] strong')].map((node) => node.textContent);
+
+  await type("compare with @");
+  assert.deepEqual(offered(), ["Raise the dock"], "browsing stays in this project");
+
+  await type("compare with @raise");
+  assert.deepEqual(offered(), ["Raise the dock", "Raise the panel"], "a query reaches the other projects");
+
+  await type("compare with @panel");
+  assert.deepEqual(offered(), ["Raise the panel"]);
+
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" })); });
+  assert.equal(textarea.value, "compare with @site/raise-the-panel ");
+  assert.equal(view.container.querySelector(".thread-menu"), null, "the menu closes once a thread is chosen");
+
+  await type("mail me at zhuocheng@gmail");
+  assert.equal(view.container.querySelector(".thread-menu"), null, "an address is not a mention");
+  await view.unmount();
+});
+
 function recordingContext() {
   const calls = { text: [], strokes: 0, fills: 0 };
   return {
@@ -1821,7 +1877,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   assert.equal(row().textContent.includes("Nightly audit"), true);
 
   await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  assert.deepEqual([...document.querySelectorAll(".context-menu-popover button")].map((button) => button.textContent), ["Rename", "Archive"]);
+  assert.deepEqual([...document.querySelectorAll(".context-menu-popover button")].map((button) => button.textContent), ["Rename", "Copy reference", "Archive"]);
   await act(async () => { document.querySelector(".context-menu-popover button").click(); });
   await type("Abandoned edit", "Escape");
   assert.equal(view.container.querySelector(".task-rename"), null);

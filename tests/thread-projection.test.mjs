@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveScope, threadBusy, threadSummaries, threadTranscript, threadWaitResult } from "../dist/main/application/thread-projection.js";
+import { findThread, resolveScope, threadBusy, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../dist/main/application/thread-projection.js";
 import { emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 
 const HOUR = 60 * 60 * 1000;
@@ -157,4 +157,46 @@ test("a thread in a worktree reports the checkout it actually works in", () => {
   assert.equal(inWorktree.worktreeRoot, "/worktrees/app-wt1");
   assert.equal(inWorktree.projectRoot, "/code/app", "it still belongs to its project");
   assert.equal(local.worktreeRoot, undefined);
+});
+
+test("a draft is offered every project's threads, with its own project marked as the ones in scope", () => {
+  const state = workspace([
+    task("in-app", { projectId: "project-app", title: "Raise the dock" }),
+    task("in-site", { projectId: "project-site", title: "Raise the panel" }),
+    task("caller", { projectId: "project-app" }),
+    task("gone", { projectId: "project-app", archivedAt: NOW }),
+  ]);
+
+  const options = threadHandleOptions(state, "caller");
+  assert.deepEqual(options.map((option) => [option.id, option.handle, option.inScope]), [
+    ["in-app", "raise-the-dock", true],
+    ["in-site", "site/raise-the-panel", false],
+  ]);
+});
+
+test("a draft with no thread of its own is scoped to wherever the sidebar is pointed", () => {
+  const state = workspace(
+    [task("in-app", { projectId: "project-app" }), task("in-site", { projectId: "project-site" })],
+    { draftProjectId: "project-site" },
+  );
+
+  assert.deepEqual(
+    threadHandleOptions(state, "draft:project-site").map((option) => [option.id, option.inScope]),
+    [["in-app", false], ["in-site", true]],
+  );
+});
+
+test("a thread answers to its id, an id prefix, or its title, and the newest wins a tie", () => {
+  const state = workspace([
+    task("t-9f2c00", { title: "Sink the mode choices", runEndedAt: NOW - HOUR }),
+    task("t-3a1100", { title: "Sink the mode choices", runEndedAt: NOW }),
+  ]);
+
+  assert.equal(findThread(state, "t-9f2c00")?.id, "t-9f2c00");
+  assert.equal(findThread(state, "t-9f2c")?.id, "t-9f2c00");
+  assert.equal(findThread(state, "Sink the mode choices")?.id, "t-3a1100");
+  assert.equal(findThread(state, "sink the mode choices")?.id, "t-3a1100");
+  assert.equal(findThread(state, "nothing at all"), null);
+  assert.equal(findThread(state, "  "), null);
+  assert.equal(threadTranscript(state, "Sink the mode choices")?.thread.id, "t-3a1100");
 });

@@ -555,6 +555,7 @@ export function App() {
                     focusToken={focusTokenFor(chat.id)}
                     source={workspace.currentTask!}
                     project={workspace.currentProject}
+                    threads={workspace.threadHandlesFor(chat.id)}
                     onPrompt={(prompt) => void workspace.dispatch({ type: "view.set-prompt", taskId: chat.id, prompt })}
                     onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", taskId: chat.id, quote, note, anchor })}
                     onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", taskId: chat.id, annotationId, note })}
@@ -597,6 +598,7 @@ export function App() {
           pastes={workspace.pastes}
           history={sentPrompts(workspace.currentTask?.messages ?? [])}
           actions={composerActions}
+          threads={workspace.threadHandles}
           onPromptChange={workspace.actions.setPrompt}
           onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
           onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
