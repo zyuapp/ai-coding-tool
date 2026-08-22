@@ -590,25 +590,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 .task-attention.failed { background: var(--danger); }
 .task-attention.approval { background: var(--accent); }
-/** A dot the user has already looked at, still waiting to be dismissed. */
-.project-attention-count {
-  position: absolute;
-  top: 50%;
-  right: 7px;
-  transform: translateY(-50%);
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  background: var(--chip);
-  color: var(--ink-dim);
-  font-size: var(--text-badge);
-  font-variant-numeric: tabular-nums;
-}
-.project-row:hover .project-attention-count,
-.project-row:has(.project-menu.open) .project-attention-count { visibility: hidden; }
 .task-entry.is-dragging > .project-task-row,
 .task-entry.is-dragging > .task-row,
 .project-group.is-dragging > .project-row {

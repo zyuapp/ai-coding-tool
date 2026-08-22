@@ -448,7 +448,6 @@ export function ProjectSidebar({
                 /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
                 const checkouts = worktreeGroups.filter((group) => group.worktree.projectId === project.id);
                 const expanded = expandedProjects.has(project.id);
-                const waitingCount = projectTasks.filter((task) => task.outcome || blockedTaskIds.has(task.id)).length;
                 const shown = visibleCount(projectTasks, project.id);
                 const hidden = projectTasks.length - shown;
                 return (
@@ -467,7 +466,6 @@ export function ProjectSidebar({
                             <span className="folder-icon"><FolderIcon /></span>
                             <span>{projectName(project.root)}</span>
                           </button>
-                          {!expanded && waitingCount > 0 && <span className="project-attention-count">{waitingCount}</span>}
                           <PopoverMenu
                             id={`project:${project.id}`}
                             openMenu={openMenu}
