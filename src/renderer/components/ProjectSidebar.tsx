@@ -331,7 +331,7 @@ export function ProjectSidebar({
       items={[
         { label: "Rename", onSelect: () => startRename(task.id) },
         { label: "Copy reference", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
-        { label: "Archive", onSelect: () => onArchiveTask(task.id) },
+        { label: "Archive", danger: true, onSelect: () => onArchiveTask(task.id) },
       ]}
     />}
     </>
