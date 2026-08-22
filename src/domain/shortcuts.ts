@@ -194,6 +194,7 @@ export const FIXED_SHORTCUTS: readonly ShortcutBinding[] = [
   { action: "page.reload", binding: "Mod+R", surface: "browser" },
 
   { action: "tab.new", binding: "Mod+T", surface: "any" },
+  { action: "terminal.focus", binding: "Mod+J", surface: "any" },
   { action: "tab.close", binding: "Mod+W", surface: "any" },
   { action: "dock.toggle", binding: "Mod+\\", surface: "any" },
   { action: "dock.expand", binding: "Mod+Shift+\\", surface: "any" },

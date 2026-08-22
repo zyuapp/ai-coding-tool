@@ -166,6 +166,26 @@ test("a new tab answers with whatever the panel is showing", () => {
   assert.deepEqual(closed.effects, [], "settings have no tabs to add to");
 });
 
+test("a shell is asked for once: the dock's newest answers before a second is opened", () => {
+  const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
+
+  const opened = reduce(state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
+  assert.deepEqual(opened.effects.map((effect) => effect.type), ["terminal.start", "focus-window"], "with no shell in the dock, one is spun up");
+  const shell = dockFor(opened.state, "a").terminals.at(-1);
+  assert.equal(dockFor(opened.state, "a").tab, shell.id);
+
+  const second = run(opened.state, [{ type: "terminal.open" }]);
+  const buried = run(second, [{ type: "view.open-dock-panel", panel: "agents" }]);
+  const focused = reduce(buried, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
+  const dock = dockFor(focused.state, "a");
+  assert.equal(dock.terminals.length, 2, "the shells already there are enough");
+  assert.equal(dock.tab, dock.terminals.at(-1).id, "and the newest of them is the one in front");
+  assert.equal(dock.open, true);
+
+  const sheet = reduce({ ...buried, settingsOpen: true }, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
+  assert.equal(sheet.state.settingsOpen, false, "a shell is not shown behind the settings sheet");
+});
+
 test("a numbered keystroke shows the tab in that position", () => {
   const state = run(workspace({ tasks: [task("a")], currentId: "a" }), [
     { type: "view.open-dock-panel", panel: "agents" },

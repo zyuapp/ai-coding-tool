@@ -807,6 +807,11 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "nav.forward": return surface === "browser" ? [{ type: "browser.go", delta: 1 }] : [...leaving, { type: "view.go-forward" }];
     case "page.reload": return [{ type: "browser.reload" }];
     case "tab.new": return [{ type: "view.new-tab" }];
+    /** A shell is asked for, not a second one: the dock's newest answers before a new one is spun up. */
+    case "terminal.focus": {
+      const latest = dockFor(state, dockOwner(state)).terminals.at(-1);
+      return [...leaving, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
+    }
     case "tab.close": return [{ type: "view.close-tab" }];
     case "dock.toggle": return [{ type: "view.set-dock-open", open: !dockFor(state, dockOwner(state)).open }];
     case "dock.expand": return [{ type: "view.set-dock-expanded", expanded: !dockFor(state, dockOwner(state)).expanded }];
