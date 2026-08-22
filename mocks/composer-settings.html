@@ -72,6 +72,7 @@ body {
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 8px; }
 h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
 .lede { margin: 6px 0 30px; color: var(--quiet); font-size: var(--text-control); max-width: 62ch; }
+.switch-stack { display: grid; gap: 8px; justify-items: end; }
 .switches { display: flex; gap: 6px; }
 .switches button {
   border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
@@ -89,7 +90,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
 .demo-note { margin: 6px 22px 0; color: var(--quiet); font-size: var(--text-meta); max-width: 74ch; }
 /* room above the bar so the popovers can open upward, the way they do in the app */
 .stage { padding: 22px 22px 22px; }
-.transcript { max-width: 760px; margin: 0 auto; min-height: 230px; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; padding-bottom: 18px; }
+.transcript { max-width: var(--stage-width, 760px); margin: 0 auto; min-height: 230px; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; padding-bottom: 18px; }
 .msg { max-width: 74%; padding: 10px 14px; border-radius: 16px; color: var(--quiet-soft); font-size: var(--text-content); }
 .msg.user { align-self: flex-end; background: var(--surface-raised); border-bottom-right-radius: 6px; }
 .msg.claude { align-self: flex-start; padding-left: 0; }
@@ -97,7 +98,8 @@ h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
 
 /* ---- the composer shell ---- */
 .composer {
-  position: relative; max-width: 760px; margin: 0 auto;
+  container-type: inline-size;
+  position: relative; max-width: var(--stage-width, 760px); margin: 0 auto;
   border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow-composer);
 }
 .composer-input { padding: 15px 17px 4px; color: var(--quiet-soft); font-size: var(--text-content); }
@@ -122,7 +124,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
 /* ---- popover ---- */
 .pop {
   position: absolute; z-index: 20; bottom: calc(100% + 9px); left: -4px;
-  width: min(400px, calc(100vw - 80px));
+  width: min(400px, calc(100cqw - 12px));
   border: 1px solid var(--line-mid); border-radius: 16px; padding: 13px;
   background: var(--surface-menu); box-shadow: var(--shadow-panel);
   display: none;
@@ -187,7 +189,7 @@ h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
 /* ================= variant F — one summary, one panel ================= */
 .v-one .trigger { gap: 8px; }
 .v-one .sep { color: var(--quiet-soft); }
-.v-one .pop { width: min(680px, calc(100vw - 60px)); padding: 6px; }
+.v-one .pop { width: min(680px, calc(100cqw - 12px)); padding: 6px; }
 .v-one .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .v-one .col { padding: 8px; }
 .v-one .col + .col { border-left: 1px solid var(--line-soft); }
@@ -195,6 +197,50 @@ h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
 .v-one .opt { grid-template-columns: 26px minmax(0, 1fr) 18px; gap: 7px; padding: 8px; }
 .v-one .opt small { display: none; }
 .v-one .opt[aria-selected="true"] { background: var(--surface-hover); }
+
+/* ---- narrow composer: what each variant does with the width it is left ---- */
+
+/* A–D shed their labels, then start dropping controls outright, as the app does today */
+@container (max-width: 470px) {
+  [data-variant="today"] .trigger > span:not(.tri):not(.caret),
+  [data-variant="chips"] .trigger > span:not(.tri):not(.caret),
+  [data-variant="track"] .trigger > span:not(.tri):not(.caret) { display: none; }
+  [data-variant="keyed"] .key { display: none; }
+  .v-chips .trigger, .v-track .trigger { padding-inline: 8px; }
+}
+@container (max-width: 430px) {
+  [data-variant="today"] .menu:nth-child(3),
+  [data-variant="chips"] .menu:nth-child(3),
+  [data-variant="track"] .menu:nth-child(3),
+  [data-variant="keyed"] .menu:nth-child(3) { display: none; }
+}
+@container (max-width: 360px) {
+  [data-variant="today"] .menu:nth-child(2),
+  [data-variant="chips"] .menu:nth-child(2),
+  [data-variant="track"] .menu:nth-child(2),
+  [data-variant="keyed"] .menu:nth-child(2) { display: none; }
+}
+@container (max-width: 300px) {
+  [data-variant="today"] .menu:nth-child(1),
+  [data-variant="chips"] .menu:nth-child(1),
+  [data-variant="track"] .menu:nth-child(1),
+  [data-variant="keyed"] .menu:nth-child(1) { display: none; }
+  .ring { display: none; }
+}
+/* E is already icons; the one label it insists on keeping folds away last */
+@container (max-width: 340px) {
+  .v-quiet .menu.accented .label { max-width: 0; opacity: 0; margin-left: 0; }
+}
+/* F sheds text, never an axis, and stacks its columns */
+@container (max-width: 470px) {
+  .v-one .trigger > span:not(.tri):not(.caret) { display: none; }
+  .v-one .trigger { gap: 5px; }
+}
+@container (max-width: 520px) {
+  .v-one .cols, .v-inline .drawer { grid-template-columns: 1fr; }
+  .v-one .col + .col, .v-inline .drawer .col + .col { border-left: 0; border-top: 1px solid var(--line-soft); }
+  .v-one .pop { max-height: 62vh; overflow-y: auto; }
+}
 
 /* ================= variant G — expands inside the composer ================= */
 .v-inline .composer { overflow: hidden; }
@@ -218,12 +264,20 @@ h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
     <div>
       <h1>Composer settings — six ways to wear it</h1>
     </div>
-    <div class="switches">
-      <button data-theme-set="claudex-dark" class="on">Dark</button>
-      <button data-theme-set="claudex-light">Light</button>
+    <div class="switch-stack">
+      <div class="switches">
+        <button data-theme-set="claudex-dark" class="on">Dark</button>
+        <button data-theme-set="claudex-light">Light</button>
+      </div>
+      <div class="switches">
+        <button data-width="760" class="on">Full 760</button>
+        <button data-width="520">Dock 520</button>
+        <button data-width="400">Narrow 400</button>
+        <button data-width="300">Tiny 300</button>
+      </div>
     </div>
   </div>
-  <p class="lede">Every row below is live: click a control to expand its options, click a row to pick, click away to dismiss. One menu open at a time, same as the app.</p>
+  <p class="lede">Every row below is live: click a control to expand its options, click a row to pick, click away to dismiss. The width buttons squeeze the composer the way an open dock does — A through D start dropping controls at 430px, exactly as the app does today.</p>
 </div>
 
 <div class="page" id="variants"></div>
@@ -423,7 +477,9 @@ function render(v) {
   if (wasExpanded) host.classList.add('expanded');
 }
 
-const only = new URLSearchParams(location.search).get('only');
+const params = new URLSearchParams(location.search);
+if (params.get('width')) document.body.style.setProperty('--stage-width', `${params.get('width')}px`);
+const only = params.get('only');
 const SHOWN = only ? VARIANTS.filter((v) => only.split(',').includes(v.id)) : VARIANTS;
 document.getElementById('variants').innerHTML = SHOWN
   .map((v) => `<section class="demo ${v.cls}" data-variant="${v.id}"></section>`).join('');
@@ -473,6 +529,13 @@ if (new URLSearchParams(location.search).get('open')) {
 }
 
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
+
+document.querySelectorAll('[data-width]').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.body.style.setProperty('--stage-width', `${button.dataset.width}px`);
+    document.querySelectorAll('[data-width]').forEach((b) => b.classList.toggle('on', b === button));
+  });
+});
 
 document.querySelectorAll('[data-theme-set]').forEach((button) => {
   button.addEventListener('click', () => {
