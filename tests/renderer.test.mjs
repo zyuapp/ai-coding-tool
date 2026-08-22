@@ -1487,6 +1487,16 @@ test("arrows draw without a mark and never renumber the boxes around them", () =
   assert.equal(context.calls.strokes, 2);
 });
 
+test("marks take their screenshot's letter when a send carries more than one", () => {
+  const context = recordingContext();
+  drawAnnotations(context, [
+    { kind: "box", x: 0.1, y: 0.1, width: 0.2, height: 0.2, text: "text 1" },
+    { kind: "box", x: 0.5, y: 0.5, width: 0.2, height: 0.2, text: "text 2" },
+  ], 1000, 800, "B");
+
+  assert.deepEqual(context.calls.text, ["B1", "B2"]);
+});
+
 test("a mark carries its number alone, however long the note behind it is", () => {
   const context = recordingContext();
   drawAnnotations(context, [

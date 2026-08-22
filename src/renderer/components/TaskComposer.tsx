@@ -4,6 +4,7 @@ import type { QueuedMessage } from "../../application/workspace-state";
 import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RunAttachment, type StagedImage } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
+import { markPrefix } from "../../application/attachments";
 import { pasteRidesAsPill } from "../../application/pastes";
 import type { AvailableCommand } from "../../contracts/ipc";
 import { handleTokenAt, rankThreadHandles, type ThreadHandleOption } from "../../domain/thread-handles";
@@ -11,7 +12,7 @@ import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run"
 import type { ContextUsage } from "../../domain/task";
 import { ComposerSettings } from "./ComposerSettings";
 import { ContextUsageMeter } from "./ContextUsageMeter";
-import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
+import { ImageAnnotator, renderAnnotatedSource, type Annotation } from "./ImageAnnotator";
 import { useDismissibleLayer } from "../focus";
 
 /** An entry in the `/` menu that the app performs itself instead of sending. */
@@ -275,11 +276,16 @@ export function TaskComposer({
     }
     setSending(true);
     try {
-      const saved = await Promise.all(attachments.map(async (attachment) => ({
+      const saved = await Promise.all(attachments.map(async (attachment, at) => ({
         /** A staged image is already on disk; only its annotations, drawn since, need writing back. */
         path: attachment.path !== undefined && attachment.annotations.length === 0
           ? attachment.path
-          : await window.desktop.saveAttachment(attachment.preview.replace(/^data:[^,]*,/, "")),
+          : await window.desktop.saveAttachment(
+            (attachment.annotations.length === 0
+              ? attachment.source
+              : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, attachments.length))
+            ).replace(/^data:[^,]*,/, ""),
+          ),
         labels: attachment.annotations.filter((annotation) => annotation.kind === "box").map((annotation) => annotation.text),
       })));
       setAttachments([]);
@@ -586,6 +592,7 @@ export function TaskComposer({
         <ImageAnnotator
           source={editing.source}
           annotations={editing.annotations}
+          prefix={markPrefix(attachments.indexOf(editing), attachments.length)}
           onCancel={() => setAnnotating(null)}
           onApply={(annotations, rendered) => {
             setAttachments((current) => current.map((item) => item.id === editing.id ? { ...item, annotations, preview: rendered } : item));

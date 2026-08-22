@@ -127,7 +127,7 @@ function drawBadge(context: CanvasRenderingContext2D, center: Point, radius: num
  * Marks carry their number and nothing else: the notes travel with the prompt as text, so drawing
  * them again would only cover the screenshot they describe.
  */
-export function drawAnnotations(context: CanvasRenderingContext2D, annotations: Annotation[], width: number, height: number) {
+export function drawAnnotations(context: CanvasRenderingContext2D, annotations: Annotation[], width: number, height: number, prefix = "") {
   const stroke = Math.max(2, Math.round(Math.max(width, height) * 0.003));
   const radius = badgeRadius(width, height);
   const boxes = annotations.filter((annotation) => annotation.kind === "box").map((annotation) => ({
@@ -154,19 +154,38 @@ export function drawAnnotations(context: CanvasRenderingContext2D, annotations: 
     context.lineWidth = stroke;
     context.strokeStyle = MARK_COLOR;
     context.strokeRect(box.x + stroke / 2, box.y + stroke / 2, Math.max(box.width - stroke, 1), Math.max(box.height - stroke, 1));
-    drawBadge(context, center, radius, String(mark));
+    drawBadge(context, center, radius, `${prefix}${mark}`);
   });
 }
 
-export function renderAnnotated(image: HTMLImageElement, annotations: Annotation[]) {
+export function renderAnnotated(image: HTMLImageElement, annotations: Annotation[], prefix = "") {
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth;
   canvas.height = image.naturalHeight;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas rendering is unavailable.");
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  drawAnnotations(context, annotations, canvas.width, canvas.height);
+  drawAnnotations(context, annotations, canvas.width, canvas.height, prefix);
   return canvas.toDataURL("image/png");
+}
+
+/**
+ * The same render from a data URL. A mark's letter follows the screenshot's place in the send, which
+ * is only settled once the composer hands the images over, so the marks are drawn again there.
+ */
+export function renderAnnotatedSource(source: string, annotations: Annotation[], prefix = "") {
+  return new Promise<string>((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => {
+      try {
+        resolve(renderAnnotated(image, annotations, prefix));
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    image.addEventListener("error", () => reject(new Error("Could not read the image to annotate.")));
+    image.src = source;
+  });
 }
 
 const tools: { value: AnnotationKind; label: string; hint: string; icon: typeof SquarePen }[] = [
@@ -177,11 +196,13 @@ const tools: { value: AnnotationKind; label: string; hint: string; icon: typeof 
 export type ImageAnnotatorProps = {
   source: string;
   annotations: Annotation[];
+  /** The letter this screenshot's marks carry, empty when it is the only one being sent. */
+  prefix?: string;
   onCancel: () => void;
   onApply: (annotations: Annotation[], rendered: string) => void;
 };
 
-export function ImageAnnotator({ source, annotations, onCancel, onApply }: ImageAnnotatorProps) {
+export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onApply }: ImageAnnotatorProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -236,8 +257,8 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
       ...(pending ? [{ kind: "box" as const, ...pending, text: "" }] : []),
       ...(draft ? [draft] : []),
     ];
-    drawAnnotations(context, live, frame.width, frame.height);
-  }, [image, frame, shapes, draft, pending]);
+    drawAnnotations(context, live, frame.width, frame.height, prefix);
+  }, [image, frame, shapes, draft, pending, prefix]);
 
   useEffect(() => {
     if (!pending && editing === null) return;
@@ -306,7 +327,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
 
   function apply() {
     if (!image) return;
-    onApply(shapes, renderAnnotated(image, shapes));
+    onApply(shapes, renderAnnotated(image, shapes, prefix));
   }
 
   const activeTool = tools.find((entry) => entry.value === tool)!;
@@ -398,7 +419,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                     <button
                       type="button"
                       className="annotator-marktool"
-                      aria-label={`Edit note on mark ${markNumber(hovered)}`}
+                      aria-label={`Edit note on mark ${prefix}${markNumber(hovered)}`}
                       onClick={() => {
                         setLabel(shapes[hovered].text);
                         setEditing(hovered);
@@ -411,7 +432,7 @@ export function ImageAnnotator({ source, annotations, onCancel, onApply }: Image
                   <button
                     type="button"
                     className="annotator-marktool remove"
-                    aria-label={shapes[hovered].kind === "arrow" ? "Delete arrow" : `Delete mark ${markNumber(hovered)}`}
+                    aria-label={shapes[hovered].kind === "arrow" ? "Delete arrow" : `Delete mark ${prefix}${markNumber(hovered)}`}
                     onClick={() => {
                       setShapes((current) => current.filter((_, at) => at !== hovered));
                       setHovered(null);
