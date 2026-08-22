@@ -475,6 +475,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   top: 29px;
   right: -30px;
   width: 128px;
+  /** A column, so a menu sized to its content measures its widest item rather than every item in a row. */
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line-mid);
   border-radius: 9px;
   padding: 5px;
