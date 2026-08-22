@@ -733,7 +733,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   min-width: 0;
   display: grid;
   grid-template-rows: 50px minmax(0, 1fr);
-  overflow: hidden;
+  /** Clipped rather than hidden, with room for the resize handle to straddle the dock's own edge. */
+  overflow: clip;
+  overflow-clip-margin: 8px;
   border-left: 1px solid var(--line);
   background: var(--sunken);
   grid-column: 2;
@@ -741,20 +743,21 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   animation: inspector-in 160ms ease-out;
 }
 .right-dock[hidden] { display: none; }
+/** A 16px grab strip centred on the dock's edge; the line it draws stays 2px so the seam looks unchanged. */
 .right-dock-resizer {
   position: absolute;
   z-index: 5;
   top: 0;
-  left: 0;
+  left: -8px;
   bottom: 0;
-  width: 6px;
+  width: 16px;
   cursor: col-resize;
   touch-action: none;
 }
 .right-dock-resizer:hover::after, .right-dock-resizer:focus-visible::after {
   content: "";
   position: absolute;
-  inset: 0 2px;
+  inset: 0 7px;
   background: var(--line-strong);
 }
 .right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 6px 8px; }
