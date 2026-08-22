@@ -33,7 +33,6 @@
   --control-hover: color-mix(in srgb, var(--p-bg-5) 40%, var(--p-bg-6));
   --chip: color-mix(in srgb, var(--p-bg-6) 85%, var(--p-fg-5)); /* counts and short labels */
   --wash: rgb(from var(--p-fg-0) r g b / 0.045); /* hover on an otherwise transparent control */
-  --wash-soft: rgb(from var(--p-fg-0) r g b / 0.028); /* a few percent of ink across a large empty area */
   --code-surface: var(--p-bg-4);
   --code-ink: var(--p-ansi-white);
   --meter-fill: var(--p-fg-4);
@@ -986,16 +985,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   padding-bottom: 11vh;
   text-align: center;
 }
-/**
- * The transcript's own empty state stands on the composer rather than in the middle of the window,
- * so the glyph, the title, the start options and the input read as one column. The wash behind it
- * is what keeps the space above from reading as a hole.
- */
-.conversation > .empty-state {
-  align-content: end;
-  padding-bottom: 10px;
-  background: radial-gradient(52% 42% at 50% 64%, var(--wash-soft), transparent 72%);
-}
+/** The transcript's own empty state centres on the transcript rather than lifting off its floor. */
+.conversation > .empty-state { padding-bottom: 0; }
 .conversation > .empty-state .empty-glyph {
   width: 46px;
   height: 46px;
