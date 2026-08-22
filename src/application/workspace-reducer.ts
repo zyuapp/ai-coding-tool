@@ -195,6 +195,25 @@ function now() {
   return Date.now();
 }
 
+function sameStrings(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameChangedFiles(left: ChangedFilesResult | null, right: ChangedFilesResult) {
+  if (!left || left.status !== right.status) return false;
+  if (left.status === "available" && right.status === "available") {
+    return left.branch === right.branch
+      && left.baseline === right.baseline
+      && left.additions === right.additions
+      && left.deletions === right.deletions
+      && sameStrings(left.files, right.files);
+  }
+  if (left.status === "unavailable" && right.status === "unavailable") return left.reason === right.reason;
+  if (left.status === "unknown" && right.status === "unknown") return left.workspaceId === right.workspaceId;
+  if (left.status === "error" && right.status === "error") return left.message === right.message;
+  return false;
+}
+
 function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []): WorkspaceTransition {
   return { state, effects };
 }
@@ -1543,9 +1562,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "environment.updated": {
       if (input.taskId && input.runId && state.lastRunIds[input.taskId] !== input.runId) return settled(state);
-      const next: WorkspaceState = { ...state, environment: { workspaceId: input.workspaceId, result: input.result } };
+      const previous = state.environment?.workspaceId === input.workspaceId ? state.environment.result : null;
+      const next: WorkspaceState = sameChangedFiles(previous, input.result)
+        ? state
+        : { ...state, environment: { workspaceId: input.workspaceId, result: input.result } };
       if (!input.taskId || input.result.status !== "available") return settled(next);
       const files = input.result.files;
+      const task = state.tasks.find((item) => item.id === input.taskId);
+      if (!task || sameStrings(task.lastChangeSnapshot.files, files)) return settled(next);
       return settled(applyTask(next, input.taskId, (task) => ({ ...task, lastChangeSnapshot: { files, capturedAt: now() }, updatedAt: now() })));
     }
 

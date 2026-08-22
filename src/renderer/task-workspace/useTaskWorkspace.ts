@@ -34,6 +34,8 @@ type ThreadWaiter = {
   timer: number;
 };
 
+type EnvironmentRefreshEffect = Extract<WorkspaceEffect, { type: "refresh-environment" }>;
+
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -116,6 +118,7 @@ export function useTaskWorkspace() {
   const persistenceQueue = useRef(Promise.resolve());
   const dispatchRef = useRef<(input: WorkspaceInput) => Promise<void>>(null!);
   const threadWaiters = useRef<ThreadWaiter[]>([]);
+  const environmentRefreshes = useRef(new Map<string, EnvironmentRefreshEffect | null>());
 
   function commit(next: WorkspaceState, persist = true) {
     const previous = stateRef.current;
@@ -140,6 +143,30 @@ export function useTaskWorkspace() {
     return Promise.all(transition.effects.map(runEffect)).then(() => undefined);
   }
   dispatchRef.current = dispatch;
+
+  /** One Git scan per checkout. A tick during a slow scan replaces the one follow-up still needed. */
+  async function refreshEnvironment(first: EnvironmentRefreshEffect) {
+    if (environmentRefreshes.current.has(first.workspaceId)) {
+      environmentRefreshes.current.set(first.workspaceId, first);
+      return;
+    }
+    environmentRefreshes.current.set(first.workspaceId, null);
+    let effect: EnvironmentRefreshEffect | null = first;
+    try {
+      while (effect) {
+        try {
+          const result = await window.desktop.changedFiles(effect.workspaceId);
+          await dispatch({ type: "environment.updated", workspaceId: effect.workspaceId, ...(effect.taskId ? { taskId: effect.taskId } : {}), ...(effect.runId ? { runId: effect.runId } : {}), result });
+        } catch (error) {
+          await dispatch({ type: "environment.updated", workspaceId: effect.workspaceId, result: { status: "error", message: errorMessage(error) } });
+        }
+        effect = environmentRefreshes.current.get(first.workspaceId) ?? null;
+        environmentRefreshes.current.set(first.workspaceId, null);
+      }
+    } finally {
+      environmentRefreshes.current.delete(first.workspaceId);
+    }
+  }
 
   async function runEffect(effect: WorkspaceEffect): Promise<void> {
     switch (effect.type) {
@@ -207,13 +234,7 @@ export function useTaskWorkspace() {
         return;
 
       case "refresh-environment":
-        try {
-          const result = await window.desktop.changedFiles(effect.workspaceId);
-          await dispatch({ type: "environment.updated", workspaceId: effect.workspaceId, ...(effect.taskId ? { taskId: effect.taskId } : {}), ...(effect.runId ? { runId: effect.runId } : {}), result });
-        } catch (error) {
-          await dispatch({ type: "environment.updated", workspaceId: effect.workspaceId, result: { status: "error", message: errorMessage(error) } });
-        }
-        return;
+        return refreshEnvironment(effect);
 
       case "read-diff":
         try {

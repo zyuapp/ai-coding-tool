@@ -2239,6 +2239,47 @@ test("workspace hook ignores a changed-files response from a replaced run", asyn
   await workspace.view.unmount();
 });
 
+test("workspace hook coalesces overlapping changed-files reads and follows up once", async () => {
+  const result = { status: "available", files: [], branch: "main", baseline: "origin/main", additions: 0, deletions: 0 };
+  const pending = [];
+  let controlled = false;
+  let calls = 0;
+  const desktop = fakeDesktop({
+    openFolder: async () => ({ id: "workspace-1", kind: "project", root: "/project" }),
+    changedFiles: async () => {
+      if (!controlled) return result;
+      calls += 1;
+      return new Promise((resolve) => pending.push(resolve));
+    },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { await workspace.get().actions.openFolder(); });
+  controlled = true;
+
+  let first;
+  await act(async () => {
+    first = workspace.get().dispatch({ type: "view.refresh-environment" });
+    await Promise.resolve();
+  });
+  assert.equal(calls, 1);
+
+  await act(async () => { await workspace.get().dispatch({ type: "view.refresh-environment" }); });
+  assert.equal(calls, 1, "a refresh in flight owns the checkout");
+
+  await act(async () => {
+    pending.shift()({ ...result, files: ["first"] });
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+  assert.equal(calls, 2, "the queued refresh starts as soon as the first settles");
+
+  await act(async () => {
+    pending.shift()({ ...result, files: ["second"] });
+    await first;
+  });
+  assert.deepEqual(workspace.get().environment.files, ["second"]);
+  await workspace.view.unmount();
+});
+
 test("a folder the claudex command names opens as a project without the dialog", async () => {
   const desktop = fakeDesktop({ openFolder: async () => { throw new Error("nothing should be picked"); } });
   const workspace = await mountWorkspace(desktop);

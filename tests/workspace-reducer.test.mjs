@@ -247,6 +247,22 @@ test("changed files from a superseded run never overwrite the snapshot", () => {
   assert.deepEqual(current.state.tasks[0].lastChangeSnapshot.files, ["fresh"]);
 });
 
+test("an unchanged environment refresh does not rewrite the workspace or task", () => {
+  const result = { status: "available", files: [" M src/App.tsx"], branch: "main", baseline: "origin/main", additions: 2, deletions: 1 };
+  const state = workspace({
+    tasks: [task("task-a", { lastChangeSnapshot: { files: [...result.files], capturedAt: 1 } })],
+    environment: { workspaceId: "workspace-1", result },
+  });
+
+  const unchanged = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", result: { ...result, files: [...result.files] } });
+  assert.equal(unchanged.state, state);
+
+  const movedBranch = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", result: { ...result, branch: "feature" } });
+  assert.notEqual(movedBranch.state, state);
+  assert.equal(movedBranch.state.tasks, state.tasks, "environment details do not rewrite an unchanged task snapshot");
+  assert.equal(movedBranch.state.environment.result.branch, "feature");
+});
+
 test("a run that settles off screen flags its thread and refreshes its project", () => {
   const state = workspace({
     tasks: [task("task-a", { projectId: "project-1" }), task("task-b")],
