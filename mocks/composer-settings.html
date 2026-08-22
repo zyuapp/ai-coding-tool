@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en" data-theme="claudex-dark">
+<head>
+<meta charset="utf-8">
+<title>Composer settings — options</title>
+<style>
+/* ---- tokens lifted from themes.css / styles.css so the mock reads like the app ---- */
+:root, [data-theme="claudex-dark"] {
+  color-scheme: dark;
+  --p-bg-0: #0e1117; --p-bg-1: #11151b; --p-bg-2: #151920; --p-bg-3: #171b20;
+  --p-bg-4: #1b2028; --p-bg-5: #20242a; --p-bg-6: #2a2f36;
+  --p-line-0: #1d2229; --p-line-1: #272c34; --p-line-2: #3a414b; --p-line-3: #48525f;
+  --p-fg-0: #e6e4df; --p-fg-1: #c9c8c4; --p-fg-2: #a9aaa7; --p-fg-3: #969a9f; --p-fg-4: #666b72; --p-fg-5: #55595e;
+  --p-contrast: #e4e2dd; --p-contrast-ink: #171a1f;
+  --p-accent: #d97757; --p-accent-bright: #ef8451;
+  --p-shadow: 0 0 0; --p-shadow-scale: 1;
+}
+[data-theme="claudex-light"] {
+  color-scheme: light;
+  --p-bg-0: #faf9f6; --p-bg-1: #f2f1ec; --p-bg-2: #ffffff; --p-bg-3: #f5f4ef;
+  --p-bg-4: #eeece5; --p-bg-5: #e6e4db; --p-bg-6: #dcd9cf;
+  --p-line-0: #eceae3; --p-line-1: #dedbd2; --p-line-2: #c4c0b5; --p-line-3: #a8a396;
+  --p-fg-0: #1d1f24; --p-fg-1: #33363c; --p-fg-2: #565961; --p-fg-3: #6b6f78; --p-fg-4: #8d9199; --p-fg-5: #a5a8af;
+  --p-contrast: #23262c; --p-contrast-ink: #f5f4ef;
+  --p-accent: #c25a35; --p-accent-bright: #d9663a;
+  --p-shadow: 24 26 32; --p-shadow-scale: 0.26;
+}
+[data-theme] {
+  --canvas: var(--p-bg-0);
+  --sunken: var(--p-bg-1);
+  --surface: var(--p-bg-2);
+  --surface-raised: var(--p-bg-4);
+  --surface-menu: var(--p-bg-3);
+  --surface-hover: var(--p-bg-4);
+  --surface-active: var(--p-bg-5);
+  --surface-input: color-mix(in srgb, var(--p-bg-0) 50%, var(--p-bg-2));
+  --surface-inverse: var(--p-contrast);
+  --ink-inverse: var(--p-contrast-ink);
+  --control-soft: var(--p-bg-3);
+  --chip: color-mix(in srgb, var(--p-bg-6) 85%, var(--p-fg-5));
+  --wash: rgb(from var(--p-fg-0) r g b / 0.045);
+  --line: var(--p-line-1);
+  --line-soft: var(--p-line-0);
+  --line-mid: color-mix(in srgb, var(--p-line-1) 50%, var(--p-line-2));
+  --line-strong: var(--p-line-2);
+  --line-bright: var(--p-line-3);
+  --ink: var(--p-fg-0);
+  --ink-dim: var(--p-fg-1);
+  --ink-faint: color-mix(in srgb, var(--p-fg-1) 55%, var(--p-fg-2));
+  --muted-strong: var(--p-fg-2);
+  --quiet-strong: color-mix(in srgb, var(--p-fg-3) 30%, var(--p-fg-4));
+  --quiet: var(--p-fg-4);
+  --quiet-soft: var(--p-fg-5);
+  --accent: var(--p-accent);
+  --accent-bright: var(--p-accent-bright);
+  --accent-wash: color-mix(in srgb, var(--p-accent) 14%, transparent);
+  --shadow-panel: 0 22px 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
+  --shadow-composer: 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  --text-badge: 10px; --text-meta: 12px; --text-control: 14px; --text-content: 15px; --text-heading: 17px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 28px 28px 120px;
+  background: var(--canvas);
+  color: var(--ink-dim);
+  font: 400 var(--text-content)/1.5 ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1080px; margin: 0 auto; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 8px; }
+h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
+.lede { margin: 6px 0 30px; color: var(--quiet); font-size: var(--text-control); max-width: 62ch; }
+.switches { display: flex; gap: 6px; }
+.switches button {
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
+  background: var(--surface); color: var(--quiet-strong); font: inherit; font-size: var(--text-meta); cursor: pointer;
+}
+.switches button.on { background: var(--surface-active); color: var(--ink-dim); border-color: var(--line-strong); }
+
+.demo { margin-bottom: 22px; border: 1px solid var(--line-soft); border-radius: 20px; background: var(--sunken); }
+.demo-head { display: flex; align-items: baseline; gap: 12px; padding: 18px 22px 0; }
+.demo-head h2 { margin: 0; font-size: var(--text-heading); font-weight: 500; color: var(--ink); }
+.demo-head .tag {
+  padding: 2px 8px; border-radius: 999px; background: var(--chip);
+  color: var(--ink-dim); font-size: var(--text-badge); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.demo-note { margin: 6px 22px 0; color: var(--quiet); font-size: var(--text-meta); max-width: 74ch; }
+/* room above the bar so the popovers can open upward, the way they do in the app */
+.stage { padding: 22px 22px 22px; }
+.transcript { max-width: 760px; margin: 0 auto; min-height: 230px; display: flex; flex-direction: column; justify-content: flex-end; gap: 14px; padding-bottom: 18px; }
+.msg { max-width: 74%; padding: 10px 14px; border-radius: 16px; color: var(--quiet-soft); font-size: var(--text-content); }
+.msg.user { align-self: flex-end; background: var(--surface-raised); border-bottom-right-radius: 6px; }
+.msg.claude { align-self: flex-start; padding-left: 0; }
+.msg .line { height: 9px; border-radius: 5px; background: var(--surface-raised); }
+
+/* ---- the composer shell ---- */
+.composer {
+  position: relative; max-width: 760px; margin: 0 auto;
+  border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow-composer);
+}
+.composer-input { padding: 15px 17px 4px; color: var(--quiet-soft); font-size: var(--text-content); }
+.composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 8px 8px 8px; }
+.composer-actions { display: flex; align-items: center; gap: 12px; padding-right: 4px; }
+.send { width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--surface-inverse); color: var(--ink-inverse); display: grid; place-items: center; cursor: pointer; }
+.ring { width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(var(--quiet) 28%, color-mix(in srgb, var(--p-bg-5) 60%, var(--p-bg-6)) 0); mask: radial-gradient(circle, transparent 45%, #000 48%); }
+
+.settings { position: relative; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.menu { position: relative; font-size: var(--text-control); }
+.trigger {
+  display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px;
+  border: 0; border-radius: 15px; background: none; color: var(--quiet-strong);
+  font: inherit; font-size: var(--text-control); cursor: pointer; white-space: nowrap;
+}
+.trigger:hover { background: var(--wash); color: var(--ink-faint); }
+.menu.open .trigger { background: var(--surface-active); color: var(--ink-dim); }
+.trigger svg { flex: none; }
+.tri { display: grid; place-items: center; width: 16px; height: 16px; }
+.caret { color: var(--quiet-soft); }
+
+/* ---- popover ---- */
+.pop {
+  position: absolute; z-index: 20; bottom: calc(100% + 9px); left: -4px;
+  width: min(400px, calc(100vw - 80px));
+  border: 1px solid var(--line-mid); border-radius: 16px; padding: 13px;
+  background: var(--surface-menu); box-shadow: var(--shadow-panel);
+  display: none;
+}
+.menu.open > .pop { display: block; animation: pop-in 120ms ease-out; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(5px); } }
+.pop-head { padding: 2px 9px 10px; color: var(--quiet-strong); font-size: var(--text-control); }
+.opt {
+  width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) 22px; align-items: center; gap: 8px;
+  border: 0; border-radius: 11px; padding: 9px; background: transparent; color: var(--ink-dim);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.opt:hover { background: var(--surface-hover); }
+.opt .txt { display: grid; gap: 3px; }
+.opt strong { font-size: var(--text-control); font-weight: 540; }
+.opt small { color: var(--quiet); font-size: var(--text-meta); line-height: 1.35; }
+.opt .ico, .opt .chk { display: grid; place-items: center; }
+.opt .ico { color: var(--muted-strong); }
+.opt .chk { color: var(--ink-faint); opacity: 0; }
+.opt[aria-selected="true"] .chk { opacity: 1; }
+.opt.elevated strong, .opt.elevated small, .opt.elevated .ico { color: var(--accent-bright); }
+
+/* ================= variant A — today ================= */
+
+/* ================= variant B — outlined chips ================= */
+.v-chips .trigger {
+  border: 1px solid var(--line); border-radius: 999px; padding: 0 9px 0 10px; gap: 6px;
+  background: var(--surface-input); color: var(--ink-faint);
+}
+.v-chips .trigger:hover { border-color: var(--line-bright); background: var(--surface-input); }
+.v-chips .menu.open .trigger { border-color: var(--line-bright); background: var(--surface-active); color: var(--ink-dim); }
+.v-chips .settings { gap: 6px; }
+
+/* ================= variant C — one sunken track ================= */
+.v-track .settings {
+  gap: 0; padding: 2px; border: 1px solid var(--line-soft); border-radius: 999px; background: var(--surface-input);
+}
+.v-track .trigger { border-radius: 999px; padding: 0 11px; min-height: 28px; }
+.v-track .menu + .menu::before {
+  content: ""; position: absolute; left: -1px; top: 7px; bottom: 7px; width: 1px; background: var(--line);
+}
+.v-track .menu.open + .menu::before, .v-track .menu:hover + .menu::before, .v-track .menu:has(+ .menu:hover)::after { opacity: 0; }
+.v-track .menu.open .trigger { background: var(--surface-active); box-shadow: 0 1px 2px rgb(var(--p-shadow) / calc(0.3 * var(--p-shadow-scale))); }
+
+/* ================= variant D — keyed labels ================= */
+.v-keyed .trigger { gap: 6px; }
+.v-keyed .key { color: var(--quiet-soft); font-size: var(--text-meta); }
+.v-keyed .val { color: var(--ink-faint); }
+.v-keyed .menu.open .val { color: var(--ink); }
+
+/* ================= variant E — icons that grow their label ================= */
+.v-quiet .settings { gap: 2px; }
+.v-quiet .trigger { gap: 0; padding: 0 8px; }
+.v-quiet .label {
+  display: inline-block; max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap;
+  transition: max-width 160ms cubic-bezier(0.32, 0.72, 0, 1), opacity 120ms ease, margin-left 160ms ease;
+}
+.v-quiet .menu:hover .label, .v-quiet .menu.open .label, .v-quiet .trigger:focus-visible .label { max-width: 130px; opacity: 1; margin-left: 7px; }
+.v-quiet .menu.accented .trigger { color: var(--accent-bright); }
+.v-quiet .menu.accented .label { max-width: 130px; opacity: 1; margin-left: 7px; }
+
+/* ================= variant F — one summary, one panel ================= */
+.v-one .trigger { gap: 8px; }
+.v-one .sep { color: var(--quiet-soft); }
+.v-one .pop { width: min(680px, calc(100vw - 60px)); padding: 6px; }
+.v-one .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.v-one .col { padding: 8px; }
+.v-one .col + .col { border-left: 1px solid var(--line-soft); }
+.v-one .pop-head { padding: 4px 8px 8px; font-size: var(--text-meta); text-transform: uppercase; letter-spacing: 0.05em; color: var(--quiet-soft); }
+.v-one .opt { grid-template-columns: 26px minmax(0, 1fr) 18px; gap: 7px; padding: 8px; }
+.v-one .opt small { display: none; }
+.v-one .opt[aria-selected="true"] { background: var(--surface-hover); }
+
+/* ================= variant G — expands inside the composer ================= */
+.v-inline .composer { overflow: hidden; }
+
+.v-inline .drawer { display: none; border-top: 1px solid var(--line-soft); background: var(--control-soft); }
+.v-inline.expanded .drawer { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); animation: drawer-in 140ms ease-out; }
+@keyframes drawer-in { from { opacity: 0; transform: translateY(-4px); } }
+.v-inline .drawer .col { padding: 10px 8px 12px; }
+.v-inline .drawer .col + .col { border-left: 1px solid var(--line-soft); }
+.v-inline .pop-head { padding: 2px 9px 8px; font-size: var(--text-meta); text-transform: uppercase; letter-spacing: 0.05em; color: var(--quiet-soft); }
+.v-inline .opt { grid-template-columns: 26px minmax(0, 1fr) 18px; gap: 7px; padding: 7px 8px; }
+.v-inline .opt small { display: none; }
+.v-inline .expand { margin-left: 2px; }
+.v-inline.expanded .expand { background: var(--surface-active); color: var(--ink-dim); }
+.v-inline.expanded .expand .caret { transform: rotate(180deg); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Composer settings — six ways to wear it</h1>
+    </div>
+    <div class="switches">
+      <button data-theme-set="claudex-dark" class="on">Dark</button>
+      <button data-theme-set="claudex-light">Light</button>
+    </div>
+  </div>
+  <p class="lede">Every row below is live: click a control to expand its options, click a row to pick, click away to dismiss. One menu open at a time, same as the app.</p>
+</div>
+
+<div class="page" id="variants"></div>
+
+<script>
+const ICONS = {
+  zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+  fileCheck: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path d="M14 2v5h5"/><path d="m9 15 2 2 4-4"/>',
+  hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v9"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+  sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/><path d="M19 3v4"/><path d="M21 5h-4"/>',
+  brain: '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/>',
+  gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  feather: '<path d="M12.67 19a2 2 0 0 0 1.42-.59l6.44-6.44a3.83 3.83 0 0 0 0-5.4 3.83 3.83 0 0 0-5.4 0l-6.44 6.44A2 2 0 0 0 8 14.43V18a1 1 0 0 0 1 1z"/><path d="M15.5 8.5 3 21"/><path d="M11 13H5"/>',
+  flame: '<path d="M12 2c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 1.5-4C9.5 9.5 12 8 12 2z"/>',
+  bars: (n) => {
+    const h = [5, 9, 13, 17, 21];
+    return h.slice(0, 5).map((v, i) => {
+      const on = i < n;
+      return `<path d="M${4 + i * 4} 20v-${3 + i * 3.6}" ${on ? '' : 'opacity=".3"'}/>`;
+    }).join('');
+  },
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  caret: '<path d="m6 9 6 6 6-6"/>',
+  sliders: '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/>',
+  arrowUp: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+};
+
+function svg(body, size = 16) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
+const GROUPS = [
+  {
+    key: 'mode', label: 'Permission mode', heading: 'How should Claude actions be approved?', short: 'Mode', value: 'autonomous',
+    options: [
+      { value: 'autonomous', label: 'Auto mode', short: 'Auto', desc: 'Only ask for potentially unsafe actions', icon: ICONS.zap, elevated: true },
+      { value: 'allow-edits', label: 'Allow all edits', short: 'Edits', desc: 'Apply file edits without asking', icon: ICONS.fileCheck },
+      { value: 'confirm', label: 'Let me decide', short: 'Confirm', desc: 'Ask before using tools or changing files', icon: ICONS.hand },
+    ],
+  },
+  {
+    key: 'model', label: 'Model', heading: 'Choose a model', short: 'Model', value: 'opus',
+    options: [
+      { value: 'fable', label: 'Fable', short: 'Fable', desc: 'Most capable for demanding work', icon: ICONS.sparkles },
+      { value: 'opus', label: 'Opus', short: 'Opus', desc: 'Best for complex reasoning', icon: ICONS.brain },
+      { value: 'sonnet', label: 'Sonnet', short: 'Sonnet', desc: 'Balanced speed and capability', icon: ICONS.gauge },
+      { value: 'haiku', label: 'Haiku', short: 'Haiku', desc: 'Fastest for lightweight work', icon: ICONS.feather },
+    ],
+  },
+  {
+    key: 'effort', label: 'Effort', heading: 'How hard should Claude think?', short: 'Effort', value: 'high',
+    options: [
+      { value: 'max', label: 'Max effort', short: 'Max', desc: 'Everything the model has, slowest', icon: ICONS.flame, elevated: true },
+      { value: 'xhigh', label: 'Extra high effort', short: 'Extra high', desc: 'Deeper than high, where the model offers it', icon: ICONS.bars(5) },
+      { value: 'high', label: 'High effort', short: 'High', desc: 'Deep reasoning', icon: ICONS.bars(4) },
+      { value: 'medium', label: 'Medium effort', short: 'Medium', desc: 'Moderate thinking', icon: ICONS.bars(3) },
+      { value: 'low', label: 'Low effort', short: 'Low', desc: 'Minimal thinking, fastest replies', icon: ICONS.bars(2) },
+    ],
+  },
+];
+
+const VARIANTS = [
+  {
+    id: 'today', cls: '', tag: 'A',
+    title: 'As it stands',
+    note: 'Three borderless triggers, icon plus full label, each opening its own wide list with descriptions. The baseline everything else is measured against.',
+  },
+  {
+    id: 'chips', cls: 'v-chips', tag: 'B',
+    title: 'Outlined chips',
+    note: 'Each control gets a hairline border, a recessed fill and a caret, so it reads as a control before you hover it. Costs width and adds three more outlines to a composer that already has one.',
+    caret: true,
+  },
+  {
+    id: 'track', cls: 'v-track', tag: 'C',
+    title: 'One sunken track',
+    note: 'The three sink into a single recessed track with hairline dividers, and the open one lifts out of it. Says "these three belong together" without three separate borders.',
+  },
+  {
+    id: 'keyed', cls: 'v-keyed', tag: 'D',
+    title: 'Keyed values',
+    note: 'Drops the icons in the bar and names the axis instead — Mode / Model / Effort in the quiet ink, the value in the bright. Unambiguous for a first-time reader, wordier for everyone after.',
+    keyed: true,
+  },
+  {
+    id: 'quiet', cls: 'v-quiet', tag: 'E',
+    title: 'Icons that grow their label',
+    note: 'Collapsed to icons at rest; the label slides open on hover, focus or open. Anything off the default keeps its label showing, so a non-default setting can never hide. Quietest footer, most reliant on the icons.',
+    grow: true,
+  },
+  {
+    id: 'one', cls: 'v-one', tag: 'F',
+    title: 'One summary, one panel',
+    note: 'The whole row becomes a single control — "Auto · Opus · High" — that expands to all three columns at once. Buys back the most footer width and lets you set two things in one visit.',
+    single: true,
+  },
+  {
+    id: 'inline', cls: 'v-inline', tag: 'G',
+    title: 'Expands inside the composer',
+    note: 'No floating layer at all: a caret at the end of the row pushes a drawer open inside the composer. Never covers the transcript, but it does move the composer under your hands.',
+    inline: true,
+  },
+];
+
+const state = {};
+for (const v of VARIANTS) state[v.id] = Object.fromEntries(GROUPS.map((g) => [g.key, g.value]));
+
+const sel = (variantId, group) => group.options.find((o) => o.value === state[variantId][group.key]);
+
+function optionRow(variantId, group, option, compact) {
+  const chosen = option.value === state[variantId][group.key];
+  return `<button type="button" role="option" aria-selected="${chosen}" class="opt ${option.elevated ? 'elevated' : ''}"
+      data-pick="${group.key}" data-value="${option.value}">
+    <span class="ico">${svg(option.icon, compact ? 17 : 19)}</span>
+    <span class="txt"><strong>${option.label}</strong><small>${option.desc}</small></span>
+    <span class="chk">${svg(ICONS.check, compact ? 15 : 17)}</span>
+  </button>`;
+}
+
+function popover(variantId, group, compact) {
+  return `<div class="pop" role="listbox" aria-label="${group.heading}">
+    <div class="pop-head">${group.heading}</div>
+    ${group.options.map((o) => optionRow(variantId, group, o, compact)).join('')}
+  </div>`;
+}
+
+function column(variantId, group, compact) {
+  return `<div class="col">
+    <div class="pop-head">${group.short}</div>
+    ${group.options.map((o) => optionRow(variantId, group, o, compact)).join('')}
+  </div>`;
+}
+
+function triggerFace(v, group) {
+  const s = sel(v.id, group);
+  if (v.keyed) return `<span class="key">${group.short}</span><span class="val">${s.short}</span>` + (v.caret ? svg(ICONS.caret, 14) : '');
+  if (v.grow) return `<span class="tri">${svg(s.icon)}</span><span class="label">${s.label}</span>`;
+  return `<span class="tri">${svg(s.icon)}</span><span>${s.label}</span>` + (v.caret ? `<span class="caret">${svg(ICONS.caret, 14)}</span>` : '');
+}
+
+function settingsRow(v) {
+  if (v.single) {
+    const [m, mo, e] = GROUPS.map((g) => sel(v.id, g));
+    return `<div class="settings">
+      <div class="menu" data-menu="all">
+        <button type="button" class="trigger">
+          <span class="tri">${svg(m.icon)}</span><span>${m.short}</span>
+          <span class="sep">·</span>
+          <span class="tri">${svg(mo.icon)}</span><span>${mo.short}</span>
+          <span class="sep">·</span>
+          <span class="tri">${svg(e.icon)}</span><span>${e.short}</span>
+          <span class="caret">${svg(ICONS.caret, 14)}</span>
+        </button>
+        <div class="pop"><div class="cols">${GROUPS.map((g) => column(v.id, g, true)).join('')}</div></div>
+      </div>
+    </div>`;
+  }
+  if (v.inline) {
+    const faces = GROUPS.map((g) => {
+      const s = sel(v.id, g);
+      return `<span class="trigger" data-expand="1"><span class="tri">${svg(s.icon)}</span><span>${s.label}</span></span>`;
+    }).join('');
+    return `<div class="settings">${faces}
+      <button type="button" class="trigger expand" data-expand="1" aria-label="Expand settings"><span class="caret">${svg(ICONS.caret, 15)}</span></button>
+    </div>`;
+  }
+  return `<div class="settings">${GROUPS.map((g) => {
+    const accented = sel(v.id, g).elevated;
+    return `<div class="menu ${accented ? 'accented' : ''}" data-menu="${g.key}">
+      <button type="button" class="trigger" aria-label="${g.label}">${triggerFace(v, g)}</button>
+      ${popover(v.id, g)}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function render(v) {
+  const host = document.querySelector(`[data-variant="${v.id}"]`);
+  const wasExpanded = host.classList.contains('expanded');
+  host.innerHTML = `
+    <div class="demo-head"><span class="tag">${v.tag}</span><h2>${v.title}</h2></div>
+    <p class="demo-note">${v.note}</p>
+    <div class="stage">
+      <div class="transcript" aria-hidden="true">
+        <div class="msg user">Tighten the composer footer.</div>
+        <div class="msg claude" style="width: 62%"><div class="line" style="width: 100%"></div></div>
+        <div class="msg claude" style="width: 48%"><div class="line" style="width: 100%"></div></div>
+      </div>
+      <div class="composer">
+        <div class="composer-input">Ask anything, or / for commands…</div>
+        <div class="composer-foot">
+          ${settingsRow(v)}
+          <div class="composer-actions"><span class="ring"></span><button class="send">${svg(ICONS.arrowUp, 17)}</button></div>
+        </div>
+        ${v.inline ? `<div class="drawer">${GROUPS.map((g) => column(v.id, g, true)).join('')}</div>` : ''}
+      </div>
+    </div>`;
+  if (wasExpanded) host.classList.add('expanded');
+}
+
+const only = new URLSearchParams(location.search).get('only');
+const SHOWN = only ? VARIANTS.filter((v) => only.split(',').includes(v.id)) : VARIANTS;
+document.getElementById('variants').innerHTML = SHOWN
+  .map((v) => `<section class="demo ${v.cls}" data-variant="${v.id}"></section>`).join('');
+SHOWN.forEach(render);
+
+function closeAll(except) {
+  document.querySelectorAll('.menu.open').forEach((m) => { if (m !== except) m.classList.remove('open'); });
+}
+
+document.addEventListener('click', (event) => {
+  const host = event.target.closest('[data-variant]');
+  const trigger = event.target.closest('.trigger');
+  const pick = event.target.closest('[data-pick]');
+
+  if (pick && host) {
+    const v = VARIANTS.find((x) => x.id === host.dataset.variant);
+    state[host.dataset.variant][pick.dataset.pick] = pick.dataset.value;
+    const menu = pick.closest('.menu');
+    const keepOpen = menu && menu.dataset.menu === 'all';
+    render(v);
+    if (keepOpen) document.querySelector(`[data-variant="${v.id}"] .menu`).classList.add('open');
+    return;
+  }
+
+  if (trigger && trigger.dataset.expand && host) {
+    host.classList.toggle('expanded');
+    closeAll();
+    return;
+  }
+
+  if (trigger) {
+    const menu = trigger.closest('.menu');
+    const open = menu.classList.contains('open');
+    closeAll(menu);
+    menu.classList.toggle('open', !open);
+    return;
+  }
+
+  closeAll();
+});
+
+if (new URLSearchParams(location.search).get('open')) {
+  document.querySelectorAll('[data-variant] .menu').forEach((menu, i, all) => {
+    if (menu === menu.parentElement.querySelector('.menu')) menu.classList.add('open');
+  });
+  document.querySelectorAll('.v-inline[data-variant]').forEach((host) => host.classList.add('expanded'));
+}
+
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeAll(); });
+
+document.querySelectorAll('[data-theme-set]').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.documentElement.dataset.theme = button.dataset.themeSet;
+    document.querySelectorAll('[data-theme-set]').forEach((b) => b.classList.toggle('on', b === button));
+  });
+});
+</script>
+</body>
+</html>
