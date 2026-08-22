@@ -1927,6 +1927,11 @@ pre {
 .session-branch:hover > button > svg, .session-branch.open > button > svg { opacity: 1; }
 .session-branch button:disabled { cursor: default; }
 .session-branch button:disabled:hover { background: none; }
+/** The one row that is a link out. Its icon carries the state, and the colour only says it again. */
+.session-pull-request { text-decoration: none; }
+.session-pull-request .session-row-icon[data-state="open"] { color: var(--success); }
+.session-pull-request .session-row-icon[data-state="merged"] { color: var(--accent); }
+.session-pull-request .session-row-icon[data-state="closed"] { color: var(--danger); }
 /** The panel is narrow, so the list takes the row's width and cuts the names that outrun it. */
 .session-count { color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .automation-body { min-height: 0; overflow: auto; padding: 16px 22px 22px; }

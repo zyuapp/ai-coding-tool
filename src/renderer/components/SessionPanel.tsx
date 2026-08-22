@@ -1,11 +1,13 @@
-import { AlarmClock, ChevronDown, FileDiff, FolderSymlink, GitBranch, House } from "lucide-react";
-import { useRef } from "react";
+import { AlarmClock, ChevronDown, FileDiff, FolderSymlink, GitBranch, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, House } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent } from "../../domain/run";
+import type { PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { BranchMenu, useBranches } from "./BranchMenu";
+import { useMessageLinks, WebLink } from "./MarkdownMessage";
 import { PopoverMenu } from "./PopoverMenu";
 import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
@@ -135,10 +137,58 @@ function BranchRow({ branch, workspaceId, openMenu, onSetOpenMenu, onCheckoutBra
   );
 }
 
+/** Which icon says the state, so the row is not read by its colour alone. */
+const PULL_REQUEST_ICONS: Record<PullRequestState, typeof GitPullRequest> = {
+  draft: GitPullRequestDraft,
+  open: GitPullRequest,
+  merged: GitMerge,
+  closed: GitPullRequestClosed,
+};
+
+/**
+ * The pull request the checkout's work belongs to, read again whenever the checkout or the branch it
+ * is on changes. Every way of not having one answers null, so a miss and a failure look the same.
+ */
+function usePullRequest(workspaceId: string | undefined, branch: string | null) {
+  const [pullRequest, setPullRequest] = useState<PullRequestRef | null>(null);
+
+  useEffect(() => {
+    setPullRequest(null);
+    if (!workspaceId) return;
+    let cancelled = false;
+    void window.desktop.pullRequest(workspaceId)
+      .then((found) => { if (!cancelled) setPullRequest(found); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [workspaceId, branch]);
+
+  return pullRequest;
+}
+
+/** Drawn only when there is a pull request: a row saying there is none would be worth less than the space. */
+function PullRequestRow({ pullRequest }: { pullRequest: PullRequestRef }) {
+  const links = useMessageLinks();
+  const Icon = PULL_REQUEST_ICONS[pullRequest.state];
+
+  return (
+    <WebLink
+      className="session-row session-row-action session-pull-request"
+      href={pullRequest.url}
+      title={`#${pullRequest.number} ${pullRequest.title}`}
+      openInApp={links.openUrlInApp && (() => links.openUrlInApp!(pullRequest.url))}
+    >
+      <span className="session-row-icon" data-state={pullRequest.state}><Icon size={18} /></span>
+      <span>Pull request</span>
+      <code>#{pullRequest.number}</code>
+    </WebLink>
+  );
+}
+
 export function SessionPanel({ environment, hasProject, workspaceId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
+  const pullRequest = usePullRequest(workspaceId, available?.branch ?? null);
 
   return (
     <aside className="session-panel" aria-label="Session panel">
@@ -168,6 +218,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, location, r
                 onSetOpenMenu={onSetOpenMenu}
                 onCheckoutBranch={onCheckoutBranch}
               />
+              {pullRequest && <PullRequestRow pullRequest={pullRequest} />}
               {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
               <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
                 <span className="session-row-icon"><AlarmClock size={18} /></span>

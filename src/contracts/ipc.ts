@@ -7,6 +7,7 @@ import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
+import type { PullRequestRef } from "../domain/pull-request.js";
 import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus } from "../domain/workflow.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
@@ -201,6 +202,8 @@ export type DesktopAPI = {
   diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string): Promise<DiffPatchResult>;
   /** The local branches a thread can start from, newest first. */
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
+  /** The pull request the checkout's work belongs to. Null whenever there is nothing to show. */
+  pullRequest(workspaceId: WorkspaceId): Promise<PullRequestRef | null>;
   /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */
   checkoutBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
   /** Makes a branch at the checkout's own HEAD, without moving onto it. */

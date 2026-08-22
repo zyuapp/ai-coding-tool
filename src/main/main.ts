@@ -1047,6 +1047,19 @@ ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
   }
 });
 
+/** Best effort throughout: a checkout with no answer is one whose row is simply not drawn. */
+ipcMain.handle("workspace:pull-request", async (event, workspaceId: unknown) => {
+  if (!trustedSender(event)) return null;
+  try {
+    const resolution = await getWorkspaceService().resolve(worktreePath(workspaceId));
+    if (resolution.status !== "available") return null;
+    const { pullRequestFor } = await import("./workspace/github.mjs");
+    return await pullRequestFor(resolution.workspace.root);
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle("workspace:checkout-branch", async (event, workspaceId: unknown, branch: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   const resolution = await getWorkspaceService().resolve(worktreePath(workspaceId));

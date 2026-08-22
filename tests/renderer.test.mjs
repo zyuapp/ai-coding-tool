@@ -754,6 +754,7 @@ function fakeDesktop(overrides = {}) {
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
+    pullRequest: async () => null,
     diffSummary: async (workspaceId, range) => ({ status: "available", range, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
@@ -3398,6 +3399,46 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
 
   await view.render(React.createElement(SessionPanel, { ...panel(null).props, workspaceId: undefined, hasProject: false, environment: null }));
   assert.equal(view.container.querySelector('button[aria-label="Branch"]').disabled, true, "with no checkout there is no branch to change");
+  await view.unmount();
+});
+
+test("the session panel names the pull request the checkout belongs to, and only when there is one", async () => {
+  window.desktop = fakeDesktop();
+  const opened = [];
+  const panel = (pullRequest) => React.createElement(MessageLinkProvider, {
+    actions: { openUrlInApp: (url) => { opened.push(url); } },
+  }, React.createElement(SessionPanel, {
+    environment: { status: "available", files: [], branch: "pr-chip", additions: 0, deletions: 0 },
+    hasProject: true,
+    workspaceId: pullRequest ? "workspace-with-pr" : "workspace-without-pr",
+    location: { kind: "local" },
+    runActive: false,
+    openMenu: null,
+    subagents: [],
+    backgroundProcesses: [], workflows: [],
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onSetOpenMenu() {},
+    onSetWorktree() {},
+    onCheckoutBranch() {},
+  }));
+
+  const view = await mount(panel(null));
+  assert.equal(view.container.querySelector(".session-pull-request"), null, "no pull request is no row at all");
+
+  window.desktop.pullRequest = async () => ({ number: 12, title: "Name the two families", url: "https://github.com/o/r/pull/12", state: "merged" });
+  await view.render(panel(true));
+  const row = view.container.querySelector(".session-pull-request");
+  assert.match(row.textContent, /#12/, "the row says which pull request the work belongs to");
+  assert.match(row.getAttribute("title"), /Name the two families/);
+  assert.equal(row.querySelector(".session-row-icon").dataset.state, "merged", "the icon carries the state");
+  assert.equal(row.getAttribute("href"), "https://github.com/o/r/pull/12");
+  assert.equal(row.getAttribute("target"), "_blank", "a click leaves Claudex the way any other link does");
+
+  await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
+  await act(async () => { [...document.querySelectorAll(".context-menu-popover button")].find((item) => /Open in Claudex/.test(item.textContent)).click(); });
+  assert.deepEqual(opened, ["https://github.com/o/r/pull/12"], "its context menu offers the browser panel instead");
   await view.unmount();
 });
 

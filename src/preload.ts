@@ -32,6 +32,7 @@ const api: DesktopAPI = {
   },
   changedFiles: (workspaceId: string) => ipcRenderer.invoke("workspace:changed-files", workspaceId),
   branches: (workspaceId: string) => ipcRenderer.invoke("workspace:branches", workspaceId),
+  pullRequest: (workspaceId: string) => ipcRenderer.invoke("workspace:pull-request", workspaceId),
   diffSummary: (workspaceId: string, range: unknown) => ipcRenderer.invoke("workspace:diff-summary", workspaceId, range),
   diffPatch: (workspaceId: string, range: unknown, path: string, previousPath?: string) => ipcRenderer.invoke("workspace:diff-patch", workspaceId, range, path, previousPath),
   checkoutBranch: (workspaceId: string, branch: string) => ipcRenderer.invoke("workspace:checkout-branch", workspaceId, branch),

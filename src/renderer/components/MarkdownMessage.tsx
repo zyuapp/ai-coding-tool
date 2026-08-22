@@ -21,6 +21,10 @@ export function MessageLinkProvider({ actions, children }: { actions: MessageLin
   return <MessageLinks.Provider value={actions}>{children}</MessageLinks.Provider>;
 }
 
+export function useMessageLinks() {
+  return useContext(MessageLinks);
+}
+
 /** Whether this document is the part of a stream still being written, whose last block will grow. */
 const Unsettled = createContext(false);
 
@@ -33,7 +37,7 @@ function MarkdownPre({ children, ...props }: ComponentProps<"pre">) {
   return <pre {...props}>{children}</pre>;
 }
 
-function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
+export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
   const link = useRef<HTMLAnchorElement>(null);
   const [menu, setMenu] = useState<{ left: number; top: number } | null>(null);
   return (
