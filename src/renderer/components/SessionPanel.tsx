@@ -1,5 +1,5 @@
 import { AlarmClock, ChevronDown, FileDiff, FolderSymlink, GitBranch, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, House } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent } from "../../domain/run";
@@ -17,6 +17,8 @@ export type SessionPanelProps = {
   hasProject: boolean;
   /** The checkout the thread works in, which is the one the branch menu reads and moves. */
   workspaceId?: string;
+  /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
+  taskId?: string;
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   location?: ThreadLocation;
   runActive: boolean;
@@ -146,21 +148,55 @@ const PULL_REQUEST_ICONS: Record<PullRequestState, typeof GitPullRequest> = {
 };
 
 /**
- * The pull request the checkout's work belongs to, read again whenever the checkout or the branch it
- * is on changes. Every way of not having one answers null, so a miss and a failure look the same.
+ * How often an unsettled pull request is asked about again. A merge happens on GitHub and leaves no
+ * trace on this machine, so nothing local can announce it and only asking finds out.
  */
-function usePullRequest(workspaceId: string | undefined, branch: string | null) {
+const PULL_REQUEST_POLL_MS = 60_000;
+
+/** States nothing local or remote will move again, past which asking is only cost. A reopen is caught on focus. */
+const SETTLED: readonly PullRequestState[] = ["merged", "closed"];
+
+/**
+ * The pull request the checkout's work belongs to, read again whenever the checkout, the branch it is
+ * on, or the thread reading it changes, whenever the window comes back, and on a slow poll until it
+ * settles. Every way of not having one answers null, so a miss and a failure look the same.
+ *
+ * Only the panel on screen has a row to draw, so only it asks: the poll lives and dies with the mount
+ * rather than in the main process, and a hidden window asks nothing at all.
+ */
+function usePullRequest(workspaceId: string | undefined, branch: string | null, taskId: string | undefined) {
   const [pullRequest, setPullRequest] = useState<PullRequestRef | null>(null);
+  const asked = useRef(0);
+  const settled = pullRequest !== null && SETTLED.includes(pullRequest.state);
+
+  /** Answers to questions asked before the latest one are dropped, whichever order they arrive in. */
+  const refresh = useCallback(() => {
+    if (!workspaceId) return;
+    const generation = ++asked.current;
+    void window.desktop.pullRequest(workspaceId)
+      .then((found) => { if (generation === asked.current) setPullRequest(found); })
+      .catch(() => {});
+  }, [workspaceId]);
 
   useEffect(() => {
+    asked.current++;
     setPullRequest(null);
-    if (!workspaceId) return;
-    let cancelled = false;
-    void window.desktop.pullRequest(workspaceId)
-      .then((found) => { if (!cancelled) setPullRequest(found); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [workspaceId, branch]);
+    refresh();
+    const back = () => { if (document.visibilityState !== "hidden") refresh(); };
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", back);
+    };
+  }, [refresh, branch, taskId]);
+
+  /** A hidden window has nothing to show for an answer, and gets one on the way back instead. */
+  useEffect(() => {
+    if (settled) return;
+    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") refresh(); }, PULL_REQUEST_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [refresh, branch, taskId, settled]);
 
   return pullRequest;
 }
@@ -184,11 +220,11 @@ function PullRequestRow({ pullRequest }: { pullRequest: PullRequestRef }) {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
-  const pullRequest = usePullRequest(workspaceId, available?.branch ?? null);
+  const pullRequest = usePullRequest(workspaceId, available?.branch ?? null, taskId);
 
   return (
     <aside className="session-panel" aria-label="Session panel">

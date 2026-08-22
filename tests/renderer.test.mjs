@@ -3601,6 +3601,68 @@ test("the session panel names the pull request the checkout belongs to, and only
   await view.unmount();
 });
 
+test("the pull request is read per thread, on the way back, and only until it settles", async () => {
+  window.desktop = fakeDesktop();
+  let reads = 0;
+  let answer = null;
+  window.desktop.pullRequest = async () => { reads += 1; return answer; };
+
+  /** The poll is jsdom's own interval, so it is held here rather than waited out. */
+  const timers = new Map();
+  const { setInterval: realInterval, clearInterval: realClear } = dom.window;
+  let nextTimer = 0;
+  dom.window.setInterval = (fn, ms) => { const id = (nextTimer += 1); timers.set(id, { fn, ms }); return id; };
+  dom.window.clearInterval = (id) => { timers.delete(id); };
+  const poll = async () => { for (const timer of [...timers.values()]) await act(async () => { timer.fn(); }); };
+
+  const panel = (taskId) => React.createElement(SessionPanel, {
+    environment: { status: "available", files: [], branch: "pr-poll", additions: 0, deletions: 0 },
+    hasProject: true,
+    workspaceId: "one-checkout",
+    taskId,
+    location: { kind: "local" },
+    runActive: false,
+    openMenu: null,
+    subagents: [],
+    backgroundProcesses: [], workflows: [],
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onSetOpenMenu() {},
+    onSetWorktree() {},
+    onCheckoutBranch() {},
+  });
+  const state = () => view.container.querySelector(".session-pull-request .session-row-icon")?.dataset.state ?? null;
+
+  const view = await mount(panel("thread-a"));
+  try {
+    assert.equal(reads, 1);
+    assert.deepEqual([...timers.values()].map((timer) => timer.ms), [60_000], "one poll, slow enough to be worth its network");
+
+    /** Threads sharing a checkout share a workspace and a branch, so neither one changing would ask again. */
+    await view.render(panel("thread-b"));
+    assert.equal(reads, 2, "moving to another thread in the same checkout asks again");
+
+    answer = { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "open" };
+    await poll();
+    assert.equal(reads, 3, "a pull request made outside the app is found by the poll");
+    assert.equal(state(), "open");
+
+    answer = { ...answer, state: "merged" };
+    await poll();
+    assert.equal(reads, 4);
+    assert.equal(state(), "merged", "a merge nothing local could announce is still noticed");
+    assert.deepEqual([...timers.values()], [], "a settled pull request is left with no poll at all");
+
+    await act(async () => { window.dispatchEvent(new dom.window.Event("focus")); });
+    assert.equal(reads, 5, "coming back to the window still asks once, which is what catches a reopen");
+  } finally {
+    dom.window.setInterval = realInterval;
+    dom.window.clearInterval = realClear;
+    await view.unmount();
+  }
+});
+
 test("the start options say where a thread begins, and searching narrows the branches", async () => {
   const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
