@@ -722,6 +722,7 @@ function fakeDesktop(overrides = {}) {
   let terminalEvent;
   let shortcutPressed;
   let shortcutCaptured;
+  let windowGrabbed;
   let listener;
   let automationsChanged;
   let fireAutomation;
@@ -737,6 +738,7 @@ function fakeDesktop(overrides = {}) {
     get listener() { return listener; },
     get automationsChanged() { return automationsChanged; },
     get fireAutomation() { return fireAutomation; },
+    get grabWindow() { return windowGrabbed; },
     threadAnswers,
     askThreads: (request) => threadRequested(request),
     openProjectFromCli: (workspace) => openProject(workspace),
@@ -819,6 +821,7 @@ function fakeDesktop(overrides = {}) {
     setShortcutCapture(capturing) { this.captures.push(capturing); },
     onShortcut: (next) => { shortcutPressed = next; return () => {}; },
     onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
+    onWindowScreenshot: (next) => { windowGrabbed = next; return () => {}; },
     closeWindow: () => { browserCalls.push(["close-window"]); },
     focusWindow: () => { browserCalls.push(["focus-window"]); },
     ...overrides,
@@ -933,6 +936,24 @@ test("a usage read that rejects reports instead of breaking the panel", async ()
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.querySelector(".settings-error").textContent, /Untrusted IPC sender/);
+  await view.unmount();
+});
+
+test("a window grabbed by the desktop hotkey waits in the composer, and never twice", async () => {
+  localStorage.clear();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+
+  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", png: "iVBORw0KGgo=" }); });
+  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1);
+  assert.equal(view.container.querySelector('button[aria-label="Send task"]').disabled, false);
+
+  await act(async () => { view.container.querySelector('button[aria-label="Remove image 1"]').click(); });
+  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
+
+  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", png: "iVBORw0KGgo=" }); });
+  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a second press attaches the newer window");
   await view.unmount();
 });
 

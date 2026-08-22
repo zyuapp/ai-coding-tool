@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowTheme } from "./contracts/ipc";
+import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
@@ -105,6 +105,11 @@ const api: DesktopAPI = {
     const handler = (_event: Electron.IpcRendererEvent, payload: TerminalUpdate) => listener(payload);
     ipcRenderer.on("terminal:event", handler);
     return () => ipcRenderer.removeListener("terminal:event", handler);
+  },
+  onWindowScreenshot: (listener: (shot: WindowScreenshot) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: WindowScreenshot) => listener(payload);
+    ipcRenderer.on("window:screenshot", handler);
+    return () => ipcRenderer.removeListener("window:screenshot", handler);
   },
   setTheme: (theme: WindowTheme) => ipcRenderer.send("theme:set", theme),
   setShortcuts: (overrides: ShortcutOverrides) => ipcRenderer.send("shortcuts:set", overrides),

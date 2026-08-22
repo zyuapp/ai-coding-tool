@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, Notification, protocol, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
@@ -20,6 +20,7 @@ import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode"
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import { openInEditor } from "./open-in-editor.js";
+import { captureFrontmostWindow } from "./window-screenshot.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
@@ -214,6 +215,40 @@ function handleKey(input: Electron.Input, surface: ShortcutSurface): boolean {
   if (!binding) return false;
   sendToWindow("window:shortcut", { action: binding.action, surface });
   return true;
+}
+
+/**
+ * The one keystroke the app claims from the whole desktop. Carbon registers it without activating
+ * us, so the app the user is in keeps the keyboard and stays the app the capture describes.
+ */
+const CAPTURE_WINDOW_SHORTCUT = "Alt+Shift+S";
+
+/** Says what happened where the user already is, since taking the window would take their place. */
+function notify(title: string, body: string) {
+  if (Notification.isSupported()) new Notification({ title, body, silent: true }).show();
+}
+
+async function captureWindowToComposer() {
+  const shot = await captureFrontmostWindow();
+  if (shot.status === "captured") {
+    sendToWindow("window:screenshot", { app: shot.app, title: shot.title, png: shot.png });
+    notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
+    return;
+  }
+  if (shot.status === "denied") {
+    notify("Claudex needs Screen Recording", "Grant it in System Settings → Privacy & Security, then try again.");
+    void shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
+    return;
+  }
+  if (shot.status === "no-window") notify("Nothing to capture", `${shot.app} has no window on screen.`);
+  else notify("Could not capture the window", shot.message);
+}
+
+function registerCaptureShortcut() {
+  if (process.platform !== "darwin") return;
+  if (!globalShortcut.register(CAPTURE_WINDOW_SHORTCUT, () => void captureWindowToComposer())) {
+    console.error(`Another app already holds ${CAPTURE_WINDOW_SHORTCUT}.`);
+  }
 }
 
 function answerThreadRequest(response: ThreadResponse) {
@@ -602,6 +637,7 @@ app.whenReady().then(async () => {
     return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
   });
   app.dock?.setIcon(icon);
+  registerCaptureShortcut();
   startAgent();
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
@@ -648,6 +684,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
   automationScheduler?.stop();
   taskDatabase?.close();
 });

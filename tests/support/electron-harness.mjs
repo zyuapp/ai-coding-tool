@@ -39,6 +39,7 @@ export async function startMainProcess(t, prefix, options = {}) {
   const agents = [];
   const appListeners = new Map();
   const protocolHandlers = new Map();
+  const globalShortcuts = new Map();
   const externalUrls = [];
   const relaunches = [];
   let quitAttempts = 0;
@@ -124,6 +125,11 @@ export async function startMainProcess(t, prefix, options = {}) {
       exit() {},
     },
     BrowserWindow: FakeWindow,
+    globalShortcut: {
+      register: (accelerator, callback) => { globalShortcuts.set(accelerator, callback); return true; },
+      unregisterAll: () => globalShortcuts.clear(),
+    },
+    Notification: Object.assign(function Notification() { return { show() {} }; }, { isSupported: () => false }),
     nativeTheme: { themeSource: "system" },
     dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
     ipcMain: {
@@ -162,7 +168,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
       },
     }, ...(options.computerUse ? [{
       name: "fake-computer-use",
@@ -211,6 +217,7 @@ export async function startMainProcess(t, prefix, options = {}) {
     quitAttempts: () => quitAttempts,
     completedQuits: () => completedQuits,
     protocolHandlers,
+    globalShortcuts,
     window,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },

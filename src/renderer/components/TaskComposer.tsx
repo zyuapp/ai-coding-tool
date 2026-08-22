@@ -93,6 +93,8 @@ export type TaskComposerProps = {
   pastes?: PastedText[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
+  /** An image handed in from outside, such as the window the desktop hotkey grabbed. */
+  incomingImage?: { id: string; dataUrl: string } | null;
   /** Texts of previously sent messages, oldest first, offered back on ↑ from the first line. */
   history?: string[];
   onPromptChange: (prompt: string) => void;
@@ -125,6 +127,7 @@ export function TaskComposer({
   annotations = [],
   pastes = [],
   focusToken = 0,
+  incomingImage = null,
   history = [],
   onPromptChange,
   onAnnotationRemove,
@@ -154,6 +157,8 @@ export function TaskComposer({
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  /** The image already taken in, so a rerender never attaches the same one twice. */
+  const takenImage = useRef<string | null>(null);
   const editing = attachments.find((attachment) => attachment.id === annotating);
   const token = commandTokenAt(prompt, Math.min(caret, prompt.length));
   /** An action discards the draft, so it is only offered while the command is the whole draft. */
@@ -287,6 +292,17 @@ export function TaskComposer({
     setCaret(pendingCaret);
     setPendingCaret(null);
   }, [pendingCaret]);
+
+  useEffect(() => {
+    if (!incomingImage || takenImage.current === incomingImage.id) return;
+    takenImage.current = incomingImage.id;
+    if (attachments.length >= MAX_ATTACHMENTS) {
+      setAttachmentError(`You can attach up to ${MAX_ATTACHMENTS} images.`);
+      return;
+    }
+    setAttachments((current) => [...current, { id: incomingImage.id, source: incomingImage.dataUrl, preview: incomingImage.dataUrl, annotations: [] }]);
+    setAttachmentError(null);
+  }, [incomingImage, attachments.length]);
 
   useEffect(() => {
     if (!commandMenuOpen) return;

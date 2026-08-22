@@ -52,6 +52,8 @@ export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
+  /** The window the desktop hotkey last grabbed, held until the composer takes it in. */
+  const [grabbedWindow, setGrabbedWindow] = useState<{ id: string; dataUrl: string } | null>(null);
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
@@ -151,6 +153,10 @@ export function App() {
   useEffect(() => {
     if (!workspace.dockPanels.includes("agents")) setSelectedSubagent(null);
   }, [workspace.dockPanels]);
+
+  useEffect(() => window.desktop.onWindowScreenshot((shot) => {
+    setGrabbedWindow({ id: crypto.randomUUID(), dataUrl: `data:image/png;base64,${shot.png}` });
+  }), []);
 
   useEffect(() => {
     /** Esc serves whatever is nearest: an overlay claims it first, then a menu, the find bar, and last the run. */
@@ -580,6 +586,7 @@ export function App() {
 
         <TaskComposer
           focusToken={workspace.composerFocus}
+          incomingImage={grabbedWindow}
           prompt={workspace.prompt}
           folder={workspace.folder}
           workspaceId={workspace.currentProject?.workspaceId}
