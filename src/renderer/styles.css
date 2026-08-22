@@ -2834,6 +2834,7 @@ pre {
 .setting-menu > summary {
   display: flex;
   align-items: center;
+  gap: 6px;
   min-height: 30px;
   border-radius: 15px;
   padding: 0 8px;
@@ -2841,27 +2842,14 @@ pre {
   list-style: none;
 }
 .setting-menu > summary::-webkit-details-marker { display: none; }
-.setting-menu > summary:hover { background: var(--wash); color: var(--ink-faint); }
-.setting-menu[open] > summary { background: var(--surface-active); color: var(--ink-dim); }
-.setting-summary-icon { width: 16px; display: grid; place-items: center; }
-/** At rest the row is icons, so the three survive a composer squeezed by an open dock. */
-.setting-summary-label {
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  white-space: nowrap;
-  transition: max-width 160ms cubic-bezier(0.32, 0.72, 0, 1), opacity 120ms ease, margin-left 160ms ease;
-}
-.setting-menu:hover .setting-summary-label,
-.setting-menu[open] .setting-summary-label,
-.setting-menu > summary:focus-visible .setting-summary-label {
-  max-width: min(150px, 40cqw);
-  margin-left: 7px;
-  opacity: 1;
-}
+.setting-menu > summary:hover { background: var(--wash); }
+.setting-menu[open] > summary { background: var(--surface-active); }
+/** The axis is named so the value beside it needs no decoding. */
+.setting-axis { color: var(--quiet-soft); font-size: var(--text-meta); white-space: nowrap; }
+.setting-value { color: var(--ink-faint); white-space: nowrap; }
+.setting-menu[open] .setting-value, .setting-menu > summary:hover .setting-value { color: var(--ink); }
 /** A setting that gives up a guardrail or buys extra time says so without being asked. */
-.setting-menu.elevated { color: var(--accent-bright); }
-.setting-menu.elevated .setting-summary-label { max-width: min(150px, 40cqw); margin-left: 7px; opacity: 1; }
+.setting-menu.elevated .setting-value { color: var(--accent-bright); }
 .setting-popover {
   position: absolute;
   z-index: 20;
@@ -2953,9 +2941,9 @@ pre {
 .send-button.running { display: grid; place-items: center; }
 .stop-glyph { width: 10px; height: 10px; border-radius: 2px; background: var(--ink-inverse); }
 
-/** Too narrow to spell it out: the accent on the icon carries what the label was saying. */
-@container (max-width: 340px) {
-  .setting-menu.elevated .setting-summary-label { max-width: 0; margin-left: 0; opacity: 0; }
+/** The values still read on their own, so the axis names go before any control does. */
+@container (max-width: 470px) {
+  .setting-axis { display: none; }
 }
 @container (max-width: 300px) {
   .context-usage { display: none; }

@@ -1184,7 +1184,7 @@ test("a side chat composes with everything the main composer has", async () => {
 
   const settings = view.container.querySelectorAll(".composer-settings .setting-menu");
   assert.equal(settings.length, 3, "permission mode, model, and effort");
-  assert.match(settings[0].textContent, /Allow all edit/, "the chat's own policy is selected, not the first one on offer");
+  assert.equal(settings[0].querySelector(".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
   await act(async () => { settings[0].querySelector("summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => { [...settings[0].querySelectorAll(".setting-option")].find((option) => option.textContent.includes("Auto mode")).click(); });
   assert.deepEqual(policies, ["autonomous"]);
@@ -2097,14 +2097,14 @@ test("the composer offers model and effort choices, ordered most to least capabl
     [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
     ["Fable", "Opus", "Sonnet", "Haiku"],
   );
-  assert.equal(modelMenu.querySelector(".setting-summary-label").textContent, "Opus");
+  assert.equal(modelMenu.querySelector(".setting-value").textContent, "Opus");
   const effortMenu = view.container.querySelectorAll(".setting-menu")[2];
   await act(async () => { effortMenu.querySelector("summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
     [...effortMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
     ["Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"],
   );
-  assert.equal(effortMenu.querySelector(".setting-summary-label").textContent, "High effort");
+  assert.equal(effortMenu.querySelector(".setting-value").textContent, "High");
   await view.unmount();
 });
 
