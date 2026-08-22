@@ -336,6 +336,21 @@ export function DiffPanel({
     [files, collapsed],
   );
   const { patches, at } = usePatches(workspaceId, diff.range, requests);
+
+  /**
+   * Whether the list is still waiting for its first patch. Nothing is drawn until one settles —
+   * a note counts as settled as much as lines do — so the review lands once, with content, instead
+   * of twice: bare names first, then the same names pushed apart as lines arrive under them.
+   * Nothing asked for means nothing to wait for, which is how an all-binary or all-folded list paints.
+   */
+  const settling = useMemo(
+    () => requests.length > 0 && requests.every((request) => {
+      const patch = at(request.version);
+      return patch === undefined || patch.status === "reading";
+    }),
+    // `at` reads `patches`, which is a fresh map whenever one has landed.
+    [requests, patches],
+  );
   const versionOf = useMemo(() => new Map(files.map((file) => [file.path, `${file.path}|${fileFingerprint(file)}`])), [files]);
 
   /**
@@ -375,6 +390,8 @@ export function DiffPanel({
   }, [selection, drawn]);
 
   const rows = useMemo(() => {
+    /** The hold: no names without something under at least one of them. */
+    if (settling) return [];
     const panel: PanelRow[] = [];
     for (const file of files) {
       panel.push({ kind: "file", key: `f:${file.path}`, file });
@@ -408,7 +425,7 @@ export function DiffPanel({
       }
     }
     return panel;
-  }, [files, collapsed, drawn, patches, versionOf, split, span, selection?.path]);
+  }, [settling, files, collapsed, drawn, patches, versionOf, split, span, selection?.path]);
 
   const windowed = rows.length > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
@@ -603,7 +620,9 @@ export function DiffPanel({
           <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>
         </p>
       )}
-      {message && <p className="session-note">{message}</p>}
+      {message ? <p className="session-note">{message}</p>
+        : settling ? <p className="session-note">Reading the changes…</p>
+        : null}
 
       <div className="diff-files" ref={scrollRef} aria-label="Changed files">
         {!windowed && rows.map((row) => <div key={row.key}>{draw(row)}</div>)}
