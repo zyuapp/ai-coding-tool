@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en" data-theme="claudex-dark">
+<head>
+<meta charset="utf-8">
+<title>Start a task — the empty Work view</title>
+<style>
+/* ---- tokens lifted from themes.css / styles.css so the mock reads like the app ---- */
+:root, [data-theme="claudex-dark"] {
+  color-scheme: dark;
+  --p-bg-0: #0e1117; --p-bg-1: #11151b; --p-bg-2: #151920; --p-bg-3: #171b20;
+  --p-bg-4: #1b2028; --p-bg-5: #20242a; --p-bg-6: #2a2f36;
+  --p-line-0: #1d2229; --p-line-1: #272c34; --p-line-2: #3a414b; --p-line-3: #48525f;
+  --p-fg-0: #e6e4df; --p-fg-1: #c9c8c4; --p-fg-2: #a9aaa7; --p-fg-3: #969a9f; --p-fg-4: #666b72; --p-fg-5: #55595e;
+  --p-contrast: #e4e2dd; --p-contrast-ink: #171a1f;
+  --p-accent: #d97757; --p-accent-bright: #ef8451;
+  --p-info: #6f9ed6; --p-info-strong: #467bb7; --p-link: #8ab5e1;
+  --p-success: #72c66b; --p-danger: #e06c75; --p-ansi-yellow: #d9a760; --p-ansi-magenta: #c58fd6;
+  --p-shadow: 0 0 0; --p-shadow-scale: 1;
+}
+[data-theme="claudex-light"] {
+  color-scheme: light;
+  --p-bg-0: #faf9f6; --p-bg-1: #f2f1ec; --p-bg-2: #ffffff; --p-bg-3: #f5f4ef;
+  --p-bg-4: #eeece5; --p-bg-5: #e6e4db; --p-bg-6: #dcd9cf;
+  --p-line-0: #eceae3; --p-line-1: #dedbd2; --p-line-2: #c4c0b5; --p-line-3: #a8a396;
+  --p-fg-0: #1d1f24; --p-fg-1: #33363c; --p-fg-2: #565961; --p-fg-3: #6b6f78; --p-fg-4: #8d9199; --p-fg-5: #a5a8af;
+  --p-contrast: #23262c; --p-contrast-ink: #f5f4ef;
+  --p-accent: #c25a35; --p-accent-bright: #d9663a;
+  --p-info: #3b73ad; --p-info-strong: #2f5f92; --p-link: #2f6099;
+  --p-success: #3f8f45; --p-danger: #b8443f; --p-ansi-yellow: #9a7327; --p-ansi-magenta: #8b53a0;
+  --p-shadow: 24 26 32; --p-shadow-scale: 0.26;
+}
+[data-theme] {
+  --canvas: var(--p-bg-0);
+  --sunken: var(--p-bg-1);
+  --surface: var(--p-bg-2);
+  --surface-raised: var(--p-bg-4);
+  --surface-menu: var(--p-bg-3);
+  --surface-hover: var(--p-bg-4);
+  --surface-active: var(--p-bg-5);
+  --surface-input: color-mix(in srgb, var(--p-bg-0) 50%, var(--p-bg-2));
+  --surface-inverse: var(--p-contrast);
+  --ink-inverse: var(--p-contrast-ink);
+  --control-soft: var(--p-bg-3);
+  --chip: color-mix(in srgb, var(--p-bg-6) 85%, var(--p-fg-5));
+  --wash: rgb(from var(--p-fg-0) r g b / 0.045);
+  --line: var(--p-line-1);
+  --line-soft: var(--p-line-0);
+  --line-mid: color-mix(in srgb, var(--p-line-1) 50%, var(--p-line-2));
+  --line-strong: var(--p-line-2);
+  --line-bright: var(--p-line-3);
+  --ink: var(--p-fg-0);
+  --ink-soft: color-mix(in srgb, var(--p-fg-0) 60%, var(--p-fg-1));
+  --ink-dim: var(--p-fg-1);
+  --ink-faint: color-mix(in srgb, var(--p-fg-1) 55%, var(--p-fg-2));
+  --muted-strong: var(--p-fg-2);
+  --muted: var(--p-fg-3);
+  --quiet-strong: color-mix(in srgb, var(--p-fg-3) 30%, var(--p-fg-4));
+  --quiet: var(--p-fg-4);
+  --quiet-soft: var(--p-fg-5);
+  --accent: var(--p-accent);
+  --accent-bright: var(--p-accent-bright);
+  --accent-chip: color-mix(in srgb, var(--p-accent) 17%, var(--p-bg-1));
+  --accent-line: color-mix(in srgb, var(--p-accent) 32%, var(--p-bg-5));
+  --info: var(--p-info);
+  --info-soft: color-mix(in srgb, var(--p-info) 70%, var(--p-fg-2));
+  --info-surface-soft: color-mix(in srgb, var(--p-info) 12%, var(--p-bg-1));
+  --info-line: color-mix(in srgb, var(--p-info) 28%, var(--p-bg-5));
+  --success: var(--p-success);
+  --danger: var(--p-danger);
+  --shadow-panel: 0 22px 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
+  --shadow-menu: 0 12px 30px rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
+  --shadow-composer: 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --text-badge: 10px; --text-meta: 12px; --text-control: 14px; --text-content: 15px; --text-heading: 17px; --text-display: 21px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 28px 28px 90px;
+  background: var(--canvas);
+  color: var(--ink-dim);
+  font: 400 var(--text-content)/1.5 ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1180px; margin: 0 auto; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 8px; }
+h1 { margin: 0; font-size: 22px; font-weight: 500; color: var(--ink); }
+.lede { margin: 6px 0 30px; color: var(--quiet); font-size: var(--text-control); max-width: 74ch; }
+.switch-stack { display: grid; gap: 8px; justify-items: end; }
+.switches { display: flex; gap: 6px; }
+.switches button {
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px;
+  background: var(--surface); color: var(--quiet-strong); font: inherit; font-size: var(--text-meta); cursor: pointer;
+}
+.switches button.on { background: var(--surface-active); color: var(--ink-dim); border-color: var(--line-strong); }
+
+.demo { margin-bottom: 26px; border: 1px solid var(--line-soft); border-radius: 20px; background: var(--sunken); }
+.demo-head { display: flex; align-items: baseline; gap: 12px; padding: 18px 22px 0; }
+.demo-head h2 { margin: 0; font-size: var(--text-heading); font-weight: 500; color: var(--ink); }
+.demo-head .tag {
+  padding: 2px 8px; border-radius: 999px; background: var(--chip);
+  color: var(--ink-dim); font-size: var(--text-badge); letter-spacing: 0.04em; text-transform: uppercase;
+}
+.demo-note { margin: 6px 22px 0; color: var(--quiet); font-size: var(--text-meta); max-width: 92ch; }
+.stage { padding: 18px 22px 22px; }
+
+/* ============ the app window ============ */
+.win {
+  position: relative; overflow: hidden;
+  height: 660px; border: 1px solid var(--line); border-radius: 16px;
+  background: var(--canvas);
+  display: grid; grid-template-rows: 56px minmax(0, 1fr) auto;
+}
+.win-top { display: grid; place-items: center; padding-top: 14px; }
+.modes { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--surface-active); }
+.modes span {
+  padding: 4px 15px; border-radius: 8px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 500;
+}
+.modes span.on { background: var(--surface-menu); color: var(--ink); box-shadow: 0 1px 2px rgb(var(--p-shadow) / calc(0.3 * var(--p-shadow-scale))); }
+
+.body { min-height: 0; display: grid; place-items: center; padding: 0 26px; }
+.col { width: min(720px, 100%); }
+
+/* hero */
+.hero { text-align: center; }
+.glyph { width: 38px; height: 38px; margin: 0 auto; color: var(--quiet); }
+.glyph svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.hero h2 { margin: 18px 0 8px; color: var(--ink-soft); font-size: var(--text-display); font-weight: 560; letter-spacing: -0.025em; }
+.hero p { margin: 0 auto; max-width: 410px; color: var(--quiet-strong); font-size: var(--text-content); line-height: 1.55; }
+
+/* the old free-floating context row */
+.thread-start { display: flex; justify-content: center; align-items: center; gap: 2px; margin-top: 24px; }
+.thread-start button {
+  display: flex; align-items: center; gap: 7px; min-height: 32px; border: 0; border-radius: 9px; padding: 0 10px;
+  background: transparent; color: var(--ink-faint); font: inherit; font-size: var(--text-control); font-weight: 480; cursor: pointer;
+}
+.thread-start button:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.thread-start svg { flex: none; color: var(--quiet-strong); }
+
+/* the old floating session card */
+.session-panel { position: absolute; z-index: 7; top: 88px; right: 22px; width: 260px; }
+.session-card { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-panel); }
+.session-card h3 { margin: 0; padding: 15px 16px 10px; color: var(--quiet); font-size: var(--text-control); font-weight: 540; }
+.session-row { display: flex; align-items: center; gap: 10px; padding: 7px 16px; font-size: var(--text-control); }
+.session-row .k { flex: 1; color: var(--ink-faint); display: flex; align-items: center; gap: 10px; }
+.session-row .v { color: var(--quiet); font-family: var(--mono); font-size: var(--text-meta); }
+.session-sec { border-top: 1px solid var(--line-soft); padding: 12px 16px; }
+.session-sec b { display: block; color: var(--info); font-size: var(--text-control); font-weight: 540; }
+.session-sec small { color: var(--quiet-soft); font-size: var(--text-control); }
+.add { color: var(--success); } .del { color: var(--danger); }
+
+/* composer */
+.composer-wrap { padding: 0 26px 22px; }
+.composer {
+  width: min(720px, 100%); margin: 0 auto;
+  border: 1px solid var(--line); border-radius: 17px; background: var(--surface); box-shadow: var(--shadow-composer);
+}
+.composer:focus-within, .composer.hot { border-color: var(--line-strong); }
+.composer-input { padding: 15px 17px 6px; color: var(--quiet-soft); font-size: var(--text-content); min-height: 62px; }
+.composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 9px 9px 13px; }
+.settings { display: flex; align-items: center; gap: 4px; }
+.trigger {
+  display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px;
+  border: 0; border-radius: 15px; background: none; color: var(--quiet-strong);
+  font: inherit; font-size: var(--text-control); cursor: pointer; white-space: nowrap;
+}
+.trigger:hover { background: var(--wash); color: var(--ink-faint); }
+.trigger .val { color: var(--ink-faint); }
+.send { width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--surface-inverse); color: var(--ink-inverse); display: grid; place-items: center; cursor: pointer; }
+.send.off { background: color-mix(in srgb, var(--p-bg-6) 80%, var(--p-fg-5)); color: var(--quiet); }
+
+/* ---- shared new parts ---- */
+/* context rail that rides on top of the composer */
+.rail {
+  display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+  padding: 8px 9px 0 10px;
+}
+.rail-chip {
+  display: flex; align-items: center; gap: 7px; min-height: 28px; padding: 0 9px;
+  border: 0; border-radius: 9px; background: transparent;
+  color: var(--ink-faint); font: inherit; font-size: var(--text-control); font-weight: 480; cursor: pointer; white-space: nowrap;
+}
+.rail-chip:hover { background: var(--surface-hover); color: var(--ink-soft); }
+.rail-chip svg { flex: none; color: var(--quiet-strong); }
+.rail-chip.ghost { color: var(--quiet-strong); }
+.rail-chip.on { background: var(--chip); color: var(--ink-soft); }
+.rail-chip.on svg { color: var(--accent); }
+.rail .spacer { flex: 1; }
+.rail-state {
+  display: flex; align-items: center; gap: 8px; padding: 0 10px 0 8px; height: 28px;
+  border-radius: 9px; color: var(--quiet); font-size: var(--text-meta); font-family: var(--mono); cursor: pointer;
+}
+.rail-state:hover { background: var(--surface-hover); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--quiet-soft); }
+.dot.clean { background: var(--success); }
+.dot.dirty { background: var(--p-ansi-yellow); }
+.dot.run { background: var(--info); box-shadow: 0 0 0 3px color-mix(in srgb, var(--p-info) 22%, transparent); }
+.rail-div { width: 1px; height: 16px; margin: 0 5px; background: var(--line); }
+
+/* recents */
+.section-label {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 8px;
+  color: var(--quiet-soft); font-size: var(--text-meta); font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
+}
+.section-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+.recents { display: grid; gap: 2px; }
+.recent {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 11px;
+  padding: 9px 11px; border: 0; border-radius: 11px; background: transparent;
+  font: inherit; text-align: left; color: var(--ink-faint); cursor: pointer; width: 100%;
+}
+.recent:hover { background: var(--surface-hover); }
+.recent .mark { display: grid; place-items: center; color: var(--quiet); }
+.recent .t { min-width: 0; }
+.recent .t b { display: block; color: var(--ink-soft); font-size: var(--text-control); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent .t small { display: flex; align-items: center; gap: 7px; margin-top: 2px; color: var(--quiet); font-size: var(--text-meta); }
+.recent .t small .mono { font-family: var(--mono); }
+.recent .go { color: var(--quiet-soft); opacity: 0; }
+.recent:hover .go { opacity: 1; }
+.sep-dot { color: var(--quiet-soft); }
+
+/* starters */
+.starters { display: flex; flex-wrap: wrap; gap: 7px; }
+.starter {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface-input);
+  color: var(--ink-faint); font: inherit; font-size: var(--text-control); cursor: pointer;
+}
+.starter:hover { border-color: var(--line-bright); background: var(--surface-hover); color: var(--ink-soft); }
+.starter .cmd { font-family: var(--mono); font-size: var(--text-meta); color: var(--accent-bright); }
+.starter svg { color: var(--quiet); }
+
+.hint { margin-top: 14px; color: var(--quiet-soft); font-size: var(--text-meta); text-align: center; }
+.kbd {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; margin: 0 2px;
+  border: 1px solid var(--line); border-radius: 5px; background: var(--surface-input);
+  color: var(--quiet); font-family: var(--mono); font-size: 10px;
+}
+
+/* collapsed session pill (replaces the empty card) */
+.session-pill {
+  position: absolute; top: 20px; right: 22px; z-index: 7;
+  display: flex; align-items: center; gap: 9px; height: 30px; padding: 0 11px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  color: var(--quiet); font-size: var(--text-meta); cursor: pointer;
+}
+.session-pill:hover { border-color: var(--line-strong); color: var(--ink-faint); }
+.session-pill .mono { font-family: var(--mono); }
+
+/* ============ variant B — anchored ============ */
+.v-anchored .body { align-items: end; padding-bottom: 4px; }
+.v-anchored .hero h2 { font-size: var(--text-display); }
+.v-anchored .hero { margin-bottom: 22px; }
+.v-anchored .starters { margin-bottom: 2px; }
+
+/* ============ variant C — launchpad ============ */
+.v-launch .body { align-items: end; padding-bottom: 6px; }
+.v-launch .col { display: grid; gap: 22px; }
+.v-launch .hero { text-align: left; display: grid; grid-template-columns: auto minmax(0,1fr); gap: 14px; align-items: center; }
+.v-launch .hero .glyph { width: 30px; height: 30px; margin: 0; }
+.v-launch .hero h2 { margin: 0 0 2px; font-size: var(--text-heading); }
+.v-launch .hero p { margin: 0; max-width: none; font-size: var(--text-meta); }
+
+/* ============ variant D — palette ============ */
+.v-palette .body { place-items: center; }
+.v-palette .col { display: grid; gap: 18px; }
+.v-palette .composer { box-shadow: var(--shadow-panel); }
+.v-palette .composer-input { min-height: 72px; font-size: var(--text-heading); color: var(--quiet-soft); padding-top: 16px; }
+.v-palette .sheet {
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface-menu); box-shadow: var(--shadow-menu);
+  padding: 6px; display: grid; gap: 1px;
+}
+.v-palette .sheet-head { padding: 8px 10px 6px; color: var(--quiet-soft); font-size: var(--text-meta); letter-spacing: 0.05em; text-transform: uppercase; }
+.v-palette .row {
+  display: grid; grid-template-columns: 22px minmax(0,1fr) auto; align-items: center; gap: 11px;
+  padding: 8px 10px; border-radius: 10px; color: var(--ink-faint); font-size: var(--text-control); cursor: pointer;
+}
+.v-palette .row:hover, .v-palette .row.sel { background: var(--surface-hover); color: var(--ink-soft); }
+.v-palette .row .mono { font-family: var(--mono); color: var(--accent-bright); font-size: var(--text-meta); }
+.v-palette .row small { color: var(--quiet); font-size: var(--text-meta); }
+.v-palette .row svg { color: var(--quiet); }
+
+/* annotations */
+.notes { margin: 0; padding: 14px 22px 20px; border-top: 1px solid var(--line-soft); display: none; }
+body.show-notes .notes { display: block; }
+.notes ol { margin: 0; padding-left: 20px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.75; }
+.notes ol b { color: var(--ink-faint); font-weight: 540; }
+.tick {
+  display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px;
+  border-radius: 50%; background: var(--accent-chip); color: var(--accent-bright); font-size: 10px; font-weight: 600;
+}
+.pin {
+  position: absolute; z-index: 9; display: none; place-items: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent); color: var(--p-contrast-ink); font-size: 10px; font-weight: 700;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--p-accent) 25%, transparent);
+}
+body.show-notes .pin { display: grid; }
+</style>
+</head>
+<body class="show-notes">
+<div class="page">
+  <div class="page-head">
+    <div>
+      <h1>Start a task — the empty Work view</h1>
+    </div>
+    <div class="switch-stack">
+      <div class="switches" id="theme">
+        <button data-theme-set="claudex-dark" class="on">Dark</button>
+        <button data-theme-set="claudex-light">Light</button>
+      </div>
+      <div class="switches">
+        <button id="notes-toggle" class="on">Annotations</button>
+      </div>
+    </div>
+  </div>
+  <p class="lede">
+    The view a project opens on. Today it is three islands with a lot of nothing between them: a headline stranded at
+    optical centre, the context controls floating a third of the screen above the box that uses them, and a session card
+    reporting three zeros. Four takes on the same screen, all in the app's own tokens.
+  </p>
+
+  <!-- ============================ A — today ============================ -->
+  <div class="demo">
+    <div class="demo-head"><h2>A — Today</h2><span class="tag">baseline</span></div>
+    <p class="demo-note">For comparison. Roughly 40% of the height is empty, and the two things you must decide before typing (which project, which branch) sit nowhere near the typing.</p>
+    <div class="stage">
+      <div class="win">
+        <div class="win-top">
+          <div class="modes"><span>Chat</span><span class="on">Work</span></div>
+        </div>
+
+        <aside class="session-panel">
+          <div class="session-card">
+            <h3>Session</h3>
+            <div class="session-row"><span class="k">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 1.8h5l3 3v9.4H4z"/><path d="M6 8h4M8 6v4"/></svg>
+              Changes</span><span class="v"><span class="add">+0</span> <span class="del">−0</span></span></div>
+            <div class="session-row"><span class="k">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="6" r="1.6"/><path d="M4.5 5v6M11.5 7.6v.9a2.5 2.5 0 0 1-2.5 2.5H6"/></svg>
+              Branch</span><span class="v">main</span></div>
+            <div class="session-row"><span class="k">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="9" r="4.6"/><path d="M8 6.8V9l1.5 1M5.6 2.2 3.4 3.9M10.4 2.2l2.2 1.7"/></svg>
+              Automations</span><span class="v">0</span></div>
+            <div class="session-sec"><b>Subagents</b><small>No subagents this session</small></div>
+            <div class="session-sec"><b>Processes</b><small>No background processes</small></div>
+          </div>
+        </aside>
+
+        <div class="body">
+          <div class="col">
+            <div class="hero">
+              <div class="glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.2l1.8 2h8A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg></div>
+              <h2>Start a task</h2>
+              <p>Tell Claude what you want to change, investigate, or build in this project.</p>
+              <div class="thread-start">
+                <button><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/></svg>claudex
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+                <button><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="6" r="1.6"/><path d="M4.5 5v6M11.5 7.6v.9a2.5 2.5 0 0 1-2.5 2.5H6"/></svg>main
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+                <button><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/><path d="M8 6.5v4M6 8.5h4"/></svg>Worktree</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer">
+            <div class="composer-input">Ask Claude to work on anything</div>
+            <div class="composer-foot">
+              <div class="settings">
+                <button class="trigger">Mode <span class="val">Auto</span></button>
+                <button class="trigger">Model <span class="val">Opus</span></button>
+                <button class="trigger">Effort <span class="val">High</span></button>
+              </div>
+              <button class="send off"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ B — anchored ============================ -->
+  <div class="demo v-anchored">
+    <div class="demo-head"><h2>B — Anchored</h2><span class="tag">smallest change</span></div>
+    <p class="demo-note">Same content, one column. The context controls move into a rail on the composer so the thing you are about to act on is attached to where you type it, and the session card collapses to a pill until it has something to say.</p>
+    <div class="stage">
+      <div class="win">
+        <div class="win-top"><div class="modes"><span>Chat</span><span class="on">Work</span></div></div>
+
+        <button class="session-pill" style="top:20px">
+          <span class="dot clean"></span><span class="mono">main</span><span class="sep-dot">·</span><span>clean</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg>
+          <span class="pin" style="top:-9px;left:-9px">2</span>
+        </button>
+
+        <div class="body">
+          <div class="col">
+            <div class="hero">
+              <div class="glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.2l1.8 2h8A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg></div>
+              <h2>Start a task</h2>
+              <p>Tell Claude what you want to change, investigate, or build in claudex.</p>
+            </div>
+            <div class="starters" style="justify-content:center">
+              <button class="starter"><span class="cmd">/code-review</span></button>
+              <button class="starter"><span class="cmd">/run</span></button>
+              <button class="starter">Explain how this project is put together</button>
+              <button class="starter">Fix the failing test<span class="pin" style="top:-8px;right:-8px">3</span></button>
+            </div>
+            <p class="hint">Drop files or images anywhere · <span class="kbd">/</span> for commands · <span class="kbd">@</span> for files</p>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer hot" style="position:relative">
+            <span class="pin" style="top:-9px;left:-9px">1</span>
+            <div class="rail">
+              <button class="rail-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/></svg>claudex
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+              <span class="rail-div"></span>
+              <button class="rail-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="6" r="1.6"/><path d="M4.5 5v6M11.5 7.6v.9a2.5 2.5 0 0 1-2.5 2.5H6"/></svg>main
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+              <button class="rail-chip ghost"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/><path d="M8 6.5v4M6 8.5h4"/></svg>Worktree</button>
+              <span class="spacer"></span>
+              <span class="rail-state"><span class="dot clean"></span>working tree clean</span>
+            </div>
+            <div class="composer-input">Ask Claude to work on anything</div>
+            <div class="composer-foot">
+              <div class="settings">
+                <button class="trigger">Mode <span class="val">Auto</span></button>
+                <button class="trigger">Model <span class="val">Opus</span></button>
+                <button class="trigger">Effort <span class="val">High</span></button>
+              </div>
+              <button class="send off"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes"><ol>
+      <li><b><span class="tick">1</span>Context rides the composer.</b> Project, branch and worktree become a rail on the box they configure. One glance answers “what am I about to touch”, and the rail stays after the first message instead of vanishing with the empty state — today that answer is only visible on a blank thread.</li>
+      <li><b><span class="tick">2</span>The session card earns its space.</b> Three zeros and two “no such thing” lines is a card asking to be ignored. It collapses to a pill until there is a change, a subagent, or a process; then it opens itself and stays open.</li>
+      <li><b><span class="tick">3</span>Something to press.</b> A blank prompt is the hardest prompt. Four starters — two slash commands the project actually has, two plain sentences — fill the box rather than sending, so they teach the syntax instead of hiding it.</li>
+    </ol></div>
+  </div>
+
+  <!-- ============================ C — launchpad ============================ -->
+  <div class="demo v-launch">
+    <div class="demo-head"><h2>C — Launchpad</h2><span class="tag">the one I'd build</span></div>
+    <p class="demo-note">The empty view is the only screen with room for what you almost always want next: the thread you were in ten minutes ago. Recents carry their branch, their diff and whether they are still running, so the view doubles as a status board for the project.</p>
+    <div class="stage">
+      <div class="win">
+        <div class="win-top"><div class="modes"><span>Chat</span><span class="on">Work</span></div></div>
+
+        <button class="session-pill">
+          <span class="dot run"></span><span>2 running</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg>
+        </button>
+
+        <div class="body">
+          <div class="col">
+            <div class="hero">
+              <div class="glyph"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.2l1.8 2h8A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/></svg></div>
+              <div>
+                <h2>Start a task in claudex</h2>
+                <p>Tell Claude what to change, investigate, or build — or pick a thread back up.</p>
+              </div>
+            </div>
+
+            <div style="position:relative">
+              <span class="pin" style="top:-4px;left:-22px">4</span>
+              <p class="section-label">Pick up where you left off</p>
+              <div class="recents">
+                <button class="recent">
+                  <span class="mark"><span class="dot run"></span></span>
+                  <span class="t">
+                    <b>Letter a screenshot's marks when a send carries more than one</b>
+                    <small><span class="dot run" style="width:5px;height:5px;box-shadow:none"></span>running<span class="sep-dot">·</span><span class="mono">main</span><span class="sep-dot">·</span><span class="mono add">+142</span> <span class="mono del">−38</span></small>
+                  </span>
+                  <span class="go"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></span>
+                </button>
+                <button class="recent">
+                  <span class="mark"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/><path d="M8 6.5v4M6 8.5h4"/></svg></span>
+                  <span class="t">
+                    <b>Pin the Node version the dev tooling needs</b>
+                    <small>18m ago<span class="sep-dot">·</span><span class="mono">wt/node-pin</span><span class="sep-dot">·</span>needs review</small>
+                  </span>
+                  <span class="go"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></span>
+                </button>
+                <button class="recent">
+                  <span class="mark"><span class="dot"></span></span>
+                  <span class="t">
+                    <b>Read the two sides of a comparison as one range</b>
+                    <small>Yesterday<span class="sep-dot">·</span><span class="mono">main</span><span class="sep-dot">·</span>committed</small>
+                  </span>
+                  <span class="go"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></span>
+                </button>
+              </div>
+            </div>
+
+            <div style="position:relative">
+              <span class="pin" style="top:-4px;left:-22px">5</span>
+              <p class="section-label">Or start from</p>
+              <div class="starters">
+                <button class="starter"><span class="cmd">/code-review</span></button>
+                <button class="starter"><span class="cmd">/quality-check</span></button>
+                <button class="starter"><span class="cmd">/run</span></button>
+                <button class="starter">Explain the architecture</button>
+                <button class="starter">Review my uncommitted changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer hot">
+            <div class="rail">
+              <button class="rail-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/></svg>claudex
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+              <span class="rail-div"></span>
+              <button class="rail-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="6" r="1.6"/><path d="M4.5 5v6M11.5 7.6v.9a2.5 2.5 0 0 1-2.5 2.5H6"/></svg>main
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+              <button class="rail-chip on"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/><path d="M8 6.5v4M6 8.5h4"/></svg>Worktree
+                <span class="pin" style="top:-9px;right:-9px">6</span></button>
+              <span class="spacer"></span>
+              <span class="rail-state"><span class="dot dirty"></span><span class="add">+142</span> <span class="del">−38</span></span>
+            </div>
+            <div class="composer-input">Ask Claude to work on anything</div>
+            <div class="composer-foot">
+              <div class="settings">
+                <button class="trigger">Mode <span class="val">Auto</span></button>
+                <button class="trigger">Model <span class="val">Opus</span></button>
+                <button class="trigger">Effort <span class="val">High</span></button>
+              </div>
+              <button class="send off"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes"><ol start="4">
+      <li><b><span class="tick">4</span>Recents, with state.</b> Title, age, branch or worktree, and a dot for running / needs-review / done. Resuming is the most common next action on this screen and today it costs a trip to another surface. The running dot also makes the pill in the corner redundant most of the time.</li>
+      <li><b><span class="tick">5</span>Starters below recents, not above.</b> Ordered by how often each is what you want: your own thread first, a command second, a blank box last.</li>
+      <li><b><span class="tick">6</span>Worktree is a state, not a verb.</b> Pressed-in with an accented icon and the branch chip switching to <span class="mono">wt/…</span>, so an isolated checkout is legible before you send rather than after.</li>
+    </ol></div>
+  </div>
+
+  <!-- ============================ D — palette ============================ -->
+  <div class="demo v-palette">
+    <div class="demo-head"><h2>D — Palette</h2><span class="tag">keyboard-first</span></div>
+    <p class="demo-note">No hero at all. The composer <em>is</em> the empty state, parked at optical centre, with a sheet under it that filters as you type — recents, commands and skills in one list. The screen has one focus and one keyboard path.</p>
+    <div class="stage">
+      <div class="win">
+        <div class="win-top"><div class="modes"><span>Chat</span><span class="on">Work</span></div></div>
+        <button class="session-pill"><span class="dot clean"></span><span class="mono">main</span><span class="sep-dot">·</span><span>clean</span></button>
+
+        <div class="body">
+          <div class="col">
+            <div class="composer hot">
+              <div class="rail">
+                <button class="rail-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/></svg>claudex
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+                <span class="rail-div"></span>
+                <button class="rail-chip"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="6" r="1.6"/><path d="M4.5 5v6M11.5 7.6v.9a2.5 2.5 0 0 1-2.5 2.5H6"/></svg>main
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="m4 6.5 4 4 4-4"/></svg></button>
+                <button class="rail-chip ghost"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/><path d="M8 6.5v4M6 8.5h4"/></svg>Worktree</button>
+                <span class="spacer"></span>
+                <span class="rail-state"><span class="dot clean"></span>clean</span>
+              </div>
+              <div class="composer-input">What should Claude work on?</div>
+              <div class="composer-foot">
+                <div class="settings">
+                  <button class="trigger">Mode <span class="val">Auto</span></button>
+                  <button class="trigger">Model <span class="val">Opus</span></button>
+                  <button class="trigger">Effort <span class="val">High</span></button>
+                </div>
+                <button class="send off"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7"/></svg></button>
+              </div>
+            </div>
+
+            <div class="sheet" style="position:relative">
+              <span class="pin" style="top:-9px;left:-9px">7</span>
+              <p class="sheet-head">Recent</p>
+              <div class="row sel">
+                <span class="dot run"></span>
+                <span>Letter a screenshot's marks when a send carries more than one <small>· running · main</small></span>
+                <span class="kbd">↵</span>
+              </div>
+              <div class="row">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2l1.2 1.5H12A1.5 1.5 0 0 1 13.5 6v5A1.5 1.5 0 0 1 12 12.5H3.5A1.5 1.5 0 0 1 2 11z"/><path d="M8 6.5v4M6 8.5h4"/></svg>
+                <span>Pin the Node version the dev tooling needs <small>· 18m · wt/node-pin</small></span>
+                <span></span>
+              </div>
+              <p class="sheet-head">Commands</p>
+              <div class="row">
+                <span class="mono">/</span>
+                <span><span class="mono">/code-review</span> <small>· review the current diff for bugs</small></span>
+                <span></span>
+              </div>
+              <div class="row">
+                <span class="mono">/</span>
+                <span><span class="mono">/run</span> <small>· launch the app and see the change working</small></span>
+                <span></span>
+              </div>
+            </div>
+            <p class="hint">Type to filter · <span class="kbd">↑</span><span class="kbd">↓</span> to move · <span class="kbd">↵</span> to open · keep typing to write a prompt instead</p>
+          </div>
+        </div>
+        <div class="composer-wrap" style="padding-bottom:14px"></div>
+      </div>
+    </div>
+    <div class="notes"><ol start="7">
+      <li><b><span class="tick">7</span>One list, filtered by the box above it.</b> Recents, slash commands and skills share a keystroke. The cost: the screen no longer says what it is for, so it only works if the project has history — fall back to B's hero on a first run.</li>
+    </ol></div>
+  </div>
+
+  <p class="lede" style="margin-top:26px">
+    Common to B, C and D: the context rail on the composer, the session card that collapses when it has nothing, and a
+    single centred column so the eye travels one path. C is the one worth building — B is what it degrades to on a first
+    run, and D is C with the recents folded into the keyboard.
+  </p>
+</div>
+
+<script>
+  document.getElementById("theme").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-theme-set]");
+    if (!button) return;
+    document.documentElement.dataset.theme = button.dataset.themeSet;
+    for (const other of button.parentElement.children) other.classList.toggle("on", other === button);
+  });
+  const notes = document.getElementById("notes-toggle");
+  notes.addEventListener("click", () => {
+    const on = document.body.classList.toggle("show-notes");
+    notes.classList.toggle("on", on);
+  });
+</script>
+</body>
+</html>
