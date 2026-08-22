@@ -111,6 +111,11 @@ const api: DesktopAPI = {
     ipcRenderer.on("window:screenshot", handler);
     return () => ipcRenderer.removeListener("window:screenshot", handler);
   },
+  onDesktopShortcutRefused: (listener: (binding: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: string) => listener(payload);
+    ipcRenderer.on("window:shortcut-refused", handler);
+    return () => ipcRenderer.removeListener("window:shortcut-refused", handler);
+  },
   setTheme: (theme: WindowTheme) => ipcRenderer.send("theme:set", theme),
   setShortcuts: (overrides: ShortcutOverrides) => ipcRenderer.send("shortcuts:set", overrides),
   setShortcutCapture: (capturing: boolean) => ipcRenderer.send("shortcuts:capture", capturing),

@@ -15,7 +15,7 @@ import {
   withRunStatus,
   withWorkflows,
 } from "./task-workspace.js";
-import { annotationsFor, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, imagesFor, withImages, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -41,7 +41,7 @@ import { nextTheme, themeById, themeOrDefault } from "../domain/theme.js";
 import { monoFontById, monoFontOrDefault, stepTextSize, textSizeById, textSizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
-import { clampTitle, findProject, legacyProjectId, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -162,6 +162,8 @@ const WORKTREE_ELSEWHERE_ERROR = "That worktree is a checkout of another project
 const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a terminal.";
 const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 const WORKTREE_CREATING_ERROR = "This thread's worktree is still being created.";
+
+const TOO_MANY_IMAGES_ERROR = `You can attach up to ${MAX_ATTACHMENTS} images.`;
 const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
 const SWITCH_PROJECT_ERROR = "Open this thread in a project folder before switching branches.";
@@ -652,7 +654,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       const { [active.runId]: _abandoned, ...approvals } = next.approvals;
       next = { ...next, approvals };
     }
-    next = withPastes(withAnnotations(withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, ""), chat.id, []), chat.id, []);
+    next = withImages(withPastes(withAnnotations(withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, ""), chat.id, []), chat.id, []), chat.id, []);
   }
   const closed = new Set(closing.map((chat) => chat.id));
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
@@ -1143,7 +1145,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),
         };
-        const drafted = draftKey === undefined ? state : withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []);
+        const drafted = draftKey === undefined ? state : withImages(withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []), draftKey, []);
         const next = withQueued(drafted, task.id, [...queuedFor(state, task.id), queued]);
         return input.steer ? apply(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
       }
@@ -1599,6 +1601,18 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "paste.remove": {
       const key = input.taskId ?? promptKey(state);
       return settled(withPastes(state, key, pastesFor(state, key).filter((item) => item.id !== input.pasteId)));
+    }
+
+    case "image.add": {
+      const key = input.taskId ?? promptKey(state);
+      if (!input.path) return settled(state);
+      if (imagesFor(state, key).length >= MAX_ATTACHMENTS) return settled({ ...state, actionError: TOO_MANY_IMAGES_ERROR });
+      return settled(withImages(state, key, [...imagesFor(state, key), { id: crypto.randomUUID(), path: input.path, label: input.label }]));
+    }
+
+    case "image.remove": {
+      const key = input.taskId ?? promptKey(state);
+      return settled(withImages(state, key, imagesFor(state, key).filter((item) => item.id !== input.imageId)));
     }
 
     case "view.set-prompt":
@@ -2082,7 +2096,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const handed = focusing && state.diffs[DRAFT_DOCK];
   const reviewing = handed ? readDiffFrom(drained, task.id, workspace.id, handed.range) : settled(drained);
   return settled(
-    pending.draftKey ? withPastes(withAnnotations(withPrompt(reviewing.state, pending.draftKey, ""), pending.draftKey, []), pending.draftKey, []) : reviewing.state,
+    pending.draftKey ? withImages(withPastes(withAnnotations(withPrompt(reviewing.state, pending.draftKey, ""), pending.draftKey, []), pending.draftKey, []), pending.draftKey, []) : reviewing.state,
     [{ type: "start-run", command }, ...titling, ...reviewing.effects],
   );
 }

@@ -19,7 +19,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | TerminalCommand | ViewCommand;
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
@@ -95,6 +95,14 @@ export type AnnotationCommand =
 export type PasteCommand =
   | { type: "paste.add"; taskId?: string; text: string }
   | { type: "paste.remove"; taskId?: string; pasteId: string };
+
+/**
+ * An image waiting in a composer, already on disk. Drafted the way pastes are: per task, cleared by
+ * the send that carries it.
+ */
+export type ImageCommand =
+  | { type: "image.add"; taskId?: string; path: string; label: string }
+  | { type: "image.remove"; taskId?: string; imageId: string };
 
 export type ProjectCommand =
   | { type: "project.open" }

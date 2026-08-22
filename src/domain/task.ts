@@ -27,6 +27,17 @@ export type PastedText = {
   text: string;
 };
 
+/** How many images one message may carry. */
+export const MAX_ATTACHMENTS = 6;
+
+/** An image waiting in a composer, already written to the attachments directory. */
+export type StagedImage = {
+  id: string;
+  path: string;
+  /** What the image is of, such as the app whose window the desktop hotkey grabbed. */
+  label: string;
+};
+
 export type TaskMessage = {
   id: string;
   kind: TaskMessageKind;

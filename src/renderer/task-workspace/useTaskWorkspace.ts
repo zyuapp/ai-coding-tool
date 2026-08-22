@@ -13,6 +13,8 @@ import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivi
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
+import { displayShortcut } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 import { applyTheme } from "../theme";
 import { applyTypography } from "../typography";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
@@ -536,9 +538,14 @@ export function useTaskWorkspace() {
     window.desktop.setShortcuts(stateRef.current.shortcuts);
     const stopListening = window.desktop.onShortcut(({ action, surface }) => void dispatchRef.current({ type: "view.shortcut", action, surface }));
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void dispatchRef.current({ type: "shortcut.captured", binding }));
+    const stopRefusals = window.desktop.onDesktopShortcutRefused((binding) => void dispatchRef.current({
+      type: "action.failed",
+      message: `${displayShortcut(binding, MAC)} belongs to another app, so grabbing a window has no shortcut.`,
+    }));
     return () => {
       stopListening();
       stopCapturing();
+      stopRefusals();
     };
   }, []);
 
@@ -546,6 +553,12 @@ export function useTaskWorkspace() {
     if (!("desktop" in window)) return;
     /** A folder the `claudex` command named arrives as an already-registered workspace. */
     return window.desktop.onOpenProject((workspace) => void dispatchRef.current({ type: "project.opened", workspace }));
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    /** The desktop hotkey names no thread, so a grabbed window waits in whichever composer is current. */
+    return window.desktop.onWindowScreenshot((shot) => void dispatchRef.current({ type: "image.add", path: shot.path, label: shot.title ? `${shot.app} — ${shot.title}` : shot.app }));
   }, []);
 
   useEffect(() => {

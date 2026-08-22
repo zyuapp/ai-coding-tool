@@ -17,7 +17,7 @@ import { DEFAULT_THEME } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_TEXT_SIZE, DEFAULT_UI_FONT } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type Task, type TaskStoreData } from "../domain/task.js";
+import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type Worktree } from "../domain/worktree.js";
 
 /**
@@ -96,6 +96,7 @@ export type SideChatView = SideChat & {
   prompt: string;
   annotations: Annotation[];
   pastes: PastedText[];
+  images: StagedImage[];
   running: boolean;
   compacting: boolean;
   status: TaskRunStatus;
@@ -198,6 +199,8 @@ export type WorkspaceState = {
   annotations: Record<string, Annotation[]>;
   /** Pasted blocks waiting in each composer, keyed the way `prompts` is. */
   pastes: Record<string, PastedText[]>;
+  /** Images waiting in each composer, keyed the way `prompts` is. */
+  images: Record<string, StagedImage[]>;
   expandedProjects: Set<string>;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
@@ -272,6 +275,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     prompts: {},
     annotations: {},
     pastes: {},
+    images: {},
     expandedProjects: new Set(),
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     theme: DEFAULT_THEME,
@@ -395,6 +399,7 @@ function sessionStarted(state: WorkspaceState): boolean {
     || Object.keys(state.prompts).length > 0
     || Object.keys(state.annotations).length > 0
     || Object.keys(state.pastes).length > 0
+    || Object.keys(state.images).length > 0
     || Object.keys(state.pendingRuns).length > 0;
 }
 
@@ -674,6 +679,18 @@ export function withPastes(state: WorkspaceState, key: string, pastes: PastedTex
   return { ...state, pastes: remaining };
 }
 
+const NO_IMAGES: StagedImage[] = [];
+
+export function imagesFor(state: Pick<WorkspaceState, "images">, key: string): StagedImage[] {
+  return state.images[key] ?? NO_IMAGES;
+}
+
+export function withImages(state: WorkspaceState, key: string, images: StagedImage[]): WorkspaceState {
+  if (images.length) return { ...state, images: { ...state.images, [key]: images } };
+  const { [key]: _cleared, ...remaining } = state.images;
+  return { ...state, images: remaining };
+}
+
 /** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
 export function reachableVisit(state: WorkspaceState, step: -1 | 1): number | null {
   for (let index = state.historyIndex + step; index >= 0 && index < state.history.length; index += step) {
@@ -754,6 +771,7 @@ export function deriveView(state: WorkspaceState) {
     prompt: state.prompts[promptKey(state)] ?? "",
     annotations: annotationsFor(state, promptKey(state)),
     pastes: pastesFor(state, promptKey(state)),
+    images: imagesFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
@@ -832,6 +850,7 @@ export function deriveView(state: WorkspaceState) {
         prompt: state.prompts[chat.id] ?? "",
         annotations: annotationsFor(state, chat.id),
         pastes: pastesFor(state, chat.id),
+        images: imagesFor(state, chat.id),
         running: Boolean(active),
         compacting: active?.status === "compacting",
         status: active ? "running" : runStatusFor(state, chat.id),

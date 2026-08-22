@@ -10,7 +10,7 @@ import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds,
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
-import { formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
+import { desktopAccelerator, formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
@@ -217,12 +217,6 @@ function handleKey(input: Electron.Input, surface: ShortcutSurface): boolean {
   return true;
 }
 
-/**
- * The one keystroke the app claims from the whole desktop. Carbon registers it without activating
- * us, so the app the user is in keeps the keyboard and stays the app the capture describes.
- */
-const CAPTURE_WINDOW_SHORTCUT = "Alt+Shift+S";
-
 /** Says what happened where the user already is, since taking the window would take their place. */
 function notify(title: string, body: string) {
   if (Notification.isSupported()) new Notification({ title, body, silent: true }).show();
@@ -231,8 +225,13 @@ function notify(title: string, body: string) {
 async function captureWindowToComposer() {
   const shot = await captureFrontmostWindow();
   if (shot.status === "captured") {
-    sendToWindow("window:screenshot", { app: shot.app, title: shot.title, png: shot.png });
-    notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
+    try {
+      const file = await writeAttachment(shot.png);
+      sendToWindow("window:screenshot", { app: shot.app, title: shot.title, path: file });
+      notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
+    } catch (error) {
+      notify("Could not keep the screenshot", error instanceof Error ? error.message : String(error));
+    }
     return;
   }
   if (shot.status === "denied") {
@@ -244,10 +243,29 @@ async function captureWindowToComposer() {
   else notify("Could not capture the window", shot.message);
 }
 
-function registerCaptureShortcut() {
+/** What the desktop is currently holding for us, so an unchanged binding is never re-registered. */
+let desktopBinding: string | null = null;
+
+function releaseDesktopShortcut() {
+  globalShortcut.unregisterAll();
+  desktopBinding = null;
+}
+
+/**
+ * Claims the capture keystroke from the whole desktop. Carbon registers it without activating us, so
+ * the app the user is in keeps the keyboard and stays the app the capture describes.
+ */
+function claimDesktopShortcut() {
   if (process.platform !== "darwin") return;
-  if (!globalShortcut.register(CAPTURE_WINDOW_SHORTCUT, () => void captureWindowToComposer())) {
-    console.error(`Another app already holds ${CAPTURE_WINDOW_SHORTCUT}.`);
+  const wanted = shortcuts.find((binding) => binding.surface === "desktop" && binding.action === "window.capture");
+  const accelerator = wanted ? desktopAccelerator(wanted.binding) : null;
+  if (accelerator === desktopBinding) return;
+  releaseDesktopShortcut();
+  desktopBinding = accelerator;
+  if (!accelerator) return;
+  if (!globalShortcut.register(accelerator, () => void captureWindowToComposer())) {
+    desktopBinding = null;
+    sendToWindow("window:shortcut-refused", wanted!.binding);
   }
 }
 
@@ -637,7 +655,7 @@ app.whenReady().then(async () => {
     return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
   });
   app.dock?.setIcon(icon);
-  registerCaptureShortcut();
+  claimDesktopShortcut();
   startAgent();
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
@@ -844,11 +862,15 @@ ipcMain.on("theme:set", (event, theme: unknown) => {
 ipcMain.on("shortcuts:set", (event, overrides: unknown) => {
   if (!trustedSender(event) || !isShortcutOverrides(overrides)) return;
   shortcuts = resolveShortcuts(overrides);
+  claimDesktopShortcut();
 });
 
 ipcMain.on("shortcuts:capture", (event, capturing: unknown) => {
   if (!trustedSender(event) || typeof capturing !== "boolean") return;
   capturingShortcut = capturing;
+  /** A keystroke the desktop is holding never reaches the window, so settings cannot read it back. */
+  if (capturing) releaseDesktopShortcut();
+  else claimDesktopShortcut();
 });
 
 ipcMain.on("window:close", (event) => {
@@ -1049,9 +1071,9 @@ function savedAttachmentPath(file: string) {
   return path.resolve(file) === saved ? saved : null;
 }
 
-ipcMain.handle("attachment:save", async (event, data: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  if (typeof data !== "string" || data.length === 0 || data.length > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
+/** Puts base64 PNG bytes in the attachments directory under a name of this app's own making. */
+async function writeAttachment(data: string) {
+  if (data.length === 0 || data.length > MAX_ATTACHMENT_BYTES) throw new Error("Attachment is empty or too large.");
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error("Attachment payload is not base64.");
   const bytes = Buffer.from(data, "base64");
   if (bytes.byteLength === 0) throw new Error("Attachment is empty or too large.");
@@ -1059,6 +1081,13 @@ ipcMain.handle("attachment:save", async (event, data: unknown) => {
   await mkdir(directory, { recursive: true });
   const file = path.join(directory, `${randomUUID()}.png`);
   await writeFile(file, bytes);
+  return file;
+}
+
+ipcMain.handle("attachment:save", async (event, data: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (typeof data !== "string") throw new Error("Attachment is empty or too large.");
+  const file = await writeAttachment(data);
   return file;
 });
 

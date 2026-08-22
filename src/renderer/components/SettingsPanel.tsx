@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
+import { MAC } from "../platform";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import { themeFamilies } from "../../domain/theme";
 import { MONO_FONTS, TEXT_SIZES, UI_FONTS } from "../../domain/typography";
@@ -10,9 +11,6 @@ import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
 
 export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
-
-/** macOS writes its modifiers as symbols; everywhere else spells them out. */
-const MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform || navigator.userAgent);
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";

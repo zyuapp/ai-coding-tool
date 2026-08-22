@@ -8,7 +8,7 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
@@ -20,6 +20,7 @@ export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAn
   onAnnotateRemove: (annotationId: string) => void;
   onPasteAdd: (text: string) => void;
   onPasteRemove: (pasteId: string) => void;
+  onImageRemove: (imageId: string) => void;
   /** Where this chat's transcript was left, and where its reader has moved to since. */
   readingPoint?: ReadingPoint;
   onReadingPointMove?: (point: ReadingPoint) => void;
@@ -81,6 +82,7 @@ export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAn
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}
+        images={chat.images}
         history={sentPrompts(chat.task.messages)}
         surface="side"
         disabled={!available}
@@ -88,6 +90,7 @@ export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAn
         onAnnotationRemove={onAnnotateRemove}
         onPasteAdd={onPasteAdd}
         onPasteRemove={onPasteRemove}
+        onImageRemove={onImageRemove}
         onModeChange={onPolicyChange}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}

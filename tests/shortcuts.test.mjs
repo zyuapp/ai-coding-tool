@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  desktopAccelerator,
   displayShortcut,
   formatShortcut,
   keystrokeOf,
@@ -234,4 +235,20 @@ test("a binding reads the way the platform writes it", () => {
   assert.equal(displayShortcut("Mod+Alt+ArrowLeft", true), "⌥⌘←");
   assert.equal(displayShortcut("Mod+,", true), "⌘,");
   assert.equal(displayShortcut("nonsense", true), "");
+});
+
+test("a desktop binding is written the way the desktop registers it, and is never claimed in the window", () => {
+  assert.equal(desktopAccelerator("Alt+Shift+S"), "Alt+Shift+S");
+  assert.equal(desktopAccelerator("Mod+Ctrl+ArrowLeft"), "CommandOrControl+Control+Left");
+  assert.equal(desktopAccelerator("Mod+Escape"), "CommandOrControl+Esc");
+  assert.equal(desktopAccelerator("S"), null, "a keystroke with no modifier would swallow what you type");
+  assert.equal(desktopAccelerator("nonsense"), null);
+
+  const bindings = resolveShortcuts({});
+  const capture = bindings.find((binding) => binding.action === "window.capture");
+  assert.equal(capture.surface, "desktop");
+  const stroke = parseShortcut(capture.binding);
+  assert.equal(shortcutFor(bindings, stroke, "any"), undefined, "the window never takes the desktop's keystroke");
+  assert.equal(shortcutFor(bindings, stroke, "browser"), undefined);
+  assert.equal(shortcutFor(bindings, stroke, "desktop").action, "window.capture");
 });

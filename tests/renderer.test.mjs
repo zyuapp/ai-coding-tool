@@ -723,6 +723,7 @@ function fakeDesktop(overrides = {}) {
   let shortcutPressed;
   let shortcutCaptured;
   let windowGrabbed;
+  let shortcutRefused;
   let listener;
   let automationsChanged;
   let fireAutomation;
@@ -739,6 +740,7 @@ function fakeDesktop(overrides = {}) {
     get automationsChanged() { return automationsChanged; },
     get fireAutomation() { return fireAutomation; },
     get grabWindow() { return windowGrabbed; },
+    get refuseShortcut() { return shortcutRefused; },
     threadAnswers,
     askThreads: (request) => threadRequested(request),
     openProjectFromCli: (workspace) => openProject(workspace),
@@ -822,6 +824,8 @@ function fakeDesktop(overrides = {}) {
     onShortcut: (next) => { shortcutPressed = next; return () => {}; },
     onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
     onWindowScreenshot: (next) => { windowGrabbed = next; return () => {}; },
+    onDesktopShortcutRefused: (next) => { shortcutRefused = next; return () => {}; },
+    saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
     closeWindow: () => { browserCalls.push(["close-window"]); },
     focusWindow: () => { browserCalls.push(["focus-window"]); },
     ...overrides,
@@ -939,20 +943,26 @@ test("a usage read that rejects reports instead of breaking the panel", async ()
   await view.unmount();
 });
 
-test("a window grabbed by the desktop hotkey waits in the composer, and never twice", async () => {
+test("a window grabbed by the desktop hotkey waits in the composer, and never twice", async (t) => {
   localStorage.clear();
   const desktop = fakeDesktop();
   window.desktop = desktop;
+  const realFetch = globalThis.fetch;
+  /** The window's own Blob, which is the only kind its FileReader takes. */
+  globalThis.fetch = async () => ({ blob: async () => new dom.window.Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" }) });
+  t.after(() => { globalThis.fetch = realFetch; });
   const view = await mount(React.createElement(App));
 
-  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", png: "iVBORw0KGgo=" }); });
+  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/claudex-attachments/grabbed.png" }); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1);
   assert.equal(view.container.querySelector('button[aria-label="Send task"]').disabled, false);
 
   await act(async () => { view.container.querySelector('button[aria-label="Remove image 1"]').click(); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
 
-  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", png: "iVBORw0KGgo=" }); });
+  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/claudex-attachments/again.png" }); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a second press attaches the newer window");
   await view.unmount();
 });

@@ -268,6 +268,8 @@ export type DesktopAPI = {
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
   /** A window grabbed by the desktop hotkey, on its way to the composer the user was last in. */
   onWindowScreenshot(listener: (shot: WindowScreenshot) => void): () => void;
+  /** A desktop-wide binding another app already holds, which leaves the action with no keystroke. */
+  onDesktopShortcutRefused(listener: (binding: string) => void): () => void;
   /** The theme's ground and canvas, which the platform's own window frame is drawn from. */
   setTheme(theme: WindowTheme): void;
   /** The keystrokes main matches, so a shortcut works inside a page the window never hears from. */
@@ -285,8 +287,8 @@ export type DesktopAPI = {
 /** What a keystroke asked for, and where it was pressed. */
 export type ShortcutInvocation = { action: string; surface: ShortcutSurface };
 
-/** A window the desktop hotkey grabbed, named by the app it belongs to and carried as base64 PNG. */
-export type WindowScreenshot = { app: string; title: string; png: string };
+/** A window the desktop hotkey grabbed, already written to the attachments directory. */
+export type WindowScreenshot = { app: string; title: string; path: string };
 
 /** How many bindings a window may send. Far more than the app has actions, and still bounded. */
 const MAX_SHORTCUTS = 200;

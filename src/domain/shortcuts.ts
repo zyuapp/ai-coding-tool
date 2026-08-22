@@ -4,8 +4,11 @@
  * keystroke reach the window, so this module has to describe a keystroke both sides recognise.
  */
 
-/** Where a binding is claimed: anywhere in the app, or only while a page in the panel has the keys. */
-export type ShortcutSurface = "any" | "browser";
+/**
+ * Where a binding is claimed: anywhere in the app, only while a page in the panel has the keys, or
+ * across the whole desktop, which the app holds even while another app has the keyboard.
+ */
+export type ShortcutSurface = "any" | "browser" | "desktop";
 
 export type ShortcutAction = {
   id: string;
@@ -218,6 +221,8 @@ export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
   })),
   { id: "dock.tab-last", group: "Panels", label: "Last panel tab", description: "Show the last tab in the panel", surface: "any", defaultBinding: "Mod+9" },
 
+  { id: "window.capture", group: "Capture", label: "Grab the window you are in", description: "Attach the frontmost app's window to this thread, from anywhere on the desktop", surface: "desktop", defaultBinding: "Alt+Shift+S" },
+
   { id: "appearance.cycle-theme", group: "Appearance", label: "Next theme", description: "Walk the theme list without opening settings", surface: "any", defaultBinding: "Mod+Shift+T" },
   { id: "appearance.larger-text", group: "Appearance", label: "Bigger text", description: "A step up the reading size, which the chrome does not follow", surface: "any", defaultBinding: "Mod+=" },
   { id: "appearance.smaller-text", group: "Appearance", label: "Smaller text", description: "A step down the reading size, which the chrome does not follow", surface: "any", defaultBinding: "Mod+-" },
@@ -258,6 +263,31 @@ export function resolveShortcuts(overrides: ShortcutOverrides): ShortcutBinding[
     bindings.push({ action: setting.id, binding: setting.binding, surface: setting.surface });
   }
   return bindings;
+}
+
+const ACCELERATOR_KEYS: Record<string, string> = {
+  ArrowLeft: "Left",
+  ArrowRight: "Right",
+  ArrowUp: "Up",
+  ArrowDown: "Down",
+  Enter: "Return",
+  Escape: "Esc",
+};
+
+/**
+ * A binding written the way the desktop registers one. Null for a keystroke the desktop cannot hold,
+ * which leaves the action unbound rather than claiming the wrong keys.
+ */
+export function desktopAccelerator(binding: string): string | null {
+  const stroke = parseShortcut(binding);
+  if (!stroke || shortcutProblem(binding)) return null;
+  return [
+    ...(stroke.mod ? ["CommandOrControl"] : []),
+    ...(stroke.ctrl ? ["Control"] : []),
+    ...(stroke.alt ? ["Alt"] : []),
+    ...(stroke.shift ? ["Shift"] : []),
+    ACCELERATOR_KEYS[stroke.key] ?? stroke.key,
+  ].join("+");
 }
 
 /** Which action a keystroke asks for on the surface it was pressed. */

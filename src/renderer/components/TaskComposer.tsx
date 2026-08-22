@@ -1,7 +1,8 @@
 import { Command, CornerDownRight, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
-import type { Annotation as TaskAnnotation, PastedText, RunAttachment } from "../../domain/task";
+import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RunAttachment, type StagedImage } from "../../domain/task";
+import { attachmentUrl } from "../../application/attachments";
 import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
 import { pasteRidesAsPill } from "../../application/pastes";
@@ -12,8 +13,6 @@ import { ComposerSettings } from "./ComposerSettings";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { ImageAnnotator, type Annotation } from "./ImageAnnotator";
 import { useDismissibleLayer } from "../focus";
-
-const MAX_ATTACHMENTS = 6;
 
 /** An entry in the `/` menu that the app performs itself instead of sending. */
 export type ComposerAction = { name: string; description: string; run: () => void };
@@ -45,6 +44,8 @@ type Attachment = {
   source: string;
   preview: string;
   annotations: Annotation[];
+  /** Where the image already sits on disk, for one the workspace staged rather than the composer read. */
+  path?: string;
 };
 
 function composerPlaceholder(surface: "main" | "side", folder: string, disabled: boolean) {
@@ -55,6 +56,17 @@ function composerPlaceholder(surface: "main" | "side", folder: string, disabled:
 function sendLabel(surface: "main" | "side", runActive: boolean) {
   if (surface === "side") return runActive ? "Stop side chat" : "Send side chat message";
   return runActive ? "Stop task" : "Send task";
+}
+
+/** Reads a file this app already wrote into the attachments directory back out as a data URL. */
+async function dataUrlOf(path: string) {
+  const blob = await (await fetch(attachmentUrl(path))).blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result)));
+    reader.addEventListener("error", () => reject(reader.error ?? new Error("Could not read the image.")));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function readImage(file: File) {
@@ -93,8 +105,9 @@ export type TaskComposerProps = {
   pastes?: PastedText[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
-  /** An image handed in from outside, such as the window the desktop hotkey grabbed. */
-  incomingImage?: { id: string; dataUrl: string } | null;
+  /** Images the workspace is holding for this composer, such as windows the desktop hotkey grabbed. */
+  images?: StagedImage[];
+  onImageRemove?: (imageId: string) => void;
   /** Texts of previously sent messages, oldest first, offered back on ↑ from the first line. */
   history?: string[];
   onPromptChange: (prompt: string) => void;
@@ -127,12 +140,13 @@ export function TaskComposer({
   annotations = [],
   pastes = [],
   focusToken = 0,
-  incomingImage = null,
+  images = [],
   history = [],
   onPromptChange,
   onAnnotationRemove,
   onPasteAdd,
   onPasteRemove,
+  onImageRemove,
   onModeChange,
   onModelChange,
   onEffortChange,
@@ -157,8 +171,8 @@ export function TaskComposer({
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  /** The image already taken in, so a rerender never attaches the same one twice. */
-  const takenImage = useRef<string | null>(null);
+  /** Which staged images have already been read in, so a rerender never reads the same one twice. */
+  const takenImages = useRef(new Set<string>());
   const editing = attachments.find((attachment) => attachment.id === annotating);
   const token = commandTokenAt(prompt, Math.min(caret, prompt.length));
   /** An action discards the draft, so it is only offered while the command is the whole draft. */
@@ -235,10 +249,18 @@ export function TaskComposer({
       onSend([], steer);
       return;
     }
+    /** Pasting and grabbing fill the same row from different sides, so the total is checked once here. */
+    if (attachments.length > MAX_ATTACHMENTS) {
+      setAttachmentError(`You can attach up to ${MAX_ATTACHMENTS} images.`);
+      return;
+    }
     setSending(true);
     try {
       const saved = await Promise.all(attachments.map(async (attachment) => ({
-        path: await window.desktop.saveAttachment(attachment.preview.replace(/^data:[^,]*,/, "")),
+        /** A staged image is already on disk; only its annotations, drawn since, need writing back. */
+        path: attachment.path !== undefined && attachment.annotations.length === 0
+          ? attachment.path
+          : await window.desktop.saveAttachment(attachment.preview.replace(/^data:[^,]*,/, "")),
         labels: attachment.annotations.filter((annotation) => annotation.kind === "box").map((annotation) => annotation.text),
       })));
       setAttachments([]);
@@ -293,16 +315,39 @@ export function TaskComposer({
     setPendingCaret(null);
   }, [pendingCaret]);
 
+  /**
+   * The workspace holds staged images as paths; the composer needs their bytes to draw on them, so
+   * each one is read in once and then behaves exactly like an image pasted in.
+   */
   useEffect(() => {
-    if (!incomingImage || takenImage.current === incomingImage.id) return;
-    takenImage.current = incomingImage.id;
-    if (attachments.length >= MAX_ATTACHMENTS) {
-      setAttachmentError(`You can attach up to ${MAX_ATTACHMENTS} images.`);
-      return;
-    }
-    setAttachments((current) => [...current, { id: incomingImage.id, source: incomingImage.dataUrl, preview: incomingImage.dataUrl, annotations: [] }]);
-    setAttachmentError(null);
-  }, [incomingImage, attachments.length]);
+    let cancelled = false;
+    const staged = new Set(images.map((image) => image.id));
+    for (const id of takenImages.current) if (!staged.has(id)) takenImages.current.delete(id);
+    setAttachments((current) => {
+      const kept = current.filter((item) => item.path === undefined || staged.has(item.id));
+      return kept.length === current.length ? current : kept;
+    });
+    const arriving = images.filter((image) => !takenImages.current.has(image.id));
+    if (arriving.length === 0) return;
+    for (const image of arriving) takenImages.current.add(image.id);
+    void (async () => {
+      try {
+        const read = await Promise.all(arriving.map(async (image) => ({ image, preview: await dataUrlOf(image.path) })));
+        if (cancelled) return;
+        setAttachments((current) => [
+          ...current,
+          ...read
+            .filter(({ image }) => !current.some((item) => item.id === image.id))
+            .map(({ image, preview }) => ({ id: image.id, source: preview, preview, annotations: [], path: image.path })),
+        ]);
+      } catch (error) {
+        if (cancelled) return;
+        for (const image of arriving) takenImages.current.delete(image.id);
+        setAttachmentError(error instanceof Error ? error.message : String(error));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [images]);
 
   useEffect(() => {
     if (!commandMenuOpen) return;
@@ -369,7 +414,7 @@ export function TaskComposer({
                   type="button"
                   className="attachment-remove"
                   aria-label={`Remove image ${index + 1}`}
-                  onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                  onClick={() => (attachment.path !== undefined ? onImageRemove?.(attachment.id) : setAttachments((current) => current.filter((item) => item.id !== attachment.id)))}
                 >
                   <X size={11} />
                 </button>

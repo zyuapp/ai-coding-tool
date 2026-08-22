@@ -52,8 +52,6 @@ export function App() {
   const workspace = useTaskWorkspace();
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [selectedSubagent, setSelectedSubagent] = useState<string | null>(null);
-  /** The window the desktop hotkey last grabbed, held until the composer takes it in. */
-  const [grabbedWindow, setGrabbedWindow] = useState<{ id: string; dataUrl: string } | null>(null);
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
@@ -153,10 +151,6 @@ export function App() {
   useEffect(() => {
     if (!workspace.dockPanels.includes("agents")) setSelectedSubagent(null);
   }, [workspace.dockPanels]);
-
-  useEffect(() => window.desktop.onWindowScreenshot((shot) => {
-    setGrabbedWindow({ id: crypto.randomUUID(), dataUrl: `data:image/png;base64,${shot.png}` });
-  }), []);
 
   useEffect(() => {
     /** Esc serves whatever is nearest: an overlay claims it first, then a menu, the find bar, and last the run. */
@@ -573,6 +567,7 @@ export function App() {
                     onCancel={() => void workspace.dispatch({ type: "run.cancel", taskId: chat.id })}
                     onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
                     onPolicyChange={(policy) => void workspace.dispatch({ type: "task.set-policy", taskId: chat.id, policy })}
+                    onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", taskId: chat.id, imageId })}
                     onModelChange={(model) => void workspace.dispatch({ type: "task.set-model", taskId: chat.id, model })}
                     onEffortChange={(effort) => void workspace.dispatch({ type: "task.set-effort", taskId: chat.id, effort })}
                     onSteerQueued={(messageId) => void workspace.dispatch({ type: "task.steer-queued", taskId: chat.id, messageId })}
@@ -586,7 +581,8 @@ export function App() {
 
         <TaskComposer
           focusToken={workspace.composerFocus}
-          incomingImage={grabbedWindow}
+          images={workspace.images}
+          onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", imageId })}
           prompt={workspace.prompt}
           folder={workspace.folder}
           workspaceId={workspace.currentProject?.workspaceId}
