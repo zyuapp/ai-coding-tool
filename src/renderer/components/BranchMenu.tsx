@@ -1,5 +1,5 @@
-import { Check, Plus } from "lucide-react";
-import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import { Check, Plus, Search } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus } from "../focus";
@@ -39,15 +39,21 @@ export function useBranches(workspaceId: string | undefined, enabled = true) {
 /** The gap between the row a list hangs off and the list itself. */
 const ANCHOR_GAP = 4;
 
+/** The narrowest a list may be, for a trigger too small to hold a ref of any length. */
+const MIN_MENU_WIDTH = 260;
+
 /** Where a list sits beside a row it is not inside: on whichever side of it the viewport leaves more room. */
 function anchoredStyle(anchor: HTMLElement): CSSProperties {
   const rect = anchor.getBoundingClientRect();
   const below = window.innerHeight - rect.bottom - ANCHOR_GAP * 2;
   const above = rect.top - ANCHOR_GAP * 2;
   const over = above > below;
+  const width = Math.max(rect.width, MIN_MENU_WIDTH);
+  /** A list wider than the row it hangs off would run past the window, so it slides back inside. */
+  const left = Math.min(rect.left, window.innerWidth - width - ANCHOR_GAP);
   return {
-    left: rect.left,
-    width: rect.width,
+    left: Math.max(ANCHOR_GAP, left),
+    width,
     top: over ? undefined : rect.bottom + ANCHOR_GAP,
     bottom: over ? window.innerHeight - rect.top + ANCHOR_GAP : undefined,
     "--branch-menu-room": `${Math.max(above, below)}px`,
@@ -89,47 +95,80 @@ export type BranchMenuProps = {
    * A list that offers one is choosing a side to compare, so it does not offer to make a branch.
    */
   extra?: { label: string; value: string };
+  /** Names what is being chosen, for a list that is one of several a view opens. */
+  title?: string;
 };
 
 /** The list a branch is chosen from: the branches, narrowed by search, and the name to make. */
-export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra }: BranchMenuProps) {
+export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra, title }: BranchMenuProps) {
   const [query, setQuery] = useState("");
   const anchored = useAnchoredStyle(anchor);
   const available = branches?.status === "available" ? branches : null;
   const names = available ? [...available.branches, ...(includeRemotes ? available.remotes : [])] : [];
-  const matches = matchBranches(names, query);
   const naming = extra ? null : newBranchName(names, query);
   const showExtra = extra && matchBranches([extra.label], query).length > 0;
+  /** Remote names only mean something beside the local ones they are not, so only that list is grouped. */
+  const groups = includeRemotes
+    ? [
+        { label: "Local", names: matchBranches(available?.branches ?? [], query) },
+        { label: "Remote", names: matchBranches(available?.remotes ?? [], query) },
+      ].filter((group) => group.names.length > 0)
+    : [{ label: null, names: matchBranches(names, query) }];
+  const matched = groups.reduce((count, group) => count + group.names.length, 0);
+
+  const option = (name: string, label: string, className?: string) => (
+    <button
+      className={className}
+      type="button"
+      key={name}
+      role="option"
+      aria-selected={name === selected}
+      onClick={() => onPick(name, false)}
+    >
+      <span className="branch-menu-mark">{name === selected && <Check size={14} />}</span>
+      <span>{label}</span>
+    </button>
+  );
 
   const menu = (
-    <div ref={menuRef} className={`branch-menu ${anchor ? "anchored" : ""}`.trimEnd()} data-popover-menu style={anchored ?? undefined} onKeyDown={moveListFocus}>
-      <input
-        className="branch-menu-search"
-        aria-label="Search branches"
-        placeholder="Search branches"
-        autoFocus
-        value={query}
-        onInput={(event) => setQuery(event.currentTarget.value)}
-      />
+    <div
+      ref={menuRef}
+      className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
+      data-popover-menu
+      style={anchored ?? undefined}
+      onKeyDown={moveListFocus}
+    >
+      {title && <div className="branch-menu-title"><span>{title}</span><kbd>↑↓</kbd></div>}
+      <label className="branch-menu-field">
+        <Search size={13} aria-hidden="true" />
+        <input
+          className="branch-menu-search"
+          aria-label="Search branches"
+          placeholder="Search branches"
+          autoFocus
+          value={query}
+          onInput={(event) => setQuery(event.currentTarget.value)}
+        />
+      </label>
       <div role="listbox" aria-label="Branches">
         {naming && (
           <button type="button" role="option" aria-selected={false} onClick={() => onPick(naming, true)}>
+            <span className="branch-menu-mark"><Plus size={14} /></span>
             <span>Create branch “{naming}”</span>
-            <Plus size={14} />
           </button>
         )}
         {showExtra && (
-          <button className="branch-menu-extra" type="button" role="option" aria-selected={extra.value === selected} onClick={() => onPick(extra.value, false)}>
-            <span>{extra.label}</span>
-            {extra.value === selected && <Check size={14} />}
-          </button>
+          <>
+            {includeRemotes && <p className="branch-menu-group">Not a branch</p>}
+            {option(extra.value, extra.label, "branch-menu-extra")}
+          </>
         )}
-        {matches.length === 0 && !naming && !showExtra && <p className="branch-menu-empty">{branches ? "No branch matches" : "Reading branches…"}</p>}
-        {matches.map((name) => (
-          <button type="button" key={name} role="option" aria-selected={name === selected} onClick={() => onPick(name, false)}>
-            <span>{name}</span>
-            {name === selected && <Check size={14} />}
-          </button>
+        {matched === 0 && !naming && !showExtra && <p className="branch-menu-empty">{branches ? "No branch matches" : "Reading branches…"}</p>}
+        {groups.map((group) => (
+          <Fragment key={group.label ?? "all"}>
+            {group.label && <p className="branch-menu-group">{group.label}</p>}
+            {group.names.map((name) => option(name, name))}
+          </Fragment>
         ))}
       </div>
     </div>

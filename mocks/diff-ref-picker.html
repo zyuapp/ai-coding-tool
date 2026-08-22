@@ -186,25 +186,33 @@ svg { flex: none; }
 .v-b .caret { color: var(--quiet-soft); }
 
 /* ================= C — one compare bar ================= */
+/** The bar takes the width its two refs need. Halves fixed at 50% starve the long ref to pad the short one. */
 .v-c .compare {
-  gap: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px;
+  flex: 0 1 auto; gap: 0; width: fit-content; max-width: 100%; min-width: 0;
+  border: 1px solid var(--line); border-radius: 8px;
   background: var(--surface-input); overflow: hidden;
 }
-.v-c .menu { flex: 1; }
+/** Shrink is proportional to content, so a long remote ref gives up room before `Working tree` does. */
+.v-c .menu { flex: 0 1 auto; min-width: 0; }
 .v-c .trigger {
-  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 9px;
+  display: flex; align-items: center; gap: 7px; width: 100%; min-height: 26px;
+  padding: 0 8px 0 10px;
   border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta);
   cursor: pointer; text-align: left;
 }
 .v-c .trigger:hover { background: var(--surface-hover); }
 .v-c .menu.open .trigger { background: var(--surface-active); }
 .v-c .trigger .lab { flex: none; color: var(--quiet); }
-.v-c .trigger .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.v-c .trigger .val { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+/** The caret follows the ref instead of the half's far edge, which would strand a gap after a short ref. */
+.v-c .caret { flex: none; margin-left: -2px; color: var(--quiet-soft); }
 /** GitHub writes a comparison as `base...compare`. An arrow here would read as a merge instead. */
 .v-c .range {
-  flex: none; display: grid; place-items: center; width: 24px; align-self: stretch;
+  flex: none; display: grid; place-items: center; align-self: stretch; width: 27px;
   border-inline: 1px solid var(--line); background: var(--sunken);
-  color: var(--quiet-soft); font-family: var(--mono); font-size: var(--text-meta); letter-spacing: 1px;
+  color: var(--quiet-soft); font-family: var(--mono); font-size: var(--text-meta); line-height: 1;
+  /** Periods sit on the baseline, so centring the line box leaves them low in the cell. */
+  padding-bottom: 4px;
 }
 .v-c .pop { width: 340px; }
 .v-c .menu:last-of-type .pop { left: auto; right: 0; }
@@ -258,7 +266,38 @@ svg { flex: none; }
   background: var(--surface-raised); color: var(--muted-strong); font-family: var(--mono); font-size: 10px;
 }
 
-/* ================= D — the bar states, shown side by side ================= */
+/* ================= D — compare first, arrow right ================= */
+.v-d .compare { gap: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); overflow: hidden; }
+.v-d .menu { flex: 1; }
+.v-d .trigger {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 9px;
+  border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta);
+  cursor: default; text-align: left;
+}
+.v-d .trigger .lab { flex: none; color: var(--quiet); }
+.v-d .trigger .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.v-d .caret { color: var(--quiet-soft); }
+.v-d .into {
+  flex: none; display: grid; place-items: center; width: 24px; align-self: stretch;
+  border-inline: 1px solid var(--line); background: var(--sunken); color: var(--quiet-soft);
+}
+
+/* the split view under the bar, which is where the contradiction shows */
+.split { display: grid; grid-template-columns: 1fr 1fr; font-family: var(--mono); font-size: var(--text-badge); }
+.split-head { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line-soft); background: var(--sunken); }
+.split-head span { padding: 6px 10px; color: var(--quiet); font-family: var(--mono); font-size: var(--text-badge); }
+.split-head span + span { border-left: 1px solid var(--line-soft); }
+.split-col { padding: 6px 0; }
+.split-col + .split-col { border-left: 1px solid var(--line-soft); }
+.split-col p { display: flex; gap: 8px; margin: 0; padding: 2px 10px; color: var(--quiet-soft); }
+.split-col p.del { background: color-mix(in srgb, #f85149 13%, transparent); color: var(--ink-faint); }
+.split-col p.add { background: color-mix(in srgb, #3fb950 13%, transparent); color: var(--ink-faint); }
+.split-col p i { flex: none; width: 16px; text-align: right; color: var(--quiet-soft); font-style: normal; opacity: 0.7; }
+.crossing { display: grid; gap: 8px; width: 300px; }
+.crossing .bad { border-left: 2px solid #f85149; padding-left: 12px; color: var(--quiet); font-size: var(--text-meta); }
+.crossing .bad b { color: var(--ink-faint); font-weight: 500; }
+
+/* ================= the bar states, shown side by side ================= */
 .states { display: grid; gap: 12px; width: 300px; }
 .state-note { color: var(--quiet); font-size: var(--text-meta); }
 .mini { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 10px; }
@@ -423,12 +462,61 @@ svg { flex: none; }
       <div class="states">
         <p class="state-note">Closed, with a long ref on the base side:</p>
         <div class="mini">
-          <div class="compare" style="display:flex;border:1px solid var(--line);border-radius:8px;background:var(--surface-input);overflow:hidden">
-            <div class="menu" style="flex:1"><button class="trigger" style="cursor:default"><span class="lab">Base</span><span class="val">origin/dependabot/npm_and_yarn/jsdom-30.0.1</span><svg class="caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg></button></div>
+          <div class="compare">
+            <div class="menu"><button class="trigger" style="cursor:default"><span class="lab">Base</span><span class="val">origin/dependabot/npm_and_yarn/jsdom-30.0.1</span><svg class="caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg></button></div>
             <span class="range" aria-hidden="true">...</span>
-            <div class="menu" style="flex:1"><button class="trigger" style="cursor:default"><span class="lab">Compare</span><span class="val">Working tree</span><svg class="caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg></button></div>
+            <div class="menu"><button class="trigger" style="cursor:default"><span class="lab">Compare</span><span class="val">Working tree</span><svg class="caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg></button></div>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ D ============ -->
+  <section class="demo v-d">
+    <div class="demo-head"><h2>D — Compare first, arrow right</h2><span class="tag">not recommended</span></div>
+    <p class="demo-note">The flip, drawn so it can be judged rather than argued about. <b>Compare</b> on the left, <b>Base</b> on the right, arrow pointing right. It states a merge — <span class="mono">take compare, put it into base</span> — which is GitHub's compare page exactly, only mirrored: GitHub writes the same sentence as <span class="mono">base &larr; compare</span>. The trouble is that this panel does not merge anything, and the split view directly underneath still puts base in the left column.</p>
+    <div class="stage">
+      <div class="panel wide">
+        <div class="toolbar">
+          <div class="compare">
+            <div class="menu">
+              <button class="trigger">
+                <span class="lab">Compare</span><span class="val">Working tree</span>
+                <svg class="caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
+              </button>
+            </div>
+            <span class="into" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8.22 2.97a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L11.19 8.75H2.75a.75.75 0 0 1 0-1.5h8.44L8.22 4.28a.75.75 0 0 1 0-1.06Z"></path></svg>
+            </span>
+            <div class="menu">
+              <button class="trigger">
+                <span class="lab">Base</span><span class="val">origin/main</span>
+                <svg class="caret" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="split-head"><span>origin/main &mdash; base</span><span>Working tree &mdash; compare</span></div>
+        <div class="split">
+          <div class="split-col">
+            <p><i>41</i>.diff-side-trigger {</p>
+            <p class="del"><i>42</i>&nbsp; border-radius: 8px;</p>
+            <p><i>43</i>&nbsp; cursor: pointer;</p>
+            <p><i>44</i>}</p>
+          </div>
+          <div class="split-col">
+            <p><i>41</i>.diff-side-trigger {</p>
+            <p class="add"><i>42</i>&nbsp; border-radius: 6px;</p>
+            <p><i>43</i>&nbsp; cursor: pointer;</p>
+            <p><i>44</i>}</p>
+          </div>
+        </div>
+      </div>
+      <div class="crossing">
+        <p class="bad">The toolbar reads <b>compare &rarr; base</b>, left to right. The columns under it read <b>base | compare</b>, left to right. The two disagree about which side of the screen the old code is on.</p>
+        <p class="bad">The default range makes it worse: <b>Working tree &rarr; HEAD</b> points from the later state to the earlier one, which is the direction of a revert.</p>
+        <p class="state-note">Every neighbour puts base on the left: <span class="mono">git diff base compare</span>, GitHub's split view, GitLab, VS Code's diff editor, Meld, <span class="mono">diff -y</span>. Left-to-right is old-to-new everywhere it appears.</p>
       </div>
     </div>
   </section>

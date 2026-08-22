@@ -1076,10 +1076,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   text-align: left;
 }
 .branch-menu button {
-  display: flex;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  text-align: left;
   width: 100%;
   min-height: 32px;
   border: 0;
@@ -1092,9 +1093,14 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-weight: 450;
   cursor: pointer;
 }
+/** The mark keeps its column whether or not it is drawn, so the names stay on one edge. */
+.branch-menu-mark { display: grid; place-items: center; }
+.branch-menu button[aria-selected="true"] { color: var(--ink); }
 .branch-menu button:hover { background: var(--surface-menu-hover); color: var(--ink-soft); }
 /** The option that is not a branch is set apart from the branches under it. */
 .branch-menu button.branch-menu-extra { border-bottom: 1px solid var(--line-soft); }
+/** A grouped list already names what follows, so the rule under the extra would say it twice. */
+.branch-menu.grouped button.branch-menu-extra { border-bottom: 0; }
 /** A name too long for the list is cut off; it is never worth a second line. */
 .branch-menu button > span {
   min-width: 0;
@@ -1113,6 +1119,20 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   min-width: 220px;
   max-width: 340px;
 }
+/** Titled the way the command menu is, since both are a list a keyboard walks. */
+.branch-menu-title { display: flex; align-items: center; gap: 8px; padding: 4px 8px 8px; color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.02em; }
+.branch-menu-title kbd { margin-left: auto; color: var(--quiet-soft); font: 11px/1 var(--mono); }
+/** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
+.branch-menu-group { padding: 8px 8px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
+.branch-menu-group:first-child { padding-top: 3px; }
+.branch-menu-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
+.branch-menu-field:focus-within { border-color: var(--accent); }
+.branch-menu-field > svg { flex: none; }
+.branch-menu-field .branch-menu-search { margin: 0; border: 0; border-radius: 0; padding: 6px 0; background: none; }
+.branch-menu-field .branch-menu-search:focus { outline: 0; }
+/** A list anchored to a narrow trigger still needs room for a ref, and must stay inside the window. */
+.branch-menu.anchored { min-width: 260px; }
+
 .branch-menu-search, .thread-start-search {
   width: 100%;
   margin-bottom: 4px;
@@ -3029,14 +3049,22 @@ pre {
 /* Diff panel */
 .diff-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .diff-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
-.diff-compare { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; color: var(--quiet-strong); }
-.diff-side { position: relative; flex: 1; min-width: 0; }
-.diff-side-trigger { display: flex; align-items: center; gap: 5px; width: 100%; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); color: var(--ink-dim); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+/** The two sides share one track, taking the width their refs need rather than half each. */
+.diff-compare { display: flex; align-items: center; flex: 0 1 auto; width: fit-content; max-width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); overflow: hidden; }
+/** Shrink follows content, so a long remote ref gives way before a short one does. */
+.diff-side { position: relative; flex: 0 1 auto; min-width: 0; }
+.diff-side-trigger { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 26px; padding: 0 8px 0 10px; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
 /** Which side this is, said rather than drawn: an arrow between the two reads as a merge. */
 .diff-side-label { flex: none; color: var(--quiet); }
-.diff-side-trigger:hover:not(:disabled) { border-color: var(--line-bright); }
+.diff-side-trigger:hover:not(:disabled) { background: var(--surface-hover); }
+.diff-side-trigger[aria-expanded="true"] { background: var(--surface-active); }
 .diff-side-trigger:disabled { opacity: 0.5; cursor: default; }
-.diff-side-trigger code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); }
+/** A long ref gives up its own tail first. Left to shrink in proportion, both sides truncate at once. */
+.diff-side-trigger code { min-width: 0; max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); }
+/** The caret follows the ref rather than the side's far edge, which would strand a gap after a short ref. */
+.diff-side-trigger > svg { flex: none; margin-left: -2px; color: var(--quiet-soft); }
+/** Git writes a comparison as `base...compare`; periods sit on the baseline, so the cell lifts them. */
+.diff-range { flex: none; display: grid; place-items: center; align-self: stretch; width: 27px; padding-bottom: 4px; border-inline: 1px solid var(--line); background: var(--sunken); color: var(--quiet-soft); font-family: var(--mono); font-size: var(--text-meta); line-height: 1; }
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
 .diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }

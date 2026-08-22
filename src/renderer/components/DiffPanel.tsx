@@ -106,6 +106,8 @@ type SidePickerProps = {
   /** The side as it is being compared: a branch name, or the extra option's own value. */
   value: string;
   extra: { label: string; value: string };
+  /** Names the list this side opens, since the two sides open one each. */
+  title: string;
   workspaceId?: string;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
@@ -113,7 +115,7 @@ type SidePickerProps = {
 };
 
 /** One side of the comparison: the branches the checkout knows, plus the one thing that is not a branch. */
-function SidePicker({ id, label, value, extra, workspaceId, openMenu, onSetOpenMenu, onPick }: SidePickerProps) {
+function SidePicker({ id, label, value, extra, title, workspaceId, openMenu, onSetOpenMenu, onPick }: SidePickerProps) {
   const open = openMenu === id;
   const row = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -145,6 +147,7 @@ function SidePicker({ id, label, value, extra, workspaceId, openMenu, onSetOpenM
           branches={branches}
           includeRemotes
           extra={extra}
+          title={title}
           selected={value}
           onPick={(picked) => {
             onSetOpenMenu(null);
@@ -578,6 +581,7 @@ export function DiffPanel({
           <SidePicker
             id={BASE_MENU}
             label="Base"
+            title="Compare from"
             value={base}
             extra={HEAD_SIDE}
             {...(workspaceId ? { workspaceId } : {})}
@@ -585,9 +589,11 @@ export function DiffPanel({
             onSetOpenMenu={onSetOpenMenu}
             onPick={(picked) => onSetRange(rangeFrom(picked, compare))}
           />
+          <span className="diff-range" aria-hidden="true">...</span>
           <SidePicker
             id={COMPARE_MENU}
             label="Compare"
+            title="Compare against"
             value={compare}
             extra={WORKING_SIDE}
             {...(workspaceId ? { workspaceId } : {})}
