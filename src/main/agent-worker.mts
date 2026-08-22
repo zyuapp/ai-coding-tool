@@ -18,6 +18,7 @@ const threads = new ThreadChannel((request) => parentPort.postMessage(request));
 const coordinatorOptions = {
   isWritePathInside,
   automations: (taskId: string) => automations.bridgeFor(taskId),
+  findings: (taskId: string) => threads.findingsFor(taskId),
   threads: (taskId: string) => threads.bridgeFor(taskId),
   browser: (taskId: string) => threads.browserFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { CaptureOptions } from "./domain/capture";
-import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
+import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, FindingNotice, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
@@ -134,6 +134,12 @@ const api: DesktopAPI = {
   },
   closeWindow: () => ipcRenderer.send("window:close"),
   focusWindow: () => ipcRenderer.send("window:focus"),
+  announceFinding: (notice: FindingNotice) => ipcRenderer.send("finding:announce", notice),
+  onOpenThread: (listener: (taskId: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: string) => listener(payload);
+    ipcRenderer.on("window:open-thread", handler);
+    return () => ipcRenderer.removeListener("window:open-thread", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

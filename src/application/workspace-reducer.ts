@@ -4,20 +4,25 @@ import { pasteTitle, promptWithPastes } from "./pastes.js";
 import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
-import { moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
+import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
+import { declinedTick, dismissableTasks, dismissed, outcomeFor, raisedFinding, readAttention, settledUnseen, withNothingToReport, withoutOutcome, withSilencedTick } from "./findings.js";
 import {
   applyRunEvent,
   applyTask,
   applyWorkflowEvent,
+  ATTENDED_RUN,
   automationRunLabel,
   automationRunPrompt,
   createTaskMessage,
+  threadMark,
   withActiveRun,
   withBackgroundProcesses,
   withRunStatus,
   withWorkflows,
+  type RunProvenance,
+  type ThreadMark,
 } from "./task-workspace.js";
-import { annotationsFor, imagesFor, withImages, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -27,6 +32,7 @@ import type {
   CancelRunCommand,
   ChangedFilesResult,
   DiffSummaryResult,
+  FindingNotice,
   RunEvent,
   StartRunCommand,
   SteerRunCommand,
@@ -44,7 +50,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById,
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import type { CaptureOptions } from "../domain/capture.js";
-import { clampTitle, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskOutcome, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -151,7 +157,9 @@ export type WorkspaceEffect =
   | { type: "find-in-terminal"; terminalId: string; query: string; forward: boolean }
   | { type: "stop-find-in-terminal"; terminalId: string }
   /** Takes the keyboard off a page in the panel, which is the only way the find bar can have it. */
-  | { type: "focus-window" };
+  | { type: "focus-window" }
+  /** A finding on its way to the desktop, which is the only place a user who is elsewhere can be reached. */
+  | { type: "announce-finding"; notice: FindingNotice };
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -222,33 +230,6 @@ function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []): Worksp
 function targetId(state: WorkspaceState, taskId: string | undefined): string | null {
   if (taskId === undefined) return state.currentId;
   return state.tasks.some((task) => task.id === taskId) ? taskId : null;
-}
-
-/** A run only earns a verdict when it settles on its own; cancelling is the user's own doing. */
-function outcomeFor(event: RunEvent): TaskOutcome | null {
-  if (event.type !== "run.status") return null;
-  if (event.status === "succeeded") return "finished";
-  if (event.status === "failed") return "failed";
-  return null;
-}
-
-/**
- * Landing on a thread takes its mark off. The verdict stays, so the thread keeps its place in
- * Priority until the user files it away.
- */
-function readOutcome(state: WorkspaceState, taskId: string | null): WorkspaceState {
-  if (!taskId || !state.tasks.some((task) => task.id === taskId && task.outcomeUnread)) return state;
-  return applyTask(state, taskId, ({ outcomeUnread: _read, ...task }) => task);
-}
-
-/** Retires the named threads' verdicts, leaving the list alone when none of them carry one. */
-function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
-  if (!tasks.some((task) => dismissing.has(task.id) && task.outcome)) return tasks;
-  return tasks.map((task) => {
-    if (!dismissing.has(task.id) || !task.outcome) return task;
-    const { outcome: _gone, outcomeUnread: _read, ...rest } = task;
-    return rest;
-  });
 }
 
 /** An archived task is unreachable, so its automation would tick forever with nowhere to run. */
@@ -496,15 +477,25 @@ function forkableContinuation(state: WorkspaceState, taskId: string) {
 
 /**
  * Records the run against the task and marks it the task's latest, so stale replies can be dropped.
- * The new run supersedes whatever the last one concluded, so its verdict never outlives it.
+ * The new run supersedes whatever the last one concluded, so its verdict never outlives it, and it
+ * keeps where the thread stood, which is what a run that settles unseen puts back.
  */
-function beginRun(state: WorkspaceState, taskId: string, runId: string): WorkspaceState {
+function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark): WorkspaceState {
   const tasks = withoutOutcome(state.tasks, new Set([taskId]));
+  const messagesBefore = tasks.find((task) => task.id === taskId)?.messages.length ?? 0;
+  const mark = before ?? threadMark(state.tasks.find((task) => task.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running" }),
+    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, reportedNothing: false, messagesBefore, before: mark }),
     taskId,
     "running",
   );
+}
+
+/** A human who joins a scheduled run owns it from then on: what it finds is an answer to them. */
+function withAttendedRun(state: WorkspaceState, taskId: string): WorkspaceState {
+  const active = state.activeRuns[taskId];
+  if (!active || active.origin === "composer") return state;
+  return withActiveRun(state, taskId, { ...active, origin: "composer" });
 }
 
 /** A steered message joined the run, so it leaves the queue and takes its place in the thread. */
@@ -512,7 +503,7 @@ function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: 
   const queued = queuedFor(state, taskId);
   const delivered = queued.find((message) => message.id === messageId);
   if (!delivered) return state;
-  return applyTask(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId, (task) => ({
+  return applyTask(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (task) => ({
     ...task,
     messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes)],
     updatedAt: now(),
@@ -908,7 +899,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "task.select": {
       const task = state.tasks.find((item) => item.id === input.taskId);
       const project = projectFor(state, task);
-      return settled(readOutcome({
+      return settled(readAttention({
         ...state,
         currentId: input.taskId,
         draftProjectId: task?.projectId ?? null,
@@ -918,13 +909,16 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "task.dismiss": {
-      const tasks = withoutOutcome(state.tasks, new Set([input.taskId]));
+      const tasks = dismissed(state.tasks, new Set([input.taskId]));
       return settled(tasks === state.tasks ? state : { ...state, tasks });
     }
 
     case "task.dismiss-all": {
-      const dotted = new Set(state.tasks.filter((task) => task.outcome).map((task) => task.id));
-      return settled(dotted.size ? { ...state, tasks: withoutOutcome(state.tasks, dotted) } : state);
+      /** Only what the button offers: the Priority rows. A thread still working has yet to show what it found. */
+      const listed = state.tasks.filter((task) => task.archivedAt === undefined && !sideChatIds(state).has(task.id));
+      const { priority } = activitySections(listed, busyTaskIds(state), blockedTaskIds(state));
+      const dotted = new Set(dismissableTasks(priority).map((task) => task.id));
+      return settled(dotted.size ? { ...state, tasks: dismissed(state.tasks, dotted) } : state);
     }
 
     /**
@@ -1214,7 +1208,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const message = queued.find((item) => item.id === input.messageId);
       if (!taskId || !active || !message || message.steering) return settled(state);
       return settled(
-        withQueued(state, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)),
+        withAttendedRun(withQueued(state, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)), taskId),
         [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: message.prompt } }],
       );
     }
@@ -1344,7 +1338,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const approval = active ? state.approvals[active.runId] : undefined;
       if (!active || !approval) return settled(state);
       const { [active.runId]: _decided, ...approvals } = state.approvals;
-      return settled({ ...state, approvals }, [{
+      /** Answering a run's question is joining it, exactly as steering into it is. */
+      return settled(withAttendedRun({ ...state, approvals }, active.taskId), [{
         type: "send-run-command",
         command: { type: "approval", taskId: active.taskId, runId: active.runId, approvalId: approval.approvalId, allow: input.allow },
       }]);
@@ -1359,17 +1354,21 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(opened, event);
       const outcome = outcomeFor(event);
+      /** Read before the run is applied: a terminal status takes the run, and its provenance, away. */
+      const unseen = outcome !== null && settledUnseen(active, event);
       /**
        * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the
        * user was not already on is marked unread by it; the one on screen they cannot have missed.
+       * A tick that looked and found nothing leaves neither, and leaves the thread where it was.
        */
-      let next = outcome
+      let next = outcome && !unseen
         ? applyTask(applied, event.taskId, (task) => ({
             ...task,
             outcome,
             ...(state.currentId === event.taskId ? {} : { outcomeUnread: true as const }),
           }))
         : applied;
+      if (unseen) next = withSilencedTick(next, event.taskId, active.messagesBefore, active.before);
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
@@ -1396,12 +1395,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */
     case "automation.fired": {
       const { fire } = input;
-      const decline: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
       const task = state.tasks.find((item) => item.id === fire.taskId);
+      const project = task ? projectFor(state, task) : undefined;
       /** A send still resolving is a run too, and two of them would make two checkouts. */
-      if (!task || task.archivedAt !== undefined || threadBusy(state, fire.taskId)) return settled(state, decline);
-      const project = projectFor(state, task);
-      if (task.projectId && !project?.workspaceId) return settled(state, decline);
+      const runnable = task && task.archivedAt === undefined && !threadBusy(state, fire.taskId) && (!task.projectId || project?.workspaceId);
+      if (!runnable) return declinedTick(state, fire, task);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: fire.runId,
@@ -1409,10 +1407,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         taskId: fire.taskId,
         ...(project ? { projectId: project.id } : {}),
         text: fire.prompt,
-        prompt: automationRunPrompt(fire.prompt, fire.runNumber),
+        prompt: automationRunPrompt(fire.prompt, fire.runNumber, fire.surfaceWhen),
         detail: automationRunLabel(fire.runNumber),
         attachments: [],
         ...(fire.policy ? { policy: fire.policy } : {}),
+        ...(fire.quiet ? { quiet: true as const } : {}),
         automationId: fire.automationId,
       };
       return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false)]);
@@ -1448,6 +1447,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const chat = state.sideChats.find((item) => item.id === input.chatId);
       return chat ? closeSideChats(state, [chat]) : settled(state);
     }
+
+    case "automation.notify":
+      return raisedFinding(state, input);
+
+    case "automation.nothing-to-report":
+      return settled(withNothingToReport(state, input.taskId));
 
     case "automation.save": {
       const taskId = targetId(state, input.taskId);
@@ -2051,7 +2056,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (index === null) return settled(state);
       const taskId = state.history[index];
       const task = state.tasks.find((item) => item.id === taskId);
-      return settled(readOutcome({
+      return settled(readAttention({
         ...state,
         historyIndex: index,
         currentId: taskId,
@@ -2063,7 +2068,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "view.set-focused":
       return input.focused
-        ? settled(readOutcome({ ...state, focused: true }, state.currentId))
+        ? settled(readAttention({ ...state, focused: true }, state.currentId))
         : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
 
     case "view.find-open": {
@@ -2179,7 +2184,8 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   const taskId = pending.taskId!;
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task || task.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
-  const message = createTaskMessage("user", pending.text, pending.detail);
+  /** A quiet tick's own label counts for nothing in the thread's activity, like the rest of its run. */
+  const message = { ...createTaskMessage("user", pending.text, pending.detail), ...(pending.quiet ? { quiet: true as const } : {}) };
   const created = worktree && task.projectId ? { ...worktree, projectId: task.projectId } : undefined;
   const entered = created ?? worktreeFor(state, task);
   const withMessage = applyTask(withUsedWorktree(state, created, entered?.id), taskId, (item) => ({
@@ -2188,8 +2194,10 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
     messages: [...item.messages, message],
     updatedAt: now(),
   }));
-  return settled(beginRun(withMessage, taskId, pending.runId), [
-    { type: "start-run", command: startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy) },
+  /** Taken before the label lands, so a tick that settles unseen rolls that back with the rest of it. */
+  return settled(beginRun(withMessage, taskId, pending.runId, { origin: "automation", quiet: pending.quiet === true }, threadMark(task)), [
+    /** Only a tick that settles unseen answers its own questions; every other run waits for the user as it always has. */
+    { type: "start-run", command: { ...startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy), ...(pending.quiet ? { unattended: true as const } : {}) } },
     ...ack(pending, true),
   ]);
 }

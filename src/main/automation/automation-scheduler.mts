@@ -4,6 +4,7 @@ import {
   automationAfterRun,
   didRun,
   isOneShotSchedule,
+  quietTick,
   scheduleFieldCount,
   type Automation,
   type AutomationDraft,
@@ -18,8 +19,12 @@ export type AutomationStore = {
   deleteAutomation(id: string): void;
 };
 
-/** Resolves when the scheduled run reaches a terminal state, so overrun protection can hold the next tick. */
-export type AutomationDispatch = (automation: Automation) => Promise<AutomationRunStatus>;
+/**
+ * Resolves when the scheduled run reaches a terminal state, so overrun protection can hold the next
+ * tick. `quiet` is the scheduler's alone to decide: only a cron tick of a quiet schedule may settle
+ * unseen, never a run the user asked for and never a one-shot, which would vanish without a trace.
+ */
+export type AutomationDispatch = (automation: Automation, quiet: boolean) => Promise<AutomationRunStatus>;
 
 export type AutomationSchedulerOptions = {
   now?: () => number;
@@ -72,6 +77,8 @@ export class AutomationScheduler {
     assertSchedule(draft.schedule, draft.timezone);
     const existing = this.find(draft.taskId);
     const at = this.now();
+    /** Rewriting a schedule leaves its quiet where it was: an empty sentence is how the quiet is taken off. */
+    const surfaceWhen = draft.surfaceWhen ?? existing?.surfaceWhen;
     const automation: Automation = {
       id: existing?.id ?? randomUUID(),
       taskId: draft.taskId,
@@ -79,12 +86,16 @@ export class AutomationScheduler {
       schedule: draft.schedule,
       ...(draft.timezone === undefined ? {} : { timezone: draft.timezone }),
       ...(draft.policy === undefined ? {} : { policy: draft.policy }),
+      ...(surfaceWhen ? { surfaceWhen } : {}),
       paused: draft.paused ?? false,
       createdAt: existing?.createdAt ?? at,
       updatedAt: at,
       runCount: existing?.runCount ?? 0,
       ...(existing?.lastRunAt === undefined ? {} : { lastRunAt: existing.lastRunAt }),
       ...(existing?.lastStatus === undefined ? {} : { lastStatus: existing.lastStatus }),
+      ...(existing?.lastStatusAt === undefined ? {} : { lastStatusAt: existing.lastStatusAt }),
+      ...(existing?.consecutiveDeclines === undefined ? {} : { consecutiveDeclines: existing.consecutiveDeclines }),
+      ...(existing?.overrunCount === undefined ? {} : { overrunCount: existing.overrunCount }),
     };
     this.commit(automation);
     return this.view(automation);
@@ -96,8 +107,11 @@ export class AutomationScheduler {
     const schedule = patch.schedule ?? existing.schedule;
     const timezone = patch.timezone ?? existing.timezone;
     if (patch.schedule !== undefined || patch.timezone !== undefined) assertSchedule(schedule, timezone);
+    const { surfaceWhen: _spoken, ...silent } = existing;
     const automation: Automation = {
-      ...existing,
+      /** An empty sentence is how the panel takes a schedule off quiet, so it drops the field. */
+      ...(patch.surfaceWhen === "" ? silent : existing),
+      ...(patch.surfaceWhen ? { surfaceWhen: patch.surfaceWhen } : {}),
       ...(patch.prompt === undefined ? {} : { prompt: patch.prompt }),
       schedule,
       ...(timezone === undefined ? {} : { timezone }),
@@ -119,12 +133,15 @@ export class AutomationScheduler {
     return true;
   }
 
-  /** Fires outside the schedule. Declines while a scheduled run is still in flight, like a real tick would. */
+  /**
+   * Fires outside the schedule. Declines while a scheduled run is still in flight, like a real tick
+   * would. The button is the only way here, so the user is watching by construction and it is loud.
+   */
   async runNow(taskId: string): Promise<AutomationRunStatus | "busy"> {
     const existing = this.find(taskId);
     if (!existing) throw new Error("This task has no automation.");
     if (this.firing.has(existing.id) || this.crons.get(existing.id)?.isBusy()) return "busy";
-    return this.fire(existing.id);
+    return this.fire(existing.id, true);
   }
 
   private find(taskId: string) {
@@ -147,11 +164,12 @@ export class AutomationScheduler {
     let cron: Cron;
     try {
       cron = new Cron(automation.schedule, {
-        protect: true,
+        /** A tick dropped for overrunning is recorded nowhere else: croner never calls the callback. */
+        protect: () => this.countOverrun(automation.id),
         paused: automation.paused,
         ...(automation.timezone === undefined ? {} : { timezone: automation.timezone }),
         catch: true,
-      }, async () => { await this.fire(automation.id); });
+      }, async () => { await this.fire(automation.id, false); });
     } catch {
       return false;
     }
@@ -168,13 +186,13 @@ export class AutomationScheduler {
     this.crons.delete(id);
   }
 
-  private async fire(id: string): Promise<AutomationRunStatus> {
+  private async fire(id: string, manual: boolean): Promise<AutomationRunStatus> {
     const automation = this.automations.get(id);
     if (!automation || this.firing.has(id)) return "skipped";
     this.firing.add(id);
     let status: AutomationRunStatus;
     try {
-      status = await this.dispatch(automation);
+      status = await this.dispatch(automation, quietTick(automation, manual));
     } catch {
       status = "failed";
     } finally {
@@ -191,6 +209,15 @@ export class AutomationScheduler {
     else if (didRun(status)) this.remove(updated.taskId);
     else this.markMissed(id);
     return status;
+  }
+
+  private countOverrun(id: string) {
+    const automation = this.automations.get(id);
+    if (!automation) return;
+    const counted = { ...automation, overrunCount: (automation.overrunCount ?? 0) + 1, updatedAt: this.now() };
+    this.automations.set(id, counted);
+    this.store.saveAutomation(counted);
+    this.notify();
   }
 
   private canFireAgain(id: string) {

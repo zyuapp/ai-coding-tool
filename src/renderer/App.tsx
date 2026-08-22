@@ -227,6 +227,7 @@ export function App() {
       render: () => (
         <AutomationPanel
           automation={workspace.automation}
+          lastFoundAt={workspace.lastFoundAt}
           onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
           onDelete={() => void workspace.actions.deleteAutomation()}
           onRunNow={() => void workspace.actions.runAutomationNow()}
@@ -305,7 +306,7 @@ export function App() {
         expandedProjects={workspace.expandedProjects}
         runningTaskIds={workspace.runningTaskIds}
         blockedTaskIds={workspace.blockedTaskIds}
-        automatedTaskIds={workspace.automatedTaskIds}
+        schedules={workspace.schedules}
         worktreeTaskIds={workspace.worktreeTaskIds}
         worktreeGroups={workspace.worktreeGroups}
         activityTasks={workspace.activityTasks}

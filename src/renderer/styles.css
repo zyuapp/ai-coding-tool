@@ -1273,7 +1273,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   color: var(--muted);
 }
 .message.system.error { border-left-color: var(--danger); color: var(--danger-soft); }
-.message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); }
+.message-detail { margin-top: 3px; color: var(--quiet-strong); font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-content); }
 .markdown-body { min-width: 0; white-space: normal; overflow-wrap: break-word; }
 .markdown-body > :first-child { margin-top: 0; }
@@ -2135,6 +2135,23 @@ pre {
   font-size: var(--text-meta);
 }
 .automation-meta svg { flex: none; color: var(--muted); }
+.automation-quiet-sentence { margin: 9px 0 0; color: var(--quiet); font-size: var(--text-meta); line-height: 1.5; }
+.automation-quiet {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  margin-top: 9px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--quiet-strong);
+  font-size: var(--text-control);
+}
+.automation-quiet:hover { border-color: var(--line-mid); color: var(--ink-soft); }
+.automation-quiet[aria-pressed="true"] { border-color: var(--info-line); color: var(--info-soft); }
+.automation-quiet svg { flex: none; }
 .automation-actions { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
 .automation-actions button {
   min-height: 26px;

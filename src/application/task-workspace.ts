@@ -1,14 +1,53 @@
 import type { RunEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
-import type { Annotation, PastedText, Task, TaskMessage } from "../domain/task.js";
+import type { Annotation, PastedText, Task, TaskMessage, TaskOutcome } from "../domain/task.js";
 
-export type ActiveRun = {
+export type ActiveRun = RunProvenance & {
   taskId: string;
   runId: string;
   sequence: number;
   status: "running" | "compacting" | "awaiting-approval";
+  /** Whether this run has said it found something worth surfacing. */
+  notified: boolean;
+  /** Whether this run has said it looked and found nothing. */
+  reportedNothing: boolean;
+  /** How many messages the thread held when this run began, so a silent one can quiet its own. */
+  messagesBefore: number;
+  /** Where the thread stood when this run began, so a silent one can leave it exactly there. */
+  before: ThreadMark;
 };
+
+/**
+ * What a tick has to put back to have said nothing at all: the verdict of the run before it, which
+ * beginning a run always supersedes, and the moments the sidebar orders threads by.
+ */
+export type ThreadMark = {
+  updatedAt: number;
+  runEndedAt?: number;
+  outcome?: TaskOutcome;
+  outcomeUnread?: true;
+};
+
+export function threadMark(task: Task | undefined): ThreadMark {
+  return {
+    updatedAt: task?.updatedAt ?? 0,
+    ...(task?.runEndedAt === undefined ? {} : { runEndedAt: task.runEndedAt }),
+    ...(task?.outcome === undefined ? {} : { outcome: task.outcome }),
+    ...(task?.outcomeUnread ? { outcomeUnread: true as const } : {}),
+  };
+}
+
+/**
+ * Who a run answers to. A run is the composer's unless the scheduler started it, and a human joining
+ * a scheduled run makes it theirs again, so nothing is ever quiet by inference.
+ */
+export type RunProvenance = {
+  origin: "composer" | "automation";
+  quiet: boolean;
+};
+
+export const ATTENDED_RUN: RunProvenance = { origin: "composer", quiet: false };
 
 export type TaskRunStatus = "idle" | "running" | "stopped";
 
@@ -52,8 +91,14 @@ function now() {
 }
 
 /** Scheduled runs carry their own framing: nobody is present to answer a question or end the loop. */
-export function automationRunPrompt(prompt: string, runNumber: number) {
-  return `${prompt}\n\n---\nThis is automated run #${runNumber} of this task's automation, started by Claudex's scheduler with no user watching. If the automation's stop condition is now met, call the claudex-automation stop tool to end it.`;
+export function automationRunPrompt(prompt: string, runNumber: number, surfaceWhen?: string) {
+  const framing = `This is automated run #${runNumber} of this task's automation, started by Claudex's scheduler with no user watching. If the automation's stop condition is now met, call the claudex-automation stop tool to end it.`;
+  return `${prompt}\n\n---\n${framing}${surfaceWhen ? `\n\n${quietFraming(surfaceWhen)}` : ""}`;
+}
+
+/** A quiet run has to earn its silence: saying nothing at all is what a broken run does too. */
+function quietFraming(surfaceWhen: string) {
+  return `This run is quiet: it settles without reaching the user unless you say otherwise. Surface it when: ${surfaceWhen} If that is what you found, call the claudex-automation notify tool with a headline before you finish. If it is not, call nothing_to_report with what you checked. Call neither and the run surfaces as an ordinary one, which is what a run that could not do its job should do.`;
 }
 
 export function automationRunLabel(runNumber: number) {

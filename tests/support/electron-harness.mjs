@@ -26,6 +26,44 @@ class FakeAgent extends EventEmitter {
   kill() {}
 }
 
+class FakeWebContentsView {
+  webContents = {
+    on() {},
+    once() {},
+    off() {},
+    setWindowOpenHandler() {},
+    close() {},
+    reload() {},
+    isLoading: () => false,
+    getURL: () => "",
+    getTitle: () => "",
+    navigationHistory: { canGoBack: () => false, canGoForward: () => false, goBack() {}, goForward() {} },
+    async loadURL() {},
+    async executeJavaScript() { return ""; },
+  };
+  constructor(options) { this.options = options; }
+  setBounds(bounds) { this.bounds = bounds; }
+  setVisible(visible) { this.visible = visible; }
+  setBackgroundColor() {}
+}
+
+/** Notifications are shown rather than sent, so a test reads what was raised and clicks it. */
+function fakeNotifications() {
+  const raised = [];
+  return class FakeNotification {
+    static isSupported() { return true; }
+    static raised = raised;
+    constructor(options) {
+      this.options = options;
+      this.handlers = new Map();
+      raised.push(this);
+    }
+    on(name, handler) { this.handlers.set(name, handler); return this; }
+    show() { this.shown = true; }
+    click() { this.handlers.get("click")?.(); }
+  };
+}
+
 /**
  * Boots src/main/main.ts against a stub Electron so IPC wiring can be driven from a test.
  * Each boot starts its own Vite server, so share one per test file rather than one per test.
@@ -71,6 +109,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       if (at !== -1) windows.splice(at, 1);
     }
     isDestroyed() { return this.destroyed === true; }
+    isFocused() { return this.focused === true; }
     isMinimized() { return false; }
     isVisible() { return this.visible !== false; }
     restore() {}
@@ -80,26 +119,7 @@ export async function startMainProcess(t, prefix, options = {}) {
     async loadFile() {}
   }
 
-  class FakeWebContentsView {
-    webContents = {
-      on() {},
-      once() {},
-      off() {},
-      setWindowOpenHandler() {},
-      close() {},
-      reload() {},
-      isLoading: () => false,
-      getURL: () => "",
-      getTitle: () => "",
-      navigationHistory: { canGoBack: () => false, canGoForward: () => false, goBack() {}, goForward() {} },
-      async loadURL() {},
-      async executeJavaScript() { return ""; },
-    };
-    constructor(options) { this.options = options; }
-    setBounds(bounds) { this.bounds = bounds; }
-    setVisible(visible) { this.visible = visible; }
-    setBackgroundColor() {}
-  }
+  const Notification = fakeNotifications();
 
   globalThis.__claudexElectron = {
     app: {
@@ -129,7 +149,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       register: (accelerator, callback) => { globalShortcuts.set(accelerator, callback); return true; },
       unregisterAll: () => globalShortcuts.clear(),
     },
-    Notification: Object.assign(function Notification() { return { show() {} }; }, { isSupported: () => false }),
+    Notification,
     nativeTheme: { themeSource: "system" },
     dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
     ipcMain: {
@@ -219,6 +239,7 @@ export async function startMainProcess(t, prefix, options = {}) {
     completedQuits: () => completedQuits,
     protocolHandlers,
     globalShortcuts,
+    notifications: Notification.raised,
     window,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },

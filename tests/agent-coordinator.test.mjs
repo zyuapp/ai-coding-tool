@@ -162,6 +162,37 @@ test("cancelling an approval expires it and rejects a late decision", async () =
   assert.equal(events.filter((event) => event.runId === "run-c" && ["succeeded", "failed", "cancelled"].includes(event.status)).length, 1);
 });
 
+test("a scheduled run answers the approval nobody is there to answer, with wording it can act on", async () => {
+  const provider = new FakeProvider();
+  const events = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event), { unattendedApprovalMs: 10 });
+
+  coordinator.start({ ...base("task-u", "run-u"), unattended: true });
+  await tick();
+  const asked = provider.runs[0].input.authorize({ toolId: "tool-u", name: "Bash", input: {} });
+  await new Promise((resolve) => setTimeout(resolve, 40));
+
+  assert.match((await asked).deny, /scheduled run/);
+  assert.deepEqual(statuses(events, "run-u"), ["running", "awaiting-approval", "running"], "the run carries on rather than sitting parked");
+});
+
+test("an approval only ever answers itself for a run nobody is watching", async () => {
+  const provider = new FakeProvider();
+  const coordinator = new RunCoordinator(provider, () => {}, { unattendedApprovalMs: 10 });
+
+  coordinator.start(base("task-a", "run-a"));
+  coordinator.start({ ...base("task-s", "run-s"), unattended: true });
+  await tick();
+  /** A human steering in is present by definition, so their run's questions go back to waiting for them. */
+  assert.equal(coordinator.steer("task-s", "run-s", "message-1", "check staging too"), true);
+
+  const answered = [];
+  for (const run of provider.runs) void run.input.authorize({ toolId: "tool-1", name: "Bash", input: {} }).then(() => answered.push(run.input.taskId));
+  await new Promise((resolve) => setTimeout(resolve, 40));
+
+  assert.deepEqual(answered, [], "a question put to a person waits for that person");
+});
+
 test("write-path policy denies outside paths before creating an approval", async () => {
   const events = [];
   const provider = {

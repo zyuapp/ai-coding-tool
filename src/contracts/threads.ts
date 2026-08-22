@@ -115,7 +115,24 @@ export type ThreadRequest = {
   | { op: "command"; command: ExternalCommand }
   | { op: "browser"; read: BrowserRead }
   | { op: "terminal"; read: TerminalRead }
+  | { op: "notify"; report: FindingReport }
+  | { op: "nothing-to-report"; checked: string }
 );
+
+/** What a scheduled run says it found. The window keeps it; the run only reports it. */
+export type FindingReport = {
+  headline: string;
+  detail?: string;
+  /** What the finding is about, stable across runs, so the same one is not raised twice. */
+  key?: string;
+};
+
+/** What the window did with a run's report, in the words the tool answers with. */
+export type FindingResult = {
+  /** False when nothing was written: an unscheduled turn, a duplicate, or a thread already full. */
+  recorded: boolean;
+  note: string;
+};
 
 export type ThreadResponse = {
   type: "thread.response";

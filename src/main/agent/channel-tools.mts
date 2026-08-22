@@ -23,6 +23,9 @@ export const WITHHELD_BY_CHANNEL: Record<RunChannel, readonly string[]> = {
     mcpTool(AUTOMATION_SERVER_NAME, "schedule"),
     mcpTool(AUTOMATION_SERVER_NAME, "update"),
     mcpTool(AUTOMATION_SERVER_NAME, "stop"),
+    /** A side chat is in no list the user can reach, so a finding raised there could never be read. */
+    mcpTool(AUTOMATION_SERVER_NAME, "notify"),
+    mcpTool(AUTOMATION_SERVER_NAME, "nothing_to_report"),
   ],
 };
 

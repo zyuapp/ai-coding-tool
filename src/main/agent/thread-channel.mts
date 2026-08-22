@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
-import type { BrowserBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadRequest, ThreadResponse, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserBridge, FindingBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
 
 /** The request union minus the envelope, distributed so each op keeps its own payload. */
 type ThreadRequestPayload = ThreadRequest extends infer Request
@@ -34,6 +34,14 @@ export class ThreadChannel {
       read: (threadId: string, limit?: number) => this.request({ taskId, op: "read", threadId, ...(limit === undefined ? {} : { limit }) }) as Promise<ThreadTranscript>,
       wait: (threadId: string, timeoutMs: number) => this.request({ taskId, op: "wait", threadId, timeoutMs }, timeoutMs + WAIT_SLACK) as Promise<ThreadWaitResult>,
       command: (command: ExternalCommand) => this.request({ taskId, op: "command", command }) as Promise<ThreadCommandResult>,
+    };
+  }
+
+  /** Scoped the same way: a run reports what it found on the thread it is running as. */
+  findingsFor(taskId: string): FindingBridge {
+    return {
+      notify: (report: FindingReport) => this.request({ taskId, op: "notify", report }) as Promise<FindingResult>,
+      nothingToReport: (checked: string) => this.request({ taskId, op: "nothing-to-report", checked }) as Promise<FindingResult>,
     };
   }
 

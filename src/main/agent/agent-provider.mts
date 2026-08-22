@@ -1,5 +1,5 @@
 import type { ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
-import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
+import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
@@ -9,6 +9,15 @@ export type ThreadBridge = {
   read(threadId: string, limit?: number): Promise<ThreadTranscript>;
   wait(threadId: string, timeoutMs: number): Promise<ThreadWaitResult>;
   command(command: ExternalCommand): Promise<ThreadCommandResult>;
+};
+
+/**
+ * What a scheduled run says about itself, answered by the window that keeps it. Scoped to the running
+ * task: a run reports on its own thread or on none at all.
+ */
+export type FindingBridge = {
+  notify(report: FindingReport): Promise<FindingResult>;
+  nothingToReport(checked: string): Promise<FindingResult>;
 };
 
 /** The browser panel, driven as the thread that is running: writes are commands, reads are the page. */
@@ -65,9 +74,12 @@ export type ProviderEvent =
  */
 export type AgentTurn = {
   emit(event: ProviderEvent): void;
-  authorize(intent: ToolIntent): Promise<"allow" | "deny">;
+  authorize(intent: ToolIntent): Promise<ToolDecision>;
   end(result: ProviderResult): void;
 };
+
+/** A plain denial reads as the user's; one that carries wording says why, for a run with no user. */
+export type ToolDecision = "allow" | "deny" | { deny: string };
 
 export type ProviderRunInput = {
   channel: RunChannel;
@@ -83,12 +95,14 @@ export type ProviderRunInput = {
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;
+  /** Only alongside `automations`: the two tools that use it live on the automation surface. */
+  findings?: FindingBridge;
   threads?: ThreadBridge;
   browser?: BrowserBridge;
   terminal?: TerminalBridge;
   steering: SteerQueue;
   abortController: AbortController;
-  authorize: (intent: ToolIntent) => Promise<"allow" | "deny">;
+  authorize: (intent: ToolIntent) => Promise<ToolDecision>;
   emit: (event: ProviderEvent) => void;
   /** Kept apart from `emit`: a workflow reports to the thread, and outlasts the run that started it. */
   reportWorkflow: (report: WorkflowReport) => void;

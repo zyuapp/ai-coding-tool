@@ -310,3 +310,30 @@ test("a checkout is claimed while any thread is in it, and forgetting it frees e
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("SQLite task storage keeps what a thread's runs found, and which of its messages were quiet", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
+  const task = {
+    id: "task-1",
+    title: "Poll Datadog",
+    executionPolicy: "autonomous",
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    findings: [{ id: "finding-1", headline: "Checkout is returning 5xx", key: "checkout", at: 30 }],
+    updatedAt: 31,
+  };
+  try {
+    database.persist({ tasks: [{ task, messages: [
+      { index: 0, message: { id: "label", kind: "user", text: "Poll", detail: "Automation run #2", quiet: true, at: 10 } },
+      { index: 1, message: { id: "reply", kind: "assistant", text: "Nothing new", quiet: true, at: 11 } },
+    ] }] });
+
+    const [loaded] = database.load().tasks;
+    assert.deepEqual(loaded.findings, task.findings);
+    assert.deepEqual(loaded.messages.map((message) => message.quiet), [true, true]);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true });
+  }
+});

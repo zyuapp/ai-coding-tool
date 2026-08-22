@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, Notification, protocol, session, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, protocol, session, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, type AgentEvent, type AutomationFire, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus } from "../domain/automation.js";
 import { DEFAULT_CAPTURE_OPTIONS, isCaptureOptions } from "../domain/capture.js";
@@ -15,11 +15,12 @@ import { desktopAccelerator, formatShortcut, keystrokeOf, resolveShortcuts, shor
 import { terminalLineLimit } from "../domain/terminal.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
-import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "./run-routing.js";
+import { acceptRunEvent, automationFire, AUTOMATION_SETTLE_TIMEOUT, failedEventsForTransportLoss, settledWithin, supersedePendingStarts } from "./run-routing.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
+import { notify, serveFindingNotices, type FindingHost } from "./desktop-notice.js";
 import { openInEditor } from "./open-in-editor.js";
 import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
@@ -124,20 +125,13 @@ function getAutomationScheduler() {
 }
 
 /** Hands the tick to the renderer, which owns the transcript, then waits for that run to settle. */
-async function dispatchAutomation(automation: Automation): Promise<AutomationRunStatus> {
+async function dispatchAutomation(automation: Automation, quiet: boolean): Promise<AutomationRunStatus> {
   if (!window || window.isDestroyed()) return "skipped";
   const runId = randomUUID();
   const dispatch: AutomationDispatchState = {};
   automationDispatches.set(runId, dispatch);
   try {
-    const fire: AutomationFire = {
-      automationId: automation.id,
-      taskId: automation.taskId,
-      runId,
-      prompt: automation.prompt,
-      ...(automation.policy === undefined ? {} : { policy: automation.policy }),
-      runNumber: automation.runCount + 1,
-    };
+    const fire = automationFire(automation, runId, quiet);
     // Armed before the tick leaves main so a run that settles immediately still reports back.
     const settled = new Promise<AutomationRunStatus>((resolve) => { dispatch.settle = resolve; });
     const started = await new Promise<boolean>((resolve) => {
@@ -145,7 +139,7 @@ async function dispatchAutomation(automation: Automation): Promise<AutomationRun
       setTimeout(() => resolve(false), AUTOMATION_ACK_TIMEOUT).unref?.();
       window!.webContents.send("automation:fire", fire);
     });
-    return started ? await settled : "skipped";
+    return started ? await settledWithin(settled, AUTOMATION_SETTLE_TIMEOUT) : "skipped";
   } finally {
     automationDispatches.delete(runId);
   }
@@ -223,11 +217,6 @@ function handleKey(input: Electron.Input, surface: ShortcutSurface): boolean {
 /** How a grab announces itself. The window owns the choice and hands it over as the user changes it. */
 let captureOptions = DEFAULT_CAPTURE_OPTIONS;
 
-/** Says what happened where the user already is, since taking the window would take their place. */
-function notify(title: string, body: string) {
-  if (Notification.isSupported()) new Notification({ title, body, silent: true }).show();
-}
-
 async function captureWindowToComposer() {
   const shot = await captureFrontmostWindow(captureOptions.sound);
   if (shot.status === "captured") {
@@ -303,6 +292,8 @@ function startAgent() {
     else if (isWorkflowEvent(event)) sendToRenderer(event);
     else if (isAutomationRequest(event)) void handleAutomationRequest(event);
     else if (isThreadRequest(event)) handleThreadRequest(event);
+    /** A request no guard could read is answered rather than dropped: a dropped one hangs the tool call. */
+    else { const refusal = unreadableRequest(event); if (refusal) agent?.postMessage(refusal); }
   });
   agent.on("exit", (code) => {
     agent = null;
@@ -907,6 +898,10 @@ ipcMain.on("window:focus", (event) => {
   if (!trustedSender(event) || !window || window.isDestroyed()) return;
   window.webContents.focus();
 });
+
+/** Where a finding goes when the window is not the place the user is looking. */
+const findingHost: FindingHost = { window: () => window, reveal: revealWindow };
+serveFindingNotices(findingHost, trustedSender);
 
 ipcMain.on("thread:answer", (event, response: unknown) => {
   if (!trustedSender(event) || !isThreadResponse(response)) return;

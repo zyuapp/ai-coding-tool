@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AutomationChannel } from "../dist/main/main/agent/automation-channel.mjs";
-import { automationTools } from "../dist/main/main/agent/automation-tools.mjs";
+import { automationTools, findingTools } from "../dist/main/main/agent/automation-tools.mjs";
 
 const view = (overrides = {}) => ({
   id: "automation-1",
@@ -115,4 +115,58 @@ test("a settled request stops its own timeout from firing later", async () => {
   assert.equal((await answered).taskId, "task-1");
 
   await new Promise((resolve) => setTimeout(resolve, 40));
+});
+
+function findingToolNamed(bridge, name) {
+  const definition = findingTools(bridge).find((entry) => entry.name === name);
+  assert.ok(definition, `no ${name} tool`);
+  return definition;
+}
+
+test("the two reporting tools name nothing about the run: the window is what knows which one is calling", async () => {
+  const calls = [];
+  const bridge = {
+    notify: async (report) => { calls.push(["notify", report]); return { recorded: true, note: "Raised. This thread now carries 1 unread finding." }; },
+    nothingToReport: async (checked) => { calls.push(["nothing", checked]); return { recorded: true, note: "Noted. This run settles without reaching the user." }; },
+  };
+
+  const raised = await findingToolNamed(bridge, "notify").handler({ headline: "5xx on checkout", detail: "12 in an hour", key: "checkout" }, {});
+  assert.match(textOf(raised), /1 unread finding/);
+  assert.deepEqual(calls.at(-1), ["notify", { headline: "5xx on checkout", detail: "12 in an hour", key: "checkout" }]);
+
+  const silent = await findingToolNamed(bridge, "nothing_to_report").handler({ checked: "the alert feed" }, {});
+  assert.match(textOf(silent), /settles without reaching the user/);
+  assert.deepEqual(calls.at(-1), ["nothing", "the alert feed"]);
+});
+
+test("a report the window cannot keep is a tool error rather than a silent downgrade to nothing", async () => {
+  const bridge = {
+    notify: async () => { throw new Error("This thread is already carrying 10 unread findings"); },
+    nothingToReport: async () => ({ recorded: false, note: "no" }),
+  };
+
+  const result = await findingToolNamed(bridge, "notify").handler({ headline: "One too many" }, {});
+  assert.equal(result.isError, true);
+  assert.match(textOf(result), /already carrying 10 unread findings/);
+});
+
+test("the reporting tools are offered only where a finding could be read", async () => {
+  const bare = automationTools(fakeBridge()).map((entry) => entry.name);
+  assert.deepEqual(bare, ["schedule", "status", "update", "stop", "list_all"], "a run with no window to report to is offered neither");
+  assert.deepEqual(findingTools({}).map((entry) => entry.name), ["notify", "nothing_to_report"]);
+});
+
+test("a schedule says for itself when it is worth surfacing, and can be made loud again", async () => {
+  const bridge = fakeBridge();
+
+  await toolNamed(bridge, "schedule").handler({ prompt: "poll Datadog", schedule: "*/30 * * * *", surfaceWhen: "an error was caused by the user's own code." }, {});
+  assert.equal(bridge.calls.at(-1)[1].surfaceWhen, "an error was caused by the user's own code.");
+
+  await toolNamed(bridge, "update").handler({ surfaceWhen: "" }, {});
+  assert.deepEqual(bridge.calls.at(-1), ["update", { surfaceWhen: "" }]);
+
+  const status = await toolNamed(bridge, "status").handler({}, {});
+  assert.doesNotMatch(textOf(status), /surfaces when/, "a loud automation says nothing about surfacing");
+  const quiet = await toolNamed(fakeBridge({ read: async () => view({ surfaceWhen: "there is an error." }) }), "status").handler({}, {});
+  assert.match(textOf(quiet), /surfaces when: there is an error\./);
 });

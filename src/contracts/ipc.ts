@@ -1,11 +1,12 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
-import type { BrowserRead, ExternalCommand, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
+import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
+import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/task.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestRef } from "../domain/pull-request.js";
@@ -55,6 +56,8 @@ export type StartRunCommand = {
   effort: AgentEffort;
   continuation?: Continuation;
   forkContinuation?: boolean;
+  /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
+  unattended?: true;
 };
 
 export type CreateWorktreeRequest = {
@@ -156,6 +159,10 @@ export type AutomationFire = {
   prompt: string;
   policy?: ExecutionPolicy;
   runNumber: number;
+  /** The tick may settle without surfacing, if the run says it looked and found nothing. */
+  quiet?: true;
+  /** What the automation says is worth surfacing, carried into the run's own framing. */
+  surfaceWhen?: string;
 };
 
 export type AutomationAck = {
@@ -291,6 +298,10 @@ export type DesktopAPI = {
   closeWindow(): void;
   /** Takes the keyboard back from a page in the panel, so the window can have it. */
   focusWindow(): void;
+  /** A finding on its way to the desktop. Main decides whether the user is somewhere it has to reach them. */
+  announceFinding(notice: FindingNotice): void;
+  /** The thread a clicked notification named, on its way to becoming the current one. */
+  onOpenThread(listener: (taskId: string) => void): () => void;
 };
 
 /** What a keystroke asked for, and where it was pressed. */
@@ -298,6 +309,19 @@ export type ShortcutInvocation = { action: string; surface: ShortcutSurface };
 
 /** A window the desktop hotkey grabbed, already written to the attachments directory. */
 export type WindowScreenshot = { app: string; title: string; path: string };
+
+/** A finding a thread raised: the thread a click lands on, the name it is shown under, and the line itself. */
+export type FindingNotice = { taskId: string; title: string; headline: string };
+
+/** Longer than any line a notification shows, and still bounded. */
+const MAX_HEADLINE_LENGTH = 1_000;
+
+/** Findings arrive from the window like any other outside command, so main reads them defensively. */
+export function isFindingNotice(value: unknown): value is FindingNotice {
+  if (!value || typeof value !== "object") return false;
+  const notice = value as Record<string, unknown>;
+  return isString(notice.taskId) && isString(notice.title, MAX_HEADLINE_LENGTH) && isString(notice.headline, MAX_HEADLINE_LENGTH);
+}
 
 /** How many bindings a window may send. Far more than the app has actions, and still bounded. */
 const MAX_SHORTCUTS = 200;
@@ -431,6 +455,10 @@ function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
 }
 
+function isBlankable(value: unknown, maxLength: number): value is string {
+  return typeof value === "string" && value.length <= maxLength;
+}
+
 function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
@@ -528,7 +556,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation)));
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
@@ -634,7 +662,32 @@ export function isThreadRequest(value: unknown): value is ThreadRequest {
   if (request.op === "command") return isExternalCommand(request.command);
   if (request.op === "browser") return isBrowserRead(request.read);
   if (request.op === "terminal") return isTerminalRead(request.read);
+  if (request.op === "notify") return isFindingReport(request.report);
+  if (request.op === "nothing-to-report") return isString(request.checked, MAX_HEADLINE);
   return false;
+}
+
+export function isFindingReport(value: unknown): value is FindingReport {
+  if (!value || typeof value !== "object") return false;
+  const report = value as Record<string, unknown>;
+  return isString(report.headline, MAX_HEADLINE)
+    /** An optional the caller sent empty says the same as one it left out, and is no reason to drop the call. */
+    && (report.detail === undefined || isBlankable(report.detail, MAX_DETAIL))
+    && (report.key === undefined || isBlankable(report.key, MAX_FINDING_KEY));
+}
+
+/**
+ * What a request no guard could read is answered with. The caller is a tool call held open, so a
+ * message that is dropped reaches it as a timeout saying nothing about what was wrong with it.
+ */
+export function unreadableRequest(value: unknown): ThreadResponse | AutomationResponse | null {
+  if (!value || typeof value !== "object") return null;
+  const message = value as Record<string, unknown>;
+  if (!isString(message.requestId)) return null;
+  const refusal = "Claudex could not read that request: one of its fields is not what the request allows.";
+  if (message.type === "thread.request") return { type: "thread.response", requestId: message.requestId, ok: false, message: refusal };
+  if (message.type === "automation.request") return { type: "automation.response", requestId: message.requestId, ok: false, message: refusal };
+  return null;
 }
 
 export function isThreadResponse(value: unknown): value is ThreadResponse {

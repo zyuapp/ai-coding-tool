@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AutomationScheduler, assertSchedule } from "../dist/main/main/automation/automation-scheduler.mjs";
+import { isAutomation, isAutomationDraft, isAutomationPatch, quietTick } from "../dist/main/domain/automation.js";
 
 function memoryStore(initial = []) {
   const rows = new Map(initial.map((automation) => [automation.id, automation]));
@@ -89,6 +90,27 @@ test("a run records its outcome, and a skipped tick is not counted as a run", as
   await scheduler.runNow("task-1");
   assert.equal(scheduler.forTask("task-1").runCount, 2);
   assert.equal(store.rows.get(scheduler.forTask("task-1").id).lastStatus, "failed", "outcomes survive a restart");
+});
+
+test("a tick that never ran still timestamps its status, and a rewrite carries both moments", async (t) => {
+  const clock = fixedClock();
+  let outcome = "succeeded";
+  const scheduler = schedulerFor(t, memoryStore(), async () => outcome, { now: clock.now });
+  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+
+  clock.advance(60);
+  await scheduler.runNow("task-1");
+  assert.equal(scheduler.forTask("task-1").lastStatusAt, 1_060);
+
+  outcome = "skipped";
+  clock.advance(60);
+  await scheduler.runNow("task-1");
+  assert.equal(scheduler.forTask("task-1").lastRunAt, 1_060, "a skip is not a run");
+  assert.equal(scheduler.forTask("task-1").lastStatusAt, 1_120, "but it is when the status was last true");
+
+  const rewritten = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *" });
+  assert.equal(rewritten.lastRunAt, 1_060);
+  assert.equal(rewritten.lastStatusAt, 1_120, "rewriting the schedule keeps what the automation has done");
 });
 
 test("a dispatch that throws settles the run as failed instead of wedging the automation", async (t) => {
@@ -276,4 +298,66 @@ test("a paused automation stays paused across a restart", (t) => {
   second.start();
   assert.equal(second.forTask("task-1").paused, true);
   assert.equal(second.forTask("task-1").nextRunAt, null);
+});
+
+test("what a schedule surfaces for survives every rewrite of it, and is what makes a tick quiet", async (t) => {
+  const store = memoryStore();
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "an error is the user's own." });
+
+  const rewritten = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *", surfaceWhen: "an error is the user's own." });
+  assert.equal(rewritten.surfaceWhen, "an error is the user's own.", "an agent changing the cadence must not silently make the schedule loud");
+  assert.equal(store.rows.get(rewritten.id).surfaceWhen, "an error is the user's own.");
+
+  assert.equal(scheduler.update("task-1", { paused: true }).surfaceWhen, "an error is the user's own.");
+  assert.equal(scheduler.update("task-1", { surfaceWhen: "" }).surfaceWhen, undefined, "an empty sentence is how the panel makes it loud again");
+  assert.equal(scheduler.update("task-1", { surfaceWhen: "anything at all." }).surfaceWhen, "anything at all.");
+});
+
+test("the button the user pressed is never a quiet tick, and neither is a one-shot", async (t) => {
+  const ticks = [];
+  const scheduler = schedulerFor(t, memoryStore(), async (automation, quiet) => { ticks.push([automation.taskId, quiet]); return "succeeded"; });
+  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
+
+  await scheduler.runNow("task-1");
+  assert.deepEqual(ticks, [["task-1", false]], "the panel's button is only reachable with the user watching");
+
+  const soon = new Date(Date.now() + 1_500).toISOString();
+  scheduler.save({ taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error." });
+  await new Promise((resolve) => setTimeout(resolve, 2_500));
+  assert.deepEqual(ticks.slice(1), [["task-2", false]], "a one-shot that vanishes when it runs must leave a trace of having run");
+});
+
+test("which ticks may settle unseen", () => {
+  const quiet = { schedule: HOURLY, surfaceWhen: "there is an error." };
+  assert.equal(quietTick(quiet, false), true);
+  assert.equal(quietTick(quiet, true), false, "the user asked for this one");
+  assert.equal(quietTick({ schedule: HOURLY }, false), false, "a schedule that never said what it surfaces for is loud");
+  assert.equal(quietTick({ ...quiet, schedule: "2030-01-01T00:00:00Z" }, false), false);
+});
+
+test("a sentence to surface for is validated the way every other field of a draft is", () => {
+  const draft = { taskId: "task-1", prompt: "poll", schedule: HOURLY };
+  assert.equal(isAutomationDraft({ ...draft, surfaceWhen: "there is an error." }), true);
+  assert.equal(isAutomationDraft({ ...draft, surfaceWhen: "" }), false, "a draft either says what it surfaces for or is loud");
+  assert.equal(isAutomationDraft({ ...draft, surfaceWhen: "x".repeat(501) }), false);
+  assert.equal(isAutomationPatch({ surfaceWhen: "" }), true, "a patch may empty it, which is how the panel makes it loud");
+  assert.equal(isAutomationPatch({ surfaceWhen: 3 }), false);
+  assert.equal(isAutomation({ id: "a", taskId: "t", prompt: "p", schedule: HOURLY, paused: false, createdAt: 1, updatedAt: 1, runCount: 0, surfaceWhen: "there is an error.", consecutiveDeclines: 2, overrunCount: 1 }), true);
+  assert.equal(isAutomation({ id: "a", taskId: "t", prompt: "p", schedule: HOURLY, paused: false, createdAt: 1, updatedAt: 1, runCount: 0, consecutiveDeclines: -1 }), false);
+});
+
+test("a tick dropped for overrunning is counted, since croner records it nowhere else", (t) => {
+  const store = memoryStore();
+  const scheduler = schedulerFor(t, store, async () => "succeeded");
+  const { id } = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  /** Croner drops the tick before the callback, and calls this hook in its place. */
+  const job = scheduler.crons.get(id);
+
+  job.options.protect(job);
+  job.options.protect(job);
+
+  assert.equal(scheduler.forTask("task-1").overrunCount, 2);
+  assert.equal(store.rows.get(id).overrunCount, 2, "so a restart still knows how many ticks were lost");
+  assert.equal(scheduler.forTask("task-1").runCount, 0, "a tick that was dropped never ran");
 });

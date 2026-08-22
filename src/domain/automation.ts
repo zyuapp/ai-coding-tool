@@ -3,6 +3,7 @@ import type { ExecutionPolicy } from "./run.js";
 export const MAX_AUTOMATION_PROMPT = 100_000;
 export const MAX_AUTOMATION_SCHEDULE = 200;
 export const MAX_AUTOMATION_TIMEZONE = 100;
+export const MAX_SURFACE_WHEN = 500;
 
 /** `missed` is not a run: it marks a one-shot whose moment passed without one. */
 export type AutomationRunStatus = "succeeded" | "failed" | "cancelled" | "skipped" | "missed";
@@ -17,12 +18,23 @@ export type Automation = {
   timezone?: string;
   /** Overrides the task's policy for scheduled runs; unattended runs usually need `autonomous`. */
   policy?: ExecutionPolicy;
+  /**
+   * When a scheduled tick is worth the user's attention, in the automation's own words. Present makes
+   * the schedule quiet: a tick that says it found nothing settles without surfacing. Absent is loud.
+   */
+  surfaceWhen?: string;
   paused: boolean;
   createdAt: number;
   updatedAt: number;
   runCount: number;
   lastRunAt?: number;
   lastStatus?: AutomationRunStatus;
+  /** When `lastStatus` was recorded. A tick that never ran moves this without moving `lastRunAt`. */
+  lastStatusAt?: number;
+  /** Ticks turned away in a row. A schedule that cannot run is a silence the user has to hear about. */
+  consecutiveDeclines?: number;
+  /** Ticks croner dropped because the previous run was still going. Nothing else records these. */
+  overrunCount?: number;
 };
 
 /** What the renderer renders: the record plus the firing time only the scheduler can compute. */
@@ -34,6 +46,7 @@ export type AutomationDraft = {
   schedule: string;
   timezone?: string;
   policy?: ExecutionPolicy;
+  surfaceWhen?: string;
   paused?: boolean;
 };
 
@@ -42,6 +55,8 @@ export type AutomationPatch = {
   schedule?: string;
   timezone?: string;
   policy?: ExecutionPolicy;
+  /** An empty sentence makes the schedule loud again; anything else is what it surfaces for. */
+  surfaceWhen?: string;
   paused?: boolean;
 };
 
@@ -66,12 +81,16 @@ export function isAutomation(value: unknown): value is Automation {
     && isText(record.schedule, MAX_AUTOMATION_SCHEDULE)
     && (record.timezone === undefined || isText(record.timezone, MAX_AUTOMATION_TIMEZONE))
     && (record.policy === undefined || isPolicy(record.policy))
+    && (record.surfaceWhen === undefined || isText(record.surfaceWhen, MAX_SURFACE_WHEN))
     && typeof record.paused === "boolean"
     && isTimestamp(record.createdAt)
     && isTimestamp(record.updatedAt)
     && isTimestamp(record.runCount)
     && (record.lastRunAt === undefined || isTimestamp(record.lastRunAt))
-    && (record.lastStatus === undefined || isRunStatus(record.lastStatus));
+    && (record.lastStatus === undefined || isRunStatus(record.lastStatus))
+    && (record.lastStatusAt === undefined || isTimestamp(record.lastStatusAt))
+    && (record.consecutiveDeclines === undefined || isTimestamp(record.consecutiveDeclines))
+    && (record.overrunCount === undefined || isTimestamp(record.overrunCount));
 }
 
 function isRunStatus(value: unknown): value is AutomationRunStatus {
@@ -86,6 +105,8 @@ export function isAutomationDraft(value: unknown): value is AutomationDraft {
     && isText(draft.schedule, MAX_AUTOMATION_SCHEDULE)
     && (draft.timezone === undefined || isText(draft.timezone, MAX_AUTOMATION_TIMEZONE))
     && (draft.policy === undefined || isPolicy(draft.policy))
+    /** Absent keeps whatever the schedule already surfaces for; empty is what takes the quiet off. */
+    && (draft.surfaceWhen === undefined || draft.surfaceWhen === "" || isText(draft.surfaceWhen, MAX_SURFACE_WHEN))
     && (draft.paused === undefined || typeof draft.paused === "boolean");
 }
 
@@ -96,13 +117,32 @@ export function isAutomationPatch(value: unknown): value is AutomationPatch {
     && (patch.schedule === undefined || isText(patch.schedule, MAX_AUTOMATION_SCHEDULE))
     && (patch.timezone === undefined || isText(patch.timezone, MAX_AUTOMATION_TIMEZONE))
     && (patch.policy === undefined || isPolicy(patch.policy))
+    && (patch.surfaceWhen === undefined || patch.surfaceWhen === "" || isText(patch.surfaceWhen, MAX_SURFACE_WHEN))
     && (patch.paused === undefined || typeof patch.paused === "boolean");
 }
 
 /** A tick that never ran leaves the counters alone so "last run" stays truthful. */
 export function automationAfterRun(automation: Automation, status: AutomationRunStatus, at: number): Automation {
-  if (status === "skipped" || status === "missed") return { ...automation, lastStatus: status, updatedAt: at };
-  return { ...automation, runCount: automation.runCount + 1, lastRunAt: at, lastStatus: status, updatedAt: at };
+  if (status === "missed") return { ...automation, lastStatus: status, lastStatusAt: at, updatedAt: at };
+  if (status === "skipped") return { ...automation, consecutiveDeclines: declineCount(automation) + 1, lastStatus: status, lastStatusAt: at, updatedAt: at };
+  const { consecutiveDeclines: _ran, ...ran } = automation;
+  return { ...ran, runCount: automation.runCount + 1, lastRunAt: at, lastStatus: status, lastStatusAt: at, updatedAt: at };
+}
+
+export function declineCount(automation: { consecutiveDeclines?: number }) {
+  return automation.consecutiveDeclines ?? 0;
+}
+
+/** How many declines in a row it takes before the schedule's silence is itself worth surfacing. */
+export const DECLINES_BEFORE_SURFACING = 3;
+
+/**
+ * Whether this tick may settle unseen. Only a cron tick of a schedule that says what it surfaces for:
+ * a run the user asked for is watched by construction, and a one-shot deletes itself when it runs, so
+ * a quiet one would disappear having said nothing at all.
+ */
+export function quietTick(automation: Automation, manual: boolean) {
+  return !manual && automation.surfaceWhen !== undefined && !isOneShotSchedule(automation.schedule);
 }
 
 export function didRun(status: AutomationRunStatus) {

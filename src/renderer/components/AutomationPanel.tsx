@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { AlarmClock, Pause, Play, RotateCw, Trash2 } from "lucide-react";
+import { AlarmClock, Bell, BellOff, Pause, Play, RotateCw, Trash2 } from "lucide-react";
 import type { AutomationPatch, AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
   automation: AutomationView | null;
+  /** When a run on this thread last found something, which is the only proof a quiet schedule works. */
+  lastFoundAt: number | null;
   onUpdate: (patch: AutomationPatch) => void;
   onDelete: () => void;
   onRunNow: () => void;
@@ -16,21 +18,44 @@ export function automationStatusLabel(automation: AutomationView, at: number) {
   return formatCountdown(automation.nextRunAt, at);
 }
 
+const DAY = 86_400_000;
+
+/** What a schedule silenced from the panel surfaces for, until the automation words it for itself. */
+const DEFAULT_SURFACE_WHEN = "the run finds something the user has to act on.";
+
+/** Within a day of now the clock is enough; anything further needs the date to mean anything. */
+function formatMoment(moment: number, at: number) {
+  return Math.abs(moment - at) < DAY
+    ? new Date(moment).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : new Date(moment).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 export function formatCountdown(nextRunAt: number, at: number) {
   const seconds = Math.max(0, Math.round((nextRunAt - at) / 1000));
   if (seconds < 60) return `in ${seconds}s`;
   if (seconds < 3_600) return `in ${Math.round(seconds / 60)}m`;
   if (seconds < 86_400) return `in ${Math.round(seconds / 3_600)}h`;
-  return new Date(nextRunAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return formatMoment(nextRunAt, at);
 }
 
-function lastRunLabel(automation: AutomationView) {
-  if (!automation.lastRunAt) return "never run";
-  const when = new Date(automation.lastRunAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return `${automation.lastStatus ?? "ran"} at ${when}`;
+/** What the panel has to answer: is this schedule alive, and has it ever found anything. */
+export function automationMeta(automation: AutomationView, lastFoundAt: number | null, at: number) {
+  return [
+    `${automation.runCount} ${automation.runCount === 1 ? "run" : "runs"}`,
+    lastRunLabel(automation, at),
+    lastFoundAt ? `found something ${formatMoment(lastFoundAt, at)}` : "nothing found yet",
+    ...(automation.overrunCount ? [`${automation.overrunCount} dropped for overrunning`] : []),
+  ].join(" · ");
 }
 
-export function AutomationPanel({ automation, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
+/** A tick that never ran still has a status, so the moment shown is the status's rather than the run's. */
+export function lastRunLabel(automation: AutomationView, at: number) {
+  const when = automation.lastStatusAt ?? automation.lastRunAt;
+  if (when === undefined) return "never run";
+  return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
+}
+
+export function AutomationPanel({ automation, lastFoundAt, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
   const [schedule, setSchedule] = useState(automation?.schedule ?? "");
   const [prompt, setPrompt] = useState(automation?.prompt ?? "");
   const [now, setNow] = useState(() => Date.now());
@@ -92,9 +117,23 @@ export function AutomationPanel({ automation, onUpdate, onDelete, onRunNow }: Au
           />
         </label>
 
+        {automation.surfaceWhen !== undefined && (
+          <p className="automation-quiet-sentence">Surfaces when: {automation.surfaceWhen}</p>
+        )}
+
+        <button
+          type="button"
+          className="automation-quiet"
+          aria-pressed={automation.surfaceWhen !== undefined}
+          onClick={() => onUpdate({ surfaceWhen: automation.surfaceWhen === undefined ? DEFAULT_SURFACE_WHEN : "" })}
+        >
+          {automation.surfaceWhen === undefined ? <Bell size={13} aria-hidden="true" /> : <BellOff size={13} aria-hidden="true" />}
+          <span>Only surface runs that find something</span>
+        </button>
+
         <p className="automation-meta">
           <AlarmClock size={13} aria-hidden="true" />
-          <span>{automation.runCount} {automation.runCount === 1 ? "run" : "runs"} · {lastRunLabel(automation)}</span>
+          <span>{automationMeta(automation, lastFoundAt, now)}</span>
         </p>
 
         <div className="automation-actions">

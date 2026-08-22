@@ -252,3 +252,17 @@ test("the terminal channel carries reads and nothing else", () => {
   assert.equal(isExternalCommand({ type: "terminal.input", taskId: "task-1", terminalId: "terminal-1", data: "ls\r" }), false);
   assert.equal(isExternalCommand({ type: "terminal.close", taskId: "task-1", terminalId: "terminal-1" }), false);
 });
+
+test("what a run reports about itself is bounded before it reaches the workspace", () => {
+  const request = { type: "thread.request", requestId: "r1", taskId: "task-1" };
+  assert.equal(isThreadRequest({ ...request, op: "notify", report: { headline: "5xx on checkout" } }), true);
+  assert.equal(isThreadRequest({ ...request, op: "notify", report: { headline: "5xx", detail: "## Logs", key: "checkout" } }), true);
+  assert.equal(isThreadRequest({ ...request, op: "notify", report: { headline: "" } }), false);
+  assert.equal(isThreadRequest({ ...request, op: "notify", report: { headline: "x".repeat(201) } }), false);
+  assert.equal(isThreadRequest({ ...request, op: "notify", report: { headline: "5xx", detail: "d".repeat(10_001) } }), false);
+  assert.equal(isThreadRequest({ ...request, op: "notify", report: { headline: "5xx", key: 7 } }), false);
+  assert.equal(isThreadRequest({ ...request, op: "notify" }), false);
+  assert.equal(isThreadRequest({ ...request, op: "nothing-to-report", checked: "the alert feed" }), true);
+  assert.equal(isThreadRequest({ ...request, op: "nothing-to-report" }), false);
+  assert.equal(isExternalCommand({ type: "automation.notify", taskId: "task-1", headline: "5xx" }), false, "a finding is raised by a run reporting on itself, not by a command anyone may send");
+});

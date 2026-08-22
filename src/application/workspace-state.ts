@@ -17,7 +17,7 @@ import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/the
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, retainedTasks, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
+import { legacyProjectId, retainedTasks, threadActivityAt, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type Worktree } from "../domain/worktree.js";
 
 /**
@@ -43,6 +43,8 @@ export type PendingRun = {
   detail?: string;
   policy?: ExecutionPolicy;
   automationId?: string;
+  /** Automation only: this tick may settle without surfacing if it earns the silence. */
+  quiet?: true;
   /** Queued messages this run is draining, cleared only once the run actually starts. */
   queuedIds?: string[];
   /** Set when the checkout this run needs is being made on the way, which is the slow part of resolving. */
@@ -778,7 +780,8 @@ export function deriveView(state: WorkspaceState) {
     /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
     activityTasks: activitySections(visibleTasks, busy, blocked),
     archivedTasks: listedTasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
-    recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => b.updatedAt - a.updatedAt),
+    /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
+    recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => threadActivityAt(b) - threadActivityAt(a)),
     currentTask,
     currentProject,
     folder: currentProject?.root ?? "",
@@ -804,7 +807,9 @@ export function deriveView(state: WorkspaceState) {
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     readingPoint: state.currentId ? state.readingPoints[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
-    automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
+    schedules: new Map(state.automations.map((automation) => [automation.taskId, automation])),
+    /** When a run on this thread last found something, which is what the automation panel reports. */
+    lastFoundAt: currentTask?.lastFindingAt ?? null,
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktreeId).map((task) => task.id)),
     /** The checkouts a project has, each with the threads that claim it. */
     worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({

@@ -218,10 +218,8 @@ test("the channel tool table is the only thing a side chat is short of", async (
   assert.deepEqual(main.options.options.disallowedTools, ["AskUserQuestion"]);
   assert.deepEqual(side.options.options.disallowedTools, [
     "AskUserQuestion",
-    "mcp__claudex-automation__schedule",
-    "mcp__claudex-automation__update",
-    "mcp__claudex-automation__stop",
-  ], "a side chat reads automations but never writes one");
+    ...["schedule", "update", "stop", "notify", "nothing_to_report"].map((name) => `mcp__claudex-automation__${name}`),
+  ], "a side chat reads automations, writes none, and raises nothing where nothing could be read");
 
   assert.deepEqual(
     Object.keys(side.options.options.mcpServers ?? {}).sort(),

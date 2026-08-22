@@ -3,7 +3,7 @@ import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-str
 import { contextWindowLimit } from "../../domain/run.js";
 import type { AgentModel, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { WorkflowReport } from "../../contracts/ipc.js";
-import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
+import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { BROWSER_SERVER_NAME } from "./browser-tools.mjs";
@@ -507,15 +507,17 @@ export class ClaudeSession {
   private readonly canUseTool: CanUseTool = async (toolName, toolInput, options) => {
     const turn = this.turn;
     const allow = { behavior: "allow" as const, updatedInput: toolInput, toolUseID: options.toolUseID };
-    const denied = { behavior: "deny" as const, message: "The user denied this action.", toolUseID: options.toolUseID };
+    const answered = (decision: ToolDecision) => decision === "allow"
+      ? allow
+      : { behavior: "deny" as const, message: typeof decision === "object" ? decision.deny : "The user denied this action.", toolUseID: options.toolUseID };
     if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return allow;
     if (turn) {
       if (turn.input.channel === "main" && turn.input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return allow;
-      return await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)) === "allow" ? allow : denied;
+      return answered(await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)));
     }
     /** Work that outlived its run still has to ask, so the turn the agent started takes the question. */
     const agentTurn = this.openAgentTurn();
     if (!agentTurn) return { behavior: "deny", message: "The run this call belongs to is over.", toolUseID: options.toolUseID };
-    return await agentTurn.turn.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)) === "allow" ? allow : denied;
+    return answered(await agentTurn.turn.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)));
   };
 }

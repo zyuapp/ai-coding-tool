@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
-import type { AgentProvider, AgentTurn, AutomationBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge } from "./agent-provider.mjs";
+import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
+
+type PendingApproval = {
+  settled: boolean;
+  resolve: (decision: ToolDecision) => void;
+  /** Only an unattended run has one: the deadline after which the question is answered for it. */
+  deadline?: ReturnType<typeof setTimeout>;
+};
 
 type ActiveRun = {
   taskId: string;
@@ -13,7 +20,9 @@ type ActiveRun = {
   steering: SteerChannel;
   sequence: number;
   terminal: boolean;
-  approvals: Map<string, { settled: boolean; resolve: (decision: "allow" | "deny") => void }>;
+  /** Started by the scheduler with nobody present, until somebody steers into it. */
+  unattended: boolean;
+  approvals: Map<string, PendingApproval>;
   /** Newest streamed tail, held back until the throttle window opens. */
   pendingTail?: { messageId: string; text: string };
   tailTimer?: ReturnType<typeof setTimeout>;
@@ -22,14 +31,21 @@ type ActiveRun = {
 type CoordinatorOptions = {
   isWritePathInside?: (root: string, candidate: string) => boolean | Promise<boolean>;
   automations?: (taskId: string) => AutomationBridge;
+  findings?: (taskId: string) => FindingBridge;
   threads?: (taskId: string) => ThreadBridge;
   browser?: (taskId: string) => BrowserBridge;
   terminal?: (taskId: string) => TerminalBridge;
   tailIntervalMs?: number;
+  unattendedApprovalMs?: number;
 };
 
 /** Tails arrive per token; this is often enough to read as typing without flooding the renderer. */
 const DEFAULT_TAIL_INTERVAL_MS = 40;
+
+/** Long enough that a person who is around still decides; short enough that the next tick is not lost. */
+const DEFAULT_UNATTENDED_APPROVAL_MS = 10 * 60_000;
+
+const UNATTENDED_DENIAL = "Nobody is watching this scheduled run, so this action was denied rather than left waiting. Take a route that needs no approval, or stop and report what you could not do.";
 
 type RunEventPayload = RunEvent extends infer Event
   ? Event extends unknown
@@ -59,6 +75,7 @@ export class RunCoordinator {
       steering: new SteerChannel(),
       sequence: 0,
       terminal: false,
+      unattended: command.unattended === true,
       approvals: new Map(),
     };
     this.runs.set(command.taskId, active);
@@ -71,6 +88,8 @@ export class RunCoordinator {
   steer(taskId: string, runId: string, messageId: string, prompt: string) {
     const active = this.runs.get(taskId);
     if (!active || active.runId !== runId || active.terminal) return false;
+    /** Somebody is here after all, so the run's questions go back to waiting for them. */
+    active.unattended = false;
     return active.steering.push({ messageId, prompt });
   }
 
@@ -93,10 +112,10 @@ export class RunCoordinator {
     const active = this.runs.get(taskId);
     if (!active || active.runId !== runId || active.terminal) return false;
     const pending = active.approvals.get(approvalId);
-    if (!pending || pending.settled) return false;
-    pending.settled = true;
-    active.approvals.delete(approvalId);
-    pending.resolve(allow ? "allow" : "deny");
+    if (!pending) return false;
+    /** Answering one is somebody being here, so the run's later questions wait for them too. */
+    active.unattended = false;
+    if (!this.settleApproval(active, approvalId, pending, allow ? "allow" : "deny")) return false;
     if (!active.terminal && this.isCurrent(active)) this.publish(active, { type: "run.status", status: "running" });
     return true;
   }
@@ -116,6 +135,7 @@ export class RunCoordinator {
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         automations: this.options.automations?.(command.taskId),
+        findings: this.options.findings?.(command.taskId),
         threads: this.options.threads?.(command.taskId),
         browser: this.options.browser?.(command.taskId),
         terminal: this.options.terminal?.(command.taskId),
@@ -176,6 +196,7 @@ export class RunCoordinator {
       steering: new SteerChannel(),
       sequence: 0,
       terminal: false,
+      unattended: false,
       approvals: new Map(),
     };
     this.runs.set(active.taskId, active);
@@ -207,7 +228,7 @@ export class RunCoordinator {
     this.publish(active, { type: "assistant.tail", messageId: pending.messageId, text: pending.text });
   }
 
-  private async authorize(active: ActiveRun, intent: ToolIntent): Promise<"allow" | "deny"> {
+  private async authorize(active: ActiveRun, intent: ToolIntent): Promise<ToolDecision> {
     if (!this.isCurrent(active) || active.terminal || active.abortController.signal.aborted) return "deny";
     if (intent.writePath && this.options.isWritePathInside) {
       if (!(await this.options.isWritePathInside(active.workspaceRoot, intent.writePath))) return "deny";
@@ -215,14 +236,21 @@ export class RunCoordinator {
     }
     const approvalId = randomUUID();
     return new Promise((resolve) => {
-      const pending = { settled: false, resolve };
+      const pending: PendingApproval = { settled: false, resolve };
       active.approvals.set(approvalId, pending);
+      /**
+       * Only a run the scheduler started answers for itself, and only while it stays unattended: a
+       * question left standing would hold the thread busy and cost the automation every later tick.
+       */
+      if (active.unattended) {
+        pending.deadline = setTimeout(() => {
+          if (!active.unattended || !this.settleApproval(active, approvalId, pending, { deny: UNATTENDED_DENIAL })) return;
+          if (!active.terminal && this.isCurrent(active)) this.publish(active, { type: "run.status", status: "running" });
+        }, this.options.unattendedApprovalMs ?? DEFAULT_UNATTENDED_APPROVAL_MS);
+        pending.deadline.unref?.();
+      }
       active.abortController.signal.addEventListener("abort", () => {
-        if (!pending.settled) {
-          pending.settled = true;
-          active.approvals.delete(approvalId);
-          resolve("deny");
-        }
+        this.settleApproval(active, approvalId, pending, "deny");
       }, { once: true });
       this.publish(active, {
         type: "approval.requested",
@@ -254,12 +282,19 @@ export class RunCoordinator {
     }
   }
 
+  /** Answers one pending approval exactly once, and stops any deadline it was under. */
+  private settleApproval(active: ActiveRun, approvalId: string, pending: PendingApproval, decision: ToolDecision) {
+    if (pending.settled) return false;
+    pending.settled = true;
+    clearTimeout(pending.deadline);
+    active.approvals.delete(approvalId);
+    pending.resolve(decision);
+    return true;
+  }
+
   private expireApprovals(active: ActiveRun) {
     for (const [approvalId, pending] of active.approvals) {
-      if (!pending.settled) {
-        pending.settled = true;
-        pending.resolve("deny");
-      }
+      this.settleApproval(active, approvalId, pending, "deny");
       active.approvals.delete(approvalId);
     }
   }

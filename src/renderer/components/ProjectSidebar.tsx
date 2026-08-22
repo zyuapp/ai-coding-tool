@@ -2,11 +2,13 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
 import { projectName, threadActivityAt } from "../../domain/task";
+import { dismissableTasks, newestUnreadFinding } from "../../application/findings";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskOutcome } from "../../domain/task";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
 import type { ActivitySections } from "../../application/task-order";
+import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu, PopoverMenu } from "./PopoverMenu";
 import { threadLink } from "../../domain/thread-handles";
@@ -27,6 +29,39 @@ const OUTCOME_LABELS: Record<TaskOutcome, string> = {
 };
 
 const BLOCKED_LABEL = "Needs approval";
+
+/** The mark says the thread runs on a schedule; whether that schedule is well is the part worth hearing. */
+function scheduleLabel(automation: AutomationView) {
+  if (automation.paused) return "Schedule paused";
+  if (automation.nextRunAt === null) return "Schedule missed its run";
+  if (automation.lastStatus === "failed") return "Runs on a schedule, and its last run failed";
+  if (automation.lastStatus === "skipped") return "Runs on a schedule, and its last tick could not run";
+  return "Runs on a schedule";
+}
+
+/** Whether a row shows a dot at all, which is also what reserves the slot the dot needs. */
+function marked(task: Task) {
+  return Boolean(newestUnreadFinding(task) || (task.outcome && task.outcomeUnread));
+}
+
+/** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
+function attentionMark(task: Task) {
+  const finding = newestUnreadFinding(task);
+  if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
+  if (!marked(task)) return false;
+  return <span key="status" className={`task-attention ${task.outcome!}`} aria-label={OUTCOME_LABELS[task.outcome!]} />;
+}
+
+/**
+ * What a row says under its title in activity mode: which folder it lives in, and when it last moved.
+ * A row carrying something a run found says that instead — the headline is why the row is in Priority.
+ */
+function activityMeta(task: Task, projects: Project[]) {
+  const finding = newestUnreadFinding(task);
+  if (finding) return finding.headline;
+  const project = projects.find((item) => item.id === task.projectId);
+  return [project && projectName(project.root), formatTime(threadActivityAt(task))].filter(Boolean).join(" · ");
+}
 
 /** The activity mode's three lists, top to bottom, with the heading each is drawn under. */
 const ACTIVITY_SECTIONS = [
@@ -76,7 +111,7 @@ export type ProjectSidebarProps = {
   runningTaskIds: Set<string>;
   /** Threads stopped on an approval only the user can answer. A subset of {@link runningTaskIds}. */
   blockedTaskIds: Set<string>;
-  automatedTaskIds: Set<string>;
+  schedules: Map<string, AutomationView>;
   worktreeTaskIds: Set<string>;
   /** The checkouts each project has, with the threads in each. A project offers starting one more there. */
   worktreeGroups: WorktreeGroup[];
@@ -120,7 +155,7 @@ export function ProjectSidebar({
   expandedProjects,
   runningTaskIds,
   blockedTaskIds,
-  automatedTaskIds,
+  schedules,
   worktreeTaskIds,
   worktreeGroups,
   activityTasks,
@@ -168,8 +203,8 @@ export function ProjectSidebar({
   const railSlots = [...orderedTasks, ...recentTasks].reduce((widest, task) => Math.max(widest, markCount(task)), 1);
 
   function markCount(task: Task) {
-    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || (task.outcome && task.outcomeUnread);
-    return Number(worktreeTaskIds.has(task.id)) + Number(automatedTaskIds.has(task.id)) + Number(Boolean(status));
+    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || marked(task);
+    return Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
   }
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
@@ -222,16 +257,12 @@ export function ProjectSidebar({
   /** What a thread is: the checkout it works in, the schedule it runs on, and what it is doing now. */
   const rowMarks = (task: Task): React.ReactNode[] => [
     worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
-    automatedTaskIds.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label="Runs on a schedule" />,
+    schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
     blockedTaskIds.has(task.id)
       ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
       : runningTaskIds.has(task.id)
         ? <TaskSpinner key="status" />
-        : task.outcome && task.outcomeUnread && <span
-            key="status"
-            className={`task-attention ${task.outcome}`}
-            aria-label={OUTCOME_LABELS[task.outcome]}
-          />,
+        : attentionMark(task),
   ].filter(Boolean);
 
   /**
@@ -244,7 +275,7 @@ export function ProjectSidebar({
       key="dismiss"
       className="row-action task-dismiss"
       type="button"
-      aria-label={`Dismiss ${task.title}`}
+      aria-label={schedules.has(task.id) ? `Dismiss ${task.title}, which keeps running on its schedule` : `Dismiss ${task.title}`}
       onClick={(event) => {
         event.stopPropagation();
         onDismissTask(task.id);
@@ -363,17 +394,11 @@ export function ProjectSidebar({
       {rowBody(task, `task-row ${task.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{task.title}</span>
-          <small>{activityMeta(task)}</small>
+          <small>{activityMeta(task, projects)}</small>
         </span>
       ), action)}
     </div>
   );
-
-  /** What a row says under its title in activity mode: which folder it lives in, and when it last moved. */
-  function activityMeta(task: Task) {
-    const project = projects.find((item) => item.id === task.projectId);
-    return [project && projectName(project.root), formatTime(threadActivityAt(task))].filter(Boolean).join(" · ");
-  }
 
   return (
     <DragDropContext onDragEnd={finishDrag}>
@@ -413,7 +438,7 @@ export function ProjectSidebar({
       <div className="sidebar-scroll">
         {mode === "activity" && ACTIVITY_SECTIONS.map(({ key, label }) => {
           const tasks = activityTasks[key];
-          const dottedCount = key === "priority" ? tasks.filter((task) => task.outcome).length : 0;
+          const dottedCount = key === "priority" ? dismissableTasks(tasks).length : 0;
           return (
             <section className="activity-group" key={key}>
               <div className="section-heading activity-heading">
@@ -428,7 +453,9 @@ export function ProjectSidebar({
                   </button>
                 )}
               </div>
-              {sections[key] && <nav className="task-list" aria-label={label}>
+              {sections[key] && tasks.length === 0 && key === "priority" && <p className="sidebar-empty">Nothing waiting</p>}
+              {/** Only Priority speaks: a spinner appearing in Running is not news anyone needs read out. */}
+              {sections[key] && <nav className="task-list" aria-label={label} aria-live={key === "priority" ? "polite" : undefined}>
                 {tasks.map((task) => activityRow(task, key === "priority" && !blockedTaskIds.has(task.id) ? "dismiss" : "none"))}
               </nav>}
             </section>
@@ -533,7 +560,7 @@ export function ProjectSidebar({
               {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
               {recentTasks.map((task, index) => taskRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
                   <span>{task.title}</span>
-                  <small>{formatTime(task.updatedAt)}</small>
+                  <small>{formatTime(threadActivityAt(task))}</small>
                 </span>))}
               {provided.placeholder}
             </nav>

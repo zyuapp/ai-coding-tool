@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { browserTarget, deriveView, dockFor, dockOwner, emptyWorkspaceState, promptKey, sideChatIds, stateFromData, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
+import { deriveView, emptyWorkspaceState, promptKey, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import { resolveScope, threadBusy, threadHandleOptions, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
+import { threadHandleOptions } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
-import type { ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
-import { terminalLineLimit } from "../../domain/terminal";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivity } from "../../domain/run";
 import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
+import { subscribeToDesktop } from "./desktop-subscriptions";
+import { errorMessage } from "./errors";
+import { answerThreadRequest, releaseThreadWaiters, type ThreadRequestHost, type ThreadWaiter } from "./thread-requests";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { displayShortcut } from "../../domain/shortcuts";
@@ -24,21 +25,7 @@ import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerm
 
 export type { ApprovalView } from "../../application/task-workspace";
 
-/** How much page text a read returns when the caller does not say. */
-const DEFAULT_PAGE_TEXT = 4_000;
-
-/** A tool call held open until the thread it names stops working. */
-type ThreadWaiter = {
-  threadId: string;
-  settle: (state: WorkspaceState) => void;
-  timer: number;
-};
-
 type EnvironmentRefreshEffect = Extract<WorkspaceEffect, { type: "refresh-environment" }>;
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function initialState(store: ReturnType<typeof createLocalTaskStore>): WorkspaceState {
   const loaded = store.load();
@@ -125,7 +112,7 @@ export function useTaskWorkspace() {
     if (next === previous) return;
     stateRef.current = next;
     setState(next);
-    releaseThreadWaiters(next);
+    releaseThreadWaiters(threadWaiters, next);
     if (!persist || !persistenceReady.current || !next.writable || next.storageError) return;
     const delta = persistenceDelta(previous, next);
     if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !delta.worktrees && !("lastFolder" in delta)) return;
@@ -362,114 +349,10 @@ export function useTaskWorkspace() {
       case "capture-shortcut":
         window.desktop.setShortcutCapture(effect.capturing);
         return;
-    }
-  }
 
-  /** A thread being waited on has settled, so the waiting tool call can answer. */
-  function releaseThreadWaiters(state: WorkspaceState) {
-    const waiting = threadWaiters.current;
-    if (!waiting.length) return;
-    const settled = waiting.filter((waiter) => !threadBusy(state, waiter.threadId));
-    if (!settled.length) return;
-    threadWaiters.current = waiting.filter((waiter) => !settled.includes(waiter));
-    for (const waiter of settled) {
-      window.clearTimeout(waiter.timer);
-      waiter.settle(state);
-    }
-  }
-
-  /**
-   * The window is the only holder of workspace state, so it answers thread requests itself: reads
-   * come from the projection, and writes go through the same reducer the UI dispatches into.
-   */
-  async function answerThreadRequest(request: ThreadRequest): Promise<ThreadResponse> {
-    const requestId = request.requestId;
-    const ok = (result: unknown): ThreadResponse => ({ type: "thread.response", requestId, ok: true, result });
-    const failed = (message: string): ThreadResponse => ({ type: "thread.response", requestId, ok: false, message });
-    try {
-      if (request.op === "list") {
-        const scope = resolveScope(stateRef.current, request.taskId, request.project);
-        if ("error" in scope) return failed(scope.error);
-        return ok(threadSummaries(stateRef.current, {
-          scope,
-          ...(request.archived === undefined ? {} : { archived: request.archived }),
-          ...(request.idleForMs === undefined ? {} : { idleForMs: request.idleForMs }),
-          ...(request.search === undefined ? {} : { search: request.search }),
-          ...(request.attachments === undefined ? {} : { attachments: request.attachments }),
-          ...(request.limit === undefined ? {} : { limit: request.limit }),
-        }, Date.now()));
-      }
-      if (request.op === "read") {
-        const transcript = threadTranscript(stateRef.current, request.threadId, request.limit);
-        return transcript ? ok(transcript) : failed(`No thread has the ID ${request.threadId}.`);
-      }
-      if (request.op === "wait") {
-        const waited = threadWaitResult(stateRef.current, request.threadId, false);
-        if (!waited) return failed(`No thread has the ID ${request.threadId}.`);
-        if (!threadBusy(stateRef.current, request.threadId)) return ok(waited);
-        return new Promise<ThreadResponse>((resolve) => {
-          const waiter: ThreadWaiter = {
-            threadId: request.threadId,
-            settle: (state) => resolve(ok(threadWaitResult(state, request.threadId, false))),
-            timer: window.setTimeout(() => {
-              threadWaiters.current = threadWaiters.current.filter((item) => item !== waiter);
-              resolve(ok(threadWaitResult(stateRef.current, request.threadId, true)));
-            }, request.timeoutMs),
-          };
-          threadWaiters.current.push(waiter);
-        });
-      }
-      if (request.op === "browser") {
-        const state = stateRef.current;
-        if (state.browserApproval?.taskId === request.taskId) return ok({ kind: "awaiting-approval", url: state.browserApproval.url });
-        /** A run reaches its own thread's dock, whichever dock the user has on screen. */
-        const dock = dockFor(state, dockOwner(state, request.taskId));
-        if (request.read.op === "tabs") return ok({ kind: "tabs", tabs: dock.browserTabs });
-        const tab = browserTarget(dock, request.read.tabId);
-        if (!tab) return ok({ kind: "no-tab" });
-        const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs);
-        return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
-      }
-      if (request.op === "terminal") {
-        const state = stateRef.current;
-        const dock = dockFor(state, dockOwner(state, request.taskId));
-        if (request.read.op === "terminals") return ok({ kind: "terminals", terminals: dock.terminals });
-        const terminal = terminalTarget(dock, request.read.terminalId, request.taskId);
-        if (!terminal) return ok({ kind: "no-terminal" });
-        const text = await window.desktop.readTerminal(terminal.id, {
-          lines: terminalLineLimit(request.read.lines),
-          ...(request.read.match ? { match: request.read.match } : {}),
-        });
-        if (!text) return ok({ kind: "no-terminal" });
-        const { taskId: _thread, id: _id, ...record } = terminal;
-        return ok({ kind: "snapshot", snapshot: { terminalId: terminal.id, ...record, ...text } });
-      }
-      const { command } = request;
-      const before = stateRef.current;
-      /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
-      if (command.type.startsWith("browser.")) {
-        await dispatchRef.current(command);
-        const acted = stateRef.current;
-        return acted.actionError && acted.actionError !== before.actionError ? failed(acted.actionError) : ok({ thread: null });
-      }
-      if (command.taskId !== undefined && !before.tasks.some((task) => task.id === command.taskId)) {
-        return failed(`No thread has the ID ${command.taskId}.`);
-      }
-      /** A new thread with no project named belongs where the thread that asked for it lives. */
-      const callerProjectId = before.tasks.find((task) => task.id === request.taskId)?.projectId;
-      const targeted = command.type === "task.send" && command.taskId === undefined && command.project === undefined && callerProjectId
-        ? { ...command, project: callerProjectId }
-        : command;
-      const known = new Set(before.tasks.map((task) => task.id));
-      await dispatchRef.current(targeted);
-      const after = stateRef.current;
-      const thread = command.taskId
-        ? after.tasks.find((task) => task.id === command.taskId)
-        : after.tasks.find((task) => !known.has(task.id));
-      if (!thread && after.actionError && after.actionError !== before.actionError) return failed(after.actionError);
-      return ok({ thread: thread ? threadSummary(after, thread) : null });
-    } catch (error) {
-      return failed(errorMessage(error));
+      case "announce-finding":
+        window.desktop.announceFinding(effect.notice);
+        return;
     }
   }
 
@@ -520,8 +403,9 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
+    const host: ThreadRequestHost = { state: () => stateRef.current, dispatch: (input) => dispatchRef.current(input), waiters: threadWaiters };
     const stopListening = window.desktop.onThreadRequest((request) => {
-      void answerThreadRequest(request).then((response) => window.desktop.answerThreadRequest(response));
+      void answerThreadRequest(host, request).then((response) => window.desktop.answerThreadRequest(response));
     });
     return () => {
       stopListening();
@@ -580,14 +464,7 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
-    /** A folder the `claudex` command named arrives as an already-registered workspace. */
-    return window.desktop.onOpenProject((workspace) => void dispatchRef.current({ type: "project.opened", workspace }));
-  }, []);
-
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    /** The desktop hotkey names no thread, so a grabbed window waits in whichever composer is current. */
-    return window.desktop.onWindowScreenshot((shot) => void dispatchRef.current({ type: "image.add", path: shot.path, label: shot.title ? `${shot.app} — ${shot.title}` : shot.app }));
+    return subscribeToDesktop((input) => void dispatchRef.current(input));
   }, []);
 
   useEffect(() => {

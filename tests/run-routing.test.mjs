@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptRunEvent, failedEventsForTransportLoss, supersedePendingStarts } from "../dist/main/main/run-routing.js";
+import { acceptRunEvent, AUTOMATION_SETTLE_TIMEOUT, failedEventsForTransportLoss, settledWithin, supersedePendingStarts } from "../dist/main/main/run-routing.js";
 
 test("new start supersedes every older pending start and keeps the new one", () => {
   const pending = new Map([["old", { runId: "old" }], ["new", { runId: "new" }], ["older", { runId: "older" }]]);
@@ -43,4 +43,14 @@ test("transport loss creates correlated failures only for non-terminal runs", ()
     status: "failed",
     message: "Agent process exited with code 1.",
   }]);
+});
+
+test("a scheduled run that never reports back is called failed instead of holding the schedule", async () => {
+  assert.equal(await settledWithin(Promise.resolve("succeeded"), 10_000), "succeeded");
+  assert.equal(await settledWithin(Promise.resolve("cancelled"), 10_000), "cancelled");
+  assert.ok(AUTOMATION_SETTLE_TIMEOUT >= 60 * 60_000, "the bound is far longer than an honest run");
+
+  const bounded = settledWithin(new Promise(() => {}), 5);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(await bounded, "failed");
 });

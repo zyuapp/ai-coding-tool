@@ -440,3 +440,20 @@ test("a thread claiming a checkout that is not there is local again, rather than
   assert.equal(result.data.tasks[0].worktreeId, undefined);
   assert.equal(result.data.tasks[0].worktreeEnteredAt, undefined);
 });
+
+test("what a thread's runs found survives being written and read back, and a malformed one refuses the store", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  migrated.data.tasks[0].findings = [{ id: "finding-1", headline: "Checkout is returning 5xx", detail: "12 in the last hour", key: "checkout", at: 30 }];
+  migrated.data.tasks[0].messages = [{ ...task.messages[0], quiet: true }];
+
+  const parsed = parseTaskStore(serializeTaskStore(migrated.data));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data.tasks[0].findings, migrated.data.tasks[0].findings);
+  assert.equal(parsed.data.tasks[0].messages[0].quiet, true);
+
+  const broken = serializeTaskStore({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], findings: [{ id: "finding-1", at: 30 }] }] });
+  assert.equal(parseTaskStore(broken).ok, false, "a finding with nothing to say is not a finding");
+});

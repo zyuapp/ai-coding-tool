@@ -51,6 +51,8 @@ export type TaskMessage = {
   annotations?: Annotation[];
   /** Blocks pasted into the composer and sent with this message. The agent gets them in the prompt; the timeline shows pills. */
   pastes?: PastedText[];
+  /** Written by a tick that surfaced nothing. It stays in the thread and out of the thread's activity. */
+  quiet?: true;
   at: number;
 };
 
@@ -87,6 +89,27 @@ export type ContinuationStatus = "none" | "available" | "invalid";
 /** How the thread's newest settled run ended. Whether it is blocked on an approval lives in `activeRuns`. */
 export type TaskOutcome = "finished" | "failed";
 
+/**
+ * Something a run said it found, on purpose. A verdict belongs to one run and is cleared by the next;
+ * a finding outlives every run after it, so a tick at 3am is still there when the user wakes up.
+ */
+export type TaskFinding = {
+  id: string;
+  headline: string;
+  detail?: string;
+  /** What the finding is about, stable across runs, so the same one is not raised twice. */
+  key?: string;
+  at: number;
+  read?: true;
+};
+
+/** How many findings a thread keeps. Past this the oldest is dropped. */
+export const MAX_FINDINGS = 10;
+/** What one may carry: a line for the sidebar, a body for the thread, and a name to match it on. */
+export const MAX_HEADLINE = 200;
+export const MAX_DETAIL = 10_000;
+export const MAX_FINDING_KEY = 200;
+
 const TITLE_LIMIT = 52;
 
 /** One length for every thread title, whoever wrote it: the user, the first message, or the model. */
@@ -112,9 +135,21 @@ export function threadCreatedAt(task: Task): number {
   return task.createdAt ?? task.messages[0]?.at ?? task.updatedAt;
 }
 
-/** When the thread last did something. `updatedAt` moves on any write, so it cannot answer this. */
+/**
+ * When the thread last did something. `updatedAt` moves on any write, so it cannot answer this.
+ * A tick that surfaced nothing left quiet messages behind and put `runEndedAt` back, so it counts
+ * for nothing here: four such schedules must not reshuffle the list two hundred times a day.
+ */
 export function threadActivityAt(task: Task): number {
-  return Math.max(threadCreatedAt(task), task.messages.at(-1)?.at ?? 0, task.runEndedAt ?? 0);
+  return Math.max(threadCreatedAt(task), lastAudibleAt(task), task.runEndedAt ?? 0);
+}
+
+function lastAudibleAt(task: Task): number {
+  for (let index = task.messages.length - 1; index >= 0; index -= 1) {
+    const message = task.messages[index]!;
+    if (!message.quiet) return message.at;
+  }
+  return 0;
 }
 
 export const ARCHIVE_RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
@@ -151,6 +186,10 @@ export type Task = {
   outcome?: TaskOutcome;
   /** Set while the user has yet to see that verdict. It marks the thread, the verdict ranks it. */
   outcomeUnread?: true;
+  /** What runs on this thread found, newest last. Cleared by a dismissal, never by the next run. */
+  findings?: TaskFinding[];
+  /** When a run on this thread last found something. A dismissal files the findings away, not this. */
+  lastFindingAt?: number;
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
   /**
@@ -518,12 +557,24 @@ function isTaskBase(value: unknown): value is Task {
     (value.sortIndex === undefined || finiteNumber(value.sortIndex)) &&
     (value.outcome === undefined || isTaskOutcome(value.outcome)) &&
     (value.outcomeUnread === undefined || value.outcomeUnread === true) &&
+    (value.findings === undefined || Array.isArray(value.findings) && value.findings.every(isTaskFinding)) &&
+    (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&
     (value.archivedAt === undefined || finiteNumber(value.archivedAt));
+}
+
+function isTaskFinding(value: unknown): value is TaskFinding {
+  return isRecord(value) &&
+    nonEmptyString(value.id) &&
+    nonEmptyString(value.headline) &&
+    (value.detail === undefined || typeof value.detail === "string") &&
+    (value.key === undefined || nonEmptyString(value.key)) &&
+    finiteNumber(value.at) &&
+    (value.read === undefined || value.read === true);
 }
 
 function isTaskOutcome(value: unknown): value is TaskOutcome {
@@ -579,6 +630,7 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
     (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
     (value.pastes === undefined || (Array.isArray(value.pastes) && value.pastes.every(isPastedText))) &&
+    (value.quiet === undefined || value.quiet === true) &&
     finiteNumber(value.at);
 }
 
