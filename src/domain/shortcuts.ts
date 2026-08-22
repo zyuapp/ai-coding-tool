@@ -176,8 +176,42 @@ export function displayShortcut(binding: string, mac: boolean): string {
   ].join("");
 }
 
+/**
+ * The keystrokes the app owns outright. They carry the meaning the platform already gives them, so a
+ * binding for them would be a guess the user has no reason to correct.
+ */
+export const FIXED_SHORTCUTS: readonly ShortcutBinding[] = [
+  { action: "thread.new", binding: "Mod+N", surface: "any" },
+  { action: "thread.new-worktree", binding: "Mod+Shift+N", surface: "any" },
+  { action: "composer.focus", binding: "Mod+L", surface: "any" },
+
+  { action: "find.open", binding: "Mod+F", surface: "any" },
+  { action: "find.next", binding: "Mod+G", surface: "any" },
+  { action: "find.previous", binding: "Mod+Shift+G", surface: "any" },
+
+  { action: "nav.back", binding: "Mod+[", surface: "any" },
+  { action: "nav.forward", binding: "Mod+]", surface: "any" },
+  { action: "page.reload", binding: "Mod+R", surface: "browser" },
+
+  { action: "tab.new", binding: "Mod+T", surface: "any" },
+  { action: "tab.close", binding: "Mod+W", surface: "any" },
+  { action: "dock.toggle", binding: "Mod+\\", surface: "any" },
+  { action: "dock.expand", binding: "Mod+Shift+\\", surface: "any" },
+  { action: "sidebar.toggle", binding: "Mod+B", surface: "any" },
+  { action: "settings.toggle", binding: "Mod+,", surface: "any" },
+  ...Array.from({ length: 8 }, (_, index) => ({
+    action: `dock.tab-${index + 1}`,
+    binding: `Mod+${index + 1}`,
+    surface: "any" as const,
+  })),
+  { action: "dock.tab-last", binding: "Mod+9", surface: "any" },
+];
+
+const FIXED_BINDINGS = new Set(FIXED_SHORTCUTS.map((fixed) => fixed.binding));
+
 export const SHORTCUT_MODIFIER_REQUIRED = "A shortcut needs ⌘, ⌥, or ⌃ so it cannot swallow what you type.";
 export const SHORTCUT_RESERVED = "That keystroke belongs to the desktop.";
+export const SHORTCUT_TAKEN = "That keystroke is one the app already answers.";
 
 /** Why a keystroke cannot be bound, or null when it can. */
 export function shortcutProblem(binding: string): string | null {
@@ -185,42 +219,18 @@ export function shortcutProblem(binding: string): string | null {
   if (!stroke) return SHORTCUT_RESERVED;
   if (!stroke.mod && !stroke.ctrl && !stroke.alt) return SHORTCUT_MODIFIER_REQUIRED;
   if (stroke.key === "Tab" || (stroke.key === "Q" && stroke.mod && !stroke.ctrl && !stroke.alt && !stroke.shift)) return SHORTCUT_RESERVED;
+  if (FIXED_BINDINGS.has(formatShortcut(stroke))) return SHORTCUT_TAKEN;
   return null;
 }
 
+/**
+ * The actions worth a row in settings: the ones whose default is a guess, either because the app
+ * invented the action or because the keystroke reaches past the app and can collide with what the
+ * user already runs.
+ */
 export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
-  { id: "thread.new", group: "Threads", label: "New thread", description: "Start a thread in the project you are in", surface: "any", defaultBinding: "Mod+N" },
-  { id: "thread.new-worktree", group: "Threads", label: "New thread in a worktree", description: "Start a thread that gets a checkout of its own", surface: "any", defaultBinding: "Mod+Shift+N" },
-  { id: "thread.previous", group: "Threads", label: "Previous thread", description: "Move up the sidebar", surface: "any", defaultBinding: "Mod+Alt+ArrowLeft" },
-  { id: "thread.next", group: "Threads", label: "Next thread", description: "Move down the sidebar", surface: "any", defaultBinding: "Mod+Alt+ArrowRight" },
-  { id: "run.cancel", group: "Threads", label: "Stop the run", description: "Cancel what this thread is doing", surface: "any", defaultBinding: "Mod+." },
   { id: "run.allow", group: "Threads", label: "Allow", description: "Answer the approval this thread is waiting on", surface: "any", defaultBinding: "Mod+Shift+A" },
   { id: "run.deny", group: "Threads", label: "Deny", description: "Refuse the approval this thread is waiting on", surface: "any", defaultBinding: "Mod+Shift+D" },
-  { id: "composer.focus", group: "Threads", label: "Focus the composer", description: "Put the caret in the prompt", surface: "any", defaultBinding: "Mod+L" },
-
-  { id: "find.open", group: "Find", label: "Find", description: "Search the transcript, the page, or the shell you are reading", surface: "any", defaultBinding: "Mod+F" },
-  { id: "find.next", group: "Find", label: "Next match", description: "Move to the match after this one", surface: "any", defaultBinding: "Mod+G" },
-  { id: "find.previous", group: "Find", label: "Previous match", description: "Move to the match before this one", surface: "any", defaultBinding: "Mod+Shift+G" },
-
-  { id: "nav.back", group: "Navigation", label: "Back", description: "The thread you came from, or the page before this one", surface: "any", defaultBinding: "Mod+[" },
-  { id: "nav.forward", group: "Navigation", label: "Forward", description: "The thread you came back from, or the page after this one", surface: "any", defaultBinding: "Mod+]" },
-  { id: "page.reload", group: "Navigation", label: "Reload the page", description: "Only while a page in the panel has the keys", surface: "browser", defaultBinding: "Mod+R" },
-
-  { id: "tab.new", group: "Panels", label: "New tab", description: "Another page, another shell, or a shell when the panel holds neither", surface: "any", defaultBinding: "Mod+T" },
-  { id: "tab.close", group: "Panels", label: "Close", description: "Whatever is in front, then the panel, then the window", surface: "any", defaultBinding: "Mod+W" },
-  { id: "dock.toggle", group: "Panels", label: "Show or hide the panel", description: "The right dock", surface: "any", defaultBinding: "Mod+\\" },
-  { id: "dock.expand", group: "Panels", label: "Expand or restore the panel", description: "The right dock across the whole workspace", surface: "any", defaultBinding: "Mod+Shift+\\" },
-  { id: "sidebar.toggle", group: "Panels", label: "Show or hide the sidebar", description: "The thread list", surface: "any", defaultBinding: "Mod+B" },
-  { id: "settings.toggle", group: "Panels", label: "Settings", description: "Open settings, or leave them", surface: "any", defaultBinding: "Mod+," },
-  ...["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"].map((ordinal, index) => ({
-    id: `dock.tab-${index + 1}`,
-    group: "Panels",
-    label: `Panel tab ${index + 1}`,
-    description: `Show the ${ordinal} tab in the panel`,
-    surface: "any" as const,
-    defaultBinding: `Mod+${index + 1}`,
-  })),
-  { id: "dock.tab-last", group: "Panels", label: "Last panel tab", description: "Show the last tab in the panel", surface: "any", defaultBinding: "Mod+9" },
 
   { id: "window.capture", group: "Capture", label: "Grab the window you are in", description: "Attach the frontmost app's window to this thread, from anywhere on the desktop", surface: "desktop", defaultBinding: "Alt+Shift+S" },
 ];
@@ -249,11 +259,12 @@ export function shortcutSettings(overrides: ShortcutOverrides): ShortcutSetting[
 
 /**
  * The bindings the main process matches against. A keystroke belongs to one action, so an action
- * that shares one with an earlier action is left unbound rather than firing both.
+ * that shares one with an earlier action is left unbound rather than firing both. The fixed ones are
+ * claimed first, so no override can take a keystroke the app answers on its own.
  */
 export function resolveShortcuts(overrides: ShortcutOverrides): ShortcutBinding[] {
-  const taken = new Set<string>();
-  const bindings: ShortcutBinding[] = [];
+  const taken = new Set(FIXED_BINDINGS);
+  const bindings: ShortcutBinding[] = [...FIXED_SHORTCUTS];
   for (const setting of shortcutSettings(overrides)) {
     if (!setting.binding || taken.has(setting.binding) || shortcutProblem(setting.binding)) continue;
     taken.add(setting.binding);

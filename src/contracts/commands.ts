@@ -76,7 +76,6 @@ export type TaskCommand =
    */
   | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
-  | { type: "task.step"; delta: -1 | 1 }
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
   | { type: "task.drop-queued"; taskId?: string; messageId: string };
 

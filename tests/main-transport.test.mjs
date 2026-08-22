@@ -118,12 +118,18 @@ test("a bound keystroke is taken from the window's menu and handed to whatever i
 
   assert.equal(press("KeyR"), false, "reloading belongs to a page in the panel, not to the window");
 
-  listeners.get("shortcuts:set")(untrusted, { "tab.close": "Mod+E" });
-  assert.equal(press("KeyW"), true, "an untrusted sender cannot rebind anything");
-  listeners.get("shortcuts:set")(trusted, { "tab.close": "Mod+E" });
-  assert.equal(press("KeyW"), false, "the keystroke it used to hold is free again");
+  assert.equal(press("KeyA", { shift: true }), true, "answering an approval is bound where the user can move it");
+
+  listeners.get("shortcuts:set")(untrusted, { "run.allow": "Mod+E" });
+  assert.equal(press("KeyA", { shift: true }), true, "an untrusted sender cannot rebind anything");
+  listeners.get("shortcuts:set")(trusted, { "run.allow": "Mod+E" });
+  assert.equal(press("KeyA", { shift: true }), false, "the keystroke it used to hold is free again");
   assert.equal(press("KeyE"), true);
-  assert.deepEqual(shortcuts().at(-1), { action: "tab.close", surface: "any" });
+  assert.deepEqual(shortcuts().at(-1), { action: "run.allow", surface: "any" });
+
+  listeners.get("shortcuts:set")(trusted, { "run.allow": "Mod+W" });
+  assert.equal(press("KeyW"), true);
+  assert.deepEqual(shortcuts().at(-1), { action: "tab.close", surface: "any" }, "a keystroke the app answers itself is not one an override can take");
 
   listeners.get("shortcuts:capture")(trusted, true);
   const acted = shortcuts().length;

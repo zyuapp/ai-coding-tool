@@ -292,7 +292,7 @@ export function SettingsPanel({
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Shortcuts</h2>
-          <p>Every shortcut works wherever you are, including inside a page the browser panel is showing.</p>
+          <p>The rest of the keyboard is fixed, so only the keystrokes worth choosing yourself are here.</p>
         </div>
 
         {[...new Set(shortcuts.map((shortcut) => shortcut.group))].map((group, index) => (

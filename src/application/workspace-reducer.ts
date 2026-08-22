@@ -792,8 +792,6 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
   switch (action) {
     case "thread.new": return [...leaving, newThread];
     case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];
-    case "thread.previous": return [...leaving, { type: "task.step", delta: -1 }];
-    case "thread.next": return [...leaving, { type: "task.step", delta: 1 }];
     case "run.cancel": return [{ type: "run.cancel" }];
     case "run.allow": return [{ type: "run.decide", allow: true }];
     case "run.deny": return [{ type: "run.decide", allow: false }];
@@ -922,18 +920,6 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "task.dismiss-all": {
       const dotted = new Set(state.tasks.filter((task) => task.outcome).map((task) => task.id));
       return settled(dotted.size ? { ...state, tasks: withoutOutcome(state.tasks, dotted) } : state);
-    }
-
-    /** Walks the sidebar. From a draft the list is entered from whichever end the step comes from. */
-    case "task.step": {
-      const forked = sideChatIds(state);
-      const ordered = orderTasks(state.tasks.filter((task) => !forked.has(task.id) && task.archivedAt === undefined));
-      if (!ordered.length) return settled(state);
-      const position = ordered.findIndex((task) => task.id === state.currentId);
-      const next = position === -1
-        ? ordered[input.delta === 1 ? 0 : ordered.length - 1]
-        : ordered[position + input.delta];
-      return next ? apply(state, { type: "task.select", taskId: next.id }) : settled(state);
     }
 
     /**

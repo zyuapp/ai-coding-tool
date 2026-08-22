@@ -4060,26 +4060,26 @@ test("settings rebind a shortcut, and the window is told what to match", async (
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Shortcuts").click(); });
   const row = (label) => [...view.container.querySelectorAll(".shortcut-row")].find((element) => element.querySelector("strong").textContent === label);
   /** jsdom is no Mac, so the panel spells its modifiers out rather than drawing them. */
-  assert.equal(row("New thread").querySelector("kbd").textContent, "Ctrl+N");
+  assert.equal(row("Allow").querySelector("kbd").textContent, "Ctrl+Shift+A");
 
-  await act(async () => { [...row("New thread").querySelectorAll("button")].find((button) => button.textContent === "Change").click(); });
-  assert.match(row("New thread").textContent, /Press a keystroke…/);
+  await act(async () => { [...row("Allow").querySelectorAll("button")].find((button) => button.textContent === "Change").click(); });
+  assert.match(row("Allow").textContent, /Press a keystroke…/);
   assert.deepEqual(desktop.captures, [true]);
 
   await act(async () => { desktop.captureShortcut("Mod+Shift+K"); });
-  assert.equal(row("New thread").querySelector("kbd").textContent, "Ctrl+Shift+K");
+  assert.equal(row("Allow").querySelector("kbd").textContent, "Ctrl+Shift+K");
   assert.deepEqual(desktop.captures, [true, false], "the window goes back to acting on keystrokes");
-  assert.deepEqual(desktop.shortcuts.at(-1), { "thread.new": "Mod+Shift+K" });
+  assert.deepEqual(desktop.shortcuts.at(-1), { "run.allow": "Mod+Shift+K" });
 
   /** Taking a keystroke that another action holds leaves that action with none. */
-  await act(async () => { [...row("New tab").querySelectorAll("button")].find((button) => button.textContent === "Change").click(); });
-  await act(async () => { desktop.captureShortcut("Mod+W"); });
-  assert.equal(row("New tab").querySelector("kbd").textContent, "Ctrl+W");
-  assert.match(row("Close").textContent, /Not set/);
-  assert.deepEqual(desktop.shortcuts.at(-1), { "thread.new": "Mod+Shift+K", "tab.new": "Mod+W", "tab.close": null });
+  await act(async () => { [...row("Deny").querySelectorAll("button")].find((button) => button.textContent === "Change").click(); });
+  await act(async () => { desktop.captureShortcut("Mod+Shift+K"); });
+  assert.equal(row("Deny").querySelector("kbd").textContent, "Ctrl+Shift+K");
+  assert.match(row("Allow").textContent, /Not set/);
+  assert.deepEqual(desktop.shortcuts.at(-1), { "run.allow": null, "run.deny": "Mod+Shift+K" });
 
   await act(async () => { view.container.querySelector(".settings-group-action button").click(); });
-  assert.equal(row("New thread").querySelector("kbd").textContent, "Ctrl+N");
+  assert.equal(row("Allow").querySelector("kbd").textContent, "Ctrl+Shift+A");
   assert.deepEqual(desktop.shortcuts.at(-1), {});
 
   await view.unmount();

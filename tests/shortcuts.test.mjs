@@ -6,6 +6,7 @@ import {
   formatShortcut,
   keystrokeOf,
   parseShortcut,
+  FIXED_SHORTCUTS,
   resolveShortcuts,
   SHORTCUT_ACTIONS,
   shortcutFor,
@@ -81,36 +82,39 @@ test("a shortcut has to carry a modifier, and cannot take what the desktop keeps
 });
 
 test("a keystroke belongs to one action, so binding it takes it from whoever held it", () => {
-  const stolen = withShortcut({}, "thread.new", "Mod+T");
-  assert.deepEqual(stolen, { "thread.new": "Mod+T", "tab.new": null }, "⌘T left the tab it used to open");
+  const stolen = withShortcut({}, "run.allow", "Mod+Shift+D");
+  assert.deepEqual(stolen, { "run.allow": "Mod+Shift+D", "run.deny": null }, "⇧⌘D left the answer it used to give");
 
   const settings = shortcutSettings(stolen);
-  assert.equal(settings.find((setting) => setting.id === "tab.new").binding, null);
-  assert.equal(settings.find((setting) => setting.id === "tab.new").changed, true);
+  assert.equal(settings.find((setting) => setting.id === "run.deny").binding, null);
+  assert.equal(settings.find((setting) => setting.id === "run.deny").changed, true);
 
-  const restored = withShortcut(stolen, "thread.new", "Mod+N");
-  assert.deepEqual(restored, { "tab.new": null }, "a binding back at its default is no longer worth storing");
-  assert.deepEqual(withShortcut(restored, "tab.new", "Mod+T"), {}, "and neither is the one that took it back");
+  const restored = withShortcut(stolen, "run.allow", "Mod+Shift+A");
+  assert.deepEqual(restored, { "run.deny": null }, "a binding back at its default is no longer worth storing");
+  assert.deepEqual(withShortcut(restored, "run.deny", "Mod+Shift+D"), {}, "and neither is the one that took it back");
+});
+
+test("the keystrokes the app answers on its own are not on offer", () => {
+  assert.equal(SHORTCUT_ACTIONS.some((action) => FIXED_SHORTCUTS.some((fixed) => fixed.action === action.id)), false);
+  assert.ok(shortcutProblem("Mod+F"), "finding is the app's own");
+  assert.ok(shortcutProblem("Mod+1"), "and so is the first panel tab");
 });
 
 test("only bound, unclaimed keystrokes reach the matcher", () => {
-  const bindings = resolveShortcuts({ "tab.new": null });
-  assert.equal(bindings.some((binding) => binding.action === "tab.new"), false);
+  const bindings = resolveShortcuts({ "run.allow": null });
+  assert.equal(bindings.some((binding) => binding.action === "run.allow"), false);
 
-  const close = shortcutFor(bindings, parseShortcut("Mod+W"), "any");
-  assert.equal(close.action, "tab.close");
-
+  assert.equal(shortcutFor(bindings, parseShortcut("Mod+W"), "any").action, "tab.close");
   assert.equal(shortcutFor(bindings, parseShortcut("Mod+R"), "any"), undefined, "reloading is a page's keystroke");
   assert.equal(shortcutFor(bindings, parseShortcut("Mod+R"), "browser").action, "page.reload");
   assert.equal(shortcutFor(bindings, parseShortcut("Mod+W"), "browser").action, "tab.close", "the rest work inside a page too");
 
-  const shared = resolveShortcuts({ "thread.new": "Mod+W" });
-  assert.deepEqual(shared.filter((binding) => binding.binding === "Mod+W").map((binding) => binding.action), ["thread.new"], "the later action goes unbound rather than both firing");
+  const shared = resolveShortcuts({ "run.deny": "Mod+W" });
+  assert.deepEqual(shared.filter((binding) => binding.binding === "Mod+W").map((binding) => binding.action), ["tab.close"], "a fixed keystroke is not one an override can take");
 });
 
 test("a keystroke means whatever the user could have clicked", () => {
   const state = workspace({ tasks: [task("a"), task("b")], currentId: "a", draftProjectId: null });
-  assert.deepEqual(shortcutCommands(state, "thread.next", "any"), [{ type: "task.step", delta: 1 }]);
   assert.deepEqual(shortcutCommands(state, "dock.tab-3", "any"), [{ type: "view.select-dock-index", index: 2 }]);
   assert.deepEqual(shortcutCommands(state, "dock.tab-last", "any"), [{ type: "view.select-dock-index", index: -1 }]);
   assert.deepEqual(shortcutCommands(state, "nav.back", "any"), [{ type: "view.go-back" }]);
@@ -122,21 +126,6 @@ test("a keystroke means whatever the user could have clicked", () => {
 
   const inProject = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a" });
   assert.deepEqual(shortcutCommands(inProject, "thread.new", "any"), [{ type: "task.new", projectId: "p1" }], "a new thread starts where the last one was");
-});
-
-test("the keyboard walks the thread list and stops at its ends", () => {
-  const state = workspace({ tasks: [task("a", { sortIndex: 0 }), task("b", { sortIndex: 1 })], currentId: "a" });
-  const next = reduce(state, { type: "view.shortcut", action: "thread.next", surface: "any" });
-  assert.equal(next.state.currentId, "b");
-  assert.equal(reduce(next.state, { type: "view.shortcut", action: "thread.next", surface: "any" }).state.currentId, "b", "the last thread is the last one");
-  assert.equal(reduce(next.state, { type: "view.shortcut", action: "thread.previous", surface: "any" }).state.currentId, "a");
-
-  const draft = workspace({ tasks: [task("a", { sortIndex: 0 }), task("b", { sortIndex: 1 })], currentId: null });
-  assert.equal(reduce(draft, { type: "view.shortcut", action: "thread.previous", surface: "any" }).state.currentId, "b", "from a draft the list is entered from the end the step comes from");
-  assert.equal(reduce(draft, { type: "view.shortcut", action: "thread.next", surface: "any" }).state.currentId, "a");
-
-  const archived = workspace({ tasks: [task("a", { sortIndex: 0 }), task("b", { sortIndex: 1, archivedAt: 2 })], currentId: "a" });
-  assert.equal(reduce(archived, { type: "view.shortcut", action: "thread.next", surface: "any" }).state.currentId, "a", "an archived thread is not in the list");
 });
 
 test("going back with a keystroke moves the cursor rather than recording a visit", () => {
@@ -157,9 +146,8 @@ test("a keystroke that moves the user somewhere leaves the settings sheet behind
   assert.equal(started.state.settingsOpen, false, "a new thread is not started behind the sheet");
   assert.equal(started.state.currentId, null);
 
-  const stepped = reduce(state, { type: "view.shortcut", action: "thread.next", surface: "any" });
-  assert.equal(stepped.state.settingsOpen, false);
-  assert.equal(stepped.state.currentId, "b");
+  const back = reduce(state, { type: "view.shortcut", action: "nav.back", surface: "any" });
+  assert.equal(back.state.settingsOpen, false, "the thread behind the sheet is not read through it");
 
   const cancelled = reduce(state, { type: "view.shortcut", action: "run.cancel", surface: "any" });
   assert.equal(cancelled.state.settingsOpen, true, "stopping a run is not moving anywhere");
@@ -190,16 +178,16 @@ test("a numbered keystroke shows the tab in that position", () => {
 });
 
 test("changing a binding persists it, hands it to the window, and stops the capture", () => {
-  const capturing = reduce(workspace({ settingsOpen: true }), { type: "view.capture-shortcut", action: "thread.new" });
-  assert.equal(capturing.state.capturingShortcut, "thread.new");
+  const capturing = reduce(workspace({ settingsOpen: true }), { type: "view.capture-shortcut", action: "run.allow" });
+  assert.equal(capturing.state.capturingShortcut, "run.allow");
   assert.deepEqual(capturing.effects, [{ type: "capture-shortcut", capturing: true }]);
 
   const bound = reduce(capturing.state, { type: "shortcut.captured", binding: "Mod+Shift+K" });
   assert.equal(bound.state.capturingShortcut, null);
-  assert.deepEqual(bound.state.shortcuts, { "thread.new": "Mod+Shift+K" });
+  assert.deepEqual(bound.state.shortcuts, { "run.allow": "Mod+Shift+K" });
   assert.deepEqual(bound.effects.map((effect) => effect.type), ["persist-preferences", "apply-shortcuts", "capture-shortcut"]);
   assert.deepEqual(bound.effects.at(-1), { type: "capture-shortcut", capturing: false });
-  assert.equal(deriveView(bound.state).shortcuts.find((setting) => setting.id === "thread.new").binding, "Mod+Shift+K");
+  assert.equal(deriveView(bound.state).shortcuts.find((setting) => setting.id === "run.allow").binding, "Mod+Shift+K");
 
   const refused = reduce(capturing.state, { type: "shortcut.captured", binding: "Mod+Q" });
   assert.deepEqual(refused.state.shortcuts, {}, "a keystroke the desktop keeps is not taken");
@@ -218,7 +206,7 @@ test("changing a binding persists it, hands it to the window, and stops the capt
 });
 
 test("settings that go stop waiting for a keystroke", () => {
-  const capturing = reduce(workspace({ settingsOpen: true }), { type: "view.capture-shortcut", action: "thread.new" }).state;
+  const capturing = reduce(workspace({ settingsOpen: true }), { type: "view.capture-shortcut", action: "run.allow" }).state;
 
   const closed = reduce(capturing, { type: "view.set-settings-open", open: false });
   assert.equal(closed.state.capturingShortcut, null);
