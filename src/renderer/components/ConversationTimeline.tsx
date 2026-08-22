@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { createPortal } from "react-dom";
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
-import type { FindView, ThreadWait } from "../../application/workspace-state";
+import { sameReadingPoint, type FindView, type ReadingPoint, type ThreadWait } from "../../application/workspace-state";
 import type { FindHit } from "../../domain/find";
 import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../domain/task";
 import { describeToolCall, type ToolFamily } from "../../domain/tool-call";
@@ -365,8 +365,11 @@ const FOOT: View = { at: "foot" };
 /** How far into a row an answer's first line sits, so it is not flush against the top of the view. */
 const ANSWER_DEPTH = -16;
 
-/** A scroll landing further than this from the one we asked for was the reader's, not ours. */
-const OURS_WITHIN = 4;
+/** A scroll landing this close to the one we asked for is that scroll arriving rather than the reader moving. */
+const LANDED_WITHIN = 4;
+
+/** How long a view waits for its reader to stop moving before telling the workspace where they are. */
+export const READING_SETTLE_MS = 150;
 
 export type ConversationTimelineProps = {
   currentTask?: Task;
@@ -377,6 +380,10 @@ export type ConversationTimelineProps = {
   waitingOn?: ThreadWait | null;
   streamingTail?: StreamingTail | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+  /** Where this thread was left reading, as the workspace holds it. Opening the thread puts it back. */
+  readingPoint?: ReadingPoint;
+  /** Reports where this thread's reader has settled, which the workspace keeps for the return trip. */
+  onReadingPointMove?: (point: ReadingPoint) => void;
   empty?: { icon: LucideIcon; title: string; description: string };
   /** Shown under the empty state, where a thread that does not exist yet is set up. */
   startOptions?: ReactNode;
@@ -392,7 +399,7 @@ export type ConversationTimelineProps = {
   onAnnotateSide?: (quote: string) => void;
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
@@ -410,22 +417,26 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const [markers, setMarkers] = useState<{ id: string; number: number; x: number; y: number }[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const view = useRef<View>(FOOT);
-  /** The offset the view was last placed at, which tells a scroll of ours from one of the reader's. */
-  const placedAt = useRef(-1);
   const restoreScroll = useRef<() => void>(() => {});
-  /** The one way anything scrolls the view, so every offset we ask for is one we can recognise. */
+  /** The one way anything scrolls the view, so every offset it asks for is one it can recognise. */
   const placeAt = useRef<(top: number, behavior?: ScrollBehavior) => void>(() => {});
-  /** Where each thread was left: a row and how far into it, or null for its foot. */
-  const readingPoints = useRef(new Map<string, { id: string; depth: number; tail?: string } | null>());
+  /** Where the view was last asked to sit, which tells a scroll of ours from one of the reader's. */
+  const placedAt = useRef(-1);
+  /** The target of a smooth scroll still on its way, which owns the events it passes on the way. */
+  const pendingScroll = useRef<number | null>(null);
+  /** Where this thread's reader is right now, as a reading point. */
+  const observed = useRef<ReadingPoint>(null);
+  /** The point the view was last placed from or reported, which keeps a report echoing back inert. */
+  const placedFrom = useRef<ReadingPoint>(null);
+  /** The reading point prop, read by effects that must not re-run when it changes. */
+  const incoming = useRef<ReadingPoint>(null);
+  incoming.current = readingPoint ?? null;
   /** The gap above the timeline, which puts the virtualizer's offsets in the scroller's own terms. */
   const [scrollMargin, setScrollMargin] = useState(0);
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */
   const answerId = streamingTail?.messageId ?? (lastMessage?.kind === "assistant" ? lastMessage.id : undefined);
   const toolId = lastMessage?.kind === "tool" ? lastMessage.id : undefined;
-  /** The newest line the thread has, which says whether it moved on while the reader was away. */
-  const newest = useRef<string | undefined>(undefined);
-  newest.current = streamingTail?.messageId ?? lastMessage?.id;
   const groups = useMemo(
     () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentTask?.runEndedAt }),
     [messages, status, streamingTail?.messageId, currentTask?.runEndedAt],
@@ -483,20 +494,57 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     if (!scroller || !timeline || typeof ResizeObserver === "undefined") return;
     const taskId = currentTask?.id;
     let frame = 0;
+    let commitTimer: ReturnType<typeof setTimeout> | undefined;
     const measure = () => setScrollMargin(timeline.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+
+    /** The reader's place right now, counted the way a reading point is kept. */
+    const observe = (): ReadingPoint => {
+      if (!taskId) return null;
+      const top = virtualizer.getVirtualItemForOffset(scroller.scrollTop);
+      return top ? { anchor: String(top.key), depth: scroller.scrollTop - top.start } : null;
+    };
+    /**
+     * The one way anything scrolls the view. It records where it asked to sit, and an instant jump
+     * confirms its own landing here — wherever no event will say so. A smooth scroll keeps its mark
+     * until it lands or the browser ends it.
+     */
     const settle = (top: number, behavior?: ScrollBehavior) => {
       placedAt.current = top;
+      pendingScroll.current = top;
       scroller.scrollTo({ top, ...(behavior ? { behavior } : {}) });
+      if (!behavior && Math.abs(scroller.scrollTop - top) <= LANDED_WITHIN) pendingScroll.current = null;
     };
     placeAt.current = settle;
+    /** Hands the thread's place to the workspace once it stops moving, unless that is what it already holds. */
+    const report = () => {
+      clearTimeout(commitTimer);
+      commitTimer = undefined;
+      if (taskId && !sameReadingPoint(observed.current, placedFrom.current)) {
+        placedFrom.current = observed.current;
+        onReadingPointMove?.(observed.current);
+      }
+    };
+    const reportSoon = () => {
+      clearTimeout(commitTimer);
+      commitTimer = setTimeout(report, READING_SETTLE_MS);
+    };
+    const onScrollEnd = () => {
+      pendingScroll.current = null;
+    };
     const onScroll = () => {
+      /** Ours is a scroll that sits where we asked, or one still riding a smooth scroll home. Everything else is the reader's. */
+      const landed = Math.abs(scroller.scrollTop - placedAt.current) <= LANDED_WITHIN;
+      const ours = landed || pendingScroll.current !== null;
+      if (landed) pendingScroll.current = null;
       const bottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
       setAtBottom(bottom);
-      if (bottom) view.current = FOOT;
-      else if (Math.abs(scroller.scrollTop - placedAt.current) > OURS_WITHIN) view.current = { at: "rest" };
+      if (!ours) {
+        if (bottom) view.current = FOOT;
+        else view.current = { at: "rest" };
+      }
       if (!taskId) return;
-      const top = virtualizer.getVirtualItemForOffset(scroller.scrollTop);
-      readingPoints.current.set(taskId, bottom || !top ? null : { id: String(top.key), depth: scroller.scrollTop - top.start, tail: newest.current });
+      observed.current = bottom ? null : observe();
+      reportSoon();
     };
     const place = () => {
       const held = view.current;
@@ -514,24 +562,45 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       restoreScroll.current();
     });
     scroller.addEventListener("scroll", onScroll, { passive: true });
+    scroller.addEventListener("scrollend", onScrollEnd);
     observer.observe(timeline);
     measure();
 
-    /** A thread reopens where it was left, unless it moved on while the reader was away. */
-    const left = taskId ? readingPoints.current.get(taskId) : null;
-    const row = left && left.tail === newest.current ? rows.current.get(left.id) : undefined;
-    view.current = row === undefined || !left ? FOOT : { at: "row", id: left.id, depth: left.depth };
-    setAtBottom(row === undefined);
+    /** A thread reopens where its reader left it wherever that row still exists; one whose row is gone opens at its foot. */
     placedAt.current = -1;
+    pendingScroll.current = null;
+    const left = taskId ? incoming.current : null;
+    const row = left ? rows.current.get(left.anchor) : undefined;
+    view.current = !left || row === undefined ? FOOT : { at: "row", id: left.anchor, depth: left.depth };
+    observed.current = left;
+    placedFrom.current = left;
+    setAtBottom(row === undefined);
     /** The row is brought into the window first, so `place()` has something to measure against. */
     if (row !== undefined) settle(virtualizer.getOffsetForIndex(row, "start")?.[0] ?? scroller.scrollTop);
     restoreScroll.current();
     return () => {
       cancelAnimationFrame(frame);
+      report();
       scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("scrollend", onScrollEnd);
       observer.disconnect();
     };
   }, [currentTask?.id, scrollContainerRef, virtualizer]);
+
+  /**
+   * A report made while another thread was opening can arrive here after it. The freshest point is
+   * where this thread belongs, until the reader has taken the view for themselves.
+   */
+  useEffect(() => {
+    const point = readingPoint ?? null;
+    if (sameReadingPoint(point, placedFrom.current)) return;
+    placedFrom.current = point;
+    if (view.current.at === "rest") return;
+    const row = point ? rows.current.get(point.anchor) : undefined;
+    view.current = !point || row === undefined ? FOOT : { at: "row", id: point.anchor, depth: point.depth };
+    setAtBottom(row === undefined);
+    restoreScroll.current();
+  }, [readingPoint]);
 
   /**
    * An answer is read from its first line, so the view holds its top instead of chasing the last.

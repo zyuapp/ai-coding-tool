@@ -493,6 +493,39 @@ test("a side chat cannot run without a source thread to fork", () => {
   assert.deepEqual(reduce(opened, { type: "task.send", taskId: "chat-1" }).effects, []);
 });
 
+test("a reading place is kept for its thread, and reporting it again changes nothing", () => {
+  const state = workspace({ tasks: [task("task-a")], currentId: "task-a" });
+  const placed = reduce(state, { type: "view.reading-point", taskId: "task-a", point: { anchor: "m3", depth: 72 } });
+  assert.deepEqual(placed.state.readingPoints["task-a"], { anchor: "m3", depth: 72 });
+  assert.equal(deriveView(placed.state).readingPoint, placed.state.readingPoints["task-a"], "the view hands the thread its own place back");
+
+  const again = reduce(placed.state, { type: "view.reading-point", taskId: "task-a", point: { anchor: "m3", depth: 72 } });
+  assert.equal(again.state, placed.state, "an unchanged place is not a new state");
+
+  const moved = reduce(placed.state, { type: "view.reading-point", taskId: "task-a", point: { anchor: "m5", depth: -16 } });
+  assert.deepEqual(moved.state.readingPoints["task-a"], { anchor: "m5", depth: -16 });
+
+  const cleared = reduce(moved.state, { type: "view.reading-point", taskId: "task-a", point: null });
+  assert.deepEqual(cleared.state.readingPoints["task-a"], null);
+});
+
+test("a reading place that is malformed or names no thread is refused", () => {
+  const state = workspace({ tasks: [task("task-a")], currentId: "task-a" });
+  for (const point of [{ anchor: "", depth: 0 }, { anchor: "m1", depth: Number.NaN }, { anchor: "m1", depth: Number.POSITIVE_INFINITY }]) {
+    assert.equal(reduce(state, { type: "view.reading-point", taskId: "task-a", point }).state, state, `${point.anchor || "(empty)"} with ${point.depth} is not a place`);
+  }
+  assert.equal(reduce(state, { type: "view.reading-point", taskId: "no-such-thread", point: { anchor: "m1", depth: 0 } }).state, state);
+});
+
+test("closing a side chat takes its reading place with it", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task", readingPoints: { "chat-1": { anchor: "m2", depth: 10 }, "main-task": { anchor: "m4", depth: 30 } } }), [
+    { type: "side-chat.open", chatId: "chat-1" },
+  ]);
+  const closed = reduce(opened, { type: "side-chat.close", chatId: "chat-1" });
+  assert.deepEqual(closed.state.readingPoints, { "main-task": { anchor: "m4", depth: 30 } });
+});
+
 test("closing a side chat cancels its run, and leaving the thread leaves the chat in its dock", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ tasks: [source, task("other")], currentId: "main-task" }), [

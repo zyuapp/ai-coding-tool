@@ -948,6 +948,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   min-width: 0;
   flex: 1;
   overflow: auto;
+  /** The transcript anchors its own view; the browser adjusting scrollTop here reads as a reader's move. */
+  overflow-anchor: none;
   padding: 54px clamp(20px, 4vw, 64px) 24px;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
@@ -1747,6 +1749,7 @@ pre {
 .side-chat-transcript {
   min-height: 0;
   overflow: auto;
+  overflow-anchor: none;
   padding: 30px 22px 34px;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;

@@ -8,6 +8,12 @@ import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js"
 import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
+ * Where a thread was left reading: the message held at the top of the view and how far into it the
+ * view sat, or null for its foot. A session's memory only, so it is never persisted.
+ */
+export type ReadingPoint = { anchor: string; depth: number } | null;
+
+/**
  * Every interaction the application supports, named as data. The UI dispatches these instead of
  * mutating state, so any other caller — a tool, a script, a test — can drive the same behaviour
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
@@ -164,6 +170,12 @@ export type TerminalCommand =
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
+  /**
+   * Where a thread was left reading: the message held at the top of its view and how far into it,
+   * or null for its foot. Reported by the transcript as its reader settles, and put back when the
+   * thread is opened again.
+   */
+  | { type: "view.reading-point"; taskId: string; point: ReadingPoint }
   | { type: "view.dismiss-action-error" }
   | { type: "view.toggle-project"; projectId: string }
   /** Folds one of the sidebar's lists, whichever mode draws it. */

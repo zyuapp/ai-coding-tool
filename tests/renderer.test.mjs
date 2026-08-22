@@ -68,7 +68,7 @@ const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
 const { drawAnnotations, wrapLabel } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
-const { ConversationTimeline, groupTimeline } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
+const { ConversationTimeline, groupTimeline, READING_SETTLE_MS } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
 const { StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await vite.ssrLoadModule("/src/renderer/components/AutomationPanel.tsx");
 const { ProjectSidebar } = await vite.ssrLoadModule("/src/renderer/components/ProjectSidebar.tsx");
@@ -2132,13 +2132,19 @@ function threadHarness() {
   scroller.scrollTo = ({ top }) => { scrolls.push(top); offset = top; };
   document.body.append(scroller);
   const scrollContainerRef = { current: scroller };
-  const thread = (id, count) => React.createElement(ConversationTimeline, {
+  /** What the workspace would hold, fed back in as each thread is opened. */
+  const points = {};
+  const moves = [];
+  const thread = (id, count, prefix) => React.createElement(ConversationTimeline, {
     currentTask: {
       id, title: id, executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
       lastChangeSnapshot: { files: [], capturedAt: 1 },
-      messages: transcript(...Array.from({ length: count }, (_, index) => ({ kind: index % 2 === 0 ? "user" : "assistant", text: `${id} ${index}` }))),
+      messages: transcript(...Array.from({ length: count }, (_, index) => ({ kind: index % 2 === 0 ? "user" : "assistant", text: `${id} ${index}` })))
+        .map((message, index) => (prefix ? { ...message, id: `${prefix}${index}` } : message)),
     },
     folder: "/p", status: "idle", compacting: false, waitingOn: null, scrollContainerRef,
+    readingPoint: points[id] ?? null,
+    onReadingPointMove: (point) => { points[id] = point; moves.push({ id, point }); },
   });
   const scrollTo = async (top) => {
     await act(async () => {
@@ -2152,7 +2158,7 @@ function threadHarness() {
     for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer);
     await new Promise((resolve) => setTimeout(resolve, 40));
   });
-  return { scroller, scrolls, thread, scrollTo, settle, resize, done: (view) => { view.unmount(); scroller.remove(); } };
+  return { scroller, scrolls, points, moves, thread, scrollTo, settle, resize, done: (view) => { view.unmount(); scroller.remove(); } };
 }
 
 test("a thread reopens where its reader left it, and one left at the foot reopens there", async () => {
@@ -2179,7 +2185,27 @@ test("a thread reopens where its reader left it, and one left at the foot reopen
   await done(view);
 });
 
-test("a thread the run advanced while its reader was away opens at its newest line", async () => {
+test("a thread that gained messages while its reader was away reopens where they were", async () => {
+  const { scrolls, thread, scrollTo, settle, done } = threadHarness();
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await view.render(thread("foot", 12));
+  await settle();
+  await scrollTo(BOTTOM - 900);
+
+  scrolls.length = 0;
+  await view.render(thread("read", 14));
+  await settle();
+  /** New work is appended below, so the reading place above it stands: the view is not sent to its foot. */
+  assert.ok(scrolls.length > 0, "the thread still places its view");
+  assert.ok(!scrolls.includes(BOTTOM), "an append does not send a returning reader to its foot");
+
+  await done(view);
+});
+
+test("a thread whose saved place no longer exists opens at its foot", async () => {
   const { scrolls, thread, scrollTo, settle, done } = threadHarness();
 
   const view = await mount(thread("read", 12));
@@ -2188,10 +2214,34 @@ test("a thread the run advanced while its reader was away opens at its newest li
   await view.render(thread("foot", 12));
   await settle();
 
+  /** The history above the place was rewritten out from under it, as a compaction does. */
   scrolls.length = 0;
-  await view.render(thread("read", 14));
+  await view.render(thread("read", 12, "n"));
   await settle();
-  assert.equal(scrolls.at(-1), BOTTOM, "a thread that moved on is caught up rather than left where it was");
+  assert.ok(scrolls.length > 0, "the thread still places its view");
+  assert.equal(scrolls.at(-1), BOTTOM, "a place whose row is gone opens at the foot");
+
+  await done(view);
+});
+
+test("the workspace hears where a reader settles without a switch having to carry it", async () => {
+  const { moves, thread, scrollTo, settle, done } = threadHarness();
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80));
+
+  assert.ok(moves.length >= 1, "the settled place was reported");
+  const reported = moves.filter((move) => move.id === "read").at(-1);
+  assert.ok(reported.point !== null, "a mid-transcript reader is not reported at the foot");
+  assert.ok(typeof reported.point.depth === "number", "the report carries how far into the row the view sat");
+
+  /** Reporting the same place again adds nothing for the workspace to hear. */
+  const heard = moves.length;
+  await scrollTo(300);
+  await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80));
+  assert.equal(moves.length, heard, "an unchanged place is never reported twice");
 
   await done(view);
 });
@@ -2973,9 +3023,11 @@ function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   Object.defineProperty(scroller, "clientHeight", { configurable: true, value: clientHeight });
   Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: scrollHeight });
+  let offset = 0;
+  Object.defineProperty(scroller, "scrollTop", { configurable: true, get: () => offset, set: (next) => { offset = next; } });
   document.body.append(scroller);
   const sentTo = [];
-  scroller.scrollTo = (options) => sentTo.push(options.top);
+  scroller.scrollTo = ({ top }) => { sentTo.push(top); offset = top; };
   const scrollContainerRef = { current: scroller };
   const render = (messages, status, streamingTail) => React.createElement(ConversationTimeline, {
     currentTask: { id: "t1", title: "T", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
@@ -3015,10 +3067,15 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
   const harness = scrollHarness();
   const messages = transcript({ kind: "user", text: "Explain this" }, { kind: "assistant", text: "An answer.\n\n" });
   const view = await mount(harness.render(messages, "idle", null));
+  await harness.resize();
+  assert.equal(harness.sentTo.at(-1), harness.bottom, "an idle transcript opens at its foot");
   assert.equal(view.container.querySelector(".scroll-to-end"), null, "hidden while the end is in view");
 
-  /** scrollTop stays at the top, so this scroll event reports a transcript scrolled well away. */
-  await act(async () => { harness.scroller.dispatchEvent(new Event("scroll")); });
+  /** The reader drags the scrollbar well away from the end. */
+  await act(async () => {
+    harness.scroller.scrollTop = 600;
+    harness.scroller.dispatchEvent(new Event("scroll"));
+  });
   const button = view.container.querySelector(".scroll-to-end");
   assert.ok(button, "offered once the end is out of view");
 

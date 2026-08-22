@@ -1,13 +1,14 @@
 import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
+import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type AnnotationAnchor, type RunAttachment, type Project, type Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
@@ -19,6 +20,9 @@ export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAn
   onAnnotateRemove: (annotationId: string) => void;
   onPasteAdd: (text: string) => void;
   onPasteRemove: (pasteId: string) => void;
+  /** Where this chat's transcript was left, and where its reader has moved to since. */
+  readingPoint?: ReadingPoint;
+  onReadingPointMove?: (point: ReadingPoint) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
@@ -49,6 +53,8 @@ export function SideChat({ chat, focusToken = 0, source, project, onPrompt, onAn
           compacting={chat.compacting}
           streamingTail={chat.streamingTail}
           scrollContainerRef={transcriptRef}
+          readingPoint={readingPoint}
+          onReadingPointMove={onReadingPointMove}
           annotations={chat.annotations}
           onAnnotateAdd={onAnnotateAdd}
           onAnnotateNote={onAnnotateNote}

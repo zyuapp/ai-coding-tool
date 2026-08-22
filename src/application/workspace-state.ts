@@ -2,6 +2,9 @@ import { runStatusFor, type ApprovalView, type RunTransitionState, type Streamin
 import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
 import { activitySections, backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult, DiffSummaryResult } from "../contracts/ipc.js";
+import type { ReadingPoint } from "../contracts/commands.js";
+
+export type { ReadingPoint };
 import { fileFingerprint, rangeKey, UNCOMMITTED, type DiffRange } from "../domain/diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
@@ -98,6 +101,7 @@ export type SideChatView = SideChat & {
   streamingTail: StreamingTail | null;
   queuedMessages: QueuedMessage[];
   approval?: ApprovalView;
+  readingPoint: ReadingPoint;
 };
 
 /** The ids of every thread that only lives for this session. */
@@ -118,6 +122,12 @@ export type FindState = {
   /** Bumped whenever find is asked for again, which is all the bar needs to take the caret back. */
   focus: number;
 };
+
+/** Whether two reading points name the same place, which decides whether a report is worth making. */
+export function sameReadingPoint(a: ReadingPoint, b: ReadingPoint) {
+  if (a === null || b === null) return a === b;
+  return a.anchor === b.anchor && a.depth === b.depth;
+}
 
 /** The branch a thread is to start from. `create` names one the repository does not have yet. */
 export type DraftBranch = { name: string; create: boolean };
@@ -209,6 +219,8 @@ export type WorkspaceState = {
   docks: Record<string, ThreadDock>;
   /** One review per thread, keyed the way `docks` is, so each thread keeps its own place in a diff. */
   diffs: Record<string, DiffState>;
+  /** Where each thread was left reading, keyed by thread id. Session-only, and never persisted. */
+  readingPoints: Record<string, ReadingPoint>;
   /** The find bar, and what a page or a shell reported after searching itself. */
   find: FindState | null;
   findResults: FindResults | null;
@@ -267,6 +279,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     dockFocus: null,
     docks: {},
     diffs: {},
+    readingPoints: {},
     find: null,
     findResults: null,
     focusedTerminalId: null,
@@ -740,6 +753,7 @@ export function deriveView(state: WorkspaceState) {
     /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
     inspectedWorkflow: workflowById(state, dock.workflowId) ?? null,
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
+    readingPoint: state.currentId ? state.readingPoints[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
     automatedTaskIds: new Set(state.automations.map((automation) => automation.taskId)),
     worktreeTaskIds: new Set(listedTasks.filter((task) => task.worktreeId).map((task) => task.id)),
@@ -805,6 +819,7 @@ export function deriveView(state: WorkspaceState) {
         status: active ? "running" : runStatusFor(state, chat.id),
         streamingTail: state.streamingTails[chat.id] ?? null,
         queuedMessages: state.queuedMessages[chat.id] ?? [],
+        readingPoint: state.readingPoints[chat.id] ?? null,
         ...(approval ? { approval } : {}),
       }];
     }),

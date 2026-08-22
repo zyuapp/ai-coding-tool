@@ -386,6 +386,10 @@ export function App() {
               compacting={workspace.compacting}
               waitingOn={workspace.waitingOn}
               streamingTail={workspace.streamingTail}
+              readingPoint={workspace.readingPoint}
+              onReadingPointMove={(point) => {
+                if (workspace.currentTask) void workspace.dispatch({ type: "view.reading-point", taskId: workspace.currentTask.id, point });
+              }}
               scrollContainerRef={transcriptRef}
               startOptions={!workspace.currentTask && (
                 <ThreadStartOptions
@@ -557,6 +561,8 @@ export function App() {
                     onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", taskId: chat.id, annotationId })}
                     onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", taskId: chat.id, text })}
                     onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", taskId: chat.id, pasteId })}
+                    readingPoint={chat.readingPoint}
+                    onReadingPointMove={(point) => void workspace.dispatch({ type: "view.reading-point", taskId: chat.id, point })}
                     onSend={(attachments, steer) => void workspace.dispatch({ type: "task.send", taskId: chat.id, attachments, steer })}
                     onCancel={() => void workspace.dispatch({ type: "run.cancel", taskId: chat.id })}
                     onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
