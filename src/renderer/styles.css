@@ -1501,19 +1501,19 @@ pre {
 .segmented button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   border: 1px solid var(--line-strong);
   border-left-width: 0;
   border-radius: 0;
-  padding: 6px 11px;
+  padding: 8px 16px;
   background: var(--control-soft);
   color: var(--muted-strong);
   font-size: var(--text-meta);
   font-weight: 560;
   cursor: pointer;
 }
-.segmented button:first-child { border-left-width: 1px; border-radius: 8px 0 0 8px; }
-.segmented button:last-child { border-radius: 0 8px 8px 0; }
+.segmented button:first-child { border-left-width: 1px; border-radius: 9px 0 0 9px; }
+.segmented button:last-child { border-radius: 0 9px 9px 0; }
 .segmented button:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .segmented button.chosen { border-color: var(--accent); background: var(--surface-active); color: var(--ink); }
 .segmented button.chosen + button { border-left-color: var(--accent); }
