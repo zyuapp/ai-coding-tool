@@ -66,11 +66,6 @@ export function App() {
   const addMenu = useRef<HTMLDivElement>(null);
   const addMenuTrigger = useRef<HTMLButtonElement>(null);
   useDismissibleLayer(addMenuOpen, [addMenu], () => workspace.actions.setOpenMenu(null), addMenuTrigger);
-  /**
-   * The page is a native view drawn over the panel, above every element whatever its z-index, so the
-   * add menu hangs over it only while the page is taken off screen.
-   */
-  const browserPageVisible = rightDockOpen && !settingsVisible && !addMenuOpen;
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const find = workspace.find;
@@ -539,7 +534,6 @@ export function App() {
                     focusToken={focusTokenFor(browserTab.id)}
                     {...(find?.target.kind === "browser" && find.target.tabId === browserTab.id ? { find: findBar } : {})}
                     approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}
-                    visible={browserPageVisible}
                     onOpen={(url) => void workspace.actions.openBrowser(url)}
                     onGo={(delta) => void workspace.actions.goInBrowser(delta)}
                     onReload={() => void workspace.actions.reloadBrowser()}

@@ -2,13 +2,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Globe, RotateCw, ShieldAlert } from "lucide-react";
 import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../domain/browser";
 import { useDismissibleLayer } from "../focus";
+import { NativeSurface } from "./NativeSurface";
 
 export type BrowserPanelProps = {
   tab: BrowserTab;
   /** The navigation this page is waiting on the user to answer, when it has one. */
   approval: BrowserApproval | null;
-  /** False whenever something else is over the panel: the page is a native view, not an element. */
-  visible: boolean;
   /** Bumped whenever something asks this tab to take the keyboard. */
   focusToken?: number;
   /** The find bar, when it is this page being searched. It sits above the page rather than over it. */
@@ -19,8 +18,7 @@ export type BrowserPanelProps = {
   onDecide: (allow: boolean) => void;
 };
 
-export function BrowserPanel({ tab, approval, visible, focusToken = 0, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
-  const viewport = useRef<HTMLDivElement>(null);
+export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo, onReload, onDecide }: BrowserPanelProps) {
   const addressInput = useRef<HTMLInputElement>(null);
   const [address, setAddress] = useState(tab.url);
   const [editing, setEditing] = useState(false);
@@ -42,30 +40,6 @@ export function BrowserPanel({ tab, approval, visible, focusToken = 0, find, onO
     else addressInput.current?.focus();
     /** Only a fresh request moves the keys, so the page this tab lands on later leaves them where they are. */
   }, [focusToken]);
-
-  /** Main draws the page over this rectangle, so every layout change has to be reported. */
-  useEffect(() => {
-    const element = viewport.current;
-    if (!element) return;
-    const report = () => {
-      const box = element.getBoundingClientRect();
-      const hidden = !visible || box.width < 1 || box.height < 1;
-      void window.desktop.setBrowserBounds(hidden ? null : { x: box.x, y: box.y, width: box.width, height: box.height });
-    };
-    report();
-    const observer = new ResizeObserver(report);
-    observer.observe(element);
-    window.addEventListener("resize", report);
-    window.addEventListener("scroll", report, true);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", report);
-      window.removeEventListener("scroll", report, true);
-    };
-  }, [visible, tab.id, find]);
-
-  /** A panel that is gone must not leave a page drawn over whatever replaces it. */
-  useEffect(() => () => void window.desktop.setBrowserBounds(null), []);
 
   return (
     <section className="browser-panel" aria-label="Browser">
@@ -109,7 +83,7 @@ export function BrowserPanel({ tab, approval, visible, focusToken = 0, find, onO
         </div>
       )}
 
-      <div className="browser-viewport" ref={viewport}>
+      <NativeSurface className="browser-viewport" report={(box) => void window.desktop.setBrowserBounds(box)}>
         {!tab.url && (
           <div className="browser-empty">
             <span className="agent-orb"><Globe size={17} /></span>
@@ -118,7 +92,7 @@ export function BrowserPanel({ tab, approval, visible, focusToken = 0, find, onO
           </div>
         )}
         {tab.error && <p className="browser-error">{tab.error}</p>}
-      </div>
+      </NativeSurface>
     </section>
   );
 }

@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { createServer } from "vite";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "File", "Blob", "FileReader", "DOMParser", "innerWidth", "innerHeight"]) {
+for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "MutationObserver", "Image", "navigator", "File", "Blob", "FileReader", "DOMParser", "innerWidth", "innerHeight"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
 /** jsdom has no animation frames. Everything queued for one runs together, on a single timestamp. */
@@ -51,6 +51,22 @@ for (const prototype of [dom.window.HTMLInputElement.prototype, dom.window.HTMLT
   prototype.attachEvent = () => {};
   prototype.detachEvent = () => {};
 }
+/**
+ * jsdom lays nothing out and hit tests nothing, so a test places the rectangles it cares about and
+ * the document answers from them. The last one placed is the one on top.
+ */
+const placed = [];
+function place(selector, box) {
+  placed.push({ selector, box });
+  const element = document.querySelector(selector);
+  if (element) element.getBoundingClientRect = () => box;
+  return box;
+}
+dom.window.document.elementFromPoint = (x, y) => {
+  const hit = [...placed].reverse().find(({ selector, box }) => document.querySelector(selector)
+    && x >= box.x && y >= box.y && x <= box.x + box.width && y <= box.y + box.height);
+  return hit ? document.querySelector(hit.selector) : null;
+};
 dom.window.HTMLElement.prototype.scrollTo = () => {};
 dom.window.HTMLElement.prototype.scrollIntoView = () => {};
 dom.window.Element.prototype.getAnimations = () => [];
@@ -66,7 +82,7 @@ const { DiagramViewer, naturalDiagram } = await vite.ssrLoadModule("/src/rendere
 const { useTaskWorkspace } = await vite.ssrLoadModule("/src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await vite.ssrLoadModule("/src/renderer/App.tsx");
 const { TaskComposer } = await vite.ssrLoadModule("/src/renderer/components/TaskComposer.tsx");
-const { badgeRadius, drawAnnotations, placeBadges } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
+const { ImageAnnotator, badgeRadius, drawAnnotations, placeBadges } = await vite.ssrLoadModule("/src/renderer/components/ImageAnnotator.tsx");
 const { SettingsPanel } = await vite.ssrLoadModule("/src/renderer/components/SettingsPanel.tsx");
 const { ConversationTimeline, groupTimeline, READING_SETTLE_MS } = await vite.ssrLoadModule("/src/renderer/components/ConversationTimeline.tsx");
 const { StreamingText } = await vite.ssrLoadModule("/src/renderer/components/StreamingText.tsx");
@@ -3992,28 +4008,41 @@ test("the browser panel drives the page through the workspace and reports where 
   assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", null], "an unmounted panel leaves no page drawn over the app");
 });
 
-test("the add menu takes the page off screen so nothing native is drawn over it", async () => {
+test("anything the document draws over the page takes it off screen", async () => {
   seedTaskWithSubagent();
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
+  const settle = async () => { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
+  const drawn = () => window.desktop.browserCalls.at(-1);
 
   await act(async () => { view.container.querySelector('button[aria-label="Show right panel"]').click(); });
   await act(async () => { [...view.container.querySelectorAll(".right-dock-picker button")].find((button) => button.getAttribute("aria-label") === "Open Browser panel").click(); });
 
-  /** jsdom lays nothing out, so the viewport is given a rectangle of its own to report. */
-  const box = { x: 0, y: 50, width: 400, height: 600 };
-  view.container.querySelector(".browser-viewport").getBoundingClientRect = () => box;
+  const box = place(".browser-viewport", { x: 0, y: 50, width: 400, height: 600 });
+  place('.right-dock-add div[role="menu"]', { x: 0, y: 0, width: 400, height: 200 });
+  place(".annotator", { x: 0, y: 0, width: 1200, height: 800 });
+  await act(async () => { window.dispatchEvent(new Event("resize")); });
+  await settle();
+  assert.deepEqual(drawn(), ["bounds", box], "an uncovered panel draws the page where it is");
 
   const add = view.container.querySelector('button[aria-label="Add right panel tab"]');
   await act(async () => { add.click(); });
-  assert.ok(view.container.querySelector('.right-dock-add div[role="menu"]'), "the menu is open");
-  assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", null], "the page is not drawn while the menu hangs over it");
-
+  await settle();
+  assert.deepEqual(drawn(), ["bounds", null], "the page is not drawn while the menu hangs over it");
   await act(async () => { add.click(); });
-  assert.equal(view.container.querySelector('.right-dock-add div[role="menu"]'), null);
-  assert.deepEqual(window.desktop.browserCalls.at(-1), ["bounds", box], "closing the menu draws the page again");
+  await settle();
+  assert.deepEqual(drawn(), ["bounds", box], "closing the menu draws the page again");
+
+  /** A modal opened somewhere else entirely, which nothing here was told about. */
+  const modal = await mount(React.createElement(ImageAnnotator, { source: "data:image/png;base64,x", annotations: [], onCancel: () => {}, onApply: () => {} }));
+  await settle();
+  assert.deepEqual(drawn(), ["bounds", null], "a modal covers the page without the panel naming it");
+  await modal.unmount();
+  await settle();
+  assert.deepEqual(drawn(), ["bounds", box], "closing the modal draws the page again");
 
   await view.unmount();
+  placed.length = 0;
 });
 
 test("a run reads the page through the window and is told when a site is waiting on the user", async () => {
