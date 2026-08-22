@@ -178,9 +178,13 @@ function usePullRequest(workspaceId: string | undefined, branch: string | null, 
       .catch(() => {});
   }, [workspaceId]);
 
+  /** Only another checkout or another branch can have a different answer, so only those blank the row. */
   useEffect(() => {
     asked.current++;
     setPullRequest(null);
+  }, [workspaceId, branch]);
+
+  useEffect(() => {
     refresh();
     const back = () => { if (document.visibilityState !== "hidden") refresh(); };
     window.addEventListener("focus", back);

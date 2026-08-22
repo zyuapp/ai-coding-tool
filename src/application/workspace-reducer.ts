@@ -1789,7 +1789,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const owner = dockOwner(state);
       const settings = { ...state, settingsOpen: input.open, ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }) };
       /** Settings are drawn in the window, so a page that was in front cannot be left holding the keys. */
-      return settled(input.open ? withDock(settings, owner, { open: false }) : settings, input.open ? TAKE_KEYS : stopCapture(state));
+      return settled(input.open ? withDock(settings, owner, { open: false, expanded: false }) : settings, input.open ? TAKE_KEYS : stopCapture(state));
     }
 
     case "view.close-tab": {

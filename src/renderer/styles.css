@@ -2991,6 +2991,8 @@ pre {
   }
   /** The sidebar floats over the workspace here, so the topbar always clears the traffic lights. */
   .topbar { padding-left: 84px; }
+  /** And so does an expanded dock's tab strip, which owns the top edge in its place. */
+  .workspace.dock-full .right-dock-tabs { padding-left: 84px; }
   /** Narrow windows slide the sidebar over the workspace instead of making room for it. */
   .sidebar.hidden { margin-left: 0; }
   .sidebar.compact-open { transform: translateX(0); visibility: visible; }

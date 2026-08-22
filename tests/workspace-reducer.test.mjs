@@ -2255,6 +2255,9 @@ test("a hidden dock does not come back expanded, and each thread keeps its own p
   const shown = reduce(hidden.state, { type: "view.set-dock-open", open: true });
   assert.equal(deriveView(shown.state).dockExpanded, false);
 
+  const settings = run(shown.state, [{ type: "view.set-dock-expanded", expanded: true }, { type: "view.set-settings-open", open: true }, { type: "view.set-settings-open", open: false }]);
+  assert.equal(deriveView(reduce(settings, { type: "view.set-dock-open", open: true }).state).dockExpanded, false, "settings put the dock away too, so it does not come back covering the workspace");
+
   const spread = run(shown.state, [{ type: "view.set-dock-expanded", expanded: true }, { type: "task.select", taskId: "task-2" }]);
   assert.equal(deriveView(spread).dockExpanded, false, "the thread next door has a dock of its own");
   assert.equal(dockFor(spread, "task-1").expanded, true, "and the one left behind is still as it was");
