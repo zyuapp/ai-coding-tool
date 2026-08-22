@@ -66,11 +66,3 @@ export function themeFor(family: unknown, variant: ThemeVariant): Theme {
   return THEMES.find((entry) => entry.family === family && entry.variant === variant)
     ?? THEMES.find((entry) => entry.family === themeOrDefault(DEFAULT_THEME).family && entry.variant === variant)!;
 }
-
-/** The family after this theme's, on the ground it already paints, which the keyboard walks in a ring. */
-export function nextTheme(id: unknown): Theme {
-  const current = themeOrDefault(id);
-  const families = themeFamilies();
-  const next = families[(families.indexOf(current.family) + 1) % families.length];
-  return themeFor(next, current.variant);
-}

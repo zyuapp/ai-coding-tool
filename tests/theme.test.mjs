@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { DEFAULT_THEME, DEFAULT_THEME_MODE, THEMES, isThemeMode, nextTheme, themeById, themeFamilies, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../dist/main/domain/theme.js";
+import { DEFAULT_THEME, DEFAULT_THEME_MODE, THEMES, isThemeMode, themeById, themeFamilies, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../dist/main/domain/theme.js";
 
 const themesCss = await readFile(new URL("../src/renderer/themes.css", import.meta.url), "utf8");
 const stylesCss = await readFile(new URL("../src/renderer/styles.css", import.meta.url), "utf8");
@@ -132,16 +132,8 @@ test("a family the app no longer ships falls back to one it does, on the ground 
   assert.equal(themeFor("A Palette We Dropped", "dark").family, themeOrDefault(DEFAULT_THEME).family);
 });
 
-test("the keyboard walks the families in a ring without changing the ground it is on", () => {
-  const families = themeFamilies();
-  for (const variant of ["dark", "light"]) {
-    const first = themeFor(families[0], variant);
-    assert.equal(nextTheme(first.id).family, families[1]);
-    assert.equal(nextTheme(first.id).variant, variant);
-    assert.equal(nextTheme(themeFor(families.at(-1), variant).id).family, families[0]);
-  }
+test("a theme the app no longer ships resolves to the default", () => {
   assert.equal(themeOrDefault("a-theme-we-dropped").id, DEFAULT_THEME);
-  assert.equal(nextTheme("a-theme-we-dropped").family, themeFamilies()[1], "an unknown id walks on from the default");
 });
 
 test("a mode names a ground, and only \"auto\" asks the system for one", () => {

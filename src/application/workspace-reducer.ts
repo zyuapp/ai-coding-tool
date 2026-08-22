@@ -39,8 +39,8 @@ import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "
 import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
 import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
-import { isThemeMode, nextTheme, themeById, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../domain/theme.js";
-import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, stepSize, uiFontById, uiFontOrDefault } from "../domain/typography.js";
+import { isThemeMode, themeById, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../domain/theme.js";
+import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import type { CaptureOptions } from "../domain/capture.js";
@@ -814,9 +814,6 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "dock.expand": return [{ type: "view.set-dock-expanded", expanded: !dockFor(state, dockOwner(state)).expanded }];
     case "sidebar.toggle": return [{ type: "view.set-sidebar-open", open: !state.sidebarOpen }];
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
-    case "appearance.cycle-theme": return [{ type: "view.set-theme", theme: nextTheme(state.theme).id }];
-    case "appearance.larger-text": return [{ type: "view.set-reading-size", size: stepSize(READING_SIZE, state.readingSize, 1) }];
-    case "appearance.smaller-text": return [{ type: "view.set-reading-size", size: stepSize(READING_SIZE, state.readingSize, -1) }];
     default: return [];
   }
 }
