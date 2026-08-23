@@ -96,5 +96,10 @@ export function moveListFocus(event: ReactKeyboardEvent<HTMLElement>) {
   if (!buttons.length) return;
   event.preventDefault();
   const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+  /** A list nothing is on yet starts at whichever end the key points from. */
+  if (at === -1) {
+    buttons[event.key === "ArrowDown" ? 0 : buttons.length - 1].focus();
+    return;
+  }
   buttons[(at + (event.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
 }

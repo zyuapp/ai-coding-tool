@@ -721,14 +721,16 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .open-in { position: relative; display: flex; }
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
 .topbar:has(.open-in.open) { z-index: 40; }
-.open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; }
-.open-in-popover button { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; }
+.open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; outline: none; }
+.open-in-popover button { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 7px; height: 22px; }
 .open-in-popover button > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-in-icon { display: grid; place-items: center; color: var(--muted); }
 .open-in-popover button:hover .open-in-icon, .open-in-popover button:focus .open-in-icon { color: var(--accent-ink); }
 .open-in-icon img { width: 16px; height: 16px; object-fit: contain; }
-.open-in-group { padding: 6px 12px 2px; color: var(--quiet); font-size: var(--text-meta); }
-.open-in-empty { padding: 6px 12px; color: var(--quiet); font-size: var(--text-menu); }
+/** Headings carry their own gap above and none below, so each one sits with the rows it names. */
+.open-in-group { margin: 7px 0 0; padding: 0 12px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
+.open-in-group:first-child { margin-top: 1px; }
+.open-in-empty { margin: 0; padding: 3px 12px; color: var(--quiet); font-size: var(--text-menu); }
 .session-toggle.sidebar-toggle { display: grid; }
 .session-toggle {
   position: relative;

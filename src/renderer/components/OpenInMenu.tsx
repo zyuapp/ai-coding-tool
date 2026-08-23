@@ -52,8 +52,11 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, onOpenInApp }: Op
   const open = openMenu === OPEN_IN_MENU;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
   const apps = useInstalledApps(open);
+  /** The list itself takes focus, not a row, so it opens with nothing highlighted and still hears the arrow keys. */
+  useEffect(() => { if (open) list.current?.focus(); }, [open]);
   const groups = GROUPS
     .map((group) => ({ ...group, apps: (apps ?? []).filter((app) => app.kind === group.kind) }))
     .filter((group) => group.apps.length > 0);
@@ -73,20 +76,19 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, onOpenInApp }: Op
         <ExternalLink size={19} aria-hidden="true" />
       </button>
       {open && (
-        <div className="menu-popover open-in-popover" data-popover-menu role="menu" onKeyDown={moveListFocus}>
+        <div ref={list} className="menu-popover open-in-popover" data-popover-menu role="menu" tabIndex={-1} onKeyDown={moveListFocus}>
           {!apps && <p className="open-in-empty">Looking for applications…</p>}
           {apps && groups.length === 0 && <p className="open-in-empty">No application found</p>}
-          {groups.map((group, index) => (
+          {groups.map((group) => (
             <Fragment key={group.kind}>
               <p className="open-in-group">{group.label}</p>
-              {group.apps.map((app, position) => {
+              {group.apps.map((app) => {
                 const Icon = KIND_ICONS[app.kind];
                 return (
                   <button
                     key={app.id}
                     type="button"
                     role="menuitem"
-                    autoFocus={index === 0 && position === 0}
                     onClick={() => {
                       onSetOpenMenu(null);
                       onOpenInApp(app.id);
