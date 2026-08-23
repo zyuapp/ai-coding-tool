@@ -2,9 +2,8 @@ import { spawn } from "node:child_process";
 import { access, constants } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { appCandidates, externalApps, type AppCandidate, type ExternalApp } from "../domain/external-apps.js";
-import type { InstalledApp } from "../contracts/ipc.js";
 import type { Platform } from "../domain/editors.js";
 
 /** Narrowed once here: a platform the catalog does not know simply offers nothing to open. */
@@ -13,7 +12,7 @@ const PLATFORM = process.platform as Platform;
 /** Long enough that opening the list twice costs one scan, short enough to see a new install. */
 const SCAN_TTL_MS = 30_000;
 
-let scan: { at: number; apps: Promise<InstalledApp[]> } | null = null;
+let scan: { at: number; apps: Promise<ExternalApp[]> } | null = null;
 
 /** Whether a candidate is on this machine, without starting anything. */
 async function exists(candidate: AppCandidate) {
@@ -37,31 +36,20 @@ async function onPath(command: string) {
   return null;
 }
 
-/** The icon the platform draws for a file, small enough to sit in a menu row. */
-async function iconFor(source: string | null) {
-  if (!source) return null;
-  try {
-    const image = await app.getFileIcon(source, { size: "small" });
-    return image.isEmpty() ? null : image.toDataURL();
-  } catch {
-    return null;
-  }
-}
-
-/** The first candidate that is really there, which is also the one its icon is read from. */
-async function installed(entry: ExternalApp): Promise<InstalledApp | null> {
+/** Whether any of the places an application might be really holds it. */
+async function installed(entry: ExternalApp) {
   for (const candidate of appCandidates(entry.id, PLATFORM, homedir(), "/")) {
-    if (!(await exists(candidate))) continue;
-    return { ...entry, icon: await iconFor(candidate.icon) };
+    if (await exists(candidate)) return true;
   }
-  return null;
+  return false;
 }
 
 /** Every application on this machine that can take a folder, in catalog order. */
-export function listInstalledApps(): Promise<InstalledApp[]> {
+export function listInstalledApps(): Promise<ExternalApp[]> {
   if (scan && Date.now() - scan.at < SCAN_TTL_MS) return scan.apps;
-  const apps = Promise.all(externalApps(PLATFORM).map(installed))
-    .then((results) => results.filter((entry): entry is InstalledApp => entry !== null))
+  const catalogue = externalApps(PLATFORM);
+  const apps = Promise.all(catalogue.map(installed))
+    .then((found) => catalogue.filter((_, index) => found[index]))
     .catch((error) => {
       scan = null;
       throw error;

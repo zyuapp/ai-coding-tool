@@ -38,7 +38,6 @@ test("a macOS bundle opens the folder through the bundle it was found in", () =>
   assert.deepEqual(first, {
     id: "zed",
     probe: "/Applications/Zed.app",
-    icon: "/Applications/Zed.app",
     command: "open",
     args: ["-a", "/Applications/Zed.app", "/repo"],
   });
@@ -57,14 +56,13 @@ test("a launcher looked up on PATH has nothing to probe", () => {
   const [linux] = appCandidates("vscode", "linux", HOME, "/repo");
 
   assert.equal(linux.probe, null, "PATH decides whether it is there");
-  assert.equal(linux.icon, null, "a launcher on PATH carries no icon of its own");
 });
 
-test("Finder takes its icon from the bundle rather than from the launcher", () => {
+test("the file manager hands the folder straight to the platform's own opener", () => {
   const [finder] = appCandidates("finder", "darwin", HOME, "/repo");
 
+  assert.equal(finder.command, "open");
   assert.deepEqual(finder.args, ["/repo"]);
-  assert.equal(finder.icon, "/System/Library/CoreServices/Finder.app");
 });
 
 test("an application the catalog does not know has nowhere to open", () => {
