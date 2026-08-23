@@ -25,6 +25,12 @@ export type WindowTheme = {
   follow?: boolean;
 };
 
+/** An application the machine has, as the window draws it. */
+export type InstalledApp = ExternalApp & {
+  /** The application's own icon as a data URL, or null when nothing here can read one. */
+  icon: string | null;
+};
+
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
 
@@ -277,7 +283,7 @@ export type DesktopAPI = {
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
   openFile(root: string, path: string, line: number | null): Promise<void>;
   /** The applications on this machine that can take a folder, read fresh enough to see a new install. */
-  listApps(): Promise<ExternalApp[]>;
+  listApps(): Promise<InstalledApp[]>;
   /** Opens a checkout in one of them. `root` has to be a folder the app already works in. */
   openFolderInApp(appId: string, root: string): Promise<void>;
   /** The terminal panel's shells live in main; the window owns the record of them. */

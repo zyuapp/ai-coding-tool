@@ -1,6 +1,7 @@
 import { Code, ExternalLink, Folder, SquareTerminal } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
-import type { ExternalApp, ExternalAppKind } from "../../domain/external-apps";
+import type { InstalledApp } from "../../contracts/ipc";
+import type { ExternalAppKind } from "../../domain/external-apps";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
 export const OPEN_IN_MENU = "workspace:open-in";
@@ -12,7 +13,7 @@ const GROUPS: { kind: ExternalAppKind; label: string }[] = [
   { kind: "files", label: "Files" },
 ];
 
-/** The mark each kind carries, since the list is grouped by what an application is for. */
+/** What a row shows when the platform keeps the application's own icon somewhere unreadable. */
 const KIND_ICONS = {
   editor: Code,
   terminal: SquareTerminal,
@@ -24,7 +25,7 @@ const KIND_ICONS = {
  * its answer is old enough, so an application installed during the session turns up here.
  */
 export function useInstalledApps(enabled: boolean) {
-  const [apps, setApps] = useState<ExternalApp[] | null>(null);
+  const [apps, setApps] = useState<InstalledApp[] | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -91,7 +92,9 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, onOpenInApp }: Op
                       onOpenInApp(app.id);
                     }}
                   >
-                    <span className="open-in-icon"><Icon size={16} /></span>
+                    <span className="open-in-icon">
+                      {app.icon ? <img src={app.icon} alt="" width={16} height={16} /> : <Icon size={16} />}
+                    </span>
                     <span>{app.label}</span>
                   </button>
                 );

@@ -1015,9 +1015,9 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     onBrowserFind: () => () => {},
     openFile: async (root, path, line) => { browserCalls.push(["open-file", root, path, line]); },
     listApps: async () => [
-      { id: "cursor", label: "Cursor", kind: "editor" },
-      { id: "terminal", label: "Terminal", kind: "terminal" },
-      { id: "finder", label: "Finder", kind: "files" },
+      { id: "cursor", label: "Cursor", kind: "editor", icon: "data:image/png;base64,AAA" },
+      { id: "terminal", label: "Terminal", kind: "terminal", icon: null },
+      { id: "finder", label: "Finder", kind: "files", icon: null },
     ],
     openFolderInApp: async (appId, root) => { appCalls.push([appId, root]); },
     startTerminal: async (terminalId, options) => { terminalCalls.push(["start", terminalId, options]); },
@@ -1234,7 +1234,8 @@ test("the open-in list groups the applications this machine has, and hands one t
   assert.deepEqual([...view.container.querySelectorAll(".open-in-group")].map((group) => group.textContent), ["Editors", "Terminals", "Files"]);
   const rows = [...view.container.querySelectorAll<HTMLButtonElement>(".open-in-popover button")];
   assert.deepEqual(rows.map((row) => item(row.textContent)), ["Cursor", "Terminal", "Finder"]);
-  assert.equal(rows.filter((row) => row.querySelector(".open-in-icon svg")).length, 3, "every row carries the mark for its kind");
+  assert.ok(rows[0].querySelector("img"), "an application whose own icon can be read shows it");
+  assert.ok(rows[1].querySelector(".open-in-icon svg"), "one whose icon cannot be read falls back to the mark for its kind");
 
   await act(async () => { rows[0].click(); });
   assert.deepEqual(chosen, ["cursor"]);

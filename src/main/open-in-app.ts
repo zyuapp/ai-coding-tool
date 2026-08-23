@@ -4,7 +4,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { appCandidates, externalApps, type AppCandidate, type ExternalApp } from "../domain/external-apps.js";
+import type { InstalledApp } from "../contracts/ipc.js";
 import type { Platform } from "../domain/editors.js";
+import { bundleIcon } from "./bundle-icon.js";
 
 /** Narrowed once here: a platform the catalog does not know simply offers nothing to open. */
 const PLATFORM = process.platform as Platform;
@@ -12,7 +14,7 @@ const PLATFORM = process.platform as Platform;
 /** Long enough that opening the list twice costs one scan, short enough to see a new install. */
 const SCAN_TTL_MS = 30_000;
 
-let scan: { at: number; apps: Promise<ExternalApp[]> } | null = null;
+let scan: { at: number; apps: Promise<InstalledApp[]> } | null = null;
 
 /** Whether a candidate is on this machine, without starting anything. */
 async function exists(candidate: AppCandidate) {
@@ -36,20 +38,20 @@ async function onPath(command: string) {
   return null;
 }
 
-/** Whether any of the places an application might be really holds it. */
-async function installed(entry: ExternalApp) {
+/** The first place an application really is, which is also where its icon is read from. */
+async function installed(entry: ExternalApp): Promise<InstalledApp | null> {
   for (const candidate of appCandidates(entry.id, PLATFORM, homedir(), "/")) {
-    if (await exists(candidate)) return true;
+    if (!(await exists(candidate))) continue;
+    return { ...entry, icon: candidate.icon ? await bundleIcon(candidate.icon) : null };
   }
-  return false;
+  return null;
 }
 
 /** Every application on this machine that can take a folder, in catalog order. */
-export function listInstalledApps(): Promise<ExternalApp[]> {
+export function listInstalledApps(): Promise<InstalledApp[]> {
   if (scan && Date.now() - scan.at < SCAN_TTL_MS) return scan.apps;
-  const catalogue = externalApps(PLATFORM);
-  const apps = Promise.all(catalogue.map(installed))
-    .then((found) => catalogue.filter((_, index) => found[index]))
+  const apps = Promise.all(externalApps(PLATFORM).map(installed))
+    .then((results) => results.filter((entry): entry is InstalledApp => entry !== null))
     .catch((error) => {
       scan = null;
       throw error;

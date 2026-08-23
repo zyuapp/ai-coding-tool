@@ -17,6 +17,8 @@ export type AppLaunch = {
 export type AppCandidate = AppLaunch & {
   id: string;
   probe: string | null;
+  /** The bundle the application's own icon is read from. Only macOS keeps one where this can find it. */
+  icon: string | null;
 };
 
 export type ExternalApp = {
@@ -32,6 +34,8 @@ type BundleLocation = { bundle: string };
 type CommandLocation = {
   command: string;
   args?: (folder: string) => string[];
+  /** The bundle to read the icon from, for an application the platform opens by another name. */
+  icon?: string;
 };
 
 type Location = BundleLocation | CommandLocation;
@@ -218,7 +222,7 @@ const APPS: CataloguedApp[] = [
     label: "Finder",
     kind: "files",
     locations: {
-      darwin: [{ command: "open" }],
+      darwin: [{ command: "open", icon: "/System/Library/CoreServices/Finder.app" }],
     },
   },
   {
@@ -250,6 +254,7 @@ function candidatesFor(app: CataloguedApp, platform: Platform, home: string, fol
       return bundlePaths(location.bundle, home).map((path) => ({
         id: app.id,
         probe: path,
+        icon: path,
         command: "open",
         args: ["-a", path, folder],
       }));
@@ -257,6 +262,7 @@ function candidatesFor(app: CataloguedApp, platform: Platform, home: string, fol
     return [{
       id: app.id,
       probe: location.command.startsWith("/") ? location.command : null,
+      icon: location.icon ?? null,
       command: location.command,
       args: location.args ? location.args(folder) : [folder],
     }];
