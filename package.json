@@ -15,7 +15,7 @@
     "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
-    "prepare:cua": "node --experimental-strip-types scripts/prepare-cua-driver.mts",
+    "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:cua && npm run build && electron .",
     "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never"
   },
