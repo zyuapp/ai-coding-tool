@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type StatementSync } from "node:sqlite";
 import path from "node:path";
 import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
@@ -25,6 +25,10 @@ export function projectRootsAreOwn(projects: Array<{ root: string }>, worktreesR
 export class TaskDatabase {
   private readonly database: DatabaseSync;
   private readonly worktreesRoots: string[];
+  private readonly saveTask: StatementSync;
+  private readonly saveMessage: StatementSync;
+  private readonly saveSubagent: StatementSync;
+  private readonly saveActivity: StatementSync;
   private closed = false;
 
   constructor(file: string, options: { worktreesRoots?: string[] } = {}) {
@@ -64,6 +68,10 @@ export class TaskDatabase {
       CREATE INDEX IF NOT EXISTS subagent_activity_position ON subagent_activity(task_id, subagent_id, position);
       CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
     `);
+    this.saveTask = this.database.prepare("INSERT INTO tasks (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data");
+    this.saveMessage = this.database.prepare("INSERT INTO messages (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
+    this.saveSubagent = this.database.prepare("INSERT INTO subagents (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
+    this.saveActivity = this.database.prepare("INSERT INTO subagent_activity (task_id, subagent_id, id, position, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(task_id, subagent_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
     this.liftEmbeddedSubagents();
     this.liftEmbeddedWorktrees();
   }
@@ -128,11 +136,8 @@ export class TaskDatabase {
 
   private writeSubagent(taskId: string, index: number, subagent: Subagent) {
     const { activity = [], ...record } = subagent;
-    this.database
-      .prepare("INSERT INTO subagents (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data")
-      .run(taskId, subagent.id, index, JSON.stringify(record));
-    const saveActivity = this.database.prepare("INSERT INTO subagent_activity (task_id, subagent_id, id, position, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(task_id, subagent_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
-    activity.forEach((item, position) => saveActivity.run(taskId, subagent.id, item.id, position, JSON.stringify(item)));
+    this.saveSubagent.run(taskId, subagent.id, index, JSON.stringify(record));
+    activity.forEach((item, position) => this.saveActivity.run(taskId, subagent.id, item.id, position, JSON.stringify(item)));
   }
 
   listAutomations(): Automation[] {
@@ -321,15 +326,11 @@ export class TaskDatabase {
           dropTask.run(id);
         }
       }
-      const saveTask = this.database.prepare("INSERT INTO tasks (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data");
-      const saveMessage = this.database.prepare("INSERT INTO messages (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
-      const saveSubagent = this.database.prepare("INSERT INTO subagents (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
-      const saveActivity = this.database.prepare("INSERT INTO subagent_activity (task_id, subagent_id, id, position, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(task_id, subagent_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
       for (const change of delta.tasks) {
-        saveTask.run(change.task.id, JSON.stringify(change.task));
-        for (const { index, message } of change.messages) saveMessage.run(change.task.id, message.id, index, JSON.stringify(message));
-        for (const { index, subagent } of change.subagents ?? []) saveSubagent.run(change.task.id, subagent.id, index, JSON.stringify(subagent));
-        for (const { subagentId, index, item } of change.activity ?? []) saveActivity.run(change.task.id, subagentId, item.id, index, JSON.stringify(item));
+        this.saveTask.run(change.task.id, JSON.stringify(change.task));
+        for (const { index, message } of change.messages) this.saveMessage.run(change.task.id, message.id, index, JSON.stringify(message));
+        for (const { index, subagent } of change.subagents ?? []) this.saveSubagent.run(change.task.id, subagent.id, index, JSON.stringify(subagent));
+        for (const { subagentId, index, item } of change.activity ?? []) this.saveActivity.run(change.task.id, subagentId, item.id, index, JSON.stringify(item));
       }
       this.database.exec("COMMIT");
     } catch (error) {

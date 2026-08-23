@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 import { WorktreeService } from "../dist/main/main/workspace/worktrees.mjs";
-import { checkoutBranch, createBranch, isDetached, listWorktrees } from "../dist/main/main/workspace/git.mjs";
+import { checkoutBranch, createBranch, isDetached, listBranches, listWorktrees } from "../dist/main/main/workspace/git.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -456,6 +456,17 @@ test("a reconcile leaves a worktrees root that has never been used alone", async
 
   assert.deepEqual(reaped, []);
 });
+});
+
+test("branches report the current branch and a detached checkout", async () => {
+  const root = await repository();
+
+  assert.equal((await listBranches(root)).current, "main");
+  await git(root, "checkout", "-q", "--detach");
+
+  const detached = await listBranches(root);
+  assert.equal(detached.current, null);
+  assert.ok(detached.branches.includes("main"));
 });
 
 test("a reconcile forgets every missing registry root in one batch", async () => {

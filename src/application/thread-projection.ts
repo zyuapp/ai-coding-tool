@@ -57,7 +57,7 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   return { projects, worktrees, busy };
 }
 
-function projectThreadSummary(state: WorkspaceState, task: Task, activity: number, index?: ProjectionIndex): ThreadSummary {
+function projectThreadSummary(state: WorkspaceState, task: Task, activity: number, index?: ProjectionIndex, attachments?: number): ThreadSummary {
   const project = index ? (task.projectId ? index.projects.get(task.projectId) : undefined) : projectFor(state, task);
   const worktree = index ? (task.worktreeId ? index.worktrees.get(task.worktreeId) : undefined) : worktreeFor(state, task);
   return {
@@ -71,7 +71,7 @@ function projectThreadSummary(state: WorkspaceState, task: Task, activity: numbe
     createdAt: threadCreatedAt(task),
     lastActivityAt: activity,
     messageCount: task.messages.length,
-    attachmentCount: task.messages.filter(carriesAttachment).length,
+    attachmentCount: attachments ?? countAttachments(task),
   };
 }
 
@@ -84,20 +84,24 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
   const search = filter.search?.trim().toLowerCase();
   const forked = sideChatIds(state);
   if (filter.limit === undefined) {
-    const matching = state.tasks.filter((task) => {
-      if (forked.has(task.id)) return false;
-      if (!inScope(task, filter.scope)) return false;
-      if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) return false;
-      if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) return false;
-      if (search && !matches(task, search)) return false;
-      if (filter.attachments && !task.messages.some(carriesAttachment)) return false;
-      return true;
-    });
+    const matching: Array<{ task: Task; attachments?: number }> = [];
+    for (const task of state.tasks) {
+      if (forked.has(task.id)) continue;
+      if (!inScope(task, filter.scope)) continue;
+      if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
+      if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) continue;
+      if (search && !matches(task, search)) continue;
+      const attachments = filter.attachments ? countAttachments(task) : undefined;
+      if (filter.attachments && !attachments) continue;
+      matching.push({ task, ...(attachments === undefined ? {} : { attachments }) });
+    }
     if (!matching.length) return [];
     const index = projectionIndex(state);
-    return matching.map((task) => threadSummary(state, task, index)).sort((left, right) => right.lastActivityAt - left.lastActivityAt);
+    return matching
+      .map(({ task, attachments }) => projectThreadSummary(state, task, threadActivityAt(task), index, attachments))
+      .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
   }
-  const matching: Array<{ task: Task; activity: number }> = [];
+  const matching: Array<{ task: Task; activity: number; attachments?: number }> = [];
   for (const task of state.tasks) {
     if (forked.has(task.id)) continue;
     if (!inScope(task, filter.scope)) continue;
@@ -108,14 +112,15 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
       if (at - activity < filter.idleForMs) continue;
     }
     if (search && !matches(task, search)) continue;
-    if (filter.attachments && !task.messages.some(carriesAttachment)) continue;
-    matching.push({ task, activity: activity ?? threadActivityAt(task) });
+    const attachments = filter.attachments ? countAttachments(task) : undefined;
+    if (filter.attachments && !attachments) continue;
+    matching.push({ task, activity: activity ?? threadActivityAt(task), ...(attachments === undefined ? {} : { attachments }) });
   }
   if (!matching.length || Math.max(0, filter.limit) === 0) return [];
   matching.sort((left, right) => right.activity - left.activity);
   const retained = matching.slice(0, Math.max(0, filter.limit));
   const index = projectionIndex(state);
-  return retained.map(({ task, activity }) => projectThreadSummary(state, task, activity, index));
+  return retained.map(({ task, activity, attachments }) => projectThreadSummary(state, task, activity, index, attachments));
 }
 
 /**
@@ -186,6 +191,12 @@ function inScope(task: Task, scope: ProjectScope) {
 
 function carriesAttachment(message: Task["messages"][number]) {
   return Boolean(message.attachments?.length);
+}
+
+function countAttachments(task: Task) {
+  let count = 0;
+  for (const message of task.messages) if (carriesAttachment(message)) count += 1;
+  return count;
 }
 
 function matches(task: Task, search: string) {

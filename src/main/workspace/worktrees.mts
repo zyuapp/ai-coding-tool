@@ -6,7 +6,6 @@ import {
   applyPatch,
   git,
   headCommit,
-  headIsUnreachable,
   ignoredPaths,
   isDetached,
   matchIgnorePatterns,
@@ -16,6 +15,7 @@ import {
   shortCommit,
   snapshotCommit,
   trackedDiff,
+  unreachableHead,
   untrackedPaths,
   updateRef,
 } from "./git.mjs";
@@ -86,8 +86,10 @@ export class WorktreeService {
    * itself if it wants one.
    */
   async create(request: CreateWorktreeRequest): Promise<CreatedWorktree> {
-    const repository = await repositoryRoot(request.projectRoot);
-    const baseCommit = await headCommit(repository, request.branch);
+    const [repository, baseCommit] = await Promise.all([
+      repositoryRoot(request.projectRoot),
+      headCommit(request.projectRoot, request.branch),
+    ]);
     const id = randomBytes(4).toString("hex");
     const root = path.join(this.worktreesRoot, worktreeDirectoryName(repository, id));
     await mkdir(this.worktreesRoot, { recursive: true });
@@ -192,7 +194,7 @@ export class WorktreeService {
     if (!(await parentRepository(request.root))) return { commit: null, shortCommit: null, ref: null };
     const ref = (await isDetached(request.root)) ? worktreeRef(request.worktreeId) : null;
     const commit = await snapshotCommit(request.root, snapshotMessage(request.title, request.taskId, request.release, ref));
-    const kept = commit ?? (ref && (await headIsUnreachable(request.root)) ? await headCommit(request.root) : null);
+    const kept = commit ?? (ref ? await unreachableHead(request.root) : null);
     if (!kept) return { commit: null, shortCommit: null, ref: null };
     if (ref) await updateRef(request.root, ref, kept);
     return { commit, shortCommit: commit ? await shortCommit(request.root, commit) : null, ref };

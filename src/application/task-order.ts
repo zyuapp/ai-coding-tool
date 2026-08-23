@@ -42,13 +42,19 @@ export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<
  * Sidebar order. `sortIndex` wins so rows never move on their own; tasks stored before
  * sortIndex existed fall back to recency until {@link backfillSortIndex} pins them down.
  */
+function compareTasks(left: Task, right: Task) {
+  if (left.sortIndex !== undefined && right.sortIndex !== undefined) return left.sortIndex - right.sortIndex;
+  if (left.sortIndex !== undefined) return -1;
+  if (right.sortIndex !== undefined) return 1;
+  return right.updatedAt - left.updatedAt;
+}
+
 export function orderTasks(tasks: Task[]): Task[] {
-  return [...tasks].sort((left, right) => {
-    if (left.sortIndex !== undefined && right.sortIndex !== undefined) return left.sortIndex - right.sortIndex;
-    if (left.sortIndex !== undefined) return -1;
-    if (right.sortIndex !== undefined) return 1;
-    return right.updatedAt - left.updatedAt;
-  });
+  const ordered = [...tasks];
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (compareTasks(ordered[index - 1]!, ordered[index]!) > 0) return ordered.sort(compareTasks);
+  }
+  return ordered;
 }
 
 /** Freezes the order tasks loaded in, so a first launch after upgrading keeps the list the user last saw. */
@@ -59,7 +65,9 @@ export function backfillSortIndex(tasks: Task[]): Task[] {
 }
 
 export function nextSortIndex(tasks: Task[]): number {
-  return Math.min(0, ...tasks.map((task) => task.sortIndex ?? 0)) - 1;
+  let lowest = 0;
+  for (const task of tasks) lowest = Math.min(lowest, task.sortIndex ?? 0);
+  return lowest - 1;
 }
 
 /**

@@ -93,11 +93,21 @@ export function workflowNow(workflow: Workflow, clock: number) {
 }
 
 export function workflowAgentsDone(workflow: Workflow) {
-  return workflow.agents.filter((agent) => agent.state === "done" || agent.state === "error").length;
+  return workflowAgentCounts(workflow).done;
 }
 
 export function workflowAgentsFailed(workflow: Workflow) {
-  return workflow.agents.filter((agent) => agent.state === "error").length;
+  return workflowAgentCounts(workflow).failed;
+}
+
+export function workflowAgentCounts(workflow: Workflow) {
+  let done = 0;
+  let failed = 0;
+  for (const agent of workflow.agents) {
+    if (agent.state === "done" || agent.state === "error") done += 1;
+    if (agent.state === "error") failed += 1;
+  }
+  return { done, failed };
 }
 
 /** Phase order first, then spawn order, with anything the script never gave a phase left to the end. */
@@ -131,10 +141,13 @@ export function workflowAgentEnd(agent: WorkflowAgent, now: number) {
 
 /** The window every lane is drawn against: the first thing that happened, until the workflow's end. */
 export function workflowSpan(workflow: Workflow, now: number): WorkflowSpan {
-  const starts = workflow.agents.flatMap((agent) => [agent.queuedAt, agent.startedAt].filter((at): at is number => at !== undefined));
-  const start = Math.min(workflow.startedAt, ...starts);
-  const ends = workflow.agents.map((agent) => workflowAgentEnd(agent, now));
-  const end = Math.max(workflow.finishedAt ?? now, ...ends);
+  let start = workflow.startedAt;
+  let end = workflow.finishedAt ?? now;
+  for (const agent of workflow.agents) {
+    if (agent.queuedAt !== undefined) start = Math.min(start, agent.queuedAt);
+    if (agent.startedAt !== undefined) start = Math.min(start, agent.startedAt);
+    end = Math.max(end, workflowAgentEnd(agent, now));
+  }
   return { start, end: Math.max(end, start + 1) };
 }
 

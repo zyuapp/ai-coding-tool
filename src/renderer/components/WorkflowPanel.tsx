@@ -5,8 +5,7 @@ import {
   formatElapsed,
   workflowAgentDuration,
   workflowAgentNote,
-  workflowAgentsDone,
-  workflowAgentsFailed,
+  workflowAgentCounts,
   workflowBar,
   workflowGroups,
   workflowNow,
@@ -152,8 +151,7 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
   const live = workflow.status === "running";
   const now = workflowNow(workflow, useClock(live));
   const groups = useMemo(() => workflowGroups(workflow), [workflow]);
-  const done = workflowAgentsDone(workflow);
-  const failed = workflowAgentsFailed(workflow);
+  const { done, failed } = workflowAgentCounts(workflow);
   const agent = workflow.agents.find((candidate) => candidate.index === selected);
 
   useEffect(() => {

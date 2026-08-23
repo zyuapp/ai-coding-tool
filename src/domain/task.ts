@@ -142,7 +142,9 @@ export function clampTitle(text: string) {
 
 /** How a folder names itself: its last path segment. */
 export function folderName(root: string) {
-  return root.split("/").filter(Boolean).at(-1) ?? root;
+  let end = root.length;
+  while (end > 0 && root[end - 1] === "/") end -= 1;
+  return end === 0 ? root : root.slice(root.lastIndexOf("/", end - 1) + 1, end);
 }
 
 /** What a project is called everywhere in the UI: the name the user gave it, else its folder's. */
@@ -161,10 +163,19 @@ export type RecalledMessage = {
   pastes: PastedText[];
 };
 
+const sentPromptCache = new WeakMap<TaskMessage[], RecalledMessage[]>();
+
 export function sentPrompts(messages: TaskMessage[]): RecalledMessage[] {
-  return messages
-    .filter((message) => message.kind === "user" && message.detail === undefined)
-    .map((message) => ({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [] }));
+  const cached = sentPromptCache.get(messages);
+  if (cached) return cached;
+  const prompts: RecalledMessage[] = [];
+  for (const message of messages) {
+    if (message.kind === "user" && message.detail === undefined) {
+      prompts.push({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [] });
+    }
+  }
+  sentPromptCache.set(messages, prompts);
+  return prompts;
 }
 
 export function threadCreatedAt(task: Task): number {

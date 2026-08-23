@@ -22,7 +22,9 @@ export function backfillProjectSortIndex(projects: Project[]): Project[] {
 }
 
 export function nextProjectSortIndex(projects: Project[]): number {
-  return Math.min(0, ...projects.map((project) => project.sortIndex ?? 0)) - 1;
+  let lowest = 0;
+  for (const project of projects) lowest = Math.min(lowest, project.sortIndex ?? 0);
+  return lowest - 1;
 }
 
 /**

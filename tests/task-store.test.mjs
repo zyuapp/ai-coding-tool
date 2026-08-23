@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { legacyProjectId, migrateV1ToV2, parseTaskStore, serializeTaskStore, validateTaskStoreData } from "../dist/main/domain/task.js";
+import { folderName, legacyProjectId, migrateV1ToV2, parseTaskStore, serializeTaskStore, validateTaskStoreData } from "../dist/main/domain/task.js";
 import { LEGACY_TASK_STORE_KEYS, TASK_STORE_KEYS, TaskStore } from "../dist/main/application/task-store.js";
 
 const task = {
@@ -13,6 +13,11 @@ const task = {
   changedFiles: [" M src/App.tsx"],
   updatedAt: 20,
 };
+
+test("a folder name ignores leading, repeated, and trailing path separators", () => {
+  assert.equal(folderName("/work//claudex///"), "claudex");
+  assert.equal(folderName("///"), "///");
+});
 
 function legacyValues(overrides = {}) {
   return {

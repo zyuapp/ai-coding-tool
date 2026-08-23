@@ -9,7 +9,9 @@ export function pasteRidesAsPill(text: string) {
 }
 
 export function lineCount(text: string) {
-  return text.split("\n").length;
+  let lines = 1;
+  for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) lines += 1;
+  return lines;
 }
 
 /** What a pill says it holds: lines for anything with a shape, characters for one long run of text. */
@@ -20,7 +22,17 @@ export function pasteSummary(text: string) {
 
 /** What a thread pasted into with nothing typed is called: the first line that says something. */
 export function pasteTitle(pastes: PastedText[]) {
-  return pastes[0]?.text.split("\n").map((line) => line.trim()).find((line) => line.length > 0) ?? "";
+  const text = pastes[0]?.text;
+  if (!text) return "";
+  let start = 0;
+  while (start <= text.length) {
+    const end = text.indexOf("\n", start);
+    const line = text.slice(start, end === -1 ? text.length : end).trim();
+    if (line) return line;
+    if (end === -1) return "";
+    start = end + 1;
+  }
+  return "";
 }
 
 const PASTE_HEADING = "Text I pasted into my message, in the order I pasted it:";

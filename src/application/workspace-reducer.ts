@@ -1144,7 +1144,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const draftKey = input.text === undefined ? input.taskId ?? promptKey(state) : undefined;
       const drafted = (input.text ?? (draftKey === undefined ? undefined : state.prompts[draftKey]) ?? "").trim();
       /** `@handles` are a composer affordance, so only a draft's own text is read for them. */
-      const text = draftKey === undefined ? drafted : expandThreadHandles(drafted, threadHandleOptions(state, draftKey));
+      const text = draftKey === undefined || !drafted.includes("@") ? drafted : expandThreadHandles(drafted, threadHandleOptions(state, draftKey));
       /** The anchors mark drafts in the transcript; the sent message keeps only quote and note. */
       const annotations = (draftKey === undefined ? [] : annotationsFor(state, draftKey)).map(({ anchor: _anchored, ...annotation }) => annotation);
       const pastes = draftKey === undefined ? [] : pastesFor(state, draftKey);

@@ -451,9 +451,9 @@ function sessionStarted(state: WorkspaceState): boolean {
 /** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
 export function viewPreferences(state: WorkspaceState): ViewPreferences {
   /** Only a thread that will still be there reopens its pages, so a dock nothing owns stops being written. */
-  const browserTabs: Record<string, string[]> = {};
+  const browserTabs: Record<string, string[]> = {}, taskIds = new Set(state.tasks.map((task) => task.id));
   for (const [owner, dock] of Object.entries(state.docks)) {
-    if (owner !== DRAFT_DOCK && !state.tasks.some((task) => task.id === owner)) continue;
+    if (owner !== DRAFT_DOCK && !taskIds.has(owner)) continue;
     const urls = dock.browserTabs.map((tab) => tab.url).filter(Boolean);
     if (urls.length) browserTabs[owner] = urls;
   }

@@ -104,12 +104,13 @@ export async function listWorktrees(repositoryPath: string) {
  * head reports no current branch.
  */
 export async function listBranches(root: string) {
-  const [local, remote] = await Promise.all([
+  const [local, remote, currentBranch] = await Promise.all([
     git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads"]),
     git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/remotes"]),
+    tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]),
   ]);
   const names = (output: string) => output.split("\n").map((line) => line.trim()).filter(Boolean);
-  const current = (await tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]))?.trim() || null;
+  const current = currentBranch?.trim() || null;
   /** `origin/HEAD` is a pointer at another of these rather than a branch of its own. */
   return { branches: names(local), remotes: names(remote).filter((name) => !name.endsWith("/HEAD")), current };
 }
@@ -147,10 +148,10 @@ export async function snapshotCommit(root: string, message: string) {
   return headCommit(root);
 }
 
-/** True when no branch, remote or tag holds `HEAD`, so removing the checkout would orphan its commits. */
-export async function headIsUnreachable(root: string) {
+/** The `HEAD` no branch, remote or tag holds, if removing this checkout would orphan it. */
+export async function unreachableHead(root: string) {
   const output = await git(root, ["rev-list", "-n", "1", "HEAD", "--not", "--branches", "--remotes", "--tags"]);
-  return output.trim().length > 0;
+  return output.trim() || null;
 }
 
 /** Ignored files present in the checkout. `--directory` collapses `node_modules/` into one entry. */

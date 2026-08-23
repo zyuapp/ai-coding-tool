@@ -137,6 +137,16 @@ function screenLines(screen: Terminal) {
   return lines;
 }
 
+/** The common unfiltered read only needs the newest rows, though `omitted` still counts them all. */
+function screenTail(screen: Terminal, limit: number) {
+  const buffer = screen.buffer.active;
+  let end = buffer.length;
+  while (end > 0 && !(buffer.getLine(end - 1)?.translateToString(true) ?? "").trim()) end -= 1;
+  const lines: string[] = [];
+  for (let row = Math.max(0, end - limit); row < end; row++) lines.push(buffer.getLine(row)?.translateToString(true) ?? "");
+  return { lines, total: end };
+}
+
 /**
  * Reads a terminal as plain text. Pending output is flushed first, so a read taken straight after a
  * command shows what that command printed rather than what was there before it.
@@ -146,8 +156,13 @@ export async function readTerminal(terminalId: string, options: TerminalReadOpti
   if (!session) return null;
   flush(session);
   await new Promise<void>((resolve) => session.screen.write("", resolve));
-  const all = screenLines(session.screen);
   const match = options.match?.trim().toLowerCase();
+  if (!match) {
+    const tail = screenTail(session.screen, options.lines);
+    const kept = withinReadBudget(tail.lines);
+    return { lines: kept, omitted: tail.total - kept.length };
+  }
+  const all = screenLines(session.screen);
   const filtered = match ? all.filter((line) => line.toLowerCase().includes(match)) : all;
   const kept = withinReadBudget(filtered.slice(-options.lines));
   return {

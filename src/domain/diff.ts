@@ -110,10 +110,12 @@ export function parseFilePatch(patch: string, fallbackPath: string): DiffFile {
 
 /** The flat row list the panel draws, hunk headers included, keyed so windowing can track rows. */
 export function diffRows(file: DiffFile): DiffRow[] {
-  return file.hunks.flatMap((hunk, index) => [
-    { kind: "hunk" as const, key: `h${index}`, text: hunkLabel(hunk) },
-    ...hunk.rows.map((row) => ({ ...row, key: `${index}:${row.key}` })),
-  ]);
+  const rows: DiffRow[] = [];
+  for (const [index, hunk] of file.hunks.entries()) {
+    rows.push({ kind: "hunk", key: `h${index}`, text: hunkLabel(hunk) });
+    for (const row of hunk.rows) rows.push({ ...row, key: `${index}:${row.key}` });
+  }
+  return rows;
 }
 
 /** The header Git itself writes, counts and all, so a hunk reads the same here as anywhere else. */
@@ -127,10 +129,11 @@ function hunkLabel(hunk: DiffHunk) {
  * a line alone loses whatever state opened above it, so a hunk is the smallest honest unit.
  */
 export function hunkText(hunk: DiffHunk, side: DiffSide) {
-  return hunk.rows
-    .filter((row) => (side === "old" ? row.kind !== "add" : row.kind !== "delete"))
-    .map((row) => row.text)
-    .join("\n");
+  const lines: string[] = [];
+  for (const row of hunk.rows) {
+    if (side === "old" ? row.kind !== "add" : row.kind !== "delete") lines.push(row.text);
+  }
+  return lines.join("\n");
 }
 
 /** Where each of a hunk's rows lands in {@link hunkText}, so a token line can find the row it draws. */
@@ -239,27 +242,34 @@ export type SplitRow = Extract<DiffRow, { kind: "hunk" }> | DiffPair;
  * the keys {@link diffRows} gives them, so both views look their tokens up the same way.
  */
 export function splitRows(file: DiffFile): SplitRow[] {
-  return file.hunks.flatMap((hunk, index) => {
-    const keyed = hunk.rows.map((row) => ({ ...row, key: `${index}:${row.key}` }));
-    const pairs: DiffPair[] = [];
+  const rows: SplitRow[] = [];
+  for (const [index, hunk] of file.hunks.entries()) {
+    rows.push({ kind: "hunk", key: `h${index}`, text: hunkLabel(hunk) });
     let cursor = 0;
-    while (cursor < keyed.length) {
-      const row = keyed[cursor];
-      if (row.kind === "context") {
-        pairs.push({ kind: "pair", key: row.key, left: row, right: row });
+    while (cursor < hunk.rows.length) {
+      const source = hunk.rows[cursor]!;
+      if (source.kind === "context") {
+        const row = { ...source, key: `${index}:${source.key}` };
+        rows.push({ kind: "pair", key: row.key, left: row, right: row });
         cursor += 1;
         continue;
       }
-      const deletions: typeof keyed = [];
-      const additions: typeof keyed = [];
-      while (cursor < keyed.length && keyed[cursor].kind === "delete") deletions.push(keyed[cursor++]);
-      while (cursor < keyed.length && keyed[cursor].kind === "add") additions.push(keyed[cursor++]);
+      const deletions: DiffHunk["rows"] = [];
+      const additions: DiffHunk["rows"] = [];
+      while (cursor < hunk.rows.length && hunk.rows[cursor]!.kind === "delete") {
+        const row = hunk.rows[cursor++]!;
+        deletions.push({ ...row, key: `${index}:${row.key}` });
+      }
+      while (cursor < hunk.rows.length && hunk.rows[cursor]!.kind === "add") {
+        const row = hunk.rows[cursor++]!;
+        additions.push({ ...row, key: `${index}:${row.key}` });
+      }
       for (let offset = 0; offset < Math.max(deletions.length, additions.length); offset += 1) {
         const left = deletions[offset] ?? null;
         const right = additions[offset] ?? null;
-        pairs.push({ kind: "pair", key: `${left?.key ?? ""}|${right?.key ?? ""}`, left, right });
+        rows.push({ kind: "pair", key: `${left?.key ?? ""}|${right?.key ?? ""}`, left, right });
       }
     }
-    return [{ kind: "hunk" as const, key: `h${index}`, text: hunkLabel(hunk) }, ...pairs];
-  });
+  }
+  return rows;
 }
