@@ -55,7 +55,7 @@ test("a scheduled run is the scheduler's, unattended, and never quiet unless the
     origin: "automation",
     quiet: false,
     notified: false,
-    reportedNothing: false,
+    acknowledged: false,
     messagesBefore: 1,
     before: { updatedAt: 1 },
   });
@@ -76,7 +76,7 @@ test("a run the user sent is theirs, and nothing about it is inferred as quiet o
   const [{ command }] = started.effects;
   assert.equal(command.unattended, undefined);
   const active = started.state.activeRuns[command.taskId];
-  assert.deepEqual([active.origin, active.quiet, active.notified, active.reportedNothing], ["composer", false, false, false]);
+  assert.deepEqual([active.origin, active.quiet, active.notified, active.acknowledged], ["composer", false, false, false]);
 });
 
 test("a turn the agent starts for itself belongs to the composer rather than to the scheduler", () => {
@@ -93,7 +93,7 @@ test("a human steering into a scheduled run takes it over", () => {
   const scheduled = workspace({
     tasks: [task("task-a")],
     currentId: "task-a",
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, reportedNothing: false } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false } },
     runStatuses: { "task-a": "running" },
   });
   const queued = reduce(reduce(scheduled, { type: "view.set-prompt", prompt: "What did you find?" }).state, { type: "task.send", attachments: [] }).state;
@@ -137,7 +137,7 @@ function midRun(run = {}, taskOverrides = {}) {
   };
   return workspace({
     tasks: [started],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, reportedNothing: false, messagesBefore: 1, before, ...run } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, messagesBefore: 1, before, ...run } },
     runStatuses: { "task-a": "running" },
   });
 }
@@ -155,11 +155,11 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
     for (const quiet of [false, true]) {
       for (const status of ["succeeded", "failed", "cancelled"]) {
         for (const notified of [false, true]) {
-          for (const reportedNothing of [false, true]) {
-            const settled = settleRun(midRun({ origin, quiet, notified, reportedNothing }), status);
+          for (const acknowledged of [false, true]) {
+            const settled = settleRun(midRun({ origin, quiet, notified, acknowledged }), status);
             const [thread] = settled.state.tasks;
-            const row = `${origin} quiet=${quiet} ${status} notified=${notified} reportedNothing=${reportedNothing}`;
-            const unseen = origin === "automation" && quiet && status === "succeeded" && reportedNothing && !notified;
+            const row = `${origin} quiet=${quiet} ${status} notified=${notified} acknowledged=${acknowledged}`;
+            const unseen = origin === "automation" && quiet && status === "succeeded" && acknowledged && !notified;
             const expected = status === "cancelled" || unseen ? undefined : status === "succeeded" ? "finished" : "failed";
             assert.equal(thread.outcome, expected, row);
             assert.equal(thread.outcomeUnread, expected === undefined ? undefined : true, row);
@@ -172,7 +172,7 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
 });
 
 test("a tick that surfaced nothing leaves the thread exactly where it stood", () => {
-  const before = midRun({ reportedNothing: true }, { runEndedAt: 500 });
+  const before = midRun({ acknowledged: true }, { runEndedAt: 500 });
   const working = reduce(before, {
     type: "run.event",
     event: { type: "assistant.delta", taskId: "task-a", runId: "run-1", sequence: 2, messageId: "reply", text: "Datadog is clean." },
@@ -266,7 +266,7 @@ test("a turn that is not a scheduled run raises nothing at all", () => {
   const asked = said(attended, { type: "automation.notify", taskId: "task-a", headline: "Ignore me" });
   assert.equal(asked.tasks[0].findings, undefined);
   assert.equal(asked.activeRuns["task-a"].notified, false);
-  assert.equal(said(attended, { type: "automation.nothing-to-report", taskId: "task-a" }).activeRuns["task-a"].reportedNothing, false);
+  assert.equal(said(attended, { type: "automation.nothing-to-report", taskId: "task-a" }).activeRuns["task-a"].acknowledged, false);
 });
 
 /** The window answering the two tools, which is where their wording is decided. */
@@ -283,6 +283,30 @@ function toolHost(initial) {
 
 const answer = async (host, request) => answerThreadRequest(host, { type: "thread.request", requestId: "r", taskId: "task-a", ...request });
 
+test("a tick that only found what the thread already knows settles unseen", async () => {
+  const host = toolHost(midRun());
+  await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  const spoke = settleRun(host.state()).state;
+  assert.equal(spoke.tasks[0].outcome, "finished", "the first sighting is news");
+
+  /** The next tick, on a thread that already carries it: the same alert must not wake the user again. */
+  const again = toolHost(midRun({}, { findings: spoke.tasks[0].findings, lastFindingAt: spoke.tasks[0].lastFindingAt }));
+  const repeat = await answer(again, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  assert.equal(repeat.result.recorded, false);
+  const settled = settleRun(again.state()).state;
+  assert.equal(settled.tasks[0].outcome, undefined, "nothing new means nothing to surface");
+  assert.equal(settled.tasks[0].findings.length, 1, "and nothing to add");
+});
+
+test("a key holds against a finding the user has read, not only an unread one", async () => {
+  const seen = midRun({}, { findings: [{ id: "f1", headline: "5xx on checkout", key: "checkout", at: 5, read: true }] });
+  const host = toolHost(seen);
+
+  const repeat = await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  assert.equal(repeat.result.recorded, false, "reading a finding is not handling it");
+  assert.equal(host.task().findings.length, 1);
+});
+
 test("notify accumulates, says how much the thread now carries, and never raises the same key twice", async () => {
   const host = toolHost(midRun());
 
@@ -297,7 +321,7 @@ test("notify accumulates, says how much the thread now carries, and never raises
 
   const repeat = await answer(host, { op: "notify", report: { headline: "5xx on checkout again", key: "checkout" } });
   assert.equal(repeat.result.recorded, false);
-  assert.match(repeat.result.note, /already carries an unread finding keyed "checkout"/);
+  assert.match(repeat.result.note, /already carries a finding keyed "checkout"/);
   assert.equal(host.task().findings.length, 2);
 });
 
@@ -307,7 +331,7 @@ test("a run that has spoken cannot be talked back into silence", async () => {
 
   const retracted = await answer(host, { op: "nothing-to-report", checked: "the alert feed" });
   assert.equal(retracted.result.recorded, false);
-  assert.match(retracted.result.note, /already raised a finding/);
+  assert.match(retracted.result.note, /already raised something new/);
   assert.equal(host.run().notified, true);
   assert.equal(settleRun(host.state()).state.tasks[0].outcome, "finished");
 });
@@ -317,7 +341,7 @@ test("nothing_to_report says what silence it bought, and buys none on a loud aut
   const spoken = await answer(quiet, { op: "nothing-to-report", checked: "the last hour of logs" });
   assert.equal(spoken.result.recorded, true);
   assert.match(spoken.result.note, /settles without reaching the user/);
-  assert.equal(quiet.run().reportedNothing, true);
+  assert.equal(quiet.run().acknowledged, true);
 
   const loud = toolHost(midRun({ quiet: false }));
   const heard = await answer(loud, { op: "nothing-to-report", checked: "the last hour of logs" });
@@ -381,7 +405,7 @@ function declined(consecutiveDeclines, tasks = [task("task-a")], origin = "autom
   const busy = workspace({
     tasks,
     automations: [{ ...automation, nextRunAt: null }],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, reportedNothing: false, messagesBefore: 0 } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, messagesBefore: 0 } },
     runStatuses: { "task-a": "running" },
   });
   return reduce(busy, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });
@@ -532,27 +556,28 @@ test("the automation panel says whether the schedule is alive and whether it has
   assert.match(automationMeta(automation, at - 120_000, null, at), /found something /);
 });
 
-test("the panel shows what a quiet schedule surfaces for, and lets the user take the quiet away", async () => {
+test("the panel keeps the sentence a schedule surfaces for, rather than trading it for a default", async () => {
   const patches = [];
   const automation = { id: "a", taskId: "task-a", prompt: "Poll", schedule: "*/30 * * * *", paused: false, createdAt: 1, updatedAt: 1, runCount: 3, nextRunAt: Date.now() + 60_000 };
   const panel = (surfaceWhen) => React.createElement(AutomationPanel, {
-    automation: surfaceWhen === undefined ? automation : { ...automation, surfaceWhen },
+    /** A record only ever changes with its moment, which is what the panel reloads its fields on. */
+    automation: surfaceWhen === undefined ? automation : { ...automation, surfaceWhen, updatedAt: 2 },
     lastFinding: null,
     onUpdate: (patch) => patches.push(patch),
     onDelete() {}, onRunNow() {},
   });
 
+  const field = () => view.container.querySelector("[aria-label='What a run of this automation surfaces for']");
+  const save = () => [...view.container.querySelectorAll("button")].find((button) => button.textContent === "Save");
+
   const view = await mount(panel(undefined));
-  const toggle = () => view.container.querySelector(".automation-quiet");
-  assert.equal(toggle().getAttribute("aria-pressed"), "false");
-  assert.equal(view.container.querySelector(".automation-quiet-sentence"), null);
-  await act(async () => { toggle().click(); });
-  assert.match(patches[0].surfaceWhen, /finds something/);
+  assert.equal(field().value, "", "a schedule that never said what it surfaces for is loud");
+  assert.equal(save().disabled, true);
 
   await view.render(panel("an error was caused by the user's own code."));
-  assert.equal(toggle().getAttribute("aria-pressed"), "true");
-  assert.equal(view.container.querySelector(".automation-quiet-sentence").textContent, "Surfaces when: an error was caused by the user's own code.");
-  await act(async () => { toggle().click(); });
-  assert.deepEqual(patches[1], { surfaceWhen: "" }, "an empty sentence is what makes it loud again");
+  assert.equal(field().value, "an error was caused by the user's own code.", "the sentence the schedule carries is the one shown");
+  assert.equal(save().disabled, true, "showing it is not changing it");
+
+  await act(async () => { field().click(); });
   await view.unmount();
 });

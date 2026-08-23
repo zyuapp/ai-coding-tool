@@ -11,7 +11,8 @@ export type ActiveRun = RunProvenance & {
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
   /** Whether this run has said it looked and found nothing. */
-  reportedNothing: boolean;
+  /** Whether the run answered for itself with either tool. Answering neither is what surfaces a quiet tick. */
+  acknowledged: boolean;
   /** How many messages the thread held when this run began, so a silent one can quiet its own. */
   messagesBefore: number;
   /** Where the thread stood when this run began, so a silent one can leave it exactly there. */

@@ -155,8 +155,12 @@ async function raiseFinding(host: ThreadRequestHost, taskId: string, report: Fin
   const outcome = findingOutcome(task, report.key);
   await host.dispatch({ type: "automation.notify", taskId, ...report });
   if (outcome === "full") throw new Error(`This thread is already carrying ${MAX_FINDINGS} unread findings, so this one was not raised. The run surfaces either way; the user has to read the thread before it can hold more.`);
-  if (outcome === "duplicate") return { recorded: false, note: `This thread already carries an unread finding keyed "${report.key}", so the same one was not raised twice. The run still surfaces.` };
-  return { recorded: true, note: `Raised. This thread now carries ${unreadCount(host, taskId)} unread ${unreadCount(host, taskId) === 1 ? "finding" : "findings"}, and the run surfaces when it settles.` };
+  if (outcome === "duplicate") return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
+  const unread = unreadCount(host, taskId);
+  const carried = unread === 0
+    ? "The user is looking at this thread, so it is already seen"
+    : `This thread now carries ${unread} unread ${unread === 1 ? "finding" : "findings"}`;
+  return { recorded: true, note: `Raised. ${carried}, and the run surfaces when it settles.` };
 }
 
 /** A run saying it looked and found nothing, which is the only thing that earns a quiet tick silence. */
@@ -164,7 +168,7 @@ async function reportNothing(host: ThreadRequestHost, taskId: string, checked: s
   const active = scheduledRun(host.state(), taskId);
   if (!active) return { recorded: false, note: UNSCHEDULED };
   await host.dispatch({ type: "automation.nothing-to-report", taskId, checked });
-  if (active.notified) return { recorded: false, note: "This run already raised a finding, so it surfaces anyway and what it found stands." };
+  if (active.notified) return { recorded: false, note: "This run already raised something new, so it surfaces anyway and what it found stands." };
   if (!active.quiet) return { recorded: true, note: "Noted. This automation has no quiet sentence, so every run of it surfaces, this one included." };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };
 }

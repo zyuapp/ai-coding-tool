@@ -485,7 +485,7 @@ function beginRun(state: WorkspaceState, taskId: string, runId: string, provenan
   const messagesBefore = tasks.find((task) => task.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.tasks.find((task) => task.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, reportedNothing: false, messagesBefore, before: mark }),
+    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, messagesBefore, before: mark }),
     taskId,
     "running",
   );

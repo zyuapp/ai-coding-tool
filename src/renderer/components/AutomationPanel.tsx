@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlarmClock, Bell, BellOff, Pause, Play, RotateCw, Trash2 } from "lucide-react";
+import { AlarmClock, Pause, Play, RotateCw, Trash2 } from "lucide-react";
 import type { AutomationPatch, AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
@@ -22,7 +22,6 @@ export function automationStatusLabel(automation: AutomationView, at: number) {
 const DAY = 86_400_000;
 
 /** What a schedule silenced from the panel surfaces for, until the automation words it for itself. */
-const DEFAULT_SURFACE_WHEN = "the run finds something the user has to act on.";
 
 /** Within a day of now the clock is enough; anything further needs the date to mean anything. */
 function formatMoment(moment: number, at: number) {
@@ -61,12 +60,14 @@ export function lastRunLabel(automation: AutomationView, at: number) {
 export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
   const [schedule, setSchedule] = useState(automation?.schedule ?? "");
   const [prompt, setPrompt] = useState(automation?.prompt ?? "");
+  const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
   const [now, setNow] = useState(() => Date.now());
   const revision = automation ? `${automation.id}:${automation.updatedAt}` : "";
 
   useEffect(() => {
     setSchedule(automation?.schedule ?? "");
     setPrompt(automation?.prompt ?? "");
+    setSurfaceWhen(automation?.surfaceWhen ?? "");
   }, [revision]);
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate
     );
   }
 
-  const dirty = schedule !== automation.schedule || prompt !== automation.prompt;
+  const dirty = schedule !== automation.schedule || prompt !== automation.prompt || surfaceWhen !== (automation.surfaceWhen ?? "");
 
   return (
     <section className="automation-panel" aria-label="Automation">
@@ -120,19 +121,15 @@ export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate
           />
         </label>
 
-        {automation.surfaceWhen !== undefined && (
-          <p className="automation-quiet-sentence">Surfaces when: {automation.surfaceWhen}</p>
-        )}
-
-        <button
-          type="button"
-          className="automation-quiet"
-          aria-pressed={automation.surfaceWhen !== undefined}
-          onClick={() => onUpdate({ surfaceWhen: automation.surfaceWhen === undefined ? DEFAULT_SURFACE_WHEN : "" })}
-        >
-          {automation.surfaceWhen === undefined ? <Bell size={13} aria-hidden="true" /> : <BellOff size={13} aria-hidden="true" />}
-          <span>Only surface runs that find something</span>
-        </button>
+        <label className="automation-field">
+          <span>Surfaces when</span>
+          <input
+            value={surfaceWhen}
+            aria-label="What a run of this automation surfaces for"
+            placeholder="Every run surfaces. Say what is worth surfacing and the rest stay quiet."
+            onInput={(event) => setSurfaceWhen(event.currentTarget.value)}
+          />
+        </label>
 
         <p className="automation-meta">
           <AlarmClock size={13} aria-hidden="true" />
@@ -140,7 +137,7 @@ export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate
         </p>
 
         <div className="automation-actions">
-          <button type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt })}>Save</button>
+          <button type="button" disabled={!dirty} onClick={() => onUpdate({ schedule, prompt, ...(surfaceWhen === (automation.surfaceWhen ?? "") ? {} : { surfaceWhen }) })}>Save</button>
           <button type="button" onClick={() => onUpdate({ paused: !automation.paused })} aria-label={automation.paused ? "Resume automation" : "Pause automation"}>
             {automation.paused ? <Play size={14} /> : <Pause size={14} />}
           </button>

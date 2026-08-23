@@ -32,9 +32,9 @@ export function hasFindings(task: Task): boolean {
 }
 
 export function findingOutcome(task: Task, key?: string): FindingOutcome {
-  const unread = unreadFindings(task);
-  if (key !== undefined && unread.some((finding) => finding.key === key)) return "duplicate";
-  return unread.length >= MAX_FINDINGS ? "full" : "recorded";
+  /** Reading a finding is not handling it, so a key holds until the thread is filed away and re-arms. */
+  if (key !== undefined && (task.findings ?? []).some((finding) => finding.key === key)) return "duplicate";
+  return unreadFindings(task).length >= MAX_FINDINGS ? "full" : "recorded";
 }
 
 /**
@@ -151,9 +151,11 @@ export function scheduledRun(state: RunTransitionState, taskId: string): ActiveR
 export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: string, report: FindingReport, at: number, seen = false): T {
   const active = scheduledRun(state, taskId);
   if (!active) return state;
+  /** A duplicate is still the run answering for itself, but it is not news, so it does not break the silence. */
+  const raised = state.tasks.some((task) => task.id === taskId && findingOutcome(task, report.key) === "recorded");
   return {
     ...state,
-    activeRuns: { ...state.activeRuns, [taskId]: { ...active, notified: true } },
+    activeRuns: { ...state.activeRuns, [taskId]: { ...active, acknowledged: true, notified: active.notified || raised } },
     tasks: state.tasks.map((task) => task.id === taskId ? withFinding(task, report, at, seen) : task),
   };
 }
@@ -162,21 +164,21 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
 export function withNothingToReport<T extends RunTransitionState>(state: T, taskId: string, checked: string, at: number): T {
   const active = scheduledRun(state, taskId);
   if (!active) return state;
-  const acknowledged = { ...state, activeRuns: { ...state.activeRuns, [taskId]: { ...active, reportedNothing: true } } };
+  const acknowledged = { ...state, activeRuns: { ...state.activeRuns, [taskId]: { ...active, acknowledged: true } } };
   return applyTask(acknowledged, taskId, (task) => ({ ...task, lastChecked: { at, note: checked } }));
 }
 
 /**
  * Whether this run settled with nothing to say. Silence is earned by a scheduled quiet run that
- * succeeded and said it found nothing: a failure, a cancellation, a run that spoke, and a run that
- * acknowledged neither all surface exactly as they always have.
+ * succeeded and answered for itself without raising anything new: a failure, a cancellation, a run
+ * that found something, and a run that answered nothing at all surface as they always have.
  */
 export function settledUnseen(active: ActiveRun, event: RunEvent): boolean {
   return active.origin === "automation"
     && active.quiet
     && event.type === "run.status"
     && event.status === "succeeded"
-    && active.reportedNothing
+    && active.acknowledged
     && !active.notified;
 }
 
