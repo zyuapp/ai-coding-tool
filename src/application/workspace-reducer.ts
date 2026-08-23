@@ -1639,6 +1639,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(withPastes(state, key, pastesFor(state, key).filter((item) => item.id !== input.pasteId)));
     }
 
+    case "paste.recall": {
+      const key = input.taskId ?? promptKey(state);
+      return settled(withPastes(state, key, input.pastes));
+    }
+
     case "image.add": {
       const key = input.taskId ?? promptKey(state);
       if (!input.path) return settled(state);

@@ -117,3 +117,12 @@ test("a side chat drafts its own pastes, and closing it takes them along", () =>
   assert.deepEqual(deriveView(opened).pastes, [], "the main composer shows none of it");
   assert.deepEqual(run(opened, [{ type: "side-chat.close", chatId: "chat-1" }]).pastes, {});
 });
+
+test("recalling a sent message puts its pastes back over whatever the draft holds", () => {
+  const drafted = run(currentWorkspace(), [{ type: "paste.add", text: LONG }]);
+  const sent = [{ id: "p", text: "what was sent" }];
+
+  const recalled = reduce(drafted, { type: "paste.recall", pastes: sent }).state;
+  assert.deepEqual(recalled.pastes["task-1"], sent, "the recall replaces the draft rather than adding to it");
+  assert.deepEqual(reduce(recalled, { type: "paste.recall", pastes: [] }).state.pastes, {});
+});

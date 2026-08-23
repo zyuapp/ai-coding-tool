@@ -125,7 +125,7 @@ test("a send that carried only annotations is still offered back", async () => {
     const [prompt, setPrompt] = React.useState("");
     return composer({
       prompt,
-      history: [{ text: "", annotations }, { text: "then some words", annotations: [] }],
+      history: [{ text: "", annotations, pastes: [] }, { text: "then some words", annotations: [], pastes: [] }],
       onPromptChange: setPrompt,
       onAnnotationRecall: (put) => recalled.push(put),
     });
@@ -143,13 +143,34 @@ test("a send that carried only annotations is still offered back", async () => {
   await view.unmount();
 });
 
+test("a send that carried only pasted text is offered back with the paste", async () => {
+  const pastes = [{ id: "p1", text: "a long pasted block" }];
+  const recalled = [];
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return composer({
+      prompt,
+      history: [{ text: "", annotations: [], pastes }],
+      onPromptChange: setPrompt,
+      onPasteRecall: (put) => recalled.push(put),
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+
+  await act(async () => { textarea.focus(); });
+  await act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })); });
+  assert.deepEqual(recalled, [pastes], "a paste-only send is a step of its own");
+  await view.unmount();
+});
+
 test("the up arrow puts a sent message's annotations back with its text", async () => {
   const recalled = [];
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
     return composer({
       prompt,
-      history: [{ text: "make the badge smaller", annotations }],
+      history: [{ text: "make the badge smaller", annotations, pastes: [] }],
       onPromptChange: setPrompt,
       onAnnotationRecall: (put) => recalled.push(put),
     });

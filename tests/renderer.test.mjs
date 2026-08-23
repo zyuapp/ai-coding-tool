@@ -1318,7 +1318,7 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
       mode: "confirm",
       model: "opus",
       runActive: false,
-      history: [{ text: "first question", annotations: [] }, { text: "first question", annotations: [] }, { text: "second question", annotations: [{ id: "q", quote: "the reducer", note: "" }] }],
+      history: ["first question", "first question", "second question"].map((text) => ({ text, annotations: [], pastes: [] })),
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},

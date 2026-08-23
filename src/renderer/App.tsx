@@ -585,6 +585,7 @@ export function App() {
                     onAnnotateRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", taskId: chat.id, annotations })}
                     onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", taskId: chat.id, annotationId })}
                     onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", taskId: chat.id, text })}
+                    onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", taskId: chat.id, pastes })}
                     onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", taskId: chat.id, pasteId })}
                     readingPoint={chat.readingPoint}
                     onReadingPointMove={(point) => void workspace.dispatch({ type: "view.reading-point", taskId: chat.id, point })}
@@ -627,6 +628,7 @@ export function App() {
           onAnnotationRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", annotations })}
           onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
           onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
+          onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", pastes })}
           onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", pasteId })}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}

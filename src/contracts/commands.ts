@@ -7,7 +7,7 @@ import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
+import type { Annotation, AnnotationAnchor, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
  * Where a thread was left reading: the message held at the top of the view and how far into it the
@@ -96,7 +96,8 @@ export type AnnotationCommand =
  */
 export type PasteCommand =
   | { type: "paste.add"; taskId?: string; text: string }
-  | { type: "paste.remove"; taskId?: string; pasteId: string };
+  | { type: "paste.remove"; taskId?: string; pasteId: string }
+  | { type: "paste.recall"; taskId?: string; pastes: PastedText[] };
 
 /**
  * An image waiting in a composer, already on disk. Drafted the way pastes are: per task, cleared by

@@ -114,6 +114,7 @@ export type TaskComposerProps = {
   onAnnotationRecall?: (annotations: TaskAnnotation[]) => void;
   onAnnotationRemove?: (annotationId: string) => void;
   onPasteAdd?: (text: string) => void;
+  onPasteRecall?: (pastes: PastedText[]) => void;
   onPasteRemove?: (pasteId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
@@ -156,6 +157,10 @@ function QueuedRow({ messages, surface, onSteer, onDrop }: {
   );
 }
 
+function carries(message: RecalledMessage) {
+  return message.text.trim() !== "" || message.annotations.length > 0 || message.pastes.length > 0;
+}
+
 export function TaskComposer({
   prompt,
   folder,
@@ -180,6 +185,7 @@ export function TaskComposer({
   onAnnotationRecall,
   onAnnotationRemove,
   onPasteAdd,
+  onPasteRecall,
   onPasteRemove,
   onImageRemove,
   onModeChange,
@@ -231,9 +237,9 @@ export function TaskComposer({
   /** Where the list stops belonging to this project, so the divider sits above that row. */
   const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
-  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [] }))];
+  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [] }))];
   /** A send is worth offering back when it carried anything. Only a repeated text collapses into one. */
-  const recallable = sent.filter((message, index) => (message.text.trim() !== "" || message.annotations.length > 0)
+  const recallable = sent.filter((message, index) => carries(message)
     && !(message.text !== "" && message.text === sent[index - 1]?.text));
 
   /** Step through the sent history; the live draft is stashed and comes back below the newest entry. */
@@ -241,11 +247,12 @@ export function TaskComposer({
     if (step === 1 && recall === null) return false;
     const index = (recall?.index ?? recallable.length) + step;
     if (index < 0) return false;
-    const draft = recall?.draft ?? { text: prompt, annotations };
+    const draft = recall?.draft ?? { text: prompt, annotations, pastes };
     const next = index >= recallable.length ? draft : recallable[index];
     setRecall(index >= recallable.length ? null : { index, draft, shown: next.text });
     onPromptChange(next.text);
     onAnnotationRecall?.(next.annotations);
+    onPasteRecall?.(next.pastes);
     setDismissedPrompt(next.text);
     setPendingCaret(next.text.length);
     return true;
