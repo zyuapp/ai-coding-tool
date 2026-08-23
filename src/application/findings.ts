@@ -9,6 +9,7 @@ import { isNews, withFinding } from "../domain/attention.js";
 import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js";
 import type { Project, Task } from "../domain/task.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
+import { threadBusy } from "./thread-projection.js";
 import { applyTask } from "./task-workspace.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -16,15 +17,19 @@ import type { WorkspaceState } from "./workspace-state.js";
 /** Why a tick has nowhere to run. */
 export type TickRefusal = "no-thread" | "archived" | "busy-user" | "busy-agent" | "no-workspace";
 
+/** Whether the user has a turn of their own going, which is what a tick waits behind. */
+function userIsHere(state: WorkspaceState, taskId: string): boolean {
+  return state.activeRuns[taskId]?.origin === "composer"
+    || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.origin === "composer");
+}
+
 /**
- * Who the thread is working for, if anyone. A send still resolving is a run too: two of them in one
- * thread would make two checkouts.
+ * Who the thread is working for, if anyone. Busy is {@link threadBusy}'s answer, so a send still
+ * resolving and a message still queued both count: two runs in one thread would make two checkouts.
  */
 function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-agent" | null {
-  const active = state.activeRuns[taskId];
-  const pending = Object.values(state.pendingRuns).filter((run) => run.taskId === taskId);
-  if (active?.origin === "composer" || pending.some((run) => run.origin === "composer")) return "busy-user";
-  return active || pending.length ? "busy-agent" : null;
+  if (!threadBusy(state, taskId)) return null;
+  return userIsHere(state, taskId) ? "busy-user" : "busy-agent";
 }
 
 /**

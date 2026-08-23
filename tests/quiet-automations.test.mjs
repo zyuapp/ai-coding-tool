@@ -537,6 +537,18 @@ test("a schedule turned away three times running says so out loud on its thread"
   assert.equal(fourth.state.tasks[0].findings.length, 1);
 });
 
+test("a tick waits behind messages the user has queued, and does not call that a broken schedule", () => {
+  const waiting = workspace({
+    tasks: [task("task-a")],
+    automations: [{ id: "automation-1", taskId: "task-a", prompt: "Poll", schedule: "* * * * *", paused: false, createdAt: 100, updatedAt: 100, runCount: 4, lastRunAt: 900, consecutiveDeclines: 2, nextRunAt: null }],
+    queuedMessages: { "task-a": [{ id: "q1", text: "do the thing", attachments: [] }] },
+  });
+
+  const fired = reduce(waiting, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });
+  assert.deepEqual(fired.effects.map((effect) => effect.type), ["automation.ack", "announce-finding"], "a thread queued behind its own run has no turn to give the tick");
+  assert.equal(fired.effects[0].ack.started, false);
+});
+
 test("what the scheduler counts about declines is reset by a run that actually happened", () => {
   const automation = { id: "a", taskId: "t", prompt: "p", schedule: "* * * * *", paused: false, createdAt: 1, updatedAt: 1, runCount: 2 };
 
