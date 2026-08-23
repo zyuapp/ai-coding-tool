@@ -182,6 +182,7 @@
 
   /* Type and metrics */
   --text-meta: 12px;
+  --text-menu: 13px;
   --text-control: 14px;
   --text-content: 15px;
   --text-heading: 17px;
@@ -456,25 +457,65 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-size: var(--text-control);
   letter-spacing: 2px;
 }
+/**
+ * Every floating menu in the app, whether a trigger or a right-click opened it. Shaped after a menu
+ * on this platform: translucent, hairline bordered, tight rows, and a full-width highlight held in
+ * from the edges. Every colour comes from the theme, so the shape is all that is borrowed.
+ */
 .menu-popover {
   position: absolute;
   z-index: 10;
   top: 29px;
   right: -30px;
-  width: 128px;
   /** A column, so a menu sized to its content measures its widest item rather than every item in a row. */
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--line-mid);
-  border-radius: 9px;
-  padding: 5px;
-  background: var(--surface-menu);
+  width: max-content;
+  min-width: 168px;
+  max-width: 320px;
+  border: 1px solid var(--line-glass);
+  border-radius: 6px;
+  padding: 4px 0;
+  background: var(--surface-glass);
+  backdrop-filter: blur(28px) saturate(180%);
   box-shadow: var(--shadow-menu);
+  font-size: var(--text-menu);
 }
-.menu-popover button { width: 100%; padding: 7px 8px; border-radius: 6px; text-align: left; font-size: var(--text-control); }
-.menu-popover button:hover { background: var(--surface-menu-hover); }
+.menu-popover button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  margin: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 7px;
+  background: transparent;
+  color: var(--ink-dim);
+  text-align: left;
+  font-size: var(--text-menu);
+  /** An arrow over a menu, not a hand: a menu is not a link. */
+  cursor: default;
+}
+.menu-popover button:hover:not(:disabled),
+.menu-popover button:focus { background: var(--accent); color: var(--accent-ink); outline: none; }
+.menu-popover button:disabled { opacity: 0.35; }
 .menu-popover .danger-menu-item { color: var(--danger); }
-.section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
+.menu-popover .danger-menu-item:hover:not(:disabled),
+.menu-popover .danger-menu-item:focus { background: var(--danger); color: var(--accent-ink); }
+.menu-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/** The tick column only exists in a list that has something to tick, so every other list stays tight. */
+.menu-tick { display: none; }
+.menu-checkable .menu-tick { display: grid; place-items: center; width: 13px; }
+.menu-shortcut,
+.menu-chevron { color: var(--muted); }
+.menu-popover button:hover .menu-shortcut, .menu-popover button:focus .menu-shortcut,
+.menu-popover button:hover .menu-chevron, .menu-popover button:focus .menu-chevron { color: var(--accent-ink); opacity: 0.75; }
+.menu-separator { height: 1px; margin: 5px 0; background: var(--line-glass); }
+/** A list an item opened, overlapping that item the way this platform draws one. */
+.menu-submenu { top: 0; left: calc(100% - 5px); right: auto; z-index: 1; }
+.menu-submenu.menu-flipped { left: auto; right: calc(100% - 5px); }
+.section-menu-popover { top: 30px; right: -6px; min-width: 224px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .show-more,
 .empty-tasks {
@@ -492,8 +533,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .show-more:hover { color: var(--muted-strong); }
 .empty-tasks { margin: 0; line-height: 24px; cursor: default; }
 .task-entry { position: relative; min-width: 0; }
-.context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; width: max-content; min-width: 128px; }
-.context-menu-popover button { white-space: nowrap; }
+.context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /**
  * A row's trailing rail: one set of slots with two layers of icons over them, the marks a row carries
  * at rest and the actions it offers hovered. Both fill the rail from its right edge, so an action
@@ -681,13 +721,14 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .open-in { position: relative; display: flex; }
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
 .topbar:has(.open-in.open) { z-index: 40; }
-.open-in-popover { top: 34px; right: 0; width: 208px; max-height: 60vh; overflow-y: auto; }
-.open-in-popover button { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; }
+.open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; }
+.open-in-popover button { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; height: 24px; }
 .open-in-popover button > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-in-icon { display: grid; place-items: center; color: var(--muted); }
+.open-in-popover button:hover .open-in-icon, .open-in-popover button:focus .open-in-icon { color: var(--accent-ink); }
 .open-in-icon img { width: 16px; height: 16px; object-fit: contain; }
-.open-in-group { padding: 7px 8px 3px; color: var(--quiet); font-size: var(--text-meta); }
-.open-in-empty { padding: 8px; color: var(--quiet); font-size: var(--text-control); }
+.open-in-group { padding: 6px 12px 2px; color: var(--quiet); font-size: var(--text-meta); }
+.open-in-empty { padding: 6px 12px; color: var(--quiet); font-size: var(--text-menu); }
 .session-toggle.sidebar-toggle { display: grid; }
 .session-toggle {
   position: relative;
@@ -2107,9 +2148,8 @@ pre {
 .session-location-row .menu-trigger { display: grid; place-items: center; width: 22px; height: 22px; color: var(--quiet-strong); opacity: 0; }
 .session-location-row:hover .menu-trigger, .session-location-row.open .menu-trigger { opacity: 1; }
 .session-location-row .menu-trigger:hover, .session-location-row.open .menu-trigger { color: var(--ink-dim); }
-.session-menu-popover { top: 30px; right: 0; width: 176px; }
-.session-menu-popover button:disabled { opacity: 0.4; cursor: default; }
-.session-menu-popover button:disabled:hover { background: transparent; }
+.session-menu-popover { top: 30px; right: 0; min-width: 176px; }
+.session-menu-popover button:disabled { cursor: default; }
 .session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: var(--surface-hover); }
 .session-branch { position: relative; }

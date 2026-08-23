@@ -48,6 +48,11 @@ export type TaskCommand =
   /** The same for every dotted thread the user has already looked at, leaving the unseen ones alone. */
   | { type: "task.dismiss-all" }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }
+  /**
+   * Copies a thread into a new one beside it, carrying its conversation and its session. The copy
+   * runs nothing of its own until the user sends something; `worktree` gives it a checkout of its own.
+   */
+  | { type: "task.fork"; taskId?: string; worktree?: boolean }
   /** Without a `taskId` the setting also becomes the draft the next new task starts from. */
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }
   | { type: "task.set-model"; taskId?: string; model: AgentModel }

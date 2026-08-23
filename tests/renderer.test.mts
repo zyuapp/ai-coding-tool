@@ -208,7 +208,7 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     onDismissTask() {},
     onDismissAll() {},
     onRenameTask() {},
-    onMoveTask() {},
+    onMoveTask() {}, onForkTask() {},
     onMoveProject() {},
     onOpenSettings() {},
     ...overrides,
@@ -2226,7 +2226,7 @@ test("a sidebar row renames itself on a double click, and on the menu's Rename",
   assert.equal(row().textContent.includes("Nightly audit"), true);
 
   await act(async () => { row().dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  assert.deepEqual([...document.querySelectorAll(".context-menu-popover button")].map((button) => button.textContent), ["Rename", "Copy reference", "Archive"]);
+  assert.deepEqual([...document.querySelectorAll(".context-menu-popover > button")].map((button) => button.textContent), ["Rename", "Move to folder", "Copy link", "Fork", "Fork into a new worktree", "Archive"]);
   await act(async () => { query<HTMLButtonElement>(document, ".context-menu-popover button").click(); });
   await type("Abandoned edit", "Escape");
   assert.equal(view.container.querySelector(".task-rename"), null);

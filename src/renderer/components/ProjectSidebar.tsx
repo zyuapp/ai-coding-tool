@@ -10,7 +10,7 @@ import { worktreeName } from "../../domain/worktree";
 import type { ActivitySections } from "../../application/task-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { ContextMenu, PopoverMenu } from "./PopoverMenu";
+import { ContextMenu, PopoverMenu, type MenuEntry } from "./PopoverMenu";
 import { threadLink } from "../../domain/thread-handles";
 import { ShowMore } from "./ShowMore";
 import { useDismissibleLayer } from "../focus";
@@ -90,6 +90,43 @@ function FolderIcon() {
   );
 }
 
+/** One list a thread can be moved into: the project it belongs to, or none, and how long that list is. */
+type MenuFolder = { id: string | null; label: string; count: number };
+
+/**
+ * What a thread offers on a right-click, grouped the way a menu on this platform is: naming it,
+ * taking a reference to it, copying it, then putting it away. A thread working in a checkout is
+ * only ever moved within the project that checkout was cut from.
+ */
+function threadMenuEntries(task: Task, folders: MenuFolder[], actions: {
+  onRename: () => void;
+  onMove: (target: TaskDropTarget) => void;
+  onFork: (worktree: boolean) => void;
+  onArchive: () => void;
+}): MenuEntry[] {
+  const inFolder = task.projectId ?? null;
+  return [
+    { label: "Rename", onSelect: actions.onRename },
+    {
+      label: "Move to folder",
+      /** The list it is already in is ticked, not an offer to send it to the bottom of that list. */
+      items: folders.map((folder) => ({
+        label: folder.label,
+        checked: folder.id === inFolder,
+        disabled: Boolean(task.worktreeId) && folder.id !== inFolder,
+        ...(folder.id === inFolder ? {} : { onSelect: () => actions.onMove({ projectId: folder.id, index: folder.count }) }),
+      })),
+    },
+    "separator",
+    { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
+    "separator",
+    { label: "Fork", onSelect: () => actions.onFork(false) },
+    { label: "Fork into a new worktree", onSelect: () => actions.onFork(true) },
+    "separator",
+    { label: "Archive", danger: true, onSelect: actions.onArchive },
+  ];
+}
+
 export type ProjectSidebarProps = {
   open: boolean;
   inactive: boolean;
@@ -134,6 +171,8 @@ export type ProjectSidebarProps = {
   onDismissAll: () => void;
   onRenameTask: (taskId: string, title: string) => void;
   onMoveTask: (taskId: string, target: TaskDropTarget) => void;
+  /** Copies the thread into a new one beside it, with a checkout of its own when `worktree`. */
+  onForkTask: (taskId: string, worktree: boolean) => void;
   onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
 };
@@ -244,10 +283,11 @@ export function ProjectSidebar({
   onDismissAll,
   onRenameTask,
   onMoveTask,
+  onForkTask,
   onMoveProject,
   onOpenSettings,
 }: ProjectSidebarProps) {
-  const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
+  const [taskMenuPosition, setTaskMenuPosition] = useState({ x: 0, y: 0 });
   const list = useRef<HTMLElement>(null);
   const taskNames = useRenaming((taskId, value) => { if (value.trim()) onRenameTask(taskId, value); });
   const projectNames = useRenaming(onRenameProject);
@@ -256,6 +296,11 @@ export function ProjectSidebar({
   const formatTime = (value: number) => (timeFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(value);
 
   const tasksByProject = useMemo(() => groupedBy(orderedTasks, (task) => task.projectId), [orderedTasks]);
+  /** Every list a thread can be moved into, with the length of each, which is where a move lands. */
+  const folders = useMemo((): MenuFolder[] => [
+    { id: null, label: "No folder", count: recentTasks.length },
+    ...projects.map((project) => ({ id: project.id, label: projectName(project), count: tasksByProject.get(project.id)?.length ?? 0 })),
+  ], [projects, recentTasks.length, tasksByProject]);
   const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
 
   const checkoutNames = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
@@ -380,12 +425,7 @@ export function ProjectSidebar({
       onContextMenu={(event) => {
         event.preventDefault();
         taskNames.row.current = event.currentTarget.closest(".task-entry");
-        const row = event.currentTarget.getBoundingClientRect();
-        const menuHeight = 112;
-        setTaskMenuPosition({
-          left: Math.max(8, Math.min(row.right - 128, innerWidth - 136)),
-          top: row.bottom + menuHeight + 4 <= innerHeight ? row.bottom + 4 : Math.max(8, row.top - menuHeight - 4),
-        });
+        setTaskMenuPosition({ x: event.clientX, y: event.clientY });
         onSetOpenMenu(`task:${task.id}`);
       }}
       title={task.title}
@@ -402,14 +442,15 @@ export function ProjectSidebar({
         : <>{content}{taskRail(task, action)}</>}
     </div>
     {openMenu === `task:${task.id}` && <ContextMenu
-      position={taskMenuPosition}
+      at={taskMenuPosition}
       returnFocus={taskNames.row}
-      onSetOpenMenu={onSetOpenMenu}
-      items={[
-        { label: "Rename", onSelect: () => taskNames.start(task.id) },
-        { label: "Copy reference", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
-        { label: "Archive", danger: true, onSelect: () => onArchiveTask(task.id) },
-      ]}
+      onClose={() => onSetOpenMenu(null)}
+      entries={threadMenuEntries(task, folders, {
+        onRename: () => taskNames.start(task.id),
+        onMove: (target) => onMoveTask(task.id, target),
+        onFork: (worktree) => onForkTask(task.id, worktree),
+        onArchive: () => onArchiveTask(task.id),
+      })}
     />}
     </>
   );

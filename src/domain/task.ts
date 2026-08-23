@@ -140,6 +140,23 @@ export function clampTitle(text: string) {
   return trimmed.length > TITLE_LIMIT ? `${trimmed.slice(0, TITLE_LIMIT - 3)}…` : trimmed;
 }
 
+const FORK_SUFFIX = /\s*\((?:fork|fork \d+)\)$/;
+
+/**
+ * What a copy of a thread is called: the copied thread's own name, numbered past every name already
+ * taken. The suffix is stripped before it is added again, so a copy of a copy never stacks them.
+ */
+export function forkTitle(title: string, taken: Iterable<string>): string {
+  const base = title.replace(FORK_SUFFIX, "").trim() || title.trim();
+  const names = new Set(taken);
+  for (let number = 1; ; number += 1) {
+    const suffix = number === 1 ? " (fork)" : ` (fork ${number})`;
+    const room = TITLE_LIMIT - suffix.length;
+    const candidate = `${base.length > room ? `${base.slice(0, room - 1)}…` : base}${suffix}`.trim();
+    if (!names.has(candidate)) return candidate;
+  }
+}
+
 /** How a folder names itself: its last path segment. */
 export function folderName(root: string) {
   let end = root.length;
@@ -256,6 +273,12 @@ export type Task = {
    * sharing a checkout fork independently, so a thread that has yet to run in one has no fork.
    */
   worktreeEnteredAt?: number;
+  /**
+   * Set on a thread copied from another, which inherits that thread's session. Its runs fork that
+   * session instead of continuing it until one reports a session of its own, which clears this, so
+   * a run that dies before it names a session never leaves the two threads writing to one.
+   */
+  inheritedContinuation?: true;
   /** Absent on tasks written before threads were timestamped; {@link threadCreatedAt} fills those in. */
   createdAt?: number;
   updatedAt: number;
@@ -639,6 +662,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
+    (value.inheritedContinuation === undefined || value.inheritedContinuation === true) &&
     (value.runEndedAt === undefined || finiteNumber(value.runEndedAt)) &&
     (value.createdAt === undefined || finiteNumber(value.createdAt)) &&
     finiteNumber(value.updatedAt) &&

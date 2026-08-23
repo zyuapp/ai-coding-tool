@@ -4,6 +4,7 @@ import { pasteTitle, promptWithPastes } from "./pastes.js";
 import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { reduceProjects, type ProjectEvent, type RegisterProjectEffect } from "./project-commands.js";
+import { forkedTasks, sideChatTask } from "./task-fork.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "./findings.js";
@@ -997,6 +998,18 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(applyTask(state, input.taskId, (item) => ({ ...item, title })));
     }
 
+    /** The copy is opened the way any thread is opened, and asks for a checkout the way any thread asks. */
+    case "task.fork": {
+      const taskId = targetId(state, input.taskId);
+      const source = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
+      if (!source || sideChatIds(state).has(source.id)) return settled(state);
+      const { tasks, fork } = forkedTasks(state.tasks, source, crypto.randomUUID(), now());
+      const opened = apply({ ...state, tasks, openMenu: null }, { type: "task.select", taskId: fork.id });
+      if (!input.worktree) return opened;
+      const located = apply(opened.state, { type: "task.set-worktree", taskId: fork.id, worktree: true });
+      return { state: located.state, effects: [...opened.effects, ...located.effects] };
+    }
+
     /** A drag reveals every folder so it can be dropped into, so the drop leaves the folding alone. */
     case "task.move": {
       const tasks = moveTaskInList(state.tasks, input.taskId, input.target);
@@ -1425,19 +1438,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const source = state.tasks.find((task) => task.id === state.currentId);
       if (!source) return settled(state);
       const sequence = state.sideChatSequence + 1;
-      const task: Task = {
-        id: input.chatId,
-        title: `Chat ${sequence}`,
-        ...(source.projectId ? { projectId: source.projectId } : {}),
-        executionPolicy: source.executionPolicy,
-        ...(source.model ? { model: source.model } : {}),
-        ...(source.effort ? { effort: source.effort } : {}),
-        messages: [],
-        continuationStatus: "none",
-        lastChangeSnapshot: { files: [], capturedAt: now() },
-        createdAt: now(),
-        updatedAt: now(),
-      };
+      const task = sideChatTask(source, input.chatId, `Chat ${sequence}`, now());
       const opened: WorkspaceState = {
         ...state,
         tasks: [...state.tasks, task],
@@ -2173,6 +2174,8 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     ? [createTaskMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
     : [];
   const located = arriving ? { ...task, worktreeId: arriving.id, worktreeEnteredAt: task.worktreeEnteredAt ?? now() } : task;
+  /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
+  const inherited = located.inheritedContinuation;
   const updated = { ...located, messages: [...located.messages, ...arrival, message], updatedAt: now() };
   const tasks = existing ? state.tasks.map((item) => item.id === task.id ? updated : item) : [updated, ...state.tasks];
   /** Only a task the user's own send just created needs looking at; anything else leaves them where they are. */
@@ -2186,7 +2189,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text, attachments: pending.attachments }];
   const command = {
     ...startRunCommand(state, updated, pending.runId, pending.prompt, workspace.id),
-    ...(entering && updated.continuation ? { forkContinuation: true as const } : {}),
+    ...((entering || inherited) && updated.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, updated),
   };
   /**

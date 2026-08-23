@@ -553,6 +553,7 @@ export function useTaskWorkspace() {
       clearArchive: () => dispatch({ type: "task.clear-archive" }),
       renameTask: (taskId: string, title: string) => dispatch({ type: "task.rename", taskId, title }),
       moveTask: (taskId: string, target: TaskDropTarget) => dispatch({ type: "task.move", taskId, target }),
+      forkTask: (taskId: string, worktree = false) => dispatch({ type: "task.fork", taskId, ...(worktree ? { worktree } : {}) }),
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
       moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),

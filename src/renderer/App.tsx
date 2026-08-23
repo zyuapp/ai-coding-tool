@@ -96,6 +96,7 @@ function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onDismissAll={workspace.actions.dismissAllTasks}
       onRenameTask={workspace.actions.renameTask}
       onMoveTask={workspace.actions.moveTask}
+      onForkTask={workspace.actions.forkTask}
       onOpenSettings={onOpenSettings}
     />
   );

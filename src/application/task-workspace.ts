@@ -378,7 +378,8 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     return { ...withSequence, approvals: { ...withSequence.approvals, [event.runId]: approval } } as T;
   }
   if (event.type === "continuation.updated") {
-    return applyTask(withSequence, event.taskId, (task) => ({ ...task, continuation: event.continuation, continuationStatus: "available", updatedAt: now() }));
+    /** A session of the thread's own ends any inheritance: a copy forks what it was given until then. */
+    return applyTask(withSequence, event.taskId, ({ inheritedContinuation: _spent, ...task }) => ({ ...task, continuation: event.continuation, continuationStatus: "available", updatedAt: now() }));
   }
   return withSequence;
 }

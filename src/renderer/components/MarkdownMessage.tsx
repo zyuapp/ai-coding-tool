@@ -39,7 +39,7 @@ function MarkdownPre({ children, ...props }: ComponentProps<"pre">) {
 
 export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
   const link = useRef<HTMLAnchorElement>(null);
-  const [menu, setMenu] = useState<{ left: number; top: number } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   return (
     <>
       <a
@@ -49,19 +49,16 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
         rel="noreferrer"
         onContextMenu={openInApp ? (event) => {
           event.preventDefault();
-          setMenu({
-            left: Math.max(8, Math.min(event.clientX, innerWidth - 136)),
-            top: Math.max(8, Math.min(event.clientY, innerHeight - 48)),
-          });
+          setMenu({ x: event.clientX, y: event.clientY });
         } : undefined}
       >
         {children}
       </a>
       {menu && openInApp && <ContextMenu
-        position={menu}
+        at={menu}
         returnFocus={link}
-        onSetOpenMenu={() => setMenu(null)}
-        items={[{ label: "Open in AI Coding Tool", onSelect: openInApp }]}
+        onClose={() => setMenu(null)}
+        entries={[{ label: "Open in AI Coding Tool", onSelect: openInApp }]}
       />}
     </>
   );
