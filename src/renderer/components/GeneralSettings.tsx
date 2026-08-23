@@ -1,7 +1,6 @@
 import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
-import { PLAIN_ENGLISH_FILE } from "../../domain/output-style";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -86,7 +85,7 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish }: GeneralSett
           <span className={`setting-status ${plainEnglish ? "granted" : ""}`}>{plainEnglish && <Check size={13} />}</span>
           <div>
             <strong>Simplified Technical English</strong>
-            <p>Claude answers in short sentences and uses lists and tables. Edit the style at <code>~/.claude/output-styles/{PLAIN_ENGLISH_FILE}</code>.</p>
+            <p>Claude answers in short sentences, lists, and tables.</p>
           </div>
           <div className="setting-row-action">
             <button type="button" role="switch" aria-checked={plainEnglish} onClick={() => onSetPlainEnglish(!plainEnglish)}>{plainEnglish ? "Turn off" : "Turn on"}</button>
