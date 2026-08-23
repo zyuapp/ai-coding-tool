@@ -1,5 +1,6 @@
 import { createHighlighterCoreSync, type HighlighterCore, type LanguageRegistration, type ThemedToken, type ThemeRegistrationRaw } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import type { DiffFile } from "../../domain/diff";
 
 export type { ThemedToken };
 
@@ -98,6 +99,18 @@ export async function ensureLanguage(lang: string | null) {
  */
 /** Past this a block is not worth a grammar: the pause is longer than the colour is useful. */
 const HIGHLIGHT_LIMIT = 100_000;
+
+/** Context reaches both sides, so budget what the grammar would actually tokenize. */
+export function withinHighlightBudget(file: DiffFile) {
+  let size = 0;
+  for (const hunk of file.hunks) {
+    for (const row of hunk.rows) {
+      size += (row.text.length + 1) * (row.kind === "context" ? 2 : 1);
+      if (size > HIGHLIGHT_LIMIT) return false;
+    }
+  }
+  return true;
+}
 
 export function highlightBlock(code: string, lang: string | null): ThemedToken[][] | null {
   if (!lang || !code || code.length > HIGHLIGHT_LIMIT) return null;

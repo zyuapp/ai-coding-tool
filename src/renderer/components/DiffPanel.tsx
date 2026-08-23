@@ -20,7 +20,7 @@ import {
   type DiffSide,
   type SplitRow,
 } from "../../domain/diff";
-import { highlightBlock, type ThemedToken } from "../diff/highlight";
+import { highlightBlock, withinHighlightBudget, type ThemedToken } from "../diff/highlight";
 import { usePatches, type PatchRequest, type PatchState } from "../diff/use-patch";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { useDismissibleLayer } from "../focus";
@@ -172,17 +172,17 @@ function RowText({ text, tokens }: { text: string; tokens: ThemedToken[] | undef
 function tokenizeFile(file: DiffFile) {
   const lang = languageForPath(file.path);
   const tokens = new Map<string, ThemedToken[]>();
-  if (!lang) return tokens;
-  file.hunks.forEach((hunk, index) => {
+  if (!lang || !withinHighlightBudget(file)) return tokens;
+  for (const hunk of file.hunks) {
     for (const side of ["old", "new"] as const) {
       const lines = highlightBlock(hunkText(hunk, side), lang);
       if (!lines) continue;
       for (const [key, line] of hunkTextIndex(hunk, side)) {
         const drawn = lines[line];
-        if (drawn) tokens.set(`${index}:${key}`, drawn);
+        if (drawn) tokens.set(key, drawn);
       }
     }
-  });
+  }
   return tokens;
 }
 

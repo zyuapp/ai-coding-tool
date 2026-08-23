@@ -58,6 +58,7 @@ export function parseFilePatch(patch: string, fallbackPath: string): DiffFile {
   let path = fallbackPath;
   let previousPath: string | undefined;
   let current: DiffHunk | null = null;
+  let hunkIndex = -1;
   let oldLine = 0;
   let newLine = 0;
 
@@ -75,6 +76,7 @@ export function parseFilePatch(patch: string, fallbackPath: string): DiffFile {
     if (header) {
       oldLine = Number(header[1]);
       newLine = Number(header[3]);
+      hunkIndex = hunks.length;
       /** A range without a count is one line long, which is how Git writes `@@ -1 +1 @@`. */
       current = {
         header: header[5].trim(),
@@ -93,13 +95,13 @@ export function parseFilePatch(patch: string, fallbackPath: string): DiffFile {
     const marker = line[0];
     const text = line.slice(1);
     if (marker === "+") {
-      current.rows.push({ kind: "add", key: `n${newLine}`, text, oldLine: null, newLine });
+      current.rows.push({ kind: "add", key: `${hunkIndex}:n${newLine}`, text, oldLine: null, newLine });
       newLine += 1;
     } else if (marker === "-") {
-      current.rows.push({ kind: "delete", key: `o${oldLine}`, text, oldLine, newLine: null });
+      current.rows.push({ kind: "delete", key: `${hunkIndex}:o${oldLine}`, text, oldLine, newLine: null });
       oldLine += 1;
     } else if (marker === " ") {
-      current.rows.push({ kind: "context", key: `c${oldLine}:${newLine}`, text, oldLine, newLine });
+      current.rows.push({ kind: "context", key: `${hunkIndex}:c${oldLine}:${newLine}`, text, oldLine, newLine });
       oldLine += 1;
       newLine += 1;
     }
@@ -113,7 +115,7 @@ export function diffRows(file: DiffFile): DiffRow[] {
   const rows: DiffRow[] = [];
   for (const [index, hunk] of file.hunks.entries()) {
     rows.push({ kind: "hunk", key: `h${index}`, text: hunkLabel(hunk) });
-    for (const row of hunk.rows) rows.push({ ...row, key: `${index}:${row.key}` });
+    for (const row of hunk.rows) rows.push(row);
   }
   return rows;
 }
@@ -239,7 +241,7 @@ export type SplitRow = Extract<DiffRow, { kind: "hunk" }> | DiffPair;
 /**
  * The same rows in two columns. Deletions and the additions that replaced them are drawn on one line
  * so a rewrite reads across rather than down; a run that is longer on one side leaves gaps. Rows keep
- * the keys {@link diffRows} gives them, so both views look their tokens up the same way.
+ * their parsed keys, so both views look their tokens up the same way.
  */
 export function splitRows(file: DiffFile): SplitRow[] {
   const rows: SplitRow[] = [];
@@ -249,8 +251,7 @@ export function splitRows(file: DiffFile): SplitRow[] {
     while (cursor < hunk.rows.length) {
       const source = hunk.rows[cursor]!;
       if (source.kind === "context") {
-        const row = { ...source, key: `${index}:${source.key}` };
-        rows.push({ kind: "pair", key: row.key, left: row, right: row });
+        rows.push({ kind: "pair", key: source.key, left: source, right: source });
         cursor += 1;
         continue;
       }
@@ -258,11 +259,11 @@ export function splitRows(file: DiffFile): SplitRow[] {
       const additions: DiffHunk["rows"] = [];
       while (cursor < hunk.rows.length && hunk.rows[cursor]!.kind === "delete") {
         const row = hunk.rows[cursor++]!;
-        deletions.push({ ...row, key: `${index}:${row.key}` });
+        deletions.push(row);
       }
       while (cursor < hunk.rows.length && hunk.rows[cursor]!.kind === "add") {
         const row = hunk.rows[cursor++]!;
-        additions.push({ ...row, key: `${index}:${row.key}` });
+        additions.push(row);
       }
       for (let offset = 0; offset < Math.max(deletions.length, additions.length); offset += 1) {
         const left = deletions[offset] ?? null;

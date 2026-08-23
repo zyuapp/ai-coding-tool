@@ -83,11 +83,11 @@ export class TaskDatabase {
    * listed, so its claim goes and the next reconcile reaps the directory.
    */
   private liftEmbeddedWorktrees() {
-    const rows = this.database.prepare("SELECT id, data FROM tasks").all() as Array<{ id: string; data: string }>;
-    const stale = rows.flatMap((row) => {
+    const stale: Array<{ id: string; task: Record<string, unknown> }> = [];
+    for (const row of this.database.prepare("SELECT id, data FROM tasks").iterate() as Iterable<{ id: string; data: string }>) {
       const task = JSON.parse(row.data) as Record<string, unknown>;
-      return task.worktree ? [{ id: row.id, task }] : [];
-    });
+      if (task.worktree) stale.push({ id: row.id, task });
+    }
     if (!stale.length) return;
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -113,11 +113,11 @@ export class TaskDatabase {
 
   /** Tasks written before subagents had rows of their own still carry them inside the task record. */
   private liftEmbeddedSubagents() {
-    const rows = this.database.prepare("SELECT id, data FROM tasks").all() as Array<{ id: string; data: string }>;
-    const stale = rows.flatMap((row) => {
+    const stale: Array<{ id: string; task: { subagents?: Subagent[] } }> = [];
+    for (const row of this.database.prepare("SELECT id, data FROM tasks").iterate() as Iterable<{ id: string; data: string }>) {
       const task = JSON.parse(row.data) as { subagents?: Subagent[] };
-      return task.subagents ? [{ id: row.id, task }] : [];
-    });
+      if (task.subagents) stale.push({ id: row.id, task });
+    }
     if (!stale.length) return;
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -175,37 +175,45 @@ export class TaskDatabase {
   }
 
   load(): TaskStoreData | null {
-    const taskRows = this.database.prepare("SELECT data FROM tasks").all() as Array<{ data: string }>;
-    const projectRows = this.database.prepare("SELECT data FROM projects ORDER BY position").all() as Array<{ data: string }>;
+    const taskRecords = Array.from(
+      this.database.prepare("SELECT data FROM tasks").iterate() as Iterable<{ data: string }>,
+      ({ data }) => JSON.parse(data) as Omit<Task, "messages" | "subagents">,
+    );
+    const projects = Array.from(
+      this.database.prepare("SELECT data FROM projects ORDER BY position").iterate() as Iterable<{ data: string }>,
+      ({ data }) => JSON.parse(data) as Project,
+    );
     const lastFolderRow = this.database.prepare("SELECT value FROM settings WHERE key = 'lastFolder'").get() as { value: string } | undefined;
-    if (!taskRows.length && !projectRows.length && !lastFolderRow) return null;
+    if (!taskRecords.length && !projects.length && !lastFolderRow) return null;
 
     const messages = new Map<string, TaskMessage[]>();
-    for (const row of this.database.prepare("SELECT task_id, data FROM messages ORDER BY task_id, position").all() as Array<{ task_id: string; data: string }>) {
+    for (const row of this.database.prepare("SELECT task_id, data FROM messages ORDER BY task_id, position").iterate() as Iterable<{ task_id: string; data: string }>) {
       const values = messages.get(row.task_id) ?? [];
       values.push(JSON.parse(row.data) as TaskMessage);
       messages.set(row.task_id, values);
     }
     const subagents = new Map<string, Subagent[]>();
-    for (const row of this.database.prepare("SELECT task_id, id, data FROM subagents ORDER BY task_id, position").all() as Array<{ task_id: string; data: string }>) {
+    for (const row of this.database.prepare("SELECT task_id, id, data FROM subagents ORDER BY task_id, position").iterate() as Iterable<{ task_id: string; data: string }>) {
       const values = subagents.get(row.task_id) ?? [];
       values.push({ ...JSON.parse(row.data) as Omit<Subagent, "activity">, activity: [] });
       subagents.set(row.task_id, values);
     }
-    const tasks = taskRows
-      .map(({ data }) => JSON.parse(data) as Omit<Task, "messages" | "subagents">)
+    const tasks = taskRecords
       .map((task) => ({
         ...task,
         messages: messages.get(task.id) ?? [],
         ...(subagents.has(task.id) ? { subagents: subagents.get(task.id) } : {}),
       }))
       .sort((left, right) => right.updatedAt - left.updatedAt);
-    const worktreeRows = this.database.prepare("SELECT data FROM worktrees").all() as Array<{ data: string }>;
+    const worktrees = Array.from(
+      this.database.prepare("SELECT data FROM worktrees").iterate() as Iterable<{ data: string }>,
+      ({ data }) => JSON.parse(data) as Worktree,
+    );
     const data: TaskStoreData = {
       version: 2,
       tasks,
-      projects: projectRows.map(({ data }) => JSON.parse(data) as Project),
-      worktrees: worktreeRows.map(({ data }) => JSON.parse(data) as Worktree),
+      projects,
+      worktrees,
       lastFolder: lastFolderRow ? JSON.parse(lastFolderRow.value) as string | null : null,
     };
     const validated = validateTaskStoreData(data);
@@ -215,10 +223,10 @@ export class TaskDatabase {
 
   /** A subagent's activity, read only when someone opens it: a session's logs never all fit in the window. */
   subagentActivity(taskId: string, subagentId: string): SubagentActivity[] {
-    const rows = this.database
-      .prepare("SELECT data FROM subagent_activity WHERE task_id = ? AND subagent_id = ? ORDER BY position")
-      .all(taskId, subagentId) as Array<{ data: string }>;
-    return rows.map(({ data }) => JSON.parse(data) as SubagentActivity);
+    return Array.from(
+      this.database.prepare("SELECT data FROM subagent_activity WHERE task_id = ? AND subagent_id = ? ORDER BY position").iterate(taskId, subagentId) as Iterable<{ data: string }>,
+      ({ data }) => JSON.parse(data) as SubagentActivity,
+    );
   }
 
   /**

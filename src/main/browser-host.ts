@@ -1,4 +1,4 @@
-import { BrowserWindow, session, WebContentsView, type Rectangle } from "electron";
+import { BaseWindow, BrowserWindow, session, WebContentsView, type Rectangle } from "electron";
 import type { BrowserPageEvent } from "../contracts/ipc.js";
 import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
 import type { FindResults } from "../domain/find.js";
@@ -13,6 +13,8 @@ const PARTITION = "persist:browser";
 const IDENTITY = chromeIdentity(process.versions.chrome);
 const REF_ATTRIBUTE = "data-aicodingtool-ref";
 const DEFAULT_TEXT_LIMIT = 4_000;
+/** A page is outside the app's trust boundary, so it cannot make one snapshot grow without limit. */
+const MAX_SNAPSHOT_ELEMENTS = 1_000;
 /** A page nobody is looking at still lays itself out, so it is given a window's worth of room. */
 const PARKED_VIEWPORT: Rectangle = { x: 0, y: 0, width: 1_200, height: 800 };
 
@@ -31,7 +33,7 @@ let keyPressed: (input: Electron.Input) => boolean = () => false;
 let activeId: string | null = null;
 let bounds: BrowserBounds | null = null;
 let parked: Rectangle = PARKED_VIEWPORT;
-let parking: BrowserWindow | null = null;
+let parking: BaseWindow | null = null;
 
 /** Reads what a caller can act on, keeping the refs it hands out on the elements themselves. */
 const SNAPSHOT_SCRIPT = `(() => {
@@ -53,6 +55,7 @@ const SNAPSHOT_SCRIPT = `(() => {
     const element = { ref: String(ref), role: node.getAttribute('role') || (type ? tag + ':' + type : tag), name: label.replace(/\\s+/g, ' ').slice(0, 140) };
     if (type !== 'password' && typeof node.value === 'string' && node.value) element.value = node.value.slice(0, 140);
     elements.push(element);
+    if (elements.length >= ${MAX_SNAPSHOT_ELEMENTS}) break;
   }
   const text = (document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').trim();
   return { url: location.href, title: document.title, text: text.slice(0, limit), truncated: text.length > limit, elements };
@@ -116,10 +119,10 @@ function report(tabId: string, event: Omit<BrowserPageEvent, "tabId">) {
  * viewport to lay out in: a page belonging to no window at all measures zero by zero, which is no
  * page to read. Nothing ever shows this window.
  */
-function parkingWindow(): BrowserWindow | null {
+function parkingWindow(): BaseWindow | null {
   if (parking && !parking.isDestroyed()) return parking;
   if (!host || host.isDestroyed()) return null;
-  parking = new BrowserWindow({ show: false, width: PARKED_VIEWPORT.width, height: PARKED_VIEWPORT.height });
+  parking = new BaseWindow({ show: false, width: PARKED_VIEWPORT.width, height: PARKED_VIEWPORT.height });
   return parking;
 }
 

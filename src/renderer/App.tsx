@@ -546,7 +546,7 @@ export function App() {
                   ))}
                 </div>
               </div>
-              {dockPanels.map((panel) => (
+              {dockPanels.filter((panel) => workspace.dockPanels.includes(panel.id)).map((panel) => (
                 <div key={panel.id} hidden={activeRightTab !== panel.id}>{panel.render()}</div>
               ))}
               {/** A page is a native view main draws over the panel, so only the one on top is ever drawn. */}

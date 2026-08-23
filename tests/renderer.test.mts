@@ -2129,7 +2129,7 @@ test("right panel keeps multiple side chats mounted as tabs", async () => {
 
   assert.equal(view.container.querySelectorAll('.right-dock [role="tab"]').length, 2);
   assert.equal(view.container.querySelectorAll('.side-chat').length, 2);
-  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 6);
+  assert.equal(view.container.querySelectorAll('.right-dock-content > div[hidden]').length, 2, "only the picker and inactive chat stay hidden");
   await view.unmount();
 });
 
@@ -4822,7 +4822,7 @@ test("the session panel's Changes row opens the review, and the same click close
 
   /** The dock takes the session panel's place, so the row that opened the review is closed from the tab. */
   await act(async () => { query<HTMLButtonElement>(view.container, '.right-dock-tab.active button[aria-label="Close Changes"]').click(); });
-  assert.deepEqual(tabs(), [], "closing the tab puts the review away");
+  assert.deepEqual([tabs(), view.container.querySelector(".diff-panel")], [[], null], "closing the tab unmounts its retained patch data");
   await showSession(view);
   assert.ok(view.container.querySelector('button[aria-label="Review changes"]'), "the row is back to open it again");
   await view.unmount();

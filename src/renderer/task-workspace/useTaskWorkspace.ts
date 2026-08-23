@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deriveView, emptyWorkspaceState, promptKey, sideChatIds, stateFromData, type WorkspaceState } from "../../application/workspace-state";
+import { deriveView, emptyWorkspaceState, promptKey, stateFromData, type WorkspaceState } from "../../application/workspace-state";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { threadHandleOptions } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
-import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
-import type { AgentEffort, AgentModel, ExecutionPolicy, Subagent, SubagentActivity } from "../../domain/run";
-import type { RunAttachment, Task, TaskDropTarget } from "../../domain/task";
+import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
+import type { RunAttachment, TaskDropTarget } from "../../domain/task";
 import { subscribeToDesktop } from "./desktop-subscriptions";
 import { errorMessage } from "./errors";
 import { answerThreadRequest, releaseThreadWaiters, type ThreadRequestHost, type ThreadWaiter } from "./thread-requests";
@@ -22,6 +21,7 @@ import { applyTheme, systemPrefersDark } from "../theme";
 import { applyTypography } from "../typography";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, onTerminalResize, searchTerminalView } from "./terminal-views";
+import { drainLatestPersistence, hasPersistenceDelta, persistenceDelta, persistenceState, type PersistenceQueue } from "./workspace-persistence";
 
 export type { ApprovalView } from "../../application/task-workspace";
 
@@ -31,65 +31,6 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
   const loaded = store.load();
   const stored = loaded.ok ? stateFromData(loaded.data) : emptyWorkspaceState(loaded.errors.join(" "));
   return reduce(stored, { type: "preferences.loaded", preferences: loadViewPreferences() }).state;
-}
-
-function persistedTask(task: Task): PersistedTask {
-  const { messages: _messages, subagents: _subagents, ...record } = task;
-  return record;
-}
-
-function persistedSubagent(subagent: Subagent): PersistedSubagent {
-  const { activity: _activity, ...record } = subagent;
-  return record;
-}
-
-/** Only the subagents and activity items the last write did not already hold. */
-function subagentDelta(before: Task | undefined, task: Task) {
-  const previous = new Map((before?.subagents ?? []).map((subagent) => [subagent.id, subagent]));
-  const subagents: Array<{ index: number; subagent: PersistedSubagent }> = [];
-  const activity: Array<{ subagentId: string; index: number; item: SubagentActivity }> = [];
-  (task.subagents ?? []).forEach((subagent, index) => {
-    const stored = previous.get(subagent.id);
-    if (stored === subagent) return;
-    subagents.push({ index, subagent: persistedSubagent(subagent) });
-    subagent.activity.forEach((item, position) => {
-      if (stored?.activity[position] === item) return;
-      activity.push({ subagentId: subagent.id, index: position, item });
-    });
-  });
-  return { subagents, activity };
-}
-
-/** A side chat's thread never reaches the store, so it is filtered out on both sides of the delta. */
-function persistedTasks(state: WorkspaceState | null) {
-  if (!state) return [];
-  const forked = sideChatIds(state);
-  return state.tasks.filter((task) => !forked.has(task.id));
-}
-
-function persistenceDelta(previous: WorkspaceState | null, next: WorkspaceState): TaskStoreDelta {
-  const previousTasks = new Map(persistedTasks(previous).map((task) => [task.id, task]));
-  const nextTasks = persistedTasks(next);
-  const nextIds = new Set(nextTasks.map((task) => task.id));
-  const removedTasks = [...previousTasks.keys()].filter((id) => !nextIds.has(id));
-  return {
-    ...(removedTasks.length ? { removedTasks } : {}),
-    tasks: nextTasks.flatMap((task) => {
-      const before = previousTasks.get(task.id);
-      if (before === task) return [];
-      const messages = task.messages.flatMap((message, index) => before?.messages[index] === message ? [] : [{ index, message }]);
-      const { subagents, activity } = subagentDelta(before, task);
-      return [{
-        task: persistedTask(task),
-        messages,
-        ...(subagents.length ? { subagents } : {}),
-        ...(activity.length ? { activity } : {}),
-      }];
-    }),
-    ...(!previous || previous.projects !== next.projects ? { projects: next.projects } : {}),
-    ...(!previous || previous.worktrees !== next.worktrees ? { worktrees: next.worktrees } : {}),
-    ...(!previous || previous.lastFolder !== next.lastFolder ? { lastFolder: next.lastFolder } : {}),
-  };
 }
 
 /**
@@ -102,10 +43,20 @@ export function useTaskWorkspace() {
   const [state, setState] = useState(() => initialState(storeRef.current!));
   const stateRef = useRef(state);
   const persistenceReady = useRef(false);
-  const persistenceQueue = useRef(Promise.resolve());
+  const persistence = useRef<PersistenceQueue>({ persisted: null, pending: null, inFlight: false });
   const dispatchRef = useRef<(input: WorkspaceInput) => Promise<void>>(null!);
   const threadWaiters = useRef<ThreadWaiter[]>([]);
   const environmentRefreshes = useRef(new Map<string, EnvironmentRefreshEffect | null>());
+
+  async function persistLatest() {
+    try {
+      await drainLatestPersistence(persistence.current, window.desktop.persistTaskStore);
+    } catch (error) {
+      persistence.current.pending = null;
+      persistenceReady.current = false;
+      void dispatchRef.current({ type: "store.failed", message: errorMessage(error) });
+    }
+  }
 
   function commit(next: WorkspaceState, persist = true) {
     const previous = stateRef.current;
@@ -114,14 +65,11 @@ export function useTaskWorkspace() {
     setState(next);
     releaseThreadWaiters(threadWaiters, next);
     if (!persist || !persistenceReady.current || !next.writable || next.storageError) return;
-    const delta = persistenceDelta(previous, next);
-    if (!delta.tasks.length && !delta.removedTasks && !delta.projects && !delta.worktrees && !("lastFolder" in delta)) return;
-    persistenceQueue.current = persistenceQueue.current
-      .then(() => window.desktop.persistTaskStore(delta))
-      .catch((error) => {
-        persistenceReady.current = false;
-        void dispatchRef.current({ type: "store.failed", message: errorMessage(error) });
-      });
+    const snapshot = persistenceState(next);
+    const delta = persistenceDelta(persistenceState(previous), snapshot);
+    if (!hasPersistenceDelta(delta)) return;
+    persistence.current.pending = snapshot;
+    void persistLatest();
   }
 
   function dispatch(input: WorkspaceInput): Promise<void> {
@@ -394,12 +342,14 @@ export function useTaskWorkspace() {
       if (cancelled) return;
       if (data) {
         await dispatchRef.current({ type: "store.loaded", data });
-        const backfill = persistenceDelta({ ...stateRef.current, tasks: data.tasks }, stateRef.current);
+        const current = persistenceState(stateRef.current);
+        const backfill = persistenceDelta({ ...current, tasks: data.tasks }, current);
         if (backfill.tasks.length || backfill.removedTasks) await window.desktop.persistTaskStore(backfill);
       } else {
         await dispatchRef.current({ type: "store.absent" });
-        await window.desktop.persistTaskStore(persistenceDelta(null, stateRef.current));
+        await window.desktop.persistTaskStore(persistenceDelta(null, persistenceState(stateRef.current)));
       }
+      persistence.current.persisted = persistenceState(stateRef.current);
       persistenceReady.current = true;
     }).catch((error) => {
       if (cancelled) return;

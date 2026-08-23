@@ -9,6 +9,7 @@ import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "./findings.js";
 import { outcomeFor, whyRunSurfaces, withNothingToReport, withSettledTick } from "./run-testimony.js";
+import { pruneDeletedTasks } from "./task-pruning.js";
 import {
   applyRunEvent,
   applyTask,
@@ -690,7 +691,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
   effects.push(...retireAutomations(next, closed));
   return {
-    state: {
+    state: pruneDeletedTasks({
       ...next,
       automations: next.automations.filter((automation) => !closed.has(automation.taskId)),
       tasks: next.tasks.filter((task) => !closed.has(task.id)),
@@ -701,7 +702,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       ])),
       pendingRuns: Object.fromEntries(Object.entries(next.pendingRuns).filter(([, pending]) => !(pending.taskId && closed.has(pending.taskId)))),
       readingPoints: Object.fromEntries(Object.entries(next.readingPoints).filter(([taskId]) => !closed.has(taskId))),
-    },
+    }, closed),
     effects,
   };
 }
@@ -964,21 +965,20 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "task.clear-archive": {
       if (state.tasks.every((task) => task.archivedAt === undefined)) return settled(state);
-      const archived = state.tasks.filter((task) => task.archivedAt !== undefined);
-      const discarded = new Set(archived.map((task) => task.id));
+      const archived = state.tasks.filter((task) => task.archivedAt !== undefined), discarded = new Set(archived.map((task) => task.id));
       /** A fork of a thread that is gone has nowhere left to be shown, so it goes with it. */
       const forks = closeSideChats(state, state.sideChats.filter((chat) => discarded.has(chat.sourceTaskId)));
       const disposed = disposeDocks(forks.state, discarded);
       const tasks = disposed.state.tasks.filter((task) => !discarded.has(task.id));
       const claimedWorktrees = new Set(tasks.flatMap((task) => task.worktreeId ? [task.worktreeId] : []));
       return {
-        state: {
+        state: pruneDeletedTasks({
           ...disposed.state,
           tasks,
           /** A checkout nothing claims any more has no thread left to record it against. */
           worktrees: disposed.state.worktrees.filter((worktree) => claimedWorktrees.has(worktree.id)),
           currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
-        },
+        }, discarded),
         /** Without this the checkouts would linger until the next launch reconciled them away. */
         effects: [...forks.effects, ...disposed.effects, ...releaseWorktrees(state, archived)],
       };

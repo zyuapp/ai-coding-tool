@@ -119,6 +119,7 @@ function publishRunEvent(event: RunEvent) {
   sendToRenderer(event);
   if (event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled")) {
     automationDispatches.get(event.runId)?.settle?.(event.status);
+    runStates.delete(key);
   }
 }
 
@@ -682,7 +683,6 @@ app.whenReady().then(async () => {
   });
   if (!app.isPackaged) app.dock?.setIcon(icon);
   claimDesktopShortcut();
-  startAgent();
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);

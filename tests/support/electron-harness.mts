@@ -64,7 +64,7 @@ class FakeWebContentsView {
     getTitle: () => "",
     navigationHistory: { canGoBack: () => false, canGoForward: () => false, goBack() {}, goForward() {} },
     async loadURL() {},
-    async executeJavaScript() { return ""; },
+    executeJavaScript: async (_script: string): Promise<unknown> => "",
   };
   constructor(options: unknown) { this.options = options; }
   setBounds(bounds: BrowserBounds) { this.bounds = bounds; }
@@ -182,6 +182,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
       relaunch: (relaunchOptions: { args?: string[] }) => { relaunches.push(relaunchOptions); },
       exit() {},
     },
+    BaseWindow: FakeWindow,
     BrowserWindow: FakeWindow,
     globalShortcut: {
       register: (accelerator: string, callback: Callback) => { globalShortcuts.set(accelerator, callback); return true; },
@@ -223,7 +224,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     enforce: "pre",
     resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
     load(id) {
-      if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+      if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, BaseWindow=e.BaseWindow, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
     },
   }];
   if (options.computerUse) {

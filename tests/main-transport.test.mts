@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { runInNewContext } from "node:vm";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "./support/electron-harness.mjs";
 import type { ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../src/contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../src/contracts/threads.js";
-import type { BrowserBounds } from "../src/domain/browser.js";
+import type { BrowserBounds, BrowserSnapshot } from "../src/domain/browser.js";
 import type { CliStatus } from "../src/domain/cli.js";
 import type { KeyInput } from "../src/domain/shortcuts.js";
 import type { WorkspaceRecord } from "../src/domain/workspace.js";
@@ -71,11 +72,11 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   runCommand(trusted, command("cancelled", "run-cancelled"));
   runCommand(trusted, { type: "cancel", taskId: "cancelled", runId: "run-cancelled" });
   await tick();
-  assert.equal(agents[0].messages.some((message) => message.runId === "run-cancelled"), false);
+  assert.equal(agents.length, 0, "a run cancelled before dispatch does not start the agent process");
 
   runCommand(trusted, command("concurrent-a", "run-concurrent-a"));
   runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
-  await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0].messages.some((message) => message.runId === runId)));
+  await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0]?.messages.some((message) => message.runId === runId)));
 
   runCommand(trusted, command("resubmitted", "run-old"));
   runCommand(trusted, command("resubmitted", "run-new"));
@@ -235,12 +236,28 @@ test("a page the panel is not showing belongs to a window of its own", async () 
   const setBrowserBounds = handler<(event: IpcEvent, bounds: unknown) => MaybePromise<void>>("browser:bounds");
   const showBrowser = handler<(event: IpcEvent, tabId: unknown) => MaybePromise<void>>("browser:show");
   const closeBrowser = handler<(event: IpcEvent, tabId: unknown) => MaybePromise<void>>("browser:close");
+  const readBrowser = handler<(event: IpcEvent, tabId: unknown, textLimit: unknown, timeoutMs: unknown) => MaybePromise<BrowserSnapshot | null>>("browser:read");
 
   await openBrowser(trusted, "tab-parked", "https://example.com/");
   assert.equal(window.children.length, 0, "a page nobody is showing is not in the app's window");
   const page = view();
   assert.ok(page, "the page is parked in a window all the same");
   assert.deepEqual(page.bounds, { x: 0, y: 0, width: 1200, height: 800 }, "and is given a viewport to lay out in");
+  page.webContents.executeJavaScript = async (script) => runInNewContext(script, {
+    document: {
+      title: "Large page",
+      body: { innerText: "" },
+      querySelectorAll: () => Array.from({ length: 1_001 }, () => ({
+        tagName: "BUTTON",
+        getBoundingClientRect: () => ({ width: 1, height: 1 }),
+        getAttribute: (name: string) => name === "aria-label" ? "Action" : null,
+        setAttribute() {},
+      })),
+    },
+    getComputedStyle: () => ({ visibility: "visible", opacity: "1" }),
+    location: { href: "https://example.com/" },
+  });
+  assert.equal((await readBrowser(trusted, "tab-parked", 4_000, 0))?.elements.length, 1_000, "an untrusted page cannot grow a snapshot without limit");
   const parking = windows.find((each) => each.children.includes(page));
   assert.ok(parking);
   assert.notEqual(parking, window);

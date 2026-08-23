@@ -10,7 +10,14 @@ const HOURLY = "0 * * * *";
 
 /** Booting main starts a Vite server, so every test in this file shares one and works on its own task. */
 let main: MainHarness;
-beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-automation-"); });
+beforeAll(async () => {
+  main = await startMainProcess(null, "aicodingtool-automation-");
+  registered<(event: { sender: unknown }, payload: unknown) => void>(main.listeners, "run:command")(
+    main.trusted,
+    { type: "stop-process", taskId: "test-setup", processId: "test-setup" },
+  );
+  await waitFor(() => main.agents.length === 1, "the agent process to start on demand");
+});
 afterAll(async () => { await main?.dispose(); });
 
 type IpcEvent = { sender: unknown };
