@@ -1766,22 +1766,26 @@ pre {
 .setting-row p { margin: 5px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
 .settings-group code { border-radius: 5px; padding: 1px 5px; background: var(--wash); color: var(--ink-dim); font: 0.9em/1.4 var(--mono); }
 .settings-group .setting-status.blank { border-color: transparent; }
-.setting-row.shortcut-row { grid-template-columns: 22px minmax(0, 1fr) minmax(248px, auto); }
+.setting-row.shortcut-row { grid-template-columns: 22px minmax(0, 1fr) minmax(274px, auto); }
 /** The keystroke is what the row is about, so it sits apart from the buttons that change it. */
 .setting-row.shortcut-row .setting-row-action { gap: 6px; }
-.setting-row.shortcut-row .setting-row-action > kbd, .setting-row.shortcut-row .setting-row-action > em { margin-right: 10px; }
-.setting-row-action kbd {
-  min-width: 52px;
+.setting-row.shortcut-row .setting-row-action > kbd, .setting-row.shortcut-row .setting-row-action > em { margin-right: 12px; }
+.setting-row-action kbd.shortcut-keys { display: inline-flex; align-items: center; gap: 5px; }
+.shortcut-key {
+  min-width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--line-strong);
-  border-radius: 7px;
-  padding: 5px 11px;
+  /** A thicker bottom edge reads as a key cap rather than a text box. */
+  border-bottom-width: 2px;
+  border-radius: 8px;
+  padding: 0 8px;
   background: var(--wash);
-  color: var(--ink-dim);
-  text-align: center;
-  /** Mac symbols run together without a separator, so space them and re-centre against the trailing gap. */
-  letter-spacing: 2px;
-  text-indent: 2px;
-  font: 12px/1.3 var(--mono);
+  color: var(--ink);
+  /** The UI font draws the modifier symbols on the same metrics as the letters, so the caps line up. */
+  font: 570 14px/1 var(--ui-font);
 }
 .setting-row-action em.shortcut-capture { color: var(--accent-soft); }
 .setting-row-action { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }

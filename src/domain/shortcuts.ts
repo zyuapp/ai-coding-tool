@@ -153,27 +153,23 @@ const KEY_SYMBOLS: Record<string, string> = {
   End: "↘",
 };
 
-/** How a binding reads on screen. macOS puts its modifiers in one order and writes them as symbols. */
-export function displayShortcut(binding: string, mac: boolean): string {
+/** The keys of a binding, one to a token, so the screen can draw each as its own cap. */
+export function shortcutKeys(binding: string, mac: boolean): string[] {
   const stroke = parseShortcut(binding);
-  if (!stroke) return "";
-  const key = mac ? KEY_SYMBOLS[stroke.key] ?? stroke.key : stroke.key;
-  if (!mac) {
-    return [
-      ...(stroke.mod ? [OTHER_MODIFIER_NAMES.Mod] : []),
-      ...(stroke.ctrl ? [OTHER_MODIFIER_NAMES.Ctrl] : []),
-      ...(stroke.alt ? [OTHER_MODIFIER_NAMES.Alt] : []),
-      ...(stroke.shift ? [OTHER_MODIFIER_NAMES.Shift] : []),
-      key,
-    ].join("+");
-  }
+  if (!stroke) return [];
+  const held: Record<(typeof MODIFIERS)[number], boolean> = { Mod: stroke.mod, Ctrl: stroke.ctrl, Alt: stroke.alt, Shift: stroke.shift };
+  /** macOS puts its modifiers in one order and writes them as symbols. */
+  const order = mac ? (["Ctrl", "Alt", "Shift", "Mod"] as const) : (["Mod", "Ctrl", "Alt", "Shift"] as const);
+  const names = mac ? MAC_MODIFIER_SYMBOLS : OTHER_MODIFIER_NAMES;
   return [
-    ...(stroke.ctrl ? [MAC_MODIFIER_SYMBOLS.Ctrl] : []),
-    ...(stroke.alt ? [MAC_MODIFIER_SYMBOLS.Alt] : []),
-    ...(stroke.shift ? [MAC_MODIFIER_SYMBOLS.Shift] : []),
-    ...(stroke.mod ? [MAC_MODIFIER_SYMBOLS.Mod] : []),
-    key,
-  ].join("");
+    ...order.filter((modifier) => held[modifier]).map((modifier) => names[modifier]),
+    mac ? KEY_SYMBOLS[stroke.key] ?? stroke.key : stroke.key,
+  ];
+}
+
+/** How a binding reads as one string. */
+export function displayShortcut(binding: string, mac: boolean): string {
+  return shortcutKeys(binding, mac).join(mac ? "" : "+");
 }
 
 /**

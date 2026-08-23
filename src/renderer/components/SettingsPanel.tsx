@@ -1,7 +1,7 @@
 import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
-import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
+import { shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
@@ -267,7 +267,7 @@ export function SettingsPanel({
                       </>
                     : <>
                         {shortcut.binding
-                          ? <kbd>{displayShortcut(shortcut.binding, MAC)}</kbd>
+                          ? <kbd className="shortcut-keys">{shortcutKeys(shortcut.binding, MAC).map((key, index) => <span className="shortcut-key" key={index}>{key}</span>)}</kbd>
                           : <em>Not set</em>}
                         <button type="button" onClick={() => onCaptureShortcut(shortcut.id)}>Change</button>
                         {shortcut.changed
