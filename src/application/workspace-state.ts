@@ -239,6 +239,8 @@ export type WorkspaceState = {
   captureFocus: boolean;
   /** Whether a run selects the app's Simplified Technical English output style. */
   plainEnglish: boolean;
+  /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
+  notifications: boolean;
   settingsOpen: boolean;
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
@@ -330,6 +332,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     captureSound: true,
     captureFocus: true,
     plainEnglish: false,
+    notifications: true,
     settingsOpen: false,
     shortcuts: {},
     capturingShortcut: null,
@@ -446,34 +449,6 @@ function sessionStarted(state: WorkspaceState): boolean {
     || Object.keys(state.pastes).length > 0
     || Object.keys(state.images).length > 0
     || Object.keys(state.pendingRuns).length > 0;
-}
-
-/** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
-export function viewPreferences(state: WorkspaceState): ViewPreferences {
-  /** Only a thread that will still be there reopens its pages, so a dock nothing owns stops being written. */
-  const browserTabs: Record<string, string[]> = {}, taskIds = new Set(state.tasks.map((task) => task.id));
-  for (const [owner, dock] of Object.entries(state.docks)) {
-    if (owner !== DRAFT_DOCK && !taskIds.has(owner)) continue;
-    const urls = dock.browserTabs.map((tab) => tab.url).filter(Boolean);
-    if (urls.length) browserTabs[owner] = urls;
-  }
-  return {
-    theme: state.theme,
-    themeMode: state.themeMode,
-    uiFont: state.uiFont,
-    monoFont: state.monoFont,
-    readingSize: state.readingSize,
-    terminalSize: state.terminalSize,
-    sessionPanelOpen: state.sessionPanelOpen,
-    captureSound: state.captureSound,
-    captureFocus: state.captureFocus,
-    plainEnglish: state.plainEnglish,
-    sidebarOpen: state.sidebarOpen,
-    sidebarMode: state.sidebarMode,
-    shortcuts: state.shortcuts,
-    browserTabs,
-    browserOrigins: state.browserOrigins,
-  };
 }
 
 /** The dock tab that offers the panels, shown whenever no panel is on top. */
@@ -888,6 +863,7 @@ export function deriveView(state: WorkspaceState) {
     captureSound: state.captureSound,
     captureFocus: state.captureFocus,
     plainEnglish: state.plainEnglish,
+    notifications: state.notifications,
     shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut,
     composerFocus: state.composerFocus,

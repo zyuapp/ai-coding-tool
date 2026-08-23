@@ -323,7 +323,7 @@ test("a finding raised on the thread the user is watching is not marked unread",
 
 test("a raised finding goes out to the desktop, and one the thread already carries does not", () => {
   const raised = reduce(midRun(), { type: "automation.notify", taskId: "task-a", headline: "5xx on checkout", key: "checkout" });
-  assert.deepEqual(raised.effects, [{ type: "announce-finding", notice: { taskId: "task-a", title: "task-a", headline: "5xx on checkout" } }]);
+  assert.deepEqual(raised.effects, [{ type: "announce-thread", notice: { taskId: "task-a", title: "task-a", headline: "5xx on checkout" } }]);
 
   const again = reduce(raised.state, { type: "automation.notify", taskId: "task-a", headline: "5xx again", key: "checkout" });
   assert.deepEqual(again.effects, [], "nothing was written, so there is nothing to announce");
@@ -332,7 +332,7 @@ test("a raised finding goes out to the desktop, and one the thread already carri
   assert.deepEqual(attended.effects, []);
 
   const watched = reduce({ ...midRun(), currentId: "task-a", focused: true }, { type: "automation.notify", taskId: "task-a", headline: "Right there" });
-  assert.equal(watched.effects[0].type, "announce-finding", "main is the one that knows where the user is looking");
+  assert.equal(watched.effects[0].type, "announce-thread", "main is the one that knows where the user is looking");
 });
 
 test("a turn that is not a scheduled run raises nothing at all", () => {
@@ -628,12 +628,12 @@ test("a schedule turned away three times running says so out loud on its thread"
   }
 
   const third = declined(2);
-  assert.deepEqual(third.effects.map((effect) => effect.type), ["automation.ack", "announce-finding"]);
+  assert.deepEqual(third.effects.map((effect) => effect.type), ["automation.ack", "announce-thread"]);
   assert.equal(effectAt(third.effects, 0, "automation.ack").ack.started, false, "the tick is still turned away");
   const [finding] = findingsOf(third.state.tasks[0]);
   assert.match(finding.headline, /has not been able to run since/);
   assert.equal(finding.key, "declined:automation-1");
-  assert.equal(effectAt(third.effects, 1, "announce-finding").notice.headline, finding.headline);
+  assert.equal(effectAt(third.effects, 1, "announce-thread").notice.headline, finding.headline);
 
   const chatting = declined(2, [task("task-a")], "composer");
   assert.deepEqual(chatting.effects.map((effect) => effect.type), ["automation.ack"], "a thread its own user is working in is not a broken schedule");
@@ -652,7 +652,7 @@ test("a tick waits behind messages the user has queued, and does not call that a
   });
 
   const fired = reduce(waiting, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });
-  assert.deepEqual(fired.effects.map((effect) => effect.type), ["automation.ack", "announce-finding"], "a thread queued behind its own run has no turn to give the tick");
+  assert.deepEqual(fired.effects.map((effect) => effect.type), ["automation.ack", "announce-thread"], "a thread queued behind its own run has no turn to give the tick");
   assert.equal(effectAt(fired.effects, 0, "automation.ack").ack.started, false);
 });
 

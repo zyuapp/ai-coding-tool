@@ -310,8 +310,8 @@ export function useTaskWorkspace() {
         window.desktop.setShortcutCapture(effect.capturing);
         return;
 
-      case "announce-finding":
-        window.desktop.announceFinding(effect.notice);
+      case "announce-thread":
+        window.desktop.announceThread(effect.notice);
         return;
     }
   }
@@ -524,6 +524,7 @@ export function useTaskWorkspace() {
       setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setPlainEnglish: (enabled: boolean) => dispatch({ type: "view.set-plain-english", enabled }),
+      setNotifications: (enabled: boolean) => dispatch({ type: "view.set-notifications", enabled }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
       setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),
       resetShortcuts: () => dispatch({ type: "view.reset-shortcuts" }),

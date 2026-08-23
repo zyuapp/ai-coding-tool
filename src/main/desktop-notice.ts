@@ -1,5 +1,5 @@
 import { ipcMain, Notification, type BrowserWindow, type IpcMainEvent } from "electron";
-import { isFindingNotice, type FindingNotice } from "../contracts/ipc.js";
+import { isThreadNotice, type ThreadNotice } from "../contracts/ipc.js";
 
 /** Says what happened where the user already is, since taking the window would take their place. */
 export function notify(title: string, body: string, onClick?: () => void) {
@@ -9,17 +9,17 @@ export function notify(title: string, body: string, onClick?: () => void) {
   notification.show();
 }
 
-/** What a finding needs from main: the window it belongs to, and bringing that window back to the user. */
-export type FindingHost = {
+/** What a notice needs from main: the window it belongs to, and bringing that window back to the user. */
+export type NoticeHost = {
   window: () => BrowserWindow | null;
   reveal: () => void;
 };
 
 /**
- * Takes a finding to where the user is. A window they are already looking at says it itself, so
- * nothing is announced then; anywhere else the desktop carries it and the click lands on the thread.
+ * Takes a thread's notice to where the user is. A window they are already looking at says it itself,
+ * so nothing is announced then; anywhere else the desktop carries it and the click lands on the thread.
  */
-export function announceFinding(host: FindingHost, notice: FindingNotice) {
+export function announceThread(host: NoticeHost, notice: ThreadNotice) {
   const window = host.window();
   if (!window || window.isDestroyed() || window.isFocused()) return;
   notify(notice.title, notice.headline, () => {
@@ -29,10 +29,10 @@ export function announceFinding(host: FindingHost, notice: FindingNotice) {
   });
 }
 
-/** The window holds the findings, so it is the only place an announcement may come from. */
-export function serveFindingNotices(host: FindingHost, trusted: (event: IpcMainEvent) => boolean) {
-  ipcMain.on("finding:announce", (event, notice: unknown) => {
-    if (!trusted(event) || !isFindingNotice(notice)) return;
-    announceFinding(host, notice);
+/** The window holds the threads, so it is the only place an announcement may come from. */
+export function serveThreadNotices(host: NoticeHost, trusted: (event: IpcMainEvent) => boolean) {
+  ipcMain.on("thread:announce", (event, notice: unknown) => {
+    if (!trusted(event) || !isThreadNotice(notice)) return;
+    announceThread(host, notice);
   });
 }

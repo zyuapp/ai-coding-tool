@@ -35,6 +35,7 @@ export type SettingsPanelProps = {
   allowedOrigins: string[];
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
+  notifications: boolean;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
@@ -45,6 +46,7 @@ export type SettingsPanelProps = {
   onSetReadingSize: (size: number) => void;
   onSetTerminalSize: (size: number) => void;
   onSetPlainEnglish: (enabled: boolean) => void;
+  onSetNotifications: (enabled: boolean) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
   onClearBrowserData: () => void;
@@ -65,6 +67,7 @@ export function SettingsPanel({
   terminalSize,
   allowedOrigins,
   plainEnglish,
+  notifications,
   shortcuts,
   capturingShortcut,
   onSetThemeFamily,
@@ -74,6 +77,7 @@ export function SettingsPanel({
   onSetReadingSize,
   onSetTerminalSize,
   onSetPlainEnglish,
+  onSetNotifications,
   onRestoreTask,
   onClearArchive,
   onClearBrowserData,
@@ -219,7 +223,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} />
+        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} notifications={notifications} onSetNotifications={onSetNotifications} />
       </main>
       )}
 

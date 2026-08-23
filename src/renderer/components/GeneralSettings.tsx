@@ -16,9 +16,12 @@ export type GeneralSettingsProps = {
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
   onSetPlainEnglish: (enabled: boolean) => void;
+  /** Whether a thread that needs the user announces itself on the desktop. */
+  notifications: boolean;
+  onSetNotifications: (enabled: boolean) => void;
 };
 
-export function GeneralSettings({ plainEnglish, onSetPlainEnglish }: GeneralSettingsProps) {
+export function GeneralSettings({ plainEnglish, onSetPlainEnglish, notifications, onSetNotifications }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -71,6 +74,26 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish }: GeneralSett
         </div>
 
         {cliError && <p className="settings-error" role="alert">{cliError}</p>}
+      </section>
+
+      <section className="settings-group" aria-labelledby="notifications-heading">
+        <div className="settings-group-heading">
+          <div>
+            <h3 id="notifications-heading">Notifications</h3>
+            <p>Only threads you are away from send one. Clicking it opens that thread.</p>
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <span className={`setting-status ${notifications ? "granted" : ""}`}>{notifications && <Check size={13} />}</span>
+          <div>
+            <strong>Tell me when a thread needs me</strong>
+            <p>A run finishes, a run fails, or a run stops to ask your permission.</p>
+          </div>
+          <div className="setting-row-action">
+            <button type="button" role="switch" aria-checked={notifications} onClick={() => onSetNotifications(!notifications)}>{notifications ? "Turn off" : "Turn on"}</button>
+          </div>
+        </div>
       </section>
 
       <section className="settings-group" aria-labelledby="experimental-heading">

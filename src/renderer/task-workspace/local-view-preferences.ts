@@ -17,6 +17,7 @@ export function loadViewPreferences(): ViewPreferences {
     captureSound: stored.captureSound ?? true,
     captureFocus: stored.captureFocus ?? true,
     plainEnglish: stored.plainEnglish ?? false,
+    notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
     sidebarMode: stored.sidebarMode ?? "projects",
     shortcuts: stored.shortcuts ?? {},

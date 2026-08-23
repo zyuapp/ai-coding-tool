@@ -8,7 +8,9 @@ import { forkedTasks, sideChatTask } from "./task-fork.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "./findings.js";
-import { outcomeFor, whyRunSurfaces, withNothingToReport, withSettledTick } from "./run-testimony.js";
+import { announced } from "./notices.js";
+import { viewPreferences, viewPreferenceState } from "./view-preferences.js";
+import { outcomeFor, settledHeadline, whyRunSurfaces, withNothingToReport, withSettledTick } from "./run-testimony.js";
 import { pruneDeletedTasks } from "./task-pruning.js";
 import {
   applyRunEvent,
@@ -25,7 +27,7 @@ import {
   type RunProvenance,
   type ThreadMark,
 } from "./task-workspace.js";
-import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, currentFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -35,7 +37,7 @@ import type {
   CancelRunCommand,
   ChangedFilesResult,
   DiffSummaryResult,
-  FindingNotice,
+  ThreadNotice,
   RunEvent,
   StartRunCommand,
   SteerRunCommand,
@@ -166,7 +168,7 @@ export type WorkspaceEffect =
   /** Takes the keyboard off a page in the panel, which is the only way the find bar can have it. */
   | { type: "focus-window" }
   /** A finding on its way to the desktop, which is the only place a user who is elsewhere can be reached. */
-  | { type: "announce-finding"; notice: FindingNotice };
+  | { type: "announce-thread"; notice: ThreadNotice };
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -1387,6 +1389,15 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         : applied;
       if (outcome) next = withSettledTick(next, event.taskId, active, surfacing);
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
+      /**
+       * What this event puts on the desktop. A run that settles says how it ended; a run that stops
+       * to ask says what it is waiting for, and only when a person is the one it waits on.
+       */
+      const headline = event.type === "approval.requested" && active.origin === "composer"
+        ? `Waiting for your permission to use ${event.intent.name}`
+        : settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
+      const noticed = headline ? next.tasks.find((task) => task.id === event.taskId) : undefined;
+      const said = noticed && headline ? announced(next.notifications, noticed, headline) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
       const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));
@@ -1398,9 +1409,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const environment: WorkspaceEffect[] = finished && workspaceId
         ? [{ type: "refresh-environment", workspaceId, taskId: event.taskId, runId: event.runId }, ...settledDiff.effects]
         : [];
-      if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, environment);
+      if (event.type !== "run.status" || event.status === "running" || event.status === "awaiting-approval") return settled(next, [...environment, ...said]);
       const drained = drainQueue(next, event.taskId, event.status);
-      return settled(drained.state, [...environment, ...drained.effects]);
+      return settled(drained.state, [...environment, ...said, ...drained.effects]);
     }
 
     case "workflow.event": {
@@ -1587,24 +1598,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         });
         if (browserTabs.length) docks[owner] = { ...dockFor(state, owner), browserTabs, browserTabId: browserTabs[0].id };
       }
-      return settled({
-        ...state,
-        theme: themeOrDefault(input.preferences.theme).id,
-        themeMode: themeModeOrDefault(input.preferences.themeMode),
-        uiFont: uiFontOrDefault(input.preferences.uiFont).id,
-        monoFont: monoFontOrDefault(input.preferences.monoFont).id,
-        readingSize: sizeOrDefault(READING_SIZE, input.preferences.readingSize),
-        terminalSize: sizeOrDefault(TERMINAL_SIZE, input.preferences.terminalSize),
-        sessionPanelOpen: input.preferences.sessionPanelOpen,
-        captureSound: input.preferences.captureSound ?? true,
-        captureFocus: input.preferences.captureFocus ?? true,
-        plainEnglish: input.preferences.plainEnglish ?? false,
-        sidebarOpen: input.preferences.sidebarOpen,
-        sidebarMode: input.preferences.sidebarMode,
-        shortcuts: input.preferences.shortcuts ?? {},
-        docks,
-        browserOrigins: input.preferences.browserOrigins ?? [],
-      });
+      return settled({ ...state, ...viewPreferenceState(input.preferences), docks });
     }
 
     case "store.failed":
@@ -1810,9 +1804,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(next, [...persistView(next), { type: "apply-capture-options", options: input.options }]);
     }
 
-    case "view.set-plain-english": {
-      if (state.plainEnglish === input.enabled) return settled(state);
-      const next = { ...state, plainEnglish: input.enabled };
+    case "view.set-plain-english":
+    case "view.set-notifications": {
+      const field = input.type === "view.set-plain-english" ? "plainEnglish" : "notifications";
+      if (state[field] === input.enabled) return settled(state);
+      const next = { ...state, [field]: input.enabled };
       return settled(next, persistView(next));
     }
 

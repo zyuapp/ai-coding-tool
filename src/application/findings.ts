@@ -8,6 +8,7 @@ import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withFinding } from "../domain/attention.js";
 import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js";
 import type { Project, Task } from "../domain/task.js";
+import { announced } from "./notices.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
 import { threadBusy } from "./thread-projection.js";
 import { applyTask } from "./task-workspace.js";
@@ -47,11 +48,6 @@ export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, ta
   return null;
 }
 
-/** What raising a finding tells the desktop, so a thread that spoke while hidden still reaches the user. */
-function announced(task: Task, headline: string): WorkspaceEffect {
-  return { type: "announce-finding", notice: { taskId: task.id, title: task.title, headline } };
-}
-
 /** Only a scheduled run may raise one: a turn the user is present for answers them directly. */
 export function raisedFinding(state: WorkspaceState, report: FindingReport & { taskId: string }): WorkspaceTransition {
   const task = scheduledRun(state, report.taskId) ? state.tasks.find((item) => item.id === report.taskId) : undefined;
@@ -60,7 +56,7 @@ export function raisedFinding(state: WorkspaceState, report: FindingReport & { t
   /** A thread the user is watching cannot have missed it. */
   const seen = state.focused && state.currentId === report.taskId;
   const next = withNotifiedRun(state, report.taskId, report, Date.now(), seen);
-  return { state: next, effects: raised ? [announced(task, report.headline)] : [] };
+  return { state: next, effects: raised ? announced(state.notifications, task, report.headline) : [] };
 }
 
 /**
@@ -87,6 +83,6 @@ export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: 
   const seen = state.focused && state.currentId === task.id;
   return {
     state: applyTask(state, task.id, (item) => withFinding(item, report, Date.now(), seen)),
-    effects: [...acked, announced(task, headline)],
+    effects: [...acked, ...announced(state.notifications, task, headline)],
   };
 }

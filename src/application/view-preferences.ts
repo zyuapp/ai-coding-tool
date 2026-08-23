@@ -1,9 +1,10 @@
 import type { KeyValueStorage } from "./task-store.js";
+import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { isSidebarMode } from "../domain/sidebar.js";
-import { isThemeMode, themeById } from "../domain/theme.js";
-import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../domain/typography.js";
+import { isThemeMode, themeById, themeModeOrDefault, themeOrDefault } from "../domain/theme.js";
+import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 
 export const VIEW_PREFERENCES_KEY = "aicodingtool.view-preferences.v1";
 
@@ -59,6 +60,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
       ...(typeof value.captureSound === "boolean" ? { captureSound: value.captureSound } : {}),
       ...(typeof value.plainEnglish === "boolean" ? { plainEnglish: value.plainEnglish } : {}),
+      ...(typeof value.notifications === "boolean" ? { notifications: value.notifications } : {}),
       ...(typeof value.captureFocus === "boolean" ? { captureFocus: value.captureFocus } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
       ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),
@@ -78,4 +80,54 @@ export function writeViewPreferences(storage: KeyValueStorage, preferences: View
   } catch {
     return;
   }
+}
+
+/** The slice of state that survives a restart, gathered here so persisting it stays one decision. */
+export function viewPreferences(state: WorkspaceState): ViewPreferences {
+  /** Only a thread that will still be there reopens its pages, so a dock nothing owns stops being written. */
+  const browserTabs: Record<string, string[]> = {}, taskIds = new Set(state.tasks.map((task) => task.id));
+  for (const [owner, dock] of Object.entries(state.docks)) {
+    if (owner !== DRAFT_DOCK && !taskIds.has(owner)) continue;
+    const urls = dock.browserTabs.map((tab) => tab.url).filter(Boolean);
+    if (urls.length) browserTabs[owner] = urls;
+  }
+  return {
+    theme: state.theme,
+    themeMode: state.themeMode,
+    uiFont: state.uiFont,
+    monoFont: state.monoFont,
+    readingSize: state.readingSize,
+    terminalSize: state.terminalSize,
+    sessionPanelOpen: state.sessionPanelOpen,
+    captureSound: state.captureSound,
+    captureFocus: state.captureFocus,
+    plainEnglish: state.plainEnglish,
+    notifications: state.notifications,
+    sidebarOpen: state.sidebarOpen,
+    sidebarMode: state.sidebarMode,
+    shortcuts: state.shortcuts,
+    browserTabs,
+    browserOrigins: state.browserOrigins,
+  };
+}
+
+/** The same slice on the way back in. A preference the stored set lacks takes the app's own default. */
+export function viewPreferenceState(preferences: ViewPreferences) {
+  return {
+    theme: themeOrDefault(preferences.theme).id,
+    themeMode: themeModeOrDefault(preferences.themeMode),
+    uiFont: uiFontOrDefault(preferences.uiFont).id,
+    monoFont: monoFontOrDefault(preferences.monoFont).id,
+    readingSize: sizeOrDefault(READING_SIZE, preferences.readingSize),
+    terminalSize: sizeOrDefault(TERMINAL_SIZE, preferences.terminalSize),
+    sessionPanelOpen: preferences.sessionPanelOpen,
+    captureSound: preferences.captureSound ?? true,
+    captureFocus: preferences.captureFocus ?? true,
+    plainEnglish: preferences.plainEnglish ?? false,
+    notifications: preferences.notifications ?? true,
+    sidebarOpen: preferences.sidebarOpen,
+    sidebarMode: preferences.sidebarMode,
+    shortcuts: preferences.shortcuts ?? {},
+    browserOrigins: preferences.browserOrigins ?? [],
+  };
 }

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput, type WorkspaceTransition } from "../src/application/workspace-reducer.ts";
-import { deriveView, dockFor, dockOwner, emptyWorkspaceState, viewPreferences, type WorkspaceState } from "../src/application/workspace-state.ts";
+import { deriveView, dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../src/application/workspace-state.ts";
+import { viewPreferences } from "../src/application/view-preferences.ts";
 import type { ActiveRun } from "../src/application/task-workspace.ts";
 import { threadSummaries } from "../src/application/thread-projection.ts";
 import type { AutomationView } from "../src/domain/automation.ts";
@@ -65,9 +66,7 @@ function automation(taskId: string): AutomationView {
   };
 }
 
-function preferences(overrides: Partial<ViewPreferences>): ViewPreferences {
-  return { ...viewPreferences(emptyWorkspaceState()), ...overrides };
-}
+const preferences = (overrides: Partial<ViewPreferences>): ViewPreferences => ({ ...viewPreferences(emptyWorkspaceState()), ...overrides });
 
 function effectAt<Type extends WorkspaceEffect["type"]>(
   transition: WorkspaceTransition,
@@ -354,7 +353,7 @@ test("a run that settles off screen flags its thread and refreshes its project",
 
   const settled = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-1", sequence: 1, status: "succeeded" } });
   assert.equal(settled.state.tasks[0].outcome, "finished");
-  assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }]);
+  assert.deepEqual(settled.effects, [{ type: "refresh-environment", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1" }, { type: "announce-thread", notice: { taskId: "task-a", title: "task-a", headline: "The run finished." } }]);
 
   assert.equal(settled.state.tasks[0].outcomeUnread, true);
 
@@ -661,7 +660,7 @@ test("the panel and sidebar choices are persisted and survive the store loading"
   assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, plainEnglish: false, sidebarOpen: false, sidebarMode: "projects", shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, plainEnglish: false, notifications: true, sidebarOpen: false, sidebarMode: "projects", shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");

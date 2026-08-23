@@ -1,21 +1,21 @@
 import assert from "node:assert/strict";
 import { test, afterAll, beforeAll } from "vitest";
-import { isFindingNotice, type DesktopAPI, type FindingNotice } from "../src/contracts/ipc.ts";
+import { isThreadNotice, type DesktopAPI, type ThreadNotice } from "../src/contracts/ipc.ts";
 import type { WorkspaceInput } from "../src/application/workspace-reducer.ts";
 import { registered, startMainProcess, type MainHarness } from "./support/electron-harness.mjs";
 
 let main: MainHarness;
-beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-finding-"); });
+beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-notice-"); });
 afterAll(async () => { await main?.dispose(); });
 
-const FINDING: FindingNotice = { taskId: "task-datadog", title: "Datadog watch", headline: "5xx on checkout since 02:10" };
+const NOTICE: ThreadNotice = { taskId: "task-datadog", title: "Datadog watch", headline: "5xx on checkout since 02:10" };
 
 const announce = (notice: unknown, sender: unknown = main.trusted) => {
-  registered<(sender: unknown, notice: unknown) => void>(main.listeners, "finding:announce")(sender, notice);
+  registered<(sender: unknown, notice: unknown) => void>(main.listeners, "thread:announce")(sender, notice);
 };
 
-test("a finding raised while the user is elsewhere is carried by the desktop", () => {
-  announce(FINDING);
+test("a notice raised while the user is elsewhere is carried by the desktop", () => {
+  announce(NOTICE);
 
   const raised = main.notifications.at(-1);
   assert.ok(raised);
@@ -25,12 +25,12 @@ test("a finding raised while the user is elsewhere is carried by the desktop", (
   assert.equal(raised.shown, true);
 });
 
-test("clicking the notification brings the window back on the thread that raised the finding", () => {
+test("clicking the notification brings the window back on the thread that raised it", () => {
   const revealed: unknown[] = [];
   const focus = main.app.focus;
   main.app.focus = (options?: unknown) => { revealed.push(options); };
   try {
-    announce(FINDING);
+    announce(NOTICE);
     const notification = main.notifications.at(-1);
     assert.ok(notification);
     notification.click();
@@ -46,35 +46,35 @@ test("a window the user is already looking at announces nothing", () => {
   main.window.focused = true;
   const before = main.notifications.length;
   try {
-    announce(FINDING);
+    announce(NOTICE);
   } finally {
     main.window.focused = false;
   }
 
-  assert.equal(main.notifications.length, before, "the finding is already in front of the user");
+  assert.equal(main.notifications.length, before, "the thread is already in front of the user");
 });
 
-test("findings from anywhere but the window are ignored, and so are malformed ones", () => {
+test("notices from anywhere but the window are ignored, and so are malformed ones", () => {
   const before = main.notifications.length;
-  announce(FINDING, main.untrusted);
+  announce(NOTICE, main.untrusted);
   for (const notice of [
     null,
     "found something",
-    { ...FINDING, taskId: "" },
-    { ...FINDING, title: 7 },
-    { taskId: FINDING.taskId, title: FINDING.title },
-    { ...FINDING, headline: "x".repeat(1_001) },
+    { ...NOTICE, taskId: "" },
+    { ...NOTICE, title: 7 },
+    { taskId: NOTICE.taskId, title: NOTICE.title },
+    { ...NOTICE, headline: "x".repeat(1_001) },
   ]) announce(notice);
 
   assert.equal(main.notifications.length, before);
 });
 
 test("a notice is a thread, a name to show it under, and a line", () => {
-  assert.equal(isFindingNotice(FINDING), true);
-  assert.equal(isFindingNotice({ ...FINDING, headline: "x".repeat(1_000) }), true);
-  assert.equal(isFindingNotice({ ...FINDING, headline: "" }), false);
-  assert.equal(isFindingNotice({ ...FINDING, taskId: undefined }), false);
-  assert.equal(isFindingNotice(undefined), false);
+  assert.equal(isThreadNotice(NOTICE), true);
+  assert.equal(isThreadNotice({ ...NOTICE, headline: "x".repeat(1_000) }), true);
+  assert.equal(isThreadNotice({ ...NOTICE, headline: "" }), false);
+  assert.equal(isThreadNotice({ ...NOTICE, taskId: undefined }), false);
+  assert.equal(isThreadNotice(undefined), false);
 });
 
 test("the window answers a clicked notification by selecting that thread", async () => {

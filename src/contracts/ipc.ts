@@ -315,8 +315,8 @@ export type DesktopAPI = {
   closeWindow(): void;
   /** Takes the keyboard back from a page in the panel, so the window can have it. */
   focusWindow(): void;
-  /** A finding on its way to the desktop. Main decides whether the user is somewhere it has to reach them. */
-  announceFinding(notice: FindingNotice): void;
+  /** A thread's notice on its way to the desktop. Main decides whether the user is somewhere it has to reach them. */
+  announceThread(notice: ThreadNotice): void;
   /** The thread a clicked notification named, on its way to becoming the current one. */
   onOpenThread(listener: (taskId: string) => void): () => void;
 };
@@ -327,14 +327,14 @@ export type ShortcutInvocation = { action: string; surface: ShortcutSurface };
 /** A window the desktop hotkey grabbed, already written to the attachments directory. */
 export type WindowScreenshot = { app: string; title: string; path: string };
 
-/** A finding a thread raised: the thread a click lands on, the name it is shown under, and the line itself. */
-export type FindingNotice = { taskId: string; title: string; headline: string };
+/** What a thread wants in front of the user: the thread a click lands on, the name it is shown under, and the line itself. */
+export type ThreadNotice = { taskId: string; title: string; headline: string };
 
 /** Longer than any line a notification shows, and still bounded. */
 const MAX_HEADLINE_LENGTH = 1_000;
 
-/** Findings arrive from the window like any other outside command, so main reads them defensively. */
-export function isFindingNotice(value: unknown): value is FindingNotice {
+/** Notices arrive from the window like any other outside command, so main reads them defensively. */
+export function isThreadNotice(value: unknown): value is ThreadNotice {
   if (!value || typeof value !== "object") return false;
   const notice = value as Record<string, unknown>;
   return isString(notice.taskId) && isString(notice.title, MAX_HEADLINE_LENGTH) && isString(notice.headline, MAX_HEADLINE_LENGTH);

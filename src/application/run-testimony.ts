@@ -77,6 +77,15 @@ export function whyRunSurfaces(active: ActiveRun, event: RunEvent): RunSurfacing
 }
 
 /**
+ * The line a settling run puts on the desktop, or null when it has none to put there. A scheduled run
+ * speaks through what it finds, so only a failure of one is worth taking to the user this way.
+ */
+export function settledHeadline(surfacing: RunSurfacing | null, message?: string): string | null {
+  if (surfacing === "failed") return message?.trim() || "The run failed.";
+  return surfacing === "attended" ? "The run finished." : null;
+}
+
+/**
  * What a settling run leaves on its thread besides a verdict: a run that surfaced nothing puts the
  * thread back where it found it, and a scheduled run that finished looking closes the filed-away
  * issues it no longer reports.

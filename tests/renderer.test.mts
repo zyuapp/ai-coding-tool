@@ -233,7 +233,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    plainEnglish: false,
+    plainEnglish: false, notifications: true,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
@@ -242,7 +242,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetMonoFont() {},
     onSetReadingSize() {},
     onSetTerminalSize() {},
-    onSetPlainEnglish() {},
+    onSetPlainEnglish() {}, onSetNotifications() {},
     onRestoreTask() {},
     onClearArchive() {},
     onClearBrowserData() {},
@@ -1040,7 +1040,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     onDesktopShortcutRefused: (next) => { shortcutRefused = next; return () => {}; },
     closeWindow: () => { browserCalls.push(["close-window"]); },
     focusWindow: () => { browserCalls.push(["focus-window"]); },
-    announceFinding: () => {},
+    announceThread: () => {},
     ...overrides,
   };
   const desktop = api as FakeDesktop;
