@@ -85,7 +85,7 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish }: GeneralSett
           <span className={`setting-status ${plainEnglish ? "granted" : ""}`}>{plainEnglish && <Check size={13} />}</span>
           <div>
             <strong>Simplified Technical English</strong>
-            <p>Claude answers in short sentences, lists, and tables.</p>
+            <p>Claude answers in shorter sentences and a concise format.</p>
           </div>
           <div className="setting-row-action">
             <button type="button" role="switch" aria-checked={plainEnglish} onClick={() => onSetPlainEnglish(!plainEnglish)}>{plainEnglish ? "Turn off" : "Turn on"}</button>
