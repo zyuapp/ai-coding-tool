@@ -44,10 +44,11 @@ function handledKeys(task: Task): string[] {
 
 /**
  * Where a keyed issue stands with the thread: one it carries a finding for, one the user has filed
- * away, or one it has never been told about. An unkeyed report is always unknown.
+ * away, or one it has never been told about. A report with no key, blank included, is always
+ * unknown: a blank is stored as no key at all, so treating it as one would match nothing forever.
  */
 export function issueState(task: Task, key?: string): "unknown" | "carried" | "handled" {
-  if (key === undefined) return "unknown";
+  if (!key) return "unknown";
   if (findingKeys(task).includes(key)) return "carried";
   return handledKeys(task).includes(key) ? "handled" : "unknown";
 }

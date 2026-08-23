@@ -144,18 +144,32 @@ function unreadCount(host: ThreadRequestHost, taskId: string) {
   return task ? unreadFindings(task).length : 0;
 }
 
+/** The newest finding a thread carries, named so two reads of it can be compared. */
+function newestFindingId(state: WorkspaceState, taskId: string) {
+  return state.tasks.find((task) => task.id === taskId)?.findings?.at(-1)?.id;
+}
+
+/** A run the user answered or steered into is theirs from then on, and what it finds answers them. */
+const TAKEN_OVER = "The user joined this run while the report was going in, so it is theirs to answer now and nothing was recorded. Tell them what you found in your reply instead.";
+
 /**
  * Records what a run found. The command goes in whatever the thread does with it, so a run that
- * raises an issue the thread has not heard of can never afterwards be settled unseen; the answer
- * explains what became of it.
+ * raises an issue the thread has not heard of can never afterwards be settled unseen.
+ *
+ * The answer reports what the thread did, read back after the fact: predicting it from the state
+ * beforehand told the run its report was raised in the very cases the thread went on to drop it.
  */
 async function raiseFinding(host: ThreadRequestHost, taskId: string, report: FindingReport): Promise<FindingResult> {
   const before = host.state();
   const task = before.tasks.find((item) => item.id === taskId);
   if (!task || !scheduledRun(before, taskId)) return { recorded: false, note: UNSCHEDULED };
-  const news = isNews(task, report.key);
+  const known = !isNews(task, report.key);
+  const newestBefore = newestFindingId(before, taskId);
   await host.dispatch({ type: "automation.notify", taskId, ...report });
-  if (!news) return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
+  if (newestFindingId(host.state(), taskId) === newestBefore) {
+    if (known) return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
+    return { recorded: false, note: TAKEN_OVER };
+  }
   const unread = unreadCount(host, taskId);
   const carried = unread === 0
     ? "The user is looking at this thread, so it is already seen"

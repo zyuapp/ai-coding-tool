@@ -65,7 +65,7 @@ export function findingTools(bridge: FindingBridge) {
       {
         headline: z.string().max(MAX_HEADLINE).describe("One line naming what you found. It is what the user reads in the sidebar, so write the finding itself rather than that you looked."),
         detail: z.string().max(MAX_DETAIL).optional().describe("The finding in full, in plain text: it lands in the thread under the headline, as written."),
-        key: z.string().max(MAX_FINDING_KEY).optional().describe("What this finding is about, worded the same way on every run, so the same one is not raised twice while the user has yet to read it."),
+        key: z.string().min(1).max(MAX_FINDING_KEY).optional().describe("What this finding is about, worded the same way on every run, so the same one is not raised twice while the user has yet to read it."),
       },
       async (args) => report(async () => {
         try {

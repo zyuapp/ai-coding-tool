@@ -390,6 +390,28 @@ test("notify accumulates, says how much the thread now carries, and never raises
   assert.equal(host.task().findings.length, 2);
 });
 
+test("a report the thread dropped is never answered as raised", async () => {
+  const waiting = { ...midRun({ status: "awaiting-approval" }), currentId: "task-a" };
+  const host = toolHost({ ...waiting, approvals: { "run-1": { approvalId: "ap1", taskId: "task-a", runId: "run-1", title: "Run tests", description: "", toolName: "Bash", input: {} } } });
+  /** The user answers the run's question in the moment the report is going in, which takes the run over. */
+  const joined = host.dispatch;
+  host.dispatch = (input) => { joined({ type: "run.decide", taskId: "task-a", allow: true }); joined(input); };
+
+  const answered = await answer(host, { op: "notify", report: { headline: "Disk at 91%", key: "disk" } });
+  assert.equal(host.task().findings, undefined, "a run the user joined answers them rather than raising");
+  assert.equal(answered.result.recorded, false, "so the run is never told it was raised");
+  assert.match(answered.result.note, /joined this run/);
+});
+
+test("a blank key is no key at all, rather than one nothing will ever match", async () => {
+  const host = toolHost(midRun());
+
+  const first = await answer(host, { op: "notify", report: { headline: "Something", key: "" } });
+  assert.equal(first.result.recorded, true);
+  assert.equal(host.task().findings[0].key, undefined, "a blank is not stored as a key");
+  assert.equal(isNews(host.task(), ""), true, "and asking about it reads as the unkeyed report it is");
+});
+
 test("a run that has spoken cannot be talked back into silence", async () => {
   const host = toolHost(midRun());
   await answer(host, { op: "notify", report: { headline: "Something is on fire" } });
