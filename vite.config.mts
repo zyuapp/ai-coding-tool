@@ -9,6 +9,7 @@ export default defineConfig({
     testTimeout: 20_000,
     hookTimeout: 20_000,
     pool: "forks",
+    execArgv: ["--disable-warning=ExperimentalWarning"],
   },
   build: {
     outDir: "dist/renderer",
