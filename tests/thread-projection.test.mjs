@@ -186,6 +186,35 @@ test("a draft with no thread of its own is scoped to wherever the sidebar is poi
   );
 });
 
+test("thread options keep first-match project and busy semantics while sharing their lookups", () => {
+  const state = workspace([
+    task("first", { projectId: "duplicate", title: "Same title", createdAt: NOW }),
+    task("second", { projectId: "duplicate", title: "Same title", createdAt: NOW }),
+    task("empty-queue", { projectId: "duplicate" }),
+    task("resolving", { projectId: "duplicate" }),
+  ], {
+    projects: [
+      { id: "duplicate", root: "/first", name: "First" },
+      { id: "duplicate", root: "/second", name: "Second" },
+      { id: "draft", root: "/draft" },
+    ],
+    draftProjectId: "draft",
+    queuedMessages: { "empty-queue": [] },
+    creatingWorktrees: ["empty-queue"],
+    pendingRuns: {
+      pending: { id: "pending", runId: "run", origin: "composer", taskId: "resolving", text: "go", prompt: "go", attachments: [] },
+    },
+  });
+
+  const options = threadHandleOptions(state, "draft:draft");
+  assert.deepEqual(options.slice(0, 2).map(({ id, handle }) => [id, handle]), [
+    ["first", "first/same-title"],
+    ["second", "first/same-title-cond"],
+  ]);
+  assert.equal(options.find((option) => option.id === "empty-queue").running, false, "an empty queue and a checkout alone are not a run");
+  assert.equal(options.find((option) => option.id === "resolving").running, true);
+});
+
 test("a thread answers to its id, an id prefix, or its title, and the newest wins a tie", () => {
   const state = workspace([
     task("t-9f2c00", { title: "Sink the mode choices", runEndedAt: NOW - HOUR }),

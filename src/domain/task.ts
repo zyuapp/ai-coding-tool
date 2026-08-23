@@ -580,7 +580,7 @@ function isMessageKind(value: string): value is TaskMessageKind {
   return value === "user" || value === "assistant" || value === "tool" || value === "system";
 }
 
-function isProject(value: unknown): value is Project {
+export function isProject(value: unknown): value is Project {
   return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.name === undefined || nonEmptyString(value.name)) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId)) && (value.sortIndex === undefined || finiteNumber(value.sortIndex));
 }
 

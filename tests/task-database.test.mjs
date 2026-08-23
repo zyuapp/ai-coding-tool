@@ -6,6 +6,41 @@ import path from "node:path";
 import test from "node:test";
 import { TaskDatabase } from "../dist/main/main/task-database.mjs";
 
+test("project roots are read in sidebar order without loading transcript rows", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-project-roots-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const database = new TaskDatabase(file);
+  const raw = new DatabaseSync(file);
+  try {
+    assert.deepEqual(database.projectRoots(), []);
+    database.persist({
+      projects: [{ id: "project-z", root: "/z" }, { id: "project-a", root: "/a" }],
+      tasks: [{
+        task: {
+          id: "task-1",
+          title: "Read projects",
+          projectId: "project-z",
+          executionPolicy: "confirm",
+          continuationStatus: "none",
+          lastChangeSnapshot: { files: [], capturedAt: 1 },
+          updatedAt: 2,
+        },
+        messages: [{ index: 0, message: { id: "message-1", kind: "user", text: "Hello", at: 1 } }],
+      }],
+    });
+
+    assert.deepEqual(database.projectRoots(), ["/z", "/a"]);
+    raw.prepare("UPDATE messages SET data = '{'").run();
+    assert.deepEqual(database.projectRoots(), ["/z", "/a"], "a broken transcript is outside this narrow startup read");
+    raw.prepare("UPDATE projects SET data = ? WHERE id = 'project-z'").run(JSON.stringify({ id: "project-z", root: 42 }));
+    assert.throws(() => database.projectRoots(), /projects contains an invalid value/);
+  } finally {
+    raw.close();
+    database.close();
+    await rm(directory, { recursive: true });
+  }
+});
+
 test("SQLite task storage appends and updates messages without rewriting the transcript", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));

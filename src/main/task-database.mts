@@ -3,7 +3,7 @@ import path from "node:path";
 import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
-import { parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
+import { isProject, parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
 import { isWorktree, type Worktree } from "../domain/worktree.js";
 
 /** Automations are read while the app boots, so one unreadable row must not take the window with it. */
@@ -157,6 +157,16 @@ export class TaskDatabase {
     if (this.closed) return;
     this.database.close();
     this.closed = true;
+  }
+
+  /** Project roots for worktree reconciliation, without reading and parsing every transcript first. */
+  projectRoots(): string[] {
+    const rows = this.database.prepare("SELECT data FROM projects ORDER BY position").all() as Array<{ data: string }>;
+    return rows.map(({ data }) => {
+      const project = JSON.parse(data) as unknown;
+      if (!isProject(project)) throw new Error("v2 projects contains an invalid value");
+      return project.root;
+    });
   }
 
   load(): TaskStoreData | null {

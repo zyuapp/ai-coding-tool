@@ -1,8 +1,9 @@
 import { runStatusFor } from "./task-workspace.js";
 import { projectFor, sideChatIds, worktreeFor, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
-import { findProject, projectName, threadActivityAt, threadCreatedAt, type Task } from "../domain/task.js";
+import { findProject, projectName, threadActivityAt, threadCreatedAt, type Project, type Task } from "../domain/task.js";
 import { threadHandles, type ThreadHandleOption } from "../domain/thread-handles.js";
+import type { Worktree } from "../domain/worktree.js";
 
 /** Enough of a message to recognise what happened without carrying a whole transcript. */
 const MESSAGE_TEXT_LIMIT = 2_000;
@@ -32,16 +33,34 @@ export function threadWaitResult(state: WorkspaceState, threadId: string, timedO
   return { thread: threadSummary(state, task), timedOut, reply };
 }
 
-export function threadSummary(state: WorkspaceState, task: Task): ThreadSummary {
-  const project = projectFor(state, task);
-  const worktree = worktreeFor(state, task);
+type ProjectionIndex = {
+  projects: Map<string, Project>;
+  worktrees: Map<string, Worktree>;
+  busy: Set<string>;
+};
+
+/** Shared lookups for a whole thread listing. First wins, matching the array searches they replace. */
+function projectionIndex(state: WorkspaceState): ProjectionIndex {
+  const projects = new Map<string, Project>();
+  for (const project of state.projects) if (!projects.has(project.id)) projects.set(project.id, project);
+  const worktrees = new Map<string, Worktree>();
+  for (const worktree of state.worktrees) if (!worktrees.has(worktree.id)) worktrees.set(worktree.id, worktree);
+  const busy = new Set(Object.keys(state.activeRuns));
+  for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
+  for (const [taskId, queued] of Object.entries(state.queuedMessages)) if (queued.length) busy.add(taskId);
+  return { projects, worktrees, busy };
+}
+
+export function threadSummary(state: WorkspaceState, task: Task, index?: ProjectionIndex): ThreadSummary {
+  const project = index ? (task.projectId ? index.projects.get(task.projectId) : undefined) : projectFor(state, task);
+  const worktree = index ? (task.worktreeId ? index.worktrees.get(task.worktreeId) : undefined) : worktreeFor(state, task);
   return {
     id: task.id,
     title: task.title,
     ...(task.projectId ? { projectId: task.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
     ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),
-    status: threadBusy(state, task.id) ? "running" : runStatusFor(state, task.id),
+    status: (index ? index.busy.has(task.id) : threadBusy(state, task.id)) ? "running" : runStatusFor(state, task.id),
     archived: task.archivedAt !== undefined,
     createdAt: threadCreatedAt(task),
     lastActivityAt: threadActivityAt(task),
@@ -63,7 +82,9 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
     if (filter.attachments && !task.messages.some(carriesAttachment)) return false;
     return true;
   });
-  const summaries = matching.map((task) => threadSummary(state, task)).sort((left, right) => right.lastActivityAt - left.lastActivityAt);
+  if (!matching.length) return [];
+  const index = projectionIndex(state);
+  const summaries = matching.map((task) => threadSummary(state, task, index)).sort((left, right) => right.lastActivityAt - left.lastActivityAt);
   return filter.limit === undefined ? summaries : summaries.slice(0, Math.max(0, filter.limit));
 }
 
@@ -74,19 +95,20 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
  */
 export function threadHandleOptions(state: WorkspaceState, draftKey: string): ThreadHandleOption[] {
   const forked = sideChatIds(state);
+  const index = projectionIndex(state);
   const caller = state.tasks.find((task) => task.id === draftKey);
   /** A draft belonging to no thread yet is being written wherever the sidebar is pointed. */
   const projectId = caller ? caller.projectId ?? null : state.draftProjectId;
   return threadHandles(state.tasks
     .filter((task) => task.id !== draftKey && !forked.has(task.id) && task.archivedAt === undefined)
     .map((task) => {
-      const project = projectFor(state, task);
+      const project = task.projectId ? index.projects.get(task.projectId) : undefined;
       return {
         id: task.id,
         title: task.title,
         project: project ? projectName(project) : null,
         inScope: (task.projectId ?? null) === projectId,
-        running: threadBusy(state, task.id),
+        running: index.busy.has(task.id),
         lastActivityAt: threadActivityAt(task),
       };
     }));

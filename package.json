@@ -8,6 +8,7 @@
   "homepage": "https://github.com/zyuapp/ai-coding-tool",
   "main": "dist/main/main/main.js",
   "scripts": {
+    "benchmark:performance": "npm run build && node --expose-gc scripts/benchmark-performance.mjs",
     "build": "vite build && tsc -p tsconfig.main.json",
     "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && npm run lint",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",

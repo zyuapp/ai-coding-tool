@@ -636,7 +636,7 @@ async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeSer
     /** A store too damaged to read still must not stop the checkouts on disk from being tidied. */
     const repositories = (() => {
       try {
-        return database.load()?.projects.map((project) => project.root) ?? [];
+        return database.projectRoots();
       } catch {
         return [];
       }

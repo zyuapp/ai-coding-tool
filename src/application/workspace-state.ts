@@ -743,9 +743,12 @@ export function withImages(state: WorkspaceState, key: string, images: StagedIma
 
 /** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
 export function reachableVisit(state: WorkspaceState, step: -1 | 1): number | null {
-  for (let index = state.historyIndex + step; index >= 0 && index < state.history.length; index += step) {
+  for (let index = state.historyIndex + step, misses = 0, reachable: Set<string> | null = null;
+    index >= 0 && index < state.history.length; index += step) {
     const id = state.history[index];
-    if (state.tasks.some((task) => task.id === id && task.archivedAt === undefined)) return index;
+    if (reachable ? reachable.has(id) : state.tasks.some((task) => task.id === id && task.archivedAt === undefined)) return index;
+    /** Short gaps are common. Index only once a long gap repays the allocation. */
+    if (++misses === 128) reachable = new Set(state.tasks.filter((task) => task.archivedAt === undefined).map((task) => task.id));
   }
   return null;
 }
@@ -796,6 +799,9 @@ export function deriveView(state: WorkspaceState) {
   const forked = sideChatIds(state);
   const listedTasks = state.tasks.filter((task) => !forked.has(task.id));
   const visibleTasks = listedTasks.filter((task) => task.archivedAt === undefined);
+  const orderedTasks = orderTasks(visibleTasks), tasksByWorktree = new Map<string, Task[]>();
+  for (const task of orderedTasks) if (task.worktreeId)
+    tasksByWorktree.get(task.worktreeId)?.push(task) ?? tasksByWorktree.set(task.worktreeId, [task]);
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const workspaceId = currentTask
     ? taskWorkspaceId(state, currentTask)
@@ -809,7 +815,7 @@ export function deriveView(state: WorkspaceState) {
   return {
     tasks: listedTasks,
     projects: orderProjects(state.projects),
-    orderedTasks: orderTasks(visibleTasks),
+    orderedTasks,
     /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
     activityTasks: activitySections(visibleTasks, busy, blocked),
     archivedTasks: listedTasks.filter((task) => task.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
@@ -851,7 +857,7 @@ export function deriveView(state: WorkspaceState) {
     /** The checkouts a project has, each with the threads that claim it. */
     worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({
       worktree,
-      tasks: orderTasks(visibleTasks.filter((task) => task.worktreeId === worktree.id)),
+      tasks: tasksByWorktree.get(worktree.id) ?? [],
     })),
     location: locationOf(state, currentTask),
     waitingOn,

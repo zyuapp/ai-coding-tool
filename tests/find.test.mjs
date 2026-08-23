@@ -45,8 +45,24 @@ test("a query nothing can be searched for finds nothing", () => {
 
 test("a query that matches everything is capped", () => {
   const wall = messages({ kind: "assistant", text: "a".repeat(MAX_FIND_HITS + 50) });
+  const found = findHits(wall, "a");
 
-  assert.equal(findHits(wall, "a").length, MAX_FIND_HITS);
+  assert.equal(found.length, MAX_FIND_HITS);
+  assert.deepEqual(found.at(-1), { messageId: "m0", field: "text", start: MAX_FIND_HITS - 1, occurrence: MAX_FIND_HITS - 1 });
+});
+
+test("a message counts text then detail, and the next message starts its own occurrence count", () => {
+  const found = findHits(messages(
+    { kind: "tool", text: "hit hit", detail: "hit" },
+    { kind: "assistant", text: "hit" },
+  ), "hit");
+
+  assert.deepEqual(found, [
+    { messageId: "m0", field: "text", start: 0, occurrence: 0 },
+    { messageId: "m0", field: "text", start: 4, occurrence: 1 },
+    { messageId: "m0", field: "detail", start: 0, occurrence: 2 },
+    { messageId: "m1", field: "text", start: 0, occurrence: 0 },
+  ]);
 });
 
 test("stepping wraps at both ends, and stays put with nothing to step through", () => {

@@ -34,13 +34,14 @@ export function sameFindTarget(one: FindTarget, other: FindTarget): boolean {
 }
 
 /** Every match in a message's own text, which is the order the timeline draws it in. */
-function hitsInMessage(message: TaskMessage, needle: string): FindHit[] {
+function hitsInMessage(message: TaskMessage, needle: string, limit: number): FindHit[] {
   const hits: FindHit[] = [];
   for (const field of ["text", "detail"] as const) {
     const haystack = (field === "text" ? message.text : message.detail)?.toLowerCase();
     if (!haystack) continue;
     for (let start = haystack.indexOf(needle); start !== -1; start = haystack.indexOf(needle, start + needle.length)) {
       hits.push({ messageId: message.id, field, start, occurrence: hits.length });
+      if (hits.length === limit) return hits;
     }
   }
   return hits;
@@ -52,10 +53,8 @@ export function findHits(messages: TaskMessage[], query: string): FindHit[] {
   if (!needle) return [];
   const hits: FindHit[] = [];
   for (const message of messages) {
-    for (const hit of hitsInMessage(message, needle)) {
-      hits.push(hit);
-      if (hits.length === MAX_FIND_HITS) return hits;
-    }
+    hits.push(...hitsInMessage(message, needle, MAX_FIND_HITS - hits.length));
+    if (hits.length === MAX_FIND_HITS) return hits;
   }
   return hits;
 }

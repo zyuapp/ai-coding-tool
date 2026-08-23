@@ -1064,6 +1064,13 @@ test("back and forward step over threads that are gone or archived", () => {
 
   const emptied = { ...visited, tasks: visited.tasks.filter((item) => item.id !== "task-a") };
   assert.ok(!deriveView({ ...emptied, historyIndex: 1 }).canGoBack, "a thread that no longer exists is nowhere to go");
+
+  const duplicate = workspace({
+    tasks: [task("archived", { archivedAt: 0 }), task("shared", { archivedAt: 0 }), task("shared")],
+    history: ["archived", "shared"],
+    historyIndex: -1,
+  });
+  assert.equal(reduce(duplicate, { type: "view.go-forward" }).state.currentId, "shared", "an archived entry at time zero is skipped while a live duplicate id stays reachable");
 });
 
 const PROJECT = { id: "project-a", root: "/repo", workspaceId: "workspace-a" };
@@ -1546,16 +1553,20 @@ test("the sidebar nests a checkout's threads under it and leaves the project's o
   const state = projected({
     worktrees: [worktree],
     tasks: [
-      task("in-checkout", { projectId: PROJECT.id, worktreeId: worktree.id, sortIndex: 0 }),
+      task("checkout-later", { projectId: PROJECT.id, worktreeId: worktree.id, sortIndex: 3 }),
+      task("checkout-first", { projectId: PROJECT.id, worktreeId: worktree.id, sortIndex: 0 }),
       task("in-project", { projectId: PROJECT.id, sortIndex: 1 }),
       task("archived", { projectId: PROJECT.id, worktreeId: worktree.id, archivedAt: 5 }),
+      task("orphan", { projectId: PROJECT.id, worktreeId: "missing-worktree" }),
     ],
   });
 
-  const [group] = deriveView(state).worktreeGroups;
+  const view = deriveView(state);
+  const [group] = view.worktreeGroups;
 
   assert.equal(group.worktree.id, worktree.id);
-  assert.deepEqual(group.tasks.map((item) => item.id), ["in-checkout"], "an archived thread still claims the checkout but is not listed under it");
+  assert.deepEqual(group.tasks.map((item) => item.id), ["checkout-first", "checkout-later"], "the checkout follows the sidebar order without listing archived threads");
+  assert.deepEqual([...view.worktreeTaskIds], ["checkout-later", "checkout-first", "archived", "orphan"], "every persisted checkout claim remains marked, including archived and orphaned ones");
 });
 
 test("removing a project hands back the checkouts cut from it", () => {
