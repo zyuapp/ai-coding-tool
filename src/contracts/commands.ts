@@ -109,6 +109,12 @@ export type ProjectCommand =
   | { type: "project.open" }
   /** `index` counts the folders in the sidebar with the moved one already taken out. */
   | { type: "project.move"; projectId: string; index: number }
+  /**
+   * Names the folder in the sidebar, points it at another directory, or both. A blank `name` takes
+   * the name off, so the folder goes by its own again. A `root` that is not a folder the app can
+   * open leaves everything as it was and says why.
+   */
+  | { type: "project.edit"; projectId: string; name?: string | null; root?: string }
   | { type: "project.remove"; projectId: string };
 
 /** Discarding a worktree takes everything uncommitted in it; only {@link TaskCommand} preserves work. */
@@ -194,6 +200,8 @@ export type ViewCommand =
   | { type: "view.reading-point"; taskId: string; point: ReadingPoint }
   | { type: "view.dismiss-action-error" }
   | { type: "view.toggle-project"; projectId: string }
+  /** Opens the folder editor on one project, or closes whichever it was on with a null. */
+  | { type: "view.edit-project"; projectId: string | null }
   /** Folds one of the sidebar's lists, whichever mode draws it. */
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */

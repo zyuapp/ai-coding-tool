@@ -728,6 +728,17 @@ ipcMain.handle("workspace:open", async (event) => {
   return registration.workspace;
 });
 
+/**
+ * A folder the user typed rather than picked. Everything the picker guarantees has to be checked
+ * here instead: that it is a directory, and that it is theirs rather than a checkout the app made.
+ */
+ipcMain.handle("workspace:register", async (event, root: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const { projectFolder } = await import("./project-folder.mjs");
+  const folder = await projectFolder(root, [WORKTREES_ROOT, ...legacyWorktreesRoots(app.getPath("userData"))]);
+  return (await getWorkspaceService().registerProject(folder)).workspace;
+});
+
 ipcMain.handle("workspace:projectless", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   return (await getWorkspaceService().getProjectless()).workspace;
@@ -997,27 +1008,6 @@ ipcMain.handle("browser:clear", (event) => {
   return browser.clearData();
 });
 
-const MAX_FILE_PATH = 4_096;
-
-/**
- * The file a message named, as an absolute path the desktop can open. A message is only prose, so
- * the path it wrote has to land inside the checkout the thread works in before anything opens it.
- */
-async function fileInCheckout(root: unknown, candidate: unknown) {
-  if (typeof root !== "string" || !root) throw new Error("Invalid folder.");
-  if (typeof candidate !== "string" || !candidate || candidate.length > MAX_FILE_PATH) throw new Error("Invalid file path.");
-  const named = candidate.startsWith("~/") ? path.join(homedir(), candidate.slice(2)) : candidate;
-  const { isPathInside } = await import("./path-policy.mjs");
-  try {
-    const [checkout, file] = await Promise.all([realpath(root), realpath(path.resolve(root, named))]);
-    if (!isPathInside(checkout, file)) throw new Error("That file is outside this thread's folder.");
-    return file;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error("That file is not there any more.");
-    throw error;
-  }
-}
-
 /** Bigger than any file anyone reads, and still small enough that no editor chokes on the argument. */
 const MAX_FILE_LINE = 10_000_000;
 
@@ -1026,6 +1016,7 @@ ipcMain.handle("file:open", async (event, root: unknown, candidate: unknown, lin
   if (line !== null && line !== undefined && (typeof line !== "number" || !Number.isInteger(line) || line < 1 || line > MAX_FILE_LINE)) {
     throw new Error("Invalid file line.");
   }
+  const { fileInCheckout } = await import("./path-policy.mjs");
   await openInEditor(await fileInCheckout(root, candidate), typeof line === "number" ? line : null);
 });
 

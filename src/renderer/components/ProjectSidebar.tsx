@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
-import { projectName, threadActivityAt } from "../../domain/task";
+import { folderName, projectName, threadActivityAt } from "../../domain/task";
 import { dismissableTasks, hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskOutcome } from "../../domain/task";
@@ -55,7 +55,7 @@ function activityMeta(task: Task, projects: Project[]) {
   const finding = newestUnreadFinding(task);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === task.projectId);
-  return [project && projectName(project.root), formatTime(threadActivityAt(task))].filter(Boolean).join(" · ");
+  return [project && projectName(project), formatTime(threadActivityAt(task))].filter(Boolean).join(" · ");
 }
 
 /** The activity mode's three lists, top to bottom, with the heading each is drawn under. */
@@ -124,6 +124,9 @@ export type ProjectSidebarProps = {
   onNewTask: (projectId?: string, worktreeId?: string) => void;
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
+  /** The name typed on the row itself. Blank gives the folder its own name back. */
+  onRenameProject: (projectId: string, name: string) => void;
+  onEditProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
   onSetMode: (mode: SidebarMode) => void;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
@@ -138,6 +141,65 @@ export type ProjectSidebarProps = {
   onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
 };
+
+/** Which row of a list is being renamed, the input over it, and the row focus goes back to. */
+function useRenaming(onCommit: (id: string, value: string) => void) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const row = useRef<HTMLElement>(null);
+  useDismissibleLayer(editing !== null, [input], () => input.current?.blur(), row);
+  return {
+    editing,
+    input,
+    row,
+    start: (id: string, element?: HTMLElement | null) => {
+      if (element) row.current = element;
+      setEditing(id);
+    },
+    cancel: () => setEditing(null),
+    commit: (id: string, value: string) => {
+      setEditing(null);
+      onCommit(id, value);
+    },
+  };
+}
+
+/**
+ * A name being typed in place, over the row it belongs to. Enter and blur keep what was typed and
+ * Escape leaves it, so both lists rename the same way.
+ */
+function RenameInput({ inputRef, className, label, value, placeholder, onCommit, onCancel }: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  className: string;
+  label: string;
+  value: string;
+  placeholder?: string;
+  onCommit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <input
+      ref={inputRef}
+      className={className}
+      aria-label={label}
+      autoFocus
+      defaultValue={value}
+      placeholder={placeholder}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      /** The row answers Enter itself and dragging claims the arrow and space keys. */
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Enter") onCommit(event.currentTarget.value);
+        else if (event.key === "Escape") {
+          event.preventDefault();
+          onCancel();
+        }
+      }}
+      onBlur={(event) => onCommit(event.currentTarget.value)}
+    />
+  );
+}
 
 export function ProjectSidebar({
   open,
@@ -165,6 +227,8 @@ export function ProjectSidebar({
   onNewTask,
   onOpenFolder,
   onToggleProject,
+  onRenameProject,
+  onEditProject,
   onRemoveProject,
   onSetMode,
   onSetSectionOpen,
@@ -179,11 +243,9 @@ export function ProjectSidebar({
   onOpenSettings,
 }: ProjectSidebarProps) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ left: 0, top: 0 });
-  const [renamingId, setRenamingId] = useState<string | null>(null);
   const list = useRef<HTMLElement>(null);
-  const renameInput = useRef<HTMLInputElement>(null);
-  const taskReturn = useRef<HTMLElement>(null);
-  useDismissibleLayer(renamingId !== null, [renameInput], () => renameInput.current?.blur(), taskReturn);
+  const taskNames = useRenaming((taskId, value) => { if (value.trim()) onRenameTask(taskId, value); });
+  const projectNames = useRenaming(onRenameProject);
   const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
 
   const checkoutNames = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
@@ -231,16 +293,6 @@ export function ProjectSidebar({
       projectId: destination.droppableId === RECENTS_DROPPABLE ? null : destination.droppableId,
       index: destination.index,
     });
-  }
-
-  function commitRename(taskId: string, value: string) {
-    setRenamingId(null);
-    if (value.trim()) onRenameTask(taskId, value);
-  }
-
-  function startRename(taskId: string, row?: HTMLElement | null) {
-    if (row) taskReturn.current = row;
-    setRenamingId(taskId);
   }
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
@@ -314,10 +366,10 @@ export function ProjectSidebar({
     <div
       className={className}
       onClick={() => onSelectTask(task.id)}
-      onDoubleClick={(event) => startRename(task.id, event.currentTarget.closest(".task-entry"))}
+      onDoubleClick={(event) => taskNames.start(task.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
-        taskReturn.current = event.currentTarget.closest(".task-entry");
+        taskNames.row.current = event.currentTarget.closest(".task-entry");
         const row = event.currentTarget.getBoundingClientRect();
         const menuHeight = 112;
         setTaskMenuPosition({
@@ -328,34 +380,23 @@ export function ProjectSidebar({
       }}
       title={task.title}
     >
-      {renamingId === task.id
-        ? <input
-            ref={renameInput}
+      {taskNames.editing === task.id
+        ? <RenameInput
+            inputRef={taskNames.input}
             className="task-rename"
-            aria-label={`Rename ${task.title}`}
-            autoFocus
-            defaultValue={task.title}
-            onClick={(event) => event.stopPropagation()}
-            onDoubleClick={(event) => event.stopPropagation()}
-            /** The row selects on Enter and dragging claims the arrow and space keys. */
-            onKeyDown={(event) => {
-              event.stopPropagation();
-              if (event.key === "Enter") commitRename(task.id, event.currentTarget.value);
-              else if (event.key === "Escape") {
-                event.preventDefault();
-                setRenamingId(null);
-              }
-            }}
-            onBlur={(event) => commitRename(task.id, event.currentTarget.value)}
+            label={`Rename ${task.title}`}
+            value={task.title}
+            onCommit={(value) => taskNames.commit(task.id, value)}
+            onCancel={taskNames.cancel}
           />
         : <>{content}{taskRail(task, action)}</>}
     </div>
     {openMenu === `task:${task.id}` && <ContextMenu
       position={taskMenuPosition}
-      returnFocus={taskReturn}
+      returnFocus={taskNames.row}
       onSetOpenMenu={onSetOpenMenu}
       items={[
-        { label: "Rename", onSelect: () => startRename(task.id) },
+        { label: "Rename", onSelect: () => taskNames.start(task.id) },
         { label: "Copy reference", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
         { label: "Archive", danger: true, onSelect: () => onArchiveTask(task.id) },
       ]}
@@ -485,15 +526,31 @@ export function ProjectSidebar({
                           *  button unless told otherwise, and the row is nothing but buttons. It swallows the
                           *  click a drag ends on, so the row keeps its click-to-fold. */}
                         <div className={`project-row ${draftProjectId === project.id ? "current" : ""}`} {...dragged.dragHandleProps}>
-                          <button className="project-main" onClick={() => onToggleProject(project.id)} title={project.root} aria-expanded={expanded}>
-                            <span className="folder-icon"><FolderIcon /></span>
-                            <span>{projectName(project.root)}</span>
-                          </button>
+                          {projectNames.editing === project.id
+                            ? <RenameInput
+                                inputRef={projectNames.input}
+                                className="project-rename"
+                                label={`Rename ${projectName(project)}`}
+                                value={projectName(project)}
+                                placeholder={folderName(project.root)}
+                                onCommit={(value) => projectNames.commit(project.id, value)}
+                                onCancel={projectNames.cancel}
+                              />
+                            : <button
+                                className="project-main"
+                                onClick={() => onToggleProject(project.id)}
+                                onDoubleClick={(event) => projectNames.start(project.id, event.currentTarget.closest(".project-row"))}
+                                title={project.root}
+                                aria-expanded={expanded}
+                              >
+                                <span className="folder-icon"><FolderIcon /></span>
+                                <span>{projectName(project)}</span>
+                              </button>}
                           <PopoverMenu
                             id={`project:${project.id}`}
                             openMenu={openMenu}
                             onSetOpenMenu={onSetOpenMenu}
-                            label={`More options for ${projectName(project.root)}`}
+                            label={`More options for ${projectName(project)}`}
                             className="project-menu"
                             items={[
                               { label: "New task", onSelect: () => onNewTask(project.id) },
@@ -502,10 +559,11 @@ export function ProjectSidebar({
                                 onSelect: () => onNewTask(project.id, worktree.id),
                               })),
                               { label: expanded ? "Collapse" : "Expand", onSelect: () => onToggleProject(project.id) },
+                              { label: "Edit…", onSelect: () => onEditProject(project.id) },
                               { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
                             ]}
                           />
-                          <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project.root)}`}><SquarePen size={16} /></button>
+                          <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project)}`}><SquarePen size={16} /></button>
                         </div>
                         {/** A folded folder holds no droppable, so a drag neither unfolds it nor opens a gap where it sits. */}
                         {expanded && <Droppable droppableId={project.id} type="task">

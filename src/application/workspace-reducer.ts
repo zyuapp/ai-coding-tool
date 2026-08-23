@@ -3,7 +3,7 @@ import { promptWithAttachments, taskTitleFor } from "./attachments.js";
 import { pasteTitle, promptWithPastes } from "./pastes.js";
 import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
-import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
+import { reduceProjects, type ProjectEvent, type RegisterProjectEffect } from "./project-commands.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "./findings.js";
@@ -51,7 +51,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById,
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import type { CaptureOptions } from "../domain/capture.js";
-import { clampTitle, createTaskMessage, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, createTaskMessage, findProject, legacyProjectId, MAX_ATTACHMENTS, sameRoot, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -64,7 +64,7 @@ export type WorkspaceEvent =
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
-  | { type: "project.opened"; workspace: WorkspaceRecord }
+  | ProjectEvent
   | { type: "run.event"; event: RunEvent }
   /** A workflow reports to its thread rather than to a run, which may be long over by then. */
   | { type: "workflow.event"; event: WorkflowEvent }
@@ -93,6 +93,7 @@ export type WorkspaceEvent =
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
   | { type: "pick-project" }
+  | RegisterProjectEffect
   | { type: "persist-preferences"; preferences: ViewPreferences }
   | {
       type: "resolve-run-workspace";
@@ -1226,27 +1227,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "project.open":
       return settled(state, [{ type: "pick-project" }]);
 
-    case "project.opened": {
-      const id = legacyProjectId(input.workspace.root);
-      const projects = state.projects.some((project) => project.id === id)
-        ? state.projects.map((project) => project.id === id ? { ...project, root: input.workspace.root, workspaceId: input.workspace.id } : project)
-        : [{ id, root: input.workspace.root, workspaceId: input.workspace.id, sortIndex: nextProjectSortIndex(state.projects) }, ...state.projects];
-      return settled({
-        ...state,
-        projects,
-        currentId: null,
-        draftProjectId: id,
-        lastFolder: input.workspace.root,
-        actionError: null,
-        expandedProjects: new Set(state.expandedProjects).add(id),
-      });
-    }
-
-    case "project.move": {
-      const projects = moveProjectInList(state.projects, input.projectId, input.index);
-      if (projects === state.projects) return settled(state);
-      return settled({ ...state, projects, openMenu: null });
-    }
+    case "project.opened":
+    case "project.edit":
+    case "project.registered":
+    case "project.register-failed":
+    case "project.move":
+    case "view.edit-project":
+    case "view.toggle-project":
+      return reduceProjects(state, input);
 
     case "project.remove": {
       if (state.tasks.some((task) => task.projectId === input.projectId && state.activeRuns[task.id])) {
@@ -1269,6 +1257,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         draftProjectId: state.draftProjectId === input.projectId ? null : state.draftProjectId,
         lastFolder: project?.root === state.lastFolder ? null : state.lastFolder,
         expandedProjects,
+        projectEdit: state.projectEdit?.projectId === input.projectId ? null : state.projectEdit,
         openMenu: null,
         actionError: null,
       /** The project's checkouts are checkouts of a repository the app is letting go of. */
@@ -1666,13 +1655,6 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.dismiss-action-error":
       return settled({ ...state, actionError: null });
 
-    case "view.toggle-project": {
-      const expandedProjects = new Set(state.expandedProjects);
-      if (expandedProjects.has(input.projectId)) expandedProjects.delete(input.projectId);
-      else expandedProjects.add(input.projectId);
-      return settled({ ...state, expandedProjects });
-    }
-
     case "view.set-section-open":
       return settled({ ...state, sections: { ...state.sections, [input.section]: input.open } });
 
@@ -1819,6 +1801,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.close-tab": {
       const owner = dockOwner(state);
       const dock = dockFor(state, owner);
+      if (state.projectEdit) return settled({ ...state, projectEdit: null });
       if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
       if (!dock.open) return settled(state, [{ type: "close-window" }]);
       /** A dock across the whole workspace is the frontmost thing there is, so it gives that up first. */

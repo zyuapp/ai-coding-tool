@@ -8,6 +8,7 @@ import { DiffPanel } from "./components/DiffPanel";
 import { MessageLinkProvider, type MessageLinkActions } from "./components/MarkdownMessage";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
+import { ProjectEditDialog } from "./components/ProjectEditDialog";
 import { ProjectSidebar } from "./components/ProjectSidebar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { SessionPanel } from "./components/SessionPanel";
@@ -47,6 +48,58 @@ type DockTab = { id: string; title: string; icon: LucideIcon; badge?: number };
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 const ADD_TAB_MENU = "dock-add";
+
+/** Everything the sidebar draws and every command its rows dispatch, kept out of the shell below. */
+function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
+  workspace: ReturnType<typeof useTaskWorkspace>;
+  open: boolean;
+  settingsVisible: boolean;
+  onOpenSettings: () => void;
+}) {
+  return (
+    <ProjectSidebar
+      open={open}
+      inactive={settingsVisible}
+      projects={workspace.projects}
+      orderedTasks={workspace.orderedTasks}
+      recentTasks={workspace.recentTasks}
+      currentId={workspace.currentTask?.id ?? null}
+      draftProjectId={workspace.currentProject?.id ?? null}
+      expandedProjects={workspace.expandedProjects}
+      runningTaskIds={workspace.runningTaskIds}
+      blockedTaskIds={workspace.blockedTaskIds}
+      schedules={workspace.schedules}
+      worktreeTaskIds={workspace.worktreeTaskIds}
+      worktreeGroups={workspace.worktreeGroups}
+      activityTasks={workspace.activityTasks}
+      mode={workspace.sidebarMode}
+      sections={workspace.sections}
+      openMenu={workspace.openMenu}
+      settingsOpen={settingsVisible}
+      canGoBack={workspace.canGoBack}
+      canGoForward={workspace.canGoForward}
+      onGoBack={() => void workspace.actions.goBack()}
+      onGoForward={() => void workspace.actions.goForward()}
+      onNewTask={workspace.actions.newTask}
+      onOpenFolder={workspace.actions.openFolder}
+      onToggleProject={workspace.actions.toggleProject}
+      onRenameProject={(projectId, name) => void workspace.actions.editProject(projectId, { name })}
+      onEditProject={workspace.actions.editProjectOpen}
+      onRemoveProject={workspace.actions.removeProject}
+      onMoveProject={workspace.actions.moveProject}
+      onSetMode={workspace.actions.setSidebarMode}
+      onSetSectionOpen={workspace.actions.setSectionOpen}
+      onSetOpenMenu={workspace.actions.setOpenMenu}
+      onSelectTask={workspace.actions.selectTask}
+      onArchiveTask={workspace.actions.archiveTask}
+      onDismissTask={workspace.actions.dismissTask}
+      onDismissAll={workspace.actions.dismissAllTasks}
+      onRenameTask={workspace.actions.renameTask}
+      onMoveTask={workspace.actions.moveTask}
+      onOpenSettings={onOpenSettings}
+    />
+  );
+}
 
 export function App() {
   const workspace = useTaskWorkspace();
@@ -296,51 +349,14 @@ export function App() {
     <MessageLinkProvider actions={messageLinks}>
     <DiagramViewerHost>
     <main className="app-shell">
-      <ProjectSidebar
-        open={sidebarOpen}
-        inactive={settingsVisible}
-        projects={workspace.projects}
-        orderedTasks={workspace.orderedTasks}
-        recentTasks={workspace.recentTasks}
-        currentId={workspace.currentTask?.id ?? null}
-        draftProjectId={workspace.currentProject?.id ?? null}
-        expandedProjects={workspace.expandedProjects}
-        runningTaskIds={workspace.runningTaskIds}
-        blockedTaskIds={workspace.blockedTaskIds}
-        schedules={workspace.schedules}
-        worktreeTaskIds={workspace.worktreeTaskIds}
-        worktreeGroups={workspace.worktreeGroups}
-        activityTasks={workspace.activityTasks}
-        mode={workspace.sidebarMode}
-        sections={workspace.sections}
-        openMenu={workspace.openMenu}
-        settingsOpen={settingsVisible}
-        canGoBack={workspace.canGoBack}
-        canGoForward={workspace.canGoForward}
-        onGoBack={() => void workspace.actions.goBack()}
-        onGoForward={() => void workspace.actions.goForward()}
-        onNewTask={workspace.actions.newTask}
-        onOpenFolder={workspace.actions.openFolder}
-        onToggleProject={workspace.actions.toggleProject}
-        onRemoveProject={workspace.actions.removeProject}
-        onMoveProject={workspace.actions.moveProject}
-        onSetMode={workspace.actions.setSidebarMode}
-        onSetSectionOpen={workspace.actions.setSectionOpen}
-        onSetOpenMenu={workspace.actions.setOpenMenu}
-        onSelectTask={workspace.actions.selectTask}
-        onArchiveTask={workspace.actions.archiveTask}
-        onDismissTask={workspace.actions.dismissTask}
-        onDismissAll={workspace.actions.dismissAllTasks}
-        onRenameTask={workspace.actions.renameTask}
-        onMoveTask={workspace.actions.moveTask}
-        onOpenSettings={openSettings}
-      />
+      <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
       <section className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""}`} inert={settingsVisible}>
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
+          folderLabel={workspace.folderLabel}
           sidebarOpen={sidebarOpen}
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
@@ -619,6 +635,13 @@ export function App() {
           onCancel={workspace.actions.cancelRun}
         />
       </section>
+      {workspace.projectEditor && (
+        <ProjectEditDialog
+          editor={workspace.projectEditor}
+          onSave={(edit) => void workspace.actions.editProject(workspace.projectEditor!.project.id, edit)}
+          onClose={() => void workspace.actions.editProjectClose()}
+        />
+      )}
       {settingsVisible && (
         <SettingsPanel
           onClose={closeSettings}

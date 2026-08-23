@@ -10,6 +10,7 @@ import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/
 
 const api: DesktopAPI = {
   openFolder: () => ipcRenderer.invoke("workspace:open"),
+  registerProject: (root: string) => ipcRenderer.invoke("workspace:register", root),
   onOpenProject: (listener: (workspace: WorkspaceRecord) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: WorkspaceRecord) => listener(payload);
     ipcRenderer.on("workspace:open-project", handler);

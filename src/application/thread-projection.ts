@@ -84,7 +84,7 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
       return {
         id: task.id,
         title: task.title,
-        project: project ? projectName(project.root) : null,
+        project: project ? projectName(project) : null,
         inScope: (task.projectId ?? null) === projectId,
         running: threadBusy(state, task.id),
         lastActivityAt: threadActivityAt(task),

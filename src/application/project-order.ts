@@ -42,3 +42,16 @@ export function moveProject(projects: Project[], projectId: string, index: numbe
     : { ...project, sortIndex: positions.get(project.id)! });
   return next.some((project, position) => project !== projects[position]) ? next : projects;
 }
+
+/** Names a folder in the sidebar. An empty name takes the last one off, so it goes by its folder again. */
+export function nameProject(projects: Project[], projectId: string, name: string | null | undefined): Project[] {
+  if (name === undefined) return projects;
+  const wanted = name?.trim() || undefined;
+  const project = projects.find((item) => item.id === projectId);
+  if (!project || project.name === wanted) return projects;
+  return projects.map((item) => {
+    if (item.id !== projectId) return item;
+    const { name: _previous, ...rest } = item;
+    return wanted ? { ...rest, name: wanted } : rest;
+  });
+}

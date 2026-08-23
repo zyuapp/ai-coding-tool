@@ -1,5 +1,4 @@
 import { PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
-import { projectName } from "../../domain/task";
 import type { Task } from "../../domain/task";
 
 function FolderIcon() {
@@ -13,6 +12,8 @@ function FolderIcon() {
 export type WorkspaceHeaderProps = {
   currentTask?: Task;
   folder: string;
+  /** What the folder is called, which is the project's name rather than the directory's. */
+  folderLabel: string;
   sidebarOpen: boolean;
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
@@ -22,7 +23,7 @@ export type WorkspaceHeaderProps = {
   onToggleRightDock: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -39,7 +40,7 @@ export function WorkspaceHeader({ currentTask, folder, sidebarOpen, sessionPanel
         <div>
           <h1 title={folder || undefined}>
             {folder && <>
-              <span className="heading-project">{projectName(folder)}</span>
+              <span className="heading-project">{folderLabel}</span>
               <span className="heading-separator" aria-hidden="true">/</span>
             </>}
             <span className="heading-thread">{currentTask?.title ?? "New task"}</span>

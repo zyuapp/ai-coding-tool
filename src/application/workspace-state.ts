@@ -17,7 +17,7 @@ import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/the
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, retainedTasks, threadActivityAt, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
+import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type Worktree } from "../domain/worktree.js";
 
 /**
@@ -139,6 +139,17 @@ export function sameReadingPoint(a: ReadingPoint, b: ReadingPoint) {
 export type DraftBranch = { name: string; create: boolean };
 
 /**
+ * The folder editor, open on one project. A name typed beside a folder that is still being opened
+ * waits here, so a directory the app cannot open leaves the name where the user last saw it too.
+ */
+export type ProjectEdit = {
+  projectId: string;
+  name?: string | null;
+  saving: boolean;
+  error: string | null;
+};
+
+/**
  * One thread's review of its own checkout: what it is comparing, which files it has folded away, and
  * which it has ticked off. Only the file list is held; a patch is content, so it is read when its
  * file is drawn and never becomes state, the way a page's contents and a shell's scrollback never do.
@@ -208,6 +219,8 @@ export type WorkspaceState = {
   /** Images waiting in each composer, keyed the way `prompts` is. */
   images: Record<string, StagedImage[]>;
   expandedProjects: Set<string>;
+  /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
+  projectEdit: ProjectEdit | null;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
   theme: string;
@@ -268,6 +281,17 @@ export type WorkspaceState = {
   restored: boolean;
 };
 
+/** The folder editor as the dialog draws it: the folder being edited, and how the last save went. */
+export type ProjectEditorView = { project: Project; checkouts: number; saving: boolean; error: string | null };
+
+function projectEditorView(state: WorkspaceState): ProjectEditorView | null {
+  const edit = state.projectEdit;
+  const project = edit && state.projects.find((item) => item.id === edit.projectId);
+  if (!edit || !project) return null;
+  const checkouts = state.worktrees.filter((worktree) => worktree.projectId === project.id).length;
+  return { project, checkouts, saving: edit.saving, error: edit.error };
+}
+
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
   return {
     tasks: [],
@@ -290,6 +314,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     pastes: {},
     images: {},
     expandedProjects: new Set(),
+    projectEdit: null,
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     theme: DEFAULT_THEME,
     themeMode: DEFAULT_THEME_MODE,
@@ -787,6 +812,8 @@ export function deriveView(state: WorkspaceState) {
     currentTask,
     currentProject,
     folder: currentProject?.root ?? "",
+    /** What that folder is called: the name the user gave the project, else the folder's own. */
+    folderLabel: currentProject ? projectName(currentProject) : "",
     policy: currentTask?.executionPolicy ?? state.draftPolicy,
     model: currentTask?.model ?? state.draftModel,
     effort: currentTask?.effort ?? state.draftEffort,
@@ -835,6 +862,7 @@ export function deriveView(state: WorkspaceState) {
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
+    projectEditor: projectEditorView(state),
     sections: state.sections,
     theme: state.theme,
     themeMode: state.themeMode,

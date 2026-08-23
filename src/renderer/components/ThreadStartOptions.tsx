@@ -74,7 +74,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
       <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
         <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
           <FolderGit2 size={14} />
-          <span>{projectName(project.root)}</span>
+          <span>{projectName(project)}</span>
           <ChevronDown size={14} />
         </button>
         {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects" onKeyDown={moveListFocus}>
@@ -90,7 +90,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
                 onSelectProject(item.id);
               }}
             >
-              <span>{projectName(item.root)}</span>
+              <span>{projectName(item)}</span>
               {item.id === projectId && <Check size={14} />}
             </button>
           ))}

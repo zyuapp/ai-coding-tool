@@ -3041,7 +3041,7 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu,
     settingsOpen: false,
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {},
+    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {},
     onRemoveProject: (id) => { removed.push(id); },
     onSetMode() {}, onSetSectionOpen() {},
     onSetOpenMenu: (menu) => { opened.push(menu); },
@@ -3059,9 +3059,9 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   await view.render(sidebar("project:project-1"));
   assert.equal(trigger().getAttribute("aria-expanded"), "true");
   const items = [...view.container.querySelectorAll(".project-menu .menu-popover button")];
-  assert.deepEqual(items.map((item) => item.textContent), ["New task", "Collapse", "Remove"]);
+  assert.deepEqual(items.map((item) => item.textContent), ["New task", "Collapse", "Edit…", "Remove"]);
 
-  await act(async () => { items[2].click(); });
+  await act(async () => { items[3].click(); });
   assert.deepEqual(removed, ["project-1"]);
   assert.equal(opened.at(-1), null, "choosing an item closes the menu without the item saying so");
   await view.unmount();

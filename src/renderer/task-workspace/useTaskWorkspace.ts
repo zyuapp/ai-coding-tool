@@ -179,6 +179,15 @@ export function useTaskWorkspace() {
         }
         return;
 
+      case "register-project":
+        try {
+          const workspace = await window.desktop.registerProject(effect.root);
+          await dispatch({ type: "project.registered", projectId: effect.projectId, workspace });
+        } catch (error) {
+          await dispatch({ type: "project.register-failed", projectId: effect.projectId, message: errorMessage(error) });
+        }
+        return;
+
       case "resolve-run-workspace":
         return await dispatch(await resolveRunWorkspace(effect, window.desktop));
 
@@ -544,6 +553,9 @@ export function useTaskWorkspace() {
       toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
       moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),
       removeProject: (projectId: string) => dispatch({ type: "project.remove", projectId }),
+      editProject: (projectId: string, edit: { name?: string | null; root?: string }) => dispatch({ type: "project.edit", projectId, ...edit }),
+      editProjectOpen: (projectId: string) => dispatch({ type: "view.edit-project", projectId }),
+      editProjectClose: () => dispatch({ type: "view.edit-project", projectId: null }),
       dismissTask: (taskId: string) => dispatch({ type: "task.dismiss", taskId }),
       dismissAllTasks: () => dispatch({ type: "task.dismiss-all" }),
       setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
