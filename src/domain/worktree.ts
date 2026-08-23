@@ -21,10 +21,10 @@ export type Worktree = {
 /** Why a worktree let go of its thread. A snapshot commit records this in its message. */
 export type WorktreeRelease = "returned-to-local" | "evicted";
 
-export const CLAUDEX_REF_NAMESPACE = "refs/claudex";
+export const SNAPSHOT_REF_NAMESPACE = "refs/aicodingtool";
 
 export function worktreeRef(worktreeId: string) {
-  return `${CLAUDEX_REF_NAMESPACE}/${worktreeId}`;
+  return `${SNAPSHOT_REF_NAMESPACE}/${worktreeId}`;
 }
 
 const RELEASE_REASONS: Record<WorktreeRelease, string> = {
@@ -38,11 +38,11 @@ export function releaseReason(release: WorktreeRelease) {
 
 /**
  * The snapshot a worktree is force-committed to before it lets go of its thread. The subject is
- * prefixed so these never read as hand-written work and `git log --grep=claudex` finds them all.
+ * prefixed so these never read as hand-written work and `git log --grep=aicodingtool` finds them all.
  */
 export function snapshotMessage(title: string, taskId: string | null, release: WorktreeRelease, ref: string | null) {
   return [
-    `claudex: snapshot "${title}"`,
+    `aicodingtool: snapshot "${title}"`,
     "",
     [taskId ? `Thread ${taskId}` : "No thread", releaseReason(release)].join(" · "),
     ...(ref ? [`Ref ${ref}`] : []),

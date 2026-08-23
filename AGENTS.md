@@ -3,7 +3,7 @@
 - I often ask you to make multiple changes on the main branch in different thread so only commit the changes that are requested in the thread.
 - This AGENTS.md is for me to decide what is important and what is not. You should not make any changes to it unless I ask you to do so.
 - Keep HTML mock-ups out of the repo. Write them under `/tmp` and serve them from there.
-- Run Electron from the repo root only. Pointed anywhere else, npx installs a second Electron that steals the `claudex:` scheme.
+- Run Electron from the repo root only. Pointed anywhere else, npx installs a second Electron that steals the `aicodingtool:` scheme.
 
 # Architecture intent
 

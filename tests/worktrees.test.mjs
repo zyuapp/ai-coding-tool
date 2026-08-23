@@ -179,9 +179,9 @@ test("releasing a detached worktree commits its work and keeps it reachable by r
   });
 
   assert.ok(snapshot.commit);
-  assert.equal(snapshot.ref, `refs/claudex/${worktree.id}`);
+  assert.equal(snapshot.ref, `refs/aicodingtool/${worktree.id}`);
   const message = (await git(root, "log", "-1", "--format=%B", snapshot.commit)).stdout;
-  assert.match(message, /^claudex: snapshot "Rename dock tabs"/);
+  assert.match(message, /^aicodingtool: snapshot "Rename dock tabs"/);
   assert.match(message, /Thread thread-1 · returned to local/);
 
   /** The commit outlives the directory, which is the whole point of the ref. */
@@ -228,7 +228,7 @@ test("releasing a clean worktree keeps commits the thread made while detached", 
   });
 
   assert.equal(snapshot.commit, null, "there was nothing left to commit");
-  assert.equal(snapshot.ref, `refs/claudex/${worktree.id}`);
+  assert.equal(snapshot.ref, `refs/aicodingtool/${worktree.id}`);
   const preserved = (await git(root, "rev-parse", snapshot.ref)).stdout.trim();
   assert.equal(preserved, head, "the thread's own commits stay reachable after the directory goes");
 });
@@ -371,7 +371,7 @@ test("a reconcile reaps the checkouts no thread claims and keeps the ones that a
   assert.equal(await exists(claimed.root), true, "a checkout its thread still claims is left alone");
   assert.equal(await exists(abandoned.root), false);
   assert.deepEqual(await listWorktrees(root), [root, claimed.root]);
-  const preserved = (await git(root, "show", `refs/claudex/${abandoned.id}:tracked.txt`)).stdout;
+  const preserved = (await git(root, "show", `refs/aicodingtool/${abandoned.id}:tracked.txt`)).stdout;
   assert.equal(preserved, "work nobody claims\n", "what it held is committed before it goes");
 });
 

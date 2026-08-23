@@ -1270,13 +1270,13 @@ test("switching back to local hands the worktree back, and the thread records wh
   const released = reduce(leaving.state, {
     type: "worktree.released",
     taskId: "task-a",
-    snapshot: { commit: "1234567890", shortCommit: "1234567", ref: "refs/claudex/wt1" },
+    snapshot: { commit: "1234567890", shortCommit: "1234567", ref: "refs/aicodingtool/wt1" },
   });
   assert.equal(released.state.tasks[0].worktreeId, undefined);
   assert.equal(deriveView(released.state).location.kind, "local");
   const note = released.state.tasks[0].messages.at(-1);
   assert.match(note.text, /committed as 1234567, and the worktree was removed/);
-  assert.match(note.detail, /git show refs\/claudex\/wt1/);
+  assert.match(note.detail, /git show refs\/aicodingtool\/wt1/);
 });
 
 test("a checkout that lands after its thread is archived is removed rather than left behind", () => {

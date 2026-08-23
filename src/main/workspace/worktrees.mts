@@ -101,7 +101,7 @@ export class WorktreeService {
   /**
    * Commits everything left in the worktree so a thread never loses work by walking away from it,
    * then gives the directory back. A worktree still detached has no branch holding its commits —
-   * the snapshot's or the thread's own — so a ref under `refs/claudex` keeps them reachable; once
+   * the snapshot's or the thread's own — so a ref under `refs/aicodingtool` keeps them reachable; once
    * the thread has made a branch, the branch does that job. The snapshot has to land before the
    * directory goes, so a failure there keeps both.
    */
@@ -165,7 +165,7 @@ export class WorktreeService {
 
   /**
    * A directory that is already gone, or whose repository is, has nothing to commit and nowhere to
-   * keep it, and says so rather than failing. A detached checkout keeps its `refs/claudex` ref even
+   * keep it, and says so rather than failing. A detached checkout keeps its `refs/aicodingtool` ref even
    * with nothing left to commit: commits the thread made itself have no branch holding them either.
    */
   private async snapshot(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshot> {
