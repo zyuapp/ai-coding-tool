@@ -125,8 +125,10 @@ export async function startMainProcess(t, prefix, options = {}) {
     app: {
       dock: { setIcon() {} },
       setName() {},
+      getName: () => "AI Coding Tool",
       getAppPath: () => process.cwd(),
       getPath: () => userData,
+      setPath() {},
       whenReady: () => Promise.resolve(),
       on: (name, listener) => appListeners.set(name, listener),
       requestSingleInstanceLock: () => true,

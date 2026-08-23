@@ -22,14 +22,13 @@ import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import { notify, serveFindingNotices, type FindingHost } from "./desktop-notice.js";
 import { openInEditor } from "./open-in-editor.js";
+import { adoptUserDataFolder } from "./user-data.js";
 import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
 app.setName("AI Coding Tool");
-const legacyUserData = path.join(app.getPath("appData"), "Threadline");
-if (existsSync(legacyUserData)) app.setPath("userData", legacyUserData);
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -41,6 +40,7 @@ if (!singleInstance) {
   console.log("AI Coding Tool is already running. Bringing that window forward instead of starting a second one.");
   app.exit(0);
 }
+app.setPath("userData", adoptUserDataFolder(app.getPath("appData"), app.getName()));
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
 if (app.isPackaged) app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
 
