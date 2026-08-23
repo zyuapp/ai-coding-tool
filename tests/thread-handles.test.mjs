@@ -54,15 +54,15 @@ test("a handle expands to a link, keeps its punctuation, and is left alone when 
 
   assert.equal(
     expandThreadHandles("compare with @sink-the-mode-choices, please", options),
-    "compare with [Sink the mode choices](claudex://thread/t-1), please",
+    "compare with [Sink the mode choices](aicodingtool://thread/t-1), please",
   );
-  assert.equal(expandThreadHandles("@sink-the-mode-choices", options), "[Sink the mode choices](claudex://thread/t-1)");
+  assert.equal(expandThreadHandles("@sink-the-mode-choices", options), "[Sink the mode choices](aicodingtool://thread/t-1)");
   assert.equal(expandThreadHandles("ask @nobody about it", options), "ask @nobody about it");
   assert.equal(expandThreadHandles("mail zhuocheng@gmail.com", options), "mail zhuocheng@gmail.com");
   assert.equal(expandThreadHandles("nothing to expand", options), "nothing to expand");
 });
 
 test("a reference reads as the thread's name, and a link without one is still clickable", () => {
-  assert.equal(threadReference({ id: "t-1", title: "Sink [the] mode" }), "[Sink the mode](claudex://thread/t-1)");
-  assert.equal(threadLink("t-1"), "<claudex://thread/t-1>");
+  assert.equal(threadReference({ id: "t-1", title: "Sink [the] mode" }), "[Sink the mode](aicodingtool://thread/t-1)");
+  assert.equal(threadLink("t-1"), "<aicodingtool://thread/t-1>");
 });

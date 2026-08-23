@@ -7,7 +7,7 @@ const HOURLY = "0 * * * *";
 
 /** Booting main starts a Vite server, so every test in this file shares one and works on its own task. */
 let main;
-test.before(async () => { main = await startMainProcess(null, "claudex-automation-"); });
+test.before(async () => { main = await startMainProcess(null, "aicodingtool-automation-"); });
 test.after(async () => { await main?.dispose(); });
 
 const draft = (taskId, overrides = {}) => ({ taskId, prompt: "Check whether PR 42 is approved", schedule: HOURLY, ...overrides });

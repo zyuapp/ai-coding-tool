@@ -4,7 +4,7 @@ import type { TerminalReadResult } from "../../contracts/threads.js";
 import { describeTerminal, DEFAULT_TERMINAL_LINES, MAX_TERMINAL_LINES, type TerminalSnapshot } from "../../domain/terminal.js";
 import type { TerminalBridge } from "./agent-provider.mjs";
 
-export const TERMINAL_SERVER_NAME = "claudex-terminal";
+export const TERMINAL_SERVER_NAME = "aicodingtool-terminal";
 
 const terminalField = z.string().optional().describe("Which terminal to read. Defaults to the one this thread opened, else the one on screen.");
 
@@ -50,14 +50,14 @@ export function terminalTools(bridge: TerminalBridge) {
   return [
     tool(
       "terminal_list",
-      "List the terminals the Claudex terminal panel has open, with the folder each runs in and whether its shell is still alive.",
+      "List the terminals the AICodingTool terminal panel has open, with the folder each runs in and whether its shell is still alive.",
       {},
       async () => report(async () => readText(await bridge.read({ op: "terminals" }))),
     ),
     tool(
       "terminal_read",
       [
-        "Read what a terminal in the Claudex terminal panel has printed, as plain text with the escape sequences resolved.",
+        "Read what a terminal in the AICodingTool terminal panel has printed, as plain text with the escape sequences resolved.",
         "This is the user's own shell, not yours: you can read it but never type into it, so use Bash to run anything yourself.",
         "Prefer `match` over a large `lines` when hunting for an error — it filters before the output is returned.",
       ].join(" "),

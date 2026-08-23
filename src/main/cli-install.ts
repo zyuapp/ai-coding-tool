@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { CLI_INSTALL_PATH, CLI_SCRIPT, isCliScript, type CliStatus } from "../domain/cli.js";
 
 const run = promisify(execFile);
-const STAGING_PATH = path.join(tmpdir(), "claudex-cli-install");
+const STAGING_PATH = path.join(tmpdir(), "aic-cli-install");
 
 export async function cliStatus(): Promise<CliStatus> {
   if (process.platform !== "darwin") return { state: "unsupported", path: CLI_INSTALL_PATH };
@@ -49,7 +49,7 @@ export async function uninstallCli(): Promise<CliStatus> {
 }
 
 function requireDarwin() {
-  if (process.platform !== "darwin") throw new Error("The claudex command can only be installed on macOS.");
+  if (process.platform !== "darwin") throw new Error("The aic command can only be installed on macOS.");
 }
 
 function isPermissionError(error: unknown) {

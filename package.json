@@ -1,11 +1,11 @@
 {
-  "name": "claudex",
+  "name": "aicodingtool",
   "version": "0.1.19",
   "private": true,
   "license": "MIT",
   "author": "Zhuocheng Yu",
   "description": "A fast local desktop client for Claude coding tasks.",
-  "homepage": "https://github.com/zyuapp/claudex",
+  "homepage": "https://github.com/zyuapp/aicodingtool",
   "main": "dist/main/main/main.js",
   "scripts": {
     "build": "vite build && tsc -p tsconfig.main.json",
@@ -62,12 +62,12 @@
   },
   "build": {
     "appId": "com.zyuapp.claudex",
-    "productName": "Claudex",
+    "productName": "AI Coding Tool",
     "protocols": [
       {
-        "name": "Claudex project",
+        "name": "AI Coding Tool project",
         "schemes": [
-          "claudex"
+          "aicodingtool"
         ]
       }
     ],
@@ -121,13 +121,13 @@
           ]
         }
       ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
+      "artifactName": "AICodingTool-${version}-${arch}.${ext}"
     },
     "publish": [
       {
         "provider": "github",
         "owner": "zyuapp",
-        "repo": "claudex",
+        "repo": "aicodingtool",
         "releaseType": "release"
       }
     ]

@@ -186,7 +186,7 @@ export function SettingsPanel({
         <div className="settings-traffic-space" aria-hidden="true" />
         <button ref={back} className="settings-back" type="button" onClick={onClose}>
           <ArrowLeft size={17} aria-hidden="true" />
-          <span>Back to Claudex</span>
+          <span>Back to AI Coding Tool</span>
         </button>
         <h1>Settings</h1>
         <nav aria-label="Settings sections">
@@ -244,7 +244,7 @@ export function SettingsPanel({
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>General</h2>
-          <p>How Claudex answers from outside its own window.</p>
+          <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
         <section className="settings-group" aria-labelledby="cli-heading">
@@ -340,7 +340,7 @@ export function SettingsPanel({
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Browser</h2>
-          <p>The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere Claudex works.</p>
+          <p>The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere AI Coding Tool works.</p>
         </div>
 
         <section className="settings-group" aria-labelledby="browser-session-heading">
@@ -382,7 +382,7 @@ export function SettingsPanel({
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Archived threads</h2>
-          <p>Archived threads stay here for 5 days, then Claudex deletes them on the next launch.</p>
+          <p>Archived threads stay here for 5 days, then AI Coding Tool deletes them on the next launch.</p>
         </div>
 
         <section className="settings-group" aria-labelledby="archive-heading">
@@ -427,14 +427,14 @@ export function SettingsPanel({
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Computer use</h2>
-          <p>Let Claudex see and control other applications when you ask it to.</p>
+          <p>Let AI Coding Tool see and control other applications when you ask it to.</p>
         </div>
 
         <section className="settings-group" aria-labelledby="permissions-heading" aria-live="polite">
           <div className="settings-group-heading">
             <div>
               <h3 id="permissions-heading">Permissions</h3>
-              <p>Claudex needs both macOS permissions to operate other apps.</p>
+              <p>AI Coding Tool needs both macOS permissions to operate other apps.</p>
             </div>
             <span className={ready ? "ready" : ""}>{ready ? "Setup complete" : "Setup required"}</span>
           </div>
@@ -443,7 +443,7 @@ export function SettingsPanel({
             <span className={`setting-status ${permissions?.accessibility ? "granted" : ""}`}>{permissions?.accessibility && <Check size={13} />}</span>
             <div>
               <strong>Accessibility</strong>
-              <p>Allows Claudex to click, type, and navigate apps.</p>
+              <p>Allows AI Coding Tool to click, type, and navigate apps.</p>
             </div>
             <div className="setting-row-action">
               {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
@@ -455,7 +455,7 @@ export function SettingsPanel({
             <span className={`setting-status ${permissions?.screenRecording ? "granted" : ""}`}>{permissions?.screenRecording && <Check size={13} />}</span>
             <div>
               <strong>Screen &amp; System Audio Recording</strong>
-              <p>Allows Claudex to see app windows. System audio is not recorded.</p>
+              <p>Allows AI Coding Tool to see app windows. System audio is not recorded.</p>
             </div>
             <div className="setting-row-action">
               {permissions?.screenRecording ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
@@ -464,7 +464,7 @@ export function SettingsPanel({
           </div>
 
           {error && <p className="settings-error" role="alert">{error}</p>}
-          {restartRequired && <div className="settings-restart"><p>Restart Claudex to finish enabling computer use.</p><button type="button" onClick={() => window.desktop.restartForComputerUse()}>Restart Claudex</button></div>}
+          {restartRequired && <div className="settings-restart"><p>Restart AI Coding Tool to finish enabling computer use.</p><button type="button" onClick={() => window.desktop.restartForComputerUse()}>Restart AI Coding Tool</button></div>}
         </section>
 
         <p className="settings-privacy">Permission checks capture one frame and discard it immediately.</p>

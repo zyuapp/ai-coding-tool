@@ -44,7 +44,7 @@ async function repository() {
   const root = await mkdtemp(path.join(os.tmpdir(), "claudex-diff-"));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
-  await git(root, "config", "user.name", "Claudex Tests");
+  await git(root, "config", "user.name", "AI Coding Tool Tests");
   await writeFile(path.join(root, "tracked.txt"), "one\ntwo\n");
   await git(root, "add", "tracked.txt");
   await git(root, "commit", "-m", "initial");
@@ -246,7 +246,7 @@ test("a repository with no commits lists what it holds instead of failing", asyn
   t.after(() => rm(root, { recursive: true, force: true }));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
-  await git(root, "config", "user.name", "Claudex Tests");
+  await git(root, "config", "user.name", "AI Coding Tool Tests");
   await writeFile(path.join(root, "first.txt"), "one\ntwo\n");
 
   const result = await diffSummary("fixture", { kind: "uncommitted" }, workspaces(root));

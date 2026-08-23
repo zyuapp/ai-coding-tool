@@ -75,9 +75,9 @@ export async function captureFrontmostWindow(sound: boolean): Promise<WindowShot
   let directory: string | null = null;
   try {
     const window = await frontmostWindow();
-    if (window.pid === process.pid) return { status: "no-window", app: "Claudex" };
+    if (window.pid === process.pid) return { status: "no-window", app: "AI Coding Tool" };
     if (window.windowId === null) return { status: "no-window", app: window.app };
-    directory = await mkdtemp(path.join(tmpdir(), "claudex-shot-"));
+    directory = await mkdtemp(path.join(tmpdir(), "aic-shot-"));
     const file = path.join(directory, "window.png");
     await run("/usr/sbin/screencapture", [`-l${window.windowId}`, "-x", "-o", file]);
     if (sound) playShutter();

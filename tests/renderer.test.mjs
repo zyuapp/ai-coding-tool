@@ -219,14 +219,14 @@ function mountMessage(markdown, actions = {}) {
 test("a thread link opens that thread in place, and nothing else under the scheme is a link", async () => {
   const selected = [];
   const markdown = [
-    "See [the sidebar work](claudex://thread/task-9) for how it went.",
+    "See [the sidebar work](aicodingtool://thread/task-9) for how it went.",
     "",
-    "Not [an archive](claudex://archive/task-9) and not [the docs](https://example.com).",
+    "Not [an archive](aicodingtool://archive/task-9) and not [the docs](https://example.com).",
   ].join("\n");
   const view = await mountMessage(markdown, { selectTask: (taskId) => selected.push(taskId) });
 
   const links = [...view.container.querySelectorAll("a")];
-  assert.deepEqual(links.map((link) => link.textContent), ["the sidebar work", "the docs"], "an unknown claudex:// path stays plain text");
+  assert.deepEqual(links.map((link) => link.textContent), ["the sidebar work", "the docs"], "an unknown aicodingtool:// path stays plain text");
   assert.match(view.container.textContent, /Not an archive and not the docs/);
 
   await act(async () => { links[0].click(); });
@@ -240,7 +240,7 @@ test("a thread link opens that thread in place, and nothing else under the schem
 });
 
 test("a thread link is plain text where no thread can be selected", async () => {
-  const view = await mountMessage("See [the sidebar work](claudex://thread/task-9).");
+  const view = await mountMessage("See [the sidebar work](aicodingtool://thread/task-9).");
 
   assert.equal(view.container.querySelector("a"), null);
   assert.match(view.container.textContent, /See the sidebar work\./);
@@ -277,7 +277,7 @@ test("a web link opens externally by default and offers the browser panel on rig
   assert.equal(link.target, "_blank", "the main process hands an ordinary click to the default browser");
   await act(async () => { link.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true, clientX: 50, clientY: 60 })); });
   const item = document.querySelector(".context-menu-popover button");
-  assert.equal(item.textContent, "Open in Claudex");
+  assert.equal(item.textContent, "Open in AI Coding Tool");
   await act(async () => { item.click(); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
   await view.unmount();
@@ -859,7 +859,7 @@ test("the general section installs the claudex command and takes it back", async
     installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/claudex" }; return status; },
     uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/claudex" }; return status; },
   });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   const button = () => view.container.querySelector(".setting-row-action button");
   assert.match(view.container.textContent, /Terminal command/);
@@ -877,7 +877,7 @@ test("the general section installs the claudex command and takes it back", async
 
 test("an install the password prompt refuses is reported, not swallowed", async () => {
   window.desktop = fakeDesktop({ installCli: async () => { throw new Error("Cancelled."); } });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   await act(async () => { view.container.querySelector(".setting-row-action button").click(); });
 
@@ -916,7 +916,7 @@ test("computer-use settings refresh permissions", async () => {
   assert.match(view.container.textContent, /Setup complete/);
   assert.equal(view.container.querySelectorAll(".setting-row-action em.granted").length, 2);
   assert.match(view.container.textContent, /Done/);
-  assert.match(view.container.textContent, /Restart Claudex/);
+  assert.match(view.container.textContent, /Restart AI Coding Tool/);
   await act(async () => { view.container.querySelector(".settings-restart button").click(); });
   assert.equal(restarted, true);
   await view.unmount();
@@ -933,7 +933,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
   };
   let answer = windows;
   window.desktop = fakeDesktop({ planUsage: async () => answer });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.textContent, /Max plan/);
@@ -955,7 +955,7 @@ test("the usage section draws a bar per plan window, and reports a reader that c
 
 test("a usage read that rejects reports instead of breaking the panel", async () => {
   window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
-  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "claudex-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { [...view.container.querySelectorAll(".settings-sidebar nav button")].find((button) => button.textContent === "Usage").click(); });
 
   assert.match(view.container.querySelector(".settings-error").textContent, /Untrusted IPC sender/);
@@ -1096,7 +1096,7 @@ test("the appearance page picks a theme and a ground separately, and each click 
   await openSettingsPage(view, "Appearance");
 
   const root = dom.window.document.documentElement;
-  assert.equal(root.dataset.theme, "claudex-dark");
+  assert.equal(root.dataset.theme, "aicodingtool-dark");
 
   const card = (family) => [...view.container.querySelectorAll(".theme-choice")].find((choice) => choice.textContent.includes(family));
   const mode = (label) => [...view.container.querySelectorAll(".segmented button")].find((button) => button.textContent === label);
@@ -3682,10 +3682,10 @@ test("the session panel names the pull request the checkout belongs to, and only
   assert.match(row.getAttribute("title"), /Name the two families/);
   assert.equal(row.querySelector(".session-row-icon").dataset.state, "merged", "the icon carries the state");
   assert.equal(row.getAttribute("href"), "https://github.com/o/r/pull/12");
-  assert.equal(row.getAttribute("target"), "_blank", "a click leaves Claudex the way any other link does");
+  assert.equal(row.getAttribute("target"), "_blank", "a click leaves AI Coding Tool the way any other link does");
 
   await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  await act(async () => { [...document.querySelectorAll(".context-menu-popover button")].find((item) => /Open in Claudex/.test(item.textContent)).click(); });
+  await act(async () => { [...document.querySelectorAll(".context-menu-popover button")].find((item) => /Open in AI Coding Tool/.test(item.textContent)).click(); });
   assert.deepEqual(opened, ["https://github.com/o/r/pull/12"], "its context menu offers the browser panel instead");
   await view.unmount();
 });

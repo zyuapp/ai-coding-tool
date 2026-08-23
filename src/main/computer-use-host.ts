@@ -77,16 +77,16 @@ function mcpConfig(connection: EmbeddedDriverConnection): ComputerUseRunConfig {
 }
 
 export async function computerUseForRun(): Promise<ComputerUseRunConfig> {
-  if (!acceptingRuns) return { status: "unavailable", message: "Claudex is quitting." };
+  if (!acceptingRuns) return { status: "unavailable", message: "AI Coding Tool is quitting." };
   if (process.platform !== "darwin") return { status: "unavailable", message: "Computer use is currently available only on macOS." };
   const permissions = await computerUsePermissions();
-  if (!acceptingRuns) return { status: "unavailable", message: "Claudex is quitting." };
+  if (!acceptingRuns) return { status: "unavailable", message: "AI Coding Tool is quitting." };
   if (!permissions.accessibility || !permissions.screenRecording) return { status: "setup-required" };
   const executable = binaryPath();
   if (!existsSync(executable)) return { status: "unavailable", message: "The bundled Cua Driver executable is missing." };
   if (!host) {
     const { EmbeddedCuaDriverHost: Host } = await cuaDriver();
-    if (!acceptingRuns) return { status: "unavailable", message: "Claudex is quitting." };
+    if (!acceptingRuns) return { status: "unavailable", message: "AI Coding Tool is quitting." };
     host = new Host(executable, bundleId);
   }
   return mcpConfig(host.connection() ?? await host.start());

@@ -53,7 +53,7 @@ export class AutomationChannel {
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
-        reject(new Error(`Claudex did not answer the automation "${payload.op}" request within ${this.timeout}ms.`));
+        reject(new Error(`AICodingTool did not answer the automation "${payload.op}" request within ${this.timeout}ms.`));
       }, this.timeout);
       this.pending.set(requestId, { resolve, reject, timer });
       try {

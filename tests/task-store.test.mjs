@@ -41,7 +41,7 @@ test("migrates all v1 keys and keeps a resumable transcript", () => {
   assert.equal(legacyProjectId("/work/claudex"), legacyProjectId("/work/claudex/"));
 });
 
-test("loads the previous Threadline namespace and saves it under Claudex", () => {
+test("loads the previous Threadline namespace and saves it under AI Coding Tool", () => {
   const raw = legacyValues();
   const memory = new Map([
     [LEGACY_TASK_STORE_KEYS.v1.tasks, raw.tasks],

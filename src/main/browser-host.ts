@@ -11,7 +11,7 @@ import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
 const PARTITION = "persist:browser";
 /** Sites refuse sign-in from a user agent that names an embedded runtime, so Electron's is replaced. */
 const IDENTITY = chromeIdentity(process.versions.chrome);
-const REF_ATTRIBUTE = "data-claudex-ref";
+const REF_ATTRIBUTE = "data-aicodingtool-ref";
 const DEFAULT_TEXT_LIMIT = 4_000;
 /** A page nobody is looking at still lays itself out, so it is given a window's worth of room. */
 const PARKED_VIEWPORT: Rectangle = { x: 0, y: 0, width: 1_200, height: 800 };

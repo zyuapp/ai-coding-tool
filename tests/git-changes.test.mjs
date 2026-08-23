@@ -18,7 +18,7 @@ async function repository() {
   const root = await mkdtemp(path.join(os.tmpdir(), "claudex-git-"));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
-  await git(root, "config", "user.name", "Claudex Tests");
+  await git(root, "config", "user.name", "AI Coding Tool Tests");
   await writeFile(path.join(root, "tracked.txt"), "one\n");
   await git(root, "add", "tracked.txt");
   await git(root, "commit", "-m", "initial");

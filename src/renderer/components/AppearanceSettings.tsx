@@ -307,7 +307,7 @@ export function AppearanceSettings({
         <div className="settings-group-heading">
           <div>
             <h3 id="fonts-heading">Fonts</h3>
-            <p>The families Claudex ships, or any font installed on this Mac.</p>
+            <p>The families AI Coding Tool ships, or any font installed on this Mac.</p>
           </div>
         </div>
 

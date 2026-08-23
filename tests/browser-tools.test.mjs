@@ -98,12 +98,12 @@ test("listing tabs says so when the panel holds nothing", async () => {
 });
 
 test("a browser tool reports what went wrong instead of throwing at the run", async () => {
-  const bridge = fakeBridge({ command: async () => { throw new Error("The Claudex window is not open."); } });
+  const bridge = fakeBridge({ command: async () => { throw new Error("The AICodingTool window is not open."); } });
 
   const failed = await toolNamed(bridge, "browser_open").handler({ url: "https://example.com" }, {});
 
   assert.equal(failed.isError, true);
-  assert.match(textOf(failed), /Browser error: The Claudex window is not open\./);
+  assert.match(textOf(failed), /Browser error: The AICodingTool window is not open\./);
 });
 
 test("the channel stamps the calling thread on every browser command it sends", async () => {

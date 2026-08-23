@@ -116,7 +116,7 @@ test("a build with no reader, a throwing reader, and a silent reader each report
   assert.deepEqual(threw, { status: "unavailable", message: "control request failed" });
 
   const reshaped = await readPlanUsage(sessionFactory({ usage: async () => 42 }));
-  assert.match(reshaped.message, /shape this version of Claudex does not read/);
+  assert.match(reshaped.message, /shape this version of AI Coding Tool does not read/);
 
   const hung = await readPlanUsage(sessionFactory({ usage: () => new Promise(() => {}) }), 5);
   assert.deepEqual(hung, { status: "unavailable", message: "Claude did not answer in time." });

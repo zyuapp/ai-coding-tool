@@ -36,7 +36,7 @@ const fetched = new Map<string, Promise<void>>();
  * this work at all.
  */
 const THEME = {
-  name: "claudex",
+  name: "aicodingtool",
   type: "dark",
   fg: "var(--code-ink)",
   bg: "transparent",
@@ -104,7 +104,7 @@ export function highlightBlock(code: string, lang: string | null): ThemedToken[]
   const engine = shiki();
   if (!engine || !engine.getLoadedLanguages().includes(lang)) return null;
   try {
-    return engine.codeToTokens(code, { lang, theme: "claudex" }).tokens;
+    return engine.codeToTokens(code, { lang, theme: "aicodingtool" }).tokens;
   } catch {
     return null;
   }

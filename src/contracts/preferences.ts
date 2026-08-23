@@ -19,7 +19,7 @@ export type ViewPreferences = {
   sidebarOpen: boolean;
   /** Whether grabbing a window plays the shutter, which is the only feedback that lands as it happens. */
   captureSound: boolean;
-  /** Whether grabbing a window brings Claudex forward, so the caption can be typed where the shot landed. */
+  /** Whether grabbing a window brings AI Coding Tool forward, so the caption can be typed where the shot landed. */
   captureFocus: boolean;
   /** Which shape the sidebar reopens in. Which of its lists are folded is not remembered. */
   sidebarMode: SidebarMode;

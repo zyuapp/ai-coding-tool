@@ -122,7 +122,7 @@ test("SQLite task storage lifts subagents out of tasks written before they had r
 });
 
 test("SQLite automation storage keeps one row per task and drops unreadable rows", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-automation-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-automation-database-"));
   const file = path.join(directory, "tasks.sqlite");
   const database = new TaskDatabase(file);
   const automation = {

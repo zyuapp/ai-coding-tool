@@ -1,4 +1,4 @@
-const THREAD_HREF = /^claudex:\/\/thread\/([^/?#]+)$/i;
+const THREAD_HREF = /^aicodingtool:\/\/thread\/([^/?#]+)$/i;
 const LINE_SUFFIX = /:\d+(?::\d+)?$/;
 const URL_SCHEME = /^[A-Za-z][A-Za-z\d+.-]*:/;
 const WINDOWS_PATH = /^[A-Za-z]:[\\/]/;

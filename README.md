@@ -1,4 +1,4 @@
-# Claudex
+# AI Coding Tool
 
 > WIP: Building a Codex-like desktop UI for Claude models.
 

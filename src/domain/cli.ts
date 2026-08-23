@@ -1,14 +1,14 @@
-/** The terminal command Claudex installs, and the URL it hands a folder back to the app with. */
+/** The terminal command AI Coding Tool installs, and the URL it hands a folder back to the app with. */
 
-export const CLI_COMMAND = "claudex";
-export const CLI_INSTALL_PATH = "/usr/local/bin/claudex";
-export const CLI_URL_SCHEME = "claudex";
+export const CLI_COMMAND = "aic";
+export const CLI_INSTALL_PATH = "/usr/local/bin/aic";
+export const CLI_URL_SCHEME = "aicodingtool";
 
-/** Stamped into the script so an install can tell its own file from someone else's `claudex`. */
-export const CLI_SCRIPT_MARKER = "# claudex-cli v1";
+/** Stamped into the script so an install can tell its own file from someone else's `aic`. */
+export const CLI_SCRIPT_MARKER = "# aic-cli v1";
 
 export type CliStatus = {
-  /** `conflict` is a different `claudex` already on the path, which an install would overwrite. */
+  /** `conflict` is a different `aic` already on the path, which an install would overwrite. */
   state: "installed" | "missing" | "conflict" | "unsupported";
   path: string;
 };
@@ -16,7 +16,7 @@ export type CliStatus = {
 export const CLI_SCRIPT = [
   "#!/bin/sh",
   CLI_SCRIPT_MARKER,
-  "# Opens a folder as a Claudex project. Installed from Claudex settings.",
+  "# Opens a folder as an AI Coding Tool project. Installed from AI Coding Tool settings.",
   "target=$1",
   '[ -n "$target" ] || target=.',
   'if [ ! -d "$target" ]; then',
@@ -33,7 +33,7 @@ export function isCliScript(contents: string) {
   return contents.includes(CLI_SCRIPT_MARKER);
 }
 
-/** The folder a `claudex://open?path=` URL names, or null when the URL is not one we wrote. */
+/** The folder a `aicodingtool://open?path=` URL names, or null when the URL is not one we wrote. */
 export function projectPathFromUrl(value: string): string | null {
   let url: URL;
   try {

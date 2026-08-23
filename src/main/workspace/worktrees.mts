@@ -187,7 +187,7 @@ export class WorktreeService {
     ];
     const candidates = [await canonicalPath(root), path.resolve(root)];
     const owned = roots.some((base) => candidates.some((candidate) => candidate.startsWith(`${base}${path.sep}`)));
-    if (!owned) throw new Error(`Not a Claudex worktree: ${root}`);
+    if (!owned) throw new Error(`Not an AI Coding Tool worktree: ${root}`);
   }
 }
 

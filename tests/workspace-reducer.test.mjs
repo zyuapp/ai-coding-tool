@@ -577,7 +577,7 @@ test("the panel and sidebar choices are persisted and survive the store loading"
   assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "claudex-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, sidebarOpen: false, sidebarMode: "projects", shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, sidebarOpen: false, sidebarMode: "projects", shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
@@ -591,7 +591,7 @@ test("the panel and sidebar choices are persisted and survive the store loading"
 
 test("the palette and the ground move on their own axes, and only the ground is remembered as a mode", () => {
   const state = workspace();
-  assert.equal(state.theme, "claudex-dark");
+  assert.equal(state.theme, "aicodingtool-dark");
   assert.equal(state.themeMode, "dark");
 
   const palette = reduce(state, { type: "view.set-theme-family", family: "Gruvbox", systemDark: true });
@@ -609,16 +609,16 @@ test("the palette and the ground move on their own axes, and only the ground is 
 test("a window set to auto follows the system, and one set to a ground of its own ignores it", () => {
   const auto = reduce(workspace(), { type: "view.set-theme-mode", mode: "auto", systemDark: false });
   assert.equal(auto.state.themeMode, "auto");
-  assert.equal(auto.state.theme, "claudex-light");
+  assert.equal(auto.state.theme, "aicodingtool-light");
 
   const darkened = reduce(auto.state, { type: "view.system-scheme", dark: true });
-  assert.equal(darkened.state.theme, "claudex-dark");
+  assert.equal(darkened.state.theme, "aicodingtool-dark");
   assert.deepEqual(darkened.effects, [], "the system's own choice is not the user's, so it is not written down");
   assert.deepEqual(reduce(darkened.state, { type: "view.system-scheme", dark: true }).effects, []);
 
   const fixed = reduce(darkened.state, { type: "view.set-theme-mode", mode: "light", systemDark: true });
-  assert.equal(fixed.state.theme, "claudex-light");
-  assert.equal(reduce(fixed.state, { type: "view.system-scheme", dark: true }).state.theme, "claudex-light", "a ground of its own outranks the system's");
+  assert.equal(fixed.state.theme, "aicodingtool-light");
+  assert.equal(reduce(fixed.state, { type: "view.system-scheme", dark: true }).state.theme, "aicodingtool-light", "a ground of its own outranks the system's");
 });
 
 test("naming a theme outright names the ground it paints on, so the two axes never disagree", () => {
@@ -2483,7 +2483,7 @@ test("a draft's @handle becomes a link on the way out, and one naming nothing is
   const sending = reduce(drafted, { type: "task.send", attachments: [] });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: sending.effects[0].pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
 
-  const sent = "compare with [Sink the mode choices](claudex://thread/t-named) and @nobody";
+  const sent = "compare with [Sink the mode choices](aicodingtool://thread/t-named) and @nobody";
   assert.equal(started.effects[0].command.prompt, sent);
   assert.equal(started.state.tasks.find((task) => task.id !== "t-named").messages[0].text, sent);
 });

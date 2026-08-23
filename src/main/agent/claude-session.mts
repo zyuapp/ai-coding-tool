@@ -9,7 +9,7 @@ import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { BROWSER_SERVER_NAME } from "./browser-tools.mjs";
 import { THREAD_SERVER_NAME } from "./thread-tools.mjs";
 
-const setupToolName = "mcp__claudex-computer-use__request_setup";
+const setupToolName = "mcp__aicodingtool-computer-use__request_setup";
 /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
 const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
 /** Reading the workspace changes nothing, so it needs no approval; starting or stopping a run does. */

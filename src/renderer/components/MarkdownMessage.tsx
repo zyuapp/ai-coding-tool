@@ -5,7 +5,7 @@ import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
 import { MermaidBlock } from "./MermaidBlock";
 import { ContextMenu } from "./PopoverMenu";
 
-const CLAUDEX_HREF = /^claudex:/i;
+const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
 
 /** What a link in a message can reach. A handler the host leaves out makes that link plain text. */
@@ -61,7 +61,7 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
         position={menu}
         returnFocus={link}
         onSetOpenMenu={() => setMenu(null)}
-        items={[{ label: "Open in Claudex", onSelect: openInApp }]}
+        items={[{ label: "Open in AI Coding Tool", onSelect: openInApp }]}
       />}
     </>
   );
@@ -73,7 +73,7 @@ function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const taskId = parseThreadHref(href);
   if (taskId && actions.selectTask) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectTask!(taskId); }}>{children}</a>;
   /** Anything else under the scheme is text, never a live link. */
-  if (CLAUDEX_HREF.test(href)) return <>{children}</>;
+  if (APP_HREF.test(href)) return <>{children}</>;
   const file = parseFileHref(href);
   if (file) return actions.openFile
     ? <a {...props} onClick={(event) => { event.preventDefault(); actions.openFile!(file.file, file.line); }}>{children}</a>
@@ -111,7 +111,7 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children, animate
         remarkPlugins={[remarkGfm]}
         rehypePlugins={animate ? [wordSpans] : []}
         skipHtml
-        urlTransform={(url) => (CLAUDEX_HREF.test(url) ? url : defaultUrlTransform(url))}
+        urlTransform={(url) => (APP_HREF.test(url) ? url : defaultUrlTransform(url))}
         components={{ pre: MarkdownPre, a: MarkdownLink }}
       >
         {children}

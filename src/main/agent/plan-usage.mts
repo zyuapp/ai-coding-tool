@@ -13,7 +13,7 @@ const READ_TIMEOUT_MS = 20_000;
  */
 const usageMethods = ["usage", "usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET"];
 const noReader = "This build of the Claude SDK does not report plan usage.";
-const unknownShape = "Claude reported usage in a shape this version of Claudex does not read.";
+const unknownShape = "Claude reported usage in a shape this version of AI Coding Tool does not read.";
 
 async function* idlePrompt() {
   await new Promise<void>(() => {});

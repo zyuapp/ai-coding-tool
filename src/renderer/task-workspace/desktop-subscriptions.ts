@@ -6,7 +6,7 @@ import type { WorkspaceInput } from "../../application/workspace-reducer";
  */
 export function subscribeToDesktop(dispatch: (input: WorkspaceInput) => void) {
   const stops = [
-    /** A folder the `claudex` command named arrives as an already-registered workspace. */
+    /** A folder the `aic` command named arrives as an already-registered workspace. */
     window.desktop.onOpenProject((workspace) => dispatch({ type: "project.opened", workspace })),
     /** The desktop hotkey names no thread, so a grabbed window waits in whichever composer is current. */
     window.desktop.onWindowScreenshot((shot) => dispatch({ type: "image.add", path: shot.path, label: shot.title ? `${shot.app} — ${shot.title}` : shot.app })),

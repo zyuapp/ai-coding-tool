@@ -142,7 +142,7 @@ export async function snapshotCommit(root: string, message: string) {
   /** A machine with no git identity still gets its snapshot; the app signs it instead. */
   const identity = (await tryGit(root, ["var", "GIT_AUTHOR_IDENT"]))
     ? []
-    : ["-c", "user.name=Claudex", "-c", "user.email=claudex@localhost"];
+    : ["-c", "user.name=AI Coding Tool", "-c", "user.email=aic@localhost"];
   await git(root, [...identity, "commit", "--no-verify", "-m", message], undefined, LONG_TIMEOUT_MS);
   return headCommit(root);
 }
@@ -171,7 +171,7 @@ export async function untrackedPaths(root: string) {
  */
 export async function matchIgnorePatterns(patternFile: string, candidates: string[]) {
   if (!candidates.length) return [];
-  const scratch = await mkdtemp(path.join(os.tmpdir(), "claudex-match-"));
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "aic-match-"));
   try {
     await git(scratch, ["init", "-q", "."]);
     const output = await git(

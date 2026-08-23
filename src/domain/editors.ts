@@ -1,6 +1,6 @@
-/** How Claudex opens a source file: which editors it knows, and what to fall back to per platform. */
+/** How AI Coding Tool opens a source file: which editors it knows, and what to fall back to per platform. */
 
-/** The platforms Claudex knows how to open a file on. Anything else falls through the whole chain. */
+/** The platforms AI Coding Tool knows how to open a file on. Anything else falls through the whole chain. */
 export type Platform = "darwin" | "win32" | "linux";
 
 export type Launch = {

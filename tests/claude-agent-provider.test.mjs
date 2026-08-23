@@ -218,7 +218,7 @@ test("the channel tool table is the only thing a side chat is short of", async (
   assert.deepEqual(main.options.options.disallowedTools, ["AskUserQuestion"]);
   assert.deepEqual(side.options.options.disallowedTools, [
     "AskUserQuestion",
-    ...["schedule", "update", "stop", "notify", "nothing_to_report"].map((name) => `mcp__claudex-automation__${name}`),
+    ...["schedule", "update", "stop", "notify", "nothing_to_report"].map((name) => `mcp__aicodingtool-automation__${name}`),
   ], "a side chat reads automations, writes none, and raises nothing where nothing could be read");
 
   assert.deepEqual(
@@ -258,8 +258,8 @@ test("Claude receives bundled computer-use MCP or the internal setup tool", asyn
   });
 
   const setup = await liveTurn({ computerUse: { status: "setup-required" } });
-  assert.equal(setup.mcpServers["claudex-computer-use"].type, "sdk");
-  assert.equal((await setup.canUseTool("mcp__claudex-computer-use__request_setup", {}, { toolUseID: "setup-1" })).behavior, "allow");
+  assert.equal(setup.mcpServers["aicodingtool-computer-use"].type, "sdk");
+  assert.equal((await setup.canUseTool("mcp__aicodingtool-computer-use__request_setup", {}, { toolUseID: "setup-1" })).behavior, "allow");
   assert.match(setup.systemPrompt.append, /Observe the exact target before every action/);
   assert.match(setup.systemPrompt.append, /Never invoke a separately installed cua-driver through Bash/);
   await setup.end();
@@ -357,7 +357,7 @@ test("automation tools bypass approval so a scheduled run can stop itself unatte
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
   });
 
-  for (const name of ["mcp__claudex-automation__schedule", "mcp__claudex-automation__stop", "mcp__claudex-automation__status"]) {
+  for (const name of ["mcp__aicodingtool-automation__schedule", "mcp__aicodingtool-automation__stop", "mcp__aicodingtool-automation__status"]) {
     assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "allow", name);
   }
   assert.equal((await canUseTool("Bash", { command: "pwd" }, { toolUseID: "bash-1" })).behavior, "deny");
@@ -484,15 +484,15 @@ test("reading other threads needs no approval, but starting or stopping one does
     threads: { list: async () => [], read: async () => ({}), wait: async () => ({}), command: async () => ({ thread: null }) },
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
   });
-  assert.equal(mcpServers["claudex-threads"].type, "sdk");
-  assert.match(systemPrompt.append, /the claudex-threads tools are the only way to reach them/);
-  for (const name of ["mcp__claudex-threads__list_threads", "mcp__claudex-threads__read_thread", "mcp__claudex-threads__wait_for_thread"]) {
+  assert.equal(mcpServers["aicodingtool-threads"].type, "sdk");
+  assert.match(systemPrompt.append, /the aicodingtool-threads tools are the only way to reach them/);
+  for (const name of ["mcp__aicodingtool-threads__list_threads", "mcp__aicodingtool-threads__read_thread", "mcp__aicodingtool-threads__wait_for_thread"]) {
     assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "allow", name);
   }
-  for (const name of ["mcp__claudex-threads__start_thread", "mcp__claudex-threads__archive_thread", "mcp__claudex-threads__stop_thread"]) {
+  for (const name of ["mcp__aicodingtool-threads__start_thread", "mcp__aicodingtool-threads__archive_thread", "mcp__aicodingtool-threads__stop_thread"]) {
     assert.equal((await canUseTool(name, {}, { toolUseID: name })).behavior, "deny", name);
   }
-  assert.deepEqual(asked, ["mcp__claudex-threads__start_thread", "mcp__claudex-threads__archive_thread", "mcp__claudex-threads__stop_thread"]);
+  assert.deepEqual(asked, ["mcp__aicodingtool-threads__start_thread", "mcp__aicodingtool-threads__archive_thread", "mcp__aicodingtool-threads__stop_thread"]);
   await end();
 });
 
@@ -500,8 +500,8 @@ test("a run with no workspace bridge is offered no thread tools", async () => {
   const capture = {};
   await new ClaudeAgentProvider(queryFactory([], capture)).execute(input());
 
-  assert.equal(capture.options.options.mcpServers?.["claudex-threads"], undefined);
-  assert.doesNotMatch(capture.options.options.systemPrompt.append, /claudex-threads/);
+  assert.equal(capture.options.options.mcpServers?.["aicodingtool-threads"], undefined);
+  assert.doesNotMatch(capture.options.options.systemPrompt.append, /aicodingtool-threads/);
 });
 
 test("only background tasks that are processes of their own are reported, and the whole set each time", async () => {

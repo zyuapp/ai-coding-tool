@@ -27,7 +27,7 @@ import { captureFrontmostWindow } from "./window-screenshot.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
-app.setName("Claudex");
+app.setName("AI Coding Tool");
 const legacyUserData = path.join(app.getPath("appData"), "Threadline");
 if (existsSync(legacyUserData)) app.setPath("userData", legacyUserData);
 
@@ -35,10 +35,10 @@ protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
-/** The `claudex` command opens a folder in the app that is already running, never a second one. */
+/** The `aic` command opens a folder in the app that is already running, never a second one. */
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
-  console.log("Claudex is already running. Bringing that window forward instead of starting a second one.");
+  console.log("AI Coding Tool is already running. Bringing that window forward instead of starting a second one.");
   app.exit(0);
 }
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
@@ -56,7 +56,7 @@ let restartRequested = false;
 let restartIssued = false;
 let updateRestartScheduled = false;
 let reopenArgs: string[] | null = null;
-/** Folders the `claudex` command named, held until the window is up and listening for them. */
+/** Folders the `aic` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
 /** Settles once the checkouts on disk and the records that claim them agree, which a read waits on. */
 let worktreesReconciled: Promise<void> = Promise.resolve();
@@ -168,7 +168,7 @@ async function handleAutomationRequest(request: AutomationRequest) {
 /** The window owns workspace state, so thread requests are relayed to it rather than answered here. */
 function handleThreadRequest(request: ThreadRequest) {
   if (!window || window.isDestroyed()) {
-    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: "The Claudex window is not open." });
+    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: "The AI Coding Tool window is not open." });
     return;
   }
   const patience = request.op === "wait"
@@ -178,7 +178,7 @@ function handleThreadRequest(request: ThreadRequest) {
       : THREAD_REQUEST_TIMEOUT;
   const timer = setTimeout(() => {
     threadRequests.delete(request.requestId);
-    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: `Claudex did not answer the thread "${request.op}" request within ${patience}ms.` });
+    answerThreadRequest({ type: "thread.response", requestId: request.requestId, ok: false, message: `AI Coding Tool did not answer the thread "${request.op}" request within ${patience}ms.` });
   }, patience);
   timer.unref?.();
   threadRequests.set(request.requestId, timer);
@@ -227,14 +227,14 @@ async function captureWindowToComposer() {
       if (captureOptions.focus) {
         flashWindow(shot.frame);
         revealWindow();
-      } else notify("Screenshot attached", `${shot.app} — waiting in Claudex`);
+      } else notify("Screenshot attached", `${shot.app} — waiting in AI Coding Tool`);
     } catch (error) {
       notify("Could not keep the screenshot", error instanceof Error ? error.message : String(error));
     }
     return;
   }
   if (shot.status === "denied") {
-    notify("Claudex needs Screen Recording", "Grant it in System Settings → Privacy & Security, then try again.");
+    notify("AI Coding Tool needs Screen Recording", "Grant it in System Settings → Privacy & Security, then try again.");
     void shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
     return;
   }
@@ -283,7 +283,7 @@ function emitSyntheticTerminal(command: StartRunCommand, status: "failed" | "can
 function startAgent() {
   if (agent) return;
   agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [], {
-    serviceName: "Claudex Agent",
+    serviceName: "AI Coding Tool Agent",
     stdio: "pipe",
   });
   agent.on("message", (event: unknown) => {
@@ -480,7 +480,7 @@ async function flushProjectOpens() {
       const registration = await getWorkspaceService().registerProject(root);
       if (window && !window.isDestroyed()) window.webContents.send("workspace:open-project", registration.workspace);
     } catch (error) {
-      console.error("Could not open the folder the claudex command named:", error);
+      console.error("Could not open the folder the aic command named:", error);
     }
   }
   revealWindow();
@@ -544,7 +544,7 @@ async function createWindow() {
   window.webContents.on("before-input-event", (event, input) => {
     if (handleKey(input, "any")) event.preventDefault();
   });
-  /** A normal link leaves Claudex. Its context menu offers the browser panel separately. */
+  /** A normal link leaves AI Coding Tool. Its context menu offers the browser panel separately. */
   window.webContents.setWindowOpenHandler(({ url }) => {
     try {
       void shell.openExternal(browserPageUrl(url)).catch((error) => console.error("Could not open link:", error));
@@ -571,7 +571,7 @@ async function checkForUpdates() {
     const result = await dialog.showMessageBox(window, {
       type: "info",
       title: "Update available",
-      message: `Claudex ${version} is available.`,
+      message: `AI Coding Tool ${version} is available.`,
       detail: "Download it now? You can keep working while it downloads.",
       buttons: ["Download update", "Later"],
       defaultId: 0,
@@ -584,8 +584,8 @@ async function checkForUpdates() {
     const result = await dialog.showMessageBox(window, {
       type: "info",
       title: "Update ready",
-      message: `Claudex ${version} is ready to install.`,
-      detail: "Restart Claudex to finish the update.",
+      message: `AI Coding Tool ${version} is ready to install.`,
+      detail: "Restart AI Coding Tool to finish the update.",
       buttons: ["Restart and install", "Later"],
       defaultId: 0,
       cancelId: 1,

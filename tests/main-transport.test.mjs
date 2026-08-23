@@ -150,10 +150,10 @@ test("a bound keystroke is taken from the window's menu and handed to whatever i
   assert.equal(closed, 1);
 });
 
-test("a folder the claudex command names is registered and handed to the window that asks for it", async () => {
+test("a folder the aic command names is registered and handed to the window that asks for it", async () => {
   const { appListeners, handlers, listeners, trusted, untrusted, sentOn } = main;
   const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), "claudex-cli-open-")));
-  const url = `claudex://open?path=${Buffer.from(folder, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_")}`;
+  const url = `aicodingtool://open?path=${Buffer.from(folder, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_")}`;
   const opened = () => sentOn("workspace:open-project");
   try {
     appListeners.get("open-url")({ preventDefault() {} }, url);
@@ -169,16 +169,16 @@ test("a folder the claudex command names is registered and handed to the window 
     assert.equal(opened()[0].root, folder);
     assert.equal(opened()[0].kind, "project");
 
-    appListeners.get("second-instance")({}, ["/Applications/Claudex.app", url]);
+    appListeners.get("second-instance")({}, ["/Applications/AI Coding Tool.app", url]);
     await waitFor(() => opened().length === 2);
     assert.equal(opened()[1].id, opened()[0].id, "the same folder keeps the workspace it already had");
 
-    appListeners.get("open-url")({ preventDefault() {} }, "claudex://open?path=bm90LWFic29sdXRl");
+    appListeners.get("open-url")({ preventDefault() {} }, "aicodingtool://open?path=bm90LWFic29sdXRl");
     await tick();
     assert.equal(opened().length, 2, "a URL that names no absolute folder opens nothing");
 
     await assert.rejects(handlers.get("cli:status")(untrusted));
-    assert.equal((await handlers.get("cli:status")(trusted)).path, "/usr/local/bin/claudex");
+    assert.equal((await handlers.get("cli:status")(trusted)).path, "/usr/local/bin/aic");
     await assert.rejects(handlers.get("cli:install")(untrusted));
     await assert.rejects(handlers.get("cli:uninstall")(untrusted));
   } finally {

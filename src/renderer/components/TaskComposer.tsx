@@ -426,7 +426,7 @@ export function TaskComposer({
                 >
                   <span className={`command-mark ${command.kind}`} aria-hidden="true">{command.kind === "app" ? <Command size={16} /> : <Sparkles size={15} />}</span>
                   <span className="command-copy"><strong>/{command.name}{command.argumentHint && <em> {command.argumentHint}</em>}</strong><small>{shortDescription(command.description)}</small></span>
-                  <span className="command-source">{command.kind === "app" ? "Claudex" : "Skill"}</span>
+                  <span className="command-source">{command.kind === "app" ? "AI Coding Tool" : "Skill"}</span>
                 </button>
               ))}
               {matchingCommands.length === 0 && <p className="command-empty">No matching commands</p>}

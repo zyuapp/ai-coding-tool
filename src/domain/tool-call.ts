@@ -31,7 +31,7 @@ const ARGUMENT_LIMIT = 240;
 
 export function toolFamily(name: string): ToolFamily {
   if (FAMILIES[name]) return FAMILIES[name];
-  if (name.startsWith("browser_") || name.startsWith("mcp__claudex-browser")) return "web";
+  if (name.startsWith("browser_") || name.startsWith("mcp__aicodingtool-browser")) return "web";
   return "other";
 }
 

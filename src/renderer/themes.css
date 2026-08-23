@@ -12,12 +12,12 @@
  *
  * --p-shadow-scale holds the shadows to one weight across themes. A shadow is only as visible as
  * the distance between its own colour and the canvas it falls on, and that distance is not the
- * same in every theme: Gruvbox Dark's canvas is far lighter than Claudex Dark's, so the same black
+ * same in every theme: Gruvbox Dark's canvas is far lighter than AI Coding Tool Dark's, so the same black
  * reads as a halo there and as nothing here. Each theme scales its shadows by the inverse of that
  * distance.
  */
 :root,
-[data-theme="claudex-dark"] {
+[data-theme="aicodingtool-dark"] {
   color-scheme: dark;
 
   --p-bg-0: #0e1117;
@@ -85,7 +85,7 @@
   --p-ansi-bright-white: #e6e4df;
 }
 
-[data-theme="claudex-light"] {
+[data-theme="aicodingtool-light"] {
   color-scheme: light;
 
   --p-bg-0: #faf9f6;

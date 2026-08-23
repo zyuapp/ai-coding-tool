@@ -193,9 +193,9 @@ export type AutomationResponse = {
 
 export type DesktopAPI = {
   openFolder(): Promise<WorkspaceRecord | null>;
-  /** A folder the `claudex` terminal command named, already registered as a workspace. */
+  /** A folder the `aic` terminal command named, already registered as a workspace. */
   onOpenProject(listener: (workspace: WorkspaceRecord) => void): () => void;
-  /** Whether the `claudex` terminal command is installed, and the path it takes. */
+  /** Whether the `aic` terminal command is installed, and the path it takes. */
   cliStatus(): Promise<CliStatus>;
   /** Writes the command, asking for the administrator password when its directory needs one. */
   installCli(): Promise<CliStatus>;
@@ -686,7 +686,7 @@ export function unreadableRequest(value: unknown): ThreadResponse | AutomationRe
   if (!value || typeof value !== "object") return null;
   const message = value as Record<string, unknown>;
   if (!isString(message.requestId)) return null;
-  const refusal = "Claudex could not read that request: one of its fields is not what the request allows.";
+  const refusal = "AI Coding Tool could not read that request: one of its fields is not what the request allows.";
   if (message.type === "thread.request") return { type: "thread.response", requestId: message.requestId, ok: false, message: refusal };
   if (message.type === "automation.request") return { type: "automation.response", requestId: message.requestId, ok: false, message: refusal };
   return null;

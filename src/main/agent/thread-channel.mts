@@ -81,7 +81,7 @@ export class ThreadChannel {
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
-        reject(new Error(`Claudex did not answer the thread "${payload.op}" request within ${timeout}ms.`));
+        reject(new Error(`AICodingTool did not answer the thread "${payload.op}" request within ${timeout}ms.`));
       }, timeout);
       this.pending.set(requestId, { resolve, reject, timer });
       try {

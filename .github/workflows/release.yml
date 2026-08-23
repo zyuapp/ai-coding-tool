@@ -51,11 +51,11 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           umask 077
-          printf '%s' "$MAC_CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/claudex.p12"
+          printf '%s' "$MAC_CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/aicodingtool.p12"
           printf '%s' "$APPLE_API_KEY_P8" | base64 -D > "$RUNNER_TEMP/apple.p8"
       - name: Build, sign, and notarize
         env:
-          CSC_LINK: ${{ runner.temp }}/claudex.p12
+          CSC_LINK: ${{ runner.temp }}/aicodingtool.p12
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY: ${{ runner.temp }}/apple.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}

@@ -35,6 +35,6 @@ test("a call carrying nothing to name falls back to no argument at all", () => {
 
 test("a tool the list has never seen still lands in a family", () => {
   assert.equal(toolFamily("browser_click"), "web");
-  assert.equal(toolFamily("mcp__claudex-terminal__terminal_read"), "other");
+  assert.equal(toolFamily("mcp__aicodingtool-terminal__terminal_read"), "other");
   assert.equal(toolFamily("MultiEdit"), "write");
 });

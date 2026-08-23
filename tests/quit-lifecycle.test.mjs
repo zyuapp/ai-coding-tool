@@ -39,7 +39,7 @@ test("computer-use startup cannot create a host after shutdown begins", { skip: 
   await computerUse.stopComputerUse();
   finishPermissions({ accessibility: true, screenRecording: true });
 
-  assert.deepEqual(await starting, { status: "unavailable", message: "Claudex is quitting." });
+  assert.deepEqual(await starting, { status: "unavailable", message: "AI Coding Tool is quitting." });
   assert.equal(hosts, 0);
 });
 
@@ -72,9 +72,9 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
   assert.equal(main.completedQuits(), 0);
 
   main.appListeners.get("activate")();
-  const url = "claudex://open?path=L3RtcA";
+  const url = "aicodingtool://open?path=L3RtcA";
   main.appListeners.get("open-url")({ preventDefault() {} }, url);
-  main.appListeners.get("second-instance")({}, ["/Applications/Claudex.app"]);
+  main.appListeners.get("second-instance")({}, ["/Applications/AI Coding Tool.app"]);
   assert.deepEqual(main.relaunches, [], "reopen waits while the old process still owns its resources");
   assert.equal(main.window.isVisible(), false);
 
@@ -95,7 +95,7 @@ test("a requested computer-use restart accepts a project URL before it relaunche
       stopComputerUse: () => new Promise((resolve) => { finishStop = resolve; }),
     },
   });
-  const url = "claudex://open?path=L3RtcA";
+  const url = "aicodingtool://open?path=L3RtcA";
 
   main.listeners.get("computer-use:restart")(main.trusted);
   main.appListeners.get("open-url")({ preventDefault() {} }, url);

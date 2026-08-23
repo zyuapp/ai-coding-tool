@@ -10,7 +10,7 @@ import {
 
 function urlFor(root) {
   const encoded = Buffer.from(root, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
-  return `claudex://open?path=${encoded}`;
+  return `aicodingtool://open?path=${encoded}`;
 }
 
 test("reads the folder out of a URL the command wrote", () => {
@@ -20,22 +20,22 @@ test("reads the folder out of a URL the command wrote", () => {
 
 test("refuses URLs that are not an open request for an absolute folder", () => {
   assert.equal(projectPathFromUrl("https://example.com/open?path=Lw"), null);
-  assert.equal(projectPathFromUrl("claudex://send?path=Lw"), null);
-  assert.equal(projectPathFromUrl("claudex://open"), null);
-  assert.equal(projectPathFromUrl("claudex://open?path=***"), null);
+  assert.equal(projectPathFromUrl("aicodingtool://send?path=Lw"), null);
+  assert.equal(projectPathFromUrl("aicodingtool://open"), null);
+  assert.equal(projectPathFromUrl("aicodingtool://open?path=***"), null);
   assert.equal(projectPathFromUrl(urlFor("relative/path")), null);
   assert.equal(projectPathFromUrl("not a url"), null);
 });
 
 test("finds the URL among launch arguments", () => {
-  assert.equal(projectPathFromArgv(["/Applications/Claudex.app", urlFor("/tmp/app")]), "/tmp/app");
-  assert.equal(projectPathFromArgv(["/Applications/Claudex.app", "--updated"]), null);
+  assert.equal(projectPathFromArgv(["/Applications/AI Coding Tool.app", urlFor("/tmp/app")]), "/tmp/app");
+  assert.equal(projectPathFromArgv(["/Applications/AI Coding Tool.app", "--updated"]), null);
 });
 
 test("the installed script is recognisable as ours and opens the folder it is given", () => {
   assert.ok(isCliScript(CLI_SCRIPT));
   assert.ok(!isCliScript("#!/bin/sh\necho hi\n"));
   assert.ok(CLI_SCRIPT.startsWith("#!/bin/sh\n"));
-  assert.match(CLI_SCRIPT, /exec open "claudex:\/\/open\?path=\$encoded"/);
-  assert.equal(CLI_INSTALL_PATH, "/usr/local/bin/claudex");
+  assert.match(CLI_SCRIPT, /exec open "aicodingtool:\/\/open\?path=\$encoded"/);
+  assert.equal(CLI_INSTALL_PATH, "/usr/local/bin/aic");
 });

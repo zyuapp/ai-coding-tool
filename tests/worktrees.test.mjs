@@ -35,7 +35,7 @@ async function repository() {
   const root = await temporaryDirectory("repo");
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
-  await git(root, "config", "user.name", "Claudex Tests");
+  await git(root, "config", "user.name", "AI Coding Tool Tests");
   await git(root, "config", "commit.gpgsign", "false");
   await writeFile(path.join(root, "tracked.txt"), "one\n");
   await writeFile(path.join(root, ".gitignore"), "secrets/\n.env\n*.log\n");
@@ -309,10 +309,10 @@ test("release and delete refuse a directory outside the worktrees root", async (
   const root = await repository();
   const worktrees = await service();
 
-  await assert.rejects(worktrees.delete(root), /Not a Claudex worktree/);
+  await assert.rejects(worktrees.delete(root), /Not an AI Coding Tool worktree/);
   await assert.rejects(
     worktrees.release({ worktreeId: "x", root, taskId: null, title: "elsewhere", release: "evicted" }),
-    /Not a Claudex worktree/,
+    /Not an AI Coding Tool worktree/,
   );
   assert.equal(await exists(path.join(root, "tracked.txt")), true, "the refused directory is untouched");
 });

@@ -5,7 +5,7 @@ import type { BrowserReadResult } from "../../contracts/threads.js";
 import { browserSearchUrl, describeTab, type BrowserSnapshot } from "../../domain/browser.js";
 import type { BrowserBridge } from "./agent-provider.mjs";
 
-export const BROWSER_SERVER_NAME = "claudex-browser";
+export const BROWSER_SERVER_NAME = "aicodingtool-browser";
 
 const DEFAULT_WAIT_MS = 20_000;
 const DEFAULT_TEXT_LIMIT = 4_000;
@@ -36,7 +36,7 @@ function readText(result: BrowserReadResult) {
   if (result.kind === "snapshot") return snapshotText(result.snapshot);
   if (result.kind === "tabs") return result.tabs.length ? result.tabs.map(describeTab).join("\n") : "The browser panel has no tab open.";
   if (result.kind === "awaiting-approval") {
-    return `Claudex is asking the user to allow ${result.url}. Nothing loads until they answer, so tell them what you need it for and wait, or ask them to open it themselves.`;
+    return `AICodingTool is asking the user to allow ${result.url}. Nothing loads until they answer, so tell them what you need it for and wait, or ask them to open it themselves.`;
   }
   return "The browser panel has no tab open.";
 }
@@ -66,7 +66,7 @@ export function browserTools(bridge: BrowserBridge) {
   return [
     tool(
       "browser_open",
-      "Open a page in the Claudex browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying. To search, use browser_search.",
+      "Open a page in the AICodingTool browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying. To search, use browser_search.",
       {
         url: z.string().describe("The page to open. Include the scheme for anything that is not an ordinary domain."),
         newTab: z.boolean().optional().describe("Open another tab instead of reusing the one on screen."),
@@ -80,7 +80,7 @@ export function browserTools(bridge: BrowserBridge) {
     ),
     tool(
       "browser_search",
-      "Search the web in the Claudex browser panel and read the results. Use this rather than opening a search engine yourself: Google sometimes answers the panel with its bot page instead of results.",
+      "Search the web in the AICodingTool browser panel and read the results. Use this rather than opening a search engine yourself: Google sometimes answers the panel with its bot page instead of results.",
       {
         query: z.string().describe("What to search for."),
         newTab: z.boolean().optional().describe("Search in another tab instead of the one on screen."),

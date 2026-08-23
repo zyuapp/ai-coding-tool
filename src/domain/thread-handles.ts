@@ -63,7 +63,7 @@ export function rankThreadHandles(options: ThreadHandleOption[], query: string):
 
 /** The link a thread reads as once it leaves the composer, which the transcript renders clickable. */
 export function threadReference(option: { id: string; title: string }): string {
-  return `[${option.title.replace(/[[\]]/g, "")}](claudex://thread/${option.id})`;
+  return `[${option.title.replace(/[[\]]/g, "")}](aicodingtool://thread/${option.id})`;
 }
 
 /**
@@ -71,7 +71,7 @@ export function threadReference(option: { id: string; title: string }): string {
  * grey text, since GFM autolinks no scheme of its own.
  */
 export function threadLink(threadId: string): string {
-  return `<claudex://thread/${threadId}>`;
+  return `<aicodingtool://thread/${threadId}>`;
 }
 
 /** Turns every handle that names a thread into a link. One that names nothing is left as typed. */

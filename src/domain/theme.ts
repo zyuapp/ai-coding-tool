@@ -15,8 +15,8 @@ export type Theme = {
 };
 
 export const THEMES: Theme[] = [
-  { id: "claudex-dark", label: "Claudex Dark", family: "Claudex", variant: "dark", canvas: "#0e1117" },
-  { id: "claudex-light", label: "Claudex Light", family: "Claudex", variant: "light", canvas: "#faf9f6" },
+  { id: "aicodingtool-dark", label: "AI Coding Tool Dark", family: "AI Coding Tool", variant: "dark", canvas: "#0e1117" },
+  { id: "aicodingtool-light", label: "AI Coding Tool Light", family: "AI Coding Tool", variant: "light", canvas: "#faf9f6" },
   { id: "catppuccin-mocha", label: "Catppuccin Mocha", family: "Catppuccin", variant: "dark", canvas: "#11111b" },
   { id: "catppuccin-latte", label: "Catppuccin Latte", family: "Catppuccin", variant: "light", canvas: "#eff1f5" },
   { id: "tokyo-night", label: "Tokyo Night", family: "Tokyo Night", variant: "dark", canvas: "#16161e" },
@@ -25,7 +25,7 @@ export const THEMES: Theme[] = [
   { id: "gruvbox-light", label: "Gruvbox Light", family: "Gruvbox", variant: "light", canvas: "#fbf1c7" },
 ];
 
-export const DEFAULT_THEME = "claudex-dark";
+export const DEFAULT_THEME = "aicodingtool-dark";
 export const DEFAULT_THEME_MODE: ThemeMode = "dark";
 
 const BY_ID = new Map(THEMES.map((entry) => [entry.id, entry]));

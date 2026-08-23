@@ -4,7 +4,7 @@ import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/task.js"
 import { MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
 import type { AutomationBridge, FindingBridge } from "./agent-provider.mjs";
 
-export const AUTOMATION_SERVER_NAME = "claudex-automation";
+export const AUTOMATION_SERVER_NAME = "aicodingtool-automation";
 
 const scheduleField = z.string().describe(
   "A five-field cron expression in local time (\"0 8 * * *\" = 8AM daily, \"* * * * *\" = every minute), or an ISO 8601 timestamp for a single run. Seconds are not supported.",
