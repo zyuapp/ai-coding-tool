@@ -2795,7 +2795,7 @@ test("the workspace hears where a reader settles without a switch having to carr
   const view = await mount(thread("read", 12));
   await settle();
   await scrollTo(300);
-  await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80)); });
 
   assert.ok(moves.length >= 1, "the settled place was reported");
   const reported = item(moves.filter((move) => move.id === "read").at(-1));
@@ -2805,7 +2805,7 @@ test("the workspace hears where a reader settles without a switch having to carr
   /** Reporting the same place again adds nothing for the workspace to hear. */
   const heard = moves.length;
   await scrollTo(300);
-  await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80)); });
   assert.equal(moves.length, heard, "an unchanged place is never reported twice");
 
   await done(view);
