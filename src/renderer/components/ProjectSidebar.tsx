@@ -440,7 +440,6 @@ export function ProjectSidebar({
                 <button className="section-toggle" onClick={() => onSetSectionOpen(key, !sections[key])} aria-expanded={sections[key]}>
                   <span>{label}</span>
                   <span className="section-chevron" aria-hidden="true" />
-                  {tasks.length > 0 && <span className="section-count">{tasks.length}</span>}
                 </button>
                 {key === "priority" && dottedCount > 0 && (
                   <button className="section-action" onClick={onDismissAll} aria-label="Dismiss all">

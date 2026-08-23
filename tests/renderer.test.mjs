@@ -675,7 +675,6 @@ test("only the priority heading offers to dismiss every dot at once", async () =
 
   await view.render(sidebar([thread("done", { outcome: "failed" })]));
   assert.ok(view.container.querySelector('[aria-label="Dismiss all"]'), "one dot is enough to offer it");
-  assert.equal(view.container.querySelector(".activity-heading .section-count").textContent, "1");
   await view.unmount();
 });
 
