@@ -44,7 +44,7 @@ if (!singleInstance) {
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
 if (app.isPackaged) app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
 
-const icon = path.join(app.getAppPath(), "assets", "icon.icns");
+const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
 let agent: Electron.UtilityProcess | null = null;
 let workspaceService: WorkspaceService | null = null;
