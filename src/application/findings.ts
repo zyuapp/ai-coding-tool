@@ -7,8 +7,8 @@
 import type { AutomationFire, RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js";
-import { MAX_FINDINGS, MAX_SILENCED_KEYS, type Task, type TaskFinding, type TaskOutcome } from "../domain/task.js";
-import { applyTask, createTaskMessage, type ActiveRun, type RunTransitionState, type ThreadMark } from "./task-workspace.js";
+import { createTaskMessage, MAX_FINDINGS, MAX_SILENCED_KEYS, type Task, type TaskFinding, type TaskOutcome } from "../domain/task.js";
+import { applyTask, type ActiveRun, type RunTransitionState, type ThreadMark } from "./task-workspace.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 

@@ -1,7 +1,7 @@
 import type { RunEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
-import type { Annotation, PastedText, Task, TaskMessage, TaskOutcome } from "../domain/task.js";
+import { createFailureMessage, createTaskMessage, type Task, type TaskOutcome } from "../domain/task.js";
 
 export type ActiveRun = RunProvenance & {
   taskId: string;
@@ -105,23 +105,6 @@ function quietFraming(surfaceWhen: string) {
 
 export function automationRunLabel(runNumber: number) {
   return `Automation run #${runNumber}`;
-}
-
-export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[], annotations?: Annotation[], pastes?: PastedText[]): TaskMessage {
-  return {
-    id: crypto.randomUUID(),
-    kind,
-    text,
-    ...(detail === undefined ? {} : { detail }),
-    ...(attachments?.length ? { attachments } : {}),
-    ...(annotations?.length ? { annotations } : {}),
-    ...(pastes?.length ? { pastes } : {}),
-    at: now(),
-  };
-}
-
-export function createFailureMessage(text: string): TaskMessage {
-  return { ...createTaskMessage("system", text), tone: "error" };
 }
 
 export function withActiveRun<T extends RunTransitionState>(state: T, taskId: string, run: ActiveRun | null): T {

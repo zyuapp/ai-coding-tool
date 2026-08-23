@@ -13,7 +13,6 @@ import {
   ATTENDED_RUN,
   automationRunLabel,
   automationRunPrompt,
-  createTaskMessage,
   threadMark,
   withActiveRun,
   withBackgroundProcesses,
@@ -50,7 +49,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById,
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import type { CaptureOptions } from "../domain/capture.js";
-import { clampTitle, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, createTaskMessage, findProject, legacyProjectId, MAX_ATTACHMENTS, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";

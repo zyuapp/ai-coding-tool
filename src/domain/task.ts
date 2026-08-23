@@ -113,6 +113,23 @@ export const MAX_HEADLINE = 200;
 export const MAX_DETAIL = 10_000;
 export const MAX_FINDING_KEY = 200;
 
+export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[], annotations?: Annotation[], pastes?: PastedText[]): TaskMessage {
+  return {
+    id: crypto.randomUUID(),
+    kind,
+    text,
+    ...(detail === undefined ? {} : { detail }),
+    ...(attachments?.length ? { attachments } : {}),
+    ...(annotations?.length ? { annotations } : {}),
+    ...(pastes?.length ? { pastes } : {}),
+    at: Date.now(),
+  };
+}
+
+export function createFailureMessage(text: string): TaskMessage {
+  return { ...createTaskMessage("system", text), tone: "error" };
+}
+
 const TITLE_LIMIT = 52;
 
 /** One length for every thread title, whoever wrote it: the user, the first message, or the model. */
