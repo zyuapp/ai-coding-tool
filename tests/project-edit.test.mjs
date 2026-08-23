@@ -3,7 +3,7 @@ import test from "node:test";
 import { reduce } from "../dist/main/application/workspace-reducer.js";
 import { emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 
-const PROJECT = { id: "project-1", root: "/work/claudex", workspaceId: "workspace-1" };
+const PROJECT = { id: "project-1", root: "/work/ai-coding-tool", workspaceId: "workspace-1" };
 
 function workspace(overrides = {}) {
   return { ...emptyWorkspaceState(), projects: [PROJECT], ...overrides };
@@ -14,18 +14,18 @@ test("naming a folder changes what it is called and nothing else", () => {
 
   assert.deepEqual(named.effects, [], "a name never reaches the disk");
   assert.equal(named.state.projects[0].name, "App");
-  assert.equal(named.state.projects[0].root, "/work/claudex", "the folder itself stays where it is");
+  assert.equal(named.state.projects[0].root, "/work/ai-coding-tool", "the folder itself stays where it is");
 
   const cleared = reduce(named.state, { type: "project.edit", projectId: "project-1", name: "" });
   assert.equal(cleared.state.projects[0].name, undefined, "a blank name gives the folder its own back");
 });
 
 test("moving a folder waits for it to open, then takes the project and its threads with it", () => {
-  const state = workspace({ tasks: [], lastFolder: "/work/claudex" });
+  const state = workspace({ tasks: [], lastFolder: "/work/ai-coding-tool" });
   const moving = reduce(state, { type: "project.edit", projectId: "project-1", name: "App", root: " /work/moved " });
 
   assert.deepEqual(moving.effects, [{ type: "register-project", projectId: "project-1", root: "/work/moved" }]);
-  assert.equal(moving.state.projects[0].root, "/work/claudex", "nothing moves until the folder opens");
+  assert.equal(moving.state.projects[0].root, "/work/ai-coding-tool", "nothing moves until the folder opens");
   assert.equal(moving.state.projects[0].name, undefined, "the name waits with it");
   assert.deepEqual(moving.state.projectEdit, { projectId: "project-1", name: "App", saving: true, error: null });
 
@@ -48,12 +48,12 @@ test("a folder that cannot be opened leaves the editor open with what went wrong
   const failed = reduce(moving.state, { type: "project.register-failed", projectId: "project-1", message: "There is no folder at /work/gone." });
 
   assert.deepEqual(failed.state.projectEdit, { projectId: "project-1", name: "App", saving: false, error: "There is no folder at /work/gone." });
-  assert.equal(failed.state.projects[0].root, "/work/claudex");
+  assert.equal(failed.state.projects[0].root, "/work/ai-coding-tool");
   assert.equal(failed.state.projects[0].name, undefined, "a name typed beside a folder that stayed put is not kept either");
 });
 
 test("a folder the project already has asks for nothing", () => {
-  const same = reduce(workspace(), { type: "project.edit", projectId: "project-1", name: "App", root: "/work/claudex/" });
+  const same = reduce(workspace(), { type: "project.edit", projectId: "project-1", name: "App", root: "/work/ai-coding-tool/" });
 
   assert.deepEqual(same.effects, []);
   assert.equal(same.state.projects[0].name, "App");
