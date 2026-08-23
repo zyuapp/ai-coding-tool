@@ -1,9 +1,15 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   base: "./",
   plugins: [react()],
+  test: {
+    include: ["tests/**/*.test.mts"],
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
+    pool: "forks",
+  },
   build: {
     outDir: "dist/renderer",
     emptyOutDir: true,

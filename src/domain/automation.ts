@@ -148,7 +148,7 @@ export type TickKind = { quiet: boolean; unattended: boolean };
  * a run the user asked for is watched by construction, and a one-shot deletes itself when it runs, so
  * a quiet one would disappear having said nothing at all.
  */
-export function quietTick(automation: Automation, manual: boolean) {
+export function quietTick(automation: Pick<Automation, "schedule" | "surfaceWhen">, manual: boolean) {
   return !manual && automation.surfaceWhen !== undefined && !isOneShotSchedule(automation.schedule);
 }
 

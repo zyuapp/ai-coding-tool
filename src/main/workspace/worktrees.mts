@@ -31,7 +31,7 @@ export type WorktreeServiceOptions = {
   worktreesRoot: string;
   /** Roots the app used before, still its own: reconciled and reaped, but never created in again. */
   legacyRoots?: string[];
-  workspaces: WorkspaceService;
+  workspaces: Pick<WorkspaceService, "registerWorktree" | "listWorktrees" | "forgetWorktree" | "forgetWorktrees">;
   prune?: (repository: string) => Promise<void>;
 };
 
@@ -70,7 +70,7 @@ export class WorktreeService {
   private readonly worktreesRoot: string;
   /** Every root the app owns checkouts in, newest first. Only the first one is created in. */
   private readonly ownedRoots: string[];
-  private readonly workspaces: WorkspaceService;
+  private readonly workspaces: WorktreeServiceOptions["workspaces"];
   private readonly prune: (repository: string) => Promise<void>;
 
   constructor(options: WorktreeServiceOptions) {

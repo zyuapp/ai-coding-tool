@@ -6,13 +6,16 @@
   "author": "Zhuocheng Yu",
   "description": "A fast local desktop client for Claude coding tasks.",
   "homepage": "https://github.com/zyuapp/ai-coding-tool",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "main": "dist/main/main/main.js",
   "scripts": {
     "build": "vite build && tsc -p tsconfig.main.json",
-    "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && npm run lint",
+    "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
-    "test": "npm run lint && npm run build && node --test --test-timeout=20000 tests/*.test.mjs",
-    "prepare:cua": "node scripts/prepare-cua-driver.mjs",
+    "test": "npm run check && npm run build && vitest run",
+    "prepare:cua": "node --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:cua && npm run build && electron .",
     "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never"
   },
@@ -38,6 +41,7 @@
     "@babel/preset-typescript": "^8.0.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@tanstack/react-virtual": "^3.14.9",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -58,7 +62,8 @@
     "remark-gfm": "^4.0.1",
     "shiki": "^4.4.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
   },
   "build": {
     "appId": "com.zyuapp.aicodingtool",

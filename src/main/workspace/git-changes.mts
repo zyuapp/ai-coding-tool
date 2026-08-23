@@ -119,7 +119,7 @@ async function branchName(root: string) {
   }
 }
 
-export async function changedFiles(workspaceId: string, workspaces: WorkspaceService): Promise<ChangedFilesResult> {
+export async function changedFiles(workspaceId: string, workspaces: Pick<WorkspaceService, "resolve">): Promise<ChangedFilesResult> {
   let resolved;
   try {
     resolved = await workspaces.resolve(workspaceId);

@@ -10,7 +10,7 @@ Two dependencies, three version surfaces in this repo:
 
 - `@anthropic-ai/claude-agent-sdk` — the npm dependency. Call sites: `src/main/agent/claude-session.mts`, `src/main/agent/claude-agent-provider.mts`.
 - `@trycua/cua-driver` — the npm dependency that provides the embedded host. Call site: `src/main/computer-use-host.ts`.
-- The vendored Cua Driver binary — version and archive checksum pinned in `scripts/prepare-cua-driver.mjs`. `npm run prepare:cua` re-downloads it whenever `vendor/cua-driver/version` no longer matches the pin.
+- The vendored Cua Driver binary — version and archive checksum pinned in `scripts/prepare-cua-driver.mts`. `npm run prepare:cua` re-downloads it whenever `vendor/cua-driver/version` no longer matches the pin.
 
 The last two are one dependency in two places. Move them together or the embedded host talks to a binary it wasn't built against.
 
@@ -23,7 +23,7 @@ grep -n "claude-agent-sdk\|trycua" package.json
 grep '"version"' node_modules/@anthropic-ai/claude-agent-sdk/package.json
 npm view @anthropic-ai/claude-agent-sdk version
 npm view @trycua/cua-driver version
-grep -n "^const version" scripts/prepare-cua-driver.mjs
+grep -n "^const version" scripts/prepare-cua-driver.mts
 ```
 
 Both current: say so, stop.
@@ -62,7 +62,7 @@ curl -fsSL -o /tmp/cua.tgz https://github.com/trycua/cua/releases/download/cua-d
 shasum -a 256 /tmp/cua.tgz
 ```
 
-Write that version and hash into `version` and `expectedArchiveHash` in `scripts/prepare-cua-driver.mjs`. The marker string derives from `version`, so it invalidates itself.
+Write that version and hash into `version` and `expectedArchiveHash` in `scripts/prepare-cua-driver.mts`. The marker string derives from `version`, so it invalidates itself.
 
 ```
 npm run prepare:cua
@@ -74,14 +74,14 @@ cat vendor/cua-driver/version
 
 ## 4. Verify
 
-`npm test`. `tests/renderer.test.mjs` overruns the suite's 5s cap under parallel load; re-run it alone with `node --test --test-timeout=30000 tests/renderer.test.mjs` before calling it a failure.
+`npm test`. If `tests/renderer.test.mts` needs isolation, re-run it with `npx vitest run tests/renderer.test.mts --testTimeout=30000` before calling it a failure.
 
 ## 5. Commit
 
 One commit per dependency, staging only that dependency's files:
 
 - Agent SDK: `package.json package-lock.json` → `Move the agent SDK to <version>`
-- Cua Driver: `package.json package-lock.json scripts/prepare-cua-driver.mjs` → `Move the Cua Driver to <version>`
+- Cua Driver: `package.json package-lock.json scripts/prepare-cua-driver.mts` → `Move the Cua Driver to <version>`
 
 Doing both means finishing and committing the SDK before touching the Cua Driver, since they share `package.json`.
 

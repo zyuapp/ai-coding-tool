@@ -183,7 +183,7 @@ function readNameStatus(output: string) {
   return statuses;
 }
 
-export async function diffSummary(workspaceId: string, range: DiffRange, workspaces: WorkspaceService): Promise<DiffSummaryResult> {
+export async function diffSummary(workspaceId: string, range: DiffRange, workspaces: Pick<WorkspaceService, "resolve">): Promise<DiffSummaryResult> {
   let resolved;
   try {
     resolved = await workspaces.resolve(workspaceId);
@@ -217,7 +217,7 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
   }
 }
 
-export async function diffPatch(workspaceId: string, range: DiffRange, filePath: string, workspaces: WorkspaceService, previousPath?: string): Promise<DiffPatchResult> {
+export async function diffPatch(workspaceId: string, range: DiffRange, filePath: string, workspaces: Pick<WorkspaceService, "resolve">, previousPath?: string): Promise<DiffPatchResult> {
   let resolved;
   try {
     resolved = await workspaces.resolve(workspaceId);
