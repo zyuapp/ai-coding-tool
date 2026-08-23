@@ -2515,24 +2515,46 @@ pre {
 .command-empty { margin: 0; padding: 18px 12px; color: var(--quiet); font-size: var(--text-control); text-align: center; }
 .command-menu-status { padding: 8px 13px 10px; border-top: 1px solid var(--line); color: var(--quiet); font-size: var(--text-meta); }
 .annotation-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 0; }
+.message-stack .annotation-row { padding: 0; justify-content: flex-end; }
 .annotation-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 4px 3px 8px;
+  gap: 5px;
+  padding: 3px 4px 3px 5px;
   border: 1px solid var(--info-line);
   border-radius: 999px;
   background: var(--info-surface-soft);
   color: var(--info-soft);
   font-size: var(--text-meta);
+  line-height: 1.4;
+  cursor: default;
+  transition: background 120ms ease, border-color 120ms ease;
 }
-.annotation-pill:not(:has(button)) { padding-right: 8px; }
-.message-stack .annotation-row { padding: 0; justify-content: flex-end; }
-.annotation-pill-number { font-weight: 600; }
+.annotation-pill:hover, .annotation-pill:focus-within { border-color: var(--info); background: var(--info-surface); }
+.annotation-pill:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.annotation-pill:not(:has(button)) { padding-right: 9px; }
+.annotation-pill-number {
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  flex: none;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--info-badge);
+  color: var(--badge-ink);
+  place-items: center;
+  font-size: var(--text-badge);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.annotation-pill-label { max-width: 190px; overflow: hidden; color: var(--ink-dim); text-overflow: ellipsis; white-space: nowrap; }
+.annotation-pill-quote { color: var(--quiet); }
 .annotation-pill button {
   display: grid;
   width: 17px;
   height: 17px;
+  flex: none;
   padding: 0;
   border: none;
   border-radius: 999px;
@@ -2542,6 +2564,56 @@ pre {
   cursor: pointer;
 }
 .annotation-pill button:hover { background: var(--surface-active); color: var(--ink-soft); }
+.annotation-card {
+  position: absolute;
+  z-index: 60;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  overflow: hidden;
+  border: 1px solid var(--line-mid);
+  border-radius: 11px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-panel);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 110ms ease-out, transform 110ms ease-out;
+  text-align: left;
+}
+.message-stack .annotation-card { left: auto; right: 0; }
+.annotation-pill:hover > .annotation-card,
+.annotation-pill:focus-within > .annotation-card { opacity: 1; transform: translateY(0); }
+.annotation-card-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--quiet);
+  font-size: var(--text-badge);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.annotation-card-body { display: grid; gap: 9px; padding: 11px 12px 12px; }
+.annotation-card-quote {
+  position: relative;
+  display: -webkit-box;
+  overflow: hidden;
+  padding-left: 10px;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+.annotation-card-quote::before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 0; width: 2px; border-radius: 2px; background: var(--info-line); }
+.annotation-card-note { display: flex; gap: 7px; color: var(--ink); font-size: var(--text-control); line-height: 1.45; }
+.annotation-card-note svg { flex: none; margin-top: 3px; color: var(--info-soft); }
+.annotation-card-note > span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.annotation-card-note.empty { display: block; color: var(--quiet-soft); font-size: var(--text-meta); font-style: italic; }
+.annotation-card-quote[data-clamped] { mask-image: linear-gradient(#000 calc(100% - 1.55em), transparent); }
+.annotation-card-note > span[data-clamped] { mask-image: linear-gradient(#000 calc(100% - 1.45em), transparent); }
 
 .paste-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 0; }
 .message-stack .paste-row { padding: 0; justify-content: flex-end; }

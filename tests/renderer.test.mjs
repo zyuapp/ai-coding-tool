@@ -4426,9 +4426,9 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
 
   const pill = view.container.querySelector(".annotation-pill");
   assert.ok(pill, "the note lands in the composer as a pill");
-  assert.match(pill.getAttribute("title"), /src\/app\.ts:L2-L3/);
-  assert.match(pill.getAttribute("title"), /\+const second = 22;/);
-  assert.match(pill.getAttribute("title"), /— Name these properly/);
+  assert.equal(pill.querySelector(".annotation-pill-label").textContent, "Name these properly", "the pill wears the note, not the quote");
+  assert.match(pill.querySelector(".annotation-card-quote").textContent, /src\/app\.ts:L2-L3/);
+  assert.match(pill.querySelector(".annotation-card-quote").textContent, /\+const second = 22;/);
   assert.equal(view.container.querySelector(".diff-comment"), null, "commenting clears the selection");
   await view.unmount();
 });
