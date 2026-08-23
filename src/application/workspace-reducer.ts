@@ -1623,6 +1623,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(withAnnotations(state, key, annotationsFor(state, key).filter((item) => item.id !== input.annotationId)));
     }
 
+    case "annotation.recall": {
+      const key = input.taskId ?? promptKey(state);
+      return settled(withAnnotations(state, key, input.annotations));
+    }
+
     case "paste.add": {
       const key = input.taskId ?? promptKey(state);
       if (!input.text) return settled(state);

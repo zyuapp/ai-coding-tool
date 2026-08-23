@@ -7,7 +7,7 @@ import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
-import type { AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
+import type { Annotation, AnnotationAnchor, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
  * Where a thread was left reading: the message held at the top of the view and how far into it the
@@ -87,7 +87,8 @@ export type AnnotationCommand =
   /** Without an `anchor` the quote is a bare reference: no highlight marks it and no note is taken on it. */
   | { type: "annotation.add"; taskId?: string; quote: string; note?: string; anchor?: AnnotationAnchor }
   | { type: "annotation.note"; taskId?: string; annotationId: string; note: string }
-  | { type: "annotation.remove"; taskId?: string; annotationId: string };
+  | { type: "annotation.remove"; taskId?: string; annotationId: string }
+  | { type: "annotation.recall"; taskId?: string; annotations: Annotation[] };
 
 /**
  * Text pasted into a composer, kept aside as a pill instead of filling the prompt. Drafted the way

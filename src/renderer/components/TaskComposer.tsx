@@ -1,7 +1,7 @@
 import { Command, CornerDownRight, MessagesSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
-import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RunAttachment, type StagedImage } from "../../domain/task";
+import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RecalledMessage, type RunAttachment, type StagedImage } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
 import { PasteRow } from "./PasteRow";
 import { markPrefix } from "../../application/attachments";
@@ -108,9 +108,10 @@ export type TaskComposerProps = {
   /** Images the workspace is holding for this composer, such as windows the desktop hotkey grabbed. */
   images?: StagedImage[];
   onImageRemove?: (imageId: string) => void;
-  /** Texts of previously sent messages, oldest first, offered back on ↑ from the first line. */
-  history?: string[];
+  /** Previously sent messages, oldest first, offered back on ↑ from the first line. */
+  history?: RecalledMessage[];
   onPromptChange: (prompt: string) => void;
+  onAnnotationRecall?: (annotations: TaskAnnotation[]) => void;
   onAnnotationRemove?: (annotationId: string) => void;
   onPasteAdd?: (text: string) => void;
   onPasteRemove?: (pasteId: string) => void;
@@ -122,6 +123,38 @@ export type TaskComposerProps = {
   onDropQueued: (messageId: string) => void;
   onCancel: () => void;
 };
+
+/** Messages waiting on the run, each with what it carries and the two things you can do to it. */
+function QueuedRow({ messages, surface, onSteer, onDrop }: {
+  messages: QueuedMessage[];
+  surface: "main" | "side";
+  onSteer: (messageId: string) => void;
+  onDrop: (messageId: string) => void;
+}) {
+  if (messages.length === 0) return null;
+
+  return (
+    <div className="queued-row" role="list" aria-label={surface === "side" ? "Queued side chat messages" : "Queued messages"}>
+      {messages.map((message) => (
+        <div className="queued-message" role="listitem" key={message.id}>
+          <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
+          <div className="queued-body">
+            {message.text && <p className="queued-text">{message.text}</p>}
+            {message.annotations?.length ? <AnnotationRow annotations={message.annotations} /> : null}
+          </div>
+          {message.steering ? <span className="queued-state">Steering…</span> : (
+            <span className="queued-actions">
+              <button type="button" className="queued-steer" onClick={() => onSteer(message.id)}>Steer</button>
+              <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDrop(message.id)}>
+                <X size={13} />
+              </button>
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function TaskComposer({
   prompt,
@@ -144,6 +177,7 @@ export function TaskComposer({
   images = [],
   history = [],
   onPromptChange,
+  onAnnotationRecall,
   onAnnotationRemove,
   onPasteAdd,
   onPasteRemove,
@@ -170,7 +204,7 @@ export function TaskComposer({
   const [dismissedPrompt, setDismissedPrompt] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   /** Where ↑/↓ sits in the sent history, with the draft it replaced and the text it put on screen. */
-  const [recall, setRecall] = useState<{ index: number; draft: string; shown: string } | null>(null);
+  const [recall, setRecall] = useState<{ index: number; draft: RecalledMessage; shown: string } | null>(null);
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -197,20 +231,21 @@ export function TaskComposer({
   /** Where the list stops belonging to this project, so the divider sits above that row. */
   const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
-  const sentTexts = [...history, ...queuedMessages.map((message) => message.text)];
-  const recallable = sentTexts.filter((text, index) => text.trim() !== "" && text !== sentTexts[index - 1]);
+  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [] }))];
+  const recallable = sent.filter((message, index) => message.text.trim() !== "" && message.text !== sent[index - 1]?.text);
 
   /** Step through the sent history; the live draft is stashed and comes back below the newest entry. */
   function stepRecall(step: -1 | 1) {
     if (step === 1 && recall === null) return false;
     const index = (recall?.index ?? recallable.length) + step;
     if (index < 0) return false;
-    const draft = recall?.draft ?? prompt;
+    const draft = recall?.draft ?? { text: prompt, annotations };
     const next = index >= recallable.length ? draft : recallable[index];
-    setRecall(index >= recallable.length ? null : { index, draft, shown: next });
-    onPromptChange(next);
-    setDismissedPrompt(next);
-    setPendingCaret(next.length);
+    setRecall(index >= recallable.length ? null : { index, draft, shown: next.text });
+    onPromptChange(next.text);
+    onAnnotationRecall?.(next.annotations);
+    setDismissedPrompt(next.text);
+    setPendingCaret(next.text.length);
     return true;
   }
 
@@ -390,24 +425,7 @@ export function TaskComposer({
 
   return (
     <footer className={`composer-wrap ${surface}`}>
-      {queuedMessages.length > 0 && (
-        <div className="queued-row" role="list" aria-label={surface === "side" ? "Queued side chat messages" : "Queued messages"}>
-          {queuedMessages.map((message) => (
-            <div className="queued-message" role="listitem" key={message.id}>
-              <CornerDownRight className="queued-mark" size={14} aria-hidden="true" />
-              <p className="queued-text">{message.text}</p>
-              {message.steering ? <span className="queued-state">Steering…</span> : (
-                <span className="queued-actions">
-                  <button type="button" className="queued-steer" onClick={() => onSteerQueued(message.id)}>Steer</button>
-                  <button type="button" className="queued-drop" aria-label="Remove queued message" onClick={() => onDropQueued(message.id)}>
-                    <X size={13} />
-                  </button>
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {commandMenuOpen && (
           <div className="command-menu" ref={commandMenuRef} id="slash-command-menu" role="listbox" aria-label="Slash commands">

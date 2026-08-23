@@ -582,6 +582,7 @@ export function App() {
                     onPrompt={(prompt) => void workspace.dispatch({ type: "view.set-prompt", taskId: chat.id, prompt })}
                     onAnnotateAdd={({ quote, note, anchor }) => void workspace.dispatch({ type: "annotation.add", taskId: chat.id, quote, note, anchor })}
                     onAnnotateNote={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", taskId: chat.id, annotationId, note })}
+                    onAnnotateRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", taskId: chat.id, annotations })}
                     onAnnotateRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", taskId: chat.id, annotationId })}
                     onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", taskId: chat.id, text })}
                     onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", taskId: chat.id, pasteId })}
@@ -623,6 +624,7 @@ export function App() {
           actions={composerActions}
           threads={workspace.threadHandles}
           onPromptChange={workspace.actions.setPrompt}
+          onAnnotationRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", annotations })}
           onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
           onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
           onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", pasteId })}

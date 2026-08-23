@@ -1837,9 +1837,10 @@ pre {
   font-size: var(--text-control);
 }
 .queued-mark { flex: none; color: var(--quiet); }
+.queued-body { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; flex: 1; gap: 5px; }
+.queued-body .annotation-row { padding: 0; }
 .queued-text {
   overflow: hidden;
-  flex: 1;
   margin: 0;
   color: var(--muted);
   text-overflow: ellipsis;

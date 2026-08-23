@@ -154,8 +154,16 @@ export function projectName(project: Pick<Project, "name" | "root">) {
  * What the composer offers back on ↑: prompts the user sent themselves, oldest first. A user message
  * carries a detail only when an automation tick wrote it, so a labelled one was never typed.
  */
-export function sentPrompts(messages: TaskMessage[]): string[] {
-  return messages.filter((message) => message.kind === "user" && message.detail === undefined).map((message) => message.text);
+/** A message the composer can put back: what was typed, and the annotations that went with it. */
+export type RecalledMessage = {
+  text: string;
+  annotations: Annotation[];
+};
+
+export function sentPrompts(messages: TaskMessage[]): RecalledMessage[] {
+  return messages
+    .filter((message) => message.kind === "user" && message.detail === undefined)
+    .map((message) => ({ text: message.text, annotations: message.annotations ?? [] }));
 }
 
 export function threadCreatedAt(task: Task): number {

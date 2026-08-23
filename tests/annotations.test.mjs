@@ -125,3 +125,14 @@ test("a side chat drafts its own annotations, and closing it takes them along", 
   const closed = run(opened, [{ type: "side-chat.close", chatId: "chat-1" }]);
   assert.deepEqual(closed.annotations, {});
 });
+
+test("recalling a sent message puts its annotations back over whatever the draft holds", () => {
+  const drafted = run(currentWorkspace(), [{ type: "annotation.add", quote: "drafted since" }]);
+  const sent = [{ id: "a", quote: "what was sent", note: "and its note" }];
+
+  const recalled = reduce(drafted, { type: "annotation.recall", annotations: sent }).state;
+  assert.deepEqual(recalled.annotations["task-1"], sent, "the recall replaces the draft rather than adding to it");
+
+  const stepped = reduce(recalled, { type: "annotation.recall", annotations: [] }).state;
+  assert.deepEqual(stepped.annotations, {}, "stepping back down to an empty draft leaves nothing behind");
+});

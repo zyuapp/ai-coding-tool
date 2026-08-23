@@ -2,14 +2,14 @@ import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
-import { sentPrompts, type AnnotationAnchor, type RunAttachment, type Project, type Task } from "../../domain/task";
+import { sentPrompts, type Annotation, type AnnotationAnchor, type RunAttachment, type Project, type Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 
-export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onPasteAdd, onPasteRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
@@ -20,6 +20,7 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
   onPrompt: (prompt: string) => void;
   onAnnotateAdd: (draft: { quote: string; note: string; anchor: AnnotationAnchor }) => void;
   onAnnotateNote: (annotationId: string, note: string) => void;
+  onAnnotateRecall: (annotations: Annotation[]) => void;
   onAnnotateRemove: (annotationId: string) => void;
   onPasteAdd: (text: string) => void;
   onPasteRemove: (pasteId: string) => void;
@@ -91,6 +92,7 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}
+        onAnnotationRecall={onAnnotateRecall}
         onAnnotationRemove={onAnnotateRemove}
         onPasteAdd={onPasteAdd}
         onPasteRemove={onPasteRemove}
