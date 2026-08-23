@@ -67,7 +67,7 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
   return [
     tool(
       "list_threads",
-      "List the other AICodingTool threads, newest activity first. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name. When you name one in an answer, link it as [title](aicodingtool://thread/<id>) so the user can open it.",
+      "List the other AICodingTool threads, newest activity first. Use when the user asks what else is going on, points at recent or related work, or describes threads by age rather than by name.",
       {
         project: projectField,
         archived: z.boolean().optional().describe("List archived threads instead of active ones."),
@@ -91,7 +91,7 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
     ),
     tool(
       "read_thread",
-      "Read another thread's transcript. Use after list_threads to see how something was done there, rather than guessing from its title.",
+      "Read another thread's transcript. Use after list_threads to see how something was done there, rather than guessing from its title. A message that links a thread as aicodingtool://thread/<id> is naming it for you, so read it by that id rather than searching for it.",
       {
         threadId: threadIdField,
         limit: z.number().optional().describe("How many of the newest messages to read. Defaults to 30."),
@@ -114,7 +114,7 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
     ),
     tool(
       "start_thread",
-      "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. Pass worktree to give it an isolated checkout, which is what you want when it edits the same files as this thread.",
+      "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. Pass worktree to give it an isolated checkout, which is what you want when it edits the same files as this thread.",
       {
         prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
         project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project."),
@@ -141,7 +141,7 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
     ),
     tool(
       "archive_thread",
-      "Archive a thread, which also cancels a run it still has going and retires its automation. Archived threads stay recoverable for five days.",
+      "Archive a thread, which also cancels a run it still has going and retires its automation. Archived threads stay recoverable for five days. This throws away work in progress, so only archive when the user asked for it.",
       { threadId: threadIdField },
       async (args) => report(async () => {
         const { thread } = await bridge.command({ type: "task.archive", taskId: args.threadId });
@@ -150,7 +150,7 @@ export function threadTools(bridge: ThreadBridge, now: () => number = Date.now) 
     ),
     tool(
       "stop_thread",
-      "Stop the run a thread has going, leaving the thread itself alone.",
+      "Stop the run a thread has going, leaving the thread itself alone. This throws away work in progress, so only stop a run when the user asked for it.",
       { threadId: threadIdField },
       async (args) => report(async () => {
         const { thread } = await bridge.command({ type: "run.cancel", taskId: args.threadId });

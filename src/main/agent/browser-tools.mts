@@ -66,7 +66,7 @@ export function browserTools(bridge: BrowserBridge) {
   return [
     tool(
       "browser_open",
-      "Open a page in the AICodingTool browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying. To search, use browser_search.",
+      "Open a page in the AICodingTool browser panel and read it back. The panel shares one browser session with the user, so any site they are signed into is already signed in here, and they watch the same tabs you drive: leave the pages they opened alone. A page the user has never visited is theirs to allow first, so say what you need and wait rather than retrying. To search, use browser_search.",
       {
         url: z.string().describe("The page to open. Include the scheme for anything that is not an ordinary domain."),
         newTab: z.boolean().optional().describe("Open another tab instead of reusing the one on screen."),
@@ -94,7 +94,7 @@ export function browserTools(bridge: BrowserBridge) {
     ),
     tool(
       "browser_read",
-      "Read the page a tab is showing: its text, and the elements you can act on. Refs are only valid until the next read of that tab, so read again after anything changes the page.",
+      "Read the page a tab is showing: its text, and the elements you can act on. Act on the refs this hands back; they are only valid until the next read of that tab, so read again after anything changes the page.",
       {
         tabId: tabField,
         textLimit: z.number().optional().describe("How many characters of page text to return. Defaults to 4000."),
