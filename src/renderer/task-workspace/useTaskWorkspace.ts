@@ -284,6 +284,9 @@ export function useTaskWorkspace() {
       case "file.open":
         return reportFailure(window.desktop.openFile(effect.root, effect.path, effect.line));
 
+      case "app.open-folder":
+        return reportFailure(window.desktop.openFolderInApp(effect.appId, effect.root));
+
       case "browser.open":
         return reportFailure(window.desktop.openBrowserTab(effect.tabId, effect.url));
 
@@ -620,6 +623,7 @@ export function useTaskWorkspace() {
       decideBrowser: (allow: boolean) => dispatch({ type: "browser.decide", allow }),
       clearBrowserData: () => dispatch({ type: "browser.clear-data" }),
       openTerminal: () => dispatch({ type: "terminal.open" }),
+      openFolderInApp: (appId: string) => dispatch({ type: "app.open-folder", appId }),
       selectTerminal: (terminalId: string) => dispatch({ type: "terminal.select", terminalId }),
       closeTerminal: (terminalId: string) => dispatch({ type: "terminal.close", terminalId }),
       sendToTerminal: (terminalId: string, data: string) => dispatch({ type: "terminal.input", terminalId, data }),

@@ -2158,6 +2158,31 @@ test("a file named in a message opens against the checkout that thread works in"
   assert.equal(refused.state.actionError, WORKSPACE_ERRORS.fileFolder);
 });
 
+test("opening the thread in another application hands over the checkout it works in", () => {
+  const state = {
+    ...workspace(),
+    projects: [{ id: "project-1", root: "/repo" }],
+    tasks: [task("task-1", { projectId: "project-1" })],
+    currentId: "task-1",
+    openMenu: "workspace:open-in",
+  };
+
+  const local = reduce(state, { type: "app.open-folder", appId: "cursor" });
+  assert.deepEqual(local.effects, [{ type: "app.open-folder", root: "/repo", appId: "cursor" }]);
+  assert.equal(local.state.openMenu, null, "choosing an application closes the list");
+
+  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
+  assert.deepEqual(
+    reduce(inWorktree, { type: "app.open-folder", appId: "terminal" }).effects,
+    [{ type: "app.open-folder", root: "/worktrees/repo-w1", appId: "terminal" }],
+    "a thread in a worktree hands over the worktree",
+  );
+
+  const refused = reduce(workspace(), { type: "app.open-folder", appId: "cursor" });
+  assert.deepEqual(refused.effects, []);
+  assert.equal(refused.state.actionError, WORKSPACE_ERRORS.appFolder);
+});
+
 test("a terminal needs a folder to start in", () => {
   const refused = reduce(workspace(), { type: "terminal.open" });
 

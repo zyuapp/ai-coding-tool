@@ -1,5 +1,6 @@
 import { PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
 import type { Task } from "../../domain/task";
+import { OpenInMenu } from "./OpenInMenu";
 
 function FolderIcon() {
   return (
@@ -18,12 +19,17 @@ export type WorkspaceHeaderProps = {
   sessionPanelOpen: boolean;
   rightDockOpen: boolean;
   workingSubagents: number;
+  openMenu: string | null;
+  /** False while the thread has no checkout to hand over, such as a worktree still being made. */
+  canOpenFolder: boolean;
+  onSetOpenMenu: (menu: string | null) => void;
+  onOpenInApp: (appId: string) => void;
   onToggleSidebar: () => void;
   onToggleSessionPanel: () => void;
   onToggleRightDock: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, onSetOpenMenu, onOpenInApp, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -49,6 +55,7 @@ export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen,
         </div>
       </div>
       <div className="workspace-controls">
+        <OpenInMenu openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} enabled={canOpenFolder} onOpenInApp={onOpenInApp} />
         <button
           className={`session-toggle ${sessionPanelOpen ? "active" : ""}`}
           type="button"

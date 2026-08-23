@@ -624,8 +624,8 @@ export function terminalTarget(dock: ThreadDock, terminalId: string | undefined,
   return own ?? activeTerminal(dock);
 }
 
-/** Where a new shell starts: the thread's own checkout, else its project, else the last folder opened. */
-export function terminalFolder(state: WorkspaceState): string | null {
+/** The folder the app is pointed at: the thread's own checkout, else its project, else the last one opened. */
+export function currentFolder(state: WorkspaceState): string | null {
   const task = state.tasks.find((item) => item.id === state.currentId);
   const draft = state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.root : undefined;
   return taskWorkspaceRoot(state, task) ?? draft ?? state.lastFolder;
@@ -905,7 +905,7 @@ export function deriveView(state: WorkspaceState) {
     browserApproval: state.browserApproval,
     browserOrigins: state.browserOrigins,
     terminals: dock.terminals,
-    terminalFolder: terminalFolder(state),
+    currentFolder: currentFolder(state),
     openMenu: state.openMenu,
     find: findView(state, currentTask),
     canGoBack: reachableVisit(state, -1) !== null,

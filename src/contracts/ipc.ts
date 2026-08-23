@@ -4,6 +4,7 @@ import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/br
 import type { CaptureOptions } from "../domain/capture.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
+import type { ExternalApp } from "../domain/external-apps.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/task.js";
@@ -22,6 +23,12 @@ export type WindowTheme = {
   canvas: string;
   /** Whether the renderer took this ground from the system, in which case native chrome asks it too. */
   follow?: boolean;
+};
+
+/** An application the machine has, as the window draws it. */
+export type InstalledApp = ExternalApp & {
+  /** The application's own icon as a data URL, or null when the platform has none to give. */
+  icon: string | null;
 };
 
 export type WorkspaceId = string;
@@ -275,6 +282,10 @@ export type DesktopAPI = {
   onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
   openFile(root: string, path: string, line: number | null): Promise<void>;
+  /** The applications on this machine that can take a folder, read fresh enough to see a new install. */
+  listApps(): Promise<InstalledApp[]>;
+  /** Opens a checkout in one of them. `root` has to be a folder the app already works in. */
+  openFolderInApp(appId: string, root: string): Promise<void>;
   /** The terminal panel's shells live in main; the window owns the record of them. */
   startTerminal(terminalId: string, options: TerminalStartOptions): Promise<void>;
   /** What the user typed. Nothing outside the window reaches this: a run may read a terminal, never drive one. */

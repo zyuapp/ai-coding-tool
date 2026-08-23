@@ -294,7 +294,7 @@ export function App() {
   const dockLaunchers: DockLauncher[] = [
     ...dockPanels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, open: () => openRightTab(id) }] : []),
     { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() },
-    { id: "terminal", title: "Terminal", description: "Run a shell here and let Claude read what it prints", command: "terminal", icon: SquareTerminal, disabled: !workspace.terminalFolder, open: () => void workspace.actions.openTerminal() },
+    { id: "terminal", title: "Terminal", description: "Run a shell here and let Claude read what it prints", command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder, open: () => void workspace.actions.openTerminal() },
     { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentTask, open: addSideChat },
   ];
 
@@ -361,6 +361,10 @@ export function App() {
           sessionPanelOpen={sessionPanelVisible}
           rightDockOpen={rightDockOpen}
           workingSubagents={workingSubagents}
+          openMenu={workspace.openMenu}
+          canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
+          onSetOpenMenu={workspace.actions.setOpenMenu}
+          onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
           onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);

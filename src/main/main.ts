@@ -22,6 +22,7 @@ import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import { notify, serveFindingNotices, type FindingHost } from "./desktop-notice.js";
 import { openInEditor } from "./open-in-editor.js";
+import { serveExternalApps } from "./open-in-app.js";
 import { reportUpdateFailure } from "./update-notice.js";
 import { adoptUserDataFolder } from "./user-data.js";
 import { flashWindow } from "./capture-flash.js";
@@ -928,6 +929,7 @@ ipcMain.on("window:focus", (event) => {
 /** Where a finding goes when the window is not the place the user is looking. */
 const findingHost: FindingHost = { window: () => window, reveal: revealWindow };
 serveFindingNotices(findingHost, trustedSender);
+serveExternalApps(trustedSender);
 
 ipcMain.on("thread:answer", (event, response: unknown) => {
   if (!trustedSender(event) || !isThreadResponse(response)) return;

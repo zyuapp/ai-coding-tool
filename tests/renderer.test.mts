@@ -100,6 +100,7 @@ const { SessionPanel } = await import("../src/renderer/components/SessionPanel.t
 const { SubagentInspector } = await import("../src/renderer/components/SubagentInspector.tsx");
 const { AgentsPanel, matchSubagents } = await import("../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../src/renderer/components/WorkspaceHeader.tsx");
+const { OpenInMenu } = await import("../src/renderer/components/OpenInMenu.tsx");
 const { MarkdownMessage, MessageLinkProvider } = await import("../src/renderer/components/MarkdownMessage.tsx");
 const { DiagramViewer, naturalDiagram } = await import("../src/renderer/components/MermaidBlock.tsx");
 const { useTaskWorkspace } = await import("../src/renderer/task-workspace/useTaskWorkspace.ts");
@@ -657,6 +658,10 @@ test("workspace header keeps session summary and right panel controls separate",
     sessionPanelOpen: true,
     rightDockOpen: true,
     workingSubagents: 2,
+    openMenu: null,
+    canOpenFolder: true,
+    onSetOpenMenu: () => {},
+    onOpenInApp: () => {},
     onToggleSidebar: () => { sidebarToggles += 1; },
     onToggleSessionPanel: () => { summaryToggles += 1; },
     onToggleRightDock: () => { rightPanelToggles += 1; },
@@ -917,6 +922,7 @@ type FakeDesktop = DesktopAPI & {
   themes: Array<Parameters<DesktopAPI["setTheme"]>[0]>;
   captures: boolean[];
   captureOptions: Array<Parameters<DesktopAPI["setCaptureOptions"]>[0]>;
+  appCalls: unknown[][];
   pressShortcut: (action: string, surface?: Parameters<Parameters<DesktopAPI["onShortcut"]>[0]>[0]["surface"]) => void;
   captureShortcut: (binding: string | null) => void;
 };
@@ -932,6 +938,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const themes: Array<Parameters<DesktopAPI["setTheme"]>[0]> = [];
   const captures: boolean[] = [];
   const captureOptions: Array<Parameters<DesktopAPI["setCaptureOptions"]>[0]> = [];
+  const appCalls: unknown[][] = [];
   let browserEvent: Parameters<DesktopAPI["onBrowserEvent"]>[0] | undefined;
   let terminalEvent: Parameters<DesktopAPI["onTerminalEvent"]>[0] | undefined;
   let shortcutPressed: Parameters<DesktopAPI["onShortcut"]>[0] | undefined;
@@ -1007,6 +1014,12 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
     onBrowserFind: () => () => {},
     openFile: async (root, path, line) => { browserCalls.push(["open-file", root, path, line]); },
+    listApps: async () => [
+      { id: "cursor", label: "Cursor", kind: "editor", icon: "data:image/png;base64,AAA" },
+      { id: "terminal", label: "Terminal", kind: "terminal", icon: null },
+      { id: "finder", label: "Finder", kind: "files", icon: null },
+    ],
+    openFolderInApp: async (appId, root) => { appCalls.push([appId, root]); },
     startTerminal: async (terminalId, options) => { terminalCalls.push(["start", terminalId, options]); },
     writeTerminal: async (terminalId, data) => { terminalCalls.push(["write", terminalId, data]); },
     resizeTerminal: async (terminalId, cols, rows) => { terminalCalls.push(["resize", terminalId, cols, rows]); },
@@ -1043,6 +1056,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     themes,
     captures,
     captureOptions,
+    appCalls,
     askThreads(request: ThreadRequest) { assert.ok(threadRequested); return threadRequested(request); },
     openProjectFromCli(workspace: WorkspaceRecord) { assert.ok(openProject); return openProject(workspace); },
     pressShortcut(action: string, surface: Parameters<Parameters<DesktopAPI["onShortcut"]>[0]>[0]["surface"] = "any") { assert.ok(shortcutPressed); shortcutPressed({ action, surface }); },
@@ -1191,6 +1205,60 @@ test("a window grabbed by the desktop hotkey waits in the composer, and never tw
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a second press attaches the newer window");
   await view.unmount();
+});
+
+test("the open-in list groups the applications this machine has, and hands one the folder", async () => {
+  window.desktop = fakeDesktop();
+  const chosen: string[] = [];
+  let menu: string | null = null;
+  const view = await mount(React.createElement(OpenInMenu, {
+    openMenu: menu,
+    onSetOpenMenu: (next: string | null) => { menu = next; },
+    enabled: true,
+    onOpenInApp: (appId: string) => chosen.push(appId),
+  }));
+  const trigger = () => query<HTMLButtonElement>(view.container, ".open-in .session-toggle");
+
+  assert.equal(trigger().getAttribute("aria-expanded"), "false");
+  await act(async () => { trigger().click(); });
+  assert.equal(menu, "workspace:open-in");
+
+  await view.render(React.createElement(OpenInMenu, {
+    openMenu: menu,
+    onSetOpenMenu: (next: string | null) => { menu = next; },
+    enabled: true,
+    onOpenInApp: (appId: string) => chosen.push(appId),
+  }));
+  await act(async () => {});
+
+  assert.deepEqual([...view.container.querySelectorAll(".open-in-group")].map((group) => group.textContent), ["Editors", "Terminals", "Files"]);
+  const rows = [...view.container.querySelectorAll<HTMLButtonElement>(".open-in-popover button")];
+  assert.deepEqual(rows.map((row) => item(row.textContent)), ["Cursor", "Terminal", "Finder"]);
+  assert.ok(rows[0].querySelector("img"), "an application with an icon of its own shows it");
+  assert.equal(rows[1].querySelector("img"), null, "one without falls back to the icon for its kind");
+
+  await act(async () => { rows[0].click(); });
+  assert.deepEqual(chosen, ["cursor"]);
+  assert.equal(menu, null, "choosing an application closes the list");
+  await view.unmount();
+});
+
+test("the open-in button waits for a folder to hand over", async () => {
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement(OpenInMenu, { openMenu: null, onSetOpenMenu: () => {}, enabled: false, onOpenInApp: () => {} }));
+
+  assert.equal(query<HTMLButtonElement>(view.container, ".open-in .session-toggle").disabled, true);
+  await view.unmount();
+});
+
+test("the workspace hook hands the thread's checkout to the application the list chose", async () => {
+  const desktop = fakeDesktop({ openFolder: async () => ({ id: "workspace-1", kind: "project", root: "/project" }) });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { await workspace.get().actions.openFolder(); });
+  await act(async () => { await workspace.get().actions.openFolderInApp("cursor"); });
+
+  assert.deepEqual(desktop.appCalls, [["cursor", "/project"]]);
+  await workspace.view.unmount();
 });
 
 test("computer-use setup events open settings directly", async () => {

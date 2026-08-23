@@ -23,7 +23,7 @@ import {
   type RunProvenance,
   type ThreadMark,
 } from "./task-workspace.js";
-import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, terminalFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, currentFolder, viewPreferences, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -138,6 +138,8 @@ export type WorkspaceEffect =
   | { type: "browser.clear-data" }
   /** A file the desktop opens for the reader. `root` is the checkout it has to sit inside. */
   | { type: "file.open"; root: string; path: string; line: number | null }
+  /** The thread's checkout, opened in another application on the machine. */
+  | { type: "app.open-folder"; root: string; appId: string }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
   | { type: "terminal.start"; terminalId: string; cwd: string }
   | { type: "terminal.write"; terminalId: string; data: string }
@@ -185,6 +187,7 @@ const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before 
 const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
 const SWITCH_PROJECT_ERROR = "Open this thread in a project folder before switching branches.";
 const FILE_FOLDER_ERROR = "Open this thread in a project folder before opening a file from it.";
+const APP_FOLDER_ERROR = "Open this thread in a project folder before opening it in another application.";
 
 export const WORKSPACE_ERRORS = {
   reopenProject: REOPEN_PROJECT_ERROR,
@@ -200,6 +203,7 @@ export const WORKSPACE_ERRORS = {
   switchRunning: SWITCH_RUNNING_ERROR,
   switchProject: SWITCH_PROJECT_ERROR,
   fileFolder: FILE_FOLDER_ERROR,
+  appFolder: APP_FOLDER_ERROR,
 } as const;
 
 function now() {
@@ -1987,9 +1991,15 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({ ...state, actionError: null }, [{ type: "file.open", root, path: input.path, line: input.line ?? null }]);
     }
 
+    case "app.open-folder": {
+      const root = currentFolder(state);
+      if (!root) return settled({ ...state, actionError: APP_FOLDER_ERROR });
+      return settled({ ...state, actionError: null, openMenu: null }, [{ type: "app.open-folder", root, appId: input.appId }]);
+    }
+
     case "terminal.open": {
       const owner = dockOwner(state);
-      const cwd = input.cwd ?? terminalFolder(state);
+      const cwd = input.cwd ?? currentFolder(state);
       if (!cwd) return settled({ ...state, actionError: TERMINAL_FOLDER_ERROR });
       const terminal: TerminalSession = {
         id: crypto.randomUUID(),

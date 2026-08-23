@@ -678,6 +678,14 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 /** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
 .topbar.traffic-inset { padding-left: 84px; }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }
+.open-in { position: relative; display: flex; }
+.open-in-popover { top: 34px; right: 0; width: 208px; max-height: 60vh; overflow-y: auto; }
+.open-in-popover button { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; }
+.open-in-popover button > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.open-in-icon { display: grid; place-items: center; color: var(--muted); }
+.open-in-icon img { width: 16px; height: 16px; object-fit: contain; }
+.open-in-group { padding: 7px 8px 3px; color: var(--quiet); font-size: var(--text-meta); }
+.open-in-empty { padding: 8px; color: var(--quiet); font-size: var(--text-control); }
 .session-toggle.sidebar-toggle { display: grid; }
 .session-toggle {
   position: relative;

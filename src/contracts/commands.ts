@@ -21,7 +21,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | ViewCommand;
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
@@ -175,6 +175,12 @@ export type BrowserCommand =
  * paths are read against the thread's own checkout, so only files that thread can see ever open.
  */
 export type FileCommand = { type: "file.open"; taskId?: string; path: string; line?: number };
+
+/**
+ * The thread's checkout, handed to another application on the machine. Only the user asks for this,
+ * so it never appears in `ExternalCommand`: a run has the folder already.
+ */
+export type ExternalAppCommand = { type: "app.open-folder"; appId: string };
 
 /**
  * The terminal panel. Every command here is the user's own: a run may read what a shell has printed
