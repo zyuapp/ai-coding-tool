@@ -29,6 +29,8 @@ import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
 app.setName("AI Coding Tool");
+/** Ahead of the lock, which writes its own files into the folder and would leave nothing to move onto. */
+app.setPath("userData", adoptUserDataFolder(app.getPath("appData"), app.getName()));
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -40,7 +42,6 @@ if (!singleInstance) {
   console.log("AI Coding Tool is already running. Bringing that window forward instead of starting a second one.");
   app.exit(0);
 }
-app.setPath("userData", adoptUserDataFolder(app.getPath("appData"), app.getName()));
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
 if (app.isPackaged) app.setAsDefaultProtocolClient(CLI_URL_SCHEME);
 

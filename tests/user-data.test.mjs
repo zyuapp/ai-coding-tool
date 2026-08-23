@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -77,6 +77,21 @@ test("an empty folder under the app's name is moved onto, since it holds nothing
 
   assert.equal(adopted, path.join(root, NAME));
   assert.equal(await readFile(path.join(adopted, "tasks.v3.sqlite"), "utf8"), "store");
+});
+
+test("a folder holding only the single-instance lock is moved onto, since the lock is remade", async () => {
+  const root = await appData();
+  await seedLegacy(root);
+  const occupied = path.join(root, NAME);
+  await mkdir(occupied, { recursive: true });
+  for (const name of ["SingletonCookie", "SingletonSocket", ".DS_Store"]) await writeFile(path.join(occupied, name), "");
+  await symlink("host-1234", path.join(occupied, "SingletonLock"));
+
+  const adopted = adoptUserDataFolder(root, NAME);
+
+  assert.equal(adopted, occupied);
+  assert.equal(await readFile(path.join(adopted, "tasks.v3.sqlite"), "utf8"), "store");
+  assert.equal(existsSync(path.join(adopted, "SingletonLock")), false);
 });
 
 test("a launch with no folder from the first name moves nothing", async () => {
