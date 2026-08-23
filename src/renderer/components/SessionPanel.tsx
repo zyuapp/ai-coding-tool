@@ -267,22 +267,20 @@ export function SessionPanel({ environment, hasProject, workspaceId, taskId, loc
               </button>
             </div>
 
-            <div className="subagent-section">
-              <div className="subagent-heading">
-                <span>Subagents</span>
-                {working > 0 && <span>{working} working</span>}
-              </div>
-              {subagents.length === 0 ? (
-                <p className="session-empty">No subagents this session</p>
-              ) : (
+            {subagents.length > 0 && (
+              <div className="subagent-section">
+                <div className="subagent-heading">
+                  <span>Subagents</span>
+                  {working > 0 && <span>{working} working</span>}
+                </div>
                 <div className="subagent-list" aria-live="polite">
                   {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
                   {subagents.length > shown.length && (
                     <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View All</button>
                   )}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <BackgroundProcessSection processes={backgroundProcesses} workflows={workflows} onOpenWorkflow={onOpenWorkflow} onStop={onStopProcess} />
       </div>

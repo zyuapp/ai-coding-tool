@@ -357,7 +357,7 @@ test("the session panel lists the run's background processes and stops the one a
   await view.render(React.createElement(SessionPanel, {
     environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {}, onStopProcess() {},
   }));
-  assert.match(view.container.textContent, /No background processes/);
+  assert.doesNotMatch(view.container.textContent, /Processes/, "an empty section leaves nothing behind");
   await view.unmount();
 });
 
