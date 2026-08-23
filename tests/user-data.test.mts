@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { adoptUserDataFolder } from "../src/main/user-data.ts";
 
 const NAME = "AI Coding Tool";
@@ -56,14 +56,19 @@ test("workspace roots inside the folder are repointed, and the ones outside it a
   assert.equal(existsSync(legacy), false);
 });
 
-test("a folder that already holds data keeps it, and the first one is left where it is", async () => {
+test("a folder that already holds data keeps it, and the first one is left where it is", async (t) => {
   const root = await appData();
   const legacy = await seedLegacy(root);
   const occupied = path.join(root, NAME);
   await mkdir(occupied, { recursive: true });
   await writeFile(path.join(occupied, "tasks.v3.sqlite"), "newer store");
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  t.onTestFinished(() => logged.mockRestore());
 
   assert.equal(adoptUserDataFolder(root, NAME), legacy);
+  assert.equal(logged.mock.calls.length, 1);
+  assert.equal(logged.mock.calls[0]?.[0], "Could not move the app data folder off its first name:");
+  assert.match(String(logged.mock.calls[0]?.[1]), /already holds 1 file\(s\)/);
   assert.equal(existsSync(path.join(legacy, "tasks.v3.sqlite")), true);
   assert.equal(await readFile(path.join(occupied, "tasks.v3.sqlite"), "utf8"), "newer store");
 });
