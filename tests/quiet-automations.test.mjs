@@ -397,16 +397,30 @@ test("both tools teach rather than fail when the turn is nobody's schedule", asy
   assert.equal(host.task().findings, undefined);
 });
 
-test("a thread already full of unread findings fails the call rather than losing one, and still surfaces", async () => {
+test("a thread at its fill takes the newest finding and lets the oldest go", async () => {
   const host = toolHost(midRun());
   for (let index = 0; index < 10; index += 1) await answer(host, { op: "notify", report: { headline: `Finding ${index}`, key: `k${index}` } });
 
   const over = await answer(host, { op: "notify", report: { headline: "One too many", key: "k10" } });
-  assert.equal(over.ok, false, "a finding that cannot be kept is never quietly downgraded to nothing");
-  assert.match(over.message, /already carrying 10 unread findings/);
-  assert.equal(host.task().findings.length, 10);
-  assert.equal(host.run().notified, true, "the run spoke, so it surfaces either way");
-  assert.equal(settleRun(said(host.state(), { type: "automation.nothing-to-report", taskId: "task-a" })).state.tasks[0].outcome, "finished");
+  assert.equal(over.ok, true);
+  assert.equal(over.result.recorded, true);
+  const carried = host.task().findings.map((finding) => finding.headline);
+  assert.equal(carried.length, 10);
+  assert.equal(carried.at(-1), "One too many");
+  assert.equal(carried[0], "Finding 1", "the oldest made way for it");
+  assert.equal(settleRun(host.state()).state.tasks[0].outcome, "finished");
+});
+
+test("what an earlier run filled the thread with cannot silence what this one found", async () => {
+  const carried = Array.from({ length: 10 }, (_, index) => ({ id: `f${index}`, headline: `Old ${index}`, key: `k${index}`, at: 5 }));
+  const host = toolHost(midRun({}, { findings: carried }));
+
+  const raised = await answer(host, { op: "notify", report: { headline: "The database is down", key: "db" } });
+  assert.equal(raised.result.recorded, true);
+  assert.equal(host.run().notified, true);
+  const settled = settleRun(host.state()).state.tasks[0];
+  assert.equal(settled.outcome, "finished", "a quiet tick that found something new still surfaces");
+  assert.ok(settled.findings.some((finding) => finding.key === "db"));
 });
 
 test("a quiet tick carries what it surfaces for, and the two tools that answer it, into its own prompt", () => {

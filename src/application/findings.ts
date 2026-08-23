@@ -12,11 +12,8 @@ import { applyTask, createTaskMessage, type ActiveRun, type RunTransitionState, 
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
-/**
- * What raising one did. A finding the thread already carries unread is the same finding, and a
- * thread already carrying its fill has nowhere to put another without losing one.
- */
-export type FindingOutcome = "recorded" | "duplicate" | "full";
+/** What raising one did. A finding the thread already carries is the same finding, not news. */
+export type FindingOutcome = "recorded" | "duplicate";
 
 export function unreadFindings(task: Task): TaskFinding[] {
   return (task.findings ?? []).filter((finding) => !finding.read);
@@ -34,7 +31,7 @@ export function hasFindings(task: Task): boolean {
 export function findingOutcome(task: Task, key?: string): FindingOutcome {
   /** A key holds while the thread carries it and while the user has it filed away: neither is news. */
   if (key !== undefined && ((task.findings ?? []).some((finding) => finding.key === key) || (task.silencedKeys ?? []).includes(key))) return "duplicate";
-  return unreadFindings(task).length >= MAX_FINDINGS ? "full" : "recorded";
+  return "recorded";
 }
 
 /**
@@ -171,8 +168,8 @@ export function scheduledRun(state: RunTransitionState, taskId: string): ActiveR
 }
 
 /**
- * Records what a run found and marks the run as having spoken. The mark is set even when the finding
- * itself is turned away, so a run that says it found something can never be settled unseen.
+ * Records what a run found and marks the run as having answered for itself. Anything the thread was
+ * not already carrying is news, so the run surfaces; only a duplicate leaves the silence intact.
  */
 export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: string, report: FindingReport, at: number, seen = false): T {
   const active = scheduledRun(state, taskId);

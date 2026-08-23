@@ -3,7 +3,6 @@ import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscr
 import { findingOutcome, scheduledRun, unreadFindings } from "../../application/findings";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
-import { MAX_FINDINGS } from "../../domain/task";
 import { terminalLineLimit } from "../../domain/terminal";
 import { errorMessage } from "./errors";
 
@@ -154,7 +153,6 @@ async function raiseFinding(host: ThreadRequestHost, taskId: string, report: Fin
   if (!task || !scheduledRun(before, taskId)) return { recorded: false, note: UNSCHEDULED };
   const outcome = findingOutcome(task, report.key);
   await host.dispatch({ type: "automation.notify", taskId, ...report });
-  if (outcome === "full") throw new Error(`This thread is already carrying ${MAX_FINDINGS} unread findings, so this one was not raised. The run surfaces either way; the user has to read the thread before it can hold more.`);
   if (outcome === "duplicate") return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
   const unread = unreadCount(host, taskId);
   const carried = unread === 0
