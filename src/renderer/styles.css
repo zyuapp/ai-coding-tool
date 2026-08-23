@@ -2586,7 +2586,10 @@ pre {
 }
 .message-stack .annotation-card { left: auto; right: 0; }
 .annotation-pill:hover > .annotation-card,
-.annotation-pill:focus-within > .annotation-card { opacity: 1; transform: translateY(0); }
+.annotation-pill:focus-within > .annotation-card { opacity: 1; pointer-events: auto; transform: translateY(0); }
+/** A row's transform holds the card in its own stacking context, below the markers outside it. */
+.timeline-row:has(.annotation-pill:hover),
+.timeline-row:has(.annotation-pill:focus-within) { z-index: 6; }
 .annotation-card-head {
   display: flex;
   align-items: center;

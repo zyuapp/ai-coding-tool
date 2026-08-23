@@ -232,7 +232,9 @@ export function TaskComposer({
   const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
   const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [] }))];
-  const recallable = sent.filter((message, index) => message.text.trim() !== "" && message.text !== sent[index - 1]?.text);
+  /** A send is worth offering back when it carried anything. Only a repeated text collapses into one. */
+  const recallable = sent.filter((message, index) => (message.text.trim() !== "" || message.annotations.length > 0)
+    && !(message.text !== "" && message.text === sent[index - 1]?.text));
 
   /** Step through the sent history; the live draft is stashed and comes back below the newest entry. */
   function stepRecall(step: -1 | 1) {

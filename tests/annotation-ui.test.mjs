@@ -119,6 +119,30 @@ test("a queued message shows the annotations it carries, and they cannot be remo
   await view.unmount();
 });
 
+test("a send that carried only annotations is still offered back", async () => {
+  const recalled = [];
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return composer({
+      prompt,
+      history: [{ text: "", annotations }, { text: "then some words", annotations: [] }],
+      onPromptChange: setPrompt,
+      onAnnotationRecall: (put) => recalled.push(put),
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const textarea = view.container.querySelector('textarea[aria-label="Task prompt"]');
+  const up = () => act(async () => { textarea.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })); });
+
+  await act(async () => { textarea.focus(); });
+  await up();
+  assert.equal(textarea.value, "then some words");
+  await up();
+  assert.equal(textarea.value, "", "the annotation-only send is a step of its own");
+  assert.deepEqual(recalled[1], annotations, "and it brings its annotations with it");
+  await view.unmount();
+});
+
 test("the up arrow puts a sent message's annotations back with its text", async () => {
   const recalled = [];
   function Harness() {
