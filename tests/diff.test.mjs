@@ -41,7 +41,7 @@ async function git(root, ...args) {
 }
 
 async function repository() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "claudex-diff-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-diff-"));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
   await git(root, "config", "user.name", "AI Coding Tool Tests");
@@ -242,7 +242,7 @@ test("a patch is read for one file, and an untracked one is diffed against empti
 });
 
 test("a repository with no commits lists what it holds instead of failing", async (t) => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "claudex-diff-empty-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-diff-empty-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");

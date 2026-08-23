@@ -763,9 +763,9 @@ function fakeDesktop(overrides = {}) {
     openFolder: async () => null,
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread(next) { this.openThread = next; return () => {}; },
-    cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/claudex" }),
-    installCli: async () => ({ state: "installed", path: "/usr/local/bin/claudex" }),
-    uninstallCli: async () => ({ state: "missing", path: "/usr/local/bin/claudex" }),
+    cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
+    installCli: async () => ({ state: "installed", path: "/usr/local/bin/aic" }),
+    uninstallCli: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
     projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
     commands: async () => ({ status: "available", commands: [] }),
     computerUsePermissions: async () => ({ accessibility: true, screenRecording: true }),
@@ -782,7 +782,7 @@ function fakeDesktop(overrides = {}) {
     createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
     releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
     deleteWorktree: async () => {},
-    saveAttachment: async () => "/tmp/claudex-attachments/pasted.png",
+    saveAttachment: async () => "/tmp/aicodingtool-attachments/pasted.png",
     readAttachment: async () => "iVBORw0KGgo=",
     suggestTaskTitle: async () => null,
     loadTaskStore: async () => null,
@@ -850,13 +850,13 @@ function fakeDesktop(overrides = {}) {
   };
 }
 
-test("the general section installs the claudex command and takes it back", async () => {
+test("the general section installs the aic command and takes it back", async () => {
   const calls = [];
-  let status = { state: "missing", path: "/usr/local/bin/claudex" };
+  let status = { state: "missing", path: "/usr/local/bin/aic" };
   window.desktop = fakeDesktop({
     cliStatus: async () => status,
-    installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/claudex" }; return status; },
-    uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/claudex" }; return status; },
+    installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/aic" }; return status; },
+    uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/aic" }; return status; },
   });
   const view = await mount(React.createElement(SettingsPanel, { onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
@@ -866,7 +866,7 @@ test("the general section installs the claudex command and takes it back", async
 
   await act(async () => { button().click(); });
   assert.equal(button().textContent, "Uninstall");
-  assert.match(view.container.textContent, /Installed at \/usr\/local\/bin\/claudex/);
+  assert.match(view.container.textContent, /Installed at \/usr\/local\/bin\/aic/);
 
   await act(async () => { button().click(); });
   assert.deepEqual(calls, ["install", "uninstall"]);
@@ -967,7 +967,7 @@ test("a window grabbed by the desktop hotkey waits in the composer, and never tw
   window.desktop = desktop;
   const view = await mount(React.createElement(App));
 
-  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/claudex-attachments/grabbed.png" }); });
+  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/aicodingtool-attachments/grabbed.png" }); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1);
   assert.equal(view.container.querySelector('button[aria-label="Send task"]').disabled, false);
@@ -975,7 +975,7 @@ test("a window grabbed by the desktop hotkey waits in the composer, and never tw
   await act(async () => { view.container.querySelector('button[aria-label="Remove image 1"]').click(); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
 
-  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/claudex-attachments/again.png" }); });
+  await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/aicodingtool-attachments/again.png" }); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a second press attaches the newer window");
   await view.unmount();
@@ -1625,7 +1625,7 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   assert.equal(view.container.querySelector('button[aria-label="Send task"]').disabled, false);
 
   await act(async () => { view.container.querySelector('button[aria-label="Send task"]').click(); });
-  assert.deepEqual(sent, [{ path: "/tmp/claudex-attachments/pasted.png", labels: [] }]);
+  assert.deepEqual(sent, [{ path: "/tmp/aicodingtool-attachments/pasted.png", labels: [] }]);
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
   await view.unmount();
 });
@@ -2296,7 +2296,7 @@ test("workspace hook coalesces overlapping changed-files reads and follows up on
   await workspace.view.unmount();
 });
 
-test("a folder the claudex command names opens as a project without the dialog", async () => {
+test("a folder the aic command names opens as a project without the dialog", async () => {
   const desktop = fakeDesktop({ openFolder: async () => { throw new Error("nothing should be picked"); } });
   const workspace = await mountWorkspace(desktop);
   await act(async () => { desktop.openProjectFromCli({ id: "workspace-cli", kind: "project", root: "/code/app" }); });
@@ -3755,7 +3755,7 @@ test("the start options say where a thread begins, and searching narrows the bra
   const { ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
   const chosen = { project: [], branch: [], worktree: [] };
-  const projects = [{ id: "project-a", root: "/repo/claudex" }, { id: "project-b", root: "/repo/just-speak" }];
+  const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
   const options = (branch, worktree) => React.createElement(ThreadStartOptions, {
     projects,
     projectId: "project-a",
@@ -3769,7 +3769,7 @@ test("the start options say where a thread begins, and searching narrows the bra
 
   const view = await mount(options(null, false));
   const project = view.container.querySelector('button[aria-label="Project"]');
-  assert.match(project.textContent, /claudex/, "the project the thread starts in is filled in already");
+  assert.match(project.textContent, /ai-coding-tool/, "the project the thread starts in is filled in already");
   assert.match(view.container.querySelector('button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
   const worktreeToggle = view.container.querySelector(".thread-start-toggle");
   assert.equal(worktreeToggle.textContent, "Worktree");
@@ -3778,7 +3778,7 @@ test("the start options say where a thread begins, and searching narrows the bra
 
   await act(async () => { project.click(); });
   const projectOptions = [...view.container.querySelectorAll('[role="option"]')];
-  assert.deepEqual(projectOptions.map((option) => option.textContent), ["claudex", "just-speak"]);
+  assert.deepEqual(projectOptions.map((option) => option.textContent), ["ai-coding-tool", "just-speak"]);
   await act(async () => { projectOptions[1].click(); });
   assert.deepEqual(chosen.project, ["project-b"]);
 
@@ -3820,7 +3820,7 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
   const { ThreadModeSwitch, ThreadStartOptions } = await vite.ssrLoadModule("/src/renderer/components/ThreadStartOptions.tsx");
   window.desktop = fakeDesktop();
   const chosen = [];
-  const projects = [{ id: "project-a", root: "/repo/claudex" }, { id: "project-b", root: "/repo/just-speak" }];
+  const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
   const view = await mount(React.createElement(ThreadModeSwitch, { projects, projectId: "project-a", onSelectProject: (id) => { chosen.push(id); } }));
 
   const modes = () => [...view.container.querySelectorAll('[role="radio"]')];
@@ -3857,7 +3857,7 @@ test("a branch the repository does not have is offered as one to create", async 
   window.desktop = fakeDesktop();
   const chosen = [];
   const options = (branch) => React.createElement(ThreadStartOptions, {
-    projects: [{ id: "project-a", root: "/repo/claudex" }],
+    projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }],
     projectId: "project-a",
     workspaceId: "workspace-a",
     branch,

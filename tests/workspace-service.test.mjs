@@ -9,7 +9,7 @@ import {
 } from "../dist/main/main/workspace/workspace-service.mjs";
 
 async function setup() {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "claudex-workspaces-"));
+  const directory = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-workspaces-"));
   return {
     directory,
     registryPath: path.join(directory, "state", "workspaces.json"),

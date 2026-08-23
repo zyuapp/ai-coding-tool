@@ -1865,23 +1865,23 @@ test("a folder just opened lands above the ones the user already ordered", () =>
 });
 
 test("the user's own page visit opens a dock tab of its own and allows that origin from then on", () => {
-  const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/claudex" });
+  const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/ai-coding-tool" });
   const [tab] = dock(opened.state).browserTabs;
 
-  assert.equal(tab.url, "https://github.com/zyuapp/claudex");
+  assert.equal(tab.url, "https://github.com/zyuapp/ai-coding-tool");
   assert.equal(tab.loading, true);
   assert.equal(dock(opened.state).browserTabId, tab.id);
   assert.deepEqual(opened.state.browserOrigins, ["https://github.com"]);
   assert.equal(dock(opened.state).open, true, "a page has to land somewhere the user can see it");
   assert.equal(dock(opened.state).tab, tab.id, "a page is a tab in the dock, not a tab inside a panel");
   assert.deepEqual(opened.effects.filter((effect) => effect.type.startsWith("browser")), [
-    { type: "browser.open", tabId: tab.id, url: "https://github.com/zyuapp/claudex" },
+    { type: "browser.open", tabId: tab.id, url: "https://github.com/zyuapp/ai-coding-tool" },
     { type: "browser.show", tabId: tab.id },
   ]);
 
-  const navigated = reduce(opened.state, { type: "browser.open", url: "https://github.com/zyuapp/claudex/pulls" });
+  const navigated = reduce(opened.state, { type: "browser.open", url: "https://github.com/zyuapp/ai-coding-tool/pulls" });
   assert.equal(dock(navigated.state).browserTabs.length, 1, "the tab on screen is reused");
-  assert.deepEqual(navigated.effects[0], { type: "browser.navigate", tabId: tab.id, url: "https://github.com/zyuapp/claudex/pulls" });
+  assert.deepEqual(navigated.effects[0], { type: "browser.navigate", tabId: tab.id, url: "https://github.com/zyuapp/ai-coding-tool/pulls" });
 
   const another = reduce(navigated.state, { type: "browser.open", url: "https://example.com", newTab: true });
   assert.equal(dock(another.state).browserTabs.length, 2);

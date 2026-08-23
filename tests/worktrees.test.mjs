@@ -18,7 +18,7 @@ const scratch = [];
 
 async function temporaryDirectory(prefix) {
   /** Resolved, because git reports real paths and macOS hands out a symlinked temporary root. */
-  const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), `claudex-${prefix}-`)));
+  const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), `aicodingtool-${prefix}-`)));
   scratch.push(directory);
   return directory;
 }

@@ -103,8 +103,8 @@
       "notarize": true,
       "signIgnore": "Contents/Resources/cua-driver$",
       "extendInfo": {
-        "NSAppleEventsUsageDescription": "Claudex uses Automation only when a requested computer-use action needs to communicate with another app.",
-        "NSScreenCaptureUsageDescription": "Claudex captures app windows so Claude can see and interact with interfaces you ask it to control."
+        "NSAppleEventsUsageDescription": "AI Coding Tool uses Automation only when a requested computer-use action needs to communicate with another app.",
+        "NSScreenCaptureUsageDescription": "AI Coding Tool captures app windows so Claude can see and interact with interfaces you ask it to control."
       },
       "icon": "assets/icon.png",
       "target": [

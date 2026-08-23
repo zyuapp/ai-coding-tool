@@ -5,7 +5,7 @@ import { isFindingNotice } from "../dist/main/contracts/ipc.js";
 import { startMainProcess } from "./support/electron-harness.mjs";
 
 let main;
-test.before(async () => { main = await startMainProcess(null, "claudex-finding-"); });
+test.before(async () => { main = await startMainProcess(null, "aicodingtool-finding-"); });
 test.after(async () => { await main?.dispose(); });
 
 const FINDING = { taskId: "task-datadog", title: "Datadog watch", headline: "5xx on checkout since 02:10" };

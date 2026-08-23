@@ -7,7 +7,7 @@ import test from "node:test";
 import { TaskDatabase } from "../dist/main/main/task-database.mjs";
 
 test("SQLite task storage appends and updates messages without rewriting the transcript", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
   const task = {
     id: "task-1",
@@ -45,7 +45,7 @@ test("SQLite task storage appends and updates messages without rewriting the tra
 });
 
 test("SQLite task storage keeps subagent activity in rows of its own", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-subagent-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-subagent-database-"));
   const file = path.join(directory, "tasks.sqlite");
   const database = new TaskDatabase(file);
   const task = {
@@ -87,7 +87,7 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
 });
 
 test("SQLite task storage lifts subagents out of tasks written before they had rows", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-subagent-migration-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-subagent-migration-"));
   const file = path.join(directory, "tasks.sqlite");
   const legacy = new TaskDatabase(file);
   const task = {
@@ -174,7 +174,7 @@ test("SQLite automation storage keeps one row per task and drops unreadable rows
 });
 
 test("a project folder inside any of the app's own worktree roots is refused, and the rest of the delta still lands", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const worktreesRoot = path.join(directory, "worktrees");
   const legacyRoot = path.join(directory, "legacy-worktrees");
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoots: [worktreesRoot, legacyRoot] });
@@ -214,7 +214,7 @@ test("a project folder inside any of the app's own worktree roots is refused, an
 });
 
 test("a project folder that merely starts with the worktrees root's name is still allowed", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const worktreesRoot = path.join(directory, "worktrees");
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"), { worktreesRoots: [worktreesRoot] });
   try {
@@ -227,7 +227,7 @@ test("a project folder that merely starts with the worktrees root's name is stil
 });
 
 test("a checkout stored inside its thread is lifted into a record other threads can claim", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const file = path.join(directory, "tasks.sqlite");
   const checkout = { id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "workspace-wt1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 2 };
   const stored = {
@@ -265,7 +265,7 @@ test("a checkout stored inside its thread is lifted into a record other threads 
 });
 
 test("a checkout is claimed while any thread is in it, and forgetting it frees every one of them", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
   const worktree = { id: "wt1", projectId: "project-1", root: "/worktrees/repo-wt1", workspaceId: "workspace-wt1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 2 };
   const thread = (id, overrides) => ({
@@ -312,7 +312,7 @@ test("a checkout is claimed while any thread is in it, and forgetting it frees e
 });
 
 test("SQLite task storage keeps what a thread's runs found, and which of its messages were withdrawn", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
   const task = {
     id: "task-1",

@@ -9,7 +9,7 @@ test("a call is named by its argument, and marked by what kind of argument it is
 });
 
 test("a path keeps the two segments that say which file, and drops the ones that say which machine", () => {
-  assert.equal(describeToolCall("Read", JSON.stringify({ file_path: "/Users/x/workspace/claudex/src/renderer/styles.css" })).argument, "…/renderer/styles.css");
+  assert.equal(describeToolCall("Read", JSON.stringify({ file_path: "/Users/x/workspace/ai-coding-tool/src/renderer/styles.css" })).argument, "…/renderer/styles.css");
   assert.equal(describeToolCall("Read", JSON.stringify({ file_path: "src/renderer/styles.css" })).argument, "src/renderer/styles.css");
   assert.equal(describeToolCall("Read", JSON.stringify({ file_path: "/etc/hosts" })).argument, "/etc/hosts");
 });

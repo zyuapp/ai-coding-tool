@@ -7,7 +7,7 @@ import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable }
 import { input, liveQueryFactory, liveTurn, queryFactory, tick, turn } from "./support/claude-session.mjs";
 
 test("packaged builds use the unpacked Claude executable", async () => {
-  const resourcesPath = await mkdtemp(path.join(os.tmpdir(), "claudex-resources-"));
+  const resourcesPath = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-resources-"));
   const executable = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude");
   await mkdir(path.dirname(executable), { recursive: true });
   await writeFile(executable, "");

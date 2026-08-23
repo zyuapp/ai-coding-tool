@@ -15,7 +15,7 @@ async function git(root, ...args) {
 }
 
 async function repository() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "claudex-git-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-git-"));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
   await git(root, "config", "user.name", "AI Coding Tool Tests");
@@ -61,7 +61,7 @@ test("numstat totals ignore binary files and renamed path records", () => {
 
 test("changed files reports exact Git summary including safe untracked line counts", async (t) => {
   const root = await repository();
-  const outside = await mkdtemp(path.join(os.tmpdir(), "claudex-outside-"));
+  const outside = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-outside-"));
   t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(outside, { recursive: true, force: true })]); });
   await writeFile(path.join(root, "tracked.txt"), "one\ntwo\n");
   await writeFile(path.join(root, "no-final-newline.txt"), "one\ntwo");
@@ -83,7 +83,7 @@ test("changed files reports exact Git summary including safe untracked line coun
 
 test("changed files counts committed work against the origin default branch", async (t) => {
   const root = await repository();
-  const origin = await mkdtemp(path.join(os.tmpdir(), "claudex-origin-"));
+  const origin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-origin-"));
   t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(origin, { recursive: true, force: true })]); });
   await git(origin, "init", "--bare", "-b", "main");
   await git(root, "remote", "add", "origin", origin);
@@ -103,7 +103,7 @@ test("changed files counts committed work against the origin default branch", as
 
 test("changed files reports detached HEAD and non-Git failures", async (t) => {
   const root = await repository();
-  const nonGit = await mkdtemp(path.join(os.tmpdir(), "claudex-not-git-"));
+  const nonGit = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-not-git-"));
   t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(nonGit, { recursive: true, force: true })]); });
   const { stdout } = await git(root, "rev-parse", "--short", "HEAD");
   await git(root, "checkout", "--detach");

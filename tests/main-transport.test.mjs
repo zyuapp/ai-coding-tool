@@ -6,7 +6,7 @@ import test from "node:test";
 import { startMainProcess, tick, waitFor } from "./support/electron-harness.mjs";
 
 let main;
-test.before(async () => { main = await startMainProcess(null, "claudex-main-"); });
+test.before(async () => { main = await startMainProcess(null, "aicodingtool-main-"); });
 test.after(async () => { await main?.dispose(); });
 
 test("the main window sends ordinary web links to the default browser", async () => {
@@ -152,7 +152,7 @@ test("a bound keystroke is taken from the window's menu and handed to whatever i
 
 test("a folder the aic command names is registered and handed to the window that asks for it", async () => {
   const { appListeners, handlers, listeners, trusted, untrusted, sentOn } = main;
-  const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), "claudex-cli-open-")));
+  const folder = await realpath(await mkdtemp(path.join(os.tmpdir(), "aicodingtool-cli-open-")));
   const url = `aicodingtool://open?path=${Buffer.from(folder, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_")}`;
   const opened = () => sentOn("workspace:open-project");
   try {

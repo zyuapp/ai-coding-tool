@@ -7,7 +7,7 @@ test("computer-use startup cannot create a host after shutdown begins", { skip: 
   let finishPermissions;
   let hosts = 0;
   const permissions = new Promise((resolve) => { finishPermissions = resolve; });
-  globalThis.__claudexQuitComputerUse = {
+  globalThis.__aicodingtoolQuitComputerUse = {
     app: { isPackaged: false, getAppPath: () => process.cwd() },
     shell: {},
     systemPreferences: {},
@@ -27,12 +27,12 @@ test("computer-use startup cannot create a host after shutdown begins", { skip: 
         if (id === "virtual:fake-cua-driver") return "\0fake-cua-driver";
       },
       load(id) {
-        if (id === "\0fake-electron") return "const f = globalThis.__claudexQuitComputerUse; export const app=f.app, shell=f.shell, systemPreferences=f.systemPreferences;";
-        if (id === "\0fake-cua-driver") return "const f = globalThis.__claudexQuitComputerUse; export const currentMacOsPermissionStatus=f.currentMacOsPermissionStatus, EmbeddedCuaDriverHost=f.EmbeddedCuaDriverHost;";
+        if (id === "\0fake-electron") return "const f = globalThis.__aicodingtoolQuitComputerUse; export const app=f.app, shell=f.shell, systemPreferences=f.systemPreferences;";
+        if (id === "\0fake-cua-driver") return "const f = globalThis.__aicodingtoolQuitComputerUse; export const currentMacOsPermissionStatus=f.currentMacOsPermissionStatus, EmbeddedCuaDriverHost=f.EmbeddedCuaDriverHost;";
       },
     }],
   });
-  t.after(async () => { await vite.close(); delete globalThis.__claudexQuitComputerUse; });
+  t.after(async () => { await vite.close(); delete globalThis.__aicodingtoolQuitComputerUse; });
   const computerUse = await vite.ssrLoadModule("/src/main/computer-use-host.ts");
 
   const starting = computerUse.computerUseForRun();
@@ -48,7 +48,7 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
   let runStarts = 0;
   let stopCalls = 0;
   const stopped = new Promise((resolve) => { finishStop = resolve; });
-  const main = await startMainProcess(t, "claudex-quit-", {
+  const main = await startMainProcess(t, "aicodingtool-quit-", {
     computerUse: {
       computerUseForRun: async () => { runStarts += 1; return { status: "setup-required" }; },
       computerUsePermissions: async () => ({ accessibility: false, screenRecording: false }),
@@ -87,7 +87,7 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
 
 test("a requested computer-use restart accepts a project URL before it relaunches", async (t) => {
   let finishStop;
-  const main = await startMainProcess(t, "claudex-restart-", {
+  const main = await startMainProcess(t, "aicodingtool-restart-", {
     computerUse: {
       computerUseForRun: async () => ({ status: "setup-required" }),
       computerUsePermissions: async () => ({ accessibility: false, screenRecording: false }),

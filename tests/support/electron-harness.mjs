@@ -121,7 +121,7 @@ export async function startMainProcess(t, prefix, options = {}) {
 
   const Notification = fakeNotifications();
 
-  globalThis.__claudexElectron = {
+  globalThis.__aicodingtoolElectron = {
     app: {
       dock: { setIcon() {} },
       setName() {},
@@ -189,7 +189,7 @@ export async function startMainProcess(t, prefix, options = {}) {
       enforce: "pre",
       resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
       load(id) {
-        if (id === "\0fake-electron") return "const e = globalThis.__claudexElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+        if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
       },
     }, ...(options.computerUse ? [{
       name: "fake-computer-use",
@@ -198,19 +198,19 @@ export async function startMainProcess(t, prefix, options = {}) {
         if (id === "./computer-use-host.js" && importer?.endsWith("/src/main/main.ts")) return "\0fake-computer-use";
       },
       load(id) {
-        if (id === "\0fake-computer-use") return "const c = globalThis.__claudexComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse;";
+        if (id === "\0fake-computer-use") return "const c = globalThis.__aicodingtoolComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse;";
       },
     }] : [])],
   });
-  if (options.computerUse) globalThis.__claudexComputerUse = options.computerUse;
+  if (options.computerUse) globalThis.__aicodingtoolComputerUse = options.computerUse;
   const dispose = async () => {
     if (disposed) return;
     disposed = true;
     appListeners.get("will-quit")?.();
     await vite.close();
     await rm(userData, { recursive: true, force: true });
-    delete globalThis.__claudexElectron;
-    delete globalThis.__claudexComputerUse;
+    delete globalThis.__aicodingtoolElectron;
+    delete globalThis.__aicodingtoolComputerUse;
     delete globalThis.__dirname;
     delete process.versions.chrome;
   };
@@ -225,7 +225,7 @@ export async function startMainProcess(t, prefix, options = {}) {
 
   const window = windows[0];
   return {
-    app: globalThis.__claudexElectron.app,
+    app: globalThis.__aicodingtoolElectron.app,
     dispose,
     userData,
     handlers,

@@ -6,7 +6,7 @@ import { LEGACY_TASK_STORE_KEYS, TASK_STORE_KEYS, TaskStore } from "../dist/main
 const task = {
   id: "task-1",
   title: "Fix the app",
-  folder: "/work/claudex",
+  folder: "/work/ai-coding-tool",
   sessionId: "session-1",
   mode: "acceptEdits",
   messages: [{ id: "message-1", kind: "user", text: "Fix it", at: 10 }],
@@ -17,8 +17,8 @@ const task = {
 function legacyValues(overrides = {}) {
   return {
     tasks: JSON.stringify([task]),
-    projects: JSON.stringify(["/work/claudex"]),
-    lastFolder: "/work/claudex",
+    projects: JSON.stringify(["/work/ai-coding-tool"]),
+    lastFolder: "/work/ai-coding-tool",
     ...overrides,
   };
 }
@@ -30,15 +30,15 @@ test("migrates all v1 keys and keeps a resumable transcript", () => {
 
   const migrated = result.data.tasks[0];
   assert.equal(result.data.version, 2);
-  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/claudex"), root: "/work/claudex" }]);
-  assert.equal(migrated.projectId, legacyProjectId("/work/claudex"));
+  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/ai-coding-tool"), root: "/work/ai-coding-tool" }]);
+  assert.equal(migrated.projectId, legacyProjectId("/work/ai-coding-tool"));
   assert.equal(migrated.executionPolicy, "allow-edits");
   assert.deepEqual(migrated.continuation, { provider: "claude", value: "session-1" });
   assert.equal(migrated.continuationStatus, "available");
   assert.deepEqual(migrated.lastChangeSnapshot, { files: [" M src/App.tsx"], capturedAt: 20 });
-  assert.equal(result.data.lastFolder, "/work/claudex");
+  assert.equal(result.data.lastFolder, "/work/ai-coding-tool");
   assert.deepEqual(result.preservedV1, legacyValues());
-  assert.equal(legacyProjectId("/work/claudex"), legacyProjectId("/work/claudex/"));
+  assert.equal(legacyProjectId("/work/ai-coding-tool"), legacyProjectId("/work/ai-coding-tool/"));
 });
 
 test("loads the previous Threadline namespace and saves it under AI Coding Tool", () => {
@@ -379,11 +379,11 @@ test("a valid v2 envelope takes precedence over split and v1 values", () => {
 });
 
 test("v1 migration deduplicates project roots with trailing separators", () => {
-  const result = migrateV1ToV2(legacyValues({ projects: JSON.stringify(["/work/claudex/"]) }));
+  const result = migrateV1ToV2(legacyValues({ projects: JSON.stringify(["/work/ai-coding-tool/"]) }));
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
-  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/claudex"), root: "/work/claudex" }]);
+  assert.deepEqual(result.data.projects, [{ id: legacyProjectId("/work/ai-coding-tool"), root: "/work/ai-coding-tool" }]);
   assert.equal(result.data.tasks[0].projectId, result.data.projects[0].id);
 });
 

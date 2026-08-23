@@ -4,7 +4,7 @@ import { terminalTools } from "../dist/main/main/agent/terminal-tools.mjs";
 
 const snapshot = (overrides = {}) => ({
   terminalId: "terminal-1",
-  title: "claudex",
+  title: "ai-coding-tool",
   cwd: "/repo",
   status: "running",
   lines: ["$ yarn dev", "ready in 412 ms"],
@@ -39,7 +39,7 @@ test("reading a terminal returns its lines under a heading naming where it runs"
 
   assert.deepEqual(bridge.calls, [{ op: "snapshot" }]);
   const text = textOf(read);
-  assert.match(text, /claudex — \/repo · running/);
+  assert.match(text, /ai-coding-tool — \/repo · running/);
   assert.match(text, /ready in 412 ms/);
 });
 
@@ -67,12 +67,12 @@ test("listing terminals names each one, and says so plainly when there are none"
   const listed = await toolNamed(fakeBridge({
     kind: "terminals",
     terminals: [
-      { id: "terminal-1", title: "claudex", cwd: "/repo", taskId: "task-1", status: "running" },
+      { id: "terminal-1", title: "ai-coding-tool", cwd: "/repo", taskId: "task-1", status: "running" },
       { id: "terminal-2", title: "logs", cwd: "/repo", taskId: null, status: "exited", exitCode: 0 },
     ],
   }), "terminal_list").handler({}, {});
 
-  assert.match(textOf(listed), /claudex \[terminal-1\] · \/repo · running/);
+  assert.match(textOf(listed), /ai-coding-tool \[terminal-1\] · \/repo · running/);
   assert.match(textOf(listed), /logs \[terminal-2\] · \/repo · exited \(0\)/);
 
   const empty = await toolNamed(fakeBridge({ kind: "no-terminal" }), "terminal_read").handler({}, {});
