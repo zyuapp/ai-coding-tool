@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
 import { projectName, threadActivityAt } from "../../domain/task";
-import { dismissableTasks, newestUnreadFinding } from "../../domain/attention";
+import { dismissableTasks, hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskOutcome } from "../../domain/task";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
@@ -39,16 +39,11 @@ function scheduleLabel(automation: AutomationView) {
   return "Runs on a schedule";
 }
 
-/** Whether a row shows a dot at all, which is also what reserves the slot the dot needs. */
-function marked(task: Task) {
-  return Boolean(newestUnreadFinding(task) || (task.outcome && task.outcomeUnread));
-}
-
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
 function attentionMark(task: Task) {
   const finding = newestUnreadFinding(task);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
-  if (!marked(task)) return false;
+  if (!hasUnreadAttention(task)) return false;
   return <span key="status" className={`task-attention ${task.outcome!}`} aria-label={OUTCOME_LABELS[task.outcome!]} />;
 }
 
@@ -203,7 +198,7 @@ export function ProjectSidebar({
   const railSlots = [...orderedTasks, ...recentTasks].reduce((widest, task) => Math.max(widest, markCount(task)), 1);
 
   function markCount(task: Task) {
-    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || marked(task);
+    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || hasUnreadAttention(task);
     return Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
   }
 

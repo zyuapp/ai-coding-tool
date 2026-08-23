@@ -311,7 +311,7 @@ test("a checkout is claimed while any thread is in it, and forgetting it frees e
   }
 });
 
-test("SQLite task storage keeps what a thread's runs found, and which of its messages were quiet", async () => {
+test("SQLite task storage keeps what a thread's runs found, and which of its messages were withdrawn", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "claudex-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
   const task = {
@@ -325,13 +325,13 @@ test("SQLite task storage keeps what a thread's runs found, and which of its mes
   };
   try {
     database.persist({ tasks: [{ task, messages: [
-      { index: 0, message: { id: "label", kind: "user", text: "Poll", detail: "Automation run #2", quiet: true, at: 10 } },
+      { index: 0, message: { id: "label", kind: "user", text: "Poll", detail: "Automation run #2", withdrawn: true, at: 10 } },
       { index: 1, message: { id: "reply", kind: "assistant", text: "Nothing new", quiet: true, at: 11 } },
     ] }] });
 
     const [loaded] = database.load().tasks;
     assert.deepEqual(loaded.findings, task.findings);
-    assert.deepEqual(loaded.messages.map((message) => message.quiet), [true, true]);
+    assert.deepEqual(loaded.messages.map((message) => message.withdrawn), [true, true], "the second was stored under the older name and reads back withdrawn");
   } finally {
     database.close();
     await rm(directory, { recursive: true });

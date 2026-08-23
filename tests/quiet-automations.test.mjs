@@ -59,7 +59,7 @@ test("a scheduled run is the scheduler's, unattended, and never quiet unless the
     quiet: false,
     notified: false,
     acknowledged: false,
-    reportedKeys: [],
+    reportedIssues: [],
     messagesBefore: 1,
     before: { updatedAt: 1 },
   });
@@ -97,7 +97,7 @@ test("a human steering into a scheduled run takes it over", () => {
   const scheduled = workspace({
     tasks: [task("task-a")],
     currentId: "task-a",
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, reportedKeys: [] } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, reportedIssues: [] } },
     runStatuses: { "task-a": "running" },
   });
   const queued = reduce(reduce(scheduled, { type: "view.set-prompt", prompt: "What did you find?" }).state, { type: "task.send", attachments: [] }).state;
@@ -129,7 +129,7 @@ test("what the automation last did names the moment of the status, not of the la
 function midRun(run = {}, taskOverrides = {}) {
   const started = task("task-a", {
     createdAt: 10,
-    messages: [{ id: "label", kind: "user", text: "Poll", detail: "Automation run #2", quiet: true, at: 10 }],
+    messages: [{ id: "label", kind: "user", text: "Poll", detail: "Automation run #2", withdrawn: true, at: 10 }],
     ...taskOverrides,
   });
   /** What the tick found the thread looking like, which is what an unseen one puts back. */
@@ -141,7 +141,7 @@ function midRun(run = {}, taskOverrides = {}) {
   };
   return workspace({
     tasks: [started],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, reportedKeys: [], messagesBefore: 1, before, ...run } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, reportedIssues: [], messagesBefore: 1, before, ...run } },
     runStatuses: { "task-a": "running" },
   });
 }
@@ -176,7 +176,7 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
 });
 
 test("a run that surfaces says which one thing broke its silence", () => {
-  const tick = { origin: "automation", quiet: true, acknowledged: true, notified: false, reportedKeys: [] };
+  const tick = { origin: "automation", quiet: true, acknowledged: true, notified: false, reportedIssues: [] };
   const ending = (status) => ({ type: "run.status", taskId: "task-a", runId: "run-1", sequence: 5, status });
 
   assert.equal(whyRunSurfaces(tick, ending("succeeded")), null, "it looked, it answered, and it found nothing");
@@ -198,7 +198,7 @@ test("a tick that surfaced nothing leaves the thread exactly where it stood", ()
   const [thread] = settled.tasks;
 
   assert.equal(thread.runEndedAt, 500, "the ending the last audible run stamped on is put back");
-  assert.deepEqual(thread.messages.map((message) => message.quiet), [true, true], "everything the tick wrote is quiet, its own reply included");
+  assert.deepEqual(thread.messages.map((message) => message.withdrawn), [true, true], "everything the tick wrote is withdrawn, its own reply included");
   assert.equal(threadActivityAt(thread), 500, "so nothing about the thread moved");
   assert.deepEqual(activitySections(settled.tasks, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
 });
@@ -322,38 +322,38 @@ test("dismissing a finding files it away rather than asking to be told again", a
 
   const filed = reduce(spoke, { type: "task.dismiss", taskId: "task-a" }).state;
   assert.equal(filed.tasks[0].findings, undefined, "the row is gone from Priority");
-  assert.deepEqual(filed.tasks[0].silencedKeys, ["checkout"], "but what it was about is remembered");
+  assert.deepEqual(filed.tasks[0].handledIssues, ["checkout"], "but what it was about is remembered");
 
   /** The next tick, still finding it: handled means handled. */
-  const next = toolHost(midRun({}, { silencedKeys: ["checkout"] }));
+  const next = toolHost(midRun({}, { handledIssues: ["checkout"] }));
   const repeat = await answer(next, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   assert.equal(repeat.result.recorded, false, "a dismissal is not a request to be told again");
   assert.equal(settleRun(next.state()).state.tasks[0].outcome, undefined, "so the tick stays quiet");
 });
 
 test("a filed-away finding surfaces again once a run stops finding it", async () => {
-  const gone = toolHost(midRun({}, { silencedKeys: ["checkout"] }));
+  const gone = toolHost(midRun({}, { handledIssues: ["checkout"] }));
   await answer(gone, { op: "nothing-to-report", checked: "the alert log, empty" });
   const cleared = settleRun(gone.state()).state;
-  assert.equal(cleared.tasks[0].silencedKeys, undefined, "the run stopped finding it, so it is over");
+  assert.equal(cleared.tasks[0].handledIssues, undefined, "the run stopped finding it, so it is over");
 
-  const back = toolHost(midRun({}, { silencedKeys: cleared.tasks[0].silencedKeys }));
+  const back = toolHost(midRun({}, { handledIssues: cleared.tasks[0].handledIssues }));
   const again = await answer(back, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   assert.equal(again.result.recorded, true, "the same trouble returning is news again");
 });
 
 test("a run that still reports a filed-away finding keeps it filed", async () => {
-  const host = toolHost(midRun({}, { silencedKeys: ["checkout", "latency"] }));
+  const host = toolHost(midRun({}, { handledIssues: ["checkout", "latency"] }));
   await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   const settled = settleRun(host.state()).state;
 
-  assert.deepEqual(settled.tasks[0].silencedKeys, ["checkout"], "the one it still finds stays filed, the one it did not is lifted");
+  assert.deepEqual(settled.tasks[0].handledIssues, ["checkout"], "the one it still finds stays filed, the one it did not is closed");
 });
 
 test("where a keyed issue stands with a thread has three answers", () => {
   const carrying = task("task-a", {
     findings: [{ id: "f1", headline: "5xx on checkout", key: "checkout", at: 5 }],
-    silencedKeys: ["latency"],
+    handledIssues: ["latency"],
   });
 
   assert.equal(issueState(carrying, "checkout"), "carried");
@@ -465,7 +465,7 @@ test("a quiet tick carries what it surfaces for, and the two tools that answer i
   assert.match(quiet, /Call neither and the run surfaces/);
 });
 
-test("a tick the scheduler said is quiet labels its own message quiet from the start", () => {
+test("a tick the scheduler said is quiet withdraws its own label from the start", () => {
   const fired = reduce(workspace({ tasks: [task("task-a", { createdAt: 5, updatedAt: 5 })] }), {
     type: "automation.fired",
     fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2, quiet: true, surfaceWhen: "there is an error." },
@@ -473,7 +473,7 @@ test("a tick the scheduler said is quiet labels its own message quiet from the s
   const started = reduce(fired.state, { type: "run.resolved", pendingId: fired.effects[0].pendingId, workspace: PROJECTLESS });
   const [label] = started.state.tasks[0].messages;
 
-  assert.equal(label.quiet, true);
+  assert.equal(label.withdrawn, true);
   assert.equal(threadActivityAt(started.state.tasks[0]), 5, "the label alone does not count as the thread doing something");
   assert.match(started.effects[0].command.prompt, /Surface it when: there is an error\./, "the tick's sentence reaches the run that has to honour it");
 });
@@ -484,7 +484,7 @@ function declined(consecutiveDeclines, tasks = [task("task-a")], origin = "autom
   const busy = workspace({
     tasks,
     automations: [{ ...automation, nextRunAt: null }],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, reportedKeys: [], messagesBefore: 0 } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, reportedIssues: [], messagesBefore: 0 } },
     runStatuses: { "task-a": "running" },
   });
   return reduce(busy, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });
@@ -496,7 +496,7 @@ test("a tick that cannot run says which thread turned it away", () => {
   const [waiting] = idle.tasks;
   const busy = (origin) => ({
     ...idle,
-    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, reportedKeys: [] } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, reportedIssues: [] } },
   });
   const sending = { ...idle, pendingRuns: { "pending-1": { id: "pending-1", runId: "run-2", origin: "composer", taskId: "task-a", text: "Hi", prompt: "Hi", attachments: [] } } };
   const filed = task("task-a", { archivedAt: 5 });

@@ -52,7 +52,7 @@ export type TaskMessage = {
   /** Blocks pasted into the composer and sent with this message. The agent gets them in the prompt; the timeline shows pills. */
   pastes?: PastedText[];
   /** Written by a tick that surfaced nothing. It stays in the thread and out of the thread's activity. */
-  quiet?: true;
+  withdrawn?: true;
   at: number;
 };
 
@@ -107,7 +107,7 @@ export type TaskFinding = {
 export const MAX_FINDINGS = 10;
 
 /** Dismissed keys held per thread. Far more than a schedule reports at once, and still bounded. */
-export const MAX_SILENCED_KEYS = 50;
+export const MAX_HANDLED_ISSUES = 50;
 /** What one may carry: a line for the sidebar, a body for the thread, and a name to match it on. */
 export const MAX_HEADLINE = 200;
 export const MAX_DETAIL = 10_000;
@@ -157,7 +157,7 @@ export function threadCreatedAt(task: Task): number {
 
 /**
  * When the thread last did something. `updatedAt` moves on any write, so it cannot answer this.
- * A tick that surfaced nothing left quiet messages behind and put `runEndedAt` back, so it counts
+ * A tick that surfaced nothing withdrew the messages it wrote and put `runEndedAt` back, so it counts
  * for nothing here: four such schedules must not reshuffle the list two hundred times a day.
  */
 export function threadActivityAt(task: Task): number {
@@ -167,7 +167,7 @@ export function threadActivityAt(task: Task): number {
 function lastAudibleAt(task: Task): number {
   for (let index = task.messages.length - 1; index >= 0; index -= 1) {
     const message = task.messages[index]!;
-    if (!message.quiet) return message.at;
+    if (!message.withdrawn) return message.at;
   }
   return 0;
 }
@@ -212,7 +212,7 @@ export type Task = {
    * Keys the user has filed away. A dismissal means the finding is handled, so the same one is held
    * back while the runs keep reporting it, and only surfaces again once a run stops finding it.
    */
-  silencedKeys?: string[];
+  handledIssues?: string[];
   /** When a run on this thread last found something. A dismissal files the findings away, not this. */
   lastFindingAt?: number;
   /** What the last tick to settle in silence says it looked at, which is a silent schedule's proof of life. */
@@ -586,7 +586,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.outcomeUnread === undefined || value.outcomeUnread === true) &&
     (value.findings === undefined || Array.isArray(value.findings) && value.findings.every(isTaskFinding)) &&
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
-    (value.silencedKeys === undefined || Array.isArray(value.silencedKeys) && value.silencedKeys.every((key: unknown) => nonEmptyString(key))) &&
+    (value.handledIssues === undefined || Array.isArray(value.handledIssues) && value.handledIssues.every((key: unknown) => nonEmptyString(key))) &&
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&
@@ -625,8 +625,26 @@ function dropRetiredSettings(value: unknown) {
   return task;
 }
 
+/**
+ * Tasks written while a withdrawn message was called `quiet` and a handled issue a `silencedKeys` entry.
+ * Whatever the task already carries under the current name wins.
+ */
+function renamedFields(value: unknown) {
+  if (!isRecord(value)) return value;
+  const { silencedKeys: handled, ...task } = value;
+  if (handled !== undefined && task.handledIssues === undefined) task.handledIssues = handled;
+  if (Array.isArray(task.messages)) task.messages = task.messages.map(renamedMessageFields);
+  return task;
+}
+
+function renamedMessageFields(value: unknown) {
+  if (!isRecord(value) || value.quiet === undefined) return value;
+  const { quiet: withdrawn, ...message } = value;
+  return message.withdrawn === undefined ? { ...message, withdrawn } : message;
+}
+
 function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Task | null {
-  const retired = dropRetiredSettings(raw);
+  const retired = renamedFields(dropRetiredSettings(raw));
   const value = isRecord(retired) ? liftEmbeddedWorktree(retired, lifted) : retired;
   if (!isTaskBase(value)) {
     errors.push("v2 tasks contains an invalid value");
@@ -659,7 +677,7 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
     (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
     (value.pastes === undefined || (Array.isArray(value.pastes) && value.pastes.every(isPastedText))) &&
-    (value.quiet === undefined || value.quiet === true) &&
+    (value.withdrawn === undefined || value.withdrawn === true) &&
     finiteNumber(value.at);
 }
 

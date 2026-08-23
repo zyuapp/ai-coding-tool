@@ -1,5 +1,5 @@
 import { threadActivityAt, type Task, type TaskDropTarget } from "../domain/task.js";
-import { hasFindings } from "../domain/attention.js";
+import { wantsAttention } from "../domain/attention.js";
 
 /** The activity sidebar's three lists, in the order they are drawn. */
 export type ActivitySections = Record<"priority" | "running" | "threads", Task[]>;
@@ -15,11 +15,10 @@ export type ActivitySections = Record<"priority" | "running" | "threads", Task[]
 export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<string>): ActivitySections {
   const recent = [...tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
   const idle = (task: Task) => !busy.has(task.id) && !blocked.has(task.id);
-  const wanted = (task: Task) => Boolean(task.outcome) || hasFindings(task);
   return {
-    priority: recent.filter((task) => blocked.has(task.id) || (idle(task) && wanted(task))),
+    priority: recent.filter((task) => blocked.has(task.id) || (idle(task) && wantsAttention(task))),
     running: orderTasks(tasks).filter((task) => busy.has(task.id) && !blocked.has(task.id)),
-    threads: recent.filter((task) => idle(task) && !wanted(task)),
+    threads: recent.filter((task) => idle(task) && !wantsAttention(task)),
   };
 }
 

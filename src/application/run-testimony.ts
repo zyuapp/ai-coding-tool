@@ -4,9 +4,9 @@
  */
 import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
-import { isNews, withFinding, withLiftedSilences } from "../domain/attention.js";
+import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
 import type { TaskOutcome } from "../domain/task.js";
-import { applyTask, silencedThread, type ActiveRun, type RunTransitionState } from "./task-workspace.js";
+import { applyTask, withdrawRun, type ActiveRun, type RunTransitionState } from "./task-workspace.js";
 
 /** A run only earns a verdict when it settles on its own; cancelling is the user's own doing. */
 export function outcomeFor(event: RunEvent): TaskOutcome | null {
@@ -37,7 +37,7 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
       ...active,
       acknowledged: true,
       notified: active.notified || raised,
-      reportedKeys: report.key === undefined || active.reportedKeys.includes(report.key) ? active.reportedKeys : [...active.reportedKeys, report.key],
+      reportedIssues: report.key === undefined || active.reportedIssues.includes(report.key) ? active.reportedIssues : [...active.reportedIssues, report.key],
     } },
     tasks: state.tasks.map((task) => task.id === taskId ? withFinding(task, report, at, seen) : task),
   };
@@ -78,16 +78,16 @@ export function whyRunSurfaces(active: ActiveRun, event: RunEvent): RunSurfacing
 
 /**
  * What a settling run leaves on its thread besides a verdict: a run that surfaced nothing puts the
- * thread back where it found it, and a scheduled run that finished looking lifts the filed-away
- * findings it no longer reports.
+ * thread back where it found it, and a scheduled run that finished looking closes the filed-away
+ * issues it no longer reports.
  */
 export function withSettledTick<T extends RunTransitionState>(state: T, taskId: string, active: ActiveRun, surfacing: RunSurfacing | null): T {
   const unseen = surfacing === null;
   const finished = surfacing !== "failed" && surfacing !== "cancelled";
-  const lifting = finished && active.origin === "automation" && active.acknowledged;
-  if (!unseen && !lifting) return state;
+  const closing = finished && active.origin === "automation" && active.acknowledged;
+  if (!unseen && !closing) return state;
   return applyTask(state, taskId, (task) => {
-    const settled = unseen ? silencedThread(task, active.messagesBefore, active.before) : task;
-    return lifting ? withLiftedSilences(settled, active.reportedKeys) : settled;
+    const settled = unseen ? withdrawRun(task, active.messagesBefore, active.before) : task;
+    return closing ? withClosedIssues(settled, active.reportedIssues) : settled;
   });
 }

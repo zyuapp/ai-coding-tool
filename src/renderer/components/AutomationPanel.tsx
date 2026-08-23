@@ -21,8 +21,6 @@ export function automationStatusLabel(automation: AutomationView, at: number) {
 
 const DAY = 86_400_000;
 
-/** What a schedule silenced from the panel surfaces for, until the automation words it for itself. */
-
 /** Within a day of now the clock is enough; anything further needs the date to mean anything. */
 function formatMoment(moment: number, at: number) {
   return Math.abs(moment - at) < DAY

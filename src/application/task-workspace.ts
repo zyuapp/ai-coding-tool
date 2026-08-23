@@ -12,9 +12,9 @@ export type ActiveRun = RunProvenance & {
   notified: boolean;
   /** Whether the run answered for itself with either tool. Answering neither is what surfaces a quiet tick. */
   acknowledged: boolean;
-  /** Every key this run reported, held back or not, so settling can tell which silenced ones have gone away. */
-  reportedKeys: string[];
-  /** How many messages the thread held when this run began, so a silent one can quiet its own. */
+  /** Every issue this run reported, held back or not, so settling can tell which handled ones have gone away. */
+  reportedIssues: string[];
+  /** How many messages the thread held when this run began, so a silent one can withdraw its own. */
   messagesBefore: number;
   /** Where the thread stood when this run began, so a silent one can leave it exactly there. */
   before: ThreadMark;
@@ -41,15 +41,16 @@ export function threadMark(task: Task | undefined): ThreadMark {
 }
 
 /**
- * Puts a thread back where a tick found it: the messages that tick wrote count for nothing in the
- * thread's activity, the moments it moved are rolled back, and the verdict beginning the run
- * superseded is returned, unread as it was. A tick that says nothing takes nothing away either.
+ * Puts a thread back where a tick found it: the messages that tick wrote are withdrawn, so they
+ * count for nothing in the thread's activity, the moments it moved are rolled back, and the verdict
+ * beginning the run superseded is returned, unread as it was. A tick that says nothing takes
+ * nothing away either.
  */
-export function silencedThread(task: Task, from: number, before: ThreadMark): Task {
+export function withdrawRun(task: Task, from: number, before: ThreadMark): Task {
   const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = task;
   return {
     ...rest,
-    messages: task.messages.map((message, index) => index < from || message.quiet ? message : { ...message, quiet: true as const }),
+    messages: task.messages.map((message, index) => index < from || message.withdrawn ? message : { ...message, withdrawn: true as const }),
     updatedAt: before.updatedAt,
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),

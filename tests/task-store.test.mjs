@@ -446,13 +446,15 @@ test("what a thread's runs found survives being written and read back, and a mal
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   migrated.data.tasks[0].findings = [{ id: "finding-1", headline: "Checkout is returning 5xx", detail: "12 in the last hour", key: "checkout", at: 30 }];
-  migrated.data.tasks[0].messages = [{ ...task.messages[0], quiet: true }];
+  migrated.data.tasks[0].messages = [{ ...task.messages[0], withdrawn: true }, { ...task.messages[0], id: "message-2", quiet: true }];
+  migrated.data.tasks[0].silencedKeys = ["latency"];
 
   const parsed = parseTaskStore(serializeTaskStore(migrated.data));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.data.tasks[0].findings, migrated.data.tasks[0].findings);
-  assert.equal(parsed.data.tasks[0].messages[0].quiet, true);
+  assert.deepEqual(parsed.data.tasks[0].messages.map((message) => message.withdrawn), [true, true], "a message stored under the older name reads back withdrawn");
+  assert.deepEqual(parsed.data.tasks[0].handledIssues, ["latency"], "and so do the issues the user filed away");
 
   const broken = serializeTaskStore({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], findings: [{ id: "finding-1", at: 30 }] }] });
   assert.equal(parseTaskStore(broken).ok, false, "a finding with nothing to say is not a finding");

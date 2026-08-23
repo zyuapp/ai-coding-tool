@@ -6,7 +6,7 @@
  *
  * A function belongs here when a thread, or a list of threads, is all it needs.
  */
-import { createTaskMessage, MAX_FINDINGS, MAX_SILENCED_KEYS, type Task, type TaskFinding } from "./task.js";
+import { createTaskMessage, MAX_FINDINGS, MAX_HANDLED_ISSUES, type Task, type TaskFinding } from "./task.js";
 
 export function unreadFindings(task: Task): TaskFinding[] {
   return (task.findings ?? []).filter((finding) => !finding.read);
@@ -17,8 +17,21 @@ export function newestUnreadFinding(task: Task): TaskFinding | undefined {
   return unreadFindings(task).at(-1);
 }
 
-export function hasFindings(task: Task): boolean {
+function hasFindings(task: Task): boolean {
   return (task.findings ?? []).length > 0;
+}
+
+/**
+ * Whether the thread has anything to put to the user: a verdict its last run left, or something a
+ * run found. Read or not, it holds the thread in Priority and is what a dismissal files away.
+ */
+export function wantsAttention(task: Task): boolean {
+  return Boolean(task.outcome) || hasFindings(task);
+}
+
+/** Whether any of that is still unseen, which is the narrower thing a row's dot stands for. */
+export function hasUnreadAttention(task: Task): boolean {
+  return Boolean(newestUnreadFinding(task) || (task.outcome && task.outcomeUnread));
 }
 
 function findingKeys(task: Task): string[] {
@@ -26,7 +39,7 @@ function findingKeys(task: Task): string[] {
 }
 
 function handledKeys(task: Task): string[] {
-  return task.silencedKeys ?? [];
+  return task.handledIssues ?? [];
 }
 
 /**
@@ -110,32 +123,32 @@ export function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
 export function dismissed(tasks: Task[], dismissing: Set<string>): Task[] {
   const filed = withoutOutcome(tasks, dismissing);
   if (!filed.some((task) => dismissing.has(task.id) && task.findings)) return filed;
-  return filed.map((task) => dismissing.has(task.id) ? withoutFindings(silenceKeys(task)) : task);
+  return filed.map((task) => dismissing.has(task.id) ? withoutFindings(withHandledIssues(task)) : task);
 }
 
-function silenceKeys(task: Task): Task {
+function withHandledIssues(task: Task): Task {
   const keys = findingKeys(task);
   if (!keys.length) return task;
-  const silenced = [...handledKeys(task).filter((key) => issueState(task, key) !== "carried"), ...keys];
-  return { ...task, silencedKeys: silenced.slice(-MAX_SILENCED_KEYS) };
+  const handled = [...handledKeys(task).filter((key) => issueState(task, key) !== "carried"), ...keys];
+  return { ...task, handledIssues: handled.slice(-MAX_HANDLED_ISSUES) };
 }
 
 /**
  * What a run that has finished looking says about the keys it did not report: the thing it was
  * filed away for is over, so the next sighting is news again.
  */
-export function withLiftedSilences(task: Task, reportedKeys: string[]): Task {
+export function withClosedIssues(task: Task, reportedIssues: string[]): Task {
   const held = handledKeys(task);
-  const still = held.filter((key) => reportedKeys.includes(key));
+  const still = held.filter((key) => reportedIssues.includes(key));
   if (still.length === held.length) return task;
   if (!still.length) {
-    const { silencedKeys: _lifted, ...rest } = task;
+    const { handledIssues: _closed, ...rest } = task;
     return rest;
   }
-  return { ...task, silencedKeys: still };
+  return { ...task, handledIssues: still };
 }
 
 /** Which threads a "dismiss everything" reaches: the ones carrying anything to file away. */
 export function dismissableTasks(tasks: Task[]): Task[] {
-  return tasks.filter((task) => task.outcome || hasFindings(task));
+  return tasks.filter(wantsAttention);
 }

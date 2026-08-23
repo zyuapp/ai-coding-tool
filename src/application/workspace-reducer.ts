@@ -486,7 +486,7 @@ function beginRun(state: WorkspaceState, taskId: string, runId: string, provenan
   const messagesBefore = tasks.find((task) => task.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.tasks.find((task) => task.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedKeys: [], messagesBefore, before: mark }),
+    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark }),
     taskId,
     "running",
   );
@@ -2187,7 +2187,7 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task || task.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
   /** A quiet tick's own label counts for nothing in the thread's activity, like the rest of its run. */
-  const message = { ...createTaskMessage("user", pending.text, pending.detail), ...(pending.quiet ? { quiet: true as const } : {}) };
+  const message = { ...createTaskMessage("user", pending.text, pending.detail), ...(pending.quiet ? { withdrawn: true as const } : {}) };
   const created = worktree && task.projectId ? { ...worktree, projectId: task.projectId } : undefined;
   const entered = created ?? worktreeFor(state, task);
   const withMessage = applyTask(withUsedWorktree(state, created, entered?.id), taskId, (item) => ({
