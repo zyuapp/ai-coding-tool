@@ -48,8 +48,10 @@ async function repository() {
 function workspaces() {
   let sequence = 0;
   const records = new Map();
+  const forgottenBatches = [];
   return {
     records,
+    forgottenBatches,
     registerWorktree: async (root) => {
       const workspace = { id: `workspace-${++sequence}`, kind: "worktree", root };
       records.set(root, workspace);
@@ -57,6 +59,10 @@ function workspaces() {
     },
     listWorktrees: async () => [...records.values()],
     forgetWorktree: async (root) => { records.delete(root); },
+    forgetWorktrees: async (roots) => {
+      forgottenBatches.push([...roots]);
+      for (const root of roots) records.delete(root);
+    },
   };
 }
 
@@ -450,4 +456,71 @@ test("a reconcile leaves a worktrees root that has never been used alone", async
 
   assert.deepEqual(reaped, []);
 });
+});
+
+test("a reconcile forgets every missing registry root in one batch", async () => {
+  const worktreesRoot = await temporaryDirectory("batch-forget-worktrees");
+  const missing = [path.join(worktreesRoot, "missing-a"), path.join(worktreesRoot, "missing-b")];
+  const registry = workspaces();
+  for (const [index, root] of missing.entries()) registry.records.set(root, { id: `workspace-${index}`, kind: "worktree", root });
+  const worktrees = new WorktreeService({ worktreesRoot, workspaces: registry, prune: async () => {} });
+
+  const result = await worktrees.reconcile({ claimed: [], repositories: [] });
+
+  assert.deepEqual(result, { reaped: [] });
+  assert.deepEqual(registry.forgottenBatches, [missing]);
+  assert.equal(registry.records.size, 0);
+});
+
+test("a reconcile prunes independent repositories four at a time and waits for every one", async () => {
+  const worktreesRoot = await temporaryDirectory("prune-worktrees");
+  const repositories = Array.from({ length: 9 }, (_, index) => `/repository-${index}`);
+  let active = 0;
+  let peak = 0;
+  const completed = [];
+  const worktrees = new WorktreeService({
+    worktreesRoot,
+    workspaces: workspaces(),
+    prune: async (repository) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      completed.push(repository);
+      active -= 1;
+    },
+  });
+
+  const result = await worktrees.reconcile({ claimed: [], repositories });
+
+  assert.deepEqual(result, { reaped: [] });
+  assert.equal(peak, 4);
+  assert.equal(active, 0, "reconcile resolves only after the last prune finishes");
+  assert.deepEqual([...completed].sort(), [...repositories].sort());
+});
+
+test("a failed prune drains active work and stops scheduling more repositories", async () => {
+  const worktreesRoot = await temporaryDirectory("failed-prune-worktrees");
+  const repositories = Array.from({ length: 8 }, (_, index) => `/repository-${index}`);
+  const failure = new Error("prune failed");
+  const started = [];
+  let active = 0;
+  const worktrees = new WorktreeService({
+    worktreesRoot,
+    workspaces: workspaces(),
+    prune: async (repository) => {
+      started.push(repository);
+      active += 1;
+      try {
+        await new Promise((resolve) => setTimeout(resolve, repository === repositories[1] ? 5 : 15));
+        if (repository === repositories[1]) throw failure;
+      } finally {
+        active -= 1;
+      }
+    },
+  });
+
+  await assert.rejects(worktrees.reconcile({ claimed: [], repositories }), (error) => error === failure);
+
+  assert.deepEqual(started, repositories.slice(0, 4));
+  assert.equal(active, 0, "the rejection waits for every prune already in flight");
 });

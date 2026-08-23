@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
 import { folderName, projectName, threadActivityAt } from "../../domain/task";
@@ -51,7 +51,7 @@ function attentionMark(task: Task) {
  * What a row says under its title in activity mode: which folder it lives in, and when it last moved.
  * A row carrying something a run found says that instead — the headline is why the row is in Priority.
  */
-function activityMeta(task: Task, projects: Project[]) {
+function activityMeta(task: Task, projects: Project[], formatTime: (value: number) => string) {
   const finding = newestUnreadFinding(task);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === task.projectId);
@@ -80,10 +80,6 @@ function TaskSpinner() {
     return () => element.removeEventListener("animationstart", anchor);
   }, []);
   return <span ref={ref} className="task-spinner" aria-label="Working" />;
-}
-
-function formatTime(value: number) {
-  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(value);
 }
 
 function FolderIcon() {
@@ -141,6 +137,15 @@ export type ProjectSidebarProps = {
   onMoveProject: (projectId: string, index: number) => void;
   onOpenSettings: () => void;
 };
+
+function groupedBy<T>(items: T[], keyFor: (item: T) => string | undefined): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyFor(item);
+    if (key) grouped.get(key)?.push(item) ?? grouped.set(key, [item]);
+  }
+  return grouped;
+}
 
 /** Which row of a list is being renamed, the input over it, and the row focus goes back to. */
 function useRenaming(onCommit: (id: string, value: string) => void) {
@@ -247,6 +252,11 @@ export function ProjectSidebar({
   const taskNames = useRenaming((taskId, value) => { if (value.trim()) onRenameTask(taskId, value); });
   const projectNames = useRenaming(onRenameProject);
   const [showAllTasks, setShowAllTasks] = useState<Set<string>>(new Set());
+  let timeFormatter: Intl.DateTimeFormat | undefined;
+  const formatTime = (value: number) => (timeFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(value);
+
+  const tasksByProject = useMemo(() => groupedBy(orderedTasks, (task) => task.projectId), [orderedTasks]);
+  const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
 
   const checkoutNames = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
     tasks.map((task) => [task.id, worktreeName(worktree)] as const)));
@@ -430,7 +440,7 @@ export function ProjectSidebar({
       {rowBody(task, `task-row ${task.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{task.title}</span>
-          <small>{activityMeta(task, projects)}</small>
+          <small>{activityMeta(task, projects, formatTime)}</small>
         </span>
       ), action)}
     </div>
@@ -508,9 +518,9 @@ export function ProjectSidebar({
           {(list) => (
             <nav className="project-list" aria-label="Projects" ref={list.innerRef} {...list.droppableProps}>
               {projects.map((project, projectIndex) => {
-                const projectTasks = orderedTasks.filter((task) => task.projectId === project.id);
+                const projectTasks = tasksByProject.get(project.id) ?? [];
                 /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
-                const checkouts = worktreeGroups.filter((group) => group.worktree.projectId === project.id);
+                const checkouts = checkoutsByProject.get(project.id) ?? [];
                 const expanded = expandedProjects.has(project.id);
                 const shown = visibleCount(projectTasks, project.id);
                 const hidden = projectTasks.length - shown;

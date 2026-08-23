@@ -106,7 +106,11 @@ export function workflowGroups(workflow: Workflow): WorkflowGroup[] {
   const loose: WorkflowAgent[] = [];
   for (const agent of [...workflow.agents].sort((left, right) => left.index - right.index)) {
     if (agent.phaseIndex === undefined) loose.push(agent);
-    else byPhase.set(agent.phaseIndex, [...byPhase.get(agent.phaseIndex) ?? [], agent]);
+    else {
+      const bucket = byPhase.get(agent.phaseIndex);
+      if (bucket) bucket.push(agent);
+      else byPhase.set(agent.phaseIndex, [agent]);
+    }
   }
   const phases = [...workflow.phases].sort((left, right) => left.index - right.index);
   const seen = new Set(phases.map((phase) => phase.index));

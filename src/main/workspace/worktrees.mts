@@ -32,6 +32,7 @@ export type WorktreeServiceOptions = {
   /** Roots the app used before, still its own: reconciled and reaped, but never created in again. */
   legacyRoots?: string[];
   workspaces: WorkspaceService;
+  prune?: (repository: string) => Promise<void>;
 };
 
 export type CreateWorktreeRequest = {
@@ -70,11 +71,13 @@ export class WorktreeService {
   /** Every root the app owns checkouts in, newest first. Only the first one is created in. */
   private readonly ownedRoots: string[];
   private readonly workspaces: WorkspaceService;
+  private readonly prune: (repository: string) => Promise<void>;
 
   constructor(options: WorktreeServiceOptions) {
     this.worktreesRoot = options.worktreesRoot;
     this.ownedRoots = [...new Set([options.worktreesRoot, ...options.legacyRoots ?? []])];
     this.workspaces = options.workspaces;
+    this.prune = options.prune ?? pruneWorktrees;
   }
 
   /**
@@ -156,10 +159,26 @@ export class WorktreeService {
       }
     }
     /** A registration outlives its directory whenever one is removed from outside the app. */
+    const missing: string[] = [];
     for (const record of await this.workspaces.listWorktrees()) {
-      if (!(await directoryExists(record.root))) await this.workspaces.forgetWorktree(record.root);
+      if (!(await directoryExists(record.root))) missing.push(record.root);
     }
-    for (const repository of request.repositories) await pruneWorktrees(repository);
+    await this.workspaces.forgetWorktrees(missing);
+    let nextRepository = 0;
+    let failed = false;
+    let failure: unknown;
+    await Promise.all(Array.from({ length: Math.min(4, request.repositories.length) }, async () => {
+      while (!failed && nextRepository < request.repositories.length) {
+        const repository = request.repositories[nextRepository++];
+        try {
+          await this.prune(repository);
+        } catch (error) {
+          if (!failed) failure = error;
+          failed = true;
+        }
+      }
+    }));
+    if (failed) throw failure;
     return { reaped };
   }
 

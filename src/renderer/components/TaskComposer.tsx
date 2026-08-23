@@ -231,7 +231,7 @@ export function TaskComposer({
   useDismissibleLayer(commandMenuOpen, [textareaRef, commandMenuRef], () => setDismissedPrompt(prompt), textareaRef);
 
   const threadToken = handleTokenAt(prompt, Math.min(caret, prompt.length));
-  const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query).slice(0, THREAD_MENU_LIMIT);
+  const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query, THREAD_MENU_LIMIT);
   const threadMenuOpen = inputFocused && threadToken !== null && matchingThreads.length > 0 && dismissedPrompt !== prompt;
   useDismissibleLayer(threadMenuOpen, [textareaRef, threadMenuRef], () => setDismissedPrompt(prompt), textareaRef);
   /** Where the list stops belonging to this project, so the divider sits above that row. */

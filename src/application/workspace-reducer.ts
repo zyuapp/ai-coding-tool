@@ -734,16 +734,17 @@ function prunedFind(state: WorkspaceState, before: WorkspaceState): WorkspaceSta
 }
 
 /** A dock follows a workflow only while its record is there, so a run that clears one closes its panel. */
+const validWorkflowPanels = new WeakMap<WorkspaceState["docks"], WeakSet<WorkspaceState["workflows"]>>();
+
 function prunedWorkflowPanels(state: WorkspaceState): WorkspaceState {
-  const stale = Object.entries(state.docks).filter(([, dock]) => dock.workflowId && !workflowById(state, dock.workflowId));
-  if (!stale.length) return state;
+  if (validWorkflowPanels.get(state.docks)?.has(state.workflows)) return state;
   let next = state;
-  for (const [owner] of stale) {
-    const dock = dockFor(next, owner);
-    const panels = dock.panels.filter((panel) => panel !== WORKFLOW_PANEL);
-    const tab = dock.tab === WORKFLOW_PANEL ? dockTabAfterClosing(next, owner, WORKFLOW_PANEL) : dock.tab;
+  for (const [owner, dock] of Object.entries(state.docks)) {
+    if (!dock.workflowId || workflowById(state, dock.workflowId)) continue;
+    const panels = dock.panels.filter((panel) => panel !== WORKFLOW_PANEL), tab = dock.tab === WORKFLOW_PANEL ? dockTabAfterClosing(next, owner, WORKFLOW_PANEL) : dock.tab;
     next = withDock(next, owner, { workflowId: null, panels, tab });
   }
+  if (next === state) { const workflows = validWorkflowPanels.get(state.docks) ?? new WeakSet(); workflows.add(state.workflows); validWorkflowPanels.set(state.docks, workflows); }
   return next;
 }
 
@@ -964,12 +965,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const forks = closeSideChats(state, state.sideChats.filter((chat) => discarded.has(chat.sourceTaskId)));
       const disposed = disposeDocks(forks.state, discarded);
       const tasks = disposed.state.tasks.filter((task) => !discarded.has(task.id));
+      const claimedWorktrees = new Set(tasks.flatMap((task) => task.worktreeId ? [task.worktreeId] : []));
       return {
         state: {
           ...disposed.state,
           tasks,
           /** A checkout nothing claims any more has no thread left to record it against. */
-          worktrees: disposed.state.worktrees.filter((worktree) => tasks.some((task) => task.worktreeId === worktree.id)),
+          worktrees: disposed.state.worktrees.filter((worktree) => claimedWorktrees.has(worktree.id)),
           currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
         },
         /** Without this the checkouts would linger until the next launch reconciled them away. */

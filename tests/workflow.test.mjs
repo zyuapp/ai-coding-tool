@@ -75,7 +75,7 @@ test("a payload that is not the shape the panel expects costs a field, not the r
 });
 
 test("agents group by phase in phase order, with unphased work left to the end", () => {
-  const groups = workflowGroups(workflow(
+  const model = workflow(
     [
       { index: 3, label: "loose", state: "running" },
       { index: 2, label: "verify:a", state: "running", phaseIndex: 1 },
@@ -83,10 +83,12 @@ test("agents group by phase in phase order, with unphased work left to the end",
       { index: 1, label: "review:a", state: "done", phaseIndex: 0 },
     ],
     [{ index: 1, title: "Verify" }, { index: 0, title: "Review" }],
-  ));
+  );
+  const groups = workflowGroups(model);
 
   assert.deepEqual(groups.map((group) => group.title), ["Review", "Verify", "Agents"]);
   assert.deepEqual(groups[0].agents.map((agent) => agent.label), ["review:b", "review:a"], "spawn order within a phase");
+  assert.deepEqual(model.agents.map((agent) => agent.label), ["loose", "verify:a", "review:b", "review:a"], "grouping leaves the workflow snapshot alone");
 });
 
 test("lanes share one origin, so queue time reads against every other agent's", () => {

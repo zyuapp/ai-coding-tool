@@ -4,6 +4,12 @@ import { wantsAttention } from "../domain/attention.js";
 /** The activity sidebar's three lists, in the order they are drawn. */
 export type ActivitySections = Record<"priority" | "running" | "threads", Task[]>;
 
+type RankedTask = { task: Task; activity: number };
+
+function newestFirst(tasks: RankedTask[]): Task[] {
+  return tasks.sort((left, right) => right.activity - left.activity).map(({ task }) => task);
+}
+
 /**
  * Ranks threads by what wants the user rather than by where they live. A thread leads when it is
  * blocked on the user, or when it is idle and its last run left a verdict or a run found something;
@@ -13,12 +19,22 @@ export type ActivitySections = Record<"priority" | "running" | "threads", Task[]
  * newest activity reshuffles the list under the user every time one of them speaks.
  */
 export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<string>): ActivitySections {
-  const recent = [...tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
-  const idle = (task: Task) => !busy.has(task.id) && !blocked.has(task.id);
+  const priority: RankedTask[] = [];
+  const running: Task[] = [];
+  const threads: RankedTask[] = [];
+  for (const task of tasks) {
+    if (blocked.has(task.id)) {
+      priority.push({ task, activity: threadActivityAt(task) });
+    } else if (busy.has(task.id)) {
+      running.push(task);
+    } else {
+      (wantsAttention(task) ? priority : threads).push({ task, activity: threadActivityAt(task) });
+    }
+  }
   return {
-    priority: recent.filter((task) => blocked.has(task.id) || (idle(task) && wantsAttention(task))),
-    running: orderTasks(tasks).filter((task) => busy.has(task.id) && !blocked.has(task.id)),
-    threads: recent.filter((task) => idle(task) && !wantsAttention(task)),
+    priority: newestFirst(priority),
+    running: orderTasks(running),
+    threads: newestFirst(threads),
   };
 }
 

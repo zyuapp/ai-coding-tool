@@ -49,6 +49,14 @@ test("text with nothing half-written is passed through whole", () => {
   assert.equal(repairCut(""), "");
 });
 
+test("inline scanning skips long plain spans without missing later markers", () => {
+  const plain = "ordinary prose ".repeat(1_000);
+  const beforeOpen = `${plain}! still plain `;
+  assert.equal(inlineSafeEnd(`${beforeOpen}**open`), beforeOpen.length);
+  assert.equal(inlineSafeEnd(`${plain}\\* escaped`), `${plain}\\* escaped`.length);
+  assert.equal(inlineSafeEnd(`${plain}\`closed\` tail`), `${plain}\`closed\` tail`.length);
+});
+
 test("the block scan still cuts only at whole blocks, which is what a run commits", () => {
   assert.equal(scanBlocks("One block.\n\nStill writing", emptyScan()).safeEnd, "One block.\n\n".length);
   assert.equal(scanBlocks("```ts\ncode\n", emptyScan()).safeEnd, 0, "an open fence never commits");

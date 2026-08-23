@@ -24,13 +24,19 @@ function targetArguments(argv) {
 
 async function loadTarget(target) {
   const module = (relative) => import(pathToFileURL(path.join(target.root, "dist/main", relative)).href);
-  const [find, projection, workspace, database] = await Promise.all([
+  const [find, projection, workspace, reducer, database, taskDomain, workflow, taskOrder, markdown, handles] = await Promise.all([
     module("domain/find.js"),
     module("application/thread-projection.js"),
     module("application/workspace-state.js"),
+    module("application/workspace-reducer.js"),
     module("main/task-database.mjs"),
+    module("domain/task.js"),
+    module("domain/workflow.js"),
+    module("application/task-order.js"),
+    module("domain/markdown-stream.js"),
+    module("domain/thread-handles.js"),
   ]);
-  return { ...target, find, projection, workspace, database };
+  return { ...target, find, projection, workspace, reducer, database, taskDomain, workflow, taskOrder, markdown, handles };
 }
 
 function task(id, index, overrides = {}) {
@@ -46,6 +52,253 @@ function task(id, index, overrides = {}) {
     updatedAt: index,
     ...overrides,
   };
+}
+
+function worktree(id, index, projectId) {
+  return {
+    id,
+    projectId,
+    root: `/worktrees/${id}`,
+    workspaceId: `workspace-${id}`,
+    baseCommit: "abcdef0",
+    createdAt: index,
+    lastUsedAt: index,
+  };
+}
+
+function versioned(value) {
+  return JSON.stringify({ version: 2, value });
+}
+
+function workflowFixture() {
+  return {
+    id: "workflow-large-phase",
+    name: "Large single phase",
+    description: "Exercises phase bucket construction",
+    status: "completed",
+    phases: [{ index: 0, title: "Workers" }],
+    agents: Array.from({ length: 10_000 }, (_item, index) => ({
+      index,
+      label: `Worker ${index}`,
+      state: "done",
+      phaseIndex: 0,
+    })),
+    totalTokens: 0,
+    totalToolCalls: 0,
+    startedAt: 0,
+    finishedAt: 1,
+  };
+}
+
+function parseStoreFixture() {
+  const projects = Array.from({ length: 200 }, (_item, index) => ({
+    id: `parse-project-${index}`,
+    root: `/parse/${index}`,
+    sortIndex: index,
+  }));
+  const worktrees = Array.from({ length: 4_000 }, (_item, index) =>
+    worktree(`parse-worktree-${index}`, index, projects[index % projects.length].id));
+  const tasks = Array.from({ length: 4_000 }, (_item, index) => task(`parse-task-${index}`, index, {
+    projectId: projects[index % projects.length].id,
+    worktreeId: worktrees[index].id,
+  }));
+  return {
+    tasks: versioned(tasks),
+    projects: versioned(projects),
+    worktrees: versioned(worktrees),
+    lastFolder: versioned(projects[0].root),
+  };
+}
+
+function mergeStoreFixture(target) {
+  const projects = Array.from({ length: 200 }, (_item, index) => ({
+    id: `merge-project-${index}`,
+    root: `/merge/${index}`,
+    sortIndex: index,
+  }));
+  const storedWorktrees = Array.from({ length: 4_000 }, (_item, index) =>
+    worktree(`stored-worktree-${index}`, index, projects[index % projects.length].id));
+  const storedTasks = storedWorktrees.map((item, index) => task(`stored-task-${index}`, index, {
+    projectId: item.projectId,
+    worktreeId: item.id,
+  }));
+  const liveWorktrees = Array.from({ length: 4_000 }, (_item, index) =>
+    worktree(`live-worktree-${index}`, index, projects[index % projects.length].id));
+  const liveTasks = liveWorktrees.map((item, index) => task(`live-task-${index}`, 10_000 + index, {
+    projectId: item.projectId,
+    worktreeId: item.id,
+  }));
+  const state = {
+    ...target.workspace.emptyWorkspaceState(),
+    tasks: liveTasks,
+    projects,
+    worktrees: [...storedWorktrees.slice(0, 2_000), ...liveWorktrees],
+    creatingWorktrees: liveTasks.map((item) => item.id),
+    restored: true,
+  };
+  return {
+    state,
+    data: { version: 2, tasks: storedTasks, projects, worktrees: storedWorktrees, lastFolder: projects[0].root },
+  };
+}
+
+function activityFixture() {
+  const withdrawn = Array.from({ length: 200 }, (_item, index) => ({
+    id: `withdrawn-${index}`,
+    kind: "assistant",
+    text: "quiet",
+    withdrawn: true,
+    at: 100_000 + index,
+  }));
+  const tasks = Array.from({ length: 5_000 }, (_item, index) => task(`activity-task-${index}`, index, {
+    createdAt: 0,
+    messages: [{ id: `audible-${index}`, kind: "assistant", text: "heard", at: index * 7_919 % 5_000 }, ...withdrawn],
+  }));
+  return {
+    tasks,
+    busy: new Set(tasks.filter((_item, index) => index % 10 === 0).map((item) => item.id)),
+    blocked: new Set(tasks.filter((_item, index) => index % 17 === 0).map((item) => item.id)),
+  };
+}
+
+function projectionFixtures(target) {
+  const findTasks = Array.from({ length: 20_000 }, (_item, index) => task(
+    index === 19_999 ? "needle-target-19999" : `search-task-${index}`,
+    index,
+    { createdAt: index * 7_919 % 20_000, updatedAt: index * 7_919 % 20_000 },
+  ));
+  const repeatedTool = { id: "tool", kind: "tool", text: "work", at: 2 };
+  const waitTask = task("wait-thread", 0, {
+    messages: [
+      { id: "reply", kind: "assistant", text: "The answer", at: 1 },
+      ...Array(99_999).fill(repeatedTool),
+    ],
+  });
+  return {
+    findState: { ...target.workspace.emptyWorkspaceState(), tasks: findTasks },
+    waitState: { ...target.workspace.emptyWorkspaceState(), tasks: [waitTask] },
+  };
+}
+
+function workspaceMergeOutput(state) {
+  return {
+    tasks: state.tasks.map((item) => [item.id, item.projectId, item.worktreeId]),
+    worktrees: state.worktrees.map((item) => [item.id, item.projectId]),
+    projects: state.projects.map((item) => [item.id, item.root]),
+    lastFolder: state.lastFolder,
+    currentId: state.currentId,
+    history: state.history,
+    draftProjectId: state.draftProjectId,
+  };
+}
+
+function additionalCases(target) {
+  const workflow = workflowFixture();
+  const parsedStore = parseStoreFixture();
+  const merge = mergeStoreFixture(target);
+  const activity = activityFixture();
+  const projection = projectionFixtures(target);
+  const paragraph = "plain words ".repeat(200_000);
+  const findMessage = { id: "find-message", kind: "assistant", text: "haystack ".repeat(1_000_000), at: 1 };
+  const findViewState = {
+    ...target.workspace.emptyWorkspaceState(),
+    tasks: [task("find-view-task", 0, { messages: [findMessage] })],
+    currentId: "find-view-task",
+    find: { target: { kind: "transcript" }, query: "needle", index: 0 },
+  };
+  const dockState = target.workspace.emptyWorkspaceState();
+  const emptyDock = target.workspace.dockFor(dockState, "unused");
+  const reducerState = {
+    ...dockState,
+    docks: Object.fromEntries(Array.from({ length: 10_000 }, (_item, index) => [`dock-${index}`, emptyDock])),
+  };
+  const archiveWorktrees = Array.from({ length: 5_000 }, (_item, index) => worktree(`archive-worktree-${index}`, index, "archive-project"));
+  const archiveState = {
+    ...target.workspace.emptyWorkspaceState(),
+    tasks: [
+      ...archiveWorktrees.map((item, index) => task(`live-archive-${index}`, index, { projectId: "archive-project", worktreeId: item.id })),
+      ...Array.from({ length: 5_000 }, (_item, index) => task(`filed-${index}`, 10_000 + index, { archivedAt: index + 1 })),
+    ],
+    worktrees: archiveWorktrees,
+  };
+  const handleOptions = Array.from({ length: 20_000 }, (_item, index) => ({
+    id: `handle-option-${index}`, title: `Investigate renderer ${index === 19_999 ? "needle" : "boundary"} ${index}`, handle: `investigate-renderer-${index}`,
+    project: "project", inScope: true, running: false, lastActivityAt: 20_000 - index,
+  }));
+  return [
+    {
+      name: "workflow groups, large single phase",
+      iterations: 1,
+      run: () => target.workflow.workflowGroups(workflow),
+      normalize: (groups) => groups.map((group) => [group.key, group.title, group.agents.map((agent) => agent.index)]),
+    },
+    {
+      name: "task store parse, tasks and worktrees",
+      iterations: 1,
+      run: () => target.taskDomain.parseTaskStore(parsedStore),
+      normalize: (result) => result,
+    },
+    {
+      name: "store data merge",
+      iterations: 1,
+      run: () => target.workspace.withStoreData(merge.state, merge.data),
+      normalize: workspaceMergeOutput,
+    },
+    {
+      name: "activity sections, withdrawn tails",
+      iterations: 1,
+      run: () => target.taskOrder.activitySections(activity.tasks, activity.busy, activity.blocked),
+      normalize: (sections) => Object.fromEntries(Object.entries(sections).map(([key, items]) => [key, items.map((item) => item.id)])),
+    },
+    {
+      name: "find thread, 20k tasks",
+      iterations: 1,
+      run: () => target.projection.findThread(projection.findState, "needle-target"),
+      normalize: (result) => result && [result.id, result.title, result.createdAt, result.updatedAt],
+    },
+    {
+      name: "thread wait result, 100k messages",
+      iterations: 1,
+      run: () => target.projection.threadWaitResult(projection.waitState, "wait-thread", true),
+      normalize: (result) => result,
+    },
+    {
+      name: "inline-safe end, long plain paragraph",
+      iterations: 1,
+      run: () => target.markdown.inlineSafeEnd(paragraph),
+      normalize: (result) => result,
+    },
+    {
+      name: "workspace view, unchanged transcript find",
+      iterations: 1,
+      run: () => target.workspace.deriveView(findViewState),
+      normalize: (view) => view.find,
+    },
+    {
+      name: "reducer event, unchanged workflow docks",
+      iterations: 1,
+      run: () => target.reducer.reduce(reducerState, { type: "view.set-menu", menu: "benchmark" }),
+      normalize: (transition) => transition,
+    },
+    {
+      name: "clear archive, claimed worktrees",
+      iterations: 1,
+      run: () => target.reducer.reduce(archiveState, { type: "task.clear-archive" }),
+      normalize: (transition) => ({ tasks: transition.state.tasks.map((item) => item.id), worktrees: transition.state.worktrees.map((item) => item.id), effects: transition.effects }),
+    },
+    {
+      name: "bounded thread handle ranking",
+      iterations: 1,
+      run: () => target.handles.rankThreadHandles(handleOptions, "", 8).slice(0, 8),
+      normalize: (options) => options.map((option) => option.id),
+    },
+    {
+      name: "thread handle title matching",
+      iterations: 1,
+      run: () => target.handles.rankThreadHandles(handleOptions, "needle", 8).slice(0, 8),
+      normalize: (options) => options.map((option) => option.id),
+    },
+  ];
 }
 
 function median(values) {
@@ -100,8 +353,7 @@ async function databaseFixture(target) {
       const roots = typeof database.projectRoots === "function"
         ? database.projectRoots()
         : database.load()?.projects.map((project) => project.root) ?? [];
-      const loaded = database.load();
-      return { roots, tasks: loaded?.tasks.length ?? 0, messages: loaded?.tasks.reduce((total, item) => total + item.messages.length, 0) ?? 0 };
+      return { roots, loaded: database.load() };
     },
     close: async () => {
       database.close();
@@ -212,6 +464,7 @@ async function casesFor(target) {
         run: database.run,
         normalize: (value) => value,
       },
+      ...additionalCases(target),
     ],
     close: database.close,
   };

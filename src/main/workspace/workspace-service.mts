@@ -54,9 +54,15 @@ export class WorkspaceService {
 
   /** Drops a worktree's registration once its directory is gone, so the registry never outgrows the disk. */
   async forgetWorktree(root: string) {
+    await this.forgetWorktrees([root]);
+  }
+
+  /** Drops several registrations in one atomic registry replacement. */
+  async forgetWorktrees(roots: string[]) {
     await this.ready;
-    const canonical = path.resolve(root);
-    const doomed = [...this.records.values()].filter((record) => record.kind === "worktree" && record.root === canonical);
+    if (!roots.length) return;
+    const canonical = new Set(roots.map((root) => path.resolve(root)));
+    const doomed = [...this.records.values()].filter((record) => record.kind === "worktree" && canonical.has(record.root));
     if (!doomed.length) return;
     for (const record of doomed) this.records.delete(record.id);
     await this.writeRegistry();

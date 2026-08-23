@@ -29,7 +29,13 @@ export function threadBusy(state: WorkspaceState, threadId: string): boolean {
 export function threadWaitResult(state: WorkspaceState, threadId: string, timedOut: boolean): ThreadWaitResult | null {
   const task = findThread(state, threadId);
   if (!task) return null;
-  const reply = [...task.messages].reverse().find((message) => message.kind === "assistant")?.text ?? null;
+  let reply: string | null = null;
+  for (let index = task.messages.length - 1; index >= 0; index -= 1) {
+    const message = task.messages[index]!;
+    if (message.kind !== "assistant") continue;
+    reply = message.text;
+    break;
+  }
   return { thread: threadSummary(state, task), timedOut, reply };
 }
 
@@ -51,7 +57,7 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   return { projects, worktrees, busy };
 }
 
-export function threadSummary(state: WorkspaceState, task: Task, index?: ProjectionIndex): ThreadSummary {
+function projectThreadSummary(state: WorkspaceState, task: Task, activity: number, index?: ProjectionIndex): ThreadSummary {
   const project = index ? (task.projectId ? index.projects.get(task.projectId) : undefined) : projectFor(state, task);
   const worktree = index ? (task.worktreeId ? index.worktrees.get(task.worktreeId) : undefined) : worktreeFor(state, task);
   return {
@@ -63,29 +69,53 @@ export function threadSummary(state: WorkspaceState, task: Task, index?: Project
     status: (index ? index.busy.has(task.id) : threadBusy(state, task.id)) ? "running" : runStatusFor(state, task.id),
     archived: task.archivedAt !== undefined,
     createdAt: threadCreatedAt(task),
-    lastActivityAt: threadActivityAt(task),
+    lastActivityAt: activity,
     messageCount: task.messages.length,
     attachmentCount: task.messages.filter(carriesAttachment).length,
   };
+}
+
+export function threadSummary(state: WorkspaceState, task: Task, index?: ProjectionIndex): ThreadSummary {
+  return projectThreadSummary(state, task, threadActivityAt(task), index);
 }
 
 /** Newest activity first, so a limit keeps the threads worth looking at. */
 export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at: number): ThreadSummary[] {
   const search = filter.search?.trim().toLowerCase();
   const forked = sideChatIds(state);
-  const matching = state.tasks.filter((task) => {
-    if (forked.has(task.id)) return false;
-    if (!inScope(task, filter.scope)) return false;
-    if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) return false;
-    if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) return false;
-    if (search && !matches(task, search)) return false;
-    if (filter.attachments && !task.messages.some(carriesAttachment)) return false;
-    return true;
-  });
-  if (!matching.length) return [];
+  if (filter.limit === undefined) {
+    const matching = state.tasks.filter((task) => {
+      if (forked.has(task.id)) return false;
+      if (!inScope(task, filter.scope)) return false;
+      if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) return false;
+      if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) return false;
+      if (search && !matches(task, search)) return false;
+      if (filter.attachments && !task.messages.some(carriesAttachment)) return false;
+      return true;
+    });
+    if (!matching.length) return [];
+    const index = projectionIndex(state);
+    return matching.map((task) => threadSummary(state, task, index)).sort((left, right) => right.lastActivityAt - left.lastActivityAt);
+  }
+  const matching: Array<{ task: Task; activity: number }> = [];
+  for (const task of state.tasks) {
+    if (forked.has(task.id)) continue;
+    if (!inScope(task, filter.scope)) continue;
+    if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
+    let activity: number | undefined;
+    if (filter.idleForMs !== undefined) {
+      activity = threadActivityAt(task);
+      if (at - activity < filter.idleForMs) continue;
+    }
+    if (search && !matches(task, search)) continue;
+    if (filter.attachments && !task.messages.some(carriesAttachment)) continue;
+    matching.push({ task, activity: activity ?? threadActivityAt(task) });
+  }
+  if (!matching.length || Math.max(0, filter.limit) === 0) return [];
+  matching.sort((left, right) => right.activity - left.activity);
+  const retained = matching.slice(0, Math.max(0, filter.limit));
   const index = projectionIndex(state);
-  const summaries = matching.map((task) => threadSummary(state, task, index)).sort((left, right) => right.lastActivityAt - left.lastActivityAt);
-  return filter.limit === undefined ? summaries : summaries.slice(0, Math.max(0, filter.limit));
+  return retained.map(({ task, activity }) => projectThreadSummary(state, task, activity, index));
 }
 
 /**
@@ -118,12 +148,19 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
 export function findThread(state: WorkspaceState, reference: string): Task | null {
   const wanted = reference.trim().toLowerCase();
   if (!wanted) return null;
-  const exact = state.tasks.find((task) => task.id.toLowerCase() === wanted);
-  if (exact) return exact;
-  const recent = [...state.tasks].sort((left, right) => threadActivityAt(right) - threadActivityAt(left));
-  return recent.find((task) => task.title.trim().toLowerCase() === wanted)
-    ?? recent.find((task) => task.id.toLowerCase().startsWith(wanted))
-    ?? null;
+  let title: { task: Task; activity: number } | null = null;
+  let prefix: { task: Task; activity: number } | null = null;
+  for (const task of state.tasks) {
+    const id = task.id.toLowerCase();
+    if (id === wanted) return task;
+    const titleMatches = task.title.trim().toLowerCase() === wanted;
+    const prefixMatches = id.startsWith(wanted);
+    if (!titleMatches && !prefixMatches) continue;
+    const activity = threadActivityAt(task);
+    if (titleMatches && (!title || activity > title.activity)) title = { task, activity };
+    if (prefixMatches && (!prefix || activity > prefix.activity)) prefix = { task, activity };
+  }
+  return title?.task ?? prefix?.task ?? null;
 }
 
 export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES): ThreadTranscript | null {

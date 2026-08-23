@@ -3,7 +3,7 @@ import path from "node:path";
 import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
-import { isProject, parseTaskStore, serializeTaskStore, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
+import { isProject, validateTaskStoreData, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
 import { isWorktree, type Worktree } from "../domain/worktree.js";
 
 /** Automations are read while the app boots, so one unreadable row must not take the window with it. */
@@ -203,7 +203,7 @@ export class TaskDatabase {
       worktrees: worktreeRows.map(({ data }) => JSON.parse(data) as Worktree),
       lastFolder: lastFolderRow ? JSON.parse(lastFolderRow.value) as string | null : null,
     };
-    const validated = parseTaskStore(serializeTaskStore(data));
+    const validated = validateTaskStoreData(data);
     if (!validated.ok) throw new Error(validated.errors.join(" "));
     return validated.data;
   }

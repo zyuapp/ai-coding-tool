@@ -298,6 +298,17 @@ type VersionedValue<T> = {
   value: T;
 };
 
+type DecodedTaskStore = {
+  tasks: unknown;
+  projects: unknown;
+  worktrees: unknown;
+  lastFolder: unknown;
+};
+
+type TaskStoreValidationResult =
+  | { ok: true; data: TaskStoreData }
+  | { ok: false; errors: string[] };
+
 export type SerializedTaskStore = StorageValues;
 
 export function legacyProjectId(root: string) {
@@ -330,7 +341,12 @@ export function parseTaskStore(raw: StorageValues): TaskStoreParseResult {
     };
   }
   const decoded = decodeV2(raw);
-  if (decoded.kind === "v2") return parseV2(decoded.values, raw);
+  if (decoded.kind === "v2") {
+    const validated = validateTaskStoreData(decoded.values);
+    return validated.ok
+      ? { ...validated, sourceVersion: 2, preservedV1: null }
+      : corrupt(2, validated.errors, raw);
+  }
   if (decoded.kind === "corrupt") {
     return {
       ok: false,
@@ -456,7 +472,7 @@ function migrateMessages(value: unknown, taskIndex: number, errors: string[]) {
 
 function decodeV2(raw: StorageValues):
   | { kind: "none" }
-  | { kind: "v2"; values: { tasks: unknown; projects: unknown; worktrees: unknown; lastFolder: unknown } }
+  | { kind: "v2"; values: DecodedTaskStore }
   | { kind: "corrupt"; errors: string[] } {
   if (isEmpty(raw)) return { kind: "none" };
   const errors: string[] = [];
@@ -485,7 +501,8 @@ function decodeV2(raw: StorageValues):
   };
 }
 
-function parseV2(values: { tasks: unknown; projects: unknown; worktrees: unknown; lastFolder: unknown }, raw: StorageValues): TaskStoreParseResult {
+/** Validates v2 values that have already been decoded from their storage transport. */
+export function validateTaskStoreData(values: DecodedTaskStore): TaskStoreValidationResult {
   const errors: string[] = [];
   if (!Array.isArray(values.tasks)) errors.push("v2 tasks must be an array");
   if (!Array.isArray(values.projects)) errors.push("v2 projects must be an array");
@@ -501,15 +518,19 @@ function parseV2(values: { tasks: unknown; projects: unknown; worktrees: unknown
   for (const task of tasks) {
     if (task.projectId && !projectIds.has(task.projectId)) errors.push(`v2 task ${task.id} references an unknown project`);
   }
-  if (errors.length) return corrupt(2, errors, raw);
-  const worktrees = [...stored, ...lifted]
-    .filter((worktree, index, all) => all.findIndex((item) => item.id === worktree.id) === index)
-    .filter((worktree) => projectIds.has(worktree.projectId));
+  if (errors.length) return { ok: false, errors };
+  const worktreesById = new Map<string, Worktree>();
+  for (const worktree of stored) {
+    if (!worktreesById.has(worktree.id)) worktreesById.set(worktree.id, worktree);
+  }
+  for (const worktree of lifted) {
+    if (!worktreesById.has(worktree.id)) worktreesById.set(worktree.id, worktree);
+  }
+  const worktrees = [...worktreesById.values()].filter((worktree) => projectIds.has(worktree.projectId));
+  const worktreeIds = new Set(worktrees.map((worktree) => worktree.id));
   return {
     ok: true,
-    data: { version: TASK_STORE_VERSION, tasks: tasks.map((task) => claiming(task, worktrees)), projects, worktrees, lastFolder: values.lastFolder as string | null },
-    sourceVersion: 2,
-    preservedV1: null,
+    data: { version: TASK_STORE_VERSION, tasks: tasks.map((task) => claiming(task, worktreeIds)), projects, worktrees, lastFolder: values.lastFolder as string | null },
   };
 }
 
@@ -518,8 +539,8 @@ function parseV2(values: { tasks: unknown; projects: unknown; worktrees: unknown
  * reconcile removes a checkout the moment nothing claims it, and a crash in that window would
  * otherwise leave the user unable to write anything at all.
  */
-function claiming(task: Task, worktrees: Worktree[]): Task {
-  if (!task.worktreeId || worktrees.some((worktree) => worktree.id === task.worktreeId)) return task;
+function claiming(task: Task, worktreeIds: Set<string>): Task {
+  if (!task.worktreeId || worktreeIds.has(task.worktreeId)) return task;
   const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = task;
   return local;
 }

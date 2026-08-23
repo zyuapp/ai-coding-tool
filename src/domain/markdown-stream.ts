@@ -45,6 +45,7 @@ const MARKERS_ONLY = /^[\s>#*+\-_=~`|.:0-9]*$/;
 /** A GFM table is literal pipes until its delimiter row lands, so the rows above it are held back. */
 const TABLE_ROW = /^\s*\|/;
 const TABLE_DELIMITER = /^[|\s:-]*-[|\s:-]*$/;
+const INLINE_MARKER = /[\\`<\[!*_~]/g;
 
 function closingRun(text: string, from: number, char: string, length: number) {
   for (let index = text.indexOf(char, from); index !== -1; index = text.indexOf(char, index + 1)) {
@@ -76,6 +77,10 @@ export function inlineSafeEnd(text: string): number {
   const earliest = () => (open[0]?.at ?? text.length);
   let index = 0;
   while (index < text.length) {
+    INLINE_MARKER.lastIndex = index;
+    const marker = INLINE_MARKER.exec(text);
+    if (!marker) break;
+    index = marker.index;
     const char = text[index]!;
     if (char === "\\") {
       index += 2;

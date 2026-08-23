@@ -1,6 +1,7 @@
 /** How a thread is named inside a draft, and what that name expands to when the draft is sent. */
 
 const HANDLE_TOKEN = /(?:^|\s)@([^\s@]*)$/;
+const ASCII_WORD = /^[a-z\d]+$/;
 const SLUG_WORDS = 4;
 const SLUG_CHARS = 40;
 
@@ -49,16 +50,29 @@ export function threadHandles(threads: Omit<ThreadHandleOption, "handle">[]): Th
 export function threadHandleMatches(option: ThreadHandleOption, query: string): boolean {
   if (query === "") return true;
   const wanted = query.toLowerCase();
-  return option.handle.includes(wanted)
-    || option.title.toLowerCase().split(/[^a-z\d]+/).some((word) => word.startsWith(wanted));
+  if (option.handle.includes(wanted)) return true;
+  if (!ASCII_WORD.test(wanted)) return false;
+  const title = option.title.toLowerCase();
+  for (let index = 0, atWordStart = true; index < title.length; index += 1) {
+    const code = title.charCodeAt(index);
+    const inWord = code >= 48 && code <= 57 || code >= 97 && code <= 122;
+    if (inWord && atWordStart && title.startsWith(wanted, index)) return true;
+    atWordStart = !inWord;
+  }
+  return false;
 }
 
 /** In-project threads first, then the rest, each group newest first. */
-export function rankThreadHandles(options: ThreadHandleOption[], query: string): ThreadHandleOption[] {
-  const matching = options.filter((option) => threadHandleMatches(option, query));
-  /** An empty query is browsing rather than searching, so it never leaves the current project. */
-  const scoped = query === "" ? matching.filter((option) => option.inScope) : matching;
-  return [...scoped.filter((option) => option.inScope), ...scoped.filter((option) => !option.inScope)];
+export function rankThreadHandles(options: ThreadHandleOption[], query: string, limit = Infinity): ThreadHandleOption[] {
+  const inside: ThreadHandleOption[] = [], outside: ThreadHandleOption[] = [];
+  const maximum = Math.max(0, limit);
+  for (const option of options) {
+    /** An empty query is browsing rather than searching, so it never leaves the current project. */
+    if ((!query && !option.inScope) || !threadHandleMatches(option, query)) continue;
+    (option.inScope ? inside : outside).push(option);
+    if (inside.length === maximum) break;
+  }
+  return [...inside, ...outside].slice(0, maximum);
 }
 
 /** The link a thread reads as once it leaves the composer, which the transcript renders clickable. */

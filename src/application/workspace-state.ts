@@ -9,7 +9,7 @@ import { fileFingerprint, rangeKey, UNCOMMITTED, type DiffRange } from "../domai
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
-import { findHits, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
+import { memoizedFindHits, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import type { TerminalSession } from "../domain/terminal.js";
@@ -405,15 +405,15 @@ export function withStoreData(state: WorkspaceState, data: TaskStoreData): Works
     ...Object.values(state.pendingRuns).flatMap((pending) => pending.taskId ? [pending.taskId] : []),
     ...state.creatingWorktrees,
   ]);
-  const stored = new Set(landing.tasks.map((task) => task.id));
-  const tasks = [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))];
+  const stored = new Set(landing.tasks.map((task) => task.id)), tasks = [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))];
+  const landingWorktreeIds = new Set(landing.worktrees.map((worktree) => worktree.id)), claimedWorktreeIds = new Set(tasks.flatMap((task) => task.worktreeId ? [task.worktreeId] : []));
   /** A checkout the store has yet to hear about is still claimed here, so the session keeps its record. */
   const arrived: WorkspaceState = {
     ...state,
     tasks,
     worktrees: [
       ...landing.worktrees,
-      ...state.worktrees.filter((worktree) => !landing.worktrees.some((item) => item.id === worktree.id) && tasks.some((task) => task.worktreeId === worktree.id)),
+      ...state.worktrees.filter((worktree) => !landingWorktreeIds.has(worktree.id) && claimedWorktreeIds.has(worktree.id)),
     ],
     projects: landing.projects,
     lastFolder: landing.lastFolder,
@@ -782,7 +782,7 @@ function findView(state: WorkspaceState, currentTask: Task | undefined): FindVie
   if (find.target.kind !== "transcript") {
     return { ...find, matches: state.findResults?.matches ?? 0, index: state.findResults?.index ?? 0, hit: null };
   }
-  const hits = findHits(currentTask?.messages ?? [], find.query);
+  const hits = memoizedFindHits(currentTask?.messages ?? [], find.query);
   const index = hits.length ? Math.min(find.index, hits.length - 1) : 0;
   return { ...find, index, matches: hits.length, hit: hits[index] ?? null };
 }

@@ -62,6 +62,26 @@ test("serializes concurrent registrations without losing a workspace", async () 
   assert.deepEqual(resolved, registered);
 });
 
+test("forgets several worktrees together while preserving other workspace kinds and the single-root API", async () => {
+  const { directory, registryPath, projectlessRoot } = await setup();
+  const firstRoot = path.join(directory, "first-worktree");
+  const secondRoot = path.join(directory, "second-worktree");
+  await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+  const service = new WorkspaceService({ registryPath, projectlessRoot });
+  const project = await service.registerProject(firstRoot);
+  const first = await service.registerWorktree(firstRoot);
+  const second = await service.registerWorktree(secondRoot);
+
+  await service.forgetWorktrees([first.workspace.root, second.workspace.root, first.workspace.root, path.join(directory, "unknown")]);
+
+  assert.deepEqual(await service.listWorktrees(), []);
+  assert.deepEqual(await service.resolve(project.workspace.id), project, "a project at the same root is not a worktree registration");
+  const replacement = await service.registerWorktree(secondRoot);
+  await service.forgetWorktree(replacement.workspace.root);
+  await assert.rejects(() => service.resolve(replacement.workspace.id), UnknownWorkspaceError);
+  assert.deepEqual(await new WorkspaceService({ registryPath, projectlessRoot }).listWorktrees(), []);
+});
+
 test("rolls back an in-memory registration when persistence fails", async () => {
   const { directory, registryPath, projectlessRoot } = await setup();
   const project = path.join(directory, "project");

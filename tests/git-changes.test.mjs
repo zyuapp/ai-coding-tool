@@ -81,6 +81,20 @@ test("changed files reports exact Git summary including safe untracked line coun
   assert.deepEqual(new Set(result.files), new Set([" M tracked.txt", "?? binary.bin", "?? final-newline.txt", "?? large.txt", "?? no-final-newline.txt", "?? outside-link.txt"]));
 });
 
+test("untracked line counting keeps every file beyond one worker pool", async (t) => {
+  const root = await repository();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const files = Array.from({ length: 24 }, (_item, index) => `fresh-${String(index).padStart(2, "0")}.txt`);
+  await Promise.all(files.map((file, index) => writeFile(path.join(root, file), "line\n".repeat(index + 1))));
+
+  const result = await changedFiles("fixture", workspaces(root));
+
+  assert.equal(result.status, "available");
+  assert.equal(result.additions, 300);
+  assert.equal(result.deletions, 0);
+  assert.deepEqual(result.files, files.map((file) => `?? ${file}`));
+});
+
 test("changed files counts committed work against the origin default branch", async (t) => {
   const root = await repository();
   const origin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-origin-"));
@@ -99,6 +113,55 @@ test("changed files counts committed work against the origin default branch", as
   assert.equal(result.baseline, "origin/main");
   assert.equal(result.additions, 3);
   assert.equal(result.deletions, 0);
+});
+
+test("comparison bases are cached within one repository and never shared across roots", async (t) => {
+  const root = await repository();
+  const other = await repository();
+  const origin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-origin-"));
+  t.after(async () => { await Promise.all([
+    rm(root, { recursive: true, force: true }),
+    rm(other, { recursive: true, force: true }),
+    rm(origin, { recursive: true, force: true }),
+  ]); });
+  await git(origin, "init", "--bare", "-b", "main");
+  await git(root, "remote", "add", "origin", origin);
+  await git(root, "push", "origin", "main");
+
+  const first = await changedFiles("fixture", workspaces(root));
+  await git(root, "update-ref", "-d", "refs/remotes/origin/main");
+  const cached = await changedFiles("fixture", workspaces(root));
+  const unrelated = await changedFiles("fixture", workspaces(other));
+
+  assert.equal(first.status, "available");
+  assert.equal(first.baseline, "origin/main");
+  assert.equal(cached.status, "available");
+  assert.equal(cached.baseline, "origin/main", "the cached commit outlives a ref disappearing between polls");
+  assert.equal(unrelated.status, "available");
+  assert.equal(unrelated.baseline, null, "another root does not inherit the first repository's base");
+});
+
+test("a cached comparison base follows a new HEAD", async (t) => {
+  const root = await repository();
+  const origin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-origin-"));
+  t.after(async () => { await Promise.all([rm(root, { recursive: true, force: true }), rm(origin, { recursive: true, force: true })]); });
+  await git(origin, "init", "--bare", "-b", "main");
+  await git(root, "remote", "add", "origin", origin);
+  await git(root, "push", "origin", "main");
+  assert.equal((await changedFiles("fixture", workspaces(root))).baseline, "origin/main");
+
+  await writeFile(path.join(root, "tracked.txt"), "one\ntwo\n");
+  await git(root, "commit", "-am", "advance main");
+  await git(root, "push", "origin", "main");
+  await git(root, "checkout", "-b", "feature");
+  await writeFile(path.join(root, "tracked.txt"), "one\ntwo\nthree\n");
+  await git(root, "commit", "-am", "feature work");
+
+  const result = await changedFiles("fixture", workspaces(root));
+  assert.equal(result.status, "available");
+  assert.equal(result.branch, "feature");
+  assert.equal(result.baseline, "origin/main");
+  assert.equal(result.additions, 1, "the new branch is compared with its own merge base");
 });
 
 test("changed files reports detached HEAD and non-Git failures", async (t) => {

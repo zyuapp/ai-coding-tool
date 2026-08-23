@@ -103,6 +103,26 @@ test("threads with images can be picked out, and a listing counts the messages c
   assert.equal(wordy.attachmentCount, 0);
 });
 
+test("a limited listing filters first and keeps stable activity ties", () => {
+  const illustrated = (id, at, text = "keep") => task(id, {
+    messages: [{ ...message(text, at), attachments: [`/tmp/${id}.png`] }],
+  });
+  const state = workspace([
+    illustrated("newest", NOW),
+    illustrated("tie-first", NOW - HOUR),
+    illustrated("tie-second", NOW - HOUR),
+    illustrated("wrong-search", NOW + HOUR, "discard"),
+    task("no-image", { messages: [message("keep", NOW + HOUR)] }),
+  ]);
+  const filter = { scope: { kind: "all" }, search: "keep", attachments: true };
+
+  const unlimited = threadSummaries(state, filter, NOW);
+  const limited = threadSummaries(state, { ...filter, limit: 2 }, NOW);
+
+  assert.deepEqual(unlimited.map((thread) => thread.id), ["newest", "tie-first", "tie-second"]);
+  assert.deepEqual(limited, unlimited.slice(0, 2));
+});
+
 test("a transcript keeps the newest messages and says how many it left behind", () => {
   const messages = Array.from({ length: 5 }, (_item, index) => message(`turn ${index}`, NOW - (5 - index) * HOUR));
   const state = workspace([task("long", { projectId: "project-app", messages })]);
@@ -137,7 +157,12 @@ test("a thread counts as working while a run is going, resolving, or still queue
 
 test("a wait reports the thread and the last thing it said", () => {
   const state = workspace([task("answered", {
-    messages: [message("do it", NOW - HOUR), message("done", NOW - HOUR / 2, "assistant"), message("Bash", NOW, "tool")],
+    messages: [
+      message("do it", NOW - HOUR),
+      message("still working", NOW - 3 * HOUR / 4, "assistant"),
+      message("done", NOW - HOUR / 2, "assistant"),
+      message("Bash", NOW, "tool"),
+    ],
   })]);
 
   const waited = threadWaitResult(state, "answered", false);
@@ -228,4 +253,17 @@ test("a thread answers to its id, an id prefix, or its title, and the newest win
   assert.equal(findThread(state, "nothing at all"), null);
   assert.equal(findThread(state, "  "), null);
   assert.equal(threadTranscript(state, "Sink the mode choices")?.thread.id, "t-3a1100");
+});
+
+test("a title outranks a newer id prefix, and activity ties keep task order", () => {
+  const state = workspace([
+    task("topic-newest-prefix", { title: "Something else", runEndedAt: NOW + HOUR }),
+    task("title-first", { title: "Topic", runEndedAt: NOW }),
+    task("title-second", { title: " topic ", runEndedAt: NOW }),
+    task("prefix-first", { runEndedAt: NOW }),
+    task("prefix-second", { runEndedAt: NOW }),
+  ]);
+
+  assert.equal(findThread(state, "topic")?.id, "title-first");
+  assert.equal(findThread(state, "prefix-")?.id, "prefix-first");
 });

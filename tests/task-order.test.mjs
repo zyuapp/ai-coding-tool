@@ -146,3 +146,18 @@ test("activity dates a thread by what it last did, not by every write to it", ()
 
   assert.deepEqual(activitySections(tasks, new Set(), new Set()).threads.map((item) => item.id), ["fresh-message", "stale-run"]);
 });
+
+test("activity sections keep input order when activity ties", () => {
+  const tasks = [
+    task("priority-first", { outcome: "finished" }),
+    task("running", { sortIndex: 0 }),
+    task("thread-first"),
+    task("priority-second", { outcome: "failed" }),
+    task("thread-second"),
+  ];
+
+  const sections = activitySections(tasks, new Set(["running"]), new Set());
+  assert.deepEqual(sections.priority.map((item) => item.id), ["priority-first", "priority-second"]);
+  assert.deepEqual(sections.running.map((item) => item.id), ["running"]);
+  assert.deepEqual(sections.threads.map((item) => item.id), ["thread-first", "thread-second"]);
+});

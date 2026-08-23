@@ -45,6 +45,7 @@ test("browsing stays in the project, and a query reaches past it with home rows 
 
   assert.deepEqual(rankThreadHandles(options, "").map((option) => option.id), ["here"]);
   assert.deepEqual(rankThreadHandles(options, "raise").map((option) => option.id), ["here", "away"]);
+  assert.deepEqual(rankThreadHandles(options, "raise", 1).map((option) => option.id), ["here"], "a bounded menu stops after its first in-scope match");
   assert.deepEqual(rankThreadHandles(options, "panel").map((option) => option.id), ["away"]);
   assert.deepEqual(rankThreadHandles(options, "nothing").map((option) => option.id), []);
 });

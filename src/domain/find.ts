@@ -59,6 +59,18 @@ export function findHits(messages: TaskMessage[], query: string): FindHit[] {
   return hits;
 }
 
+const hitCache = new WeakMap<TaskMessage[], { query: string; hits: FindHit[] }>();
+
+/** Reuses a transcript search while its immutable message list and normalized query are unchanged. */
+export function memoizedFindHits(messages: TaskMessage[], query: string): FindHit[] {
+  const needle = query.trim().toLowerCase();
+  const cached = hitCache.get(messages);
+  if (cached?.query === needle) return cached.hits;
+  const hits = findHits(messages, needle);
+  hitCache.set(messages, { query: needle, hits });
+  return hits;
+}
+
 /** The match `delta` away, wrapping at both ends the way every other find does. */
 export function stepMatch(index: number, delta: -1 | 1, matches: number): number {
   if (matches <= 0) return 0;

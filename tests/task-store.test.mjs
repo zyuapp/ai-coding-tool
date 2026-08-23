@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { legacyProjectId, migrateV1ToV2, parseTaskStore, serializeTaskStore } from "../dist/main/domain/task.js";
+import { legacyProjectId, migrateV1ToV2, parseTaskStore, serializeTaskStore, validateTaskStoreData } from "../dist/main/domain/task.js";
 import { LEGACY_TASK_STORE_KEYS, TASK_STORE_KEYS, TaskStore } from "../dist/main/application/task-store.js";
 
 const task = {
@@ -103,6 +103,36 @@ test("serializes and parses v2 data without changing it", () => {
   assert.deepEqual(parsed.data, migrated.data);
   assert.equal(parsed.sourceVersion, 2);
   assert.equal(parsed.preservedV1, null);
+});
+
+test("validating decoded v2 data matches serialized parsing", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const decoded = {
+    ...migrated.data,
+    tasks: [{
+      ...migrated.data.tasks[0],
+      model: "default",
+      contextWindow: "1m",
+      silencedKeys: ["latency"],
+      messages: [{ ...migrated.data.tasks[0].messages[0], quiet: true }],
+    }],
+  };
+
+  const parsed = parseTaskStore(serializeTaskStore(decoded));
+  const original = structuredClone(decoded);
+  const validated = validateTaskStoreData(decoded);
+  assert.equal(validated.ok, parsed.ok);
+  if (validated.ok && parsed.ok) assert.deepEqual(validated.data, parsed.data);
+  assert.deepEqual(decoded, original, "validation sanitizes its result without changing decoded rows");
+
+  const invalid = { ...decoded, tasks: [{ ...decoded.tasks[0], title: 42 }] };
+  const rejected = parseTaskStore(serializeTaskStore(invalid));
+  const directlyRejected = validateTaskStoreData(invalid);
+  assert.equal(directlyRejected.ok, false);
+  assert.equal(rejected.ok, false);
+  if (!directlyRejected.ok && !rejected.ok) assert.deepEqual(directlyRejected.errors, rejected.errors);
 });
 
 test("invalid continuation keeps messages and marks the task non-resumable", () => {
@@ -439,6 +469,51 @@ test("a thread claiming a checkout that is not there is local again, rather than
   if (!result.ok) return;
   assert.equal(result.data.tasks[0].worktreeId, undefined);
   assert.equal(result.data.tasks[0].worktreeEnteredAt, undefined);
+});
+
+test("duplicate checkout ids keep the first record before invalid projects are removed", () => {
+  const checkout = (id, projectId, root) => ({ id, projectId, root, workspaceId: `workspace-${root}`, baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 2 });
+  const embedded = {
+    id: "task-shared",
+    title: "Shared checkout",
+    projectId: "project-1",
+    executionPolicy: "confirm",
+    messages: [],
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: 1 },
+    updatedAt: 2,
+    worktree: { ...checkout("shared", "project-1", "/lifted"), enteredAt: 3 },
+  };
+  const blocked = {
+    ...embedded,
+    id: "task-blocked",
+    title: "Blocked checkout",
+    worktree: undefined,
+    worktreeId: "blocked",
+    worktreeEnteredAt: 4,
+  };
+  const first = checkout("shared", "project-1", "/first");
+  const result = parseTaskStore({
+    tasks: JSON.stringify({ version: 2, value: [embedded, blocked] }),
+    projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/repo" }] }),
+    worktrees: JSON.stringify({
+      version: 2,
+      value: [
+        first,
+        checkout("shared", "project-1", "/second"),
+        checkout("blocked", "missing-project", "/invalid-first"),
+        checkout("blocked", "project-1", "/valid-second"),
+      ],
+    }),
+    lastFolder: JSON.stringify({ version: 2, value: null }),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.worktrees, [first], "stored records win duplicates, including lifted records");
+  assert.equal(result.data.tasks[0].worktreeId, "shared");
+  assert.equal(result.data.tasks[1].worktreeId, undefined, "filtering after deduplication does not revive a later duplicate");
+  assert.equal(result.data.tasks[1].worktreeEnteredAt, undefined);
 });
 
 test("what a thread's runs found survives being written and read back, and a malformed one refuses the store", () => {
