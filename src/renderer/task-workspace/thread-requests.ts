@@ -1,6 +1,7 @@
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
 import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
-import { findingOutcome, scheduledRun, unreadFindings } from "../../application/findings";
+import { findingOutcome, unreadFindings } from "../../domain/attention";
+import { scheduledRun } from "../../application/run-testimony";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import { terminalLineLimit } from "../../domain/terminal";

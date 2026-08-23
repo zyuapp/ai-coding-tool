@@ -1,5 +1,5 @@
 import { threadActivityAt, type Task, type TaskDropTarget } from "../domain/task.js";
-import { hasFindings } from "./findings.js";
+import { hasFindings } from "../domain/attention.js";
 
 /** The activity sidebar's three lists, in the order they are drawn. */
 export type ActivitySections = Record<"priority" | "running" | "threads", Task[]>;

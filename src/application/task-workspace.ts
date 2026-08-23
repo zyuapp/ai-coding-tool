@@ -41,6 +41,23 @@ export function threadMark(task: Task | undefined): ThreadMark {
 }
 
 /**
+ * Puts a thread back where a tick found it: the messages that tick wrote count for nothing in the
+ * thread's activity, the moments it moved are rolled back, and the verdict beginning the run
+ * superseded is returned, unread as it was. A tick that says nothing takes nothing away either.
+ */
+export function silencedThread(task: Task, from: number, before: ThreadMark): Task {
+  const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = task;
+  return {
+    ...rest,
+    messages: task.messages.map((message, index) => index < from || message.quiet ? message : { ...message, quiet: true as const }),
+    updatedAt: before.updatedAt,
+    ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
+    ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
+    ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
+  };
+}
+
+/**
  * Who a run answers to. A run is the composer's unless the scheduler started it, and a human joining
  * a scheduled run makes it theirs again, so nothing is ever quiet by inference.
  */

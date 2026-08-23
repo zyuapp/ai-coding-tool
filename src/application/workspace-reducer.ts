@@ -5,7 +5,9 @@ import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
-import { declinedTick, dismissableTasks, dismissed, outcomeFor, raisedFinding, readAttention, settledUnseen, withNothingToReport, withoutOutcome, withSettledTick } from "./findings.js";
+import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
+import { declinedTick, raisedFinding } from "./findings.js";
+import { outcomeFor, settledUnseen, withNothingToReport, withSettledTick } from "./run-testimony.js";
 import {
   applyRunEvent,
   applyTask,

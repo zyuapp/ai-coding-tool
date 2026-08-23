@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { DragDropContext, Draggable, Droppable, type DraggableProvided, type DropResult } from "@hello-pangea/dnd";
 import { AlarmClock, Archive, Check, CheckCheck, ChevronLeft, ChevronRight, FolderSymlink, Inbox, Settings, SquarePen } from "lucide-react";
 import { projectName, threadActivityAt } from "../../domain/task";
-import { dismissableTasks, newestUnreadFinding } from "../../application/findings";
+import { dismissableTasks, newestUnreadFinding } from "../../domain/attention";
 import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskOutcome } from "../../domain/task";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
