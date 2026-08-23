@@ -5,7 +5,7 @@ import { isSidebarMode } from "../domain/sidebar.js";
 import { isThemeMode, themeById } from "../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../domain/typography.js";
 
-export const VIEW_PREFERENCES_KEY = "claudex.view-preferences.v1";
+export const VIEW_PREFERENCES_KEY = "aicodingtool.view-preferences.v1";
 
 const MAX_REMEMBERED = 50;
 

@@ -9,16 +9,16 @@ import {
 
 export const TASK_STORE_KEYS = {
   v1: {
-    tasks: "claudex.tasks.v1",
-    projects: "claudex.projects.v1",
-    lastFolder: "claudex.last-folder.v1",
+    tasks: "aicodingtool.tasks.v1",
+    projects: "aicodingtool.projects.v1",
+    lastFolder: "aicodingtool.last-folder.v1",
   },
   v2: {
-    envelope: "claudex.store.v2",
-    tasks: "claudex.tasks.v2",
-    projects: "claudex.projects.v2",
-    worktrees: "claudex.worktrees.v2",
-    lastFolder: "claudex.last-folder.v2",
+    envelope: "aicodingtool.store.v2",
+    tasks: "aicodingtool.tasks.v2",
+    projects: "aicodingtool.projects.v2",
+    worktrees: "aicodingtool.worktrees.v2",
+    lastFolder: "aicodingtool.last-folder.v2",
   },
 } as const;
 

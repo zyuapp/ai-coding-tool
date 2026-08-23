@@ -434,7 +434,7 @@ test("subagent inspector renders activity and closes", async () => {
 
 test("a side chat opened from the right panel sends on the side channel and stops on request", async () => {
   localStorage.clear();
-  localStorage.setItem("claudex.store.v2", JSON.stringify({
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: [{
       id: "main-task",
       title: "Main task",
@@ -1039,7 +1039,7 @@ test("the appearance page sets the families through its pickers, and the sizes a
   assert.equal(root.style.getPropertyValue("--text-content"), "19px");
   assert.equal(root.style.getPropertyValue("--terminal-text"), "11px");
 
-  const stored = JSON.parse(localStorage.getItem("claudex.view-preferences.v1"));
+  const stored = JSON.parse(localStorage.getItem("aicodingtool.view-preferences.v1"));
   assert.deepEqual(
     { uiFont: stored.uiFont, monoFont: stored.monoFont, readingSize: stored.readingSize, terminalSize: stored.terminalSize },
     { uiFont: "inter", monoFont: "jetbrains-mono", readingSize: 19, terminalSize: 11 },
@@ -1073,13 +1073,13 @@ test("a size typed into the field is clamped to the range, and Escape abandons t
   await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
   await leave();
   assert.equal(root.style.getPropertyValue("--text-content"), "24px", "Escape keeps the settled size");
-  assert.equal(JSON.parse(localStorage.getItem("claudex.view-preferences.v1")).readingSize, 24);
+  assert.equal(JSON.parse(localStorage.getItem("aicodingtool.view-preferences.v1")).readingSize, 24);
   await view.unmount();
 });
 
 test("a size stored as a rung the app used to offer reopens at the px that rung drew at", async () => {
   localStorage.clear();
-  localStorage.setItem("claudex.view-preferences.v1", JSON.stringify({ readingSize: "larger", terminalSize: "small" }));
+  localStorage.setItem("aicodingtool.view-preferences.v1", JSON.stringify({ readingSize: "larger", terminalSize: "small" }));
   window.desktop = fakeDesktop();
   const view = await mount(React.createElement(App));
   const root = dom.window.document.documentElement;
@@ -1107,7 +1107,7 @@ test("the appearance page picks a theme and a ground separately, and each click 
   await act(async () => { mode("Light").click(); });
   assert.equal(root.dataset.theme, "gruvbox-light");
 
-  const stored = JSON.parse(localStorage.getItem("claudex.view-preferences.v1"));
+  const stored = JSON.parse(localStorage.getItem("aicodingtool.view-preferences.v1"));
   assert.deepEqual({ theme: stored.theme, themeMode: stored.themeMode }, { theme: "gruvbox-light", themeMode: "light" });
   await view.unmount();
 });
@@ -1698,9 +1698,9 @@ function seedLegacyWorkspace() {
     messages: [], changedFiles: [], updatedAt: 1,
   };
   localStorage.clear();
-  localStorage.setItem("claudex.tasks.v1", JSON.stringify([legacyTask]));
-  localStorage.setItem("claudex.projects.v1", JSON.stringify(["/project"]));
-  localStorage.setItem("claudex.last-folder.v1", "/project");
+  localStorage.setItem("aicodingtool.tasks.v1", JSON.stringify([legacyTask]));
+  localStorage.setItem("aicodingtool.projects.v1", JSON.stringify(["/project"]));
+  localStorage.setItem("aicodingtool.last-folder.v1", "/project");
 }
 
 function seedTaskWithSubagent() {
@@ -1715,7 +1715,7 @@ function seedTaskWithSubagent() {
     updatedAt: 2,
   };
   localStorage.clear();
-  localStorage.setItem("claudex.store.v2", JSON.stringify({
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: [task] }),
     projects: JSON.stringify({ version: 2, value: [] }),
     lastFolder: JSON.stringify({ version: 2, value: null }),
@@ -1742,7 +1742,7 @@ test("closing subagent details returns to the agents tab", async () => {
 
 test("a view opened in the dock takes the caret with it", async () => {
   localStorage.clear();
-  localStorage.setItem("claudex.store.v2", JSON.stringify({
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: [{
       id: "task-1",
       title: "Inspect",
@@ -1772,7 +1772,7 @@ test("a view opened in the dock takes the caret with it", async () => {
 
 test("hiding the panel hands the caret back instead of losing it", async () => {
   localStorage.clear();
-  localStorage.setItem("claudex.store.v2", JSON.stringify({
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: [{
       id: "task-1",
       title: "Inspect",
@@ -1875,7 +1875,7 @@ test("right panel resizes with the keyboard", async () => {
 
 function seedProjectTasks(tasks) {
   localStorage.clear();
-  localStorage.setItem("claudex.store.v2", JSON.stringify({
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
       executionPolicy: "confirm",
       messages: [],
@@ -4295,7 +4295,7 @@ const REVIEW_PATCH = [
 
 function seedReviewableProject() {
   localStorage.clear();
-  localStorage.setItem("claudex.store.v2", JSON.stringify({
+  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: [{
       id: "review-task",
       title: "Review",
