@@ -129,7 +129,7 @@ export type FindingReport = {
 
 /** What the window did with a run's report, in the words the tool answers with. */
 export type FindingResult = {
-  /** False when nothing was written: an unscheduled turn, a duplicate, or a thread already full. */
+  /** False when nothing was written: an unscheduled turn, or an issue the thread already knows. */
   recorded: boolean;
   note: string;
 };
