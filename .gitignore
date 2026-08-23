@@ -6,3 +6,4 @@ vendor/cua-driver/
 .DS_Store
 /.claude/*
 !/.claude/skills/
+/.mockups/
