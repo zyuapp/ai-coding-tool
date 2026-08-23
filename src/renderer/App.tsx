@@ -552,9 +552,9 @@ export function App() {
                     focusToken={focusTokenFor(browserTab.id)}
                     {...(find?.target.kind === "browser" && find.target.tabId === browserTab.id ? { find: findBar } : {})}
                     approval={workspace.browserApproval?.tabId === browserTab.id ? workspace.browserApproval : null}
-                    onOpen={(url) => void workspace.actions.openBrowser(url)}
-                    onGo={(delta) => void workspace.actions.goInBrowser(delta)}
-                    onReload={() => void workspace.actions.reloadBrowser()}
+                    onOpen={(url) => void workspace.actions.openBrowser(url, false, browserTab.id)}
+                    onGo={(delta) => void workspace.actions.goInBrowser(delta, browserTab.id)}
+                    onReload={() => void workspace.actions.reloadBrowser(browserTab.id)}
                     onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
                   />
                 </div>

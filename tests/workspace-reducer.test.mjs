@@ -2194,19 +2194,6 @@ test("a workflow panel closes once the record it was following is gone", () => {
   assert.equal(dock(pruned.state).workflowId, null);
 });
 
-test("a run drives its own thread's dock, whichever thread the user is looking at", () => {
-  const state = { ...workspace(), tasks: [task("task-1"), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
-
-  const opened = reduce(state, { type: "browser.open", taskId: "task-2", url: "https://two.example" });
-  assert.deepEqual(dock(opened.state).browserTabs, [], "the dock on screen belongs to the thread the user is reading");
-  assert.equal(dock(opened.state, "task-2").browserTabs[0].url, "https://two.example/");
-  assert.equal(dock(opened.state, "task-2").open, true, "the run's own dock is the one that opens");
-
-  const shown = reduce(opened.state, { type: "task.select", taskId: "task-2" });
-  assert.equal(dock(shown.state).tab, dock(opened.state, "task-2").browserTabs[0].id, "landing on that thread shows what its run opened");
-  assert.equal(shown.effects.at(-2).type, "browser.show");
-});
-
 test("a view the user opens in the dock is handed the keyboard, and a run's own page is not", () => {
   const state = { ...workspace(), tasks: [task("task-1", { continuation: { provider: "claude", value: "main-session" } }), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1" };
 

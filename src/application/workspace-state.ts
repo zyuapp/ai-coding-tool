@@ -763,7 +763,9 @@ export function recordVisit(state: WorkspaceState, taskId: string): WorkspaceSta
  */
 export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): FindTarget {
   const dock = dockFor(state, dockOwner(state));
-  if (surface === "browser" && dock.browserTabId) return { kind: "browser", tabId: dock.browserTabId };
+  /** The page holding the keys is the one the dock is showing, which a run's page never is. */
+  const page = dock.browserTabs.find((tab) => tab.id === dock.tab);
+  if (surface === "browser" && page) return { kind: "browser", tabId: page.id };
   if (state.focusedTerminalId) return { kind: "terminal", terminalId: state.focusedTerminalId };
   return { kind: "transcript" };
 }

@@ -281,7 +281,9 @@ function persistView(state: WorkspaceState): WorkspaceEffect[] {
 
 /**
  * Loads the page, in the tab named or a new one. The origin is remembered when the user is the one
- * asking, which is what lets a run reach a site the user has already signed into.
+ * asking, which is what lets a run reach a site the user has already signed into. Only the user's
+ * own load takes the panel: a run leaves the dock on whatever tab it was showing, open or closed,
+ * and its page loads parked out of sight.
  */
 function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean): WorkspaceTransition {
   const origin = browserOrigin(url);
@@ -290,7 +292,8 @@ function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabI
   const target = newTab ? undefined : browserTarget(dockFor(remembered, owner), tabId);
   const cleared = { ...remembered, browserApproval: null, actionError: null };
   if (target) {
-    const shown = withDock(patchBrowserTab(showDockTab(cleared, owner, target.id), owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
+    const surfaced = byUser ? showDockTab(cleared, owner, target.id) : cleared;
+    const shown = withDock(patchBrowserTab(surfaced, owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
     const navigating = byUser ? focusDockTab(shown, owner, target.id) : settled(shown);
     return settled(navigating.state, [
       { type: "browser.navigate", tabId: target.id, url },
@@ -299,11 +302,13 @@ function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabI
     ]);
   }
   const tab: BrowserTab = { id: crypto.randomUUID(), url, title: "", loading: true, canGoBack: false, canGoForward: false };
-  const shown = withDock(showDockTab(cleared, owner, tab.id), owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
+  const surfaced = byUser ? showDockTab(cleared, owner, tab.id) : cleared;
+  const shown = withDock(surfaced, owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
   const opened = byUser ? focusDockTab(shown, owner, tab.id) : settled(shown);
   return settled(opened.state, [
     { type: "browser.open", tabId: tab.id, url },
-    { type: "browser.show", tabId: tab.id },
+    /** The panel draws one page, so a tab nobody is looking at never claims it. */
+    ...(byUser ? [{ type: "browser.show" as const, tabId: tab.id }] : []),
     ...persistView(opened.state),
     ...opened.effects,
   ]);
