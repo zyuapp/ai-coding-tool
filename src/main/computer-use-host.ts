@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import type { EmbeddedCuaDriverHost, EmbeddedDriverConnection } from "@trycua/cua-driver" with { "resolution-mode": "import" };
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../contracts/ipc.js";
 
-const bundleId = "com.zyuapp.claudex";
+const bundleId = "com.zyuapp.aicodingtool";
 let host: EmbeddedCuaDriverHost | null = null;
 let acceptingRuns = true;
 

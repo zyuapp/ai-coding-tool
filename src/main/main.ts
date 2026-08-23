@@ -613,7 +613,7 @@ const WORKTREES_ROOT = path.join(homedir(), ".aicodingtool", "worktrees");
 
 /** Where the app kept worktrees before, still its own: reconciled and released, never created in. */
 function legacyWorktreesRoots(userData: string) {
-  return [path.join(userData, "worktrees"), path.join(homedir(), ".claudex", "worktrees")].filter((root) => root !== WORKTREES_ROOT);
+  return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
 }
 
 /**
