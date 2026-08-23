@@ -16,7 +16,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 700,
     rolldownOptions: {
       output: {
-        advancedChunks: {
+        codeSplitting: {
           groups: [
             /** React and the markdown pipeline are both loaded with the window, so the entry carries neither. */
             { name: "react", test: /node_modules[\\/](?:react|react-dom|scheduler|react-is|use-sync-external-store)[\\/]/ },
