@@ -23,6 +23,8 @@ export type ViewPreferences = {
   captureFocus: boolean;
   /** Which shape the sidebar reopens in. Which of its lists are folded is not remembered. */
   sidebarMode: SidebarMode;
+  /** Whether runs answer in the Simplified Technical English output style the app installs. */
+  plainEnglish: boolean;
   /** Only the bindings that differ from the defaults; an action bound to nothing is stored as null. */
   shortcuts?: ShortcutOverrides;
   /** The pages each thread's dock reopens, keyed by thread id, and the origins a run may reach without asking again. */

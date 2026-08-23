@@ -93,3 +93,40 @@ export async function turn(capture, promise, ...messages) {
   capture.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
   return promise;
 }
+
+/** A live session per open, so a pool test can watch each process separately. */
+export function poolQueryFactory(capture = {}) {
+  capture.sessions = [];
+  return (options) => {
+    const pending = [];
+    let wake = null;
+    const session = {
+      options,
+      closed: false,
+      emit: (message) => { pending.push(message); wake?.(); wake = null; },
+      async *[Symbol.asyncIterator]() {
+        for (;;) {
+          while (pending.length) yield pending.shift();
+          await new Promise((resolve) => { wake = resolve; });
+        }
+      },
+      interrupt: async () => { session.interrupted = true; },
+      setPermissionMode: async () => {},
+      close() { session.closed = true; },
+    };
+    session.sent = [];
+    void (async () => { for await (const message of options.prompt) session.sent.push(message.message.content); })();
+    capture.sessions.push(session);
+    return session;
+  };
+}
+
+/** Runs one turn against the newest session, delivering the given messages before the turn's result. */
+export async function poolTurn(provider, capture, overrides = {}, ...messages) {
+  const running = provider.execute(input(overrides));
+  await tick();
+  const session = capture.sessions.at(-1);
+  for (const message of messages) session.emit(message);
+  session.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
+  return { session, result: await running };
+}

@@ -58,6 +58,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(terminal !== undefined ? { terminalSize: terminal } : {}),
       ...(typeof value.sessionPanelOpen === "boolean" ? { sessionPanelOpen: value.sessionPanelOpen } : {}),
       ...(typeof value.captureSound === "boolean" ? { captureSound: value.captureSound } : {}),
+      ...(typeof value.plainEnglish === "boolean" ? { plainEnglish: value.plainEnglish } : {}),
       ...(typeof value.captureFocus === "boolean" ? { captureFocus: value.captureFocus } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
       ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),

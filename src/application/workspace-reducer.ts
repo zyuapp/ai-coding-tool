@@ -44,6 +44,7 @@ import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
 import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
+import { PLAIN_ENGLISH_STYLE } from "../domain/output-style.js";
 import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { isThemeMode, themeById, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../domain/theme.js";
@@ -446,7 +447,7 @@ function sentPrompt(text: string, pastes: PastedText[], annotations: Annotation[
   return promptWithAttachments(promptWithAnnotations(promptWithPastes(text, pastes), annotations), attachments);
 }
 
-function startRunCommand(task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
+function startRunCommand(state: WorkspaceState, task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
   return {
     type: "start",
     channel: "main",
@@ -457,6 +458,7 @@ function startRunCommand(task: Task, runId: string, prompt: string, workspaceId:
     policy,
     model: task.model ?? DEFAULT_MODEL,
     effort: task.effort ?? DEFAULT_EFFORT,
+    ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}),
     ...(task.continuation ? { continuation: task.continuation } : {}),
   };
 }
@@ -1584,6 +1586,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         sessionPanelOpen: input.preferences.sessionPanelOpen,
         captureSound: input.preferences.captureSound ?? true,
         captureFocus: input.preferences.captureFocus ?? true,
+        plainEnglish: input.preferences.plainEnglish ?? false,
         sidebarOpen: input.preferences.sidebarOpen,
         sidebarMode: input.preferences.sidebarMode,
         shortcuts: input.preferences.shortcuts ?? {},
@@ -1783,6 +1786,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const next = { ...state, captureSound: input.options.sound, captureFocus: input.options.focus };
       if (next.captureSound === state.captureSound && next.captureFocus === state.captureFocus) return settled(state);
       return settled(next, [...persistView(next), { type: "apply-capture-options", options: input.options }]);
+    }
+
+    case "view.set-plain-english": {
+      if (state.plainEnglish === input.enabled) return settled(state);
+      const next = { ...state, plainEnglish: input.enabled };
+      return settled(next, persistView(next));
     }
 
     case "view.set-session-panel-open": {
@@ -2149,7 +2158,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     : started;
   const titling: WorkspaceEffect[] = existing || (!pending.text && pending.attachments.length === 0) ? [] : [{ type: "suggest-title", taskId: task.id, text: pending.text, attachments: pending.attachments }];
   const command = {
-    ...startRunCommand(updated, pending.runId, pending.prompt, workspace.id),
+    ...startRunCommand(state, updated, pending.runId, pending.prompt, workspace.id),
     ...(entering && updated.continuation ? { forkContinuation: true as const } : {}),
     ...sideChannelFor(state, updated),
   };
@@ -2182,7 +2191,7 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   /** Taken before the label lands, so a tick that settles unseen rolls that back with the rest of it. */
   return settled(beginRun(withMessage, taskId, pending.runId, { origin: "automation", quiet: pending.quiet === true }, threadMark(task)), [
     /** Only a tick that settles unseen answers its own questions; every other run waits for the user as it always has. */
-    { type: "start-run", command: { ...startRunCommand(task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy), ...(pending.unattended ? { unattended: true as const } : {}) } },
+    { type: "start-run", command: { ...startRunCommand(state, task, pending.runId, pending.prompt, workspace.id, pending.policy ?? task.executionPolicy), ...(pending.unattended ? { unattended: true as const } : {}) } },
     ...ack(pending, true),
   ]);
 }

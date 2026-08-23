@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../dist/main/main/agent/claude-agent-provider.mjs";
-import { input, liveQueryFactory, liveTurn, queryFactory, tick, turn } from "./support/claude-session.mjs";
+import { input, liveQueryFactory, liveTurn, poolQueryFactory, poolTurn, queryFactory, tick, turn } from "./support/claude-session.mjs";
 
 test("packaged builds use the unpacked Claude executable", async () => {
   const resourcesPath = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-resources-"));
@@ -65,6 +65,7 @@ test("Claude query options follow run policy and workspace settings", async () =
   assert.equal(capture.options.options.forwardSubagentText, true);
   assert.equal(capture.options.options.includePartialMessages, true);
   assert.match(capture.options.options.systemPrompt.append, /workspace files as \[label\]\(\/absolute\/path:line\)/);
+  assert.equal(capture.options.options.settings, undefined, "a run with no style named leaves the user's own settings alone");
 });
 
 test("Claude streams only complete Markdown blocks and does not repeat final text", async () => {
@@ -599,43 +600,6 @@ test("a background process is stopped through the thread's session, after its ru
 });
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** A live session per open, so a pool test can watch each process separately. */
-function poolQueryFactory(capture = {}) {
-  capture.sessions = [];
-  return (options) => {
-    const pending = [];
-    let wake = null;
-    const session = {
-      options,
-      closed: false,
-      emit: (message) => { pending.push(message); wake?.(); wake = null; },
-      async *[Symbol.asyncIterator]() {
-        for (;;) {
-          while (pending.length) yield pending.shift();
-          await new Promise((resolve) => { wake = resolve; });
-        }
-      },
-      interrupt: async () => { session.interrupted = true; },
-      setPermissionMode: async () => {},
-      close() { session.closed = true; },
-    };
-    session.sent = [];
-    void (async () => { for await (const message of options.prompt) session.sent.push(message.message.content); })();
-    capture.sessions.push(session);
-    return session;
-  };
-}
-
-/** Runs one turn against the newest session, delivering the given messages before the turn's result. */
-async function poolTurn(provider, capture, overrides = {}, ...messages) {
-  const running = provider.execute(input(overrides));
-  await tick();
-  const session = capture.sessions.at(-1);
-  for (const message of messages) session.emit(message);
-  session.emit({ type: "result", subtype: "success", is_error: false, result: "done" });
-  return { session, result: await running };
-}
 
 const running = (...ids) => ({
   type: "system",

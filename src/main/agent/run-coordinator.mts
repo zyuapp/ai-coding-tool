@@ -132,6 +132,7 @@ export class RunCoordinator {
         policy: command.policy,
         model: command.model,
         effort: command.effort,
+        outputStyle: command.outputStyle,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         automations: this.options.automations?.(command.taskId),

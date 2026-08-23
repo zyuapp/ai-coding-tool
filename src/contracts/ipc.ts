@@ -54,6 +54,8 @@ export type StartRunCommand = {
   policy: ExecutionPolicy;
   model: AgentModel;
   effort: AgentEffort;
+  /** The Claude Code output style the run answers in. The user's own setting decides when absent. */
+  outputStyle?: string;
   continuation?: Continuation;
   forkContinuation?: boolean;
   /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
@@ -454,6 +456,7 @@ export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 /** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
 const MAX_PROMPT_LENGTH = 1_000_000;
+const MAX_OUTPUT_STYLE = 128;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
@@ -560,7 +563,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.outputStyle === undefined || isString(command.outputStyle, MAX_OUTPUT_STYLE)) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);

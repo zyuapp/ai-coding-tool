@@ -654,6 +654,7 @@ export function App() {
           readingSize={workspace.readingSize}
           terminalSize={workspace.terminalSize}
           allowedOrigins={workspace.browserOrigins}
+          plainEnglish={workspace.plainEnglish}
           shortcuts={workspace.shortcuts}
           capturingShortcut={workspace.capturingShortcut}
           onSetThemeFamily={(family) => void workspace.actions.setThemeFamily(family)}
@@ -662,6 +663,7 @@ export function App() {
           onSetMonoFont={(font) => void workspace.actions.setMonoFont(font)}
           onSetReadingSize={(size) => void workspace.actions.setReadingSize(size)}
           onSetTerminalSize={(size) => void workspace.actions.setTerminalSize(size)}
+          onSetPlainEnglish={(enabled) => void workspace.actions.setPlainEnglish(enabled)}
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}

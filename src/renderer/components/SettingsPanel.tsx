@@ -1,26 +1,16 @@
 import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
-import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 import { displayShortcut, type ShortcutSetting } from "../../domain/shortcuts";
 import { MAC } from "../platform";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
+import { GeneralSettings } from "./GeneralSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
 
 export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
-
-function cliDescription(status: CliStatus | null) {
-  if (!status) return "Looking for the command…";
-  switch (status.state) {
-    case "installed": return `Installed at ${status.path}.`;
-    case "conflict": return `Something else already answers to ${CLI_COMMAND} at ${status.path}.`;
-    case "unsupported": return "The command can only be installed on macOS.";
-    default: return `Goes in ${status.path}, which asks for your password once.`;
-  }
-}
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -43,6 +33,8 @@ export type SettingsPanelProps = {
   terminalSize: number;
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
+  /** Whether runs answer in the Simplified Technical English style the app installs. */
+  plainEnglish: boolean;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
@@ -52,6 +44,7 @@ export type SettingsPanelProps = {
   onSetMonoFont: (font: string) => void;
   onSetReadingSize: (size: number) => void;
   onSetTerminalSize: (size: number) => void;
+  onSetPlainEnglish: (enabled: boolean) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
   onClearBrowserData: () => void;
@@ -71,6 +64,7 @@ export function SettingsPanel({
   readingSize,
   terminalSize,
   allowedOrigins,
+  plainEnglish,
   shortcuts,
   capturingShortcut,
   onSetThemeFamily,
@@ -79,6 +73,7 @@ export function SettingsPanel({
   onSetMonoFont,
   onSetReadingSize,
   onSetTerminalSize,
+  onSetPlainEnglish,
   onRestoreTask,
   onClearArchive,
   onClearBrowserData,
@@ -87,9 +82,6 @@ export function SettingsPanel({
   onResetShortcuts,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
-  const [cli, setCli] = useState<CliStatus | null>(null);
-  const [cliBusy, setCliBusy] = useState(false);
-  const [cliError, setCliError] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const [permissions, setPermissions] = useState<ComputerUsePermissions | null>(null);
@@ -134,26 +126,6 @@ export function SettingsPanel({
       window.removeEventListener("focus", refresh);
     };
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    window.desktop.cliStatus()
-      .then((status) => { if (!cancelled) setCli(status); })
-      .catch((cause) => { if (!cancelled) setCliError(cause instanceof Error ? cause.message : String(cause)); });
-    return () => { cancelled = true; };
-  }, []);
-
-  async function changeCli(install: boolean) {
-    setCliBusy(true);
-    setCliError(null);
-    try {
-      setCli(await (install ? window.desktop.installCli() : window.desktop.uninstallCli()));
-    } catch (cause) {
-      setCliError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setCliBusy(false);
-    }
-  }
 
   async function enable(permission: ComputerUsePermission) {
     setBusy(permission);
@@ -247,33 +219,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <section className="settings-group" aria-labelledby="cli-heading">
-          <div className="settings-group-heading">
-            <div>
-              <h3 id="cli-heading">Terminal command</h3>
-              <p>Run <code>{CLI_COMMAND}</code> in a folder to open it here as a project, or <code>{CLI_COMMAND} ~/code/app</code> to open another one.</p>
-            </div>
-          </div>
-
-          <div className="setting-row">
-            <span className={`setting-status ${cli?.state === "installed" ? "granted" : ""}`}>{cli?.state === "installed" && <Check size={13} />}</span>
-            <div>
-              <strong>{CLI_COMMAND}</strong>
-              <p>{cliDescription(cli)}</p>
-            </div>
-            <div className="setting-row-action">
-              {!cli && !cliError && <em>Checking…</em>}
-              {cli?.state === "installed" && <button type="button" disabled={cliBusy} onClick={() => void changeCli(false)}>{cliBusy ? "Removing…" : "Uninstall"}</button>}
-              {(cli?.state === "missing" || cli?.state === "conflict") && (
-                <button type="button" disabled={cliBusy} onClick={() => void changeCli(true)}>
-                  {cliBusy ? "Installing…" : cli.state === "conflict" ? "Replace it" : "Install"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {cliError && <p className="settings-error" role="alert">{cliError}</p>}
-        </section>
+        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} />
       </main>
       )}
 

@@ -317,7 +317,13 @@ function getWorktreeService() {
 }
 
 async function resolveStart(command: StartRunCommand) {
-  const [resolution, computerUse] = await Promise.all([getWorkspaceService().resolve(command.workspaceId), computerUseForRun()]);
+  const { installPlainEnglishStyle } = await import("./agent/output-style-install.mjs");
+  const [resolution, computerUse] = await Promise.all([
+    getWorkspaceService().resolve(command.workspaceId),
+    computerUseForRun(),
+    /** The style has to be on disk before the run names it, or the CLI resolves the name to nothing. */
+    installPlainEnglishStyle(command.outputStyle),
+  ]);
   if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
   return {
     ...command,
@@ -664,7 +670,7 @@ app.whenReady().then(async () => {
     if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
     return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
   });
-  app.dock?.setIcon(icon);
+  if (!app.isPackaged) app.dock?.setIcon(icon);
   claimDesktopShortcut();
   startAgent();
   await createWindow();

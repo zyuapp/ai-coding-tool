@@ -92,6 +92,8 @@ export type ProviderRunInput = {
   policy: ExecutionPolicy;
   model: AgentModel;
   effort: AgentEffort;
+  /** The Claude Code output style the run answers in, layered over the user's own settings. */
+  outputStyle?: string;
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;

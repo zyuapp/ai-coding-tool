@@ -569,6 +569,7 @@ export function useTaskWorkspace() {
       setTerminalSize: (size: number) => dispatch({ type: "view.set-terminal-size", size }),
       setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
+      setPlainEnglish: (enabled: boolean) => dispatch({ type: "view.set-plain-english", enabled }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
       setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),
       resetShortcuts: () => dispatch({ type: "view.reset-shortcuts" }),
