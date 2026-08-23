@@ -59,7 +59,8 @@ export function isNews(task: Task, key?: string): boolean {
 
 /**
  * Records the finding, oldest dropped once the thread is at its fill, and says it in the thread so
- * the transcript still carries it once the finding itself is filed away. A duplicate changes nothing.
+ * the transcript still carries it once the finding itself is filed away. An issue the thread already
+ * knows changes nothing.
  */
 export function withFinding(task: Task, report: { headline: string; detail?: string; key?: string }, at: number, seen = false): Task {
   if (!isNews(task, report.key)) return task;

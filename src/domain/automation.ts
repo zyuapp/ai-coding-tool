@@ -137,17 +137,17 @@ export function declineCount(automation: { consecutiveDeclines?: number }) {
 export const DECLINES_BEFORE_SURFACING = 3;
 
 /**
- * Whether this tick may settle unseen. Only a cron tick of a schedule that says what it surfaces for:
- * a run the user asked for is watched by construction, and a one-shot deletes itself when it runs, so
- * a quiet one would disappear having said nothing at all.
- */
-/**
  * What kind of tick this is. Only a cron tick of a quiet schedule may settle unseen, never a run the
  * user asked for and never a one-shot. `unattended` is the wider fact: a cron tick has nobody to
  * answer for it, so its run may answer its own approvals.
  */
 export type TickKind = { quiet: boolean; unattended: boolean };
 
+/**
+ * Whether this tick may settle unseen. Only a cron tick of a schedule that says what it surfaces for:
+ * a run the user asked for is watched by construction, and a one-shot deletes itself when it runs, so
+ * a quiet one would disappear having said nothing at all.
+ */
 export function quietTick(automation: Automation, manual: boolean) {
   return !manual && automation.surfaceWhen !== undefined && !isOneShotSchedule(automation.schedule);
 }

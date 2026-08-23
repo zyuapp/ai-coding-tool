@@ -145,8 +145,9 @@ function unreadCount(host: ThreadRequestHost, taskId: string) {
 }
 
 /**
- * Records what a run found. The command goes in whatever the thread does with it, so a run that says
- * it found something can never afterwards be settled unseen; the answer explains what became of it.
+ * Records what a run found. The command goes in whatever the thread does with it, so a run that
+ * raises an issue the thread has not heard of can never afterwards be settled unseen; the answer
+ * explains what became of it.
  */
 async function raiseFinding(host: ThreadRequestHost, taskId: string, report: FindingReport): Promise<FindingResult> {
   const before = host.state();
@@ -162,7 +163,7 @@ async function raiseFinding(host: ThreadRequestHost, taskId: string, report: Fin
   return { recorded: true, note: `Raised. ${carried}, and the run surfaces when it settles.` };
 }
 
-/** A run saying it looked and found nothing, which is the only thing that earns a quiet tick silence. */
+/** A run saying it looked and found nothing: it answers for the tick without raising anything, which is what leaves a quiet one its silence. */
 async function reportNothing(host: ThreadRequestHost, taskId: string, checked: string): Promise<FindingResult> {
   const active = scheduledRun(host.state(), taskId);
   if (!active) return { recorded: false, note: UNSCHEDULED };

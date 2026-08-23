@@ -1,7 +1,7 @@
 /**
- * Raising a finding on the workspace's behalf: what a scheduled run reports, and what a schedule
- * that cannot run at all says for itself. A function belongs here when it needs the whole workspace
- * or has to tell the desktop.
+ * Where a scheduled tick meets the workspace: whether it can run at all, what a run of it raises,
+ * and what a schedule turned away says for itself. A function belongs here when it needs the whole
+ * workspace or has to tell the desktop.
  */
 import type { AutomationFire } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
@@ -52,7 +52,7 @@ export function raisedFinding(state: WorkspaceState, report: FindingReport & { t
   const task = scheduledRun(state, report.taskId) ? state.tasks.find((item) => item.id === report.taskId) : undefined;
   if (!task) return { state, effects: [] };
   const raised = isNews(task, report.key);
-  /** A thread the user is watching cannot have missed it, exactly as a settled run's verdict is not marked. */
+  /** A thread the user is watching cannot have missed it. */
   const seen = state.focused && state.currentId === report.taskId;
   const next = withNotifiedRun(state, report.taskId, report, Date.now(), seen);
   return { state: next, effects: raised ? [announced(task, report.headline)] : [] };

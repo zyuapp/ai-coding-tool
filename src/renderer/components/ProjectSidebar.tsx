@@ -262,8 +262,8 @@ export function ProjectSidebar({
 
   /**
    * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
-   * carrying a verdict - a thread still asking has nothing to dismiss - and nothing on the others,
-   * rather than two different icons in one view; archiving a thread there is on its menu.
+   * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
+   * different icons in one view; archiving a thread there is on its menu.
    */
   const rowActions = (task: Task, action: RowAction): React.ReactNode[] => [
     action === "dismiss" && <button

@@ -106,7 +106,7 @@ export type TaskFinding = {
 /** How many findings a thread keeps. Past this the oldest is dropped. */
 export const MAX_FINDINGS = 10;
 
-/** Dismissed keys held per thread. Far more than a schedule reports at once, and still bounded. */
+/** Handled issues held per thread. Far more than a schedule reports at once, and still bounded. */
 export const MAX_HANDLED_ISSUES = 50;
 /** What one may carry: a line for the sidebar, a body for the thread, and a name to match it on. */
 export const MAX_HEADLINE = 200;
@@ -209,13 +209,13 @@ export type Task = {
   /** What runs on this thread found, newest last. Cleared by a dismissal, never by the next run. */
   findings?: TaskFinding[];
   /**
-   * Keys the user has filed away. A dismissal means the finding is handled, so the same one is held
-   * back while the runs keep reporting it, and only surfaces again once a run stops finding it.
+   * Keys of findings the user has filed away. A dismissal means the issue is handled, so the same one
+   * is held back while the runs keep reporting it, and only surfaces again once a run stops finding it.
    */
   handledIssues?: string[];
   /** When a run on this thread last found something. A dismissal files the findings away, not this. */
   lastFindingAt?: number;
-  /** What the last tick to settle in silence says it looked at, which is a silent schedule's proof of life. */
+  /** What the last scheduled run to say it found nothing looked at, which is a silent schedule's proof of life. */
   lastChecked?: { at: number; note: string };
   /** When this task's newest run settled. A turn the run left unfinished ends there. */
   runEndedAt?: number;
