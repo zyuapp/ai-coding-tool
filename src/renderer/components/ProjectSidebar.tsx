@@ -574,6 +574,7 @@ export function ProjectSidebar({
                             </div>
                           )}
                         </Droppable>}
+                        {expanded && projectTasks.length === 0 && <p className="empty-tasks">No threads yet</p>}
                         {expanded && (hidden > 0 || showAllTasks.has(project.id)) && (
                           <ShowMore
                             label={hidden > 0 ? `Show ${hidden} more` : "Show less"}

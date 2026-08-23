@@ -476,7 +476,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .menu-popover .danger-menu-item { color: var(--danger); }
 .section-menu-popover { top: 30px; right: -6px; width: 224px; padding: 10px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
-.show-more {
+.show-more,
+.empty-tasks {
   height: 24px;
   display: block;
   border: 0;
@@ -489,6 +490,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   cursor: pointer;
 }
 .show-more:hover { color: var(--muted-strong); }
+.empty-tasks { margin: 0; line-height: 24px; cursor: default; }
 .task-entry { position: relative; min-width: 0; }
 .context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; width: max-content; min-width: 128px; }
 .context-menu-popover button { white-space: nowrap; }
