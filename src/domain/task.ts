@@ -105,6 +105,9 @@ export type TaskFinding = {
 
 /** How many findings a thread keeps. Past this the oldest is dropped. */
 export const MAX_FINDINGS = 10;
+
+/** Dismissed keys held per thread. Far more than a schedule reports at once, and still bounded. */
+export const MAX_SILENCED_KEYS = 50;
 /** What one may carry: a line for the sidebar, a body for the thread, and a name to match it on. */
 export const MAX_HEADLINE = 200;
 export const MAX_DETAIL = 10_000;
@@ -188,6 +191,11 @@ export type Task = {
   outcomeUnread?: true;
   /** What runs on this thread found, newest last. Cleared by a dismissal, never by the next run. */
   findings?: TaskFinding[];
+  /**
+   * Keys the user has filed away. A dismissal means the finding is handled, so the same one is held
+   * back while the runs keep reporting it, and only surfaces again once a run stops finding it.
+   */
+  silencedKeys?: string[];
   /** When a run on this thread last found something. A dismissal files the findings away, not this. */
   lastFindingAt?: number;
   /** What the last tick to settle in silence says it looked at, which is a silent schedule's proof of life. */
@@ -561,6 +569,7 @@ function isTaskBase(value: unknown): value is Task {
     (value.outcomeUnread === undefined || value.outcomeUnread === true) &&
     (value.findings === undefined || Array.isArray(value.findings) && value.findings.every(isTaskFinding)) &&
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
+    (value.silencedKeys === undefined || Array.isArray(value.silencedKeys) && value.silencedKeys.every((key: unknown) => nonEmptyString(key))) &&
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&

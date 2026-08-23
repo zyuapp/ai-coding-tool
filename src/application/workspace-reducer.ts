@@ -5,7 +5,7 @@ import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
-import { declinedTick, dismissableTasks, dismissed, outcomeFor, raisedFinding, readAttention, settledUnseen, withNothingToReport, withoutOutcome, withSilencedTick } from "./findings.js";
+import { declinedTick, dismissableTasks, dismissed, outcomeFor, raisedFinding, readAttention, settledUnseen, withNothingToReport, withoutOutcome, withSettledTick } from "./findings.js";
 import {
   applyRunEvent,
   applyTask,
@@ -485,7 +485,7 @@ function beginRun(state: WorkspaceState, taskId: string, runId: string, provenan
   const messagesBefore = tasks.find((task) => task.id === taskId)?.messages.length ?? 0;
   const mark = before ?? threadMark(state.tasks.find((task) => task.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, messagesBefore, before: mark }),
+    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedKeys: [], messagesBefore, before: mark }),
     taskId,
     "running",
   );
@@ -1368,7 +1368,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
             ...(state.currentId === event.taskId ? {} : { outcomeUnread: true as const }),
           }))
         : applied;
-      if (unseen) next = withSilencedTick(next, event.taskId, active.messagesBefore, active.before);
+      if (outcome) next = withSettledTick(next, event.taskId, active, unseen, outcome);
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");

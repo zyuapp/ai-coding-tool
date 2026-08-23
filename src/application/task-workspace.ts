@@ -10,9 +10,10 @@ export type ActiveRun = RunProvenance & {
   status: "running" | "compacting" | "awaiting-approval";
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
-  /** Whether this run has said it looked and found nothing. */
   /** Whether the run answered for itself with either tool. Answering neither is what surfaces a quiet tick. */
   acknowledged: boolean;
+  /** Every key this run reported, held back or not, so settling can tell which silenced ones have gone away. */
+  reportedKeys: string[];
   /** How many messages the thread held when this run began, so a silent one can quiet its own. */
   messagesBefore: number;
   /** Where the thread stood when this run began, so a silent one can leave it exactly there. */

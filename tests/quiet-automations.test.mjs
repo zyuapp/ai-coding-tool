@@ -56,6 +56,7 @@ test("a scheduled run is the scheduler's, unattended, and never quiet unless the
     quiet: false,
     notified: false,
     acknowledged: false,
+    reportedKeys: [],
     messagesBefore: 1,
     before: { updatedAt: 1 },
   });
@@ -93,7 +94,7 @@ test("a human steering into a scheduled run takes it over", () => {
   const scheduled = workspace({
     tasks: [task("task-a")],
     currentId: "task-a",
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-a", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, reportedKeys: [] } },
     runStatuses: { "task-a": "running" },
   });
   const queued = reduce(reduce(scheduled, { type: "view.set-prompt", prompt: "What did you find?" }).state, { type: "task.send", attachments: [] }).state;
@@ -137,7 +138,7 @@ function midRun(run = {}, taskOverrides = {}) {
   };
   return workspace({
     tasks: [started],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, messagesBefore: 1, before, ...run } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "run-1", sequence: 0, status: "running", origin: "automation", quiet: true, notified: false, acknowledged: false, reportedKeys: [], messagesBefore: 1, before, ...run } },
     runStatuses: { "task-a": "running" },
   });
 }
@@ -298,6 +299,41 @@ test("a tick that only found what the thread already knows settles unseen", asyn
   assert.equal(settled.tasks[0].findings.length, 1, "and nothing to add");
 });
 
+test("dismissing a finding files it away rather than asking to be told again", async () => {
+  const host = toolHost(midRun());
+  await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  const spoke = settleRun(host.state()).state;
+
+  const filed = reduce(spoke, { type: "task.dismiss", taskId: "task-a" }).state;
+  assert.equal(filed.tasks[0].findings, undefined, "the row is gone from Priority");
+  assert.deepEqual(filed.tasks[0].silencedKeys, ["checkout"], "but what it was about is remembered");
+
+  /** The next tick, still finding it: handled means handled. */
+  const next = toolHost(midRun({}, { silencedKeys: ["checkout"] }));
+  const repeat = await answer(next, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  assert.equal(repeat.result.recorded, false, "a dismissal is not a request to be told again");
+  assert.equal(settleRun(next.state()).state.tasks[0].outcome, undefined, "so the tick stays quiet");
+});
+
+test("a filed-away finding surfaces again once a run stops finding it", async () => {
+  const gone = toolHost(midRun({}, { silencedKeys: ["checkout"] }));
+  await answer(gone, { op: "nothing-to-report", checked: "the alert log, empty" });
+  const cleared = settleRun(gone.state()).state;
+  assert.equal(cleared.tasks[0].silencedKeys, undefined, "the run stopped finding it, so it is over");
+
+  const back = toolHost(midRun({}, { silencedKeys: cleared.tasks[0].silencedKeys }));
+  const again = await answer(back, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  assert.equal(again.result.recorded, true, "the same trouble returning is news again");
+});
+
+test("a run that still reports a filed-away finding keeps it filed", async () => {
+  const host = toolHost(midRun({}, { silencedKeys: ["checkout", "latency"] }));
+  await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
+  const settled = settleRun(host.state()).state;
+
+  assert.deepEqual(settled.tasks[0].silencedKeys, ["checkout"], "the one it still finds stays filed, the one it did not is lifted");
+});
+
 test("a key holds against a finding the user has read, not only an unread one", async () => {
   const seen = midRun({}, { findings: [{ id: "f1", headline: "5xx on checkout", key: "checkout", at: 5, read: true }] });
   const host = toolHost(seen);
@@ -405,7 +441,7 @@ function declined(consecutiveDeclines, tasks = [task("task-a")], origin = "autom
   const busy = workspace({
     tasks,
     automations: [{ ...automation, nextRunAt: null }],
-    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, messagesBefore: 0 } },
+    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, reportedKeys: [], messagesBefore: 0 } },
     runStatuses: { "task-a": "running" },
   });
   return reduce(busy, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });

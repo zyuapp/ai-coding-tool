@@ -7,7 +7,7 @@
 import type { AutomationFire, RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js";
-import { MAX_FINDINGS, type Task, type TaskFinding, type TaskOutcome } from "../domain/task.js";
+import { MAX_FINDINGS, MAX_SILENCED_KEYS, type Task, type TaskFinding, type TaskOutcome } from "../domain/task.js";
 import { applyTask, createTaskMessage, type ActiveRun, type RunTransitionState, type ThreadMark } from "./task-workspace.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -32,8 +32,8 @@ export function hasFindings(task: Task): boolean {
 }
 
 export function findingOutcome(task: Task, key?: string): FindingOutcome {
-  /** Reading a finding is not handling it, so a key holds until the thread is filed away and re-arms. */
-  if (key !== undefined && (task.findings ?? []).some((finding) => finding.key === key)) return "duplicate";
+  /** A key holds while the thread carries it and while the user has it filed away: neither is news. */
+  if (key !== undefined && ((task.findings ?? []).some((finding) => finding.key === key) || (task.silencedKeys ?? []).includes(key))) return "duplicate";
   return unreadFindings(task).length >= MAX_FINDINGS ? "full" : "recorded";
 }
 
@@ -120,11 +120,37 @@ export function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
   });
 }
 
-/** Filing a thread away retires what its runs found along with the verdict of the last one. */
+/**
+ * Filing a thread away retires what its runs found along with the verdict of the last one. The keys
+ * go with it rather than being forgotten: a dismissal says the finding is handled, not that the user
+ * wants telling again on the next tick.
+ */
 export function dismissed(tasks: Task[], dismissing: Set<string>): Task[] {
   const filed = withoutOutcome(tasks, dismissing);
   if (!filed.some((task) => dismissing.has(task.id) && task.findings)) return filed;
-  return filed.map((task) => dismissing.has(task.id) ? withoutFindings(task) : task);
+  return filed.map((task) => dismissing.has(task.id) ? withoutFindings(silenceKeys(task)) : task);
+}
+
+function silenceKeys(task: Task): Task {
+  const keys = (task.findings ?? []).flatMap((finding) => finding.key ?? []);
+  if (!keys.length) return task;
+  const silenced = [...(task.silencedKeys ?? []).filter((key) => !keys.includes(key)), ...keys];
+  return { ...task, silencedKeys: silenced.slice(-MAX_SILENCED_KEYS) };
+}
+
+/**
+ * What a run that has finished looking says about the keys it did not report: the thing it was
+ * filed away for is over, so the next sighting is news again.
+ */
+export function withLiftedSilences(task: Task, reportedKeys: string[]): Task {
+  const held = task.silencedKeys ?? [];
+  const still = held.filter((key) => reportedKeys.includes(key));
+  if (still.length === held.length) return task;
+  if (!still.length) {
+    const { silencedKeys: _lifted, ...rest } = task;
+    return rest;
+  }
+  return { ...task, silencedKeys: still };
 }
 
 /** Which threads a "dismiss everything" reaches: the ones carrying anything to file away. */
@@ -155,7 +181,12 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
   const raised = state.tasks.some((task) => task.id === taskId && findingOutcome(task, report.key) === "recorded");
   return {
     ...state,
-    activeRuns: { ...state.activeRuns, [taskId]: { ...active, acknowledged: true, notified: active.notified || raised } },
+    activeRuns: { ...state.activeRuns, [taskId]: {
+      ...active,
+      acknowledged: true,
+      notified: active.notified || raised,
+      reportedKeys: report.key === undefined || active.reportedKeys.includes(report.key) ? active.reportedKeys : [...active.reportedKeys, report.key],
+    } },
     tasks: state.tasks.map((task) => task.id === taskId ? withFinding(task, report, at, seen) : task),
   };
 }
@@ -182,9 +213,18 @@ export function settledUnseen(active: ActiveRun, event: RunEvent): boolean {
     && !active.notified;
 }
 
-/** Puts the thread back where the tick found it, so nothing about it moved in the sidebar. */
-export function withSilencedTick<T extends RunTransitionState>(state: T, taskId: string, from: number, before: ThreadMark): T {
-  return { ...state, tasks: state.tasks.map((task) => task.id === taskId ? silencedThread(task, from, before) : task) };
+/**
+ * What a settling run leaves on its thread besides a verdict: an unseen tick puts the thread back
+ * where it found it, and a scheduled run that finished looking lifts the filed-away findings it no
+ * longer reports.
+ */
+export function withSettledTick<T extends RunTransitionState>(state: T, taskId: string, active: ActiveRun, unseen: boolean, outcome: TaskOutcome): T {
+  const lifting = outcome === "finished" && active.origin === "automation" && active.acknowledged;
+  if (!unseen && !lifting) return state;
+  return applyTask(state, taskId, (task) => {
+    const settled = unseen ? silencedThread(task, active.messagesBefore, active.before) : task;
+    return lifting ? withLiftedSilences(settled, active.reportedKeys) : settled;
+  });
 }
 
 /** What raising a finding tells the desktop, so a thread that spoke while hidden still reaches the user. */
