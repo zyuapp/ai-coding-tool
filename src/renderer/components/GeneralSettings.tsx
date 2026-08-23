@@ -77,7 +77,7 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish }: GeneralSett
         <div className="settings-group-heading">
           <div>
             <h3 id="experimental-heading">Experimental</h3>
-            <p>Unfinished settings. They can change or disappear in a later version.</p>
+            <p>These settings can change or disappear.</p>
           </div>
         </div>
 
