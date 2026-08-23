@@ -1271,12 +1271,13 @@ test("a size typed into the field is clamped to the range, and Escape abandons t
   const field = query<HTMLInputElement>(view.container, 'input[aria-label="Conversation text size"]');
   const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   const type = async (text: string) => {
+    await act(async () => { field.focus(); });
     await act(async () => {
       item(setValue).call(field, text);
       field.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
     });
   };
-  const leave = async () => { await act(async () => { field.dispatchEvent(new dom.window.FocusEvent("focusout", { bubbles: true })); }); };
+  const leave = async () => { await act(async () => { field.blur(); }); };
 
   await type("40");
   await leave();
@@ -1285,7 +1286,6 @@ test("a size typed into the field is clamped to the range, and Escape abandons t
 
   await type("13");
   await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-  await leave();
   assert.equal(root.style.getPropertyValue("--text-content"), "24px", "Escape keeps the settled size");
   assert.equal(JSON.parse(item(localStorage.getItem("aicodingtool.view-preferences.v1"))).readingSize, 24);
   await view.unmount();
