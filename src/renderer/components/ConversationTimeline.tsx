@@ -498,6 +498,8 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     let frame = 0;
     let commitTimer: ReturnType<typeof setTimeout> | undefined;
     const measure = () => setScrollMargin(timeline.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop);
+    /** A view with nothing below it is at the foot, as is one with nothing to scroll at all. */
+    const atFoot = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
 
     /** The reader's place right now, counted the way a reading point is kept. */
     const observe = (): ReadingPoint => {
@@ -538,7 +540,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       const landed = Math.abs(scroller.scrollTop - placedAt.current) <= LANDED_WITHIN;
       const ours = landed || pendingScroll.current !== null;
       if (landed) pendingScroll.current = null;
-      const bottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120;
+      const bottom = atFoot();
       setAtBottom(bottom);
       if (!ours) {
         if (bottom) view.current = FOOT;
@@ -557,7 +559,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     };
     restoreScroll.current = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(place);
+      frame = requestAnimationFrame(() => { place(); setAtBottom(atFoot()); });
     };
     const observer = new ResizeObserver(() => {
       measure();
@@ -576,7 +578,6 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     view.current = !left || row === undefined ? FOOT : { at: "row", id: left.anchor, depth: left.depth };
     observed.current = left;
     placedFrom.current = left;
-    setAtBottom(row === undefined);
     /** The row is brought into the window first, so `place()` has something to measure against. */
     if (row !== undefined) settle(virtualizer.getOffsetForIndex(row, "start")?.[0] ?? scroller.scrollTop);
     restoreScroll.current();
@@ -600,7 +601,6 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     if (view.current.at === "rest") return;
     const row = point ? rows.current.get(point.anchor) : undefined;
     view.current = !point || row === undefined ? FOOT : { at: "row", id: point.anchor, depth: point.depth };
-    setAtBottom(row === undefined);
     restoreScroll.current();
   }, [readingPoint]);
 
