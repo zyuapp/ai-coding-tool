@@ -4,7 +4,7 @@
  */
 import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
-import { findingOutcome, withFinding, withLiftedSilences } from "../domain/attention.js";
+import { isNews, withFinding, withLiftedSilences } from "../domain/attention.js";
 import type { TaskOutcome } from "../domain/task.js";
 import { applyTask, silencedThread, type ActiveRun, type RunTransitionState } from "./task-workspace.js";
 
@@ -30,7 +30,7 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
   const active = scheduledRun(state, taskId);
   if (!active) return state;
   /** A duplicate is still the run answering for itself, but it is not news, so it does not break the silence. */
-  const raised = state.tasks.some((task) => task.id === taskId && findingOutcome(task, report.key) === "recorded");
+  const raised = state.tasks.some((task) => task.id === taskId && isNews(task, report.key));
   return {
     ...state,
     activeRuns: { ...state.activeRuns, [taskId]: {
@@ -51,27 +51,40 @@ export function withNothingToReport<T extends RunTransitionState>(state: T, task
   return applyTask(acknowledged, taskId, (task) => ({ ...task, lastChecked: { at, note: checked } }));
 }
 
-/**
- * Whether this run settled with nothing to say. Silence is earned by a scheduled quiet run that
- * succeeded and answered for itself without raising anything new: a failure, a cancellation, a run
- * that found something, and a run that answered nothing at all surface as they always have.
- */
-export function settledUnseen(active: ActiveRun, event: RunEvent): boolean {
-  return active.origin === "automation"
-    && active.quiet
-    && event.type === "run.status"
-    && event.status === "succeeded"
-    && active.acknowledged
-    && !active.notified;
+/** Why a settling run reaches the user, or null when it has earned its silence. */
+export type RunSurfacing = "failed" | "cancelled" | "attended" | "loud" | "reported" | "no-answer";
+
+/** How the run left off. Anything that is not a verdict of its own was ended for it. */
+function howRunEnded(event: RunEvent): "finished" | "failed" | "cancelled" {
+  return outcomeFor(event) ?? "cancelled";
+}
+
+/** What the run said for itself. Only a quiet scheduled run that answered and raised nothing is silent. */
+function whatRunSaid(active: ActiveRun): "attended" | "loud" | "reported" | "no-answer" | null {
+  if (active.origin !== "automation") return "attended";
+  if (!active.quiet) return "loud";
+  if (!active.acknowledged) return "no-answer";
+  return active.notified ? "reported" : null;
 }
 
 /**
- * What a settling run leaves on its thread besides a verdict: an unseen tick puts the thread back
- * where it found it, and a scheduled run that finished looking lifts the filed-away findings it no
- * longer reports.
+ * Why this run reaches the user, or null when it settles with nothing to say. Silence is earned by
+ * a scheduled quiet run that succeeded and answered for itself without raising anything new.
  */
-export function withSettledTick<T extends RunTransitionState>(state: T, taskId: string, active: ActiveRun, unseen: boolean, outcome: TaskOutcome): T {
-  const lifting = outcome === "finished" && active.origin === "automation" && active.acknowledged;
+export function whyRunSurfaces(active: ActiveRun, event: RunEvent): RunSurfacing | null {
+  const ending = howRunEnded(event);
+  return ending === "finished" ? whatRunSaid(active) : ending;
+}
+
+/**
+ * What a settling run leaves on its thread besides a verdict: a run that surfaced nothing puts the
+ * thread back where it found it, and a scheduled run that finished looking lifts the filed-away
+ * findings it no longer reports.
+ */
+export function withSettledTick<T extends RunTransitionState>(state: T, taskId: string, active: ActiveRun, surfacing: RunSurfacing | null): T {
+  const unseen = surfacing === null;
+  const finished = surfacing !== "failed" && surfacing !== "cancelled";
+  const lifting = finished && active.origin === "automation" && active.acknowledged;
   if (!unseen && !lifting) return state;
   return applyTask(state, taskId, (task) => {
     const settled = unseen ? silencedThread(task, active.messagesBefore, active.before) : task;

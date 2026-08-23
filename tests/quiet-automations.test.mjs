@@ -4,10 +4,13 @@ import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { createServer } from "vite";
+import { whyTickCannotRun } from "../dist/main/application/findings.js";
+import { whyRunSurfaces } from "../dist/main/application/run-testimony.js";
 import { reduce } from "../dist/main/application/workspace-reducer.js";
 import { emptyWorkspaceState } from "../dist/main/application/workspace-state.js";
 import { activitySections } from "../dist/main/application/task-order.js";
 import { automationRunPrompt } from "../dist/main/application/task-workspace.js";
+import { isNews, issueState } from "../dist/main/domain/attention.js";
 import { automationAfterRun } from "../dist/main/domain/automation.js";
 import { threadActivityAt } from "../dist/main/domain/task.js";
 
@@ -172,6 +175,19 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
   }
 });
 
+test("a run that surfaces says which one thing broke its silence", () => {
+  const tick = { origin: "automation", quiet: true, acknowledged: true, notified: false, reportedKeys: [] };
+  const ending = (status) => ({ type: "run.status", taskId: "task-a", runId: "run-1", sequence: 5, status });
+
+  assert.equal(whyRunSurfaces(tick, ending("succeeded")), null, "it looked, it answered, and it found nothing");
+  assert.equal(whyRunSurfaces(tick, ending("failed")), "failed");
+  assert.equal(whyRunSurfaces(tick, ending("cancelled")), "cancelled");
+  assert.equal(whyRunSurfaces({ ...tick, origin: "composer" }, ending("succeeded")), "attended");
+  assert.equal(whyRunSurfaces({ ...tick, quiet: false }, ending("succeeded")), "loud");
+  assert.equal(whyRunSurfaces({ ...tick, acknowledged: false }, ending("succeeded")), "no-answer");
+  assert.equal(whyRunSurfaces({ ...tick, notified: true }, ending("succeeded")), "reported");
+});
+
 test("a tick that surfaced nothing leaves the thread exactly where it stood", () => {
   const before = midRun({ acknowledged: true }, { runEndedAt: 500 });
   const working = reduce(before, {
@@ -334,6 +350,19 @@ test("a run that still reports a filed-away finding keeps it filed", async () =>
   assert.deepEqual(settled.tasks[0].silencedKeys, ["checkout"], "the one it still finds stays filed, the one it did not is lifted");
 });
 
+test("where a keyed issue stands with a thread has three answers", () => {
+  const carrying = task("task-a", {
+    findings: [{ id: "f1", headline: "5xx on checkout", key: "checkout", at: 5 }],
+    silencedKeys: ["latency"],
+  });
+
+  assert.equal(issueState(carrying, "checkout"), "carried");
+  assert.equal(issueState(carrying, "latency"), "handled");
+  assert.equal(issueState(carrying, "disk"), "unknown");
+  assert.equal(issueState(carrying, undefined), "unknown", "an unkeyed report is never a second sighting");
+  assert.deepEqual(["checkout", "latency", "disk", undefined].map((key) => isNews(carrying, key)), [false, false, true, true]);
+});
+
 test("a key holds against a finding the user has read, not only an unread one", async () => {
   const seen = midRun({}, { findings: [{ id: "f1", headline: "5xx on checkout", key: "checkout", at: 5, read: true }] });
   const host = toolHost(seen);
@@ -460,6 +489,29 @@ function declined(consecutiveDeclines, tasks = [task("task-a")], origin = "autom
   });
   return reduce(busy, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 } });
 }
+
+test("a tick that cannot run says which thread turned it away", () => {
+  const fire = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 };
+  const idle = workspace({ tasks: [task("task-a")] });
+  const [waiting] = idle.tasks;
+  const busy = (origin) => ({
+    ...idle,
+    activeRuns: { "task-a": { taskId: "task-a", runId: "other", sequence: 0, status: "running", origin, quiet: false, notified: false, acknowledged: false, reportedKeys: [] } },
+  });
+  const sending = { ...idle, pendingRuns: { "pending-1": { id: "pending-1", runId: "run-2", origin: "composer", taskId: "task-a", text: "Hi", prompt: "Hi", attachments: [] } } };
+  const filed = task("task-a", { archivedAt: 5 });
+  const inProject = task("task-a", { projectId: "project-1" });
+
+  assert.equal(whyTickCannotRun(idle, fire, waiting), null, "an idle thread takes it");
+  assert.equal(whyTickCannotRun(idle, fire, undefined), "no-thread");
+  assert.equal(whyTickCannotRun(idle, fire, filed), "archived");
+  assert.equal(whyTickCannotRun(busy("automation"), fire, waiting), "busy-agent");
+  assert.equal(whyTickCannotRun(busy("composer"), fire, waiting), "busy-user");
+  assert.equal(whyTickCannotRun(sending, fire, waiting), "busy-user", "a send still resolving is the user too");
+  assert.equal(whyTickCannotRun(busy("composer"), fire, filed), "busy-user", "the user being here is answered before anything else");
+  assert.equal(whyTickCannotRun(idle, fire, inProject, undefined), "no-workspace");
+  assert.equal(whyTickCannotRun(idle, fire, inProject, { id: "project-1", workspaceId: "workspace-1" }), null);
+});
 
 test("a schedule turned away three times running says so out loud on its thread", () => {
   for (const before of [0, 1]) {

@@ -1,6 +1,6 @@
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
 import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
-import { findingOutcome, unreadFindings } from "../../domain/attention";
+import { isNews, unreadFindings } from "../../domain/attention";
 import { scheduledRun } from "../../application/run-testimony";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
@@ -152,9 +152,9 @@ async function raiseFinding(host: ThreadRequestHost, taskId: string, report: Fin
   const before = host.state();
   const task = before.tasks.find((item) => item.id === taskId);
   if (!task || !scheduledRun(before, taskId)) return { recorded: false, note: UNSCHEDULED };
-  const outcome = findingOutcome(task, report.key);
+  const news = isNews(task, report.key);
   await host.dispatch({ type: "automation.notify", taskId, ...report });
-  if (outcome === "duplicate") return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
+  if (!news) return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
   const unread = unreadCount(host, taskId);
   const carried = unread === 0
     ? "The user is looking at this thread, so it is already seen"

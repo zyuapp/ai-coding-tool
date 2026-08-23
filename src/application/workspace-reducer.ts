@@ -6,8 +6,8 @@ import { expandThreadHandles } from "../domain/thread-handles.js";
 import { moveProject as moveProjectInList, nextProjectSortIndex } from "./project-order.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
-import { declinedTick, raisedFinding } from "./findings.js";
-import { outcomeFor, settledUnseen, withNothingToReport, withSettledTick } from "./run-testimony.js";
+import { declinedTick, raisedFinding, whyTickCannotRun } from "./findings.js";
+import { outcomeFor, whyRunSurfaces, withNothingToReport, withSettledTick } from "./run-testimony.js";
 import {
   applyRunEvent,
   applyTask,
@@ -1356,7 +1356,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const applied = applyRunEvent(opened, event);
       const outcome = outcomeFor(event);
       /** Read before the run is applied: a terminal status takes the run, and its provenance, away. */
-      const unseen = outcome !== null && settledUnseen(active, event);
+      const surfacing = whyRunSurfaces(active, event);
+      const unseen = surfacing === null;
       /**
        * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the
        * user was not already on is marked unread by it; the one on screen they cannot have missed.
@@ -1369,7 +1370,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
             ...(state.currentId === event.taskId ? {} : { outcomeUnread: true as const }),
           }))
         : applied;
-      if (outcome) next = withSettledTick(next, event.taskId, active, unseen, outcome);
+      if (outcome) next = withSettledTick(next, event.taskId, active, surfacing);
       if (event.type === "computer-use.setup-required") next = { ...next, computerUseSetup: true };
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
@@ -1398,9 +1399,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const { fire } = input;
       const task = state.tasks.find((item) => item.id === fire.taskId);
       const project = task ? projectFor(state, task) : undefined;
-      /** A send still resolving is a run too, and two of them would make two checkouts. */
-      const runnable = task && task.archivedAt === undefined && !threadBusy(state, fire.taskId) && (!task.projectId || project?.workspaceId);
-      if (!runnable) return declinedTick(state, fire, task);
+      const refusal = whyTickCannotRun(state, fire, task, project);
+      if (refusal) return declinedTick(state, fire, task, refusal);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: fire.runId,

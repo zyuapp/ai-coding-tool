@@ -5,18 +5,41 @@
  */
 import type { AutomationFire } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
-import { findingOutcome, withFinding } from "../domain/attention.js";
+import { isNews, withFinding } from "../domain/attention.js";
 import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js";
-import type { Task } from "../domain/task.js";
+import type { Project, Task } from "../domain/task.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
 import { applyTask } from "./task-workspace.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
-/** Whether the thread is turning ticks away because the user is using it themselves. */
-function userIsHere(state: WorkspaceState, taskId: string): boolean {
-  return state.activeRuns[taskId]?.origin === "composer"
-    || Object.values(state.pendingRuns).some((pending) => pending.taskId === taskId && pending.origin === "composer");
+/** Why a tick has nowhere to run. */
+export type TickRefusal = "no-thread" | "archived" | "busy-user" | "busy-agent" | "no-workspace";
+
+/**
+ * Who the thread is working for, if anyone. A send still resolving is a run too: two of them in one
+ * thread would make two checkouts.
+ */
+function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-agent" | null {
+  const active = state.activeRuns[taskId];
+  const pending = Object.values(state.pendingRuns).filter((run) => run.taskId === taskId);
+  if (active?.origin === "composer" || pending.some((run) => run.origin === "composer")) return "busy-user";
+  return active || pending.length ? "busy-agent" : null;
+}
+
+/**
+ * Why this tick cannot run, or null when it can. A thread its own user is working in is named apart
+ * from one an agent is busy in, and answered first: the two would otherwise both read as busy, and
+ * only the second is a schedule failing to get a turn.
+ */
+export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, task?: Task, project?: Project): TickRefusal | null {
+  if (!task) return "no-thread";
+  const busy = whoIsBusy(state, fire.taskId);
+  if (busy) return busy;
+  if (task.archivedAt !== undefined) return "archived";
+  /** A thread in a project runs in that project's checkout, so it waits until there is one. */
+  if (task.projectId && !project?.workspaceId) return "no-workspace";
+  return null;
 }
 
 /** What raising a finding tells the desktop, so a thread that spoke while hidden still reaches the user. */
@@ -28,7 +51,7 @@ function announced(task: Task, headline: string): WorkspaceEffect {
 export function raisedFinding(state: WorkspaceState, report: FindingReport & { taskId: string }): WorkspaceTransition {
   const task = scheduledRun(state, report.taskId) ? state.tasks.find((item) => item.id === report.taskId) : undefined;
   if (!task) return { state, effects: [] };
-  const raised = findingOutcome(task, report.key) === "recorded";
+  const raised = isNews(task, report.key);
   /** A thread the user is watching cannot have missed it, exactly as a settled run's verdict is not marked. */
   const seen = state.focused && state.currentId === report.taskId;
   const next = withNotifiedRun(state, report.taskId, report, Date.now(), seen);
@@ -39,12 +62,12 @@ export function raisedFinding(state: WorkspaceState, report: FindingReport & { t
  * A tick with nowhere to run is acknowledged and dropped, which the scheduler counts. A schedule
  * turned away over and over is a silence of its own, so the thread says so out loud, once.
  */
-export function declinedTick(state: WorkspaceState, fire: AutomationFire, task?: Task): WorkspaceTransition {
+export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: Task | undefined, refusal: TickRefusal): WorkspaceTransition {
   const acked: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
   const automation = state.automations.find((item) => item.id === fire.automationId);
   if (!task || !automation || declineCount(automation) + 1 < DECLINES_BEFORE_SURFACING) return { state, effects: acked };
   /** A thread its own user is working in is not a broken schedule: they are here, and the ticks resume when they stop. */
-  if (userIsHere(state, fire.taskId)) return { state, effects: acked };
+  if (refusal === "busy-user") return { state, effects: acked };
   const key = `declined:${automation.id}`;
   /**
    * Once per stretch of declines, however many the scheduler counted before the workspace saw one:
@@ -52,7 +75,7 @@ export function declinedTick(state: WorkspaceState, fire: AutomationFire, task?:
    * stretch was about a schedule that has run since, so it does not stand in for this one.
    */
   const since = automation.lastRunAt ?? 0;
-  const said = findingOutcome(task, key) !== "recorded" || (task.findings ?? []).some((finding) => finding.key === key && finding.at >= since);
+  const said = !isNews(task, key) || (task.findings ?? []).some((finding) => finding.key === key && finding.at >= since);
   if (said) return { state, effects: acked };
   const headline = `This automation has not been able to run since ${new Date(automation.lastRunAt ?? automation.createdAt).toLocaleString()}`;
   const report = { headline, key };

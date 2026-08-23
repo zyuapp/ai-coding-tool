@@ -8,9 +8,6 @@
  */
 import { createTaskMessage, MAX_FINDINGS, MAX_SILENCED_KEYS, type Task, type TaskFinding } from "./task.js";
 
-/** What raising one did. A finding the thread already carries is the same finding, not news. */
-export type FindingOutcome = "recorded" | "duplicate";
-
 export function unreadFindings(task: Task): TaskFinding[] {
   return (task.findings ?? []).filter((finding) => !finding.read);
 }
@@ -24,10 +21,27 @@ export function hasFindings(task: Task): boolean {
   return (task.findings ?? []).length > 0;
 }
 
-export function findingOutcome(task: Task, key?: string): FindingOutcome {
-  /** A key holds while the thread carries it and while the user has it filed away: neither is news. */
-  if (key !== undefined && ((task.findings ?? []).some((finding) => finding.key === key) || (task.silencedKeys ?? []).includes(key))) return "duplicate";
-  return "recorded";
+function findingKeys(task: Task): string[] {
+  return (task.findings ?? []).flatMap((finding) => finding.key ?? []);
+}
+
+function handledKeys(task: Task): string[] {
+  return task.silencedKeys ?? [];
+}
+
+/**
+ * Where a keyed issue stands with the thread: one it carries a finding for, one the user has filed
+ * away, or one it has never been told about. An unkeyed report is always unknown.
+ */
+export function issueState(task: Task, key?: string): "unknown" | "carried" | "handled" {
+  if (key === undefined) return "unknown";
+  if (findingKeys(task).includes(key)) return "carried";
+  return handledKeys(task).includes(key) ? "handled" : "unknown";
+}
+
+/** Only an issue the thread has never heard of is news; carried and filed away are the same one. */
+export function isNews(task: Task, key?: string): boolean {
+  return issueState(task, key) === "unknown";
 }
 
 /**
@@ -35,7 +49,7 @@ export function findingOutcome(task: Task, key?: string): FindingOutcome {
  * the transcript still carries it once the finding itself is filed away. A duplicate changes nothing.
  */
 export function withFinding(task: Task, report: { headline: string; detail?: string; key?: string }, at: number, seen = false): Task {
-  if (findingOutcome(task, report.key) !== "recorded") return task;
+  if (!isNews(task, report.key)) return task;
   const finding: TaskFinding = {
     id: crypto.randomUUID(),
     headline: report.headline,
@@ -100,9 +114,9 @@ export function dismissed(tasks: Task[], dismissing: Set<string>): Task[] {
 }
 
 function silenceKeys(task: Task): Task {
-  const keys = (task.findings ?? []).flatMap((finding) => finding.key ?? []);
+  const keys = findingKeys(task);
   if (!keys.length) return task;
-  const silenced = [...(task.silencedKeys ?? []).filter((key) => !keys.includes(key)), ...keys];
+  const silenced = [...handledKeys(task).filter((key) => issueState(task, key) !== "carried"), ...keys];
   return { ...task, silencedKeys: silenced.slice(-MAX_SILENCED_KEYS) };
 }
 
@@ -111,7 +125,7 @@ function silenceKeys(task: Task): Task {
  * filed away for is over, so the next sighting is news again.
  */
 export function withLiftedSilences(task: Task, reportedKeys: string[]): Task {
-  const held = task.silencedKeys ?? [];
+  const held = handledKeys(task);
   const still = held.filter((key) => reportedKeys.includes(key));
   if (still.length === held.length) return task;
   if (!still.length) {
