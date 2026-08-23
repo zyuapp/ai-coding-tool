@@ -22,6 +22,7 @@ import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
 import { notify, serveFindingNotices, type FindingHost } from "./desktop-notice.js";
 import { openInEditor } from "./open-in-editor.js";
+import { reportUpdateFailure } from "./update-notice.js";
 import { adoptUserDataFolder } from "./user-data.js";
 import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
@@ -572,7 +573,12 @@ async function checkForUpdates() {
   if (!app.isPackaged) return;
   const { autoUpdater } = (await import("electron-updater")).default;
   autoUpdater.autoDownload = false;
-  autoUpdater.on("error", (error) => console.error("Update error:", error));
+  /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
+  let requested = false;
+  autoUpdater.on("error", (error) => {
+    console.error("Update error:", error);
+    if (requested) void reportUpdateFailure(window, error);
+  });
   autoUpdater.on("update-available", async ({ version }) => {
     if (!window || window.isDestroyed()) return;
     const result = await dialog.showMessageBox(window, {
@@ -584,7 +590,9 @@ async function checkForUpdates() {
       defaultId: 0,
       cancelId: 1,
     });
-    if (result.response === 0) await autoUpdater.downloadUpdate().catch((error) => console.error("Update download failed:", error));
+    if (result.response !== 0) return;
+    requested = true;
+    await autoUpdater.downloadUpdate().catch((error) => console.error("Update download failed:", error));
   });
   autoUpdater.on("update-downloaded", async ({ version }) => {
     if (!window || window.isDestroyed()) return;
