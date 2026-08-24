@@ -190,6 +190,24 @@ test("a shell is asked for once: the dock's newest answers before a second is op
   assert.equal(sheet.state.settingsOpen, false, "a shell is not shown behind the settings sheet");
 });
 
+test("the shell that has the keyboard is put away when it is asked for again", () => {
+  const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
+  const opened = reduce(state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
+  const shell = dockFor(opened.state, "a").terminals.at(-1)!;
+  const typing = run(opened.state, [{ type: "terminal.focus", terminalId: shell.id }]);
+
+  const away = reduce(typing, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
+  assert.equal(dockFor(away.state, "a").open, false, "the dock goes");
+  assert.equal(away.state.composerFocus, typing.composerFocus + 1, "and the composer has the caret back");
+  assert.equal(dockFor(away.state, "a").terminals.length, 1, "the shell itself stays open");
+
+  assert.equal(away.state.focusedTerminalId, null, "a shell off the screen holds no keyboard");
+
+  const back = reduce(away.state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
+  assert.equal(dockFor(back.state, "a").open, true, "and asking once more brings it back");
+  assert.equal(back.state.dockFocus?.tab, shell.id, "with the keyboard in it again");
+});
+
 test("a numbered keystroke shows the tab in that position", () => {
   const state = run(workspace({ tasks: [task("a")], currentId: "a" }), [
     { type: "view.open-dock-panel", panel: "agents" },

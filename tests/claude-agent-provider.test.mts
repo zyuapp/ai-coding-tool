@@ -462,6 +462,20 @@ test("a steered message joins the run's input stream and only then counts as del
   );
 });
 
+test("a run steered into ends on the turn that answers the steering, not the one it cut short", async () => {
+  const emitted: ProviderEvent[] = [];
+  const steered = [{ messageId: "message-1", prompt: "stop and say BANANA" }];
+  const steering = { next: async () => steered.shift() ?? null };
+  /** Folding a message in ends the turn it interrupted, so the agent reports one result for each. */
+  const provider = new ClaudeAgentProvider(streamingQueryFactory([
+    { type: "result", subtype: "error_during_execution", is_error: true, errors: ["[ede_diagnostic] result_type=user"] },
+    { type: "result", subtype: "success", is_error: false, result: "BANANA" },
+  ]));
+
+  assert.deepEqual(await provider.execute(input({ steering, emit: (event) => emitted.push(event) })), { status: "succeeded" });
+  assert.deepEqual(emitted.filter((event) => event.type === "steered"), [{ type: "steered", messageId: "message-1" }]);
+});
+
 test("a run ends on its turn's result even though its input stream stays open", async () => {
   const capture: StreamingCapture = { sent: [] };
   const provider = new ClaudeAgentProvider(streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }], capture));

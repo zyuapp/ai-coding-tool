@@ -118,8 +118,14 @@ function openStream(emit: (event: ProviderEvent) => void, model?: AgentModel): S
   return { emit, ...(model === undefined ? {} : { model }), streamedText: new Map(), subagentIds: new Set(), subagentByToolUse: new Map() };
 }
 
+/**
+ * How many turn results a run is still owed. Folding a steered message in ends the turn it
+ * interrupted and starts another for the message, so each one steered adds a turn to wait for.
+ */
+type Owing = { owed: number };
+
 /** One turn a run asked for: the stream that answers it, and the promise the answer settles. */
-type Turn = {
+type Turn = Owing & {
   input: ProviderRunInput;
   settle: (result: ProviderResult) => void;
   stream: Stream;
@@ -143,7 +149,7 @@ export class ClaudeSession {
   /** How the stream ended, kept for a run that arrives after the session is already over. */
   private outcome: ProviderResult | null = null;
   /** The turn the agent started itself, once it has a run to report into. Only ever one at a time. */
-  private agentTurn: { turn: AgentTurn; stream: Stream } | null = null;
+  private agentTurn: (Owing & { turn: AgentTurn; stream: Stream }) | null = null;
   /** Opens that run. Taken when the session opens: what the agent says between runs is the thread's. */
   private beginAgentTurn: () => AgentTurn | null = () => null;
   /** The workflows running here. One outlives the turn that started it, so the set outlives the turn too. */
@@ -209,6 +215,7 @@ export class ClaudeSession {
       };
       const turn: Turn = {
         input,
+        owed: 1,
         settle: resolve,
         stream: openStream((event) => input.emit(event), input.model),
         release: () => {
@@ -231,7 +238,7 @@ export class ClaudeSession {
     await this.retune(turn.input);
     if (this.turn !== turn) return;
     this.push({ message: userMessage(turn.input.prompt) });
-    await this.drainSteering(turn.input.steering, (event) => turn.input.emit(event), () => this.turn === turn);
+    await this.drainSteering(turn.input.steering, (event) => turn.input.emit(event), () => this.turn === turn ? turn : null);
   }
 
   /** Kills one background process of this session: a shell, a monitor, or a workflow. */
@@ -273,11 +280,24 @@ export class ClaudeSession {
   }
 
   /** Feeds one run's steered messages into the session for as long as that run is the one going. */
-  private async drainSteering(steering: SteerQueue, emit: (event: ProviderEvent) => void, open: () => boolean) {
+  private async drainSteering(steering: SteerQueue, emit: (event: ProviderEvent) => void, owing: () => Owing | null) {
     for (let steer = await steering.next(); steer; steer = await steering.next()) {
-      if (!open()) return;
+      const owed = owing();
+      if (!owed) return;
+      owed.owed += 1;
       this.push({ message: userMessage(steer.prompt, "now"), delivered: () => emit({ type: "steered", messageId: steer.messageId }) });
     }
+  }
+
+  /**
+   * Whether this result ends a turn a steered message cut short rather than the run. The run's
+   * verdict is the last turn's: what it says about work the steering called off is not an answer.
+   */
+  private absorbedSteering() {
+    const owing: Owing | null = this.turn ?? this.agentTurn;
+    if (!owing || owing.owed <= 1) return false;
+    owing.owed -= 1;
+    return true;
   }
 
   /**
@@ -341,9 +361,9 @@ export class ClaudeSession {
     if (this.agentTurn) return this.agentTurn;
     const turn = this.beginAgentTurn();
     if (!turn) return null;
-    const open = { turn, stream: openStream((event) => turn.emit(event), this.model) };
+    const open = { turn, owed: 1, stream: openStream((event) => turn.emit(event), this.model) };
     this.agentTurn = open;
-    void this.drainSteering(turn.steering, (event) => turn.emit(event), () => this.agentTurn === open);
+    void this.drainSteering(turn.steering, (event) => turn.emit(event), () => this.agentTurn === open ? open : null);
     return this.agentTurn;
   }
 
@@ -467,6 +487,7 @@ export class ClaudeSession {
       }
     } else if (message.type === "result") {
       /** The open input stream keeps the session alive, so the turn's result is what ends the run. */
+      if (this.absorbedSteering()) return;
       if (message.subtype !== "success" || message.is_error) {
         this.conclude({ status: "failed", message: message.subtype === "success" ? message.result : message.errors.join("\n") });
         /** A turn that broke leaves a session nobody can vouch for; the next run resumes it instead. */

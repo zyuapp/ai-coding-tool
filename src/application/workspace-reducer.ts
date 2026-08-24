@@ -735,9 +735,17 @@ function stopSearchEffects(find: FindState | null): WorkspaceEffect[] {
     : [{ type: "stop-find-in-terminal", terminalId: find.target.terminalId }];
 }
 
+/** A shell holds the keyboard only while the dock in front is open on it. */
+function showsTerminal(state: WorkspaceState, terminalId: string): boolean {
+  const owner = ownerOfTerminal(state, terminalId);
+  if (!owner || owner !== dockOwner(state)) return false;
+  const dock = dockFor(state, owner);
+  return dock.open && dock.tab === terminalId;
+}
+
 /** Find belongs to what it is searching, so it goes when that thread, page, or shell does. */
 function prunedFind(state: WorkspaceState, before: WorkspaceState): WorkspaceState {
-  const focusedTerminalId = state.focusedTerminalId && ownerOfTerminal(state, state.focusedTerminalId) ? state.focusedTerminalId : null;
+  const focusedTerminalId = state.focusedTerminalId && showsTerminal(state, state.focusedTerminalId) ? state.focusedTerminalId : null;
   const find = state.find;
   const gone = !find
     ? false
@@ -825,8 +833,12 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "nav.forward": return surface === "browser" ? [{ type: "browser.go", delta: 1 }] : [...leaving, { type: "view.go-forward" }];
     case "page.reload": return [{ type: "browser.reload" }];
     case "tab.new": return [{ type: "view.new-tab" }];
-    /** A shell is asked for, not a second one: the dock's newest answers before a new one is spun up. */
+    /**
+     * A shell is asked for, not a second one: the dock's newest answers before a new one is spun up.
+     * The shell that already has the keyboard is one the user is done with, so it goes away instead.
+     */
     case "terminal.focus": {
+      if (state.focusedTerminalId) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
       const latest = dockFor(state, dockOwner(state)).terminals.at(-1);
       return [...leaving, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
     }
