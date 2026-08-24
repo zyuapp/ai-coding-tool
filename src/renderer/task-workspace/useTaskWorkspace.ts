@@ -20,8 +20,6 @@ import { MAC } from "../platform";
 import type { ThemeMode } from "../../domain/theme";
 import { applyTheme, systemPrefersDark } from "../theme";
 import { applyTypography } from "../typography";
-import { applyPanelWidths } from "../panel-widths";
-import { panelLayout } from "../../domain/panel-widths";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, onTerminalResize, searchTerminalView } from "./terminal-views";
 import { drainLatestPersistence, hasPersistenceDelta, persistenceDelta, persistenceState, storeBackfill, type PersistenceQueue } from "./workspace-persistence";
@@ -526,27 +524,6 @@ export function useTaskWorkspace() {
     applyTypography({ uiFont: view.uiFont, monoFont: view.monoFont, readingSize: view.readingSize, terminalSize: view.terminalSize });
   }, [view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
 
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
-
-  useEffect(() => {
-    const follow = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", follow);
-    return () => window.removeEventListener("resize", follow);
-  }, []);
-
-  /** What the panels are drawn at, which the window decides as much as the widths the user dragged. */
-  const panels = useMemo(() => panelLayout({
-    windowWidth,
-    sidebarOpen: view.sidebarOpen,
-    dockExpanded: view.dockOpen && view.dockExpanded,
-    sidebarWidth: view.sidebarWidth,
-    dockWidth: view.dockWidth,
-  }), [windowWidth, view.sidebarOpen, view.dockOpen, view.dockExpanded, view.sidebarWidth, view.dockWidth]);
-
-  useEffect(() => {
-    applyPanelWidths(panels);
-  }, [panels]);
-
   const currentRunId = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
 
   useEffect(() => {
@@ -558,7 +535,6 @@ export function useTaskWorkspace() {
 
   return {
     ...view,
-    panels,
     threadHandles: threadHandlesFor(promptKey(state)),
     threadHandlesFor,
     /** The one door into the application. The named actions below are shorthand for the same commands. */
@@ -596,8 +572,6 @@ export function useTaskWorkspace() {
       setChromeBrowser: (enabled: boolean) => dispatch({ type: "view.set-chrome-browser", enabled }),
       setNotifications: (enabled: boolean) => dispatch({ type: "view.set-notifications", enabled }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
-      setSidebarWidth: (width: number) => dispatch({ type: "view.set-sidebar-width", width }),
-      setDockWidth: (width: number) => dispatch({ type: "view.set-dock-width", width }),
       setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),
       resetShortcuts: () => dispatch({ type: "view.reset-shortcuts" }),
       captureShortcut: (action: string | null) => dispatch({ type: "view.capture-shortcut", action }),

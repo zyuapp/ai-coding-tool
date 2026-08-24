@@ -21,8 +21,6 @@ export function loadViewPreferences(): ViewPreferences {
     notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
     sidebarMode: stored.sidebarMode ?? "projects",
-    ...(stored.sidebarWidth === undefined ? {} : { sidebarWidth: stored.sidebarWidth }),
-    ...(stored.dockWidth === undefined ? {} : { dockWidth: stored.dockWidth }),
     shortcuts: stored.shortcuts ?? {},
     browserTabs: stored.browserTabs ?? {},
     browserOrigins: stored.browserOrigins ?? [],

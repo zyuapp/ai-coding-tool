@@ -7,7 +7,6 @@ import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskOutcome } from "../../domain/task";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
-import { fittedSidebarWidth } from "../../domain/panel-widths";
 import type { ActivitySections } from "../../application/task-order";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
@@ -163,7 +162,6 @@ export type ProjectSidebarProps = {
   onEditProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
   onSetMode: (mode: SidebarMode) => void;
-  onSetWidth: (width: number) => void;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSelectTask: (taskId: string) => void;
@@ -277,7 +275,6 @@ export function ProjectSidebar({
   onEditProject,
   onRemoveProject,
   onSetMode,
-  onSetWidth,
   onSetSectionOpen,
   onSetOpenMenu,
   onSelectTask,
@@ -355,7 +352,8 @@ export function ProjectSidebar({
 
   function resizeSidebar(target: HTMLElement, clientX: number) {
     const sidebar = target.parentElement;
-    if (sidebar) onSetWidth(fittedSidebarWidth(innerWidth, clientX - sidebar.getBoundingClientRect().left));
+    /** The width is a custom property because the hidden state slides the sidebar out by that same width. */
+    if (sidebar) sidebar.style.setProperty("--sidebar-width", `${Math.min(innerWidth / 2, Math.max(220, clientX - sidebar.getBoundingClientRect().left))}px`);
   }
 
   /** What a thread is: the checkout it works in, the schedule it runs on, and what it is doing now. */

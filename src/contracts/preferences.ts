@@ -23,9 +23,6 @@ export type ViewPreferences = {
   captureFocus: boolean;
   /** Which shape the sidebar reopens in. Which of its lists are folded is not remembered. */
   sidebarMode: SidebarMode;
-  /** How wide each panel was dragged, in px. Absent means the width the app picks for the window. */
-  sidebarWidth?: number;
-  dockWidth?: number;
   /** Whether runs answer in the Simplified Technical English output style the app installs. */
   plainEnglish: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */

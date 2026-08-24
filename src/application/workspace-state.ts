@@ -245,9 +245,6 @@ export type WorkspaceState = {
   terminalSize: number;
   sidebarMode: SidebarMode;
   sidebarOpen: boolean;
-  /** What the user dragged each panel to, in px, or null for the width the app picks for the window. */
-  sidebarWidth: number | null;
-  dockWidth: number | null;
   sessionPanelOpen: boolean;
   /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
   captureSound: boolean;
@@ -349,8 +346,6 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     terminalSize: TERMINAL_SIZE.default,
     sidebarMode: "projects",
     sidebarOpen: true,
-    sidebarWidth: null,
-    dockWidth: null,
     sessionPanelOpen: false,
     captureSound: true,
     captureFocus: true,
@@ -870,8 +865,6 @@ export function deriveView(state: WorkspaceState) {
     terminalSize: state.terminalSize,
     sidebarMode: state.sidebarMode,
     sidebarOpen: state.sidebarOpen,
-    sidebarWidth: state.sidebarWidth,
-    dockWidth: state.dockWidth,
     sessionPanelOpen: state.sessionPanelOpen,
     captureSound: state.captureSound,
     captureFocus: state.captureFocus,

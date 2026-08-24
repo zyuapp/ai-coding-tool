@@ -3,7 +3,6 @@ import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { isSidebarMode } from "../domain/sidebar.js";
-import { DOCK_MIN, SIDEBAR_MIN, storedWidth } from "../domain/panel-widths.js";
 import { isThemeMode, themeById, themeModeOrDefault, themeOrDefault } from "../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 
@@ -39,11 +38,6 @@ function bindings(value: unknown): ShortcutOverrides | undefined {
   return shortcutOverrides(stored);
 }
 
-/** A width a panel asks to be stored at, floored at that panel's own minimum, or nothing if unreadable. */
-export function storedPanelWidth(panel: "sidebarWidth" | "dockWidth", value: unknown): number | undefined {
-  return storedWidth(panel === "sidebarWidth" ? SIDEBAR_MIN : DOCK_MIN, value);
-}
-
 /** Anything unreadable reports no preference, so the caller's default decides. */
 export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPreferences> {
   try {
@@ -54,8 +48,6 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const browserTabs = urlsByThread(value.browserTabs);
     const browserOrigins = urlList(value.browserOrigins);
     const shortcuts = bindings(value.shortcuts);
-    const sidebarWidth = storedPanelWidth("sidebarWidth", value.sidebarWidth);
-    const dockWidth = storedPanelWidth("dockWidth", value.dockWidth);
     const reading = sizeById(READING_SIZE, value.readingSize);
     const terminal = sizeById(TERMINAL_SIZE, value.terminalSize);
     return {
@@ -73,8 +65,6 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(typeof value.captureFocus === "boolean" ? { captureFocus: value.captureFocus } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
       ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),
-      ...(sidebarWidth === undefined ? {} : { sidebarWidth }),
-      ...(dockWidth === undefined ? {} : { dockWidth }),
       ...(shortcuts ? { shortcuts } : {}),
       ...(browserTabs ? { browserTabs } : {}),
       ...(browserOrigins ? { browserOrigins } : {}),
@@ -117,8 +107,6 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     notifications: state.notifications,
     sidebarOpen: state.sidebarOpen,
     sidebarMode: state.sidebarMode,
-    ...(state.sidebarWidth === null ? {} : { sidebarWidth: state.sidebarWidth }),
-    ...(state.dockWidth === null ? {} : { dockWidth: state.dockWidth }),
     shortcuts: state.shortcuts,
     browserTabs,
     browserOrigins: state.browserOrigins,
@@ -142,8 +130,6 @@ export function viewPreferenceState(preferences: ViewPreferences) {
     notifications: preferences.notifications ?? true,
     sidebarOpen: preferences.sidebarOpen,
     sidebarMode: preferences.sidebarMode,
-    sidebarWidth: preferences.sidebarWidth ?? null,
-    dockWidth: preferences.dockWidth ?? null,
     shortcuts: preferences.shortcuts ?? {},
     browserOrigins: preferences.browserOrigins ?? [],
   };
