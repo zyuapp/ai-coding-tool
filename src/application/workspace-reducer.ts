@@ -1,6 +1,8 @@
 import { clampQuote, promptWithAnnotations } from "./annotations.js";
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
 import { pasteTitle, promptWithPastes } from "./pastes.js";
+import { fileTitle, promptWithFiles } from "./files.js";
+import { annotationsFor, composerDraft, filesFor, focusComposer, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes, type ComposerDraftCommand } from "./composer-drafts.js";
 import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { reduceProjects, type ProjectEvent, type RegisterProjectEffect } from "./project-commands.js";
@@ -27,7 +29,7 @@ import {
   type RunProvenance,
   type ThreadMark,
 } from "./task-workspace.js";
-import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withDiff, withDock, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -57,7 +59,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById,
 import { terminalTitle, type TerminalSession, type TerminalUpdate } from "../domain/terminal.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } from "../domain/run.js";
 import type { CaptureOptions } from "../domain/capture.js";
-import { clampTitle, createTaskMessage, findProject, legacyProjectId, MAX_ATTACHMENTS, sameRoot, type Annotation, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
+import { clampTitle, createTaskMessage, findProject, legacyProjectId, MAX_ATTACHED_FILES, MAX_ATTACHMENTS, sameRoot, type Annotation, type AttachedFile, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
@@ -187,7 +189,6 @@ const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a terminal.
 const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 const WORKTREE_CREATING_ERROR = "This thread's worktree is still being created.";
 
-const TOO_MANY_IMAGES_ERROR = `You can attach up to ${MAX_ATTACHMENTS} images.`;
 const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
 const SWITCH_PROJECT_ERROR = "Open this thread in a project folder before switching branches.";
@@ -269,10 +270,6 @@ function focusDockTab(state: WorkspaceState, owner: string, tab: string): Worksp
 }
 
 /** Puts the caret in the composer, taking the keys back from a page that swallows them. */
-function focusComposer(state: WorkspaceState): WorkspaceState {
-  return { ...state, composerFocus: state.composerFocus + 1 };
-}
-
 /** The window has the keys again, which a page in the panel is otherwise holding. */
 const TAKE_KEYS: WorkspaceEffect[] = [{ type: "focus-window" }];
 
@@ -457,8 +454,13 @@ function withQueued(state: WorkspaceState, taskId: string, messages: QueuedMessa
 }
 
 /** Everything drafted alongside the text, flattened into the one prompt the agent reads. */
-function sentPrompt(text: string, pastes: PastedText[], annotations: Annotation[], attachments: RunAttachment[]) {
-  return promptWithAttachments(promptWithAnnotations(promptWithPastes(text, pastes), annotations), attachments);
+function sentPrompt(text: string, pastes: PastedText[], annotations: Annotation[], attachments: RunAttachment[], files: AttachedFile[]) {
+  return promptWithFiles(promptWithAttachments(promptWithAnnotations(promptWithPastes(text, pastes), annotations), attachments), files);
+}
+
+/** A composer that has just sent: text, annotations, pastes, images, and attached files all go. */
+function clearedDraft(state: WorkspaceState, draftKey: string): WorkspaceState {
+  return withFiles(withImages(withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []), draftKey, []), draftKey, []);
 }
 
 function startRunCommand(state: WorkspaceState, task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
@@ -523,7 +525,7 @@ function withDeliveredMessage(state: WorkspaceState, taskId: string, messageId: 
   if (!delivered) return state;
   return applyTask(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (task) => ({
     ...task,
-    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes)],
+    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
     updatedAt: now(),
   }));
 }
@@ -540,7 +542,8 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     const text = [...queued.map((message) => message.text), state.prompts[taskId] ?? ""].filter(Boolean).join("\n\n");
     const annotations = [...queued.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
     const pastes = [...queued.flatMap((message) => message.pastes ?? []), ...pastesFor(state, taskId)];
-    return settled(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes));
+    const files = [...queued.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
+    return settled(withFiles(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes), taskId, files));
   }
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task) return settled(withQueued(state, taskId, []));
@@ -557,6 +560,7 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     attachments: next.attachments,
     ...(next.annotations ? { annotations: next.annotations } : {}),
     ...(next.pastes ? { pastes: next.pastes } : {}),
+    ...(next.files ? { files: next.files } : {}),
     queuedIds: [next.id],
   };
   return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false)]);
@@ -688,7 +692,7 @@ function closeSideChats(state: WorkspaceState, closing: SideChat[]): WorkspaceTr
       const { [active.runId]: _abandoned, ...approvals } = next.approvals;
       next = { ...next, approvals };
     }
-    next = withImages(withPastes(withAnnotations(withPrompt(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id, ""), chat.id, []), chat.id, []), chat.id, []);
+    next = clearedDraft(withQueued(withRunStatus(withActiveRun(withBackgroundProcesses(next, chat.id, []), chat.id, null), chat.id, "idle"), chat.id, []), chat.id);
   }
   const closed = new Set(closing.map((chat) => chat.id));
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
@@ -1168,8 +1172,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       /** The anchors mark drafts in the transcript; the sent message keeps only quote and note. */
       const annotations = (draftKey === undefined ? [] : annotationsFor(state, draftKey)).map(({ anchor: _anchored, ...annotation }) => annotation);
       const pastes = draftKey === undefined ? [] : pastesFor(state, draftKey);
+      const files = draftKey === undefined ? [] : filesFor(state, draftKey);
       const alreadySending = draftKey !== undefined && Object.values(state.pendingRuns).some((pending) => pending.draftKey === draftKey);
-      if ((!text && attachments.length === 0 && annotations.length === 0 && pastes.length === 0) || alreadySending) return settled(state);
+      if ((!text && attachments.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0) || alreadySending) return settled(state);
       if (input.taskId !== undefined && !targetId(state, input.taskId)) return settled(state);
       /** A side chat has nothing to say until the thread it forks from has a session to fork. */
       if (input.taskId !== undefined && state.sideChats.some((chat) => chat.id === input.taskId) && !forkableContinuation(state, input.taskId)) return settled(state);
@@ -1181,12 +1186,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
           text,
-          prompt: sentPrompt(text, pastes, annotations, attachments),
+          prompt: sentPrompt(text, pastes, annotations, attachments, files),
           attachments: attachments.map((attachment) => attachment.path),
           ...(annotations.length ? { annotations } : {}),
           ...(pastes.length ? { pastes } : {}),
+          ...(files.length ? { files } : {}),
         };
-        const drafted = draftKey === undefined ? state : withImages(withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []), draftKey, []);
+        const drafted = draftKey === undefined ? state : clearedDraft(state, draftKey);
         const next = withQueued(drafted, task.id, [...queuedFor(state, task.id), queued]);
         return input.steer ? apply(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
       }
@@ -1215,10 +1221,11 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
-        prompt: sentPrompt(text, pastes, annotations, attachments),
+        prompt: sentPrompt(text, pastes, annotations, attachments, files),
         attachments: attachments.map((attachment) => attachment.path),
         ...(annotations.length ? { annotations } : {}),
         ...(pastes.length ? { pastes } : {}),
+        ...(files.length ? { files } : {}),
       };
       /** Only a thread being created here reads the draft answers; an existing one keeps its own. */
       /** Only a thread yet to exist can be told where to start; one that exists already moved. */
@@ -1608,57 +1615,19 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "action.failed":
       return settled({ ...state, actionError: input.message });
 
-    case "annotation.add": {
-      const quote = clampQuote(input.quote);
-      if (!quote) return settled(state);
-      const key = input.taskId ?? promptKey(state);
-      return settled(withAnnotations(state, key, [...annotationsFor(state, key), { id: crypto.randomUUID(), quote, note: input.note ?? "", ...(input.anchor ? { anchor: input.anchor } : {}) }]));
-    }
-
-    case "annotation.note": {
-      const key = input.taskId ?? promptKey(state);
-      return settled(withAnnotations(state, key, annotationsFor(state, key).map((item) => item.id === input.annotationId ? { ...item, note: input.note } : item)));
-    }
-
-    case "annotation.remove": {
-      const key = input.taskId ?? promptKey(state);
-      return settled(withAnnotations(state, key, annotationsFor(state, key).filter((item) => item.id !== input.annotationId)));
-    }
-
-    case "annotation.recall": {
-      const key = input.taskId ?? promptKey(state);
-      return settled(withAnnotations(state, key, input.annotations));
-    }
-
-    case "paste.add": {
-      const key = input.taskId ?? promptKey(state);
-      if (!input.text) return settled(state);
-      return settled(withPastes(state, key, [...pastesFor(state, key), { id: crypto.randomUUID(), text: input.text }]));
-    }
-
-    case "paste.remove": {
-      const key = input.taskId ?? promptKey(state);
-      return settled(withPastes(state, key, pastesFor(state, key).filter((item) => item.id !== input.pasteId)));
-    }
-
-    case "paste.recall": {
-      const key = input.taskId ?? promptKey(state);
-      return settled(withPastes(state, key, input.pastes));
-    }
-
-    case "image.add": {
-      const key = input.taskId ?? promptKey(state);
-      if (!input.path) return settled(state);
-      if (imagesFor(state, key).length >= MAX_ATTACHMENTS) return settled({ ...state, actionError: TOO_MANY_IMAGES_ERROR });
-      const staged = withImages(state, key, [...imagesFor(state, key), { id: crypto.randomUUID(), path: input.path, label: input.label }]);
-      /** An image only ever arrives to be captioned, so the caret goes where the caption is typed. */
-      return settled(focusComposer(staged));
-    }
-
-    case "image.remove": {
-      const key = input.taskId ?? promptKey(state);
-      return settled(withImages(state, key, imagesFor(state, key).filter((item) => item.id !== input.imageId)));
-    }
+    case "annotation.add":
+    case "annotation.note":
+    case "annotation.remove":
+    case "annotation.recall":
+    case "paste.add":
+    case "paste.remove":
+    case "paste.recall":
+    case "image.add":
+    case "image.remove":
+    case "file.attach":
+    case "file.detach":
+    case "file.recall":
+      return settled(composerDraft(state, input, input.taskId ?? promptKey(state)));
 
     case "view.set-prompt":
       return settled(withPrompt(state, input.taskId ?? promptKey(state), input.prompt));
@@ -2152,7 +2121,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const entering = Boolean(arriving) && existing?.worktreeEnteredAt === undefined;
   const task: Task = existing ?? {
     id: crypto.randomUUID(),
-    title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
+    title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
     model: state.draftModel,
@@ -2164,7 +2133,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     createdAt: now(),
     updatedAt: now(),
   };
-  const message = createTaskMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes);
+  const message = createTaskMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes, pending.files);
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
     ? [createTaskMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
@@ -2195,7 +2164,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const handed = focusing && state.diffs[DRAFT_DOCK];
   const reviewing = handed ? readDiffFrom(drained, task.id, workspace.id, handed.range) : settled(drained);
   return settled(
-    pending.draftKey ? withImages(withPastes(withAnnotations(withPrompt(reviewing.state, pending.draftKey, ""), pending.draftKey, []), pending.draftKey, []), pending.draftKey, []) : reviewing.state,
+    pending.draftKey ? clearedDraft(reviewing.state, pending.draftKey) : reviewing.state,
     [{ type: "start-run", command }, ...titling, ...reviewing.effects],
   );
 }

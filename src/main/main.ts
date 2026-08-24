@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, protocol, session, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -1080,6 +1080,26 @@ ipcMain.handle("attachment:read", async (event, file: unknown) => {
   const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
   if (!saved) throw new Error("That image is not one this app is keeping.");
   return (await readFile(saved)).toString("base64");
+});
+
+/** How many paths one drop may name, and how long each may be. */
+const MAX_DESCRIBED_FILES = 20;
+const MAX_DESCRIBED_PATH = 4_096;
+
+/** What the window dropped: the name to show, and whether the path is a folder. */
+ipcMain.handle("file:describe", async (event, paths: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!Array.isArray(paths)) return [];
+  const named = paths
+    .filter((value): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_DESCRIBED_PATH)
+    .slice(0, MAX_DESCRIBED_FILES);
+  const described = await Promise.all(named.map(async (candidate) => {
+    const entry = await stat(candidate).catch(() => null);
+    if (!entry || (!entry.isFile() && !entry.isDirectory())) return null;
+    const resolved = path.resolve(candidate);
+    return { path: resolved, name: path.basename(resolved), ...(entry.isDirectory() ? { folder: true as const } : {}) };
+  }));
+  return described.filter((item) => item !== null);
 });
 
 ipcMain.handle("attachment:save", async (event, data: unknown) => {

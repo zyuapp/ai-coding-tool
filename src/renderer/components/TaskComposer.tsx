@@ -1,9 +1,11 @@
 import { Command, CornerDownRight, MessagesSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
-import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type PastedText, type RecalledMessage, type RunAttachment, type StagedImage } from "../../domain/task";
+import { MAX_ATTACHMENTS, type Annotation as TaskAnnotation, type AttachedFile, type PastedText, type RecalledMessage, type RunAttachment, type StagedImage } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
+import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
+import { isImageFile } from "../dropped-files";
 import { markPrefix } from "../../application/attachments";
 import { pasteRidesAsPill } from "../../application/pastes";
 import type { AvailableCommand } from "../../contracts/ipc";
@@ -103,6 +105,8 @@ export type TaskComposerProps = {
   annotations?: TaskAnnotation[];
   /** Text pasted in that was too long to sit in the prompt, waiting to ride the next send. */
   pastes?: PastedText[];
+  /** Files and folders dropped or pasted in, waiting to ride the next send. */
+  files?: AttachedFile[];
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   focusToken?: number;
   /** Images the workspace is holding for this composer, such as windows the desktop hotkey grabbed. */
@@ -116,6 +120,10 @@ export type TaskComposerProps = {
   onPasteAdd?: (text: string) => void;
   onPasteRecall?: (pastes: PastedText[]) => void;
   onPasteRemove?: (pasteId: string) => void;
+  /** Files pasted in from the desktop. The surface decides what each one becomes. */
+  onFilesAdd?: (files: File[]) => void;
+  onFileRecall?: (files: AttachedFile[]) => void;
+  onFileRemove?: (fileId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
@@ -158,7 +166,7 @@ function QueuedRow({ messages, surface, onSteer, onDrop }: {
 }
 
 function carries(message: RecalledMessage) {
-  return message.text.trim() !== "" || message.annotations.length > 0 || message.pastes.length > 0;
+  return message.text.trim() !== "" || message.annotations.length > 0 || message.pastes.length > 0 || message.files.length > 0;
 }
 
 export function TaskComposer({
@@ -178,6 +186,7 @@ export function TaskComposer({
   queuedMessages,
   annotations = [],
   pastes = [],
+  files = [],
   focusToken = 0,
   images = [],
   history = [],
@@ -187,6 +196,9 @@ export function TaskComposer({
   onPasteAdd,
   onPasteRecall,
   onPasteRemove,
+  onFilesAdd,
+  onFileRecall,
+  onFileRemove,
   onImageRemove,
   onModeChange,
   onModelChange,
@@ -237,7 +249,7 @@ export function TaskComposer({
   /** Where the list stops belonging to this project, so the divider sits above that row. */
   const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
-  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [] }))];
+  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [] }))];
   /** A send is worth offering back when it carried anything. Only a repeated text collapses into one. */
   const recallable = sent.filter((message, index) => carries(message)
     && !(message.text !== "" && message.text === sent[index - 1]?.text));
@@ -247,12 +259,13 @@ export function TaskComposer({
     if (step === 1 && recall === null) return false;
     const index = (recall?.index ?? recallable.length) + step;
     if (index < 0) return false;
-    const draft = recall?.draft ?? { text: prompt, annotations, pastes };
+    const draft = recall?.draft ?? { text: prompt, annotations, pastes, files };
     const next = index >= recallable.length ? draft : recallable[index];
     setRecall(index >= recallable.length ? null : { index, draft, shown: next.text });
     onPromptChange(next.text);
     onAnnotationRecall?.(next.annotations);
     onPasteRecall?.(next.pastes);
+    onFileRecall?.(next.files);
     setDismissedPrompt(next.text);
     setPendingCaret(next.text.length);
     return true;
@@ -308,7 +321,7 @@ export function TaskComposer({
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (sending || waiting || disabled || (steer && !runActive)) return;
-    if (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0) return;
+    if (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0) return;
     if (attachments.length === 0) {
       onSend([], steer);
       return;
@@ -486,6 +499,7 @@ export function TaskComposer({
         )}
         {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} />}
         {onPasteRemove && <PasteRow pastes={pastes} onRemove={onPasteRemove} />}
+        {onFileRemove && <FileRow files={files} onRemove={onFileRemove} />}
         {attachments.length > 0 && (
           <div className="attachment-row">
             {attachments.map((attachment, index) => (
@@ -511,12 +525,18 @@ export function TaskComposer({
           ref={textareaRef}
           value={prompt}
           onPaste={(event) => {
-            const images = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            const pasted = Array.from(event.clipboardData.files);
+            const images = pasted.filter(isImageFile);
+            const others = pasted.filter((file) => !isImageFile(file));
             if (images.length > 0) {
               event.preventDefault();
               void attachPasted(images);
-              return;
             }
+            if (others.length > 0 && onFilesAdd) {
+              event.preventDefault();
+              onFilesAdd(others);
+            }
+            if (pasted.length > 0) return;
             const text = event.clipboardData.getData("text/plain");
             if (!onPasteAdd || !pasteRidesAsPill(text)) return;
             event.preventDefault();
@@ -606,7 +626,7 @@ export function TaskComposer({
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
-              disabled={!runActive && (disabled || sending || waiting || (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0))}
+              disabled={!runActive && (disabled || sending || waiting || (!prompt.trim() && attachments.length === 0 && annotations.length === 0 && pastes.length === 0 && files.length === 0))}
               onClick={runActive ? onCancel : () => void submit()}
               aria-label={sendLabel(surface, runActive)}
             >

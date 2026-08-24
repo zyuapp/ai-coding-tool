@@ -9,6 +9,7 @@ import type { FindHit } from "../../domain/find";
 import type { Annotation, AnnotationAnchor, Task, TaskMessage } from "../../domain/task";
 import { describeToolCall, type ToolFamily } from "../../domain/tool-call";
 import { AnnotationRow } from "./AnnotationRow";
+import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { StreamingText } from "./StreamingText";
@@ -785,13 +786,12 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
                   <div className="message-stack">
                     {message!.annotations?.length ? <AnnotationRow annotations={message!.annotations} /> : null}
                     {message!.pastes?.length ? <PasteRow pastes={message!.pastes} /> : null}
+                    {message!.files?.length ? <FileRow files={message!.files} /> : null}
                     {message!.attachments?.length ? (
                       <div className="message-attachments">
                         {message!.attachments.map((file, index) => (
                           <button
-                            type="button"
-                            key={file}
-                            className="message-attachment"
+                            type="button" key={file} className="message-attachment"
                             aria-label={`View screenshot ${index + 1}`}
                             onClick={() => setViewing(attachmentUrl(file))}
                           >

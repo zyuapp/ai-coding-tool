@@ -7,7 +7,7 @@ import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
+import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
  * Where a thread was left reading: the message held at the top of the view and how far into it the
@@ -179,7 +179,15 @@ export type BrowserCommand =
  * A file named in a message, opened in whatever the desktop opens that kind of file with. Relative
  * paths are read against the thread's own checkout, so only files that thread can see ever open.
  */
-export type FileCommand = { type: "file.open"; taskId?: string; path: string; line?: number };
+export type FileCommand =
+  | { type: "file.open"; taskId?: string; path: string; line?: number }
+  /**
+   * Files and folders dropped or pasted into a composer, held aside as pills. Drafted the way pastes
+   * are: per task, cleared by the send that carries them.
+   */
+  | { type: "file.attach"; taskId?: string; files: AttachedFileDraft[] }
+  | { type: "file.detach"; taskId?: string; fileId: string }
+  | { type: "file.recall"; taskId?: string; files: AttachedFile[] };
 
 /**
  * The thread's checkout, handed to another application on the machine. Only the user asks for this,

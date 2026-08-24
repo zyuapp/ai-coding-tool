@@ -7,7 +7,7 @@ import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { ExternalApp } from "../domain/external-apps.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
-import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/task.js";
+import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE, type AttachedFileDraft } from "../domain/task.js";
 import type { AgentEffort, AgentModel, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestRef } from "../domain/pull-request.js";
@@ -243,6 +243,10 @@ export type DesktopAPI = {
   saveAttachment(data: string): Promise<string>;
   /** Reads one back as base64 PNG bytes. Only files this app wrote are readable. */
   readAttachment(file: string): Promise<string>;
+  /** Where a dropped or pasted file sits on this machine. Empty for anything that is not a file on disk. */
+  pathForFile(file: File): string;
+  /** What each of those paths is. A path that is neither a file nor a folder is left out. */
+  describeFiles(paths: string[]): Promise<AttachedFileDraft[]>;
   /** Names a thread from its first message and any screenshots it carries, off the agent's run path. Null when no name came back. */
   suggestTaskTitle(text: string, attachments: string[]): Promise<string | null>;
   loadTaskStore(): Promise<TaskStoreData | null>;

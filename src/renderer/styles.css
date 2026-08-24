@@ -2032,6 +2032,7 @@ pre {
   animation: inspector-in 160ms ease-out;
 }
 .side-chat {
+  position: relative;
   min-width: 0;
   display: grid;
   grid-template-rows: 72px minmax(0, 1fr) auto auto;
@@ -2759,6 +2760,64 @@ pre {
   cursor: pointer;
 }
 .paste-remove:hover { background: var(--surface-active); color: var(--ink-soft); }
+.file-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 14px 0; }
+.message-stack .file-row { padding: 0; justify-content: flex-end; }
+.file-pill {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line-mid);
+  border-radius: 9px;
+  background: var(--control);
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+}
+.file-pill:hover { border-color: var(--line-bright); }
+.file-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 4px 9px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+}
+button.file-name { cursor: pointer; }
+.file-name strong { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.file-name small { color: var(--quiet); }
+.file-remove {
+  display: grid;
+  width: 21px;
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--quiet);
+  place-items: center;
+  cursor: pointer;
+}
+.file-remove:hover { background: var(--surface-active); color: var(--ink-soft); }
+
+/** What a surface says while a drag from the desktop is over it. */
+.workspace.dropping, .side-chat.dropping { outline: 2px dashed var(--line-bright); outline-offset: -6px; }
+.drop-hint {
+  position: absolute;
+  z-index: 20;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--surface-raised);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  color: var(--ink-soft);
+  font-size: var(--text-meta);
+  pointer-events: none;
+}
+
 .paste-full {
   max-width: min(880px, 100%);
   max-height: 100%;

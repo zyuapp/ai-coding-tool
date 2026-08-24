@@ -17,7 +17,8 @@ import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/the
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
-import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
+import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
+import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type Worktree } from "../domain/worktree.js";
 
 /**
@@ -40,6 +41,7 @@ export type PendingRun = {
   attachments: string[];
   annotations?: Annotation[];
   pastes?: PastedText[];
+  files?: AttachedFile[];
   detail?: string;
   policy?: ExecutionPolicy;
   automationId?: string;
@@ -79,6 +81,7 @@ export type QueuedMessage = {
   attachments: string[];
   annotations?: Annotation[];
   pastes?: PastedText[];
+  files?: AttachedFile[];
   /** Set once steering is on its way to the agent, which is the point of no return. */
   steering?: boolean;
 };
@@ -101,6 +104,7 @@ export type SideChatView = SideChat & {
   annotations: Annotation[];
   pastes: PastedText[];
   images: StagedImage[];
+  files: AttachedFile[];
   running: boolean;
   compacting: boolean;
   status: TaskRunStatus;
@@ -218,6 +222,8 @@ export type WorkspaceState = {
   pastes: Record<string, PastedText[]>;
   /** Images waiting in each composer, keyed the way `prompts` is. */
   images: Record<string, StagedImage[]>;
+  /** Files and folders waiting in each composer, keyed the way `prompts` is. */
+  files: Record<string, AttachedFile[]>;
   expandedProjects: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
@@ -317,6 +323,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     annotations: {},
     pastes: {},
     images: {},
+    files: {},
     expandedProjects: new Set(),
     projectEdit: null,
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
@@ -448,6 +455,7 @@ function sessionStarted(state: WorkspaceState): boolean {
     || Object.keys(state.annotations).length > 0
     || Object.keys(state.pastes).length > 0
     || Object.keys(state.images).length > 0
+    || Object.keys(state.files).length > 0
     || Object.keys(state.pendingRuns).length > 0;
 }
 
@@ -695,42 +703,6 @@ export function withPrompt(state: WorkspaceState, key: string, prompt: string): 
   return { ...state, prompts };
 }
 
-const NO_ANNOTATIONS: Annotation[] = [];
-
-export function annotationsFor(state: Pick<WorkspaceState, "annotations">, key: string): Annotation[] {
-  return state.annotations[key] ?? NO_ANNOTATIONS;
-}
-
-export function withAnnotations(state: WorkspaceState, key: string, annotations: Annotation[]): WorkspaceState {
-  if (annotations.length) return { ...state, annotations: { ...state.annotations, [key]: annotations } };
-  const { [key]: _cleared, ...remaining } = state.annotations;
-  return { ...state, annotations: remaining };
-}
-
-const NO_PASTES: PastedText[] = [];
-
-export function pastesFor(state: Pick<WorkspaceState, "pastes">, key: string): PastedText[] {
-  return state.pastes[key] ?? NO_PASTES;
-}
-
-export function withPastes(state: WorkspaceState, key: string, pastes: PastedText[]): WorkspaceState {
-  if (pastes.length) return { ...state, pastes: { ...state.pastes, [key]: pastes } };
-  const { [key]: _cleared, ...remaining } = state.pastes;
-  return { ...state, pastes: remaining };
-}
-
-const NO_IMAGES: StagedImage[] = [];
-
-export function imagesFor(state: Pick<WorkspaceState, "images">, key: string): StagedImage[] {
-  return state.images[key] ?? NO_IMAGES;
-}
-
-export function withImages(state: WorkspaceState, key: string, images: StagedImage[]): WorkspaceState {
-  if (images.length) return { ...state, images: { ...state.images, [key]: images } };
-  const { [key]: _cleared, ...remaining } = state.images;
-  return { ...state, images: remaining };
-}
-
 /** Where the cursor lands moving `step` through history, stepping over threads that are gone or archived. */
 export function reachableVisit(state: WorkspaceState, step: -1 | 1): number | null {
   for (let index = state.historyIndex + step, misses = 0, reachable: Set<string> | null = null;
@@ -823,6 +795,7 @@ export function deriveView(state: WorkspaceState) {
     annotations: annotationsFor(state, promptKey(state)),
     pastes: pastesFor(state, promptKey(state)),
     images: imagesFor(state, promptKey(state)),
+    files: filesFor(state, promptKey(state)),
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
@@ -914,6 +887,7 @@ export function deriveView(state: WorkspaceState) {
         annotations: annotationsFor(state, chat.id),
         pastes: pastesFor(state, chat.id),
         images: imagesFor(state, chat.id),
+        files: filesFor(state, chat.id),
         running: Boolean(active),
         compacting: active?.status === "compacting",
         status: active ? "running" : runStatusFor(state, chat.id),

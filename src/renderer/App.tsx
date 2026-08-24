@@ -21,6 +21,8 @@ import { WorkflowPanel } from "./components/WorkflowPanel";
 import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
+import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
+import { attachDroppedFiles } from "./dropped-files";
 import { browserTabTitle } from "../domain/browser";
 import { DIFF_PANEL } from "../application/workspace-reducer";
 import { sentPrompts } from "../domain/task";
@@ -340,6 +342,13 @@ export function App() {
     return () => cancelAnimationFrame(frame);
   }, [rightDockOpen, sidebarOpen, settingsVisible, pageTookKeys, dockFocus, activeRightTab]);
 
+  /** A file dropped anywhere in the window that is not a surface of its own belongs to this thread. */
+  const workspaceDrop = useFileDrop(useCallback((files: File[]) => {
+    void attachDroppedFiles(files, undefined, dispatchRef.current);
+  }, []));
+
+  useRefusedStrayDrops();
+
   const messageLinks = useMemo<MessageLinkActions>(() => ({
     selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),
     openFile: (path: string, line: number | null) => void dispatchRef.current({ type: "file.open", path, line: line ?? undefined }),
@@ -353,7 +362,11 @@ export function App() {
       <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
-      <section className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""}`} inert={settingsVisible}>
+      <section
+        className={`workspace ${sessionPanelVisible ? "summary-open" : ""} ${rightDockOpen ? "dock-open" : ""} ${rightDockExpanded ? "dock-full" : ""} ${workspaceDrop.over ? "dropping" : ""}`}
+        inert={settingsVisible}
+        {...workspaceDrop.props}
+      >
         <WorkspaceHeader
           currentTask={workspace.currentTask}
           folder={workspace.folder}
@@ -592,6 +605,9 @@ export function App() {
                     onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", taskId: chat.id, text })}
                     onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", taskId: chat.id, pastes })}
                     onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", taskId: chat.id, pasteId })}
+                    onFilesAdd={(files) => void attachDroppedFiles(files, chat.id, dispatchRef.current)}
+                    onFileRecall={(files) => void workspace.dispatch({ type: "file.recall", taskId: chat.id, files })}
+                    onFileRemove={(fileId) => void workspace.dispatch({ type: "file.detach", taskId: chat.id, fileId })}
                     readingPoint={chat.readingPoint}
                     onReadingPointMove={(point) => void workspace.dispatch({ type: "view.reading-point", taskId: chat.id, point })}
                     onSend={(attachments, steer) => void workspace.dispatch({ type: "task.send", taskId: chat.id, attachments, steer })}
@@ -626,6 +642,7 @@ export function App() {
           queuedMessages={workspace.queuedMessages}
           annotations={workspace.annotations}
           pastes={workspace.pastes}
+          files={workspace.files}
           history={sentPrompts(workspace.currentTask?.messages ?? [])}
           actions={composerActions}
           threads={workspace.threadHandles}
@@ -635,6 +652,9 @@ export function App() {
           onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
           onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", pastes })}
           onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", pasteId })}
+          onFilesAdd={(files) => void attachDroppedFiles(files, undefined, dispatchRef.current)}
+          onFileRecall={(files) => void workspace.dispatch({ type: "file.recall", files })}
+          onFileRemove={(fileId) => void workspace.dispatch({ type: "file.detach", fileId })}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
           onEffortChange={workspace.actions.setEffort}
@@ -643,6 +663,7 @@ export function App() {
           onDropQueued={workspace.actions.dropQueued}
           onCancel={workspace.actions.cancelRun}
         />
+        {workspaceDrop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       </section>
       {workspace.projectEditor && (
         <ProjectEditDialog

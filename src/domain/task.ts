@@ -30,6 +30,24 @@ export type PastedText = {
 /** How many images one message may carry. */
 export const MAX_ATTACHMENTS = 6;
 
+/** How many files or folders one message may name. */
+export const MAX_ATTACHED_FILES = 10;
+
+/**
+ * A file or folder the user dropped or pasted into a composer. The app never reads it: the message
+ * names where it is, and the agent opens it from disk itself.
+ */
+export type AttachedFile = {
+  id: string;
+  path: string;
+  name: string;
+  /** Set when the path is a directory, so the chip and the prompt both say so. */
+  folder?: true;
+};
+
+/** One before the composer gives it an id, which is what a drop and a paste both hand over. */
+export type AttachedFileDraft = Omit<AttachedFile, "id">;
+
 /** An image waiting in a composer, already written to the attachments directory. */
 export type StagedImage = {
   id: string;
@@ -51,6 +69,8 @@ export type TaskMessage = {
   annotations?: Annotation[];
   /** Blocks pasted into the composer and sent with this message. The agent gets them in the prompt; the timeline shows pills. */
   pastes?: PastedText[];
+  /** Files and folders named by this message. The agent opens them from disk; the timeline shows pills. */
+  files?: AttachedFile[];
   /** Written by a tick that surfaced nothing. It stays in the thread and out of the thread's activity. */
   withdrawn?: true;
   at: number;
@@ -115,7 +135,7 @@ export const MAX_HEADLINE = 200;
 export const MAX_DETAIL = 10_000;
 export const MAX_FINDING_KEY = 200;
 
-export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[], annotations?: Annotation[], pastes?: PastedText[]): TaskMessage {
+export function createTaskMessage(kind: TaskMessage["kind"], text: string, detail?: string, attachments?: string[], annotations?: Annotation[], pastes?: PastedText[], files?: AttachedFile[]): TaskMessage {
   return {
     id: crypto.randomUUID(),
     kind,
@@ -124,6 +144,7 @@ export function createTaskMessage(kind: TaskMessage["kind"], text: string, detai
     ...(attachments?.length ? { attachments } : {}),
     ...(annotations?.length ? { annotations } : {}),
     ...(pastes?.length ? { pastes } : {}),
+    ...(files?.length ? { files } : {}),
     at: Date.now(),
   };
 }
@@ -178,6 +199,7 @@ export type RecalledMessage = {
   text: string;
   annotations: Annotation[];
   pastes: PastedText[];
+  files: AttachedFile[];
 };
 
 const sentPromptCache = new WeakMap<TaskMessage[], RecalledMessage[]>();
@@ -188,7 +210,7 @@ export function sentPrompts(messages: TaskMessage[]): RecalledMessage[] {
   const prompts: RecalledMessage[] = [];
   for (const message of messages) {
     if (message.kind === "user" && message.detail === undefined) {
-      prompts.push({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [] });
+      prompts.push({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [] });
     }
   }
   sentPromptCache.set(messages, prompts);
@@ -773,6 +795,7 @@ function isTaskMessage(value: unknown): value is TaskMessage {
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&
     (value.annotations === undefined || (Array.isArray(value.annotations) && value.annotations.every(isAnnotation))) &&
     (value.pastes === undefined || (Array.isArray(value.pastes) && value.pastes.every(isPastedText))) &&
+    (value.files === undefined || (Array.isArray(value.files) && value.files.every(isAttachedFile))) &&
     (value.withdrawn === undefined || value.withdrawn === true) &&
     finiteNumber(value.at);
 }
@@ -783,6 +806,11 @@ function isAnnotation(value: unknown): value is Annotation {
 
 function isPastedText(value: unknown): value is PastedText {
   return isRecord(value) && nonEmptyString(value.id) && typeof value.text === "string";
+}
+
+function isAttachedFile(value: unknown): value is AttachedFile {
+  return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.path) && nonEmptyString(value.name)
+    && (value.folder === undefined || value.folder === true);
 }
 
 function isContinuation(value: unknown): value is Continuation {

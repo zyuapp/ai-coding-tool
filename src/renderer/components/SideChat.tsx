@@ -2,14 +2,15 @@ import { GitFork, X } from "lucide-react";
 import { useRef } from "react";
 import type { SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
-import { sentPrompts, type Annotation, type AnnotationAnchor, type PastedText, type RunAttachment, type Project, type Task } from "../../domain/task";
+import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment, type Project, type Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
+import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
@@ -25,6 +26,9 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
   onPasteAdd: (text: string) => void;
   onPasteRecall: (pastes: PastedText[]) => void;
   onPasteRemove: (pasteId: string) => void;
+  onFilesAdd: (files: File[]) => void;
+  onFileRecall: (files: AttachedFile[]) => void;
+  onFileRemove: (fileId: string) => void;
   onImageRemove: (imageId: string) => void;
   /** Where this chat's transcript was left, and where its reader has moved to since. */
   readingPoint?: ReadingPoint;
@@ -41,9 +45,10 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const available = Boolean(source.continuation || chat.task.continuation);
+  const drop = useFileDrop(onFilesAdd);
 
   return (
-    <aside className="side-chat" aria-label="Side chat">
+    <aside className={`side-chat ${drop.over ? "dropping" : ""}`} aria-label="Side chat" {...drop.props}>
       <header className="side-chat-header">
         <div className="side-chat-title">
           <span className="side-chat-fork"><GitFork size={17} /></span>
@@ -87,6 +92,7 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}
+        files={chat.files}
         threads={threads ?? []}
         images={chat.images}
         history={sentPrompts(chat.task.messages)}
@@ -98,6 +104,9 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
         onPasteAdd={onPasteAdd}
         onPasteRecall={onPasteRecall}
         onPasteRemove={onPasteRemove}
+        onFilesAdd={onFilesAdd}
+        onFileRecall={onFileRecall}
+        onFileRemove={onFileRemove}
         onImageRemove={onImageRemove}
         onModeChange={onPolicyChange}
         onModelChange={onModelChange}
@@ -107,6 +116,7 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
         onDropQueued={onDropQueued}
         onCancel={onCancel}
       />
+      {drop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       <p className="side-chat-note">Nothing here is saved · closes without a trace</p>
     </aside>
   );

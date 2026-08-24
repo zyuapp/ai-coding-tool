@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { CaptureOptions } from "./domain/capture";
 import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ThreadNotice, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
@@ -44,6 +44,8 @@ const api: DesktopAPI = {
   deleteWorktree: (root: string) => ipcRenderer.invoke("worktree:delete", root),
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
   readAttachment: (file: string) => ipcRenderer.invoke("attachment:read", file),
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
+  describeFiles: (paths: string[]) => ipcRenderer.invoke("file:describe", paths),
   suggestTaskTitle: (text: string, attachments: string[]) => ipcRenderer.invoke("task-title:suggest", text, attachments),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
