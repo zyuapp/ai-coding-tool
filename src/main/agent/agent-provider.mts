@@ -94,6 +94,8 @@ export type ProviderRunInput = {
   effort: AgentEffort;
   /** The Claude Code output style the run answers in, layered over the user's own settings. */
   outputStyle?: string;
+  /** Whether the run also reaches the user's own Chrome through the Claude in Chrome extension. */
+  chromeBrowser?: true;
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;

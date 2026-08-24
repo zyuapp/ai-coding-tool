@@ -25,6 +25,8 @@ export type ViewPreferences = {
   sidebarMode: SidebarMode;
   /** Whether runs answer in the Simplified Technical English output style the app installs. */
   plainEnglish: boolean;
+  /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
+  chromeBrowser: boolean;
   /** Whether a thread that needs the user reaches the desktop while the window is behind something else. */
   notifications: boolean;
   /** Only the bindings that differ from the defaults; an action bound to nothing is stored as null. */

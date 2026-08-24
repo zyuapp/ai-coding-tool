@@ -133,6 +133,7 @@ export class RunCoordinator {
         model: command.model,
         effort: command.effort,
         outputStyle: command.outputStyle,
+        chromeBrowser: command.chromeBrowser,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
         automations: this.options.automations?.(command.taskId),

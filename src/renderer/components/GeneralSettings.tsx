@@ -16,12 +16,15 @@ export type GeneralSettingsProps = {
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
   onSetPlainEnglish: (enabled: boolean) => void;
+  /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
+  chromeBrowser: boolean;
+  onSetChromeBrowser: (enabled: boolean) => void;
   /** Whether a thread that needs the user announces itself on the desktop. */
   notifications: boolean;
   onSetNotifications: (enabled: boolean) => void;
 };
 
-export function GeneralSettings({ plainEnglish, onSetPlainEnglish, notifications, onSetNotifications }: GeneralSettingsProps) {
+export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -111,6 +114,17 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish, notifications
           </div>
           <div className="setting-row-action">
             <button type="button" role="switch" aria-checked={plainEnglish} onClick={() => onSetPlainEnglish(!plainEnglish)}>{plainEnglish ? "Turn off" : "Turn on"}</button>
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <span className={`setting-status ${chromeBrowser ? "granted" : ""}`}>{chromeBrowser && <Check size={13} />}</span>
+          <div>
+            <strong>Claude in Chrome</strong>
+            <p>Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.</p>
+          </div>
+          <div className="setting-row-action">
+            <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
           </div>
         </div>
       </section>

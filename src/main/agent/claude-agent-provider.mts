@@ -12,6 +12,7 @@ import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 type QueryFactory = typeof query;
 const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
 const browserInstructions = `The AICodingTool browser panel is a real browser sharing one session with the user, so every site they have signed into is signed in for you: use the aicodingtool-browser tools rather than curl or Bash for anything behind a login, and rather than guessing at a page you can read.`;
+const chromeInstructions = `The user's own Chrome answers the mcp__claude-in-chrome__ tools, and those tools drive the windows and tabs they already have on screen: when they ask for the external browser, for their browser, or for Chrome by name, use them rather than the AICodingTool browser panel or an open command through Bash. Everything else stays in the panel, which reads a page without disturbing what the user is looking at.`;
 const threadInstructions = `AICodingTool holds the user's other threads, and the aicodingtool-threads tools are the only way to reach them: read them rather than answering about them from memory.`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the aicodingtool-automation tools instead of looping yourself or reaching for cron.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails.`;
@@ -56,6 +57,7 @@ function sessionKey(input: ProviderRunInput) {
     input.projectless,
     input.computerUse.status === "available" ? input.computerUse.mcp : input.computerUse.status,
     input.outputStyle ?? null,
+    Boolean(input.chromeBrowser),
     Boolean(input.automations),
     Boolean(input.findings),
     Boolean(input.threads),
@@ -198,8 +200,9 @@ export class ClaudeAgentProvider implements AgentProvider {
         effort: input.effort,
         ...(input.outputStyle ? { settings: { outputStyle: input.outputStyle } } : {}),
         betas: ["context-1m-2025-08-07" as const],
+        ...(input.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [computerUseInstructions, linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [computerUseInstructions, linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.chromeBrowser ? [chromeInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         skills: "all" as const,
         forwardSubagentText: true,

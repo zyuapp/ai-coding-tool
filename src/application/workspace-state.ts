@@ -251,6 +251,8 @@ export type WorkspaceState = {
   captureFocus: boolean;
   /** Whether a run selects the app's Simplified Technical English output style. */
   plainEnglish: boolean;
+  /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
+  chromeBrowser: boolean;
   /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
   notifications: boolean;
   settingsOpen: boolean;
@@ -348,6 +350,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     captureSound: true,
     captureFocus: true,
     plainEnglish: false,
+    chromeBrowser: false,
     notifications: true,
     settingsOpen: false,
     shortcuts: {},
@@ -866,6 +869,7 @@ export function deriveView(state: WorkspaceState) {
     captureSound: state.captureSound,
     captureFocus: state.captureFocus,
     plainEnglish: state.plainEnglish,
+    chromeBrowser: state.chromeBrowser,
     notifications: state.notifications,
     shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut,

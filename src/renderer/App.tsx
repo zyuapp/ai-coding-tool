@@ -688,7 +688,7 @@ export function App() {
           readingSize={workspace.readingSize}
           terminalSize={workspace.terminalSize}
           allowedOrigins={workspace.browserOrigins}
-          plainEnglish={workspace.plainEnglish}
+          plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser}
           notifications={workspace.notifications}
           shortcuts={workspace.shortcuts}
           capturingShortcut={workspace.capturingShortcut}
@@ -698,7 +698,7 @@ export function App() {
           onSetMonoFont={(font) => void workspace.actions.setMonoFont(font)}
           onSetReadingSize={(size) => void workspace.actions.setReadingSize(size)}
           onSetTerminalSize={(size) => void workspace.actions.setTerminalSize(size)}
-          onSetPlainEnglish={(enabled) => void workspace.actions.setPlainEnglish(enabled)}
+          onSetPlainEnglish={(enabled) => void workspace.actions.setPlainEnglish(enabled)} onSetChromeBrowser={(enabled) => void workspace.actions.setChromeBrowser(enabled)}
           onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}

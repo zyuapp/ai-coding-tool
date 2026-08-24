@@ -40,6 +40,8 @@ export type SettingsPanelProps = {
   allowedOrigins: string[];
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
+  /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
+  chromeBrowser: boolean;
   notifications: boolean;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
@@ -51,6 +53,7 @@ export type SettingsPanelProps = {
   onSetReadingSize: (size: number) => void;
   onSetTerminalSize: (size: number) => void;
   onSetPlainEnglish: (enabled: boolean) => void;
+  onSetChromeBrowser: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
@@ -78,6 +81,7 @@ export function SettingsPanel({
   terminalSize,
   allowedOrigins,
   plainEnglish,
+  chromeBrowser,
   notifications,
   shortcuts,
   capturingShortcut,
@@ -88,6 +92,7 @@ export function SettingsPanel({
   onSetReadingSize,
   onSetTerminalSize,
   onSetPlainEnglish,
+  onSetChromeBrowser,
   onSetNotifications,
   onRestoreTask,
   onClearArchive,
@@ -244,7 +249,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} notifications={notifications} onSetNotifications={onSetNotifications} />
+        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} />
       </main>
       )}
 
