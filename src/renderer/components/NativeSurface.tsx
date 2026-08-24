@@ -41,6 +41,9 @@ export function NativeSurface({ className, report, children }: NativeSurfaceProp
     const element = surface.current;
     if (!element) return;
     let frame = 0;
+    let following = 0;
+    /** How many transitions are running that carry this box, so a slide is followed until it settles. */
+    let sliding = 0;
     let reported = "";
     /** The last coverage answer, kept so a resize can report a rectangle without hit testing again. */
     let obscured = false;
@@ -64,15 +67,39 @@ export function NativeSurface({ className, report, children }: NativeSurfaceProp
     };
     /** Every trigger below can fire in bursts, and one answer a frame is as often as it can change. */
     const schedule = () => { frame ||= requestAnimationFrame(measure); };
+    /** Where the box is now, on the coverage answer already in hand rather than a fresh hit test. */
+    const place = () => {
+      const box = rect();
+      if (!box) send(null);
+      else if (!obscured) send({ x: box.x, y: box.y, width: box.width, height: box.height });
+    };
     /**
      * A resize is already laid out by the time it is delivered, so the new rectangle goes out in
      * this frame instead of the next. The view follows the panel's edge rather than trailing it by
      * a frame, which is what leaves a stale page over the rest of the window.
      */
     const resized = () => {
-      const box = rect();
-      if (!box) send(null);
-      else if (!obscured) send({ x: box.x, y: box.y, width: box.width, height: box.height });
+      place();
+      schedule();
+    };
+    /**
+     * A native view is drawn over this box rather than in it, so a panel that slides cannot carry it.
+     * While a slide is running the box says where it is every frame; left to the end of the slide,
+     * the view would stay behind on the workspace until the panel had gone.
+     */
+    const follow = () => {
+      if (!sliding) return void (following = 0);
+      place();
+      following = requestAnimationFrame(follow);
+    };
+    /** Only a transition on something holding this box can move it; the rest of the window cannot. */
+    const carries = (event: TransitionEvent) => event.target instanceof Node && event.target.contains(element);
+    const slideStarted = (event: TransitionEvent) => {
+      if (carries(event) && sliding++ === 0) following = requestAnimationFrame(follow);
+    };
+    /** A slide that is cut short still ends, so the count cannot be left holding a frame loop open. */
+    const slideEnded = (event: TransitionEvent) => {
+      if (carries(event) && sliding > 0) sliding -= 1;
       schedule();
     };
 
@@ -84,15 +111,19 @@ export function NativeSurface({ className, report, children }: NativeSurfaceProp
     mutations.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["hidden", "class", "style", "inert"] });
     window.addEventListener("resize", resized);
     window.addEventListener("scroll", schedule, true);
-    /** A panel that slides ends up somewhere the frame it started in cannot say. */
-    window.addEventListener("transitionend", schedule, true);
+    window.addEventListener("transitionrun", slideStarted, true);
+    window.addEventListener("transitionend", slideEnded, true);
+    window.addEventListener("transitioncancel", slideEnded, true);
     return () => {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(following);
       resize.disconnect();
       mutations.disconnect();
       window.removeEventListener("resize", resized);
       window.removeEventListener("scroll", schedule, true);
-      window.removeEventListener("transitionend", schedule, true);
+      window.removeEventListener("transitionrun", slideStarted, true);
+      window.removeEventListener("transitionend", slideEnded, true);
+      window.removeEventListener("transitioncancel", slideEnded, true);
       latest.current(null);
     };
   }, []);
