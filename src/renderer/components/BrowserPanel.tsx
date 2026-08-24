@@ -37,7 +37,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
   useEffect(() => {
     if (!focusToken) return;
     if (tab.url) void window.desktop.focusBrowserTab(tab.id);
-    else addressInput.current?.focus();
+    else addressInput.current?.focus({ preventScroll: true });
     /** Only a fresh request moves the keys, so the page this tab lands on later leaves them where they are. */
   }, [focusToken]);
 

@@ -233,7 +233,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .app-shell {
   display: flex;
   height: 100%;
-  overflow: hidden;
+  /**
+   * Clipped rather than hidden. A panel parks outside this box, and `hidden` would leave the box
+   * scrollable: putting the caret in a parked panel then scrolls the window across to reveal it,
+   * carrying the sidebar, the topbar and the conversation off the left edge with it.
+   */
+  overflow: clip;
   background: var(--canvas);
 }
 

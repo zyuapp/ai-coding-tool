@@ -388,7 +388,7 @@ export function TaskComposer({
   }, [prompt, recall]);
 
   useEffect(() => {
-    if (focusToken) textareaRef.current?.focus();
+    if (focusToken) textareaRef.current?.focus({ preventScroll: true });
   }, [focusToken]);
 
   useLayoutEffect(() => {
