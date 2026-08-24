@@ -1988,10 +1988,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(focused.state, [{ type: "terminal.start", terminalId: terminal.id, cwd }, ...focused.effects]);
     }
 
+    /** A shell that is asked for is a shell to type in, so it takes the keyboard as a side chat does. */
     case "terminal.select": {
       const owner = ownerOfTerminal(state, input.terminalId);
       if (!owner) return settled(state);
-      return settled(withDock(showDockTab(state, owner, input.terminalId), owner, { terminalId: input.terminalId }));
+      const shown = withDock(showDockTab(state, owner, input.terminalId), owner, { terminalId: input.terminalId });
+      return focusDockTab(shown, owner, input.terminalId);
     }
 
     case "terminal.close": {

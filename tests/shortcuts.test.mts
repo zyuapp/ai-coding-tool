@@ -183,6 +183,8 @@ test("a shell is asked for once: the dock's newest answers before a second is op
   assert.equal(dock.terminals.length, 2, "the shells already there are enough");
   assert.equal(dock.tab, dock.terminals.at(-1)!.id, "and the newest of them is the one in front");
   assert.equal(dock.open, true);
+  assert.equal(focused.state.dockFocus?.tab, dock.terminals.at(-1)!.id, "and it has the keyboard, so the user can type in it");
+  assert.ok((focused.state.dockFocus?.count ?? 0) > (buried.dockFocus?.count ?? 0), "asking again hands the keyboard over again");
 
   const sheet = reduce({ ...buried, settingsOpen: true }, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
   assert.equal(sheet.state.settingsOpen, false, "a shell is not shown behind the settings sheet");
