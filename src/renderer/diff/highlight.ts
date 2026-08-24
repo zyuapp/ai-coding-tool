@@ -1,6 +1,6 @@
 import { createHighlighterCoreSync, type HighlighterCore, type LanguageRegistration, type ThemedToken, type ThemeRegistrationRaw } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import type { DiffFile } from "../../domain/diff";
+import { hunkText, hunkTextIndex, languageForPath, type DiffFile } from "../../domain/diff";
 
 export type { ThemedToken };
 
@@ -86,11 +86,24 @@ export async function ensureLanguage(lang: string | null) {
   if (!pending) {
     const load = GRAMMARS[lang];
     pending = load
-      ? load().then((grammar) => engine.loadLanguage(grammar.default)).then(() => undefined).catch(() => undefined)
+      ? load().then((grammar) => engine.loadLanguage(grammar.default)).then(() => warm(engine, lang)).catch(() => undefined)
       : Promise.resolve();
     fetched.set(lang, pending);
   }
   await pending;
+}
+
+/**
+ * A grammar's first block costs far more than its next one, and the first block a review asks for is
+ * one the user is waiting on. So a grammar reads one throwaway line as it registers, beside the patch
+ * reads rather than in front of the drawing.
+ */
+function warm(engine: HighlighterCore, lang: string) {
+  try {
+    engine.codeToTokens("a", { lang, theme: "aicodingtool" });
+  } catch {
+    // A grammar that cannot read one line simply draws plain, which the drawing already allows for.
+  }
 }
 
 /**
@@ -99,18 +112,6 @@ export async function ensureLanguage(lang: string | null) {
  */
 /** Past this a block is not worth a grammar: the pause is longer than the colour is useful. */
 const HIGHLIGHT_LIMIT = 100_000;
-
-/** Context reaches both sides, so budget what the grammar would actually tokenize. */
-export function withinHighlightBudget(file: DiffFile) {
-  let size = 0;
-  for (const hunk of file.hunks) {
-    for (const row of hunk.rows) {
-      size += (row.text.length + 1) * (row.kind === "context" ? 2 : 1);
-      if (size > HIGHLIGHT_LIMIT) return false;
-    }
-  }
-  return true;
-}
 
 export function highlightBlock(code: string, lang: string | null): ThemedToken[][] | null {
   if (!lang || !code || code.length > HIGHLIGHT_LIMIT) return null;
@@ -121,4 +122,57 @@ export function highlightBlock(code: string, lang: string | null): ThemedToken[]
   } catch {
     return null;
   }
+}
+
+/**
+ * One file's colours, filled a hunk at a time. Colouring a whole review costs seconds of a blocked
+ * window, so a hunk is read only when something draws a row from it, and what it gave is kept against
+ * the file: scrolling back over lines already coloured costs nothing.
+ */
+export type FileTokens = {
+  /** Which hunk each row came from, so a drawn row names the block that colours it. */
+  hunkOf: Map<string, number>;
+  /** The colours read so far, by row. A row whose hunk is not read yet is simply absent. */
+  tokens: Map<string, ThemedToken[]>;
+  /** Reads one hunk, at most once. True when it left something new to draw. */
+  colour: (hunk: number) => boolean;
+};
+
+export function fileTokens(file: DiffFile): FileTokens {
+  const lang = languageForPath(file.path);
+  const hunkOf = new Map<string, number>();
+  const tokens = new Map<string, ThemedToken[]>();
+  const read = new Set<number>();
+  for (const [index, hunk] of file.hunks.entries()) {
+    for (const row of hunk.rows) hunkOf.set(row.key, index);
+  }
+
+  const colour = (index: number) => {
+    const hunk = file.hunks[index];
+    if (!lang || !hunk || read.has(index)) return false;
+    read.add(index);
+    let drew = false;
+    /**
+     * A side is only read for the lines that are its own: context reads the same either way, and a
+     * hunk that took nothing away, or added nothing, is most hunks. Each read carries the grammar's
+     * own start-up cost, so halving the reads halves what a screen of lines costs to colour.
+     */
+    const sides = [
+      ...hunk.rows.some((row) => row.kind === "delete") ? ["old" as const] : [],
+      ...hunk.rows.some((row) => row.kind === "add") || hunk.rows.every((row) => row.kind === "context") ? ["new" as const] : [],
+    ];
+    for (const side of sides) {
+      const lines = highlightBlock(hunkText(hunk, side), lang);
+      if (!lines) continue;
+      for (const [key, line] of hunkTextIndex(hunk, side)) {
+        const drawn = lines[line];
+        if (!drawn) continue;
+        tokens.set(key, drawn);
+        drew = true;
+      }
+    }
+    return drew;
+  };
+
+  return { hunkOf, tokens, colour };
 }

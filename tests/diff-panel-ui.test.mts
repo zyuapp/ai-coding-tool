@@ -19,9 +19,10 @@ class ResizeObserverStub {
 Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: ResizeObserverStub });
 Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 
+/** Named as the file it is, because a patch's own path is what picks the grammar that colours it. */
 const PATCH = [
-  "--- a/file",
-  "+++ b/file",
+  "--- a/src/app.ts",
+  "+++ b/src/app.ts",
   "@@ -1,3 +1,4 @@",
   " const first = 1;",
   "-const second = 2;",
@@ -102,6 +103,15 @@ async function settled(container: HTMLElement) {
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   }
 }
+
+test("lines are coloured once they are drawn, not when their patch arrives", async () => {
+  const view = await mount(panel());
+  await settled(view.container);
+
+  const coloured = () => [...view.container.querySelectorAll(".diff-line code")].filter((code) => code.querySelector("span")).length;
+  assert.ok(coloured() > 0, "the rows on screen carry colour");
+  await view.unmount();
+});
 
 test("the row of the file being read is held at the top of the review", async () => {
   const view = await mount(panel());

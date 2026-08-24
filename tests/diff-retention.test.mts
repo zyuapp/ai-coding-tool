@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { diffRows, parseFilePatch, splitRows } from "../src/domain/diff.ts";
-import { withinHighlightBudget } from "../src/renderer/diff/highlight.ts";
+import { ensureLanguage, fileTokens } from "../src/renderer/diff/highlight.ts";
 
 const PATCH = [
   "--- a/src/app.ts",
@@ -27,10 +27,33 @@ test("diff views reuse parsed line objects with final keys", () => {
   for (const row of sides) assert.ok(parsed.includes(row));
 });
 
-test("syntax highlighting budgets all hunks together", () => {
-  const line = `const value = "${"x".repeat(60_000)}";`;
-  const patch = ["@@ -1 +1 @@", ` ${line}`, "@@ -3 +3 @@", ` ${line}`, ""].join("\n");
+test("colour is read one hunk at a time, and only for the hunks asked for", async () => {
+  await ensureLanguage("typescript");
+  const patch = [
+    "@@ -1,1 +1,1 @@",
+    "-const first = 1;",
+    "+const first = 11;",
+    "@@ -9,1 +9,1 @@",
+    "-const second = 2;",
+    "+const second = 22;",
+    "",
+  ].join("\n");
+  const file = parseFilePatch(patch, "src/app.ts");
+  const [firstHunk, secondHunk] = file.hunks.map((hunk) => hunk.rows.map((row) => row.key));
+  const colours = fileTokens(file);
 
-  assert.equal(withinHighlightBudget(parseFilePatch(patch, "src/app.ts")), false);
-  assert.equal(withinHighlightBudget(parseFilePatch(PATCH, "src/app.ts")), true);
+  assert.deepEqual([...colours.tokens.keys()], []);
+  assert.equal(colours.colour(0), true);
+  assert.deepEqual([...colours.tokens.keys()].sort(), [...firstHunk!].sort());
+  /** A hunk already read is not read again, and says so, or drawing it would loop. */
+  assert.equal(colours.colour(0), false);
+
+  assert.equal(colours.colour(1), true);
+  assert.deepEqual([...colours.tokens.keys()].sort(), [...firstHunk!, ...secondHunk!].sort());
+});
+
+test("a line names the hunk that colours it", () => {
+  const file = parseFilePatch(PATCH, "src/app.ts");
+  const colours = fileTokens(file);
+  for (const row of file.hunks[0]!.rows) assert.equal(colours.hunkOf.get(row.key), 0);
 });

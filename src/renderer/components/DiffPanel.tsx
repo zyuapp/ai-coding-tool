@@ -8,9 +8,6 @@ import {
   commentQuote,
   diffRows,
   fileFingerprint,
-  hunkText,
-  hunkTextIndex,
-  languageForPath,
   lineOn,
   rangeKey,
   splitRows,
@@ -23,7 +20,8 @@ import {
   type DiffSide,
   type SplitRow,
 } from "../../domain/diff";
-import { highlightBlock, withinHighlightBudget, type ThemedToken } from "../diff/highlight";
+import { fileTokens, type FileTokens, type ThemedToken } from "../diff/highlight";
+import { useLazyColours } from "../diff/use-colours";
 import { usePatches, type PatchRequest, type PatchState } from "../diff/use-patch";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { FileHeader } from "./DiffFileRow";
@@ -161,27 +159,6 @@ function RowText({ text, tokens }: { text: string; tokens: ThemedToken[] | undef
 }
 
 /**
- * Every row's tokens, taken a hunk at a time. A hunk is contiguous, so a string or a comment that
- * opens inside one closes inside it too; a line tokenized on its own would have lost that.
- */
-function tokenizeFile(file: DiffFile) {
-  const lang = languageForPath(file.path);
-  const tokens = new Map<string, ThemedToken[]>();
-  if (!lang || !withinHighlightBudget(file)) return tokens;
-  for (const hunk of file.hunks) {
-    for (const side of ["old", "new"] as const) {
-      const lines = highlightBlock(hunkText(hunk, side), lang);
-      if (!lines) continue;
-      for (const [key, line] of hunkTextIndex(hunk, side)) {
-        const drawn = lines[line];
-        if (drawn) tokens.set(key, drawn);
-      }
-    }
-  }
-  return tokens;
-}
-
-/**
  * What a gutter announces. A line number alone is ambiguous: a deletion and the addition replacing it
  * often carry the same number, and in two columns both sides would read the same.
  */
@@ -204,7 +181,7 @@ function selectionSide(rows: DiffRow[]): DiffSide {
 type DrawnFile = {
   rows: DiffRow[];
   pairs: SplitRow[];
-  tokens: Map<string, ThemedToken[]>;
+  colours: FileTokens;
   indexByKey: Map<string, number>;
 };
 
@@ -223,7 +200,7 @@ function drawFile(file: DiffFile): DrawnFile {
   return {
     rows,
     pairs: splitRows(file),
-    tokens: tokenizeFile(file),
+    colours: fileTokens(file),
     indexByKey: new Map(rows.map((row, index) => [row.key, index])),
   };
 }
@@ -492,6 +469,13 @@ function usePinnedFile(
   return { pinned: path === null ? undefined : files.find((file) => file.path === path), sync };
 }
 
+/** The rows a drawn line stands for: one in a single column, and either side of a pair in two. */
+function colouredKeys(row: PanelRow): string[] {
+  if (row.kind === "line") return [row.row.key];
+  if (row.kind !== "pair" || row.row.kind !== "pair") return [];
+  return [row.row.left?.key, row.row.right?.key].filter((key): key is string => key !== undefined);
+}
+
 export function DiffPanel({
   diff,
   workspaceId,
@@ -650,6 +634,19 @@ export function DiffPanel({
 
   const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
 
+  /** Colour follows the drawing: a row is read when it is on screen, not when its patch arrives. */
+  useLazyColours(rows.length, windowed ? virtualizer : null, (index) => {
+    const row = rows[index];
+    const colours = row ? drawn.get(row.path)?.colours : undefined;
+    if (!row || !colours) return false;
+    let drew = false;
+    for (const key of colouredKeys(row)) {
+      const hunk = colours.hunkOf.get(key);
+      if (hunk !== undefined && colours.colour(hunk)) drew = true;
+    }
+    return drew;
+  });
+
   /** The caret goes to the note when a run is first picked, and stays wherever the user puts it after. */
   useEffect(() => {
     if (selection) noteRef.current?.focus();
@@ -714,7 +711,7 @@ export function DiffPanel({
         />
       );
     }
-    const tokens = drawn.get(row.path)?.tokens ?? EMPTY_TOKENS;
+    const tokens = drawn.get(row.path)?.colours.tokens ?? EMPTY_TOKENS;
     if (row.kind === "line") {
       const key = `${row.path}\n${row.index}`;
       return (
