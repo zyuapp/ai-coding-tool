@@ -1380,13 +1380,13 @@ test("the appearance page picks a theme and a ground separately, and each click 
   assert.equal(root.dataset.theme, "aicodingtool-dark");
 
   const card = (family: string) => item([...view.container.querySelectorAll<HTMLButtonElement>(".theme-choice")].find((choice) => choice.textContent.includes(family)));
-  const mode = (label: string) => item([...view.container.querySelectorAll<HTMLButtonElement>(".segmented button")].find((button) => button.textContent === label));
-
+  /** The tiles live in a popover, so the row is opened before one of them can be picked. */
+  await act(async () => { item(view.container.querySelector<HTMLButtonElement>(".theme-select > button")).click(); });
   await act(async () => { card("Gruvbox").click(); });
   assert.equal(root.dataset.theme, "gruvbox-dark");
 
   /** The ground is the other axis: it moves within the theme rather than replacing it. */
-  await act(async () => { mode("Light").click(); });
+  await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".segmented button")].find((button) => button.textContent === "Light")).click(); });
   assert.equal(root.dataset.theme, "gruvbox-light");
 
   const stored = JSON.parse(item(localStorage.getItem("aicodingtool.view-preferences.v1")));

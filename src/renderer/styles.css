@@ -1615,7 +1615,7 @@ pre {
  * in the colours it offers rather than in a picture of them.
  */
 .theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding-bottom: 22px; }
-.theme-choices.compact { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 11px; }
+.theme-choices.compact { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 9px; padding: 2px 2px 4px; }
 .theme-choices.compact .theme-preview { height: 58px; }
 .theme-choices.compact .theme-choice-name { padding: 7px 9px; }
 .theme-choice {
@@ -1645,6 +1645,50 @@ pre {
   font-weight: 560;
 }
 .theme-choice-name svg { color: var(--accent); flex: none; }
+
+/**
+ * The theme row's control, built like the font rows' so the appearance page reads as one list. The
+ * tiles live in the popover rather than on the page, which is what keeps the page one screen tall
+ * however many themes ship.
+ */
+.theme-select { position: relative; }
+.theme-select > button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 190px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 8px 11px;
+  background: var(--control-soft);
+  color: var(--ink);
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+.theme-select > button:hover { border-color: var(--line-bright); background: var(--control-hover); }
+.theme-select > button svg { margin-left: auto; flex: none; color: var(--quiet-strong); }
+.theme-swatch { display: flex; gap: 2px; border-radius: 5px; padding: 3px; background: var(--p-bg-0); box-shadow: inset 0 0 0 1px var(--line-mid); }
+.theme-swatch i { width: 5px; height: 12px; border-radius: 2px; }
+.theme-swatch i:nth-child(1) { background: var(--accent); }
+.theme-swatch i:nth-child(2) { background: var(--ansi-green); }
+.theme-swatch i:nth-child(3) { background: var(--ansi-blue); }
+.theme-swatch i:nth-child(4) { background: var(--ansi-magenta); }
+.theme-select-popover {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: calc(100% + 7px);
+  width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--surface-menu);
+  box-shadow: var(--shadow-popover);
+}
+.theme-select-popover .theme-choices { max-height: 268px; overflow-y: auto; overscroll-behavior: contain; }
 
 /** One axis of a two-axis choice: which ground, or which of a handful of named modes. */
 /** A recessed track the chosen segment sits raised in, so the choice reads before the label does. */

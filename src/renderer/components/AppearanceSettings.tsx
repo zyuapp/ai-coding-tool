@@ -1,6 +1,6 @@
 import { Check, ChevronDown, Minus, Moon, Plus, Search, Sun, SunMoon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { themeFamilies, themeFor, themeOrDefault, type ThemeMode } from "../../domain/theme";
+import { THEMES, themeFamilies, themeFor, themeOrDefault, type Theme, type ThemeMode } from "../../domain/theme";
 import {
   MONO_FONTS,
   READING_SIZE,
@@ -51,6 +51,102 @@ function ThemePreview() {
         </span>
       </span>
     </span>
+  );
+}
+
+/** The theme in the row's own button: its accent and three ansi slots on its own canvas. */
+function ThemeSwatch({ id }: { id: string }) {
+  return (
+    <span className="theme-swatch" data-theme={id} aria-hidden="true">
+      <i /><i /><i /><i />
+    </span>
+  );
+}
+
+/**
+ * Every family as one control: a button wearing the theme the window is in, and a popover of tiles
+ * the search narrows. A tile carries its own theme, so it is drawn in the colours it offers.
+ */
+function ThemeSelect({ current, onChoose }: { current: Theme; onChoose: (family: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapper = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const chosen = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    search.current?.focus();
+    chosen.current?.scrollIntoView({ block: "nearest" });
+  }, [open]);
+
+  function choose(family: string) {
+    setOpen(false);
+    onChoose(family);
+  }
+
+  const term = query.trim().toLowerCase();
+  const families = themeFamilies().filter((family) => !term || family.toLowerCase().includes(term));
+
+  return (
+    <div
+      ref={wrapper}
+      className="theme-select"
+      onBlur={(event) => { if (!wrapper.current?.contains(event.relatedTarget as Node)) setOpen(false); }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button type="button" aria-label="Theme" aria-haspopup="listbox" aria-expanded={open} onClick={() => { setQuery(""); setOpen(!open); }}>
+        <ThemeSwatch id={current.id} />
+        <span>{current.family}</span>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="theme-select-popover">
+          <label className="font-select-search">
+            <Search size={14} aria-hidden="true" />
+            <input
+              ref={search}
+              type="search"
+              value={query}
+              placeholder="Search themes"
+              aria-label="Search themes"
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => { if (event.key === "Enter" && families[0]) choose(families[0]); }}
+            />
+          </label>
+          <div className="theme-choices compact" role="listbox" aria-label="Theme">
+            {families.map((family) => {
+              const option = themeFor(family, current.variant);
+              const picked = option.id === current.id;
+              return (
+                <button
+                  key={family}
+                  ref={picked ? chosen : undefined}
+                  type="button"
+                  role="option"
+                  aria-selected={picked}
+                  className={`theme-choice${picked ? " chosen" : ""}`}
+                  data-theme={option.id}
+                  onClick={() => choose(family)}
+                >
+                  <ThemePreview />
+                  <span className="theme-choice-name">
+                    {family}
+                    {picked && <Check size={13} aria-hidden="true" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {!families.length && <p className="font-select-note">No theme here is called that.</p>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -279,27 +375,15 @@ export function AppearanceSettings({
             </div>
           </div>
         </div>
-        <div className="theme-choices compact">
-          {themeFamilies().map((family) => {
-            const option = themeFor(family, current.variant);
-            const chosen = option.id === current.id;
-            return (
-              <button
-                key={family}
-                type="button"
-                className={`theme-choice${chosen ? " chosen" : ""}`}
-                aria-pressed={chosen}
-                data-theme={option.id}
-                onClick={() => onSetThemeFamily(family)}
-              >
-                <ThemePreview />
-                <span className="theme-choice-name">
-                  {family}
-                  {chosen && <Check size={13} aria-hidden="true" />}
-                </span>
-              </button>
-            );
-          })}
+        <div className="setting-row">
+          <span className="setting-status blank" aria-hidden="true" />
+          <div>
+            <strong>Colours</strong>
+            <p>{THEMES.length} themes, each drawn in its own colours.</p>
+          </div>
+          <div className="setting-row-action">
+            <ThemeSelect current={current} onChoose={onSetThemeFamily} />
+          </div>
         </div>
       </section>
 
