@@ -11,7 +11,7 @@ import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "./findings.js";
 import { announced } from "./notices.js";
-import { viewPreferences, viewPreferenceState } from "./view-preferences.js";
+import { storedPanelWidth, viewPreferences, viewPreferenceState } from "./view-preferences.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withNothingToReport, withSettledTick } from "./run-testimony.js";
 import { pruneDeletedTasks } from "./task-pruning.js";
 import {
@@ -1691,29 +1691,19 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled({ ...state, theme: chosen.id });
     }
 
-    case "view.set-ui-font": {
-      if (!uiFontById(input.font) || state.uiFont === input.font) return settled(state);
-      const next = { ...state, uiFont: input.font };
+    case "view.set-ui-font": case "view.set-mono-font": {
+      const ui = input.type === "view.set-ui-font";
+      const field = ui ? "uiFont" : "monoFont";
+      if (!(ui ? uiFontById : monoFontById)(input.font) || state[field] === input.font) return settled(state);
+      const next = { ...state, [field]: input.font };
       return settled(next, persistView(next));
     }
 
-    case "view.set-mono-font": {
-      if (!monoFontById(input.font) || state.monoFont === input.font) return settled(state);
-      const next = { ...state, monoFont: input.font };
-      return settled(next, persistView(next));
-    }
-
-    case "view.set-reading-size": {
-      const size = sizeById(READING_SIZE, input.size);
-      if (size === undefined || state.readingSize === size) return settled(state);
-      const next = { ...state, readingSize: size };
-      return settled(next, persistView(next));
-    }
-
-    case "view.set-terminal-size": {
-      const size = sizeById(TERMINAL_SIZE, input.size);
-      if (size === undefined || state.terminalSize === size) return settled(state);
-      const next = { ...state, terminalSize: size };
+    case "view.set-reading-size": case "view.set-terminal-size": {
+      const field = input.type === "view.set-reading-size" ? "readingSize" : "terminalSize";
+      const size = sizeById(field === "readingSize" ? READING_SIZE : TERMINAL_SIZE, input.size);
+      if (size === undefined || state[field] === size) return settled(state);
+      const next = { ...state, [field]: size };
       return settled(next, persistView(next));
     }
 
@@ -1726,6 +1716,14 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "view.set-sidebar-open": {
       if (state.sidebarOpen === input.open) return settled(state);
       const next = { ...state, sidebarOpen: input.open };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-sidebar-width": case "view.set-dock-width": {
+      const field = input.type === "view.set-sidebar-width" ? "sidebarWidth" : "dockWidth";
+      const width = storedPanelWidth(field, input.width);
+      if (width === undefined || state[field] === width) return settled(state);
+      const next = { ...state, [field]: width };
       return settled(next, persistView(next));
     }
 

@@ -95,6 +95,7 @@ function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onRemoveProject={workspace.actions.removeProject}
       onMoveProject={workspace.actions.moveProject}
       onSetMode={workspace.actions.setSidebarMode}
+      onSetWidth={workspace.actions.setSidebarWidth}
       onSetSectionOpen={workspace.actions.setSectionOpen}
       onSetOpenMenu={workspace.actions.setOpenMenu}
       onSelectTask={workspace.actions.selectTask}
@@ -184,12 +185,9 @@ export function App() {
     void workspace.actions.setSettingsOpen(false);
   }
 
-  function resizeRightDock(target: HTMLElement, clientX: number) {
-    const panel = target.parentElement;
-    const parent = panel?.parentElement;
-    if (!panel || !parent) return;
-    const bounds = parent.getBoundingClientRect();
-    parent.style.setProperty("--right-dock-width", `${Math.min(bounds.width - 320, Math.max(320, bounds.right - clientX))}px`);
+  /** The panel is drawn against the window's right edge, so the pointer's distance from it is the width. */
+  function resizeRightDock(clientX: number) {
+    void workspace.actions.setDockWidth(Math.min(workspace.panels.dockLimit, window.innerWidth - clientX));
   }
 
   useEffect(() => {
@@ -359,7 +357,7 @@ export function App() {
   return (
     <MessageLinkProvider actions={messageLinks}>
     <DiagramViewerHost>
-    <main className="app-shell">
+    <main className={`app-shell ${workspace.panels.floating ? "sidebar-floats" : ""}`.trimEnd()}>
       <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />
       {sidebarOpen && <button className="sidebar-backdrop" aria-label="Close sidebar" onClick={() => void workspace.actions.setSidebarOpen(false)} />}
 
@@ -493,15 +491,15 @@ export function App() {
               tabIndex={0}
               onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
               onPointerMove={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeRightDock(event.currentTarget, event.clientX);
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) resizeRightDock(event.clientX);
               }}
               onKeyDown={(event) => {
                 if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                 const panel = event.currentTarget.parentElement;
-                if (panel) resizeRightDock(event.currentTarget, panel.getBoundingClientRect().left + (event.key === "ArrowLeft" ? -10 : 10));
+                if (panel) resizeRightDock(panel.getBoundingClientRect().left + (event.key === "ArrowLeft" ? -10 : 10));
               }}
             />
-            <div className={`right-dock-tabs ${rightDockExpanded && !sidebarOpen ? "traffic-inset" : ""}`.trimEnd()}>
+            <div className="right-dock-tabs">
               <div role="tablist" aria-label="Right panel tabs">
                 {dockTabs.map((tab) => (
                   <div className={`right-dock-tab ${activeRightTab === tab.id ? "active" : ""}`} key={tab.id}>

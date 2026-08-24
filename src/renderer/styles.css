@@ -176,6 +176,10 @@
   --scrim: rgb(var(--p-scrim) / 0.85);
   --scrim-soft: rgb(var(--p-shadow) / calc(0.38 * var(--p-shadow-scale)));
 
+  /* Panel widths, until the window is measured and writes what actually fits over these. */
+  --sidebar-width: 280px;
+  --dock-width: clamp(380px, 40vw, 620px);
+
   /* Motion. Every panel that slides in from a window edge shares this duration and curve. */
   --panel-slide-time: 500ms;
   --panel-slide-ease: cubic-bezier(0.32, 0.72, 0, 1);
@@ -231,6 +235,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 }
 
 .app-shell {
+  position: relative;
   display: flex;
   height: 100%;
   overflow: hidden;
@@ -239,7 +244,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 
 .sidebar {
   position: relative;
-  width: var(--sidebar-width, 280px);
+  width: var(--sidebar-width);
   min-width: 220px;
   max-width: 50vw;
   overflow: visible;
@@ -252,9 +257,29 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   transition: margin-left var(--panel-slide-time) var(--panel-slide-ease);
 }
 /** Hiding slides the sidebar off the left edge at its own width, so its contents never reflow. */
-.sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width, 280px)); }
+.sidebar.hidden { margin-left: calc(-1 * var(--sidebar-width)); }
 .sidebar.hidden .sidebar-resizer { display: none; }
 .sidebar-backdrop { display: none; }
+/**
+ * Floating: the sidebar lies over the workspace instead of taking room from it. A narrow window
+ * asks for this, and so does an expanded panel — which owns the window, so nothing beside it can
+ * give the sidebar room without sliding the panel itself out from under the user.
+ */
+.app-shell.sidebar-floats > .sidebar {
+  position: absolute;
+  z-index: 45;
+  inset: 0 auto 0 0;
+  width: min(var(--sidebar-width), calc(100% - 40px));
+  max-width: none;
+  margin-left: 0;
+  box-shadow: var(--shadow-sidebar);
+  transform: translateX(-100%);
+  transition: transform var(--panel-slide-time) var(--panel-slide-ease);
+  visibility: hidden;
+}
+.app-shell.sidebar-floats > .sidebar.compact-open { transform: translateX(0); visibility: visible; }
+/** Whichever of the two owns the window's top-left corner, the sidebar covers it while it is open. */
+.app-shell.sidebar-floats .topbar { padding-left: 84px; }
 .sidebar-resizer {
   position: absolute;
   z-index: 5;
@@ -694,7 +719,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   position: relative;
   min-width: 0;
   flex: 1;
-  --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), calc(100vw - 320px));
   display: grid;
   grid-template-rows: 72px minmax(0, 1fr) auto;
   /** The dock's track takes the width the dock's own margin leaves it, so it is 0 while the dock is away. */
@@ -826,11 +850,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
  */
 .workspace.dock-full { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
 .workspace.dock-full > :not(.right-dock) { visibility: hidden; }
-.workspace.dock-full .right-dock { position: absolute; inset: 0; width: auto; grid-column: 1 / -1; z-index: 4; }
+.workspace.dock-full .right-dock { position: fixed; inset: 0; width: auto; z-index: 25; }
 .workspace.dock-full .right-dock-resizer { display: none; }
 /** The dock now owns the window's top edge, so its tab strip drags the window and clears the traffic lights. */
-.workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
-.workspace.dock-full .right-dock-tabs.traffic-inset { padding-left: 84px; }
+.workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; padding-left: 84px; }
 .workspace.dock-full .right-dock-tabs > div, .workspace.dock-full .right-dock-tabs button { -webkit-app-region: no-drag; }
 /** A 16px grab strip centred on the dock's edge; the line it draws stays 2px so the seam looks unchanged. */
 .right-dock-resizer {
@@ -899,6 +922,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .right-dock-picker strong { color: var(--ink-soft); font-size: var(--text-control); font-weight: 580; }
 .right-dock-picker small { color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.35; }
 .right-dock .subagent-inspector { height: 100%; border-left: 0; }
+/** A native page is drawn above every element, so it steps aside for the sidebar rather than under it. */
+.browser-viewport { transition: margin-left var(--panel-slide-time) var(--panel-slide-ease); }
+.app-shell.sidebar-floats:has(.sidebar.compact-open) .workspace.dock-full .browser-viewport { margin-left: var(--sidebar-width); }
 .agents-panel, .automation-panel, .browser-panel, .terminal-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 
 /**
@@ -3314,7 +3340,6 @@ button.file-name { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; transition: none !important; } }
 
 @media (max-width: 1100px) {
-  .sidebar { --sidebar-width: 240px; }
   .conversation { padding-inline: 28px; }
   .composer-wrap { padding-inline: 24px; }
   .message.user .message-text { max-width: 85%; }
@@ -3324,28 +3349,11 @@ button.file-name { cursor: pointer; }
   .session-panel { width: 260px; right: 12px; }
 }
 
+/** A window too narrow to hold both dims what is behind, since the sidebar is the whole of it. */
 @media (max-width: 900px) {
-  .sidebar {
-    position: absolute;
-    z-index: 20;
-    inset: 0 auto 0 0;
-    width: min(280px, calc(100% - 40px));
-    max-width: none;
-    box-shadow: var(--shadow-sidebar);
-    transform: translateX(-100%);
-    transition: transform var(--panel-slide-time) var(--panel-slide-ease);
-    visibility: hidden;
-  }
-  /** The sidebar floats over the workspace here, so the topbar always clears the traffic lights. */
-  .topbar { padding-left: 84px; }
-  /** And so does an expanded dock's tab strip, which owns the top edge in its place. */
-  .workspace.dock-full .right-dock-tabs { padding-left: 84px; }
-  /** Narrow windows slide the sidebar over the workspace instead of making room for it. */
-  .sidebar.hidden { margin-left: 0; }
-  .sidebar.compact-open { transform: translateX(0); visibility: visible; }
   .sidebar-backdrop {
     position: absolute;
-    z-index: 19;
+    z-index: 44;
     inset: 0;
     display: block;
     border: 0;

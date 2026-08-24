@@ -201,6 +201,7 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     onEditProject() {},
     onRemoveProject() {},
     onSetMode() {},
+    onSetWidth() {},
     onSetSectionOpen() {},
     onSetOpenMenu() {},
     onSelectTask() {},
@@ -2162,12 +2163,10 @@ test("right panel resizes with the keyboard", async () => {
   const view = await mount(React.createElement(App));
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show right panel"]').click(); });
-  const workspace = query<HTMLElement>(view.container, ".workspace");
   const panel = query<HTMLElement>(view.container, ".right-dock");
-  workspace.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ width: 1000 });
   panel.getBoundingClientRect = () => dom.window.DOMRect.fromRect({ x: 600 });
   await act(async () => { query<HTMLElement>(panel, '[aria-label="Resize right panel"]').dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })); });
-  assert.equal(workspace.style.getPropertyValue("--right-dock-width"), "410px");
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue("--dock-width"), "434px");
   await view.unmount();
 });
 
