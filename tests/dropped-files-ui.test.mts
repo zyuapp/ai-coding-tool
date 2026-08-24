@@ -117,7 +117,7 @@ test("a send that carried only files is offered back on the up arrow", async () 
     const [prompt, setPrompt] = React.useState("");
     return composer({
       prompt,
-      history: [{ text: "", annotations: [], pastes: [], files }],
+      history: [{ text: "", annotations: [], pastes: [], files, attachments: [] }],
       onPromptChange: setPrompt,
       onFileRecall: (put) => { recalled.push(put); },
       onFileRemove() {},
@@ -129,6 +129,27 @@ test("a send that carried only files is offered back on the up arrow", async () 
   await act(async () => { field.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })); });
 
   assert.deepEqual(recalled, [files], "the files come back with the message they rode with");
+  await view.unmount();
+});
+
+test("a sent image is offered back on the up arrow, with the message it rode with", async () => {
+  const recalled: string[][] = [];
+  function Harness() {
+    const [prompt, setPrompt] = React.useState("");
+    return composer({
+      prompt,
+      history: [{ text: "look at this", annotations: [], pastes: [], files: [], attachments: ["/attachments/one.png"] }],
+      onPromptChange: setPrompt,
+      onImageRecall: (paths) => { recalled.push(paths); },
+      onFileRemove() {},
+    });
+  }
+  const view = await mount(React.createElement(Harness));
+  const field = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');
+  await act(async () => { field.focus(); });
+  await act(async () => { field.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" })); });
+
+  assert.deepEqual(recalled, [["/attachments/one.png"]]);
   await view.unmount();
 });
 

@@ -22,7 +22,7 @@ import { TaskComposer } from "./components/TaskComposer";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
-import { attachDroppedFiles } from "./dropped-files";
+import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { browserTabTitle } from "../domain/browser";
 import { DIFF_PANEL } from "../application/workspace-reducer";
 import { sentPrompts } from "../domain/task";
@@ -343,9 +343,7 @@ export function App() {
   }, [rightDockOpen, sidebarOpen, settingsVisible, pageTookKeys, dockFocus, activeRightTab]);
 
   /** A file dropped anywhere in the window that is not a surface of its own belongs to this thread. */
-  const workspaceDrop = useFileDrop(useCallback((files: File[]) => {
-    void attachDroppedFiles(files, undefined, dispatchRef.current);
-  }, []));
+  const workspaceDrop = useFileDrop((files) => void attachDroppedFiles(files, undefined, workspace.dispatch, imageSources(workspace.images)));
 
   useRefusedStrayDrops();
 
@@ -605,9 +603,10 @@ export function App() {
                     onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", taskId: chat.id, text })}
                     onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", taskId: chat.id, pastes })}
                     onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", taskId: chat.id, pasteId })}
-                    onFilesAdd={(files) => void attachDroppedFiles(files, chat.id, dispatchRef.current)}
+                    onFilesAdd={(files) => void attachDroppedFiles(files, chat.id, dispatchRef.current, imageSources(chat.images))}
                     onFileRecall={(files) => void workspace.dispatch({ type: "file.recall", taskId: chat.id, files })}
                     onFileRemove={(fileId) => void workspace.dispatch({ type: "file.detach", taskId: chat.id, fileId })}
+                    onImageRecall={(paths) => void workspace.dispatch({ type: "image.recall", taskId: chat.id, paths })}
                     readingPoint={chat.readingPoint}
                     onReadingPointMove={(point) => void workspace.dispatch({ type: "view.reading-point", taskId: chat.id, point })}
                     onSend={(attachments, steer) => void workspace.dispatch({ type: "task.send", taskId: chat.id, attachments, steer })}
@@ -652,9 +651,10 @@ export function App() {
           onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}
           onPasteRecall={(pastes) => void workspace.dispatch({ type: "paste.recall", pastes })}
           onPasteRemove={(pasteId) => void workspace.dispatch({ type: "paste.remove", pasteId })}
-          onFilesAdd={(files) => void attachDroppedFiles(files, undefined, dispatchRef.current)}
+          onFilesAdd={(files) => void attachDroppedFiles(files, undefined, workspace.dispatch, imageSources(workspace.images))}
           onFileRecall={(files) => void workspace.dispatch({ type: "file.recall", files })}
           onFileRemove={(fileId) => void workspace.dispatch({ type: "file.detach", fileId })}
+          onImageRecall={(paths) => void workspace.dispatch({ type: "image.recall", paths })}
           onModeChange={workspace.actions.setPolicy}
           onModelChange={workspace.actions.setModel}
           onEffortChange={workspace.actions.setEffort}

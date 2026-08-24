@@ -123,6 +123,7 @@ export type TaskComposerProps = {
   /** Files pasted in from the desktop. The surface decides what each one becomes. */
   onFilesAdd?: (files: File[]) => void;
   onFileRecall?: (files: AttachedFile[]) => void;
+  onImageRecall?: (paths: string[]) => void;
   onFileRemove?: (fileId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (model: AgentModel) => void;
@@ -166,7 +167,8 @@ function QueuedRow({ messages, surface, onSteer, onDrop }: {
 }
 
 function carries(message: RecalledMessage) {
-  return message.text.trim() !== "" || message.annotations.length > 0 || message.pastes.length > 0 || message.files.length > 0;
+  return message.text.trim() !== "" || message.annotations.length > 0 || message.pastes.length > 0
+    || message.files.length > 0 || message.attachments.length > 0;
 }
 
 export function TaskComposer({
@@ -198,6 +200,7 @@ export function TaskComposer({
   onPasteRemove,
   onFilesAdd,
   onFileRecall,
+  onImageRecall,
   onFileRemove,
   onImageRemove,
   onModeChange,
@@ -249,7 +252,7 @@ export function TaskComposer({
   /** Where the list stops belonging to this project, so the divider sits above that row. */
   const firstElsewhere = matchingThreads.findIndex((option) => !option.inScope);
 
-  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [] }))];
+  const sent = [...history, ...queuedMessages.map((message) => ({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [], attachments: message.attachments }))];
   /** A send is worth offering back when it carried anything. Only a repeated text collapses into one. */
   const recallable = sent.filter((message, index) => carries(message)
     && !(message.text !== "" && message.text === sent[index - 1]?.text));
@@ -259,13 +262,12 @@ export function TaskComposer({
     if (step === 1 && recall === null) return false;
     const index = (recall?.index ?? recallable.length) + step;
     if (index < 0) return false;
-    const draft = recall?.draft ?? { text: prompt, annotations, pastes, files };
+    const draft = recall?.draft ?? { text: prompt, annotations, pastes, files, attachments: images.map((image) => image.path) };
     const next = index >= recallable.length ? draft : recallable[index];
     setRecall(index >= recallable.length ? null : { index, draft, shown: next.text });
     onPromptChange(next.text);
     onAnnotationRecall?.(next.annotations);
-    onPasteRecall?.(next.pastes);
-    onFileRecall?.(next.files);
+    onPasteRecall?.(next.pastes); onFileRecall?.(next.files); onImageRecall?.(next.attachments);
     setDismissedPrompt(next.text);
     setPendingCaret(next.text.length);
     return true;

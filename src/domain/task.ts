@@ -54,6 +54,8 @@ export type StagedImage = {
   path: string;
   /** What the image is of, such as the app whose window the desktop hotkey grabbed. */
   label: string;
+  /** Where a dropped image came from. Two drops of the same file are one image; a paste has none. */
+  source?: string;
 };
 
 export type TaskMessage = {
@@ -200,6 +202,8 @@ export type RecalledMessage = {
   annotations: Annotation[];
   pastes: PastedText[];
   files: AttachedFile[];
+  /** Images this message carried, by where the app keeps them. */
+  attachments: string[];
 };
 
 const sentPromptCache = new WeakMap<TaskMessage[], RecalledMessage[]>();
@@ -210,7 +214,7 @@ export function sentPrompts(messages: TaskMessage[]): RecalledMessage[] {
   const prompts: RecalledMessage[] = [];
   for (const message of messages) {
     if (message.kind === "user" && message.detail === undefined) {
-      prompts.push({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [] });
+      prompts.push({ text: message.text, annotations: message.annotations ?? [], pastes: message.pastes ?? [], files: message.files ?? [], attachments: message.attachments ?? [] });
     }
   }
   sentPromptCache.set(messages, prompts);

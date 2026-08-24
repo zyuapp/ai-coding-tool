@@ -543,7 +543,9 @@ function drainQueue(state: WorkspaceState, taskId: string, status: RunStatus): W
     const annotations = [...queued.flatMap((message) => message.annotations ?? []), ...annotationsFor(state, taskId)];
     const pastes = [...queued.flatMap((message) => message.pastes ?? []), ...pastesFor(state, taskId)];
     const files = [...queued.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
-    return settled(withFiles(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes), taskId, files));
+    const images = queued.flatMap((message) => message.attachments);
+    const handed = withFiles(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes), taskId, files);
+    return settled(images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : handed);
   }
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task) return settled(withQueued(state, taskId, []));
@@ -1624,6 +1626,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "paste.recall":
     case "image.add":
     case "image.remove":
+    case "image.recall":
     case "file.attach":
     case "file.detach":
     case "file.recall":

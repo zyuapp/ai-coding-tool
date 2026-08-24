@@ -62,6 +62,11 @@ export function focusComposer(state: WorkspaceState): WorkspaceState {
   return { ...state, composerFocus: state.composerFocus + 1 };
 }
 
+/** An image the app already holds, put back in a composer. What it is of is lost with the send. */
+function stagedImage(path: string): StagedImage {
+  return { id: crypto.randomUUID(), path, label: "" };
+}
+
 /** Files dropped or pasted at once, less the ones this composer already holds and any repeat. */
 function freshFiles(held: AttachedFile[], arriving: AttachedFileDraft[]) {
   return arriving.filter((file, index) => file.path && file.name
@@ -104,14 +109,20 @@ export function composerDraft(state: WorkspaceState, input: ComposerDraftCommand
       return withPastes(state, key, input.pastes);
 
     case "image.add": {
+      const held = imagesFor(state, key);
       if (!input.path) return state;
-      if (imagesFor(state, key).length >= MAX_ATTACHMENTS) return { ...state, actionError: TOO_MANY_IMAGES_ERROR };
+      /** The same file dropped twice is the same one image, however many copies of it the app holds. */
+      if (input.source && held.some((image) => image.source === input.source)) return state;
+      if (held.length >= MAX_ATTACHMENTS) return { ...state, actionError: TOO_MANY_IMAGES_ERROR };
       /** An image only ever arrives to be captioned, so the caret goes where the caption is typed. */
-      return focusComposer(withImages(state, key, [...imagesFor(state, key), { id: crypto.randomUUID(), path: input.path, label: input.label }]));
+      return focusComposer(withImages(state, key, [...held, { id: crypto.randomUUID(), path: input.path, label: input.label, ...(input.source ? { source: input.source } : {}) }]));
     }
 
     case "image.remove":
       return withImages(state, key, imagesFor(state, key).filter((item) => item.id !== input.imageId));
+
+    case "image.recall":
+      return withImages(state, key, input.paths.map((path) => stagedImage(path)));
 
     case "file.attach": {
       const held = filesFor(state, key);

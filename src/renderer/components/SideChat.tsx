@@ -10,7 +10,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
@@ -29,6 +29,7 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
   onFilesAdd: (files: File[]) => void;
   onFileRecall: (files: AttachedFile[]) => void;
   onFileRemove: (fileId: string) => void;
+  onImageRecall: (paths: string[]) => void;
   onImageRemove: (imageId: string) => void;
   /** Where this chat's transcript was left, and where its reader has moved to since. */
   readingPoint?: ReadingPoint;
@@ -107,6 +108,7 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
         onFilesAdd={onFilesAdd}
         onFileRecall={onFileRecall}
         onFileRemove={onFileRemove}
+        onImageRecall={onImageRecall}
         onImageRemove={onImageRemove}
         onModeChange={onPolicyChange}
         onModelChange={onModelChange}

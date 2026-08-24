@@ -1,7 +1,13 @@
 import type { AppCommand } from "../contracts/commands";
+import type { StagedImage } from "../domain/task";
 
 /** How wide or tall a dropped image may be before it is scaled down to be kept. */
 const MAX_IMAGE_EDGE = 4_096;
+
+/** Where a composer's images came from, so a second drop of one is neither copied nor staged again. */
+export function imageSources(images: StagedImage[]) {
+  return images.flatMap((image) => image.source ?? []);
+}
 
 export function isImageFile(file: File) {
   return file.type.startsWith("image/");
@@ -52,20 +58,24 @@ async function stageImage(file: File) {
  * What a drop or a paste of files does. An image is copied into the app's own images, so it shows a
  * preview and can be drawn on. Everything else, folders included, is named by where it already sits.
  */
-export async function attachDroppedFiles(files: File[], taskId: string | undefined, dispatch: (command: AppCommand) => void) {
+export async function attachDroppedFiles(files: File[], taskId: string | undefined, dispatch: (command: AppCommand) => void, staged: string[] = []) {
   const target = taskId === undefined ? {} : { taskId };
   const named: string[] = [];
+  const held = new Set(staged);
   for (const file of files) {
+    const source = window.desktop.pathForFile(file);
+    /** One the composer already holds is left alone, so no second copy of it is ever written. */
+    if (source && held.has(source)) continue;
     if (isImageFile(file)) {
       const path = await stageImage(file).catch(() => null);
       if (path !== null) {
-        dispatch({ type: "image.add", ...target, path, label: file.name });
+        if (source) held.add(source);
+        dispatch({ type: "image.add", ...target, path, label: file.name, ...(source ? { source } : {}) });
         continue;
       }
     }
     /** An image too big to keep, or anything that is not one, still has a place on this machine. */
-    const path = window.desktop.pathForFile(file);
-    if (path) named.push(path);
+    if (source) named.push(source);
   }
   if (named.length === 0) return;
   const described = await window.desktop.describeFiles(named).catch(() => []);

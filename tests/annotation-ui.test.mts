@@ -140,7 +140,7 @@ test("a send that carried only annotations is still offered back", async () => {
     const [prompt, setPrompt] = React.useState("");
     return composer({
       prompt,
-      history: [{ text: "", annotations, pastes: [], files: [] }, { text: "then some words", annotations: [], pastes: [], files: [] }],
+      history: [{ text: "", annotations, pastes: [], files: [], attachments: [] }, { text: "then some words", annotations: [], pastes: [], files: [], attachments: [] }],
       onPromptChange: setPrompt,
       onAnnotationRecall: (put) => { recalled.push(put); },
     });
@@ -165,7 +165,7 @@ test("a send that carried only pasted text is offered back with the paste", asyn
     const [prompt, setPrompt] = React.useState("");
     return composer({
       prompt,
-      history: [{ text: "", annotations: [], pastes, files: [] }],
+      history: [{ text: "", annotations: [], pastes, files: [], attachments: [] }],
       onPromptChange: setPrompt,
       onPasteRecall: (put) => { recalled.push(put); },
     });
@@ -185,7 +185,7 @@ test("the up arrow puts a sent message's annotations back with its text", async 
     const [prompt, setPrompt] = React.useState("");
     return composer({
       prompt,
-      history: [{ text: "make the badge smaller", annotations, pastes: [], files: [] }],
+      history: [{ text: "make the badge smaller", annotations, pastes: [], files: [], attachments: [] }],
       onPromptChange: setPrompt,
       onAnnotationRecall: (put) => { recalled.push(put); },
     });

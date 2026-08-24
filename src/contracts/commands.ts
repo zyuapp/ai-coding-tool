@@ -109,8 +109,10 @@ export type PasteCommand =
  * the send that carries it.
  */
 export type ImageCommand =
-  | { type: "image.add"; taskId?: string; path: string; label: string }
-  | { type: "image.remove"; taskId?: string; imageId: string };
+  | { type: "image.add"; taskId?: string; path: string; label: string; source?: string }
+  | { type: "image.remove"; taskId?: string; imageId: string }
+  /** Images offered back with a sent message, named by where the app keeps them. */
+  | { type: "image.recall"; taskId?: string; paths: string[] };
 
 export type ProjectCommand =
   | { type: "project.open" }
