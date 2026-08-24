@@ -297,7 +297,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     Reflect.deleteProperty(globals, "__aicodingtoolElectron");
     Reflect.deleteProperty(globals, "__aicodingtoolComputerUse");
     Reflect.deleteProperty(globalThis, "__dirname");
-    delete versions.chrome;
+    Reflect.deleteProperty(versions, "chrome");
   };
   t?.onTestFinished(dispose);
   try {

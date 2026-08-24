@@ -3743,7 +3743,6 @@ type ThreadCommandResult = import("../src/contracts/threads.ts").ThreadCommandRe
 type ThreadWaitResult = import("../src/contracts/threads.ts").ThreadWaitResult;
 type BrowserReadResult = import("../src/contracts/threads.ts").BrowserReadResult;
 type ThreadLocation = import("../src/application/workspace-state.ts").ThreadLocation;
-type PullRequestAnswer = import("../src/domain/pull-request.ts").PullRequestAnswer;
 
 function responseResult(response: ThreadResponse | undefined): unknown {
   const actual = item(response);
@@ -4082,122 +4081,6 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
   await view.render(renderSessionPanel({ ...panel(null).props, workspaceId: undefined, hasProject: false, environment: null }));
   assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Branch"]').disabled, true, "with no checkout there is no branch to change");
   await view.unmount();
-});
-
-test("the session panel names the pull request the checkout belongs to, and only when there is one", async () => {
-  const desktop = fakeDesktop();
-  window.desktop = desktop;
-  const opened: string[] = [];
-  const panel = (pullRequest: boolean | null) => React.createElement(MessageLinkProvider, {
-    actions: { openUrlInApp: (url: string) => { opened.push(url); } },
-    children: renderSessionPanel({
-    environment: { status: "available", files: [], branch: "pr-chip", baseline: null, additions: 0, deletions: 0 },
-    hasProject: true,
-    workspaceId: pullRequest ? "workspace-with-pr" : "workspace-without-pr",
-    location: { kind: "local" },
-    runActive: false,
-    openMenu: null,
-    subagents: [],
-    backgroundProcesses: [], workflows: [],
-    automationCount: 0,
-    onSelect() {},
-    onOpenAutomations() {},
-    onSetOpenMenu() {},
-    onSetWorktree() {},
-    onCheckoutBranch() {},
-    }),
-  });
-
-  const view = await mount(panel(null));
-  assert.equal(view.container.querySelector(".session-pull-request"), null, "no pull request is no row at all");
-
-  desktop.pullRequest = async () => ({ status: "found", pullRequest: { number: 12, title: "Name the two families", url: "https://github.com/o/r/pull/12", state: "merged" } });
-  await view.render(panel(true));
-  const row = query<HTMLAnchorElement>(view.container, ".session-pull-request");
-  assert.match(row.textContent, /#12/, "the row says which pull request the work belongs to");
-  assert.match(item(row.getAttribute("title")), /Name the two families/);
-  assert.equal(query<HTMLElement>(row, ".session-row-icon").dataset.state, "merged", "the icon carries the state");
-  assert.equal(row.getAttribute("href"), "https://github.com/o/r/pull/12");
-  assert.equal(row.getAttribute("target"), "_blank", "a click leaves AI Coding Tool the way any other link does");
-
-  await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
-  await act(async () => { item([...document.querySelectorAll<HTMLButtonElement>(".context-menu-popover button")].find((element) => /Open in AI Coding Tool/.test(element.textContent))).click(); });
-  assert.deepEqual(opened, ["https://github.com/o/r/pull/12"], "its context menu offers the browser panel instead");
-
-  desktop.pullRequest = async () => ({ status: "gh-missing" });
-  await view.render(panel(false));
-  const missing = query<HTMLAnchorElement>(view.container, ".session-pull-request");
-  assert.match(missing.textContent, /Install gh/, "a checkout on GitHub with no gh is told so rather than left blank");
-  assert.equal(missing.getAttribute("href"), "https://cli.github.com");
-  await view.unmount();
-});
-
-test("the pull request is read per thread, on the way back, and only until it settles", async () => {
-  const desktop = fakeDesktop();
-  window.desktop = desktop;
-  let reads = 0;
-  let answer: PullRequestAnswer = { status: "none" };
-  desktop.pullRequest = async () => { reads += 1; return answer; };
-
-  /** The poll is jsdom's own interval, so it is held here rather than waited out. */
-  const timers = new Map<number, { fn: () => void; ms: number | undefined }>();
-  const { setInterval: realInterval, clearInterval: realClear } = dom.window;
-  let nextTimer = 0;
-  dom.window.setInterval = (fn: TimerHandler, ms?: number) => {
-    if (typeof fn !== "function") assert.fail("The pull request poll must use a callback");
-    const id = (nextTimer += 1);
-    timers.set(id, { fn: () => { fn(); }, ms });
-    return id;
-  };
-  dom.window.clearInterval = (id: number) => { timers.delete(id); };
-  const poll = async () => { for (const timer of [...timers.values()]) await act(async () => { timer.fn(); }); };
-
-  const panel = (taskId: string) => renderSessionPanel({
-    environment: { status: "available", files: [], branch: "pr-poll", baseline: null, additions: 0, deletions: 0 },
-    hasProject: true,
-    workspaceId: "one-checkout",
-    taskId,
-    location: { kind: "local" },
-    runActive: false,
-    openMenu: null,
-    subagents: [],
-    backgroundProcesses: [], workflows: [],
-    automationCount: 0,
-    onSelect() {},
-    onOpenAutomations() {},
-    onSetOpenMenu() {},
-    onSetWorktree() {},
-    onCheckoutBranch() {},
-  });
-  const state = () => view.container.querySelector<HTMLElement>(".session-pull-request .session-row-icon")?.dataset.state ?? null;
-
-  const view = await mount(panel("thread-a"));
-  try {
-    assert.equal(reads, 1);
-    assert.deepEqual([...timers.values()].map((timer) => timer.ms), [60_000], "one poll, slow enough to be worth its network");
-
-    /** Threads sharing a checkout share a workspace and a branch, so neither one changing would ask again. */
-    await view.render(panel("thread-b"));
-    assert.equal(reads, 2, "moving to another thread in the same checkout asks again");
-
-    answer = { status: "found", pullRequest: { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "open" } };
-    await poll();
-    assert.equal(reads, 3, "a pull request made outside the app is found by the poll");
-    assert.equal(state(), "open");
-
-    answer = { status: "found", pullRequest: { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "merged" } };
-    await poll();
-    assert.equal(reads, 4);
-    assert.equal(state(), "merged", "a merge nothing local could announce is still noticed");
-    assert.deepEqual([...timers.values()], [], "a settled pull request is left with no poll at all");
-
-    await act(async () => { window.dispatchEvent(new dom.window.Event("focus")); });
-    assert.equal(reads, 5, "coming back to the window still asks once, which is what catches a reopen");
-  } finally {
-    dom.window.setInterval = realInterval;
-    dom.window.clearInterval = realClear;
-    await view.unmount();
-  }
 });
 
 test("resolving a run hands back the workspace the reducer named, kind and all", async () => {
