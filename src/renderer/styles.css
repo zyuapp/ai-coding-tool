@@ -2635,7 +2635,9 @@ pre {
   cursor: default;
   transition: background 120ms ease, border-color 120ms ease;
 }
-.annotation-pill:hover, .annotation-pill:focus-within { border-color: var(--info); background: var(--info-surface); }
+.annotation-pill:hover,
+.annotation-pill:focus-visible,
+.annotation-pill:has(:focus-visible) { border-color: var(--info); background: var(--info-surface); }
 .annotation-pill:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .annotation-pill:not(:has(button)) { padding-right: 9px; }
 .annotation-pill-number {
@@ -2687,10 +2689,12 @@ pre {
 }
 .message-stack .annotation-card { left: auto; right: 0; }
 .annotation-pill:hover > .annotation-card,
-.annotation-pill:focus-within > .annotation-card { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.annotation-pill:focus-visible > .annotation-card,
+.annotation-pill:has(:focus-visible) > .annotation-card { opacity: 1; pointer-events: auto; transform: translateY(0); }
 /** A row's transform holds the card in its own stacking context, below the markers outside it. */
 .timeline-row:has(.annotation-pill:hover),
-.timeline-row:has(.annotation-pill:focus-within) { z-index: 6; }
+.timeline-row:has(.annotation-pill:focus-visible),
+.timeline-row:has(.annotation-pill :focus-visible) { z-index: 6; }
 .annotation-card-head {
   display: flex;
   align-items: center;

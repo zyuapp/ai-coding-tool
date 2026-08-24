@@ -20,7 +20,7 @@ function useClamped(text: string) {
   return [ref, clamped] as const;
 }
 
-/** The card a pill raises on hover or focus: which annotation, what was quoted, what the user wrote. */
+/** The card a pill raises on hover or keyboard focus: which annotation, what was quoted, what the user wrote. */
 function AnnotationCard({ annotation, index, id }: { annotation: Annotation; index: number; id: string }) {
   const note = annotation.note.trim();
   const [quote, quoteClamped] = useClamped(annotation.quote);
