@@ -393,6 +393,10 @@ export class ClaudeSession {
         status: message.status === "completed" ? "completed" : message.status,
         summary: message.summary,
       });
+      stream.subagentIds.delete(message.task_id);
+      for (const [toolUseId, subagentId] of stream.subagentByToolUse) {
+        if (subagentId === message.task_id) stream.subagentByToolUse.delete(toolUseId);
+      }
     } else if (message.type === "stream_event" && !message.parent_tool_use_id && message.event.type === "message_start") {
       stream.activeMainStreamId = message.event.message.id;
       stream.streamedText.set(stream.activeMainStreamId, { text: "", scan: emptyScan() });

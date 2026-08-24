@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../src/application/workspace-reducer.ts";
+import { pruneDeletedTasks } from "../src/application/task-pruning.ts";
 import { emptyWorkspaceState } from "../src/application/workspace-state.ts";
 import type { ActiveRun } from "../src/application/task-workspace.ts";
 import type { Task } from "../src/domain/task.ts";
@@ -68,4 +69,12 @@ test("permanently deleted threads leave no session data behind", () => {
   }
   assert.deepEqual(cleared.pendingRuns, {});
   assert.deepEqual(cleared.approvals, {});
+});
+
+test("pruning a missing task keeps unrelated keyed state intact", () => {
+  const state = { ...emptyWorkspaceState(), prompts: { kept: "draft" }, readingPoints: { kept: null } };
+  const pruned = pruneDeletedTasks(state, new Set(["missing"]));
+
+  assert.equal(pruned.prompts, state.prompts);
+  assert.equal(pruned.readingPoints, state.readingPoints);
 });

@@ -166,3 +166,14 @@ test("the channel scopes each bridge to the thread that is running and times a l
   await assert.rejects(bridge.read("task-1"), /did not answer the thread "read" request/);
   assert.equal(channel.settle({ type: "thread.response", requestId: "unknown", ok: true, result: null }), false);
 });
+
+test("the thread channel is ready for a synchronous answer and reports a closed port", async () => {
+  let immediate!: ThreadChannel;
+  immediate = new ThreadChannel((request) => {
+    immediate.settle({ type: "thread.response", requestId: request.requestId, ok: true, result: [summary()] });
+  });
+  assert.deepEqual((await immediate.bridgeFor("task-1").list({})).map((thread) => thread.id), ["task-1"]);
+
+  const closed = new ThreadChannel(() => { throw new Error("port closed"); });
+  await assert.rejects(closed.bridgeFor("task-1").read("task-1"), /port closed/);
+});

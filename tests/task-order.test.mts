@@ -32,6 +32,7 @@ test("sort index outranks recency, and tasks without one fall back to it", () =>
 
 test("backfill freezes the loaded order and leaves settled tasks untouched", () => {
   const settled = [task("a", { sortIndex: 0 }), task("b", { sortIndex: 1 })];
+  assert.equal(orderTasks(settled), settled);
   assert.equal(backfillSortIndex(settled), settled);
 
   const mixed = backfillSortIndex([task("a", { sortIndex: 0 }), task("b", { updatedAt: 9 }), task("c", { updatedAt: 3 })]);

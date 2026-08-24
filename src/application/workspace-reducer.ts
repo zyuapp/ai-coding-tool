@@ -49,7 +49,7 @@ import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
 import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
 import { PLAIN_ENGLISH_STYLE } from "../domain/output-style.js";
-import { findHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
+import { memoizedFindHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import { isThemeMode, themeById, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
@@ -933,7 +933,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "task.dismiss-all": {
       /** Only what the button offers: the Priority rows. A thread still working has yet to show what it found. */
-      const listed = state.tasks.filter((task) => task.archivedAt === undefined && !sideChatIds(state).has(task.id));
+      const sideChats = sideChatIds(state), listed = state.tasks.filter((task) => task.archivedAt === undefined && !sideChats.has(task.id));
       const { priority } = activitySections(listed, busyTaskIds(state), blockedTaskIds(state));
       const dotted = new Set(dismissableTasks(priority).map((task) => task.id));
       return settled(dotted.size ? { ...state, tasks: dismissed(state.tasks, dotted) } : state);
@@ -2121,7 +2121,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (!find) return settled(state);
       if (find.target.kind !== "transcript") return settled(state, searchEffects(find, { findNext: true, forward: input.delta === 1 }));
       const task = state.tasks.find((item) => item.id === state.currentId);
-      const matches = findHits(task?.messages ?? [], find.query).length;
+      const matches = memoizedFindHits(task?.messages ?? [], find.query).length;
       return settled({ ...state, find: { ...find, index: stepMatch(find.index, input.delta, matches) } });
     }
 

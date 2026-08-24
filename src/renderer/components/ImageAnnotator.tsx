@@ -245,8 +245,8 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
     const canvas = canvasRef.current;
     if (!canvas || !image || frame.width === 0) return;
     const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(frame.width * ratio);
-    canvas.height = Math.round(frame.height * ratio);
+    const width = Math.round(frame.width * ratio), height = Math.round(frame.height * ratio);
+    if (canvas.width !== width) canvas.width = width; if (canvas.height !== height) canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);

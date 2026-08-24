@@ -1,5 +1,5 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { clampTitle } from "../../domain/task.js";
 import { packagedClaudeExecutable } from "./claude-agent-provider.mjs";
@@ -20,6 +20,8 @@ function cleanTitle(text: string) {
 async function imageBlocks(attachments: string[]): Promise<ImageBlock[]> {
   const read = await Promise.all(attachments.slice(0, IMAGE_LIMIT).map(async (file) => {
     try {
+      const metadata = await stat(file);
+      if (!metadata.isFile() || metadata.size === 0 || metadata.size > IMAGE_BYTE_LIMIT) return null;
       const bytes = await readFile(file);
       if (bytes.byteLength === 0 || bytes.byteLength > IMAGE_BYTE_LIMIT) return null;
       return { type: "image", source: { type: "base64", media_type: "image/png", data: bytes.toString("base64") } } as const;

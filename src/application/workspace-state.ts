@@ -402,14 +402,14 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
 export function withStoreData(state: WorkspaceState, data: TaskStoreData): WorkspaceState {
   const landing = stateFromData(data);
   /** Threads the answer cannot know about: a fork, which is never stored, and one just started here. */
-  const held = new Set([
-    ...sideChatIds(state),
-    ...Object.keys(state.activeRuns),
-    ...Object.values(state.pendingRuns).flatMap((pending) => pending.taskId ? [pending.taskId] : []),
-    ...state.creatingWorktrees,
-  ]);
-  const stored = new Set(landing.tasks.map((task) => task.id)), tasks = [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))];
-  const landingWorktreeIds = new Set(landing.worktrees.map((worktree) => worktree.id)), claimedWorktreeIds = new Set(tasks.flatMap((task) => task.worktreeId ? [task.worktreeId] : []));
+  const held = sideChatIds(state);
+  for (const taskId in state.activeRuns) held.add(taskId);
+  for (const pendingId in state.pendingRuns) if (state.pendingRuns[pendingId]!.taskId) held.add(state.pendingRuns[pendingId]!.taskId!);
+  for (const taskId of state.creatingWorktrees) held.add(taskId);
+  const stored = new Set<string>(); for (const task of landing.tasks) stored.add(task.id);
+  const tasks = [...landing.tasks, ...state.tasks.filter((task) => held.has(task.id) && !stored.has(task.id))];
+  const landingWorktreeIds = new Set<string>(); for (const worktree of landing.worktrees) landingWorktreeIds.add(worktree.id);
+  const claimedWorktreeIds = new Set<string>(); for (const task of tasks) if (task.worktreeId) claimedWorktreeIds.add(task.worktreeId);
   /** A checkout the store has yet to hear about is still claimed here, so the session keeps its record. */
   const arrived: WorkspaceState = {
     ...state,
@@ -595,7 +595,7 @@ export function activeTerminal(dock: ThreadDock) {
  */
 export function terminalTarget(dock: ThreadDock, terminalId: string | undefined, taskId?: string) {
   if (terminalId !== undefined) return dock.terminals.find((terminal) => terminal.id === terminalId);
-  const own = taskId === undefined ? undefined : [...dock.terminals].reverse().find((terminal) => terminal.taskId === taskId);
+  const own = taskId === undefined ? undefined : dock.terminals.reduceRight<TerminalSession | undefined>((found, terminal) => found ?? (terminal.taskId === taskId ? terminal : undefined), undefined);
   return own ?? activeTerminal(dock);
 }
 

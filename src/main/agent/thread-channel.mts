@@ -78,19 +78,25 @@ export class ThreadChannel {
   /** A lost response has to surface as a tool error; a hung tool call reports nothing at all. */
   private request(payload: ThreadRequestPayload, timeout = this.timeout) {
     const requestId = randomUUID();
-    return new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(requestId);
-        reject(new Error(`AICodingTool did not answer the thread "${payload.op}" request within ${timeout}ms.`));
-      }, timeout);
-      this.pending.set(requestId, { resolve, reject, timer });
-      try {
-        this.post({ type: "thread.request", requestId, ...payload } as ThreadRequest);
-      } catch (error) {
-        clearTimeout(timer);
-        this.pending.delete(requestId);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      }
+    const op = payload.op;
+    let resolveRequest!: (result: unknown) => void;
+    let rejectRequest!: (error: Error) => void;
+    const promise = new Promise<unknown>((resolve, reject) => {
+      resolveRequest = resolve;
+      rejectRequest = reject;
     });
+    const timer = setTimeout(() => {
+      this.pending.delete(requestId);
+      rejectRequest(new Error(`AICodingTool did not answer the thread "${op}" request within ${timeout}ms.`));
+    }, timeout);
+    this.pending.set(requestId, { resolve: resolveRequest, reject: rejectRequest, timer });
+    try {
+      this.post({ type: "thread.request", requestId, ...payload } as ThreadRequest);
+    } catch (error) {
+      clearTimeout(timer);
+      this.pending.delete(requestId);
+      rejectRequest(error instanceof Error ? error : new Error(String(error)));
+    }
+    return promise;
   }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Bot, Wrench, X } from "lucide-react";
 import type { Subagent, SubagentActivity } from "../../domain/run";
@@ -24,14 +24,14 @@ function activityItem(item: SubagentActivity) {
 export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; onClose: () => void }) {
   const [limit, setLimit] = useState(TAIL);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const shown = useMemo(() => subagent.activity.slice(Math.max(0, subagent.activity.length - limit)), [subagent.activity, limit]);
-  const earlier = subagent.activity.length - shown.length;
-  const virtual = shown.length > VIRTUALIZE_ABOVE;
+  const start = Math.max(0, subagent.activity.length - limit);
+  const shown = subagent.activity.length - start;
+  const virtual = shown > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
-    count: shown.length,
+    count: shown,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 40,
-    getItemKey: (index) => shown[index]?.id ?? index,
+    getItemKey: (index) => subagent.activity[start + index]?.id ?? index,
     overscan: 8,
     initialRect: { width: 360, height: 720 },
   });
@@ -60,12 +60,12 @@ export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; o
           </div>
         )}
         <div className="agent-activity" aria-live="polite">
-          {earlier > 0 && (
+          {start > 0 && (
             <button className="agent-activity-earlier" type="button" onClick={() => setLimit(limit + TAIL)}>
-              Load earlier ({earlier})
+              Load earlier ({start})
             </button>
           )}
-          {shown.length === 0 ? (
+          {shown === 0 ? (
             <p className="session-empty">Waiting for activity…</p>
           ) : (
             <div className="agent-activity-items" style={virtual ? { height: virtualizer.getTotalSize() } : undefined}>
@@ -78,10 +78,13 @@ export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; o
                     ref={virtualizer.measureElement}
                     style={{ transform: `translateY(${row.start}px)` }}
                   >
-                    {activityItem(shown[row.index]!)}
+                    {activityItem(subagent.activity[start + row.index]!)}
                   </div>
                 ))
-                : shown.map((item) => <div className="agent-activity-row static" key={item.id}>{activityItem(item)}</div>)}
+                : Array.from({ length: shown }, (_, index) => {
+                  const item = subagent.activity[start + index]!;
+                  return <div className="agent-activity-row static" key={item.id}>{activityItem(item)}</div>;
+                })}
             </div>
           )}
         </div>

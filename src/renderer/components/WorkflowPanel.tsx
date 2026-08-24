@@ -15,6 +15,7 @@ import {
   type Workflow,
   type WorkflowAgent,
   type WorkflowAgentState,
+  type WorkflowGroup,
 } from "../../domain/workflow";
 
 /** How often a running workflow redraws. Its own frames are far rarer, so lanes would jump without it. */
@@ -73,10 +74,9 @@ function AgentRow({ agent, state, now, onSelect }: { agent: WorkflowAgent; state
 }
 
 /** Every agent on one clock: queue time hollow, run time filled, all lanes sharing the same origin. */
-function Timeline({ workflow, now, onSelect }: { workflow: Workflow; now: number; onSelect: (index: number) => void }) {
+function Timeline({ workflow, groups, now, onSelect }: { workflow: Workflow; groups: WorkflowGroup[]; now: number; onSelect: (index: number) => void }) {
   const span = useMemo(() => workflowSpan(workflow, now), [workflow, now]);
   const ticks = useMemo(() => workflowTicks(span), [span]);
-  const groups = useMemo(() => workflowGroups(workflow), [workflow]);
 
   return (
     <section className="workflow-timeline" aria-label="Workflow timeline">
@@ -191,7 +191,7 @@ export function WorkflowPanel({ workflow, onStop }: { workflow: Workflow; onStop
           <p className="session-empty">Waiting for the workflow's first agents…</p>
         ) : (
           <>
-            <Timeline workflow={workflow} now={now} onSelect={setSelected} />
+            <Timeline workflow={workflow} groups={groups} now={now} onSelect={setSelected} />
             {groups.map((group) => {
               const groupDone = group.agents.filter((item) => item.state === "done" || item.state === "error").length;
               return (

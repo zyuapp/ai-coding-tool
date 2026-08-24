@@ -5,6 +5,7 @@ import {
   legacyProjectId,
   migrateV1ToV2,
   parseTaskStore,
+  retainedTasks,
   serializeTaskStore,
   validateTaskStoreData,
   type TaskMessage,
@@ -155,6 +156,20 @@ test("validating decoded v2 data matches serialized parsing", () => {
   assert.equal(directlyRejected.ok, false);
   assert.equal(rejected.ok, false);
   if (!directlyRejected.ok && !rejected.ok) assert.deepEqual(directlyRejected.errors, rejected.errors);
+});
+
+test("current tasks and unexpired archives keep their existing objects", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const tasks = migrated.data.tasks;
+  const validated = validateTaskStoreData(migrated.data);
+
+  assert.equal(validated.ok, true);
+  if (!validated.ok) return;
+  assert.equal(validated.data.tasks[0], tasks[0]);
+  assert.equal(validated.data.tasks[0].messages, tasks[0].messages);
+  assert.equal(retainedTasks(tasks, tasks[0].updatedAt), tasks);
 });
 
 test("invalid continuation keeps messages and marks the task non-resumable", () => {
@@ -420,13 +435,15 @@ test("a valid v2 envelope takes precedence over split and v1 values", () => {
     [TASK_STORE_KEYS.v1.projects, raw.projects],
     [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
   ]);
+  const reads: string[] = [];
   const loaded = new TaskStore({
-    getItem: (key) => memory.get(key) ?? null,
+    getItem: (key) => { reads.push(key); return memory.get(key) ?? null; },
     setItem: (key, value) => memory.set(key, value),
   }).load();
 
   assert.equal(loaded.ok, true);
   if (loaded.ok) assert.deepEqual(loaded.data, envelopeData);
+  assert.deepEqual(reads, [TASK_STORE_KEYS.v2.envelope], "a complete envelope never materializes fallback generations");
 });
 
 test("v1 migration deduplicates project roots with trailing separators", () => {

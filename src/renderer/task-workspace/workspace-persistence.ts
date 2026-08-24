@@ -33,6 +33,7 @@ function subagentDelta(before: Task | undefined, task: Task) {
 /** A side chat's thread never reaches the store, so it is filtered out on both sides of the delta. */
 function persistedTasks(state: Pick<WorkspaceState, "tasks" | "sideChats"> | null) {
   if (!state) return [];
+  if (state.sideChats.length === 0) return state.tasks;
   const forked = sideChatIds(state);
   return state.tasks.filter((task) => !forked.has(task.id));
 }
@@ -60,7 +61,11 @@ export function persistenceDelta(previous: PersistenceState | null, next: Persis
     tasks: nextTasks.flatMap((task) => {
       const before = previousTasks.get(task.id);
       if (before === task) return [];
-      const messages = task.messages.flatMap((message, index) => before?.messages[index] === message ? [] : [{ index, message }]);
+      const messages: Array<{ index: number; message: Task["messages"][number] }> = [];
+      for (let index = 0; index < task.messages.length; index += 1) {
+        const message = task.messages[index]!;
+        if (before?.messages[index] !== message) messages.push({ index, message });
+      }
       const { subagents, activity } = subagentDelta(before, task);
       return [{
         task: persistedTask(task),

@@ -84,8 +84,11 @@ test("a screenshot reaches the namer as bytes, and an unreadable one is left out
 });
 
 test("a message with no screenshot that can be read stays a plain string prompt", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "title-writer-large-"));
+  const oversized = path.join(directory, "large.png");
+  await writeFile(oversized, Buffer.alloc(1024 * 1024 + 1));
   const capture: QueryCapture = {};
-  await suggestTaskTitle("Inspect the app", ["/nowhere/shot.png"], queryFactory(result("App review"), capture));
+  await suggestTaskTitle("Inspect the app", ["/nowhere/shot.png", oversized], queryFactory(result("App review"), capture));
 
   assert.equal(typeof capture.prompt, "string");
 });

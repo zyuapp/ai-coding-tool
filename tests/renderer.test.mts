@@ -8,7 +8,7 @@ import type { ThreadRequest, ThreadResponse } from "../src/contracts/threads.ts"
 import type { AutomationPatch, AutomationView } from "../src/domain/automation.ts";
 import type { CliStatus } from "../src/domain/cli.ts";
 import type { PlanUsage } from "../src/domain/plan-usage.ts";
-import type { BackgroundProcess, ExecutionPolicy, Subagent } from "../src/domain/run.ts";
+import type { BackgroundProcess, ExecutionPolicy, Subagent, SubagentActivity } from "../src/domain/run.ts";
 import type { PastedText, RunAttachment, Task } from "../src/domain/task.ts";
 import type { WorkspaceRecord } from "../src/domain/workspace.ts";
 import type { MessageLinkActions } from "../src/renderer/components/MarkdownMessage.tsx";
@@ -583,10 +583,7 @@ test("subagent inspector renders activity and closes", async () => {
   const subagent: Subagent = {
     ...subagents[0],
     summary: "Renderer inspected",
-    activity: [
-      { id: "text", kind: "text", text: "Reading", at: 1 },
-      { id: "tool", kind: "tool", title: "Read", text: "{\"file\":\"App.tsx\"}", at: 2 },
-    ],
+    activity: [{ id: "old", kind: "text", text: "Earlier", at: 0 }, { id: "text", kind: "text", text: "Reading", at: 1 }, { id: "tool", kind: "tool", title: "Read", text: "{\"file\":\"App.tsx\"}", at: 2 }, ...Array.from({ length: 58 }, (_, index) => ({ id: `later-${index}`, kind: "text" as const, text: `Later ${index}`, at: index + 3 }))] satisfies SubagentActivity[],
   };
   const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed = true; } }));
 
@@ -594,6 +591,9 @@ test("subagent inspector renders activity and closes", async () => {
   assert.match(view.container.textContent, /321 tokens/);
   assert.match(view.container.textContent, /Reading/);
   assert.equal(query(view.container, "details summary").textContent, "Read");
+  const earlier = query<HTMLButtonElement>(view.container, ".agent-activity-earlier"); assert.equal(earlier.textContent, "Load earlier (1)");
+  await act(async () => { earlier.click(); });
+  assert.equal(view.container.querySelector(".agent-activity-earlier"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Close subagent details"]').click(); });
   assert.equal(closed, true);
   await view.unmount();

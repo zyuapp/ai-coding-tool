@@ -50,11 +50,10 @@ function compareTasks(left: Task, right: Task) {
 }
 
 export function orderTasks(tasks: Task[]): Task[] {
-  const ordered = [...tasks];
-  for (let index = 1; index < ordered.length; index += 1) {
-    if (compareTasks(ordered[index - 1]!, ordered[index]!) > 0) return ordered.sort(compareTasks);
+  for (let index = 1; index < tasks.length; index += 1) {
+    if (compareTasks(tasks[index - 1]!, tasks[index]!) > 0) return [...tasks].sort(compareTasks);
   }
-  return ordered;
+  return tasks;
 }
 
 /** Freezes the order tasks loaded in, so a first launch after upgrading keeps the list the user last saw. */

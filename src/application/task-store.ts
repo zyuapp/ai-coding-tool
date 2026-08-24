@@ -52,17 +52,26 @@ export class TaskStore {
   constructor(private readonly storage: KeyValueStorage) {}
 
   load(): TaskStoreParseResult {
-    let envelope: string | null;
-    let v2: StorageValues;
-    let v1: StorageValues;
+    let envelope: string | null = null;
+    let values: StorageValues | null = null;
     try {
       envelope = this.storage.getItem(TASK_STORE_KEYS.v2.envelope);
-      v2 = read(this.storage, TASK_STORE_KEYS.v2);
-      v1 = read(this.storage, TASK_STORE_KEYS.v1);
-      if (envelope === null && empty(v2) && empty(v1)) {
-        envelope = this.storage.getItem(LEGACY_TASK_STORE_KEYS.v2.envelope);
-        v2 = read(this.storage, LEGACY_TASK_STORE_KEYS.v2);
-        v1 = read(this.storage, LEGACY_TASK_STORE_KEYS.v1);
+      if (envelope === null) {
+        const v2 = read(this.storage, TASK_STORE_KEYS.v2);
+        if (complete(v2)) {
+          values = v2;
+        } else {
+          const v1 = read(this.storage, TASK_STORE_KEYS.v1);
+          if (!empty(v2) || !empty(v1)) {
+            values = v1;
+          } else {
+            envelope = this.storage.getItem(LEGACY_TASK_STORE_KEYS.v2.envelope);
+            if (envelope === null) {
+              const legacyV2 = read(this.storage, LEGACY_TASK_STORE_KEYS.v2);
+              values = complete(legacyV2) ? legacyV2 : read(this.storage, LEGACY_TASK_STORE_KEYS.v1);
+            }
+          }
+        }
       }
     } catch (error) {
       this.loaded = true;
@@ -82,9 +91,7 @@ export class TaskStore {
       ? corruptEnvelope(envelope!)
       : decodedEnvelope
         ? parseTaskStore(decodedEnvelope)
-        : v2.tasks !== null && v2.projects !== null && v2.lastFolder !== null
-          ? parseTaskStore(v2)
-          : parseTaskStore(v1);
+        : parseTaskStore(values!);
     this.loaded = true;
     this.writable = result.ok;
     return result;
@@ -115,6 +122,10 @@ function read(storage: KeyValueStorage, keys: { tasks: string; projects: string;
 
 function empty(values: StorageValues) {
   return values.tasks === null && values.projects === null && values.lastFolder === null;
+}
+
+function complete(values: StorageValues) {
+  return values.tasks !== null && values.projects !== null && values.lastFolder !== null;
 }
 
 function parseEnvelope(raw: string): StorageValues | "corrupt" {

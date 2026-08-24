@@ -141,11 +141,12 @@ export class TaskDatabase {
   }
 
   listAutomations(): Automation[] {
-    const rows = this.database.prepare("SELECT data FROM automations ORDER BY task_id").all() as Array<{ data: string }>;
-    return rows.flatMap(({ data }) => {
+    const automations: Automation[] = [];
+    for (const { data } of this.database.prepare("SELECT data FROM automations ORDER BY task_id").iterate() as Iterable<{ data: string }>) {
       const automation = parseAutomationRow(data);
-      return automation ? [automation] : [];
-    });
+      if (automation) automations.push(automation);
+    }
+    return automations;
   }
 
   saveAutomation(automation: Automation) {

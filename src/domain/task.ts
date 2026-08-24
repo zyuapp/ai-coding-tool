@@ -220,7 +220,16 @@ export const ARCHIVE_RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
 
 /** Archiving keeps a task recoverable for {@link ARCHIVE_RETENTION_MS}; the next launch drops what outlived that. */
 export function retainedTasks(tasks: Task[], at: number): Task[] {
-  return tasks.filter((task) => task.archivedAt === undefined || at - task.archivedAt < ARCHIVE_RETENTION_MS);
+  let retained: Task[] | null = null;
+  for (let index = 0; index < tasks.length; index += 1) {
+    const task = tasks[index]!;
+    if (task.archivedAt !== undefined && at - task.archivedAt >= ARCHIVE_RETENTION_MS) {
+      retained ??= tasks.slice(0, index);
+    } else {
+      retained?.push(task);
+    }
+  }
+  return retained ?? tasks;
 }
 
 export type ContextUsage = {
@@ -585,8 +594,8 @@ function claiming(task: Task, worktreeIds: Set<string>): Task {
  * A checkout on a thread with no project has nowhere to be listed, so it is left to be reaped.
  */
 function liftEmbeddedWorktree(value: Record<string, any>, lifted: Worktree[]) {
+  if (!isRecord(value.worktree)) return value;
   const { worktree, ...task } = value;
-  if (!isRecord(worktree)) return value;
   const { enteredAt, ...record } = worktree;
   const candidate = { ...record, projectId: task.projectId };
   if (!isWorktree(candidate)) return task;
@@ -693,6 +702,7 @@ function isRecord(value: unknown): value is Record<string, any> {
  */
 function dropRetiredSettings(value: unknown) {
   if (!isRecord(value)) return value;
+  if (value.contextWindow === undefined && value.attention === undefined && value.attentionRead === undefined && value.model !== "default") return value;
   const { contextWindow: _retired, attention: _dot, attentionRead: _read, ...task } = value;
   if (task.model === "default") delete task.model;
   return task;
@@ -704,9 +714,22 @@ function dropRetiredSettings(value: unknown) {
  */
 function renamedFields(value: unknown) {
   if (!isRecord(value)) return value;
-  const { silencedKeys: handled, ...task } = value;
-  if (handled !== undefined && task.handledIssues === undefined) task.handledIssues = handled;
-  if (Array.isArray(task.messages)) task.messages = task.messages.map(renamedMessageFields);
+  let task = value;
+  if (value.silencedKeys !== undefined) {
+    const { silencedKeys: handled, ...renamed } = value;
+    if (renamed.handledIssues === undefined) renamed.handledIssues = handled;
+    task = renamed;
+  }
+  if (Array.isArray(task.messages)) {
+    let messages: unknown[] | null = null;
+    for (let index = 0; index < task.messages.length; index += 1) {
+      const message = task.messages[index];
+      const renamed = renamedMessageFields(message);
+      if (renamed !== message) messages ??= task.messages.slice(0, index);
+      messages?.push(renamed);
+    }
+    if (messages) task = { ...task, messages };
+  }
   return task;
 }
 

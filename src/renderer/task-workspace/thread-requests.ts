@@ -30,13 +30,18 @@ export type ThreadRequestHost = {
 export function releaseThreadWaiters(waiters: ThreadWaiterList, state: WorkspaceState) {
   const waiting = waiters.current;
   if (!waiting.length) return;
-  const settled = waiting.filter((waiter) => !threadBusy(state, waiter.threadId));
-  if (!settled.length) return;
-  waiters.current = waiting.filter((waiter) => !settled.includes(waiter));
-  for (const waiter of settled) {
-    window.clearTimeout(waiter.timer);
-    waiter.settle(state);
+  let pending: ThreadWaiter[] | null = null;
+  for (let index = 0; index < waiting.length; index += 1) {
+    const waiter = waiting[index]!;
+    if (threadBusy(state, waiter.threadId)) {
+      pending?.push(waiter);
+    } else {
+      pending ??= waiting.slice(0, index);
+      window.clearTimeout(waiter.timer);
+      waiter.settle(state);
+    }
   }
+  if (pending) waiters.current = pending;
 }
 
 /**
@@ -123,12 +128,12 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const targeted = command.type === "task.send" && command.taskId === undefined && command.project === undefined && callerProjectId
       ? { ...command, project: callerProjectId }
       : command;
-    const known = new Set(before.tasks.map((task) => task.id));
+    const known = command.taskId === undefined ? new Set(before.tasks.map((task) => task.id)) : null;
     await host.dispatch(targeted);
     const after = host.state();
     const thread = command.taskId
       ? after.tasks.find((task) => task.id === command.taskId)
-      : after.tasks.find((task) => !known.has(task.id));
+      : after.tasks.find((task) => !known!.has(task.id));
     if (!thread && after.actionError && after.actionError !== before.actionError) return failed(after.actionError);
     return ok({ thread: thread ? threadSummary(after, thread) : null });
   } catch (error) {
