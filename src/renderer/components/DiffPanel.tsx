@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowUp, Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3 } from "lucide-react";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState } from "../../application/workspace-state";
+import type { Annotation, AnnotationAnchor } from "../../domain/task";
 import {
   commentQuote,
   diffRows,
@@ -10,6 +11,8 @@ import {
   hunkText,
   hunkTextIndex,
   languageForPath,
+  lineOn,
+  rangeKey,
   splitRows,
   UNCOMMITTED,
   type DiffFile,
@@ -23,6 +26,7 @@ import {
 import { highlightBlock, withinHighlightBudget, type ThemedToken } from "../diff/highlight";
 import { usePatches, type PatchRequest, type PatchState } from "../diff/use-patch";
 import { BranchMenu, useBranches } from "./BranchMenu";
+import { DiffCommentEditor } from "./DiffCommentEditor";
 import { useDismissibleLayer } from "../focus";
 
 const BASE_MENU = "diff:base";
@@ -57,8 +61,11 @@ export type DiffPanelProps = {
   onSetSplit: (split: boolean) => void;
   onRefresh: () => void;
   onOpenFile: (path: string) => void;
+  annotations: Annotation[];
   /** A selected range and the note taken on it, which becomes a pill in the composer. */
-  onComment: (quote: string, note: string) => void;
+  onComment: (quote: string, note: string, anchor: AnnotationAnchor) => void;
+  onEditComment: (annotationId: string, note: string) => void;
+  onRemoveComment: (annotationId: string) => void;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
 };
@@ -213,6 +220,16 @@ type DrawnFile = {
   indexByKey: Map<string, number>;
 };
 
+type DiffComment = {
+  annotation: Annotation;
+  number: number;
+  path: string;
+  from: number;
+  to: number;
+  marker: number;
+  side: DiffSide;
+};
+
 function drawFile(file: DiffFile): DrawnFile {
   const rows = diffRows(file);
   return {
@@ -220,6 +237,46 @@ function drawFile(file: DiffFile): DrawnFile {
     pairs: splitRows(file),
     tokens: tokenizeFile(file),
     indexByKey: new Map(rows.map((row, index) => [row.key, index])),
+  };
+}
+
+function anchoredDiffComments(annotations: Annotation[], comparison: string, drawn: Map<string, DrawnFile>) {
+  return annotations.flatMap((annotation, index): DiffComment[] => {
+    const anchor = annotation.anchor;
+    if (anchor?.kind !== "diff" || anchor.comparison !== comparison) return [];
+    const drawing = drawn.get(anchor.path);
+    const start = drawing?.indexByKey.get(anchor.start);
+    const end = drawing?.indexByKey.get(anchor.end);
+    if (!drawing || start === undefined || end === undefined) return [];
+    const from = Math.min(start, end);
+    const to = Math.max(start, end);
+    const selected = drawing.rows.slice(from, to + 1);
+    if (selected.some((row) => row.kind === "hunk") || commentQuote(anchor.path, selected, anchor.side) !== annotation.quote) return [];
+    const marker = [...selected].reverse().find((row) => lineOn(row, anchor.side) !== null);
+    const markerIndex = marker ? drawing.indexByKey.get(marker.key) : undefined;
+    return [{ annotation, number: index + 1, path: anchor.path, from, to, marker: markerIndex ?? to, side: anchor.side }];
+  });
+}
+
+function indexDiffComments(comments: DiffComment[]) {
+  const highlighted = new Set<string>();
+  const markers = new Map<string, DiffComment[]>();
+  for (const comment of comments) {
+    for (let index = comment.from; index <= comment.to; index += 1) highlighted.add(`${comment.path}\n${index}`);
+    const key = `${comment.path}\n${comment.marker}`;
+    markers.set(key, [...(markers.get(key) ?? []), comment]);
+  }
+  return { highlighted, markers };
+}
+
+function diffAnchor(range: DiffRange, selection: Selection, rows: DiffRow[]): AnnotationAnchor {
+  return {
+    kind: "diff",
+    comparison: rangeKey(range),
+    path: selection.path,
+    start: selection.anchor,
+    end: selection.head,
+    side: selectionSide(rows),
   };
 }
 
@@ -243,20 +300,39 @@ type LineRowProps = {
   row: DiffRow;
   tokens: Map<string, ThemedToken[]>;
   selected: boolean;
+  commented: boolean;
+  comments: DiffComment[];
   onSelect: (extend: boolean) => void;
+  onEditComment: (comment: DiffComment) => void;
 };
 
 /** One line of the one-column view. Its gutter is the only thing that selects, the way a review reads. */
-function LineRow({ row, tokens, selected, onSelect }: LineRowProps) {
+function LineRow({ row, tokens, selected, commented, comments, onSelect, onEditComment }: LineRowProps) {
   if (row.kind === "hunk") return <div className="diff-line hunk">{row.text}</div>;
   return (
-    <div className={`diff-line ${row.kind}${selected ? " selected" : ""}`}>
+    <div className={`diff-line ${row.kind}${commented ? " commented" : ""}${selected ? " selected" : ""}`}>
+      {comments.length > 0 && (
+        <span className="diff-inline-comment-markers">
+          {comments.map((comment) => (
+            <button
+              key={comment.annotation.id}
+              type="button"
+              aria-label={`Edit comment ${comment.number} on ${rowLabel(row).toLowerCase()}`}
+              onClick={() => onEditComment(comment)}
+            >
+              {comment.number}
+            </button>
+          ))}
+        </span>
+      )}
       <button
         className="diff-gutter"
         type="button"
-        aria-label={rowLabel(row)}
+        aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
+        title="Add comment. Shift-click to select a range."
         onClick={(event) => onSelect(event.shiftKey)}
       >
+        <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>
         <span>{row.oldLine ?? ""}</span>
         <span>{row.newLine ?? ""}</span>
       </button>
@@ -271,20 +347,39 @@ type SplitCellProps = {
   tokens: Map<string, ThemedToken[]>;
   side: DiffSide;
   selected: boolean;
+  commented: boolean;
+  comments: DiffComment[];
   onSelect: (extend: boolean) => void;
+  onEditComment: (comment: DiffComment) => void;
 };
 
 /** One column of the two-column view. Either side's gutter selects, and both colour the same way. */
-function SplitCell({ row, tokens, side, selected, onSelect }: SplitCellProps) {
+function SplitCell({ row, tokens, side, selected, commented, comments, onSelect, onEditComment }: SplitCellProps) {
   if (!row || row.kind === "hunk") return <div className="diff-split-cell empty" />;
   return (
-    <div className={`diff-split-cell ${row.kind}${selected ? " selected" : ""}`}>
+    <div className={`diff-split-cell ${row.kind}${commented ? " commented" : ""}${selected ? " selected" : ""}`}>
+      {comments.length > 0 && (
+        <span className="diff-inline-comment-markers">
+          {comments.map((comment) => (
+            <button
+              key={comment.annotation.id}
+              type="button"
+              aria-label={`Edit comment ${comment.number} on ${rowLabel(row).toLowerCase()}`}
+              onClick={() => onEditComment(comment)}
+            >
+              {comment.number}
+            </button>
+          ))}
+        </span>
+      )}
       <button
         className="diff-gutter static"
         type="button"
-        aria-label={rowLabel(row)}
+        aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
+        title="Add comment. Shift-click to select a range."
         onClick={(event) => onSelect(event.shiftKey)}
       >
+        <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>
         <span>{side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}</span>
       </button>
       <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
@@ -301,7 +396,10 @@ export function DiffPanel({
   onSetSplit,
   onRefresh,
   onOpenFile,
+  annotations,
   onComment,
+  onEditComment,
+  onRemoveComment,
   openMenu,
   onSetOpenMenu,
 }: DiffPanelProps) {
@@ -310,6 +408,7 @@ export function DiffPanel({
   const collapsed = useMemo(() => new Set(diff.collapsed), [diff.collapsed]);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [note, setNote] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
@@ -392,6 +491,10 @@ export function DiffPanel({
     return rows.some((row) => row.kind === "hunk") ? null : { rows, from: Math.min(from, to), to: Math.max(from, to) };
   }, [selection, drawn]);
 
+  /** Draft comments only mark the exact comparison and rows they were made from. */
+  const diffComments = useMemo(() => anchoredDiffComments(annotations, rangeKey(diff.range), drawn), [annotations, diff.range, drawn]);
+  const commentRows = useMemo(() => indexDiffComments(diffComments), [diffComments]);
+
   const rows = useMemo(() => {
     /** The hold: no names without something under at least one of them. */
     if (settling) return [];
@@ -446,30 +549,30 @@ export function DiffPanel({
   }, [selection?.path, selection?.anchor]);
 
   /** A comparison that changes is a different set of lines, so a range picked in the last one is gone. */
-  useEffect(() => {
-    setSelection(null);
-    setNote("");
-  }, [diff.range]);
-
-
+  useEffect(() => { setSelection(null); setNote(""); setEditing(null); }, [diff.range]);
   const quote = selection && span?.rows.length ? commentQuote(selection.path, span.rows, selectionSide(span.rows)) : null;
 
   const selectByKey = (path: string, key: string, extend: boolean) => {
+    if (editing) setNote("");
+    setEditing(null);
     setSelection((current) => extend && current?.path === path ? { ...current, head: key } : { path, anchor: key, head: key });
   };
-
-  const isSelected = (path: string, index: number | undefined) =>
-    index !== undefined && selection?.path === path && span !== null && index >= span.from && index <= span.to;
-
-  const clear = () => {
-    setSelection(null);
-    setNote("");
-  };
+  const isSelected = (path: string, index: number | undefined) => index !== undefined && selection?.path === path && span !== null && index >= span.from && index <= span.to;
+  const clear = () => { setSelection(null); setNote(""); setEditing(null); };
 
   const comment = () => {
-    if (!quote) return;
-    onComment(quote, note.trim());
+    if (!quote || !selection || !span) return;
+    if (editing) onEditComment(editing, note.trim());
+    else onComment(quote, note.trim(), diffAnchor(diff.range, selection, span.rows));
     clear();
+  };
+
+  const editComment = (comment: DiffComment) => {
+    const anchor = comment.annotation.anchor;
+    if (anchor?.kind !== "diff") return;
+    setSelection({ path: anchor.path, anchor: anchor.start, head: anchor.end });
+    setNote(comment.annotation.note);
+    setEditing(comment.annotation.id);
   };
 
   /** One panel row, drawn the same whether the review is windowed or laid out whole. */
@@ -489,77 +592,66 @@ export function DiffPanel({
     if (row.kind === "note") return <p className="diff-note">{row.text}</p>;
     if (row.kind === "composer") {
       return (
-        <form
-          className="diff-comment"
-          onSubmit={(event) => {
-            event.preventDefault();
-            comment();
+        <DiffCommentEditor
+          quote={quote}
+          note={note}
+          editing={editing !== null}
+          noteRef={noteRef}
+          onNote={setNote}
+          onSubmit={comment}
+          onClear={clear}
+          onRemove={() => {
+            if (editing) onRemoveComment(editing);
+            clear();
           }}
-          onKeyDown={(event) => {
-            /** Escape drops the selection rather than reaching the shortcut that stops the run. */
-            if (event.key === "Escape") {
-              event.preventDefault();
-              event.stopPropagation();
-              clear();
-              return;
-            }
-            /** Enter sends the note the way it sends a message; a newline needs Shift, as it does there. */
-            if (event.key !== "Enter" || event.shiftKey) return;
-            event.preventDefault();
-            comment();
-          }}
-        >
-          <header>
-            <MessageSquarePlus size={13} aria-hidden="true" />
-            <span className="diff-comment-range">{quote?.split("\n")[0]}</span>
-            <button type="button" aria-label="Clear the selection" onClick={clear}><X size={14} /></button>
-          </header>
-          <textarea
-            ref={noteRef}
-            rows={1}
-            aria-label="Note on the selected lines"
-            placeholder="What should change here?"
-            value={note}
-            onInput={(event) => setNote(event.currentTarget.value)}
-          />
-          <footer>
-            <span className="diff-comment-hint">Enter to add, Shift + Enter for a new line</span>
-            <button className="send-button" type="submit" aria-label="Comment on the selected lines" disabled={!note.trim()}>
-              <ArrowUp size={17} />
-            </button>
-          </footer>
-        </form>
+        />
       );
     }
     const tokens = drawn.get(row.path)?.tokens ?? EMPTY_TOKENS;
     if (row.kind === "line") {
+      const key = `${row.path}\n${row.index}`;
       return (
         <LineRow
           row={row.row}
           tokens={tokens}
           selected={isSelected(row.path, row.index)}
+          commented={commentRows.highlighted.has(key)}
+          comments={commentRows.markers.get(key) ?? []}
           onSelect={(extend) => selectByKey(row.path, row.row.key, extend)}
+          onEditComment={editComment}
         />
       );
     }
     if (row.row.kind === "hunk") return <div className="diff-line hunk">{row.row.text}</div>;
     const { left, right } = row.row;
     const indexOf = (side: DiffRow | null) => side ? drawn.get(row.path)?.indexByKey.get(side.key) : undefined;
+    const commentsFor = (index: number | undefined, side: DiffSide) => index === undefined
+      ? []
+      : (commentRows.markers.get(`${row.path}\n${index}`) ?? []).filter((comment) => comment.side === side);
+    const commented = (index: number | undefined) => index !== undefined && commentRows.highlighted.has(`${row.path}\n${index}`);
+    const leftIndex = indexOf(left);
+    const rightIndex = indexOf(right);
     return (
       <div className="diff-split-row">
         <SplitCell
           row={left}
           tokens={tokens}
           side="old"
-          selected={isSelected(row.path, indexOf(left))}
+          selected={isSelected(row.path, leftIndex)}
+          commented={commented(leftIndex)}
+          comments={commentsFor(leftIndex, "old")}
           onSelect={(extend) => left && selectByKey(row.path, left.key, extend)}
+          onEditComment={editComment}
         />
         <SplitCell
           row={right}
           tokens={tokens}
           side="new"
-          selected={isSelected(row.path, indexOf(right))}
+          selected={isSelected(row.path, rightIndex)}
+          commented={commented(rightIndex)}
+          comments={commentsFor(rightIndex, "new")}
           onSelect={(extend) => right && selectByKey(row.path, right.key, extend)}
+          onEditComment={editComment}
         />
       </div>
     );

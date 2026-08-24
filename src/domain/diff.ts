@@ -184,7 +184,7 @@ export function languageForPath(path: string) {
 }
 
 /** Which line numbers a row carries on a given side, for turning a selection into a range. */
-function lineOn(row: DiffRow, side: DiffSide) {
+export function lineOn(row: DiffRow, side: DiffSide) {
   if (row.kind === "hunk") return null;
   return side === "old" ? row.oldLine : row.newLine;
 }

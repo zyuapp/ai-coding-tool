@@ -3442,14 +3442,16 @@ button.file-name { cursor: pointer; }
 .diff-file-viewed:has(input:focus-visible) { outline: 2px solid var(--focus-ring); }
 .diff-note { margin: 0; padding: 6px 12px 6px 30px; color: var(--quiet); font-size: var(--text-meta); font-family: inherit; }
 
-.diff-line { display: flex; align-items: flex-start; min-height: 20px; }
+.diff-line { position: relative; display: flex; align-items: flex-start; min-height: 20px; }
 .diff-line.hunk { padding: 2px 10px; background: var(--diff-hunk-surface); color: var(--diff-hunk-ink); }
 .diff-line.add { background: var(--diff-add-surface); }
 .diff-line.delete { background: var(--diff-del-surface); }
 .diff-line.selected { background: var(--diff-selected); }
 /** A wrapped line is taller than one row, so the number sits on its first visual line rather than its middle. */
-.diff-gutter { display: flex; flex: none; align-self: stretch; align-items: flex-start; gap: 0; padding: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
+.diff-gutter { position: relative; display: flex; flex: none; align-self: stretch; align-items: flex-start; gap: 0; padding: 0; border: 0; background: none; color: var(--diff-gutter-ink); font: inherit; text-align: right; cursor: pointer; user-select: none; }
 .diff-gutter span { display: block; width: 44px; padding-right: 8px; }
+.diff-gutter .diff-comment-affordance { position: absolute; z-index: 2; top: 2px; left: 2px; display: grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; background: var(--info-surface); color: var(--info-soft); opacity: 0; }
+.diff-line:hover .diff-comment-affordance, .diff-split-cell:hover .diff-comment-affordance, .diff-gutter:focus-visible .diff-comment-affordance { opacity: 1; }
 .diff-gutter:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .diff-gutter:hover { color: var(--ink-dim); }
 .diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
@@ -3459,7 +3461,7 @@ button.file-name { cursor: pointer; }
 .diff-line code { flex: 1; min-width: 0; padding-right: 12px; color: var(--code-ink); font-family: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .diff-split-row { display: grid; grid-template-columns: 1fr 1fr; }
-.diff-split-cell { display: flex; align-items: flex-start; min-height: 20px; }
+.diff-split-cell { position: relative; display: flex; align-items: flex-start; min-height: 20px; }
 .diff-split-cell:first-child { border-right: 1px solid var(--line-soft); }
 .diff-split-cell.add { background: var(--diff-add-surface); }
 .diff-split-cell.delete { background: var(--diff-del-surface); }
@@ -3469,6 +3471,12 @@ button.file-name { cursor: pointer; }
 .diff-gutter.static span { width: 40px; }
 .diff-split-cell.add .diff-gutter { background: var(--diff-add-gutter); }
 .diff-split-cell.delete .diff-gutter { background: var(--diff-del-gutter); }
+
+.diff-line.commented .diff-gutter, .diff-split-cell.commented .diff-gutter { background: var(--info-surface-soft); box-shadow: inset 2px 0 var(--info-line); }
+.diff-inline-comment-markers { position: absolute; z-index: 3; top: 2px; left: 2px; display: flex; gap: 2px; }
+.diff-inline-comment-markers button { display: grid; min-width: 16px; height: 16px; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; padding: 0 4px; background: var(--info-surface); color: var(--info-soft); font: 600 var(--text-badge)/14px var(--ui-font); cursor: pointer; }
+.diff-inline-comment-markers button:hover, .diff-inline-comment-markers button:focus-visible { border-color: var(--info); color: var(--info); }
+.diff-inline-comment-markers button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
 /**
  * The gutter carries the selection. It comes after the add and delete fills because it has to beat

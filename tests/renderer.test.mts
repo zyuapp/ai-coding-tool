@@ -4893,6 +4893,9 @@ test("a range picked in the gutter becomes a composer pill naming the file and i
   assert.match(query(pill, ".annotation-card-quote").textContent, /src\/app\.ts:L2-L3/);
   assert.match(query(pill, ".annotation-card-quote").textContent, /\+const second = 22;/);
   assert.equal(view.container.querySelector(".diff-comment"), null, "commenting clears the selection");
+
+  const marker = query<HTMLButtonElement>(view.container, ".diff-inline-comment-markers button"); assert.deepEqual([marker.textContent, view.container.querySelectorAll(".diff-line.commented").length], ["1", 2], "the range keeps the pill's numbered marker");
+  await act(async () => { marker.click(); }); assert.equal(query<HTMLTextAreaElement>(view.container, ".diff-comment textarea").value, "Name these properly", "the marker reopens its note");
   await view.unmount();
 });
 
@@ -4932,13 +4935,13 @@ test("a comment can be taken from either column of the two-column view", async (
   const gutters = [...view.container.querySelectorAll<HTMLElement>(".diff-split-cell .diff-gutter")];
   /** Each side says what happened to its line, so the two columns never announce the same thing. */
   assert.deepEqual(gutters.map((gutter) => gutter.getAttribute("aria-label")), [
-    "Unchanged line 1",
-    "Unchanged line 1",
-    "Removed line 2",
-    "Added line 2",
-    "Added line 3",
+    "Add comment on unchanged line 1",
+    "Add comment on unchanged line 1",
+    "Add comment on removed line 2",
+    "Add comment on added line 2",
+    "Add comment on added line 3",
   ]);
-  await act(async () => { item(gutters.find((gutter) => gutter.getAttribute("aria-label") === "Added line 3")).click(); });
+  await act(async () => { item(gutters.find((gutter) => gutter.getAttribute("aria-label") === "Add comment on added line 3")).click(); });
 
   assert.match(query(view.container, ".diff-comment-range").textContent, /^src\/app\.ts:L3$/);
   await view.unmount();

@@ -25,6 +25,7 @@ import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
 import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { browserTabTitle } from "../domain/browser";
 import { DIFF_PANEL } from "../application/workspace-reducer";
+import type { DiffState } from "../application/workspace-state";
 import { sentPrompts } from "../domain/task";
 import { moveListFocus, useDismissibleLayer } from "./focus";
 
@@ -50,6 +51,10 @@ type DockTab = { id: string; title: string; icon: LucideIcon; badge?: number };
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 const ADD_TAB_MENU = "dock-add";
+
+function unreviewedFileCount(diff: DiffState) {
+  return diff.result?.status === "available" ? diff.result.files.filter((file) => !diff.viewed[file.path]).length : 0;
+}
 
 /** Everything the sidebar draws and every command its rows dispatch, kept out of the shell below. */
 function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
@@ -112,9 +117,7 @@ export function App() {
   const settingsVisible = workspace.settingsOpen;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   /** The tab counts what is still to read, so ticking files off empties it the way working down a list should. */
-  const unreviewedFiles = workspace.diff.result?.status === "available"
-    ? workspace.diff.result.files.filter((file) => !workspace.diff.viewed[file.path]).length
-    : 0;
+  const unreviewedFiles = unreviewedFileCount(workspace.diff);
   const rightDockOpen = workspace.dockOpen;
   const rightDockExpanded = rightDockOpen && workspace.dockExpanded;
   const activeRightTab = workspace.dockTab;
@@ -125,7 +128,6 @@ export function App() {
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const find = workspace.find;
-  /** One bar, drawn wherever what it searches is: above the transcript, the page, or the shell. */
   const findBar = find ? (
     <FindBar
       find={find}
@@ -136,8 +138,6 @@ export function App() {
     />
   ) : null;
   const inspectedSubagent = workspace.subagents.find((subagent) => subagent.id === selectedSubagent);
-  const inspectedWorkflow = workspace.inspectedWorkflow;
-
   function addSideChat() {
     void workspace.dispatch({ type: "side-chat.open", chatId: crypto.randomUUID() });
   }
@@ -242,11 +242,11 @@ export function App() {
     },
     {
       id: "workflow",
-      title: inspectedWorkflow?.name ?? "Workflow",
+      title: workspace.inspectedWorkflow?.name ?? "Workflow",
       description: "Follow a dynamic workflow the run is driving",
       icon: Boxes,
-      render: () => (inspectedWorkflow
-        ? <WorkflowPanel workflow={inspectedWorkflow} onStop={workspace.actions.stopBackgroundProcess} />
+      render: () => (workspace.inspectedWorkflow
+        ? <WorkflowPanel workflow={workspace.inspectedWorkflow} onStop={workspace.actions.stopBackgroundProcess} />
         : <p className="session-empty">This workflow is no longer running.</p>),
     },
     {
@@ -270,7 +270,10 @@ export function App() {
           onSetSplit={workspace.actions.setDiffSplit}
           onRefresh={workspace.actions.refreshDiff}
           onOpenFile={(path) => void workspace.dispatch({ type: "file.open", path })}
-          onComment={(quote, note) => void workspace.dispatch({ type: "annotation.add", quote, ...(note ? { note } : {}) })}
+          annotations={workspace.annotations}
+          onComment={(quote, note, anchor) => void workspace.dispatch({ type: "annotation.add", quote, note, anchor })}
+          onEditComment={(annotationId, note) => void workspace.dispatch({ type: "annotation.note", annotationId, note })}
+          onRemoveComment={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
         />
       ),
     },

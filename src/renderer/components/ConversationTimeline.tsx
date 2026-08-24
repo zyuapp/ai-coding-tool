@@ -653,6 +653,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       setSelection({
         quote,
         anchor: {
+          kind: "message",
           messageId,
           start: renderedOffset(startMessage, range.startContainer, range.startOffset),
           end: renderedOffset(startMessage, range.endContainer, range.endOffset),
@@ -699,7 +700,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     if (timeline) {
       const timelineRect = timeline.getBoundingClientRect();
       annotations.forEach((annotation, index) => {
-        if (!annotation.anchor) return;
+        if (annotation.anchor?.kind !== "message") return;
         const root = timeline.querySelector(`[data-message-id="${annotation.anchor.messageId}"]`);
         const range = root && renderedRange(root, annotation.anchor.start, annotation.anchor.end);
         if (!range) return;
@@ -818,7 +819,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
           aria-label={`Edit annotation ${marker.number}`}
           onClick={(event) => {
             const annotation = annotations.find((item) => item.id === marker.id);
-            if (!annotation?.anchor) return;
+            if (annotation?.anchor?.kind !== "message") return;
             const rect = event.currentTarget.getBoundingClientRect();
             noteReturn.current = event.currentTarget;
             setNoting({ annotationId: annotation.id, quote: annotation.quote, anchor: annotation.anchor, note: annotation.note, x: rect.left + rect.width / 2, y: rect.top });

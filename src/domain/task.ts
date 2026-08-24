@@ -5,12 +5,10 @@ export const TASK_STORE_VERSION = 2 as const;
 
 export type TaskMessageKind = "user" | "assistant" | "tool" | "system";
 
-/** Where a drafted annotation's highlight lives: offsets into a message's rendered text. */
-export type AnnotationAnchor = {
-  messageId: string;
-  start: number;
-  end: number;
-};
+/** Where a drafted annotation stays visible until the send that carries it. */
+export type AnnotationAnchor =
+  | { kind: "message"; messageId: string; start: number; end: number }
+  | { kind: "diff"; comparison: string; path: string; start: string; end: string; side: "old" | "new" };
 
 /** A piece of the assistant's output the user highlighted, with their note on it. */
 export type Annotation = {
