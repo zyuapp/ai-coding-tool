@@ -212,9 +212,11 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
   const { dialog, messageBoxes } = fakeDialog();
   const { Menu, applicationMenu } = fakeMenu();
 
+  const badgeCounts: number[] = [];
   const electron = {
     app: {
       dock: { setIcon() {} },
+      setBadgeCount(count: number) { badgeCounts.push(count); },
       setName() {},
       getName: () => "AI Coding Tool",
       getAppPath: () => process.cwd(),
@@ -328,6 +330,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     protocolHandlers,
     globalShortcuts,
     notifications: Notification.raised,
+    badgeCounts,
     window,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },

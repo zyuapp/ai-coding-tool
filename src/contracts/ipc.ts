@@ -325,6 +325,8 @@ export type DesktopAPI = {
   focusWindow(): void;
   /** A thread's notice on its way to the desktop. Main decides whether the user is somewhere it has to reach them. */
   announceThread(notice: ThreadNotice): void;
+  /** How many threads carry an unseen mark, which the platform draws on the app icon. */
+  setBadgeCount(count: number): void;
   /** The thread a clicked notification named, on its way to becoming the current one. */
   onOpenThread(listener: (taskId: string) => void): () => void;
 };
@@ -346,6 +348,14 @@ export function isThreadNotice(value: unknown): value is ThreadNotice {
   if (!value || typeof value !== "object") return false;
   const notice = value as Record<string, unknown>;
   return isString(notice.taskId) && isString(notice.title, MAX_HEADLINE_LENGTH) && isString(notice.headline, MAX_HEADLINE_LENGTH);
+}
+
+/** More unseen threads than the app keeps, so a count above it says the window is confused. */
+const MAX_BADGE_COUNT = 9_999;
+
+/** The count arrives from the window like any other outside command, so main reads it defensively. */
+export function isBadgeCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_BADGE_COUNT;
 }
 
 /** How many bindings a window may send. Far more than the app has actions, and still bounded. */

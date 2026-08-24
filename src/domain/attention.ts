@@ -34,6 +34,11 @@ export function hasUnreadAttention(task: Task): boolean {
   return Boolean(newestUnreadFinding(task) || (task.outcome && task.outcomeUnread));
 }
 
+/** How many threads carry an unseen mark, which is the count the app icon stands for. */
+export function unreadAttentionCount(tasks: Task[]): number {
+  return tasks.filter(hasUnreadAttention).length;
+}
+
 function findingKeys(task: Task): string[] {
   return (task.findings ?? []).flatMap((finding) => finding.key ?? []);
 }

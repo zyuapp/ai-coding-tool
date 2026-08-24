@@ -1040,6 +1040,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     closeWindow: () => { browserCalls.push(["close-window"]); },
     focusWindow: () => { browserCalls.push(["focus-window"]); },
     announceThread: () => {},
+    setBadgeCount: () => {},
     ...overrides,
   };
   const desktop = api as FakeDesktop;

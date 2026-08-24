@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, afterAll, beforeAll } from "vitest";
-import { isThreadNotice, type DesktopAPI, type ThreadNotice } from "../src/contracts/ipc.ts";
+import { isBadgeCount, isThreadNotice, type DesktopAPI, type ThreadNotice } from "../src/contracts/ipc.ts";
 import type { WorkspaceInput } from "../src/application/workspace-reducer.ts";
 import { registered, startMainProcess, type MainHarness } from "./support/electron-harness.mjs";
 
@@ -12,6 +12,10 @@ const NOTICE: ThreadNotice = { taskId: "task-datadog", title: "Datadog watch", h
 
 const announce = (notice: unknown, sender: unknown = main.trusted) => {
   registered<(sender: unknown, notice: unknown) => void>(main.listeners, "thread:announce")(sender, notice);
+};
+
+const setBadge = (count: unknown, sender: unknown = main.trusted) => {
+  registered<(sender: unknown, count: unknown) => void>(main.listeners, "badge:set")(sender, count);
 };
 
 test("a notice raised while the user is elsewhere is carried by the desktop", () => {
@@ -110,4 +114,32 @@ test("the window answers a clicked notification by selecting that thread", async
   } finally {
     Reflect.deleteProperty(globalThis, "window");
   }
+});
+
+test("the app icon carries the count of threads the user has not seen", () => {
+  setBadge(3);
+  assert.equal(main.badgeCounts.at(-1), 3);
+
+  setBadge(0);
+  assert.equal(main.badgeCounts.at(-1), 0, "a zero takes the mark off");
+});
+
+test("a count from an untrusted sender, or one that is not a count, never reaches the icon", () => {
+  const before = main.badgeCounts.length;
+  setBadge(2, main.untrusted);
+  setBadge(-1);
+  setBadge(1.5);
+  setBadge("4");
+  assert.equal(main.badgeCounts.length, before);
+});
+
+test("the count guard takes whole counts up to the bound and nothing else", () => {
+  assert.equal(isBadgeCount(0), true);
+  assert.equal(isBadgeCount(9_999), true);
+  assert.equal(isBadgeCount(10_000), false);
+  assert.equal(isBadgeCount(-1), false);
+  assert.equal(isBadgeCount(1.5), false);
+  assert.equal(isBadgeCount(Number.NaN), false);
+  assert.equal(isBadgeCount("3"), false);
+  assert.equal(isBadgeCount(null), false);
 });

@@ -141,6 +141,7 @@ const api: DesktopAPI = {
   closeWindow: () => ipcRenderer.send("window:close"),
   focusWindow: () => ipcRenderer.send("window:focus"),
   announceThread: (notice: ThreadNotice) => ipcRenderer.send("thread:announce", notice),
+  setBadgeCount: (count: number) => ipcRenderer.send("badge:set", count),
   onOpenThread: (listener: (taskId: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: string) => listener(payload);
     ipcRenderer.on("window:open-thread", handler);

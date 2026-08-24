@@ -16,6 +16,7 @@ import { answerThreadRequest, releaseThreadWaiters, type ThreadRequestHost, type
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { displayShortcut } from "../../domain/shortcuts";
+import { showUnreadCount } from "./app-badge";
 import { MAC } from "../platform";
 import type { ThemeMode } from "../../domain/theme";
 import { applyTheme, systemPrefersDark } from "../theme";
@@ -523,6 +524,9 @@ export function useTaskWorkspace() {
   useEffect(() => {
     applyTypography({ uiFont: view.uiFont, monoFont: view.monoFont, readingSize: view.readingSize, terminalSize: view.terminalSize });
   }, [view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
+
+  /** The app icon carries the same count the rows' dots do, so a switch away still shows it. */
+  useEffect(() => { showUnreadCount(state.tasks); }, [state.tasks]);
 
   const currentRunId = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
 

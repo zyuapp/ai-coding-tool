@@ -1,5 +1,5 @@
-import { ipcMain, Notification, type BrowserWindow, type IpcMainEvent } from "electron";
-import { isThreadNotice, type ThreadNotice } from "../contracts/ipc.js";
+import { app, ipcMain, Notification, type BrowserWindow, type IpcMainEvent } from "electron";
+import { isBadgeCount, isThreadNotice, type ThreadNotice } from "../contracts/ipc.js";
 
 /** Says what happened where the user already is, since taking the window would take their place. */
 export function notify(title: string, body: string, onClick?: () => void) {
@@ -34,5 +34,16 @@ export function serveThreadNotices(host: NoticeHost, trusted: (event: IpcMainEve
   ipcMain.on("thread:announce", (event, notice: unknown) => {
     if (!trusted(event) || !isThreadNotice(notice)) return;
     announceThread(host, notice);
+  });
+}
+
+/**
+ * The count on the app icon, which macOS and Linux draw themselves and Windows ignores. The window
+ * owns the number, so main only passes it on, and a zero takes the mark off.
+ */
+export function serveBadgeCount(trusted: (event: IpcMainEvent) => boolean) {
+  ipcMain.on("badge:set", (event, count: unknown) => {
+    if (!trusted(event) || !isBadgeCount(count)) return;
+    app.setBadgeCount(count);
   });
 }

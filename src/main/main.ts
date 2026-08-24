@@ -21,7 +21,7 @@ import type { AutomationScheduler } from "./automation/automation-scheduler.mjs"
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
-import { notify, serveThreadNotices, type NoticeHost } from "./desktop-notice.js";
+import { notify, serveBadgeCount, serveThreadNotices, type NoticeHost } from "./desktop-notice.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu } from "./app-menu.js";
@@ -883,6 +883,7 @@ ipcMain.on("window:focus", (event) => {
 /** Where a thread's notice goes when the window is not the place the user is looking. */
 const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
 serveThreadNotices(noticeHost, trustedSender);
+serveBadgeCount(trustedSender);
 serveExternalApps(trustedSender);
 
 ipcMain.on("thread:answer", (event, response: unknown) => {
