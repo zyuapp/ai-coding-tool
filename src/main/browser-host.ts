@@ -61,6 +61,20 @@ const SNAPSHOT_SCRIPT = `(() => {
   return { url: location.href, title: document.title, text: text.slice(0, limit), truncated: text.length > limit, elements };
 })()`;
 
+/**
+ * Gives a page the mouse's side buttons, which the panel has no other way to hear: the page is its
+ * own WebContents, so the window never sees the press, and Chromium acts on neither button itself.
+ */
+const MOUSE_NAVIGATION_SCRIPT = `(() => {
+  const go = (event) => {
+    if (event.button !== 3 && event.button !== 4) return;
+    event.preventDefault();
+    if (event.type === 'mouseup') history[event.button === 3 ? 'back' : 'forward']();
+  };
+  addEventListener('mousedown', go, true);
+  addEventListener('mouseup', go, true);
+})()`;
+
 function actionScript(action: BrowserAction) {
   const ref = JSON.stringify(action.ref);
   const found = `const node = document.querySelector('[${REF_ATTRIBUTE}=' + JSON.stringify(${ref}) + ']');
@@ -190,6 +204,10 @@ function watch({ id, view }: Tab) {
   /** A shortcut belongs to the app while a page has the keys, so the page never sees that keystroke. */
   contents.on("before-input-event", (event, input) => {
     if (keyPressed(input)) event.preventDefault();
+  });
+  /** Each document is a fresh page, so each one is given the side buttons again. */
+  contents.on("dom-ready", () => {
+    void contents.executeJavaScript(MOUSE_NAVIGATION_SCRIPT).catch(() => undefined);
   });
   /** The panel only ever holds web pages; anything else the page asks for is left to the OS. */
   contents.on("will-navigate", (event, url) => {

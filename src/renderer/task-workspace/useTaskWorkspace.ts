@@ -424,6 +424,23 @@ export function useTaskWorkspace() {
     };
   }, []);
 
+  /** The two side buttons on a mouse mean what the back and forward keystrokes mean. */
+  useEffect(() => {
+    function navigate(event: MouseEvent) {
+      if (event.button !== 3 && event.button !== 4) return;
+      /** Chromium walks its own session history on the press, which would take the window off the app. */
+      event.preventDefault();
+      if (event.type !== "mouseup") return;
+      void dispatchRef.current({ type: "view.shortcut", action: event.button === 3 ? "nav.back" : "nav.forward", surface: "any" });
+    }
+    window.addEventListener("mousedown", navigate);
+    window.addEventListener("mouseup", navigate);
+    return () => {
+      window.removeEventListener("mousedown", navigate);
+      window.removeEventListener("mouseup", navigate);
+    };
+  }, []);
+
   useEffect(() => {
     if (!("desktop" in window)) return;
     return subscribeToDesktop((input) => void dispatchRef.current(input));
