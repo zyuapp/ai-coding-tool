@@ -275,3 +275,28 @@ test("a page the panel is not showing belongs to a window of its own", async () 
   await closeBrowser(trusted, "tab-parked");
   assert.equal(windows.flatMap((each) => each.children).length, 0);
 });
+
+type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };
+
+test("the app menu offers a check for updates the user can come back to", async () => {
+  const menu = main.applicationMenu() as MenuEntry[] | null;
+  assert.ok(menu, "the app sets its own menu");
+  const appMenu = menu.find((entry) => entry.label === "AI Coding Tool");
+  assert.ok(appMenu?.submenu, "the first menu is the app's own");
+  assert.deepEqual(
+    appMenu.submenu.map((entry) => entry.type ?? entry.role ?? entry.label),
+    ["about", "separator", "Check for Updates…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"],
+    "every role macOS puts there stays where the user looks for it",
+  );
+  assert.deepEqual(menu.slice(1).map((entry) => entry.role), ["fileMenu", "editMenu", "viewMenu", "windowMenu"]);
+
+  const check = appMenu.submenu.find((entry) => entry.label === "Check for Updates…");
+  assert.ok(check?.click);
+  check.click();
+  await tick();
+  assert.deepEqual(
+    main.messageBoxes.map((box) => box.message),
+    ["This copy of AI Coding Tool runs from source."],
+    "a copy run from source says so rather than failing the check",
+  );
+});

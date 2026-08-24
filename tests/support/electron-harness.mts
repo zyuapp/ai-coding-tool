@@ -72,6 +72,55 @@ class FakeWebContentsView {
   setBackgroundColor() {}
 }
 
+/** Dialogs are answered rather than shown, so a test reads what was asked and takes the default. */
+function fakeDialog() {
+  const messageBoxes: Array<Record<string, unknown>> = [];
+  return {
+    messageBoxes,
+    dialog: {
+      showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+      showMessageBox: async (_window: unknown, options: Record<string, unknown>) => { messageBoxes.push(options); return { response: 1 }; },
+    },
+  };
+}
+
+/** The menu is built rather than displayed, so a test reads the template and clicks an item. */
+function fakeMenu() {
+  let applicationMenu: unknown = null;
+  return {
+    applicationMenu: () => applicationMenu,
+    Menu: {
+      buildFromTemplate: (template: unknown) => template,
+      setApplicationMenu: (menu: unknown) => { applicationMenu = menu; },
+    },
+  };
+}
+
+/** Both fakes are reached through globals, so the modules under test import them like the real ones. */
+function fakePlugins(computerUse: boolean): Plugin[] {
+  const plugins: Plugin[] = [{
+    name: "fake-electron",
+    enforce: "pre",
+    resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
+    load(id) {
+      if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, Menu=e.Menu, BaseWindow=e.BaseWindow, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+    },
+  }];
+  if (computerUse) {
+    plugins.push({
+      name: "fake-computer-use",
+      enforce: "pre",
+      resolveId(id, importer) {
+        if (id === "./computer-use-host.js" && importer?.endsWith("/src/main/main.ts")) return "\0fake-computer-use";
+      },
+      load(id) {
+        if (id === "\0fake-computer-use") return "const c = globalThis.__aicodingtoolComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse;";
+      },
+    });
+  }
+  return plugins;
+}
+
 /** Notifications are shown rather than sent, so a test reads what was raised and clicks it. */
 function fakeNotifications() {
   type FakeNotificationInstance = {
@@ -156,6 +205,8 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
   }
 
   const Notification = fakeNotifications();
+  const { dialog, messageBoxes } = fakeDialog();
+  const { Menu, applicationMenu } = fakeMenu();
 
   const electron = {
     app: {
@@ -190,7 +241,8 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     },
     Notification,
     nativeTheme: { themeSource: "system" },
-    dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
+    dialog,
+    Menu,
     ipcMain: {
       handle: (name: string, handler: Callback) => handlers.set(name, handler),
       on: (name: string, listener: Callback) => listeners.set(name, listener),
@@ -219,26 +271,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
   const versions = process.versions as NodeJS.ProcessVersions & { chrome?: string };
   versions.chrome = "141.0.0.0";
 
-  const plugins: Plugin[] = [{
-    name: "fake-electron",
-    enforce: "pre",
-    resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
-    load(id) {
-      if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, BaseWindow=e.BaseWindow, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
-    },
-  }];
-  if (options.computerUse) {
-    plugins.push({
-      name: "fake-computer-use",
-      enforce: "pre",
-      resolveId(id, importer) {
-        if (id === "./computer-use-host.js" && importer?.endsWith("/src/main/main.ts")) return "\0fake-computer-use";
-      },
-      load(id) {
-        if (id === "\0fake-computer-use") return "const c = globalThis.__aicodingtoolComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse;";
-      },
-    });
-  }
+  const plugins = fakePlugins(options.computerUse !== undefined);
 
   const vite = await createServer({
     logLevel: "silent",
@@ -282,6 +315,8 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     agents,
     appListeners,
     externalUrls,
+    messageBoxes,
+    applicationMenu,
     relaunches,
     quitAttempts: () => quitAttempts,
     completedQuits: () => completedQuits,

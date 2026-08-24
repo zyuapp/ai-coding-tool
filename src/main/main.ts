@@ -23,7 +23,8 @@ import { computerUseForRun, computerUsePermissions, requestComputerUsePermission
 import { notify, serveThreadNotices, type NoticeHost } from "./desktop-notice.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
-import { reportUpdateFailure } from "./update-notice.js";
+import { installAppMenu } from "./app-menu.js";
+import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { adoptUserDataFolder } from "./user-data.js";
 import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
@@ -571,49 +572,10 @@ async function createWindow() {
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
 }
 
-async function checkForUpdates() {
-  if (!app.isPackaged) return;
-  const { autoUpdater } = (await import("electron-updater")).default;
-  autoUpdater.autoDownload = false;
-  /** A failed background check stays in the log; one the user asked for is theirs to hear about. */
-  let requested = false;
-  autoUpdater.on("error", (error) => {
-    console.error("Update error:", error);
-    if (requested) void reportUpdateFailure(window, error);
-  });
-  autoUpdater.on("update-available", async ({ version }) => {
-    if (!window || window.isDestroyed()) return;
-    const result = await dialog.showMessageBox(window, {
-      type: "info",
-      title: "Update available",
-      message: `AI Coding Tool ${version} is available.`,
-      detail: "Download it now? You can keep working while it downloads.",
-      buttons: ["Download update", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (result.response !== 0) return;
-    requested = true;
-    await autoUpdater.downloadUpdate().catch((error) => console.error("Update download failed:", error));
-  });
-  autoUpdater.on("update-downloaded", async ({ version }) => {
-    if (!window || window.isDestroyed()) return;
-    const result = await dialog.showMessageBox(window, {
-      type: "info",
-      title: "Update ready",
-      message: `AI Coding Tool ${version} is ready to install.`,
-      detail: "Restart AI Coding Tool to finish the update.",
-      buttons: ["Restart and install", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (result.response === 0) {
-      updateRestartScheduled = true;
-      autoUpdater.quitAndInstall(false, true);
-    }
-  });
-  await autoUpdater.checkForUpdates();
-}
+const updateHost: UpdateHost = {
+  window: () => window,
+  onInstall: () => { updateRestartScheduled = true; },
+};
 
 /**
  * Worktrees live outside app data: the path has no space in it for a project's own tooling to trip
@@ -683,10 +645,11 @@ app.whenReady().then(async () => {
   });
   if (!app.isPackaged) app.dock?.setIcon(icon);
   claimDesktopShortcut();
+  installAppMenu(() => void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error)));
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
-  void checkForUpdates().catch((error) => console.error("Update check failed:", error));
+  void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
   app.on("activate", () => {
     if (queueReopen()) return;
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
