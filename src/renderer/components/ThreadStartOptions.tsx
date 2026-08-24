@@ -1,9 +1,16 @@
-import { Check, ChevronDown, FolderGit2, FolderSymlink, GitBranch, X } from "lucide-react";
+import { Check, ChevronDown, FolderGit2, FolderSymlink, GitBranch, Search, X } from "lucide-react";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/task";
 import { moveListFocus, useDismissibleLayer } from "../focus";
+
+/** Which projects a typed query keeps, matched on the name shown and on the path behind it. */
+export function matchProjects(projects: Project[], query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return projects;
+  return projects.filter((project) => `${projectName(project)} ${project.root}`.toLowerCase().includes(needle));
+}
 
 export type ThreadModeSwitchProps = {
   projects: Project[];
@@ -51,6 +58,7 @@ export type ThreadStartOptionsProps = {
  */
 export function ThreadStartOptions({ projects, projectId, workspaceId, branch, worktree, startsInWorktree, onSelectProject, onSelectBranch, onSetWorktree }: ThreadStartOptionsProps) {
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
   const projectRef = useRef<HTMLDivElement>(null);
   const projectTrigger = useRef<HTMLButtonElement>(null);
@@ -60,6 +68,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   useDismissibleLayer(projectsOpen, [projectRef], () => setProjectsOpen(false), projectTrigger);
   useDismissibleLayer(branchesOpen, [branchRef, branchMenu], () => setBranchesOpen(false), branchTrigger);
   const project = projects.find((item) => item.id === projectId);
+  const matched = matchProjects(projects, projectQuery);
   const branches = useBranches(workspaceId);
 
   const current = branches?.status === "available" ? branches.current : null;
@@ -72,28 +81,41 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   return (
     <div className="thread-start" aria-label="How this thread starts">
       <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => setProjectsOpen(!projectsOpen)}>
+        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           <FolderGit2 size={14} />
           <span>{projectName(project)}</span>
           <ChevronDown size={14} />
         </button>
-        {projectsOpen && <div className="thread-start-popover" role="listbox" aria-label="Projects" onKeyDown={moveListFocus}>
-          {projects.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="option"
-              aria-selected={item.id === projectId}
-              autoFocus={item.id === projectId}
-              onClick={() => {
-                setProjectsOpen(false);
-                onSelectProject(item.id);
-              }}
-            >
-              <span>{projectName(item)}</span>
-              {item.id === projectId && <Check size={14} />}
-            </button>
-          ))}
+        {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
+          <label className="thread-start-search-field">
+            <Search size={13} aria-hidden="true" />
+            <input
+              className="thread-start-search"
+              aria-label="Search projects"
+              placeholder="Search projects"
+              autoFocus
+              value={projectQuery}
+              onInput={(event) => setProjectQuery(event.currentTarget.value)}
+            />
+          </label>
+          <div role="listbox" aria-label="Projects">
+            {matched.length === 0 && <p className="thread-start-empty">No project matches</p>}
+            {matched.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="option"
+                aria-selected={item.id === projectId}
+                onClick={() => {
+                  setProjectsOpen(false);
+                  onSelectProject(item.id);
+                }}
+              >
+                <span>{projectName(item)}</span>
+                {item.id === projectId && <Check size={14} />}
+              </button>
+            ))}
+          </div>
         </div>}
       </div>
 

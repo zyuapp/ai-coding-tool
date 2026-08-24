@@ -1240,11 +1240,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 /** Groups say what a name is, so `origin/main` is never mistaken for a branch the checkout holds. */
 .branch-menu-group { padding: 8px 8px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
 .branch-menu-group:first-child { padding-top: 3px; }
-.branch-menu-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
-.branch-menu-field:focus-within { border-color: var(--accent); }
-.branch-menu-field > svg { flex: none; }
-.branch-menu-field .branch-menu-search { margin: 0; border: 0; border-radius: 0; padding: 6px 0; background: none; }
-.branch-menu-field .branch-menu-search:focus { outline: 0; }
+.branch-menu-field, .thread-start-search-field { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; border: 1px solid var(--line-mid); border-radius: 7px; padding: 0 8px; background: var(--surface-input); color: var(--quiet); }
+.branch-menu-field:focus-within, .thread-start-search-field:focus-within { border-color: var(--accent); }
+.branch-menu-field > svg, .thread-start-search-field > svg { flex: none; }
+.branch-menu-field .branch-menu-search, .thread-start-search-field .thread-start-search { margin: 0; border: 0; border-radius: 0; padding: 6px 0; background: none; }
+.branch-menu-field .branch-menu-search:focus, .thread-start-search-field .thread-start-search:focus { outline: 0; }
 /** A list anchored to a narrow trigger still needs room for a ref, and must stay inside the window. */
 .branch-menu.anchored { min-width: 260px; }
 

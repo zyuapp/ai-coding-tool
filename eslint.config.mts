@@ -26,7 +26,7 @@ const fileCaps = {
   "src/main/main.ts": 1026,
   "src/renderer/components/ConversationTimeline.tsx": 776,
   "tests/claude-agent-provider.test.mts": 633,
-  "tests/renderer.test.mts": 4325,
+  "tests/renderer.test.mts": 4177,
   "tests/workspace-reducer.test.mts": 2137,
 };
 
