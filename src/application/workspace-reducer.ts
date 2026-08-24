@@ -29,7 +29,7 @@ import {
   type RunProvenance,
   type ThreadMark,
 } from "./task-workspace.js";
-import { blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withDiff, withDock, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, frontDock, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withDiff, withDock, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -392,8 +392,7 @@ function browserEffectsForTab(state: WorkspaceState, owner: string, dockTab: str
  * thread the user lands on hands it its own page, or takes the page away when it has none.
  */
 function shownPageEffects(state: WorkspaceState): WorkspaceEffect[] {
-  const owner = dockOwner(state);
-  const dock = dockFor(state, owner);
+  const { owner, dock } = frontDock(state);
   const effects = browserEffectsForTab(state, owner, dock.tab);
   return effects.length ? effects : [{ type: "browser.show", tabId: null }];
 }
@@ -737,10 +736,8 @@ function stopSearchEffects(find: FindState | null): WorkspaceEffect[] {
 
 /** A shell holds the keyboard only while the dock in front is open on it. */
 function showsTerminal(state: WorkspaceState, terminalId: string): boolean {
-  const owner = ownerOfTerminal(state, terminalId);
-  if (!owner || owner !== dockOwner(state)) return false;
-  const dock = dockFor(state, owner);
-  return dock.open && dock.tab === terminalId;
+  const { owner, dock } = frontDock(state);
+  return dock.open && dock.tab === terminalId && ownerOfTerminal(state, terminalId) === owner;
 }
 
 /** Find belongs to what it is searching, so it goes when that thread, page, or shell does. */
@@ -1811,8 +1808,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.close-tab": {
-      const owner = dockOwner(state);
-      const dock = dockFor(state, owner);
+      const { owner, dock } = frontDock(state);
       if (state.projectEdit) return settled({ ...state, projectEdit: null });
       if (state.settingsOpen || state.computerUseSetup) return settled({ ...state, settingsOpen: false, computerUseSetup: false });
       if (!dock.open) return settled(state, [{ type: "close-window" }]);
@@ -1832,8 +1828,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     /** ⌘W's inverse, answering with whatever the panel is showing rather than one fixed thing. */
     case "view.new-tab": {
       if (state.settingsOpen) return settled(state);
-      const owner = dockOwner(state);
-      const dock = dockFor(state, owner);
+      const { owner, dock } = frontDock(state);
       const kind = dock.open ? dockTabKind(state, owner, dock.tab) : "picker";
       return apply(state, kind === "browser" ? { type: "browser.new-tab" } : { type: "terminal.open" });
     }
@@ -1846,8 +1841,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.set-dock-open": {
-      const owner = dockOwner(state);
-      const dock = dockFor(state, owner);
+      const { owner, dock } = frontDock(state);
       if (dock.open === input.open) return settled(state);
       const toggled = withDock(state, owner, { open: input.open });
       /** A panel shown is one to work in; a panel hidden must not leave a page it was drawing with the keys. */
@@ -1856,8 +1850,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.set-dock-expanded": {
-      const owner = dockOwner(state);
-      const dock = dockFor(state, owner);
+      const { owner, dock } = frontDock(state);
       if (dock.expanded === input.expanded) return settled(state);
       /** Taking the whole workspace is also a way of asking for the dock, so expanding shows it. */
       const toggled = withDock(state, owner, { expanded: input.expanded, open: input.expanded || dock.open });
@@ -1865,8 +1858,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.open-dock-panel": {
-      const owner = dockOwner(state);
-      const dock = dockFor(state, owner);
+      const { owner, dock } = frontDock(state);
       const panels = dock.panels.includes(input.panel) ? dock.panels : [...dock.panels, input.panel];
       const shown = focusDockTab(withDock(state, owner, { open: true, panels, tab: input.panel }), owner, input.panel);
       const opened = shown.state;
@@ -1886,8 +1878,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.close-dock-panel": {
-      const owner = dockOwner(state);
-      const dock = dockFor(state, owner);
+      const { owner, dock } = frontDock(state);
       if (!dock.panels.includes(input.panel)) return settled(state);
       const tab = dock.tab === input.panel ? dockTabAfterClosing(state, owner, input.panel) : dock.tab;
       const closed = withDock(state, owner, {

@@ -500,6 +500,12 @@ export function dockFor(state: Pick<WorkspaceState, "docks">, owner: string): Th
   return state.docks[owner] ?? EMPTY_DOCK;
 }
 
+/** The dock in front, and whose it is: the pair every view command starts from. */
+export function frontDock(state: Pick<WorkspaceState, "currentId" | "sideChats" | "docks">): { owner: string; dock: ThreadDock } {
+  const owner = dockOwner(state);
+  return { owner, dock: dockFor(state, owner) };
+}
+
 /** A workflow by id, wherever it is kept: a dock follows one workflow, not one thread's list. */
 export function workflowById(state: Pick<WorkspaceState, "workflows">, id: string | null): Workflow | undefined {
   if (!id) return undefined;
