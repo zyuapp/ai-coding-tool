@@ -1028,13 +1028,13 @@ ipcMain.handle("browser:clear", (event) => {
 /** Bigger than any file anyone reads, and still small enough that no editor chokes on the argument. */
 const MAX_FILE_LINE = 10_000_000;
 
-ipcMain.handle("file:open", async (event, root: unknown, candidate: unknown, line: unknown) => {
+ipcMain.handle("file:open", async (event, roots: unknown, candidate: unknown, line: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (line !== null && line !== undefined && (typeof line !== "number" || !Number.isInteger(line) || line < 1 || line > MAX_FILE_LINE)) {
     throw new Error("Invalid file line.");
   }
-  const { fileInCheckout } = await import("./path-policy.mjs");
-  await openInEditor(await fileInCheckout(root, candidate), typeof line === "number" ? line : null);
+  const { openableFile } = await import("./path-policy.mjs");
+  await openInEditor(await openableFile(roots, candidate), typeof line === "number" ? line : null);
 });
 
 /** Longer than anything anyone searches for, and still bounded. */

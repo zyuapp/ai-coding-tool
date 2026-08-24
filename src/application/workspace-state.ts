@@ -632,6 +632,21 @@ export function taskWorkspaceRoot(state: WorkspaceState, task: Task | undefined)
   return worktreeFor(state, task)?.root ?? projectFor(state, task)?.root;
 }
 
+/**
+ * Where a file a message named is looked for, nearest the thread first: the checkout it works in,
+ * its project's own checkout, then the project's other checkouts, most recently used first.
+ */
+export function taskFileRoots(state: WorkspaceState, task: Task | undefined): string[] {
+  const project = projectFor(state, task);
+  const siblings = project
+    ? [...state.worktrees.filter((worktree) => worktree.projectId === project.id)]
+        .sort((left, right) => right.lastUsedAt - left.lastUsedAt)
+        .map((worktree) => worktree.root)
+    : [];
+  const roots = [worktreeFor(state, task)?.root, project?.root, ...siblings];
+  return [...new Set(roots.filter((root): root is string => !!root))];
+}
+
 /** Where a thread's runs happen: the checkout it shares once it has one, otherwise its project's. */
 export function taskWorkspaceId(state: WorkspaceState, task: Task | undefined) {
   return worktreeFor(state, task)?.workspaceId ?? projectFor(state, task)?.workspaceId;

@@ -230,7 +230,7 @@ export function useTaskWorkspace() {
         return;
 
       case "file.open":
-        return reportFailure(window.desktop.openFile(effect.root, effect.path, effect.line));
+        return reportFailure(window.desktop.openFile(effect.roots, effect.path, effect.line));
 
       case "app.open-folder":
         return reportFailure(window.desktop.openFolderInApp(effect.appId, effect.root));

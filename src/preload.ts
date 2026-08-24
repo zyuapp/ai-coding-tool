@@ -93,7 +93,7 @@ const api: DesktopAPI = {
     ipcRenderer.on("browser:find", handler);
     return () => ipcRenderer.removeListener("browser:find", handler);
   },
-  openFile: (root: string, path: string, line: number | null) => ipcRenderer.invoke("file:open", root, path, line),
+  openFile: (roots: string[], path: string, line: number | null) => ipcRenderer.invoke("file:open", roots, path, line),
   listApps: () => ipcRenderer.invoke("apps:list"),
   openFolderInApp: (appId: string, root: string) => ipcRenderer.invoke("apps:open", appId, root),
   startTerminal: (terminalId: string, options: TerminalStartOptions) => ipcRenderer.invoke("terminal:start", terminalId, options),

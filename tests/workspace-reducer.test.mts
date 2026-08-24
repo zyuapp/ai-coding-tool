@@ -2140,21 +2140,18 @@ test("a terminal opens in the thread's own checkout and takes a dock tab of its 
 });
 
 test("a file named in a message opens against the checkout that thread works in", () => {
-  const state = {
-    ...workspace(),
-    projects: [{ id: "project-1", root: "/repo" }],
-    tasks: [task("task-1", { projectId: "project-1" })],
-    currentId: "task-1",
-  };
+  const state = { ...workspace(), projects: [{ id: "project-1", root: "/repo" }], tasks: [task("task-1", { projectId: "project-1" })], currentId: "task-1" };
+  assert.deepEqual(reduce(state, { type: "file.open", path: "src/App.tsx", line: 42 }).effects, [{ type: "file.open", roots: ["/repo"], path: "src/App.tsx", line: 42 }]);
 
-  assert.deepEqual(reduce(state, { type: "file.open", path: "src/App.tsx", line: 42 }).effects, [{ type: "file.open", root: "/repo", path: "src/App.tsx", line: 42 }]);
-
-  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
-  assert.deepEqual(reduce(inWorktree, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", root: "/worktrees/repo-w1", path: "src/App.tsx", line: null }], "a link with no line still opens the file");
-
+  const checkout = (id: string, lastUsedAt: number) => ({ id, projectId: "project-1", root: `/worktrees/repo-${id}`, workspaceId: `ws-${id}`, baseCommit: id, createdAt: 1, lastUsedAt });
+  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [checkout("w1", 1), checkout("w2", 9)] };
+  /** Nearest the thread first: its own checkout, then its project, then the project's other checkouts. */
+  assert.deepEqual(reduce(inWorktree, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", roots: ["/worktrees/repo-w1", "/repo", "/worktrees/repo-w2"], path: "src/App.tsx", line: null }]);
   const refused = reduce(workspace(), { type: "file.open", path: "src/App.tsx" });
   assert.deepEqual(refused.effects, []);
   assert.equal(refused.state.actionError, WORKSPACE_ERRORS.fileFolder);
+  const named = reduce(workspace(), { type: "file.open", path: "/etc/hosts" });
+  assert.deepEqual(named.effects, [{ type: "file.open", roots: [], path: "/etc/hosts", line: null }], "a file named in full opens without a checkout to look in");
 });
 
 test("opening the thread in another application hands over the checkout it works in", () => {

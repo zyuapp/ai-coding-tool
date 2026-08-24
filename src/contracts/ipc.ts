@@ -281,7 +281,7 @@ export type DesktopAPI = {
   focusBrowserTab(tabId: string): Promise<void>;
   onBrowserFind(listener: (event: BrowserFindEvent) => void): () => void;
   /** Hands a file to the desktop, which opens it with whatever it opens that kind of file with. */
-  openFile(root: string, path: string, line: number | null): Promise<void>;
+  openFile(roots: string[], path: string, line: number | null): Promise<void>;
   /** The applications on this machine that can take a folder, read fresh enough to see a new install. */
   listApps(): Promise<InstalledApp[]>;
   /** Opens a checkout in one of them. `root` has to be a folder the app already works in. */

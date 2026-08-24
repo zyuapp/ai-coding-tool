@@ -21,3 +21,8 @@ export function parseFileHref(href: string): { file: string; line: number | null
     return null;
   }
 }
+
+/** Whether a written path names a place on its own, so no checkout is needed to look for it. */
+export function isAbsoluteFilePath(file: string) {
+  return file.startsWith("/") || file.startsWith("~/") || WINDOWS_PATH.test(file);
+}

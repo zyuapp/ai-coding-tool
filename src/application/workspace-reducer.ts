@@ -27,7 +27,7 @@ import {
   type RunProvenance,
   type ThreadMark,
 } from "./task-workspace.js";
-import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { annotationsFor, imagesFor, withImages, blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, pastesFor, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withAnnotations, withDiff, withDock, withPastes, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -48,6 +48,7 @@ import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
 import { browserOrigin, browserUrl, type BrowserAction, type BrowserTab } from "../domain/browser.js";
 import { fileFingerprint, rangeKey, type DiffRange } from "../domain/diff.js";
+import { isAbsoluteFilePath } from "../domain/markdown-links.js";
 import { PLAIN_ENGLISH_STYLE } from "../domain/output-style.js";
 import { memoizedFindHits, sameFindTarget, stepMatch, type FindResults, type FindTarget } from "../domain/find.js";
 import { dockTabShortcutIndex, shortcutAction, shortcutProblem, withShortcut, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -140,8 +141,8 @@ export type WorkspaceEffect =
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }
   | { type: "browser.clear-data" }
-  /** A file the desktop opens for the reader. `root` is the checkout it has to sit inside. */
-  | { type: "file.open"; root: string; path: string; line: number | null }
+  /** A file the desktop opens for the reader. `roots` are the checkouts to look for it in, nearest first. */
+  | { type: "file.open"; roots: string[]; path: string; line: number | null }
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
@@ -1982,10 +1983,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "file.open": {
-      const task = state.tasks.find((item) => item.id === (input.taskId ?? state.currentId));
-      const root = taskWorkspaceRoot(state, task);
-      if (!root) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
-      return settled({ ...state, actionError: null }, [{ type: "file.open", root, path: input.path, line: input.line ?? null }]);
+      const roots = taskFileRoots(state, state.tasks.find((item) => item.id === (input.taskId ?? state.currentId)));
+      if (!roots.length && !isAbsoluteFilePath(input.path)) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
+      return settled({ ...state, actionError: null }, [{ type: "file.open", roots, path: input.path, line: input.line ?? null }]);
     }
 
     case "app.open-folder": {
