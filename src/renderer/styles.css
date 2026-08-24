@@ -721,8 +721,12 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   flex: 1;
   display: grid;
   grid-template-rows: 72px minmax(0, 1fr) auto;
-  /** The dock's track takes the width the dock's own margin leaves it, so it is 0 while the dock is away. */
-  grid-template-columns: minmax(0, 1fr) auto;
+  /**
+   * The dock's track takes its width the moment the dock is asked for, and gives it back the moment
+   * it is dismissed — never over the half second the dock takes to slide. Everything in the column
+   * beside it is centred, so a track that eased would carry the whole conversation sideways with it.
+   */
+  grid-template-columns: minmax(0, 1fr) 0;
   background: var(--canvas);
 }
 .topbar {
@@ -820,10 +824,16 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   white-space: nowrap;
 }
 .work-area { position: relative; min-height: 0; display: flex; grid-column: 1; grid-row: 2; }
+.workspace.dock-open { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
 .workspace.summary-open .composer-wrap { margin-right: 282px; }
 .workspace.summary-open .conversation { padding-right: calc(clamp(20px, 4vw, 64px) + 282px); }
+/** The dock stands over its own track rather than in it, so sliding it moves nothing but itself. */
 .right-dock {
-  position: relative;
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  right: 0;
+  bottom: 0;
   min-width: 0;
   width: var(--dock-width);
   display: grid;
@@ -833,22 +843,19 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   overflow-clip-margin: 8px;
   border-left: 1px solid var(--line);
   background: var(--sunken);
-  grid-column: 2;
-  grid-row: 1 / 4;
-  transition: margin-right var(--panel-slide-time) var(--panel-slide-ease), visibility 0s;
+  transition: transform var(--panel-slide-time) var(--panel-slide-ease), visibility 0s;
 }
 /** Hiding slides the dock off the right edge at its own width, so its contents never reflow. */
 .right-dock[hidden] {
   display: grid;
   visibility: hidden;
-  margin-right: calc(-1 * var(--dock-width));
-  transition: margin-right var(--panel-slide-time) var(--panel-slide-ease), visibility 0s linear var(--panel-slide-time);
+  transform: translateX(100%);
+  transition: transform var(--panel-slide-time) var(--panel-slide-ease), visibility 0s linear var(--panel-slide-time);
 }
 /**
- * Expanded, the dock spans the grid and lays over the column it came from. The column keeps its
- * layout, so restoring costs no reflow and the transcript comes back where it was left.
+ * Expanded, the dock takes the window. The column it came from keeps its width underneath, so
+ * restoring costs no reflow and the transcript comes back where it was left.
  */
-.workspace.dock-full { grid-template-columns: minmax(0, 1fr) var(--dock-width); }
 .workspace.dock-full > :not(.right-dock) { visibility: hidden; }
 .workspace.dock-full .right-dock { position: fixed; inset: 0; width: auto; z-index: 25; }
 .workspace.dock-full .right-dock-resizer { display: none; }
