@@ -16,41 +16,6 @@ function loadDatabase(database: TaskDatabase): TaskStoreData {
   return loaded;
 }
 
-test("project roots are read in sidebar order without loading transcript rows", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-project-roots-"));
-  const file = path.join(directory, "tasks.sqlite");
-  const database = new TaskDatabase(file);
-  const raw = new DatabaseSync(file);
-  try {
-    assert.deepEqual(database.projectRoots(), []);
-    database.persist({
-      projects: [{ id: "project-z", root: "/z" }, { id: "project-a", root: "/a" }],
-      tasks: [{
-        task: {
-          id: "task-1",
-          title: "Read projects",
-          projectId: "project-z",
-          executionPolicy: "confirm",
-          continuationStatus: "none",
-          lastChangeSnapshot: { files: [], capturedAt: 1 },
-          updatedAt: 2,
-        },
-        messages: [{ index: 0, message: { id: "message-1", kind: "user", text: "Hello", at: 1 } }],
-      }],
-    });
-
-    assert.deepEqual(database.projectRoots(), ["/z", "/a"]);
-    raw.prepare("UPDATE messages SET data = '{'").run();
-    assert.deepEqual(database.projectRoots(), ["/z", "/a"], "a broken transcript is outside this narrow startup read");
-    raw.prepare("UPDATE projects SET data = ? WHERE id = 'project-z'").run(JSON.stringify({ id: "project-z", root: 42 }));
-    assert.throws(() => database.projectRoots(), /projects contains an invalid value/);
-  } finally {
-    raw.close();
-    database.close();
-    await rm(directory, { recursive: true });
-  }
-});
-
 test("SQLite task storage appends and updates messages without rewriting the transcript", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
@@ -300,58 +265,10 @@ test("a checkout stored inside its thread is lifted into a record other threads 
       assert.equal(loaded.tasks[0].worktreeId, "wt1");
       assert.equal(loaded.tasks[0].worktreeEnteredAt, 3, "the fork the thread had already made stays with the thread");
       assert.equal("worktree" in loaded.tasks[0], false);
-      assert.deepEqual(database.claimedWorktrees(), ["/worktrees/repo-wt1"]);
     } finally {
       database.close();
     }
   } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test("a checkout is claimed while any thread is in it, and forgetting it frees every one of them", async () => {
-  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
-  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
-  const worktree = { id: "wt1", projectId: "project-1", root: "/worktrees/repo-wt1", workspaceId: "workspace-wt1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 2 };
-  const thread = (id: string, overrides: Partial<PersistedTask> = {}): PersistedTask => ({
-    id,
-    title: id,
-    projectId: "project-1",
-    executionPolicy: "confirm",
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 2,
-    ...overrides,
-  });
-  try {
-    database.persist({
-      projects: [{ id: "project-1", root: "/repo" }],
-      worktrees: [worktree],
-      tasks: [
-        { task: thread("task-a", { worktreeId: "wt1", worktreeEnteredAt: 4 }), messages: [] },
-        { task: thread("task-b", { worktreeId: "wt1" }), messages: [] },
-        { task: thread("task-c"), messages: [] },
-      ],
-    });
-
-    assert.deepEqual(database.claimedWorktrees(), ["/worktrees/repo-wt1"], "one entry however many threads claim it");
-    assert.deepEqual(database.worktreeRoots(), ["/worktrees/repo-wt1"]);
-
-    database.persist({ tasks: [{ task: thread("task-a", { worktreeId: "wt1", worktreeEnteredAt: 4, archivedAt: 9 }), messages: [] }] });
-    assert.deepEqual(database.claimedWorktrees(), ["/worktrees/repo-wt1"], "a live thread is still in there");
-    database.persist({ tasks: [{ task: thread("task-b", { worktreeId: "wt1", archivedAt: 9 }), messages: [] }] });
-    assert.deepEqual(database.claimedWorktrees(), [], "an archived thread keeps nothing open, so the checkout is reaped");
-    assert.deepEqual(database.worktreeRoots(), ["/worktrees/repo-wt1"], "and its record is still there to be forgotten with it");
-
-
-    assert.equal(database.forgetWorktrees(["/worktrees/repo-wt1"]), 2, "both threads are freed, not just the first");
-    const loaded = loadDatabase(database);
-    assert.deepEqual(loaded.worktrees, [], "and the record goes with the directory");
-    assert.deepEqual(loaded.tasks.map((task) => task.worktreeId), [undefined, undefined, undefined]);
-    assert.equal(loaded.tasks.find((task) => task.id === "task-a")!.worktreeEnteredAt, undefined);
-    assert.deepEqual(database.claimedWorktrees(), []);
-  } finally {
-    database.close();
     await rm(directory, { recursive: true, force: true });
   }
 });

@@ -49,21 +49,14 @@ async function repository() {
 function workspaces() {
   let sequence = 0;
   const records = new Map<string, WorkspaceRecord>();
-  const forgottenBatches: string[][] = [];
   return {
     records,
-    forgottenBatches,
     registerWorktree: async (root: string) => {
       const workspace = { id: `workspace-${++sequence}`, kind: "worktree" as const, root };
       records.set(root, workspace);
       return { status: "available" as const, workspace };
     },
-    listWorktrees: async () => [...records.values()],
     forgetWorktree: async (root: string) => { records.delete(root); },
-    forgetWorktrees: async (roots: string[]) => {
-      forgottenBatches.push([...roots]);
-      for (const root of roots) records.delete(root);
-    },
   };
 }
 
@@ -318,7 +311,7 @@ test("release and delete refuse a directory outside the worktrees root", async (
 
   await assert.rejects(worktrees.delete(root), /Not an AI Coding Tool worktree/);
   await assert.rejects(
-    worktrees.release({ worktreeId: "x", root, taskId: null, title: "elsewhere", release: "evicted" }),
+    worktrees.release({ worktreeId: "x", root, taskId: null, title: "elsewhere", release: "deleted" }),
     /Not an AI Coding Tool worktree/,
   );
   assert.equal(await exists(path.join(root, "tracked.txt")), true, "the refused directory is untouched");
@@ -365,63 +358,6 @@ test("releasing a worktree whose directory is already gone still tidies up after
   assert.equal(worktrees.testRegistry.records.size, 0, "the thread is free of it either way");
 });
 
-test("a reconcile reaps the checkouts no thread claims and keeps the ones that are claimed", async () => {
-  const root = await repository();
-  const worktrees = await service();
-  const claimed = await worktrees.create({ projectRoot: root, carryChanges: false });
-  const abandoned = await worktrees.create({ projectRoot: root, carryChanges: false });
-  await writeFile(path.join(abandoned.root, "tracked.txt"), "work nobody claims\n");
-
-  const { reaped } = await worktrees.reconcile({ claimed: [claimed.root], repositories: [root] });
-
-  assert.deepEqual(reaped, [abandoned.root]);
-  assert.equal(await exists(claimed.root), true, "a checkout its thread still claims is left alone");
-  assert.equal(await exists(abandoned.root), false);
-  assert.deepEqual(await listWorktrees(root), [root, claimed.root]);
-  const preserved = (await git(root, "show", `refs/aicodingtool/${abandoned.id}:tracked.txt`)).stdout;
-  assert.equal(preserved, "work nobody claims\n", "what it held is committed before it goes");
-});
-
-test("a reconcile forgets registrations whose directory was removed from outside", async () => {
-  const root = await repository();
-  const worktrees = await service();
-  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
-  await rm(worktree.root, { recursive: true, force: true });
-
-  await worktrees.reconcile({ claimed: [worktree.root], repositories: [root] });
-
-  assert.equal(worktrees.testRegistry.records.size, 0, "the registry never outgrows the disk");
-  assert.deepEqual(await listWorktrees(root), [root], "and neither does git's own list");
-});
-
-test("a reconcile reaps a checkout whose repository is gone", async () => {
-  const root = await repository();
-  const worktrees = await service();
-  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
-  await rm(root, { recursive: true, force: true });
-
-  const { reaped } = await worktrees.reconcile({ claimed: [], repositories: [] });
-
-  assert.deepEqual(reaped, [worktree.root]);
-  assert.equal(await exists(worktree.root), false, "a checkout git cannot read does not linger forever");
-});
-
-test("a reconcile recognises a claimed checkout through a symlinked path", async () => {
-  const root = await repository();
-  const worktrees = await service();
-  const claimed = await worktrees.create({ projectRoot: root, carryChanges: false });
-  const link = path.join(await temporaryDirectory("link"), "worktrees");
-  await symlink(worktrees.testRoot, link);
-
-  const { reaped } = await worktrees.reconcile({
-    claimed: [path.join(link, path.basename(claimed.root))],
-    repositories: [root],
-  });
-
-  assert.deepEqual(reaped, [], "a live worktree is never evicted over how its path is spelled");
-  assert.equal(await exists(claimed.root), true);
-});
-
 test("branch names git would read as options are refused", async () => {
   const root = await repository();
 
@@ -429,33 +365,25 @@ test("branch names git would read as options are refused", async () => {
   await assert.rejects(checkoutBranch(root, "-b"), /Invalid ref name/);
 });
 
-test("a checkout under the root the app used before is still reconciled and still owned", async () => {
+test("the manual list includes current and legacy app-owned worktrees without changing them", async () => {
   const root = await repository();
   const legacyRoot = await temporaryDirectory("legacy-worktrees");
   const registry = workspaces();
   const before = new WorktreeService({ worktreesRoot: legacyRoot, workspaces: registry });
-  const claimed = await before.create({ projectRoot: root, carryChanges: false });
-  const abandoned = await before.create({ projectRoot: root, carryChanges: false });
+  const legacy = await before.create({ projectRoot: root, carryChanges: false });
 
   const worktreesRoot = await temporaryDirectory("worktrees");
   const moved = new WorktreeService({ worktreesRoot, legacyRoots: [legacyRoot], workspaces: registry });
   const made = await moved.create({ projectRoot: root, carryChanges: false });
-  const { reaped } = await moved.reconcile({ claimed: [claimed.root, made.root], repositories: [root] });
+  const listed = await moved.list();
 
   assert.equal(path.dirname(made.root), worktreesRoot, "new checkouts only ever land in the current root");
-  assert.deepEqual(reaped, [abandoned.root], "and the old root is swept the same way the current one is");
-  assert.equal(await exists(claimed.root), true, "a checkout its thread still claims is left where it is");
-  await moved.delete(claimed.root);
-  assert.equal(await exists(claimed.root), false, "a thread can still hand back a checkout made before the move");
-});
-
-test("a reconcile leaves a worktrees root that has never been used alone", async () => {
-  const root = await repository();
-  const worktrees = await service();
-
-  const { reaped } = await worktrees.reconcile({ claimed: [], repositories: [root] });
-
-  assert.deepEqual(reaped, []);
+  assert.deepEqual(listed.map((worktree) => worktree.root), [legacy.root, made.root].sort());
+  assert.equal(listed.every((worktree) => worktree.repository === root && worktree.branch === null), true);
+  assert.equal(await exists(legacy.root), true, "listing never removes an old checkout");
+  assert.equal(await exists(made.root), true, "listing never removes a current checkout");
+  await moved.delete(legacy.root);
+  assert.equal(await exists(legacy.root), false, "the old checkout remains manually removable");
 });
 });
 
@@ -468,71 +396,4 @@ test("branches report the current branch and a detached checkout", async () => {
   const detached = await listBranches(root);
   assert.equal(detached.current, null);
   assert.ok(detached.branches.includes("main"));
-});
-
-test("a reconcile forgets every missing registry root in one batch", async () => {
-  const worktreesRoot = await temporaryDirectory("batch-forget-worktrees");
-  const missing = [path.join(worktreesRoot, "missing-a"), path.join(worktreesRoot, "missing-b")];
-  const registry = workspaces();
-  for (const [index, root] of missing.entries()) registry.records.set(root, { id: `workspace-${index}`, kind: "worktree", root });
-  const worktrees = new WorktreeService({ worktreesRoot, workspaces: registry, prune: async () => {} });
-
-  const result = await worktrees.reconcile({ claimed: [], repositories: [] });
-
-  assert.deepEqual(result, { reaped: [] });
-  assert.deepEqual(registry.forgottenBatches, [missing]);
-  assert.equal(registry.records.size, 0);
-});
-
-test("a reconcile prunes independent repositories four at a time and waits for every one", async () => {
-  const worktreesRoot = await temporaryDirectory("prune-worktrees");
-  const repositories = Array.from({ length: 9 }, (_, index) => `/repository-${index}`);
-  let active = 0;
-  let peak = 0;
-  const completed: string[] = [];
-  const worktrees = new WorktreeService({
-    worktreesRoot,
-    workspaces: workspaces(),
-    prune: async (repository) => {
-      active += 1;
-      peak = Math.max(peak, active);
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      completed.push(repository);
-      active -= 1;
-    },
-  });
-
-  const result = await worktrees.reconcile({ claimed: [], repositories });
-
-  assert.deepEqual(result, { reaped: [] });
-  assert.equal(peak, 4);
-  assert.equal(active, 0, "reconcile resolves only after the last prune finishes");
-  assert.deepEqual([...completed].sort(), [...repositories].sort());
-});
-
-test("a failed prune drains active work and stops scheduling more repositories", async () => {
-  const worktreesRoot = await temporaryDirectory("failed-prune-worktrees");
-  const repositories = Array.from({ length: 8 }, (_, index) => `/repository-${index}`);
-  const failure = new Error("prune failed");
-  const started: string[] = [];
-  let active = 0;
-  const worktrees = new WorktreeService({
-    worktreesRoot,
-    workspaces: workspaces(),
-    prune: async (repository) => {
-      started.push(repository);
-      active += 1;
-      try {
-        await new Promise((resolve) => setTimeout(resolve, repository === repositories[1] ? 5 : 15));
-        if (repository === repositories[1]) throw failure;
-      } finally {
-        active -= 1;
-      }
-    },
-  });
-
-  await assert.rejects(worktrees.reconcile({ claimed: [], repositories }), (error) => error === failure);
-
-  assert.deepEqual(started, repositories.slice(0, 4));
-  assert.equal(active, 0, "the rejection waits for every prune already in flight");
 });

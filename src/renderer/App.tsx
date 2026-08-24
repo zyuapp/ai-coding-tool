@@ -677,6 +677,7 @@ export function App() {
           onClose={closeSettings}
           initialSection={workspace.computerUseSetup ? "computer-use" : "general"}
           archivedTasks={workspace.archivedTasks}
+          managedWorktrees={workspace.managedWorktrees} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
           theme={workspace.theme}
           themeMode={workspace.themeMode}
           uiFont={workspace.uiFont}
@@ -698,6 +699,7 @@ export function App() {
           onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
           onRestoreTask={workspace.actions.restoreTask}
           onClearArchive={workspace.actions.clearArchive}
+          onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onRevealWorktree={(root) => void workspace.actions.revealWorktree(root)} onDeleteWorktree={(root) => void workspace.actions.deleteManagedWorktree(root)}
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}
           onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
           onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}

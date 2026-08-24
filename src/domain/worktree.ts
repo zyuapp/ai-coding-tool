@@ -18,8 +18,17 @@ export type Worktree = {
   lastUsedAt: number;
 };
 
+/** One directory under a root the app owns, read from disk for manual management in Settings. */
+export type ManagedWorktree = {
+  id: string;
+  root: string;
+  repository: string | null;
+  /** Null means detached, unless `repository` is also null and the directory is no longer a Git worktree. */
+  branch: string | null;
+};
+
 /** Why a worktree let go of its thread. A snapshot commit records this in its message. */
-export type WorktreeRelease = "returned-to-local" | "evicted";
+export type WorktreeRelease = "returned-to-local" | "deleted";
 
 export const SNAPSHOT_REF_NAMESPACE = "refs/aicodingtool";
 
@@ -29,7 +38,7 @@ export function worktreeRef(worktreeId: string) {
 
 const RELEASE_REASONS: Record<WorktreeRelease, string> = {
   "returned-to-local": "returned to local",
-  evicted: "reaped, no thread claimed it",
+  deleted: "deleted manually",
 };
 
 export function releaseReason(release: WorktreeRelease) {

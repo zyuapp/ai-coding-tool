@@ -225,7 +225,7 @@ type SettingsTestOverrides = Partial<SettingsPanelProps> & {
 function renderSettingsPanel(overrides: SettingsTestOverrides) {
   return React.createElement(SettingsPanel, {
     onClose() {},
-    archivedTasks: [],
+    archivedTasks: [], managedWorktrees: [], worktreeManagementError: null, worktreeManagementNotice: null,
     theme: "aicodingtool-dark",
     themeMode: "auto",
     uiFont: "system",
@@ -243,8 +243,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetReadingSize() {},
     onSetTerminalSize() {},
     onSetPlainEnglish() {}, onSetNotifications() {},
-    onRestoreTask() {},
-    onClearArchive() {},
+    onRestoreTask() {}, onClearArchive() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
     onSetShortcut() {},
@@ -975,8 +974,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     checkoutBranch: async () => {},
     createBranch: async () => {},
     createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
-    releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
-    deleteWorktree: async () => {},
+    listManagedWorktrees: async () => [], revealWorktree: async () => {}, releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
     saveAttachment: async () => "/tmp/aicodingtool-attachments/pasted.png",
     readAttachment: async () => "iVBORw0KGgo=",
     pathForFile: () => "", describeFiles: async () => [],

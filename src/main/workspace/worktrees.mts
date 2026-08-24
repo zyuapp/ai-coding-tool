@@ -4,13 +4,13 @@ import path from "node:path";
 import {
   addWorktree,
   applyPatch,
+  currentBranch,
   git,
   headCommit,
   ignoredPaths,
   isDetached,
   matchIgnorePatterns,
   removeWorktree,
-  pruneWorktrees,
   repositoryRoot,
   shortCommit,
   snapshotCommit,
@@ -20,7 +20,7 @@ import {
   updateRef,
 } from "./git.mjs";
 import type { WorkspaceService } from "./workspace-service.mjs";
-import { snapshotMessage, worktreeDirectoryName, worktreeIdFromDirectoryName, worktreeRef, type Worktree, type WorktreeRelease } from "../../domain/worktree.js";
+import { snapshotMessage, worktreeDirectoryName, worktreeIdFromDirectoryName, worktreeRef, type ManagedWorktree, type Worktree, type WorktreeRelease } from "../../domain/worktree.js";
 
 /** What this service makes: the checkout on disk, without the project link only workspace state has. */
 export type CreatedWorktree = Omit<Worktree, "projectId">;
@@ -29,10 +29,9 @@ export const WORKTREE_INCLUDE_FILE = ".worktreeinclude";
 
 export type WorktreeServiceOptions = {
   worktreesRoot: string;
-  /** Roots the app used before, still its own: reconciled and reaped, but never created in again. */
+  /** Roots the app used before, still its own: listed and manually removable, but never created in again. */
   legacyRoots?: string[];
-  workspaces: Pick<WorkspaceService, "registerWorktree" | "listWorktrees" | "forgetWorktree" | "forgetWorktrees">;
-  prune?: (repository: string) => Promise<void>;
+  workspaces: Pick<WorkspaceService, "registerWorktree" | "forgetWorktree">;
 };
 
 export type CreateWorktreeRequest = {
@@ -41,13 +40,6 @@ export type CreateWorktreeRequest = {
   carryChanges: boolean;
   /** Which branch to detach from. The checkout's own HEAD when absent. */
   branch?: string;
-};
-
-/** What a reconcile compares the worktrees root against: the checkouts threads still claim. */
-export type ReconcileRequest = {
-  claimed: string[];
-  /** The project checkouts a stale worktree registration could still be recorded in. */
-  repositories: string[];
 };
 
 export type ReleaseWorktreeRequest = {
@@ -71,13 +63,11 @@ export class WorktreeService {
   /** Every root the app owns checkouts in, newest first. Only the first one is created in. */
   private readonly ownedRoots: string[];
   private readonly workspaces: WorktreeServiceOptions["workspaces"];
-  private readonly prune: (repository: string) => Promise<void>;
 
   constructor(options: WorktreeServiceOptions) {
     this.worktreesRoot = options.worktreesRoot;
     this.ownedRoots = [...new Set([options.worktreesRoot, ...options.legacyRoots ?? []])];
     this.workspaces = options.workspaces;
-    this.prune = options.prune ?? pruneWorktrees;
   }
 
   /**
@@ -101,6 +91,32 @@ export class WorktreeService {
     const registration = await this.workspaces.registerWorktree(root);
     const at = Date.now();
     return { id, root: registration.workspace.root, workspaceId: registration.workspace.id, baseCommit, createdAt: at, lastUsedAt: at };
+  }
+
+  /** Reads every directory the app owns without changing it, including roots used by older builds. */
+  async list(): Promise<ManagedWorktree[]> {
+    const roots = (await Promise.all(this.ownedRoots.map(async (base) =>
+      (await readdir(base, { withFileTypes: true }).catch(() => []))
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => path.join(base, entry.name)),
+    ))).flat();
+    const worktrees = await Promise.all(roots.map(async (root): Promise<ManagedWorktree> => {
+      const canonical = await canonicalPath(root);
+      const repository = await parentRepository(canonical);
+      return {
+        id: worktreeIdFromDirectoryName(path.basename(canonical)),
+        root: canonical,
+        repository,
+        branch: repository ? await currentBranch(canonical) : null,
+      };
+    }));
+    return worktrees.sort((left, right) => left.root.localeCompare(right.root));
+  }
+
+  /** Resolves a caller-supplied path only after proving it sits under a root the app owns. */
+  async ownedPath(root: string) {
+    await this.assertOwned(root);
+    return canonicalPath(root);
   }
 
   /**
@@ -128,60 +144,6 @@ export class WorktreeService {
     if (repository) await removeWorktree(repository, root);
     await rm(root, { recursive: true, force: true });
     await this.workspaces.forgetWorktree(canonical);
-  }
-
-  /**
-   * Reaps every checkout under a root the app owns that no thread claims, which is what a worktree
-   * outliving its thread looks like from here: a crash between making one and recording it, a
-   * thread deleted while it held one, or a release that never finished. Whatever such a checkout
-   * still holds is committed and kept reachable first, exactly as returning to local would.
-   */
-  async reconcile(request: ReconcileRequest): Promise<{ reaped: string[] }> {
-    /** Claimed roots come from the registry realpath'd; the disk is read literally. Compare like with like. */
-    const claimed = new Set(await Promise.all(request.claimed.map(canonicalPath)));
-    const reaped: string[] = [];
-    for (const base of this.ownedRoots) {
-      for (const entry of await readdir(base, { withFileTypes: true }).catch(() => [])) {
-        if (!entry.isDirectory()) continue;
-        const root = path.join(base, entry.name);
-        if (claimed.has(await canonicalPath(root))) continue;
-        /** One directory that cannot be read is not a reason to leave every other one behind. */
-        try {
-          await this.release({
-            worktreeId: worktreeIdFromDirectoryName(entry.name),
-            root,
-            taskId: null,
-            title: entry.name,
-            release: "evicted",
-          });
-          reaped.push(root);
-        } catch (error) {
-          console.error(`Could not reap the worktree at ${root}:`, error);
-        }
-      }
-    }
-    /** A registration outlives its directory whenever one is removed from outside the app. */
-    const missing: string[] = [];
-    for (const record of await this.workspaces.listWorktrees()) {
-      if (!(await directoryExists(record.root))) missing.push(record.root);
-    }
-    await this.workspaces.forgetWorktrees(missing);
-    let nextRepository = 0;
-    let failed = false;
-    let failure: unknown;
-    await Promise.all(Array.from({ length: Math.min(4, request.repositories.length) }, async () => {
-      while (!failed && nextRepository < request.repositories.length) {
-        const repository = request.repositories[nextRepository++];
-        try {
-          await this.prune(repository);
-        } catch (error) {
-          if (!failed) failure = error;
-          failed = true;
-        }
-      }
-    }));
-    if (failed) throw failure;
-    return { reaped };
   }
 
   /**

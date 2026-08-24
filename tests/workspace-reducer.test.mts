@@ -1380,18 +1380,18 @@ test("switching back to local hands the worktree back, and the thread records wh
   assert.match(required(note.detail), /git show refs\/aicodingtool\/wt1/);
 });
 
-test("a checkout that lands after its thread is archived is removed rather than left behind", () => {
+test("a checkout that lands after its thread is archived stays with that thread", () => {
   const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
   const archived = reduce(state, { type: "task.archive", taskId: "task-a" }).state;
 
   const created = reduce(archived, { type: "worktree.created", taskId: "task-a", worktree: madeWorktree() });
 
-  assert.deepEqual(created.effects, [{ type: "delete-worktree", taskId: "task-a", root: "/worktrees/repo-wt1" }]);
-  assert.deepEqual(created.state.worktrees, [], "nothing records a checkout no thread can reach");
-  assert.equal(created.state.tasks[0].worktreeId, undefined);
+  assert.deepEqual(created.effects, []);
+  assert.deepEqual(created.state.worktrees.map((worktree) => worktree.root), ["/worktrees/repo-wt1"]);
+  assert.equal(created.state.tasks[0].worktreeId, "wt1");
 });
 
-test("archiving a thread cancels its run and then hands its checkout back", () => {
+test("archiving a thread cancels its run and keeps its checkout", () => {
   const worktree = { ...madeWorktree(), projectId: PROJECT.id };
   const state = projected({
     tasks: [task("task-a", { projectId: PROJECT.id, worktreeId: worktree.id })],
@@ -1404,15 +1404,9 @@ test("archiving a thread cancels its run and then hands its checkout back", () =
 
   assert.deepEqual(archived.effects.filter((effect) => effect.type !== "browser.show" && effect.type !== "focus-window"), [
     { type: "send-run-command", command: { type: "cancel", taskId: "task-a", runId: "run-a" } },
-    { type: "release-worktree", taskId: "task-a", worktreeId: "wt1", root: worktree.root, title: "task-a" },
   ]);
-  const released = reduce(archived.state, {
-    type: "worktree.released",
-    taskId: "task-a",
-    snapshot: { commit: null, shortCommit: null, ref: null },
-  });
-  assert.equal(released.state.tasks[0].worktreeId, undefined, "so nothing is left claiming the directory");
-  assert.deepEqual(released.state.worktrees, []);
+  assert.equal(archived.state.tasks[0].worktreeId, worktree.id);
+  assert.deepEqual(archived.state.worktrees, [worktree]);
 });
 
 test("archiving one thread leaves a checkout another thread is still working in alone", () => {
@@ -1431,7 +1425,7 @@ test("archiving one thread leaves a checkout another thread is still working in 
   assert.deepEqual(archived.state.worktrees, [worktree]);
 });
 
-test("clearing the archive hands back the checkouts the discarded threads still held", () => {
+test("clearing the archive leaves its worktree for manual management", () => {
   const worktree = { ...madeWorktree(), projectId: PROJECT.id };
   const state = projected({
     tasks: [
@@ -1444,15 +1438,9 @@ test("clearing the archive hands back the checkouts the discarded threads still 
 
   const cleared = reduce(state, { type: "task.clear-archive" });
 
-  assert.deepEqual(cleared.effects, [{
-    type: "release-worktree",
-    taskId: "archived-a",
-    worktreeId: "wt1",
-    root: worktree.root,
-    title: "archived-a",
-  }], "the directory goes now, not at the next launch");
+  assert.deepEqual(cleared.effects, []);
   assert.deepEqual(cleared.state.tasks.map((item) => item.id), ["kept"]);
-  assert.deepEqual(cleared.state.worktrees, [], "and nothing is left recording it");
+  assert.deepEqual(cleared.state.worktrees, [worktree]);
 });
 
 test("neither switching back nor deleting happens under a running thread", () => {
@@ -1472,16 +1460,22 @@ test("neither switching back nor deleting happens under a running thread", () =>
   assert.equal(deleting.state.actionError, WORKSPACE_ERRORS.worktreeRunning);
 });
 
-test("deleting a worktree keeps nothing and puts the thread back on the project", () => {
+test("manually deleting a worktree snapshots it and puts the thread back on the project", () => {
   const worktree = heldWorktree();
   const state = projected({ ...inside(worktree, [task("task-a", { projectId: PROJECT.id })]), currentId: "task-a" });
 
   const deleting = reduce(state, { type: "worktree.delete" });
-  assert.deepEqual(deleting.effects, [{ type: "delete-worktree", taskId: "task-a", root: worktree.root }]);
+  assert.deepEqual(deleting.effects, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: "repo-wt1" }]);
 
-  const deleted = reduce(deleting.state, { type: "worktree.deleted", taskId: "task-a" });
+  const deleted = reduce(deleting.state, {
+    type: "worktree.deleted",
+    worktreeId: worktree.id,
+    root: worktree.root,
+    snapshot: { commit: "1234567890", shortCommit: "1234567", ref: "refs/aicodingtool/wt1" },
+  });
   assert.equal(deleted.state.tasks[0].worktreeId, undefined);
   assert.match(required(deleted.state.tasks[0]?.messages.at(-1)).text, /Worktree deleted/);
+  assert.match(required(deleted.state.worktreeManagementNotice), /git show refs\/aicodingtool\/wt1/);
 });
 
 test("a thread started in a checkout the project already has runs there, and none is made", () => {
@@ -1582,7 +1576,7 @@ test("leaving a checkout another thread is still in takes only this thread's cla
   assert.deepEqual(last.effects, [{ type: "release-worktree", taskId: "task-b", worktreeId: worktree.id, root: worktree.root, title: "task-b" }], "the last claim to go hands the directory back");
 });
 
-test("archiving the threads in a checkout one at a time still hands it back at the last one", () => {
+test("archiving every thread in a checkout keeps the checkout", () => {
   const worktree = heldWorktree();
   const state = projected({ ...inside(worktree, [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })]) });
 
@@ -1590,11 +1584,8 @@ test("archiving the threads in a checkout one at a time still hands it back at t
   assert.deepEqual(first.effects.filter((effect) => effect.type === "release-worktree"), [], "a thread is still working in there");
 
   const last = reduce(first.state, { type: "task.archive", taskId: "task-b" });
-  assert.deepEqual(
-    last.effects.filter((effect) => effect.type === "release-worktree"),
-    [{ type: "release-worktree", taskId: "task-b", worktreeId: worktree.id, root: worktree.root, title: "task-b" }],
-    "an archived thread keeps nothing open, so nothing is left holding the directory",
-  );
+  assert.deepEqual(last.effects.filter((effect) => effect.type === "release-worktree"), []);
+  assert.deepEqual(last.state.worktrees, [worktree]);
 });
 
 test("a checkout that goes takes the draft pointed at it back to the project", () => {
@@ -1621,9 +1612,14 @@ test("deleting a checkout puts every thread in it back on the project", () => {
   });
 
   const deleting = reduce(state, { type: "worktree.delete" });
-  assert.deepEqual(deleting.effects, [{ type: "delete-worktree", taskId: "task-a", root: worktree.root }]);
+  assert.deepEqual(deleting.effects, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: "repo-wt1" }]);
 
-  const deleted = reduce(deleting.state, { type: "worktree.deleted", taskId: "task-a" });
+  const deleted = reduce(deleting.state, {
+    type: "worktree.deleted",
+    worktreeId: worktree.id,
+    root: worktree.root,
+    snapshot: { commit: null, shortCommit: null, ref: null },
+  });
   assert.deepEqual(deleted.state.tasks.map((item) => item.worktreeId), [undefined, undefined], "the directory is gone for all of them, not just the one that asked");
   assert.deepEqual(deleted.state.worktrees, []);
   assert.match(required(deleted.state.tasks[1]?.messages.at(-1)).text, /Worktree deleted/);
@@ -1665,17 +1661,15 @@ test("the sidebar nests a checkout's threads under it and leaves the project's o
   assert.deepEqual([...view.worktreeTaskIds], ["checkout-later", "checkout-first", "archived", "orphan"], "every persisted checkout claim remains marked, including archived and orphaned ones");
 });
 
-test("removing a project hands back the checkouts cut from it", () => {
+test("removing a project waits for its worktrees to be deleted manually", () => {
   const worktree = heldWorktree();
   const state = projected({ ...inside(worktree, [task("task-a", { projectId: PROJECT.id })]) });
 
   const removed = reduce(state, { type: "project.remove", projectId: PROJECT.id });
 
-  assert.deepEqual(
-    removed.effects,
-    [{ type: "release-worktree", taskId: "task-a", worktreeId: worktree.id, root: worktree.root, title: "task-a" }],
-    "a checkout of a repository the app is letting go of has nothing left to belong to",
-  );
+  assert.deepEqual(removed.effects, []);
+  assert.equal(removed.state.actionError, WORKSPACE_ERRORS.projectWorktrees);
+  assert.deepEqual(removed.state.projects, [PROJECT]);
 });
 
 test("a thread with no project folder has nowhere to put a worktree", () => {

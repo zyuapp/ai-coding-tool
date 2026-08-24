@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, Check, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowLeft, Check, FolderGit2, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
@@ -9,8 +9,10 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
+import type { WorktreeSettingsView } from "../../application/workspace-state";
+import { WorktreeSettings } from "./WorktreeSettings";
 
-export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "shortcuts" | "browser" | "archive";
+export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "worktrees" | "shortcuts" | "browser" | "archive";
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -23,6 +25,9 @@ export type SettingsPanelProps = {
   /** The page settings opens on, which computer-use setup asks for by name. */
   initialSection?: SettingsSection;
   archivedTasks: Task[];
+  managedWorktrees: WorktreeSettingsView[] | null;
+  worktreeManagementError: string | null;
+  worktreeManagementNotice: string | null;
   /** The theme in effect, by id, and the ground the user asked for. */
   theme: string;
   themeMode: ThemeMode;
@@ -49,6 +54,9 @@ export type SettingsPanelProps = {
   onSetNotifications: (enabled: boolean) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
+  onRefreshWorktrees: () => void;
+  onRevealWorktree: (root: string) => void;
+  onDeleteWorktree: (root: string) => void;
   onClearBrowserData: () => void;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
@@ -59,6 +67,9 @@ export function SettingsPanel({
   onClose,
   initialSection = "general",
   archivedTasks,
+  managedWorktrees,
+  worktreeManagementError,
+  worktreeManagementNotice,
   theme,
   themeMode,
   uiFont,
@@ -80,6 +91,9 @@ export function SettingsPanel({
   onSetNotifications,
   onRestoreTask,
   onClearArchive,
+  onRefreshWorktrees,
+  onRevealWorktree,
+  onDeleteWorktree,
   onClearBrowserData,
   onCaptureShortcut,
   onSetShortcut,
@@ -178,6 +192,13 @@ export function SettingsPanel({
             <Gauge size={17} aria-hidden="true" />
             <span>Usage</span>
           </button>
+          <button className={section === "worktrees" ? "active" : ""} type="button" aria-current={section === "worktrees" ? "page" : undefined} onClick={() => {
+            setSection("worktrees");
+            onRefreshWorktrees();
+          }}>
+            <FolderGit2 size={17} aria-hidden="true" />
+            <span>Worktrees</span>
+          </button>
           <button className={section === "shortcuts" ? "active" : ""} type="button" aria-current={section === "shortcuts" ? "page" : undefined} onClick={() => setSection("shortcuts")}>
             <Keyboard size={17} aria-hidden="true" />
             <span>Shortcuts</span>
@@ -236,6 +257,17 @@ export function SettingsPanel({
 
         <UsageSettings />
       </main>
+      )}
+
+      {section === "worktrees" && (
+        <WorktreeSettings
+          worktrees={managedWorktrees}
+          error={worktreeManagementError}
+          notice={worktreeManagementNotice}
+          onRefresh={onRefreshWorktrees}
+          onReveal={onRevealWorktree}
+          onDelete={onDeleteWorktree}
+        />
       )}
 
       {section === "shortcuts" && (

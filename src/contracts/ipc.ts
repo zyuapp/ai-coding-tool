@@ -15,7 +15,7 @@ import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutS
 import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus } from "../domain/workflow.js";
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
-import type { Worktree, WorktreeRelease } from "../domain/worktree.js";
+import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
 export type WindowTheme = {
@@ -90,7 +90,7 @@ export type BranchesResult =
 export type ReleaseWorktreeRequest = {
   worktreeId: string;
   root: string;
-  taskId: string;
+  taskId: string | null;
   title: string;
   release: WorktreeRelease;
 };
@@ -235,10 +235,12 @@ export type DesktopAPI = {
   createBranch(workspaceId: WorkspaceId, branch: string): Promise<void>;
   /** Makes the thread's own checkout, detached at whatever the project has checked out right now. */
   createWorktree(request: CreateWorktreeRequest): Promise<CreatedWorktree>;
+  /** Reads the worktree directories under roots owned by this app without changing them. */
+  listManagedWorktrees(): Promise<ManagedWorktree[]>;
+  /** Shows one app-owned worktree in Finder. */
+  revealWorktree(root: string): Promise<void>;
   /** Force-commits what the worktree still holds so the thread can leave it without losing work. */
   releaseWorktree(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshotResult>;
-  /** Discards the checkout and everything uncommitted in it. */
-  deleteWorktree(root: string): Promise<void>;
   /** Writes base64 PNG bytes into the attachments directory and resolves with the absolute path. */
   saveAttachment(data: string): Promise<string>;
   /** Reads one back as base64 PNG bytes. Only files this app wrote are readable. */

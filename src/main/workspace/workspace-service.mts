@@ -46,23 +46,11 @@ export class WorkspaceService {
     return this.register("projectless", this.projectlessRoot);
   }
 
-  /** Every worktree the registry still knows about, so a reconcile can see what outlived its thread. */
-  async listWorktrees(): Promise<WorkspaceRecord[]> {
-    await this.ready;
-    return [...this.records.values()].filter((record) => record.kind === "worktree");
-  }
-
   /** Drops a worktree's registration once its directory is gone, so the registry never outgrows the disk. */
   async forgetWorktree(root: string) {
-    await this.forgetWorktrees([root]);
-  }
-
-  /** Drops several registrations in one atomic registry replacement. */
-  async forgetWorktrees(roots: string[]) {
     await this.ready;
-    if (!roots.length) return;
-    const canonical = new Set(roots.map((root) => path.resolve(root)));
-    const doomed = [...this.records.values()].filter((record) => record.kind === "worktree" && canonical.has(record.root));
+    const canonical = path.resolve(root);
+    const doomed = [...this.records.values()].filter((record) => record.kind === "worktree" && record.root === canonical);
     if (!doomed.length) return;
     for (const record of doomed) this.records.delete(record.id);
     await this.writeRegistry();

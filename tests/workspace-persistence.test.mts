@@ -4,6 +4,7 @@ import type { TaskStoreDelta } from "../src/contracts/ipc.ts";
 import type { Task } from "../src/domain/task.ts";
 import {
   drainLatestPersistence,
+  storeBackfill,
   type PersistenceQueue,
   type PersistenceState,
 } from "../src/renderer/task-workspace/workspace-persistence.ts";
@@ -40,4 +41,21 @@ test("slow persistence keeps only the latest workspace snapshot queued", async (
   await draining;
   assert.equal(deltas.length, 2);
   assert.equal(deltas[1].tasks[0].messages[0].message.text, "one two three");
+});
+
+test("startup backfill preserves a worktree created before the store finished loading", () => {
+  const current = snapshot("working");
+  current.worktrees = [{
+    id: "wt1",
+    projectId: "project-1",
+    root: "/worktrees/repo-wt1",
+    workspaceId: "workspace-wt1",
+    baseCommit: "abcdef1",
+    createdAt: 1,
+    lastUsedAt: 1,
+  }];
+  const delta = storeBackfill({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }, current);
+
+  assert.deepEqual(delta.worktrees, current.worktrees);
+  assert.equal(delta.tasks[0]?.task.id, "task-1");
 });

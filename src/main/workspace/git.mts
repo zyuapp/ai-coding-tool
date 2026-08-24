@@ -71,6 +71,11 @@ export async function isDetached(root: string) {
   return (await tryGit(root, ["symbolic-ref", "--quiet", "HEAD"])) === null;
 }
 
+/** The branch this checkout holds, or null while it is detached. */
+export async function currentBranch(root: string) {
+  return (await tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]))?.trim() || null;
+}
+
 export async function isDirty(root: string) {
   return (await git(root, ["status", "--porcelain", "-z"])).length > 0;
 }
@@ -85,11 +90,6 @@ export async function addWorktree(repositoryPath: string, worktreePath: string, 
 
 export async function removeWorktree(repositoryPath: string, worktreePath: string) {
   await tryGit(repositoryPath, ["worktree", "remove", "--force", worktreePath], LONG_TIMEOUT_MS);
-  await tryGit(repositoryPath, ["worktree", "prune"]);
-}
-
-/** Drops registrations whose directory is gone, which is what a checkout removed from outside leaves. */
-export async function pruneWorktrees(repositoryPath: string) {
   await tryGit(repositoryPath, ["worktree", "prune"]);
 }
 

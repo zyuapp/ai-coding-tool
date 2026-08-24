@@ -19,7 +19,9 @@ import type { Workflow } from "../domain/workflow.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
-import { worktreeName, type Worktree } from "../domain/worktree.js";
+import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
+import { worktreeSettingsViews } from "./worktree-settings.js";
+export type { WorktreeSettingsView } from "./worktree-settings.js";
 
 /**
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
@@ -195,10 +197,14 @@ export type WorkspaceState = {
   tasks: Task[];
   projects: Project[];
   /**
-   * Every checkout the app made and a thread still claims. A checkout outlives the thread that asked
-   * for it, so it lives here rather than inside one of them, and goes when the last claim does.
+   * Every checkout the app has recorded. A checkout outlives the thread that asked for it and stays
+   * until the user explicitly returns from or deletes it.
    */
   worktrees: Worktree[];
+  /** Directories found under app-owned roots for the manual Settings list. Null until that list lands. */
+  managedWorktrees: ManagedWorktree[] | null;
+  worktreeManagementError: string | null;
+  worktreeManagementNotice: string | null;
   /** Threads whose checkout is being made, so nothing asks for a second one while the first lands. */
   creatingWorktrees: string[];
   lastFolder: string | null;
@@ -307,6 +313,9 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     tasks: [],
     projects: [],
     worktrees: [],
+    managedWorktrees: null,
+    worktreeManagementError: null,
+    worktreeManagementNotice: null,
     creatingWorktrees: [],
     lastFolder: null,
     currentId: null,
@@ -627,12 +636,9 @@ export function worktreeFor(state: Pick<WorkspaceState, "worktrees">, task: Task
   return worktreeById(state, task?.worktreeId);
 }
 
-/**
- * The threads keeping a checkout alive. Archiving one is walking out of it, so an archived thread
- * holds nothing open: a checkout whose last live thread leaves is handed back there and then.
- */
+/** Every thread still linked to a checkout, including archived threads. */
 export function worktreeClaimants(state: Pick<WorkspaceState, "tasks">, worktreeId: string) {
-  return state.tasks.filter((task) => task.worktreeId === worktreeId && task.archivedAt === undefined);
+  return state.tasks.filter((task) => task.worktreeId === worktreeId);
 }
 
 /** The folder a thread works in: the checkout it shares once it has one, otherwise its project's. */
@@ -822,6 +828,9 @@ export function deriveView(state: WorkspaceState) {
       worktree,
       tasks: tasksByWorktree.get(worktree.id) ?? [],
     })),
+    managedWorktrees: worktreeSettingsViews(state, busy),
+    worktreeManagementError: state.worktreeManagementError,
+    worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentTask),
     waitingOn,
     /** The checkout the current thread works in, which is what Git is read from and moved. */

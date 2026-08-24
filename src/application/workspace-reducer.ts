@@ -61,7 +61,7 @@ import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus, type SubagentActivity } 
 import type { CaptureOptions } from "../domain/capture.js";
 import { clampTitle, createTaskMessage, findProject, legacyProjectId, MAX_ATTACHED_FILES, MAX_ATTACHMENTS, sameRoot, type Annotation, type AttachedFile, type PastedText, type Project, type RunAttachment, type Task, type TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
-import type { Worktree } from "../domain/worktree.js";
+import type { ManagedWorktree, Worktree } from "../domain/worktree.js";
 import type { CreatedWorktree, WorktreeSnapshotResult } from "../contracts/ipc.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
@@ -83,8 +83,10 @@ export type WorkspaceEvent =
   | { type: "title.suggested"; taskId: string; title: string }
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree }
   | { type: "worktree.failed"; taskId: string; message: string }
+  | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
+  | { type: "worktrees.failed"; message: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
-  | { type: "worktree.deleted"; taskId: string }
+  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
@@ -119,7 +121,9 @@ export type WorkspaceEffect =
     }
   | { type: "create-worktree"; taskId: string; projectRoot: string }
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
-  | { type: "delete-worktree"; taskId: string; root: string }
+  | { type: "list-worktrees" }
+  | { type: "reveal-worktree"; root: string }
+  | { type: "delete-worktree"; worktreeId: string; root: string; title: string }
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
@@ -181,6 +185,7 @@ const REOPEN_PROJECT_ERROR = "Reopen this project folder before running a task."
 const SAME_PROJECT_ERROR = "Choose the same project folder to continue this task.";
 const MISSING_PROJECT_ERROR = "This task's project is unavailable. Reopen the project folder before running it.";
 const RUNNING_PROJECT_ERROR = "Stop the running tasks before removing this project.";
+const PROJECT_WORKTREES_ERROR = "Delete this project's worktrees before removing the project.";
 const BUSY_AUTOMATION_ERROR = "This task is already running. The automation will run on its next tick.";
 const WORKTREE_PROJECT_ERROR = "Open this thread in a project folder before giving it a worktree.";
 const WORKTREE_MISSING_ERROR = "That worktree is not one this app is keeping.";
@@ -199,6 +204,7 @@ export const WORKSPACE_ERRORS = {
   reopenProject: REOPEN_PROJECT_ERROR,
   sameProject: SAME_PROJECT_ERROR,
   busyAutomation: BUSY_AUTOMATION_ERROR,
+  projectWorktrees: PROJECT_WORKTREES_ERROR,
   worktreeProject: WORKTREE_PROJECT_ERROR,
   worktreeMissing: WORKTREE_MISSING_ERROR,
   worktreeElsewhere: WORKTREE_ELSEWHERE_ERROR,
@@ -651,11 +657,7 @@ function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => Ret
   };
 }
 
-/**
- * Hands back every checkout the threads that are leaving were the last to claim, so no directory
- * outlives its threads and none is pulled out from under a thread that is staying. A release commits
- * what is still loose in there first, exactly as switching back would.
- */
+/** Hands back a checkout only when every linked thread explicitly leaves it. */
 function releaseWorktrees(state: WorkspaceState, leaving: Task[]): WorkspaceEffect[] {
   const going = new Set(leaving.map((task) => task.id));
   const released = new Set<string>();
@@ -946,13 +948,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(dotted.size ? { ...state, tasks: dismissed(state.tasks, dotted) } : state);
     }
 
-    /**
-     * Archiving a running task cancels its run; the task leaves the sidebar without waiting for the
-     * run to settle. Its checkout goes back too, so an archived thread never holds one for good.
-     */
+    /** Archiving a running task cancels its run; its checkout stays until the user removes it. */
     case "task.archive": {
       const active = state.activeRuns[input.taskId];
-      const archived = state.tasks.filter((task) => task.id === input.taskId);
       return settled({
         ...state,
         tasks: state.tasks.map((task) => task.id === input.taskId ? { ...task, archivedAt: now() } : task),
@@ -960,8 +958,6 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       }, [
         ...retireAutomations(state, [input.taskId]),
         ...(active ? [{ type: "send-run-command" as const, command: { type: "cancel" as const, taskId: active.taskId, runId: active.runId } }] : []),
-        /** Cancelling first, so nothing is still working in the checkout when it is handed back. */
-        ...releaseWorktrees(state, archived),
       ]);
     }
 
@@ -979,17 +975,13 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const forks = closeSideChats(state, state.sideChats.filter((chat) => discarded.has(chat.sourceTaskId)));
       const disposed = disposeDocks(forks.state, discarded);
       const tasks = disposed.state.tasks.filter((task) => !discarded.has(task.id));
-      const claimedWorktrees = new Set(tasks.flatMap((task) => task.worktreeId ? [task.worktreeId] : []));
       return {
         state: pruneDeletedTasks({
           ...disposed.state,
           tasks,
-          /** A checkout nothing claims any more has no thread left to record it against. */
-          worktrees: disposed.state.worktrees.filter((worktree) => claimedWorktrees.has(worktree.id)),
           currentId: tasks.some((task) => task.id === state.currentId) ? state.currentId : null,
         }, discarded),
-        /** Without this the checkouts would linger until the next launch reconciled them away. */
-        effects: [...forks.effects, ...disposed.effects, ...releaseWorktrees(state, archived)],
+        effects: [...forks.effects, ...disposed.effects],
       };
     }
 
@@ -1105,33 +1097,33 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       }]);
     }
 
-    /**
-     * Unlike switching back, this keeps nothing: the checkout and everything loose in it go, for
-     * every thread in it. A thread still working in there would lose the ground under it, so one
-     * busy claimant stops the whole thing.
-     */
+    case "worktree.refresh":
+      return settled({ ...state, managedWorktrees: null, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
+
+    case "worktree.reveal": {
+      const worktree = state.managedWorktrees?.find((item) => item.root === input.root);
+      if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR });
+      return settled({ ...state, worktreeManagementError: null }, [{ type: "reveal-worktree", root: worktree.root }]);
+    }
+
+    /** Manual deletion snapshots loose work first and refuses to move the ground under a run. */
     case "worktree.delete": {
-      const taskId = targetId(state, input.taskId);
-      const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
-      const worktree = worktreeFor(state, task);
-      if (!task || !worktree) return settled(state);
-      const claimants = worktreeClaimants(state, worktree.id);
-      if (claimants.some((claimant) => threadBusy(state, claimant.id))) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
-      return settled({ ...state, actionError: null }, [{ type: "delete-worktree", taskId: task.id, root: worktree.root }]);
+      const taskId = targetId(state, input.taskId), task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
+      const current = worktreeFor(state, task), recorded = input.root ? state.worktrees.find((item) => item.root === input.root) : current;
+      const managed = input.root ? state.managedWorktrees?.find((item) => item.root === input.root) : undefined;
+      const worktree = recorded ?? managed;
+      if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR });
+      const claimants = state.tasks.filter((claimant) => claimant.worktreeId === worktree.id);
+      if (claimants.some((claimant) => threadBusy(state, claimant.id))) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR, worktreeManagementError: WORKTREE_RUNNING_ERROR });
+      const title = worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id;
+      return settled({ ...state, actionError: null, worktreeManagementError: null }, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title }]);
     }
 
     case "worktree.created": {
       const settling = withoutCreatingWorktree(state, input.taskId);
       const task = settling.tasks.find((item) => item.id === input.taskId);
-      /**
-       * A thread that was archived, discarded, or left without a project while its checkout was being
-       * made has nothing left to work in it. The checkout is seconds old and untouched, so it goes
-       * now rather than waiting for the next launch to reap it.
-       */
-      if (!task || task.archivedAt !== undefined || !task.projectId) {
-        if (task?.worktreeId) return settled(settling);
-        return settled(settling, [{ type: "delete-worktree", taskId: input.taskId, root: input.worktree.root }]);
-      }
+      /** A checkout that outlives the request stays on disk for manual management. */
+      if (!task || !task.projectId) return settled(settling);
       if (task.worktreeId) return settled(settling);
       const worktree: Worktree = { ...input.worktree, projectId: task.projectId };
       const note = createTaskMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);
@@ -1146,6 +1138,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     case "worktree.failed":
       return settled({ ...withoutCreatingWorktree(state, input.taskId), actionError: input.message });
 
+    case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementError: null });
+
+    case "worktrees.failed": return settled({ ...state, managedWorktrees: [], worktreeManagementError: input.message });
+
     case "worktree.released": {
       const task = state.tasks.find((item) => item.id === input.taskId);
       const worktree = worktreeFor(state, task);
@@ -1158,10 +1154,12 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "worktree.deleted": {
-      const task = state.tasks.find((item) => item.id === input.taskId);
-      const worktree = worktreeFor(state, task);
-      if (!worktree) return settled(state);
-      return rereadDiff(dropWorktree(state, worktree.id, () => createTaskMessage("system", "Worktree deleted. Back on the project checkout.")), input.taskId);
+      const worktree = state.worktrees.find((item) => item.id === input.worktreeId || item.root === input.root);
+      const { commit, shortCommit, ref } = input.snapshot;
+      const text = commit ? `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.` : "Worktree deleted. Back on the project checkout.";
+      const dropped = worktree ? dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
+      const notice = ref ? `Deleted ${input.root}. Recover it with git show ${ref}.` : commit ? `Deleted ${input.root}. Recover loose work with git show ${shortCommit ?? commit}.` : `Deleted ${input.root}.`;
+      return apply({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
     }
 
     case "task.send": {
@@ -1278,6 +1276,9 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       if (state.tasks.some((task) => task.projectId === input.projectId && state.activeRuns[task.id])) {
         return settled({ ...state, actionError: RUNNING_PROJECT_ERROR });
       }
+      if (state.worktrees.some((worktree) => worktree.projectId === input.projectId)) {
+        return settled({ ...state, actionError: PROJECT_WORKTREES_ERROR });
+      }
       const leaving = state.tasks.filter((task) => task.projectId === input.projectId);
       const effects = retireAutomations(state, leaving.map((task) => task.id));
       const project = state.projects.find((item) => item.id === input.projectId);
@@ -1298,8 +1299,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
         projectEdit: state.projectEdit?.projectId === input.projectId ? null : state.projectEdit,
         openMenu: null,
         actionError: null,
-      /** The project's checkouts are checkouts of a repository the app is letting go of. */
-      }, [...effects, ...releaseWorktrees(state, leaving)]);
+      }, effects);
     }
 
     case "run.resolved": {

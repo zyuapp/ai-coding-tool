@@ -1891,6 +1891,10 @@ pre {
 .setting-row-action button, .settings-restart button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 11px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .setting-row-action button:hover, .settings-restart button:hover { border-color: var(--line-bright); background: var(--control-hover); }
 .setting-row-action button:disabled { color: var(--quiet-strong); cursor: default; }
+.setting-row-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
+.setting-row-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.worktree-setting-copy code { display: block; overflow: hidden; margin-top: 7px; color: var(--quiet-strong); font: var(--text-meta)/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.worktree-setting-copy small { display: block; margin-top: 8px; color: var(--danger); font-size: var(--text-meta); line-height: 1.45; }
 .settings-group-action { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
 .settings-group-action button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 9px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .settings-group-action button:hover { border-color: var(--line-bright); background: var(--control-hover); }
@@ -1898,6 +1902,7 @@ pre {
 .settings-group-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
 .settings-empty { margin: 0; border-top: 1px solid var(--line); padding: 19px 0; color: var(--quiet-strong); font-size: var(--text-control); }
 .settings-error { margin: 0; border-top: 1px solid var(--accent-line-soft); padding: 13px 0; color: var(--accent-soft); font-size: var(--text-control); }
+.settings-notice { margin: 0; border-top: 1px solid var(--line); padding: 13px 0; color: var(--success-soft); font-size: var(--text-control); }
 .settings-restart { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--info-line); padding: 15px 0; }
 .settings-restart p { margin: 0; color: var(--info-soft); font-size: var(--text-control); }
 .settings-privacy { margin-top: 18px; color: var(--quiet); font-size: var(--text-meta); }

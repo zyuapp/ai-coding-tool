@@ -21,7 +21,7 @@ import { applyTheme, systemPrefersDark } from "../theme";
 import { applyTypography } from "../typography";
 import { loadViewPreferences, saveViewPreferences } from "./local-view-preferences";
 import { clearTerminalSearch, disposeTerminalView, onTerminalFindResults, onTerminalFocus, onTerminalResize, searchTerminalView } from "./terminal-views";
-import { drainLatestPersistence, hasPersistenceDelta, persistenceDelta, persistenceState, type PersistenceQueue } from "./workspace-persistence";
+import { drainLatestPersistence, hasPersistenceDelta, persistenceDelta, persistenceState, storeBackfill, type PersistenceQueue } from "./workspace-persistence";
 
 export type { ApprovalView } from "../../application/task-workspace";
 
@@ -168,12 +168,34 @@ export function useTaskWorkspace() {
         }
         return;
 
+      case "list-worktrees":
+        try {
+          await dispatch({ type: "worktrees.loaded", worktrees: await window.desktop.listManagedWorktrees() });
+        } catch (error) {
+          await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
+        }
+        return;
+
+      case "reveal-worktree":
+        try {
+          await window.desktop.revealWorktree(effect.root);
+        } catch (error) {
+          await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
+        }
+        return;
+
       case "delete-worktree":
         try {
-          await window.desktop.deleteWorktree(effect.root);
-          await dispatch({ type: "worktree.deleted", taskId: effect.taskId });
+          const snapshot = await window.desktop.releaseWorktree({
+            worktreeId: effect.worktreeId,
+            root: effect.root,
+            taskId: null,
+            title: effect.title,
+            release: "deleted",
+          });
+          await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot });
         } catch (error) {
-          await dispatch({ type: "action.failed", message: errorMessage(error) });
+          await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
         }
         return;
 
@@ -343,8 +365,8 @@ export function useTaskWorkspace() {
       if (data) {
         await dispatchRef.current({ type: "store.loaded", data });
         const current = persistenceState(stateRef.current);
-        const backfill = persistenceDelta({ ...current, tasks: data.tasks }, current);
-        if (backfill.tasks.length || backfill.removedTasks) await window.desktop.persistTaskStore(backfill);
+        const backfill = storeBackfill(data, current);
+        if (hasPersistenceDelta(backfill)) await window.desktop.persistTaskStore(backfill);
       } else {
         await dispatchRef.current({ type: "store.absent" });
         await window.desktop.persistTaskStore(persistenceDelta(null, persistenceState(stateRef.current)));
@@ -558,6 +580,9 @@ export function useTaskWorkspace() {
       setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),
       checkoutBranch: (branch: string, create?: boolean) => dispatch({ type: "task.checkout-branch", branch, ...(create ? { create } : {}) }),
       deleteWorktree: () => dispatch({ type: "worktree.delete" }),
+      refreshWorktrees: () => dispatch({ type: "worktree.refresh" }),
+      revealWorktree: (root: string) => dispatch({ type: "worktree.reveal", root }),
+      deleteManagedWorktree: (root: string) => dispatch({ type: "worktree.delete", root }),
       sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
       steerQueued: (messageId: string) => dispatch({ type: "task.steer-queued", messageId }),
       dropQueued: (messageId: string) => dispatch({ type: "task.drop-queued", messageId }),

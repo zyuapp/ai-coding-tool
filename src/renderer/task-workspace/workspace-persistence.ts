@@ -1,7 +1,7 @@
 import { sideChatIds, type WorkspaceState } from "../../application/workspace-state.js";
 import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc.js";
 import type { Subagent, SubagentActivity } from "../../domain/run.js";
-import type { Task } from "../../domain/task.js";
+import type { Task, TaskStoreData } from "../../domain/task.js";
 
 function persistedTask(task: Task): PersistedTask {
   const { messages: _messages, subagents: _subagents, ...record } = task;
@@ -78,6 +78,17 @@ export function persistenceDelta(previous: PersistenceState | null, next: Persis
     ...(!previous || previous.worktrees !== next.worktrees ? { worktrees: next.worktrees } : {}),
     ...(!previous || previous.lastFolder !== next.lastFolder ? { lastFolder: next.lastFolder } : {}),
   };
+}
+
+/** Writes anything created before the durable store finished loading, including worktree records. */
+export function storeBackfill(stored: TaskStoreData, current: PersistenceState) {
+  return persistenceDelta({
+    tasks: stored.tasks,
+    sideChats: [],
+    projects: stored.projects,
+    worktrees: stored.worktrees,
+    lastFolder: stored.lastFolder,
+  }, current);
 }
 
 export function hasPersistenceDelta(delta: TaskStoreDelta) {

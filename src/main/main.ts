@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, protocol, session, shell, utilityProcess, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -62,8 +62,6 @@ let updateRestartScheduled = false;
 let reopenArgs: string[] | null = null;
 /** Folders the `aic` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
-/** Settles once the checkouts on disk and the records that claim them agree, which a read waits on. */
-let worktreesReconciled: Promise<void> = Promise.resolve();
 let rendererListening = false;
 
 type RunState = {
@@ -584,35 +582,9 @@ const updateHost: UpdateHost = {
  */
 const WORKTREES_ROOT = path.join(homedir(), ".aicodingtool", "worktrees");
 
-/** Where the app kept worktrees before, still its own: reconciled and released, never created in. */
+/** Where the app kept worktrees before, still its own: listed and manually removable, never created in. */
 function legacyWorktreesRoots(userData: string) {
   return [path.join(userData, "worktrees")].filter((root) => root !== WORKTREES_ROOT);
-}
-
-/**
- * Brings the worktrees on disk back in line with the threads that claim them, before the store is
- * read. A checkout no thread claims is reaped, and a thread claiming a checkout that is gone
- * becomes local again, so neither side is left pointing at something that is not there.
- */
-async function reconcileWorktrees(database: TaskDatabase, worktrees: WorktreeService) {
-  try {
-    const claimed = database.claimedWorktrees();
-    /** A store too damaged to read still must not stop the checkouts on disk from being tidied. */
-    const repositories = (() => {
-      try {
-        return database.projectRoots();
-      } catch {
-        return [];
-      }
-    })();
-    const { reaped } = await worktrees.reconcile({ claimed, repositories });
-    /** Every record whose directory is gone, which is the reaped ones and any removed from outside. */
-    const missing = database.worktreeRoots().filter((root) => !existsSync(root));
-    const forgotten = database.forgetWorktrees(missing);
-    if (reaped.length || forgotten) console.log(`Reconciled worktrees: reaped ${reaped.length}, released ${forgotten}.`);
-  } catch (error) {
-    console.error("Could not reconcile worktrees:", error);
-  }
 }
 
 app.whenReady().then(async () => {
@@ -629,8 +601,6 @@ app.whenReady().then(async () => {
   worktreeService = new WorktreeServiceConstructor({ worktreesRoot: WORKTREES_ROOT, legacyRoots: legacyWorktreesRoots(userData), workspaces: workspaceService });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)] });
-  /** Git is slow enough to be worth overlapping with the window; only the store read has to wait. */
-  worktreesReconciled = reconcileWorktrees(taskDatabase, worktreeService);
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, dispatchAutomation, {
     onChange: (automations) => {
@@ -800,7 +770,6 @@ ipcMain.on("computer-use:restart", (event) => {
 ipcMain.handle("task-store:load", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (!taskDatabase) throw new Error("Task database is not ready.");
-  await worktreesReconciled;
   return taskDatabase.load();
 });
 
@@ -1170,22 +1139,27 @@ ipcMain.handle("worktree:create", async (event, request: unknown) => {
   } satisfies CreateWorktreeRequest);
 });
 
+ipcMain.handle("worktree:list", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return getWorktreeService().list();
+});
+
+ipcMain.handle("worktree:reveal", async (event, root: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  shell.showItemInFolder(await getWorktreeService().ownedPath(worktreePath(root)));
+});
+
 ipcMain.handle("worktree:release", async (event, request: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   const fields = worktreeRequest(request);
-  const release = fields.release === "evicted" ? "evicted" : "returned-to-local";
+  const release = fields.release === "deleted" ? "deleted" : "returned-to-local";
   return getWorktreeService().release({
     worktreeId: worktreePath(fields.worktreeId),
     root: worktreePath(fields.root),
-    taskId: worktreePath(fields.taskId),
+    taskId: typeof fields.taskId === "string" ? worktreePath(fields.taskId) : null,
     title: typeof fields.title === "string" ? fields.title : "",
     release,
   } satisfies ReleaseWorktreeRequest);
-});
-
-ipcMain.handle("worktree:delete", async (event, root: unknown) => {
-  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  await getWorktreeService().delete(worktreePath(root));
 });
 
 ipcMain.handle("workspace:changed-files", async (event, workspaceId: unknown) => {

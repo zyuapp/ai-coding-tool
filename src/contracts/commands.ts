@@ -126,9 +126,11 @@ export type ProjectCommand =
   | { type: "project.edit"; projectId: string; name?: string | null; root?: string }
   | { type: "project.remove"; projectId: string };
 
-/** Discarding a worktree takes everything uncommitted in it; only {@link TaskCommand} preserves work. */
+/** Manual worktree management. Deletion snapshots loose work before removing the directory. */
 export type WorktreeCommand =
-  | { type: "worktree.delete"; taskId?: string };
+  | { type: "worktree.refresh" }
+  | { type: "worktree.reveal"; root: string }
+  | { type: "worktree.delete"; taskId?: string; root?: string };
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
