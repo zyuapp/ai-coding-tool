@@ -499,19 +499,19 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   cursor: default;
 }
 .menu-popover button:hover:not(:disabled),
-.menu-popover button:focus { background: var(--accent); color: var(--accent-ink); outline: none; }
+.menu-popover button:focus-visible { background: var(--accent); color: var(--accent-ink); outline: none; }
 .menu-popover button:disabled { opacity: 0.35; }
 .menu-popover .danger-menu-item { color: var(--danger); }
 .menu-popover .danger-menu-item:hover:not(:disabled),
-.menu-popover .danger-menu-item:focus { background: var(--danger); color: var(--accent-ink); }
+.menu-popover .danger-menu-item:focus-visible { background: var(--danger); color: var(--accent-ink); }
 .menu-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /** The tick column only exists in a list that has something to tick, so every other list stays tight. */
 .menu-tick { display: none; }
 .menu-checkable .menu-tick { display: grid; place-items: center; width: 13px; }
 .menu-shortcut,
 .menu-chevron { color: var(--muted); }
-.menu-popover button:hover .menu-shortcut, .menu-popover button:focus .menu-shortcut,
-.menu-popover button:hover .menu-chevron, .menu-popover button:focus .menu-chevron { color: var(--accent-ink); opacity: 0.75; }
+.menu-popover button:hover .menu-shortcut, .menu-popover button:focus-visible .menu-shortcut,
+.menu-popover button:hover .menu-chevron, .menu-popover button:focus-visible .menu-chevron { color: var(--accent-ink); opacity: 0.75; }
 .menu-separator { height: 1px; margin: 5px 0; background: var(--line-glass); }
 /** A list an item opened, overlapping that item the way this platform draws one. */
 .menu-submenu { top: 0; left: calc(100% - 5px); right: auto; z-index: 1; }
