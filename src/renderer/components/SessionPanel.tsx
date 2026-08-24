@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent } from "../../domain/run";
-import type { PullRequestRef, PullRequestState } from "../../domain/pull-request";
+import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { BranchMenu, useBranches } from "./BranchMenu";
@@ -156,32 +156,36 @@ const PULL_REQUEST_POLL_MS = 60_000;
 /** States nothing local or remote will move again, past which asking is only cost. A reopen is caught on focus. */
 const SETTLED: readonly PullRequestState[] = ["merged", "closed"];
 
+const NONE: PullRequestAnswer = { status: "none" };
+
+const GITHUB_CLI_URL = "https://cli.github.com";
+
 /**
  * The pull request the checkout's work belongs to, read again whenever the checkout, the branch it is
  * on, or the thread reading it changes, whenever the window comes back, and on a slow poll until it
- * settles. Every way of not having one answers null, so a miss and a failure look the same.
+ * settles. Every way of not having one answers "none", apart from a `gh` that is not installed.
  *
  * Only the panel on screen has a row to draw, so only it asks: the poll lives and dies with the mount
  * rather than in the main process, and a hidden window asks nothing at all.
  */
 function usePullRequest(workspaceId: string | undefined, branch: string | null, taskId: string | undefined) {
-  const [pullRequest, setPullRequest] = useState<PullRequestRef | null>(null);
+  const [answer, setAnswer] = useState<PullRequestAnswer>(NONE);
   const asked = useRef(0);
-  const settled = pullRequest !== null && SETTLED.includes(pullRequest.state);
+  const settled = answer.status === "found" && SETTLED.includes(answer.pullRequest.state);
 
   /** Answers to questions asked before the latest one are dropped, whichever order they arrive in. */
   const refresh = useCallback(() => {
     if (!workspaceId) return;
     const generation = ++asked.current;
     void window.desktop.pullRequest(workspaceId)
-      .then((found) => { if (generation === asked.current) setPullRequest(found); })
+      .then((found) => { if (generation === asked.current) setAnswer(found); })
       .catch(() => {});
   }, [workspaceId]);
 
   /** Only another checkout or another branch can have a different answer, so only those blank the row. */
   useEffect(() => {
     asked.current++;
-    setPullRequest(null);
+    setAnswer(NONE);
   }, [workspaceId, branch]);
 
   useEffect(() => {
@@ -202,7 +206,7 @@ function usePullRequest(workspaceId: string | undefined, branch: string | null, 
     return () => window.clearInterval(timer);
   }, [refresh, branch, taskId, settled]);
 
-  return pullRequest;
+  return answer;
 }
 
 /** Drawn only when there is a pull request: a row saying there is none would be worth less than the space. */
@@ -220,6 +224,26 @@ function PullRequestRow({ pullRequest }: { pullRequest: PullRequestRef }) {
       <span className="session-row-icon" data-state={pullRequest.state}><Icon size={18} /></span>
       <span>Pull request</span>
       <code>#{pullRequest.number}</code>
+    </WebLink>
+  );
+}
+
+/**
+ * Drawn when the checkout lives on GitHub but `gh` is not installed, so a row that never appears
+ * reads as something to install rather than as a checkout with no pull request.
+ */
+function InstallGitHubCliRow() {
+  const links = useMessageLinks();
+
+  return (
+    <WebLink
+      className="session-row session-row-action session-pull-request"
+      href={GITHUB_CLI_URL}
+      title="Pull requests are read with the GitHub CLI, which is not installed"
+      openInApp={links.openUrlInApp && (() => links.openUrlInApp!(GITHUB_CLI_URL))}
+    >
+      <span className="session-row-icon session-row-icon-quiet"><GitPullRequest size={18} /></span>
+      <span>Install gh for pull requests</span>
     </WebLink>
   );
 }
@@ -258,7 +282,8 @@ export function SessionPanel({ environment, hasProject, workspaceId, taskId, loc
                 onSetOpenMenu={onSetOpenMenu}
                 onCheckoutBranch={onCheckoutBranch}
               />
-              {pullRequest && <PullRequestRow pullRequest={pullRequest} />}
+              {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
+              {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
               {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
               <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
                 <span className="session-row-icon"><AlarmClock size={18} /></span>

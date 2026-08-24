@@ -968,7 +968,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     restartForComputerUse() {},
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
-    pullRequest: async () => null,
+    pullRequest: async () => ({ status: "none" }) as const,
     diffSummary: async (workspaceId, range) => ({ status: "available", range, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
@@ -3743,7 +3743,7 @@ type ThreadCommandResult = import("../src/contracts/threads.ts").ThreadCommandRe
 type ThreadWaitResult = import("../src/contracts/threads.ts").ThreadWaitResult;
 type BrowserReadResult = import("../src/contracts/threads.ts").BrowserReadResult;
 type ThreadLocation = import("../src/application/workspace-state.ts").ThreadLocation;
-type PullRequestRef = import("../src/domain/pull-request.ts").PullRequestRef;
+type PullRequestAnswer = import("../src/domain/pull-request.ts").PullRequestAnswer;
 
 function responseResult(response: ThreadResponse | undefined): unknown {
   const actual = item(response);
@@ -4111,7 +4111,7 @@ test("the session panel names the pull request the checkout belongs to, and only
   const view = await mount(panel(null));
   assert.equal(view.container.querySelector(".session-pull-request"), null, "no pull request is no row at all");
 
-  desktop.pullRequest = async () => ({ number: 12, title: "Name the two families", url: "https://github.com/o/r/pull/12", state: "merged" });
+  desktop.pullRequest = async () => ({ status: "found", pullRequest: { number: 12, title: "Name the two families", url: "https://github.com/o/r/pull/12", state: "merged" } });
   await view.render(panel(true));
   const row = query<HTMLAnchorElement>(view.container, ".session-pull-request");
   assert.match(row.textContent, /#12/, "the row says which pull request the work belongs to");
@@ -4123,6 +4123,12 @@ test("the session panel names the pull request the checkout belongs to, and only
   await act(async () => { row.dispatchEvent(new dom.window.MouseEvent("contextmenu", { bubbles: true })); });
   await act(async () => { item([...document.querySelectorAll<HTMLButtonElement>(".context-menu-popover button")].find((element) => /Open in AI Coding Tool/.test(element.textContent))).click(); });
   assert.deepEqual(opened, ["https://github.com/o/r/pull/12"], "its context menu offers the browser panel instead");
+
+  desktop.pullRequest = async () => ({ status: "gh-missing" });
+  await view.render(panel(false));
+  const missing = query<HTMLAnchorElement>(view.container, ".session-pull-request");
+  assert.match(missing.textContent, /Install gh/, "a checkout on GitHub with no gh is told so rather than left blank");
+  assert.equal(missing.getAttribute("href"), "https://cli.github.com");
   await view.unmount();
 });
 
@@ -4130,7 +4136,7 @@ test("the pull request is read per thread, on the way back, and only until it se
   const desktop = fakeDesktop();
   window.desktop = desktop;
   let reads = 0;
-  let answer: PullRequestRef | null = null;
+  let answer: PullRequestAnswer = { status: "none" };
   desktop.pullRequest = async () => { reads += 1; return answer; };
 
   /** The poll is jsdom's own interval, so it is held here rather than waited out. */
@@ -4174,12 +4180,12 @@ test("the pull request is read per thread, on the way back, and only until it se
     await view.render(panel("thread-b"));
     assert.equal(reads, 2, "moving to another thread in the same checkout asks again");
 
-    answer = { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "open" };
+    answer = { status: "found", pullRequest: { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "open" } };
     await poll();
     assert.equal(reads, 3, "a pull request made outside the app is found by the poll");
     assert.equal(state(), "open");
 
-    answer = { ...answer, state: "merged" };
+    answer = { status: "found", pullRequest: { number: 7, title: "Poll me", url: "https://github.com/o/r/pull/7", state: "merged" } };
     await poll();
     assert.equal(reads, 4);
     assert.equal(state(), "merged", "a merge nothing local could announce is still noticed");

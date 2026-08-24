@@ -12,6 +12,7 @@ import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationR
 import { DEFAULT_CAPTURE_OPTIONS, isCaptureOptions } from "../domain/capture.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import { desktopAccelerator, formatShortcut, keystrokeOf, resolveShortcuts, shortcutFor, type ShortcutBinding, type ShortcutSurface } from "../domain/shortcuts.js";
+import type { PullRequestAnswer } from "../domain/pull-request.js";
 import { terminalLineLimit } from "../domain/terminal.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
@@ -24,6 +25,7 @@ import { notify, serveThreadNotices, type NoticeHost } from "./desktop-notice.js
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu } from "./app-menu.js";
+import { adoptLoginShellPath } from "./login-path.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { adoptUserDataFolder } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
@@ -606,6 +608,8 @@ function legacyWorktreesRoots(userData: string) {
 
 app.whenReady().then(async () => {
   if (!singleInstance) return;
+  /** Started before the app spawns anything, and awaited before the first thing that needs it. */
+  const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
   grantAppWindowPermissions();
   applyWindowTheme(loadWindowTheme());
@@ -632,6 +636,7 @@ app.whenReady().then(async () => {
   });
   if (!app.isPackaged) app.dock?.setIcon(icon);
   claimDesktopShortcut();
+  await searchPath;
   installAppMenu(() => void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error)));
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
@@ -1117,16 +1122,16 @@ ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
   }
 });
 
-/** Best effort throughout: a checkout with no answer is one whose row is simply not drawn. */
-ipcMain.handle("workspace:pull-request", async (event, workspaceId: unknown) => {
-  if (!trustedSender(event)) return null;
+/** Best effort throughout: a checkout the app cannot even resolve has nothing to say about one. */
+ipcMain.handle("workspace:pull-request", async (event, workspaceId: unknown): Promise<PullRequestAnswer> => {
+  if (!trustedSender(event)) return { status: "none" };
   try {
     const resolution = await getWorkspaceService().resolve(worktreePath(workspaceId));
-    if (resolution.status !== "available") return null;
+    if (resolution.status !== "available") return { status: "none" };
     const { pullRequestFor } = await import("./workspace/github.mjs");
     return await pullRequestFor(resolution.workspace.root);
   } catch {
-    return null;
+    return { status: "none" };
   }
 });
 

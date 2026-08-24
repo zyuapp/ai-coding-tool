@@ -12,6 +12,15 @@ export type PullRequestRef = {
   state: PullRequestState;
 };
 
+/**
+ * What a checkout has to say about its pull request: the one its work belongs to, that it has none,
+ * or that `gh` is not installed and so nothing could be asked at all.
+ */
+export type PullRequestAnswer =
+  | { status: "found"; pullRequest: PullRequestRef }
+  | { status: "none" }
+  | { status: "gh-missing" };
+
 const STATES: readonly string[] = ["draft", "open", "merged", "closed"];
 
 /**
