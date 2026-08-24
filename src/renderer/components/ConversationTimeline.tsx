@@ -886,11 +886,11 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
             placeholder="Annotate…"
             onChange={(event) => setNoting({ ...noting, note: event.target.value })}
             onKeyDown={(event) => {
+              /** Both keys close the editor, and neither may go on to land in the composer behind it. */
+              if (event.key !== "Enter" && event.key !== "Escape") return;
+              event.preventDefault();
               if (event.key === "Enter") commitNote(noting);
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setNoting(null);
-              }
+              else setNoting(null);
             }}
           />
           {noting.annotationId && (
