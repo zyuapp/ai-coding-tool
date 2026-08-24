@@ -3415,10 +3415,14 @@ button.file-name { cursor: pointer; }
 
 .diff-progress { display: flex; align-items: center; justify-content: space-between; margin: 0; padding: 7px 12px; color: var(--quiet); font-size: var(--text-meta); }
 
+.diff-scroll { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
 /** One scroller for the whole review, so files read top to bottom instead of each scrolling inside itself. */
-.diff-files { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
+.diff-files { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
 .diff-window { position: relative; width: 100%; }
 .diff-window-row { position: absolute; top: 0; left: 0; width: 100%; }
+/** The row of the file being read, held at the top edge. A long review is drawn a screenful at a
+    time, out of flow, so the browser cannot hold the row there and the review draws it again. */
+.diff-file-pinned { position: absolute; top: 0; left: 0; right: 0; z-index: 2; }
 
 .diff-file-row { display: grid; grid-template-columns: minmax(0, 1fr) 24px 24px; align-items: center; gap: 2px; padding: 4px 8px 4px 2px; border-top: 1px solid var(--line); background: var(--sunken); }
 .diff-file-row.viewed .diff-file-name { color: var(--quiet-soft); }

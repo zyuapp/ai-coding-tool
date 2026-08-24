@@ -24,6 +24,7 @@ test("what the agent says between runs opens a turn of its own", async () => {
   const agentTurn = {
     emit: (event) => emitted.push(event),
     authorize: async () => "allow",
+    steering: { next: async () => null },
     end: (result) => turns.push(result),
   } satisfies AgentTurn;
 
@@ -42,6 +43,7 @@ test("a tool call from work that outlived its run is asked, not refused", async 
   const agentTurn = {
     emit: () => {},
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
+    steering: { next: async () => null },
     end: () => {},
   } satisfies AgentTurn;
 

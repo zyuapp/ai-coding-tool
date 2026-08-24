@@ -540,3 +540,24 @@ test("a turn the agent starts itself is given a run of its own", async () => {
   assert.deepEqual(own.map((event) => event.sequence), [1, 2, 3, 4]);
   assert.deepEqual(statuses(events, opened.runId), ["running", "succeeded"]);
 });
+
+test("a turn the agent starts itself can be steered into, and hands what it is sent on", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-v", "run-v"));
+  await tick();
+  provider.runs[0].resolve({ status: "succeeded" });
+  await tick();
+
+  const agentTurn = provider.runs[0].input.beginAgentTurn();
+  assert.ok(agentTurn);
+  const opened = events.find((event) => event.type === "run.started" && event.runId !== "run-v");
+  assert.ok(opened?.type === "run.started");
+  assert.equal(coordinator.steer("task-v", opened.runId, "message-1", "stop and read this"), true);
+  assert.deepEqual(await agentTurn.steering.next(), { messageId: "message-1", prompt: "stop and read this" });
+
+  agentTurn.end({ status: "succeeded" });
+  assert.equal(await agentTurn.steering.next(), null, "a turn that is over stops waiting for more");
+});

@@ -5,7 +5,7 @@ import path from "node:path";
 import { query, type Options, type PermissionMode, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
 import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../src/main/agent/claude-agent-provider.mts";
-import type { WorkflowReport } from "../src/contracts/ipc.ts";
+import type { BackgroundReport, WorkflowReport } from "../src/contracts/ipc.ts";
 import type { AgentModel, ExecutionPolicy, ToolIntent } from "../src/domain/run.ts";
 import type { AutomationBridge, ProviderEvent, ProviderRunInput, ThreadBridge } from "../src/main/agent/agent-provider.mts";
 import { input, liveQueryFactory, liveTurn, poolQueryFactory, poolTurn, queryFactory, tick, turn, type LiveQueryCapture, type PoolCapture, type QueryCapture } from "./support/claude-session.mjs";
@@ -416,14 +416,22 @@ test("Claude failures, exceptions, and aborts close the query", async () => {
 });
 
 /** Drains the run's input stream alongside its output, the way the SDK does. */
-type StreamingCapture = QueryCapture & { sent: SDKUserMessage["message"]["content"][] };
+type StreamingCapture = QueryCapture & {
+  sent: SDKUserMessage["message"]["content"][];
+  /** What each message asked the agent to do with it, which is what tells a steered one apart. */
+  priorities?: SDKUserMessage["priority"][];
+};
 
 function streamingQueryFactory(messages: readonly unknown[], capture: StreamingCapture = { sent: [] }): typeof query {
   return (options): Query => {
     capture.options = options;
     capture.sent = [];
+    capture.priorities = [];
     const draining = (async () => {
-      for await (const message of options.prompt as AsyncIterable<SDKUserMessage>) capture.sent.push(message.message.content);
+      for await (const message of options.prompt as AsyncIterable<SDKUserMessage>) {
+        capture.sent.push(message.message.content);
+        capture.priorities?.push(message.priority);
+      }
     })();
     return {
       async *[Symbol.asyncIterator]() {
@@ -447,6 +455,11 @@ test("a steered message joins the run's input stream and only then counts as del
   assert.deepEqual(await provider.execute(input({ steering, emit: (event) => emitted.push(event) })), { status: "succeeded" });
   assert.deepEqual(capture.sent, ["inspect the app", "check the tests too"]);
   assert.deepEqual(emitted.filter((event) => event.type === "steered"), [{ type: "steered", messageId: "message-1" }]);
+  assert.deepEqual(
+    capture.priorities,
+    [undefined, "now"],
+    "the run's own prompt takes its turn; the steered one asks to join the turn already going",
+  );
 });
 
 test("a run ends on its turn's result even though its input stream stays open", async () => {
@@ -609,11 +622,14 @@ test("a background process is stopped through the thread's session, after its ru
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** The level the agent process reports its live tasks as: the whole set, every time it changes. */
 const running = (...ids: string[]) => ({
   type: "system",
   subtype: "background_tasks_changed",
   tasks: ids.map((id) => ({ task_id: id, task_type: "local_workflow", description: "Review changed files" })),
 });
+
+
 
 test("a session with work still running outlives the idle deadline, and is let go once the work stops", async () => {
   const capture = poolCapture();

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, ChevronDown, ChevronRight, Columns2, FilePlus2, FileMinus2, FilePen, FileSymlink, MessageSquarePlus, RefreshCw, Rows3 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
+import { ChevronDown, Columns2, MessageSquarePlus, RefreshCw, Rows3 } from "lucide-react";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState } from "../../application/workspace-state";
 import type { Annotation, AnnotationAnchor } from "../../domain/task";
@@ -26,6 +26,7 @@ import {
 import { highlightBlock, withinHighlightBudget, type ThemedToken } from "../diff/highlight";
 import { usePatches, type PatchRequest, type PatchState } from "../diff/use-patch";
 import { BranchMenu, useBranches } from "./BranchMenu";
+import { FileHeader } from "./DiffFileRow";
 import { DiffCommentEditor } from "./DiffCommentEditor";
 import { useDismissibleLayer } from "../focus";
 
@@ -70,13 +71,6 @@ export type DiffPanelProps = {
   onSetOpenMenu: (menu: string | null) => void;
 };
 
-function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
-  if (status === "added" || status === "untracked") return <FilePlus2 size={15} />;
-  if (status === "deleted") return <FileMinus2 size={15} />;
-  if (status === "renamed") return <FileSymlink size={15} />;
-  return <FilePen size={15} />;
-}
-
 function summaryMessage(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined) {
   if (!workspaceId) return "Open a project to review changes";
   /** A first read has nothing to draw, so one quiet line says why the list is not there yet. */
@@ -85,12 +79,6 @@ function summaryMessage(result: DiffSummaryResult | null, loading: boolean, work
   if (result.status === "unknown") return "Workspace is no longer registered";
   if (result.status === "unavailable") return `Workspace is ${result.reason}`;
   return result.files.length === 0 ? "Nothing has changed in this comparison" : null;
-}
-
-/** The name a path is listed under, with its folder kept quiet beside it. */
-function splitPath(path: string) {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? { folder: "", name: path } : { folder: path.slice(0, cut + 1), name: path.slice(cut + 1) };
 }
 
 /** Why a file can be in the list and still have no lines under it. */
@@ -287,14 +275,41 @@ function diffAnchor(range: DiffRange, selection: Selection, rows: DiffRow[]): An
  */
 type Selection = { path: string; anchor: string; head: string };
 
-/** Every drawn line of the panel, flat, so one window covers the whole review rather than each file. */
+/**
+ * Every drawn line of the panel, flat, so one window covers the whole review rather than each file.
+ * Every row names the file it belongs to, which is what the pinned header reads off the top edge.
+ */
 type PanelRow =
-  | { kind: "file"; key: string; file: DiffFileSummary }
-  | { kind: "note"; key: string; text: string }
+  | { kind: "file"; key: string; path: string; file: DiffFileSummary }
+  | { kind: "note"; key: string; path: string; text: string }
   | { kind: "line"; key: string; path: string; row: DiffRow; index: number }
   | { kind: "pair"; key: string; path: string; row: SplitRow }
   /** The note being written, drawn under the run it is about rather than docked away from it. */
-  | { kind: "composer"; key: string };
+  | { kind: "composer"; key: string; path: string };
+
+/**
+ * Which row sits under the top edge of the review. The windowed list is drawn out of flow, so its
+ * rows are found through the window's own measurements; a short list is in flow and found by offset.
+ */
+function topRowAt(scroller: HTMLDivElement, windowed: boolean, virtualizer: Virtualizer<HTMLDivElement, Element>) {
+  const offset = scroller.scrollTop;
+  if (windowed) return virtualizer.getVirtualItemForOffset(offset)?.index ?? null;
+  const drawn = scroller.children;
+  if (drawn.length === 0) return null;
+  let low = 0;
+  let high = drawn.length - 1;
+  let found = 0;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if ((drawn[mid] as HTMLElement).offsetTop <= offset) {
+      found = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return found;
+}
 
 type LineRowProps = {
   row: DiffRow;
@@ -385,6 +400,96 @@ function SplitCell({ row, tokens, side, selected, commented, comments, onSelect,
       <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
   );
+}
+
+type SplitPairRowProps = {
+  path: string;
+  left: DiffRow | null;
+  right: DiffRow | null;
+  tokens: Map<string, ThemedToken[]>;
+  indexByKey: Map<string, number> | undefined;
+  comments: ReturnType<typeof indexDiffComments>;
+  isSelected: (path: string, index: number | undefined) => boolean;
+  onSelect: (key: string, extend: boolean) => void;
+  onEditComment: (comment: DiffComment) => void;
+};
+
+/** One line of the two-column view: the old side beside the new, either of which can be missing. */
+function SplitPairRow({ path, left, right, tokens, indexByKey, comments, isSelected, onSelect, onEditComment }: SplitPairRowProps) {
+  const indexOf = (side: DiffRow | null) => side ? indexByKey?.get(side.key) : undefined;
+  const commentsFor = (index: number | undefined, side: DiffSide) => index === undefined
+    ? []
+    : (comments.markers.get(`${path}\n${index}`) ?? []).filter((comment) => comment.side === side);
+  const commented = (index: number | undefined) => index !== undefined && comments.highlighted.has(`${path}\n${index}`);
+  const leftIndex = indexOf(left);
+  const rightIndex = indexOf(right);
+  return (
+    <div className="diff-split-row">
+      <SplitCell
+        row={left}
+        tokens={tokens}
+        side="old"
+        selected={isSelected(path, leftIndex)}
+        commented={commented(leftIndex)}
+        comments={commentsFor(leftIndex, "old")}
+        onSelect={(extend) => left && onSelect(left.key, extend)}
+        onEditComment={onEditComment}
+      />
+      <SplitCell
+        row={right}
+        tokens={tokens}
+        side="new"
+        selected={isSelected(path, rightIndex)}
+        commented={commented(rightIndex)}
+        comments={commentsFor(rightIndex, "new")}
+        onSelect={(extend) => right && onSelect(right.key, extend)}
+        onEditComment={onEditComment}
+      />
+    </div>
+  );
+}
+
+/**
+ * The row of the file being read, held at the top edge. It follows the list rather than leading it,
+ * so a lookup by name still reaches the row the list itself holds, and it is an echo of that row:
+ * the same controls under the pointer, and nothing for the keyboard or a screen reader.
+ */
+function PinnedFileRow({ file, open, viewed, onToggle, onOpenFile, onSetViewed }: {
+  file: DiffFileSummary;
+  open: boolean;
+  viewed: boolean;
+  onToggle: (path: string, collapsed: boolean) => void;
+  onOpenFile: (path: string) => void;
+  onSetViewed: (path: string, viewed: boolean) => void;
+}) {
+  return (
+    <div className="diff-file-pinned" aria-hidden="true">
+      <FileHeader file={file} open={open} viewed={viewed} echo onToggle={() => onToggle(file.path, open)} onOpenFile={onOpenFile} onSetViewed={onSetViewed} />
+    </div>
+  );
+}
+
+/**
+ * The file the top edge of the review is inside, and the way to look again. Its row is drawn a
+ * second time over the review, so the path stays readable however far into a long file the user
+ * has scrolled.
+ */
+function usePinnedFile(
+  scroller: RefObject<HTMLDivElement | null>,
+  rows: PanelRow[],
+  files: DiffFileSummary[],
+  windowed: boolean,
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+) {
+  const [path, setPath] = useState<string | null>(null);
+  const sync = () => {
+    const element = scroller.current;
+    const index = element ? topRowAt(element, windowed, virtualizer) : null;
+    setPath(index === null ? null : rows[index]?.path ?? null);
+  };
+  /** Rows arriving, folding, or changing column count all move the top edge without a scroll. */
+  useEffect(sync, [rows, windowed]);
+  return { pinned: path === null ? undefined : files.find((file) => file.path === path), sync };
 }
 
 export function DiffPanel({
@@ -500,19 +605,19 @@ export function DiffPanel({
     if (settling) return [];
     const panel: PanelRow[] = [];
     for (const file of files) {
-      panel.push({ kind: "file", key: `f:${file.path}`, file });
+      panel.push({ kind: "file", key: `f:${file.path}`, path: file.path, file });
       if (collapsed.has(file.path)) continue;
       if (file.binary) {
-        panel.push({ kind: "note", key: `n:${file.path}`, text: "Binary file" });
+        panel.push({ kind: "note", key: `n:${file.path}`, path: file.path, text: "Binary file" });
         continue;
       }
       const drawing = drawn.get(file.path);
       if (drawing && drawing.rows.length === 0) {
-        panel.push({ kind: "note", key: `n:${file.path}`, text: emptyPatchNote(file) });
+        panel.push({ kind: "note", key: `n:${file.path}`, path: file.path, text: emptyPatchNote(file) });
         continue;
       }
       if (!drawing) {
-        panel.push({ kind: "note", key: `n:${file.path}`, text: patchNote(at(versionOf.get(file.path) ?? "")) ?? "Reading the patch…" });
+        panel.push({ kind: "note", key: `n:${file.path}`, path: file.path, text: patchNote(at(versionOf.get(file.path) ?? "")) ?? "Reading the patch…" });
         continue;
       }
       /** The composer follows the last drawn row of the selection, whichever view drew it. */
@@ -521,12 +626,12 @@ export function DiffPanel({
         for (const row of drawing.pairs) {
           panel.push({ kind: "pair", key: `${file.path}:${row.key}`, path: file.path, row });
           const reached = row.kind === "pair" && [row.left, row.right].some((side) => side && drawing.indexByKey.get(side.key) === span?.to);
-          if (commenting && reached) panel.push({ kind: "composer", key: `c:${file.path}` });
+          if (commenting && reached) panel.push({ kind: "composer", key: `c:${file.path}`, path: file.path });
         }
       } else {
         drawing.rows.forEach((row, index) => {
           panel.push({ kind: "line", key: `${file.path}:${row.key}`, path: file.path, row, index });
-          if (commenting && index === span.to) panel.push({ kind: "composer", key: `c:${file.path}` });
+          if (commenting && index === span.to) panel.push({ kind: "composer", key: `c:${file.path}`, path: file.path });
         });
       }
     }
@@ -542,6 +647,8 @@ export function DiffPanel({
     overscan: 24,
     initialRect: { width: 420, height: 720 },
   });
+
+  const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
 
   /** The caret goes to the note when a run is first picked, and stays wherever the user puts it after. */
   useEffect(() => {
@@ -623,37 +730,18 @@ export function DiffPanel({
       );
     }
     if (row.row.kind === "hunk") return <div className="diff-line hunk">{row.row.text}</div>;
-    const { left, right } = row.row;
-    const indexOf = (side: DiffRow | null) => side ? drawn.get(row.path)?.indexByKey.get(side.key) : undefined;
-    const commentsFor = (index: number | undefined, side: DiffSide) => index === undefined
-      ? []
-      : (commentRows.markers.get(`${row.path}\n${index}`) ?? []).filter((comment) => comment.side === side);
-    const commented = (index: number | undefined) => index !== undefined && commentRows.highlighted.has(`${row.path}\n${index}`);
-    const leftIndex = indexOf(left);
-    const rightIndex = indexOf(right);
     return (
-      <div className="diff-split-row">
-        <SplitCell
-          row={left}
-          tokens={tokens}
-          side="old"
-          selected={isSelected(row.path, leftIndex)}
-          commented={commented(leftIndex)}
-          comments={commentsFor(leftIndex, "old")}
-          onSelect={(extend) => left && selectByKey(row.path, left.key, extend)}
-          onEditComment={editComment}
-        />
-        <SplitCell
-          row={right}
-          tokens={tokens}
-          side="new"
-          selected={isSelected(row.path, rightIndex)}
-          commented={commented(rightIndex)}
-          comments={commentsFor(rightIndex, "new")}
-          onSelect={(extend) => right && selectByKey(row.path, right.key, extend)}
-          onEditComment={editComment}
-        />
-      </div>
+      <SplitPairRow
+        path={row.path}
+        left={row.row.left}
+        right={row.row.right}
+        tokens={tokens}
+        indexByKey={drawn.get(row.path)?.indexByKey}
+        comments={commentRows}
+        isSelected={isSelected}
+        onSelect={(key, extend) => selectByKey(row.path, key, extend)}
+        onEditComment={editComment}
+      />
     );
   };
 
@@ -722,23 +810,26 @@ export function DiffPanel({
         : settling ? <p className="session-note">Reading the changes…</p>
         : null}
 
-      <div className="diff-files" ref={scrollRef} aria-label="Changed files">
-        {!windowed && rows.map((row) => <div key={row.key}>{draw(row)}</div>)}
-        {windowed && (
-          <div className="diff-window" style={{ height: virtualizer.getTotalSize() }}>
-            {virtualizer.getVirtualItems().map((item) => rows[item.index] ? (
-              <div
-                className="diff-window-row"
-                key={item.key}
-                ref={virtualizer.measureElement}
-                data-index={item.index}
-                style={{ transform: `translateY(${item.start}px)` }}
-              >
-                {draw(rows[item.index])}
-              </div>
-            ) : null)}
-          </div>
-        )}
+      <div className="diff-scroll">
+        <div className="diff-files" ref={scrollRef} onScroll={syncPinned} aria-label="Changed files">
+          {!windowed && rows.map((row) => <div key={row.key}>{draw(row)}</div>)}
+          {windowed && (
+            <div className="diff-window" style={{ height: virtualizer.getTotalSize() }}>
+              {virtualizer.getVirtualItems().map((item) => rows[item.index] ? (
+                <div
+                  className="diff-window-row"
+                  key={item.key}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  style={{ transform: `translateY(${item.start}px)` }}
+                >
+                  {draw(rows[item.index])}
+                </div>
+              ) : null)}
+            </div>
+          )}
+        </div>
+        {pinned && <PinnedFileRow file={pinned} open={!collapsed.has(pinned.path)} viewed={Boolean(diff.viewed[pinned.path])} onToggle={onSetCollapsed} onOpenFile={onOpenFile} onSetViewed={onSetViewed} />}
       </div>
 
     </section>
@@ -746,47 +837,3 @@ export function DiffPanel({
 }
 
 const EMPTY_TOKENS = new Map<string, ThemedToken[]>();
-
-type FileHeaderProps = {
-  file: DiffFileSummary;
-  open: boolean;
-  viewed: boolean;
-  onToggle: () => void;
-  onOpenFile: (path: string) => void;
-  onSetViewed: (path: string, viewed: boolean) => void;
-};
-
-/** The row a file is headed by: what happened to it, what it cost, and whether it has been read. */
-function FileHeader({ file, open, viewed, onToggle, onOpenFile, onSetViewed }: FileHeaderProps) {
-  const { folder, name } = splitPath(file.path);
-  return (
-    <div className={`diff-file-row ${viewed ? "viewed" : ""}`.trimEnd()}>
-      <button className="diff-file-open" type="button" aria-expanded={open} onClick={onToggle}>
-        <span className="diff-file-caret" aria-hidden="true">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
-        <span className="diff-file-icon"><StatusIcon status={file.status} /></span>
-        <span className="diff-file-name" title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
-          <em>{folder}</em>{name}
-        </span>
-        {file.previousPath && <span className="diff-file-renamed" title={`Renamed from ${file.previousPath}`}>renamed</span>}
-        {!file.binary && <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
-      </button>
-      <button
-        className="diff-file-editor"
-        type="button"
-        aria-label={`Open ${file.path} in your editor`}
-        onClick={() => onOpenFile(file.path)}
-      >
-        <FileSymlink size={14} />
-      </button>
-      <label className="diff-file-viewed">
-        <input
-          type="checkbox"
-          aria-label={`Mark ${file.path} viewed`}
-          checked={viewed}
-          onChange={(event) => onSetViewed(file.path, event.currentTarget.checked)}
-        />
-        <Check size={14} aria-hidden="true" />
-      </label>
-    </div>
-  );
-}

@@ -73,6 +73,8 @@ export type ProviderEvent =
 export type AgentTurn = {
   emit(event: ProviderEvent): void;
   authorize(intent: ToolIntent): Promise<ToolDecision>;
+  /** It is a run like any other, so the user can steer into it, and what they send has to be taken. */
+  steering: SteerQueue;
   end(result: ProviderResult): void;
 };
 

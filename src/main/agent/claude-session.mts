@@ -3,7 +3,7 @@ import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-str
 import { contextWindowLimit } from "../../domain/run.js";
 import type { AgentModel, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
-import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, ToolDecision } from "./agent-provider.mjs";
+import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
 import { BROWSER_SERVER_NAME } from "./browser-tools.mjs";
@@ -48,8 +48,19 @@ export function claudePermissionMode(policy: ExecutionPolicy) {
   }[policy] as "default" | "plan" | "acceptEdits" | "auto";
 }
 
-function userMessage(prompt: string): SDKUserMessage {
-  return { type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: "" };
+/**
+ * What the run says, as the agent process takes it. A message that arrives while the agent is
+ * already working is held for the next turn unless it says otherwise, so a steered one asks to be
+ * folded into the turn already going — which is the whole of what steering means.
+ */
+function userMessage(prompt: string, priority?: SDKUserMessage["priority"]): SDKUserMessage {
+  return {
+    type: "user",
+    message: { role: "user", content: prompt },
+    parent_tool_use_id: null,
+    session_id: "",
+    ...(priority === undefined ? {} : { priority }),
+  };
 }
 
 function writePathFor(toolName: string, input: unknown) {
@@ -220,7 +231,7 @@ export class ClaudeSession {
     await this.retune(turn.input);
     if (this.turn !== turn) return;
     this.push({ message: userMessage(turn.input.prompt) });
-    await this.drainSteering(turn);
+    await this.drainSteering(turn.input.steering, (event) => turn.input.emit(event), () => this.turn === turn);
   }
 
   /** Kills one background process of this session: a shell, a monitor, or a workflow. */
@@ -261,10 +272,11 @@ export class ClaudeSession {
     }
   }
 
-  private async drainSteering(turn: Turn) {
-    for (let steer = await turn.input.steering.next(); steer; steer = await turn.input.steering.next()) {
-      if (this.turn !== turn) return;
-      this.push({ message: userMessage(steer.prompt), delivered: () => turn.input.emit({ type: "steered", messageId: steer.messageId }) });
+  /** Feeds one run's steered messages into the session for as long as that run is the one going. */
+  private async drainSteering(steering: SteerQueue, emit: (event: ProviderEvent) => void, open: () => boolean) {
+    for (let steer = await steering.next(); steer; steer = await steering.next()) {
+      if (!open()) return;
+      this.push({ message: userMessage(steer.prompt, "now"), delivered: () => emit({ type: "steered", messageId: steer.messageId }) });
     }
   }
 
@@ -329,7 +341,9 @@ export class ClaudeSession {
     if (this.agentTurn) return this.agentTurn;
     const turn = this.beginAgentTurn();
     if (!turn) return null;
-    this.agentTurn = { turn, stream: openStream((event) => turn.emit(event), this.model) };
+    const open = { turn, stream: openStream((event) => turn.emit(event), this.model) };
+    this.agentTurn = open;
+    void this.drainSteering(turn.steering, (event) => turn.emit(event), () => this.agentTurn === open);
     return this.agentTurn;
   }
 

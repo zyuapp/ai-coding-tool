@@ -211,6 +211,7 @@ export class RunCoordinator {
     return {
       emit: (event) => this.handleProviderEvent(active, event),
       authorize: (intent) => this.authorize(active, intent),
+      steering: active.steering,
       end: (result) => this.finish(active, result.status, result.message),
     };
   }
