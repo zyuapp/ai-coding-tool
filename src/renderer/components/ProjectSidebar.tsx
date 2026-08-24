@@ -308,11 +308,15 @@ export function ProjectSidebar({
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
   const worktreeLabel = (taskId: string) => `Works in ${checkoutNames.get(taskId) ?? "a worktree"}`;
 
-  /** The final slot always belongs to run status, so starting or stopping a run moves no other mark. */
+  /**
+   * How wide every rail is: the most marks any one thread carries, and never less than the one slot
+   * an action needs. Reserving a slot no thread fills only pushes the marks away from the titles.
+   */
   const railSlots = [...orderedTasks, ...recentTasks].reduce((widest, task) => Math.max(widest, markCount(task)), 1);
 
   function markCount(task: Task) {
-    return Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + 1;
+    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || hasUnreadAttention(task);
+    return Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
   }
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
@@ -353,18 +357,15 @@ export function ProjectSidebar({
   }
 
   /** What a thread is: the checkout it works in, the schedule it runs on, and what it is doing now. */
-  const rowMarks = (task: Task): React.ReactNode[] => {
-    const status = blockedTaskIds.has(task.id)
+  const rowMarks = (task: Task): React.ReactNode[] => [
+    worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
+    schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
+    blockedTaskIds.has(task.id)
       ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
       : runningTaskIds.has(task.id)
         ? <TaskSpinner key="status" />
-        : attentionMark(task);
-    return [
-      worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
-      schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
-      status || <span key="status" className="task-status-slot" aria-hidden="true" />,
-    ].filter(Boolean);
-  };
+        : attentionMark(task),
+  ].filter(Boolean);
 
   /**
    * What can be done to a thread from its row. Activity mode offers dismissing on a priority row
