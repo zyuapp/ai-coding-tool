@@ -398,10 +398,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font-size: var(--text-control);
 }
 .folder-button > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-icon, .heading-folder { display: grid; place-items: center; color: var(--muted-strong); }
+.folder-icon { display: grid; place-items: center; color: var(--muted-strong); }
 .folder-icon svg { width: 18px; height: 18px; }
-.heading-folder svg { width: 21px; height: 21px; }
-.folder-icon path, .heading-folder path, .empty-glyph path { fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.folder-icon path, .empty-glyph path { fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 .folder-chevron { color: var(--quiet); font-size: 14px; }
 
 .project-list { display: grid; gap: 2px; }
