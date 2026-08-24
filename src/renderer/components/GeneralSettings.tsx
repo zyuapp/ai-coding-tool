@@ -80,15 +80,14 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish, notifications
         <div className="settings-group-heading">
           <div>
             <h3 id="notifications-heading">Notifications</h3>
-            <p>Only threads you are away from send one. Clicking it opens that thread.</p>
           </div>
         </div>
 
         <div className="setting-row">
           <span className={`setting-status ${notifications ? "granted" : ""}`}>{notifications && <Check size={13} />}</span>
           <div>
-            <strong>Tell me when a thread needs me</strong>
-            <p>A run finishes, a run fails, or a run stops to ask your permission.</p>
+            <strong>Desktop notifications</strong>
+            <p>When a run finishes, fails, or needs permission in a thread you are away from.</p>
           </div>
           <div className="setting-row-action">
             <button type="button" role="switch" aria-checked={notifications} onClick={() => onSetNotifications(!notifications)}>{notifications ? "Turn off" : "Turn on"}</button>
