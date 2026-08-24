@@ -2,7 +2,7 @@ import { clampQuote, promptWithAnnotations } from "./annotations.js";
 import { promptWithAttachments, taskTitleFor } from "./attachments.js";
 import { pasteTitle, promptWithPastes } from "./pastes.js";
 import { fileTitle, promptWithFiles } from "./files.js";
-import { annotationsFor, composerDraft, filesFor, focusComposer, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes, type ComposerDraftCommand } from "./composer-drafts.js";
+import { annotationsFor, composerDraft, filesFor, focusComposer, focusedTab, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes, type ComposerDraftCommand } from "./composer-drafts.js";
 import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { reduceProjects, type ProjectEvent, type RegisterProjectEffect } from "./project-commands.js";
@@ -270,7 +270,7 @@ function showDockTab(state: WorkspaceState, owner: string, tab: string): Workspa
  * window takes the keys back on its way, because only a page can hold them itself.
  */
 function focusDockTab(state: WorkspaceState, owner: string, tab: string): WorkspaceTransition {
-  const focused = { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
+  const focused = focusedTab(state, owner, tab);
   const page = dockFor(focused, owner).browserTabs.find((item) => item.id === tab);
   return settled(focused, page?.url ? [] : TAKE_KEYS);
 }

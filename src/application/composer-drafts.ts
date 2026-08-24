@@ -62,6 +62,22 @@ export function focusComposer(state: WorkspaceState): WorkspaceState {
   return { ...state, composerFocus: state.composerFocus + 1 };
 }
 
+/** The caret goes to the tab a side chat is drawn in, because its composer is not the thread's own. */
+export function focusedTab(state: WorkspaceState, owner: string, tab: string): WorkspaceState {
+  return { ...state, dockFocus: { owner, tab, count: (state.dockFocus?.count ?? 0) + 1 } };
+}
+
+/**
+ * Where the caret lands once a draft changes. A fresh annotation is written to be sent, so it hands
+ * the caret to the composer that will carry it. A comment on the diff keeps it, because the review
+ * is worked down a row at a time and each comment would otherwise cost the reviewer their place.
+ */
+function focusAfter(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
+  if (input.type !== "annotation.add" || input.anchor?.kind === "diff") return state;
+  const chat = state.sideChats.find((item) => item.id === key);
+  return chat ? focusedTab(state, chat.sourceTaskId, key) : focusComposer(state);
+}
+
 /** An image the app already holds, put back in a composer. What it is of is lost with the send. */
 function stagedImage(path: string): StagedImage {
   return { id: crypto.randomUUID(), path, label: "" };
@@ -82,6 +98,11 @@ export type ComposerDraftCommand =
 
 /** Every change to one composer's drafts. `key` is the composer: a thread's id, or the draft's. */
 export function composerDraft(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
+  const drafted = draftedComposer(state, input, key);
+  return drafted === state ? state : focusAfter(drafted, input, key);
+}
+
+function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
   switch (input.type) {
     case "annotation.add": {
       const quote = clampQuote(input.quote);

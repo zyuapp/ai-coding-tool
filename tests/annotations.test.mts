@@ -159,3 +159,22 @@ test("recalling a sent message puts its annotations back over whatever the draft
   const stepped = reduce(recalled, { type: "annotation.recall", annotations: [] }).state;
   assert.deepEqual(stepped.annotations, {}, "stepping back down to an empty draft leaves nothing behind");
 });
+
+test("a new annotation hands the caret to the composer that will carry it, but a diff comment does not", () => {
+  const start = currentWorkspace();
+  const noted = reduce(start, { type: "annotation.add", quote: "the claim", anchor: { kind: "message", messageId: "m-1", start: 0, end: 9 } }).state;
+  assert.equal(noted.composerFocus, start.composerFocus + 1);
+
+  const reviewed = reduce(noted, { type: "annotation.add", quote: "a changed line", anchor: { kind: "diff", comparison: "working", path: "a.ts", start: "1", end: "1", side: "new" } }).state;
+  assert.equal(reviewed.composerFocus, noted.composerFocus, "the review keeps the keyboard while the rows are worked down");
+
+  const empty = reduce(reviewed, { type: "annotation.add", quote: "   " }).state;
+  assert.equal(empty.composerFocus, reviewed.composerFocus, "a quote that clamps away is no annotation at all");
+});
+
+test("an annotation made in a side chat focuses that chat's composer, not the thread's own", () => {
+  const opened = run(currentWorkspace(), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const noted = reduce(opened, { type: "annotation.add", taskId: "chat-1", quote: "for the side" }).state;
+  assert.equal(noted.composerFocus, opened.composerFocus, "the thread's own composer is left alone");
+  assert.deepEqual(noted.dockFocus, { owner: "task-1", tab: "chat-1", count: opened.dockFocus!.count + 1 });
+});
