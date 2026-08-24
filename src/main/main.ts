@@ -26,6 +26,7 @@ import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu } from "./app-menu.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { adoptUserDataFolder } from "./user-data.js";
+import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
 import * as browser from "./browser-host.js";
@@ -530,11 +531,12 @@ app.on("second-instance", (_event, argv) => {
 });
 
 async function createWindow() {
+  const placement = rememberedPlacement();
   window = new BrowserWindow({
-    width: 1240,
-    height: 820,
+    ...placement,
     minWidth: 820,
     minHeight: 620,
+    fullscreen: placement.fullScreen,
     titleBarStyle: "hiddenInset",
     backgroundColor: windowTheme.canvas,
     icon,
@@ -575,6 +577,8 @@ async function createWindow() {
     }
     return { action: "deny" };
   });
+  if (placement.maximized && !placement.fullScreen) window.maximize();
+  watchWindowPlacement(window);
   window.on("closed", () => {
     rendererListening = false;
     browser.stopBrowserHost();
