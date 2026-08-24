@@ -5,7 +5,7 @@ import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "./support/electron-harness.mjs";
-import type { ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../src/contracts/ipc.js";
+import type { AgentEvent, ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../src/contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../src/contracts/threads.js";
 import type { BrowserBounds, BrowserSnapshot } from "../src/domain/browser.js";
 import type { CliStatus } from "../src/domain/cli.js";
@@ -92,8 +92,19 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   assert.deepEqual(statusesFor("run-old"), ["cancelled"]);
   assert.deepEqual(statusesFor("run-missing"), ["failed"]);
 
+  /** No run gates the set, and the thread keeps it until the agent process that holds the work dies. */
+  const shell = { id: "bash-1", kind: "shell", description: "npm run dev" };
+  agents[0].emit("message", { type: "background.changed", taskId: "concurrent-a", processes: [shell] });
+  agents[0].emit("message", { type: "background.changed", taskId: "concurrent-b", processes: [] });
+  await tick();
+  const backgroundFor = (taskId: string) => main.sentOn<AgentEvent>("run:event")
+    .flatMap((event) => event.type === "background.changed" && event.taskId === taskId ? [event.processes] : []);
+  assert.deepEqual(backgroundFor("concurrent-a"), [[shell]]);
+
   agents[0].emit("exit", 9);
   assert.deepEqual(statusesFor("run-new"), ["failed"]);
+  assert.deepEqual(backgroundFor("concurrent-a"), [[shell], []], "the processes died with the agent process, and nothing is left to say so");
+  assert.deepEqual(backgroundFor("concurrent-b"), [[]], "a thread with nothing running is not told twice");
 
   runCommand(trusted, command("post", "run-post"));
   await waitFor(() => agents[1]?.messages.some((message) => message.runId === "run-post"));

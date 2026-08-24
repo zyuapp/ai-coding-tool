@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   applyRunEvent,
-  applyWorkflowEvent,
+  applyThreadEvent,
   type ActiveRun,
   type RunTransitionState,
 } from "../src/application/task-workspace.ts";
@@ -264,12 +264,10 @@ test("concurrent runs advance independently and finish one at a time", () => {
   assert.equal(stillStreaming.tasks[1].messages[0].text, "from b\nstill going");
 });
 
-test("background processes are replaced whole, keep a stop already asked for, and end with the run", () => {
-  const started = applyRunEvent(state(), {
+test("background processes are replaced whole, keep a stop already asked for, and outlive the run", () => {
+  const started = applyThreadEvent(state(), {
     type: "background.changed",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 1,
     processes: [
       { id: "bash-1", kind: "shell", description: "npm run dev" },
       { id: "watch-1", kind: "monitor", description: "Deploy events" },
@@ -281,28 +279,32 @@ test("background processes are replaced whole, keep a stop already asked for, an
     ...started,
     backgroundProcesses: { "task-a": started.backgroundProcesses["task-a"].map((process) => process.id === "bash-1" ? { ...process, stopping: true } : process) },
   };
-  const replaced = applyRunEvent(stopping, {
+  const replaced = applyThreadEvent(stopping, {
     type: "background.changed",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 2,
     processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }],
   });
   assert.deepEqual(replaced.backgroundProcesses["task-a"], [{ id: "bash-1", kind: "shell", description: "npm run dev", stopping: true }]);
 
-  const ended = applyRunEvent(replaced, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" });
-  assert.equal(ended.backgroundProcesses["task-a"], undefined);
+  const ended = applyRunEvent(replaced, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" });
+  assert.deepEqual(ended.backgroundProcesses["task-a"], replaced.backgroundProcesses["task-a"], "the session outlives the run, and so does what it has running");
+
+  const again = applyRunEvent(ended, { type: "run.started", taskId: "task-a", runId: "run-a", sequence: 2 });
+  assert.deepEqual(again.backgroundProcesses["task-a"], replaced.backgroundProcesses["task-a"], "a later run does not blank what is still running");
+
+  const gone = applyThreadEvent(again, { type: "background.changed", taskId: "task-a", processes: [] });
+  assert.equal(gone.backgroundProcesses["task-a"], undefined);
 });
 
 test("a workflow's frames replace its tree, and a run cut short stops what was still going", () => {
-  const started = applyWorkflowEvent(state(), {
+  const started = applyThreadEvent(state(), {
     type: "workflow.started",
     taskId: "task-a",
     id: "wf-1",
     name: "review-changes",
     description: "Review changed files across dimensions",
   });
-  const first = applyWorkflowEvent(started, {
+  const first = applyThreadEvent(started, {
     type: "workflow.progress",
     taskId: "task-a",
     id: "wf-1",
@@ -311,7 +313,7 @@ test("a workflow's frames replace its tree, and a run cut short stops what was s
     totalTokens: 1_200,
     totalToolCalls: 4,
   });
-  const second = applyWorkflowEvent(first, {
+  const second = applyThreadEvent(first, {
     type: "workflow.progress",
     taskId: "task-a",
     id: "wf-1",
@@ -336,12 +338,12 @@ test("a workflow's frames replace its tree, and a run cut short stops what was s
 });
 
 test("a workflow keeps how it ended, and the next run carries only what is still running", () => {
-  const running = applyWorkflowEvent(applyWorkflowEvent(state(), {
+  const running = applyThreadEvent(applyThreadEvent(state(), {
     type: "workflow.started", taskId: "task-a", id: "wf-1", name: "spec", description: "Write the spec",
   }), {
     type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }], totalTokens: 10, totalToolCalls: 1,
   });
-  const finished = applyWorkflowEvent(running, {
+  const finished = applyThreadEvent(running, {
     type: "workflow.finished", taskId: "task-a", id: "wf-1", status: "completed", summary: 'Dynamic workflow "spec" completed',
   });
 
@@ -359,7 +361,7 @@ test("a workflow keeps how it ended, and the next run carries only what is still
   });
   assert.deepEqual(carried.workflows["task-a"].map((workflow) => workflow.id), ["wf-1"]);
 
-  const refreshed = applyWorkflowEvent(carried, {
+  const refreshed = applyThreadEvent(carried, {
     type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "spec", state: "done" }, { index: 1, label: "review", state: "running" }], totalTokens: 40, totalToolCalls: 3,
   });
   assert.equal(refreshed.workflows["task-a"][0].agents.length, 2, "the carried workflow keeps taking frames under the new run");
@@ -367,13 +369,13 @@ test("a workflow keeps how it ended, and the next run carries only what is still
 
 test("a workflow reports to its thread with no run of its own left going", () => {
   const idle = { ...state(), activeRuns: {}, runStatuses: {} };
-  const started = applyWorkflowEvent(idle, {
+  const started = applyThreadEvent(idle, {
     type: "workflow.started", taskId: "task-a", id: "wf-1", name: "review-changes", description: "Review changed files",
   });
-  const progressed = applyWorkflowEvent(started, {
+  const progressed = applyThreadEvent(started, {
     type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "review:bugs", state: "running" }], totalTokens: 10, totalToolCalls: 1,
   });
-  const finished = applyWorkflowEvent(progressed, {
+  const finished = applyThreadEvent(progressed, {
     type: "workflow.finished", taskId: "task-a", id: "wf-1", status: "completed", summary: "Dynamic workflow completed",
   });
 

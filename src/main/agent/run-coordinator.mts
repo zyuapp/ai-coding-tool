@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AgentEvent, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
+import type { AgentEvent, BackgroundReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import type { ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
@@ -145,6 +145,7 @@ export class RunCoordinator {
         authorize: (intent) => this.authorize(active, intent),
         emit: (event) => this.handleProviderEvent(active, event),
         reportWorkflow: (report) => this.reportWorkflow(active.taskId, report),
+        reportBackground: (report) => this.reportBackground(active.taskId, report),
         beginAgentTurn: () => this.beginAgentTurn(active),
       });
       if (!this.isCurrent(active) || active.terminal) return;
@@ -174,11 +175,15 @@ export class RunCoordinator {
     if (event.type === "subagent.progress") this.publish(active, event);
     if (event.type === "subagent.activity") this.publish(active, event);
     if (event.type === "subagent.finished") this.publish(active, event);
-    if (event.type === "background.changed") this.publish(active, event);
   }
 
   /** A workflow answers to the thread rather than to a run, so nothing about a run's state holds it back. */
   private reportWorkflow(taskId: string, report: WorkflowReport) {
+    this.emit({ ...report, taskId });
+  }
+
+  /** A shell or a monitor outlives the run that started it, so its set answers to the thread too. */
+  private reportBackground(taskId: string, report: BackgroundReport) {
     this.emit({ ...report, taskId });
   }
 

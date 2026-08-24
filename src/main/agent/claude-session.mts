@@ -2,7 +2,7 @@ import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-a
 import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
 import { contextWindowLimit } from "../../domain/run.js";
 import type { AgentModel, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
-import type { WorkflowReport } from "../../contracts/ipc.js";
+import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
@@ -139,6 +139,8 @@ export class ClaudeSession {
   private readonly workflowIds = new Set<string>();
   /** Where those workflows report. Taken when the session opens: they belong to the thread, not to a run. */
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
+  /** Where those tasks report. Taken when the session opens: a shell or a monitor belongs to the thread, not to a run. */
+  private reportBackground: (report: BackgroundReport) => void = () => {};
   /** Every background task the agent process last reported live, by id. Replaced whole, so it holds nothing that has stopped. */
   private readonly backgroundTaskIds = new Set<string>();
   /** What the agent process called this session. A later run resumes it by this id. */
@@ -166,7 +168,10 @@ export class ClaudeSession {
     this.model = seed.model;
     this.effort = seed.effort;
     this.reportWorkflow = seed.reportWorkflow;
+    this.reportBackground = seed.reportBackground;
     this.beginAgentTurn = seed.beginAgentTurn;
+    /** The agent process reports nothing at startup, so a fresh one starts the thread's set empty. */
+    this.reportBackground({ type: "background.changed", processes: [] });
     this.query = opener(this.stream(), this.canUseTool);
     void this.pump();
   }
@@ -226,7 +231,9 @@ export class ClaudeSession {
   close() {
     if (this.ended) return;
     this.ended = true;
+    /** The session ending is the end of the tasks it holds: nothing is left to report them stopping. */
     this.backgroundTaskIds.clear();
+    this.reportBackground({ type: "background.changed", processes: [] });
     this.endAgentTurn({ status: "cancelled" });
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
@@ -347,7 +354,10 @@ export class ClaudeSession {
   private receive(message: SDKMessage) {
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
     /** Taken before the stream guard: what the agent leaves running outlives the turn that started it. */
-    if (message.type === "system" && message.subtype === "background_tasks_changed") this.trackBackground(message.tasks);
+    if (message.type === "system" && message.subtype === "background_tasks_changed") {
+      this.trackBackground(message.tasks);
+      this.reportBackground({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
+    }
     if (this.receiveWorkflow(message)) return;
     const stream = this.streamFor(message);
     if (!stream) return;
@@ -366,8 +376,6 @@ export class ClaudeSession {
         compacting: message.status === "compacting",
         ...(message.compact_result === "failed" ? { error: message.compact_error ?? "Context compaction failed." } : {}),
       });
-    } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
-      stream.emit({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
     } else if (message.type === "system" && message.subtype === "task_started" && message.subagent_type) {
       stream.subagentIds.add(message.task_id);
       if (message.tool_use_id) stream.subagentByToolUse.set(message.tool_use_id, message.task_id);

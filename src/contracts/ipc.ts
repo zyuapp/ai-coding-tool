@@ -441,8 +441,6 @@ export type RunEvent =
   | (RunEventBase & { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number })
   | (RunEventBase & { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string })
   | (RunEventBase & { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string })
-  /** Every background process the run still has. Replaces the set rather than amending it. */
-  | (RunEventBase & { type: "background.changed"; processes: BackgroundProcess[] })
   | (RunEventBase & {
       type: "approval.requested";
       approvalId: string;
@@ -464,8 +462,19 @@ export type WorkflowReport =
 /** A workflow outlives the run that started it, so what it reports is the thread's rather than a run's. */
 export type WorkflowEvent = WorkflowReport & { taskId: string };
 
+/**
+ * Every background process the thread's session still has. Replaces the set rather than amending it.
+ * A shell or a monitor outlives the run that started it, so the set belongs to the thread.
+ */
+export type BackgroundReport = { type: "background.changed"; processes: BackgroundProcess[] };
+
+export type BackgroundEvent = BackgroundReport & { taskId: string };
+
+/** What the agent process reports about work that answers to the thread rather than to a run. */
+export type ThreadEvent = WorkflowEvent | BackgroundEvent;
+
 /** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
-export type AgentEvent = RunEvent | WorkflowEvent;
+export type AgentEvent = RunEvent | ThreadEvent;
 
 const MAX_ID_LENGTH = 256;
 /** A wait holds a tool call open, so it is bounded rather than left to the caller. */
@@ -751,11 +760,17 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "subagent.progress") return isString(event.id) && isString(event.description, 100_000) && (event.lastToolName === undefined || isString(event.lastToolName)) && (event.summary === undefined || isString(event.summary, 100_000)) && typeof event.totalTokens === "number" && Number.isFinite(event.totalTokens) && event.totalTokens >= 0;
   if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";
   if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
-  if (event.type === "background.changed") return Array.isArray(event.processes) && event.processes.every(isBackgroundProcess);
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   if (event.type === "queued.delivered") return isString(event.messageId);
   return false;
+}
+
+export function isBackgroundEvent(value: unknown): value is BackgroundEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Record<string, unknown>;
+  if (!isString(event.taskId) || event.type !== "background.changed") return false;
+  return Array.isArray(event.processes) && event.processes.every(isBackgroundProcess);
 }
 
 export function isWorkflowEvent(value: unknown): value is WorkflowEvent {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../src/contracts/ipc.ts";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../src/contracts/ipc.ts";
 
 const command = {
   type: "start",
@@ -47,14 +47,16 @@ test("run command guard scopes stopping one of a run's processes", () => {
   assert.equal(isRunCommand({ type: "stop-process", taskId: "task-1", runId: "run-1" }), false);
 });
 
-test("run event guard validates the background process set", () => {
-  const base = { type: "background.changed", taskId: "task-1", runId: "run-1", sequence: 1 };
-  assert.equal(isRunEvent({ ...base, processes: [] }), true);
-  assert.equal(isRunEvent({ ...base, processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }, { id: "watch-1", kind: "monitor", description: "Deploy events" }] }), true);
-  assert.equal(isRunEvent({ ...base, processes: [{ id: "bash-1", kind: "subagent", description: "npm run dev" }] }), false);
-  assert.equal(isRunEvent({ ...base, processes: [{ id: "", kind: "shell", description: "npm run dev" }] }), false);
-  assert.equal(isRunEvent({ ...base, processes: [{ id: "bash-1", kind: "shell", description: "" }] }), false);
-  assert.equal(isRunEvent({ ...base, processes: {} }), false);
+test("background event guard validates the process set, and takes no run", () => {
+  const base = { type: "background.changed", taskId: "task-1" };
+  assert.equal(isBackgroundEvent({ ...base, processes: [] }), true);
+  assert.equal(isBackgroundEvent({ ...base, processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }, { id: "watch-1", kind: "monitor", description: "Deploy events" }] }), true);
+  assert.equal(isBackgroundEvent({ ...base, processes: [{ id: "bash-1", kind: "subagent", description: "npm run dev" }] }), false);
+  assert.equal(isBackgroundEvent({ ...base, processes: [{ id: "", kind: "shell", description: "npm run dev" }] }), false);
+  assert.equal(isBackgroundEvent({ ...base, processes: [{ id: "bash-1", kind: "shell", description: "" }] }), false);
+  assert.equal(isBackgroundEvent({ ...base, processes: {} }), false);
+  assert.equal(isBackgroundEvent({ type: "workflow.finished", taskId: "task-1", id: "wf-1", status: "stopped", summary: "" }), false);
+  assert.equal(isRunEvent({ ...base, runId: "run-1", sequence: 1, processes: [] }), false, "a run no longer carries the set");
 });
 
 test("run event guard validates optional status messages", () => {

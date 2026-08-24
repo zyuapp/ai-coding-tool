@@ -1,7 +1,7 @@
-import type { ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
+import type { BackgroundReport, ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AgentEffort, AgentModel, BackgroundProcess, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {
@@ -64,9 +64,7 @@ export type ProviderEvent =
   | { type: "subagent.started"; id: string; description: string; agentType?: string }
   | { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number }
   | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
-  | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string }
-  /** The run's whole set of background processes, republished on every change. */
-  | { type: "background.changed"; processes: BackgroundProcess[] };
+  | { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string };
 
 /**
  * A turn the agent started itself, after the run that seeded the session had ended. A workflow
@@ -108,6 +106,8 @@ export type ProviderRunInput = {
   emit: (event: ProviderEvent) => void;
   /** Kept apart from `emit`: a workflow reports to the thread, and outlasts the run that started it. */
   reportWorkflow: (report: WorkflowReport) => void;
+  /** Kept apart from `emit` for the same reason: a shell or a monitor outlives the run that started it. */
+  reportBackground: (report: BackgroundReport) => void;
   /** Opens a run for a turn nobody asked for. Null when the thread already has a run of its own. */
   beginAgentTurn: () => AgentTurn | null;
 };

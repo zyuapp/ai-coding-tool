@@ -537,32 +537,6 @@ test("a run with no workspace bridge is offered no thread tools", async () => {
   assert.doesNotMatch(systemAppend(optionsOf(capture)), /aicodingtool-threads/);
 });
 
-test("only background tasks that are processes of their own are reported, and the whole set each time", async () => {
-  const emitted: ProviderEvent[] = [];
-  const provider = new ClaudeAgentProvider(queryFactory([
-    {
-      type: "system",
-      subtype: "background_tasks_changed",
-      tasks: [
-        { task_id: "bash-1", task_type: "local_bash", description: "npm run dev" },
-        { task_id: "agent-1", task_type: "local_agent", description: "Inspect the renderer" },
-        { task_id: "watch-1", task_type: "monitor_ws", description: "Deploy events" },
-      ],
-    },
-    { type: "system", subtype: "background_tasks_changed", tasks: [{ task_id: "bash-1", task_type: "local_bash", description: "npm run dev" }] },
-    { type: "result", subtype: "success", is_error: false, result: "done" },
-  ]));
-
-  await provider.execute(input({ emit: (event) => emitted.push(event) }));
-  assert.deepEqual(emitted.filter((event) => event.type === "background.changed"), [
-    { type: "background.changed", processes: [
-      { id: "bash-1", kind: "shell", description: "npm run dev" },
-      { id: "watch-1", kind: "monitor", description: "Deploy events" },
-    ] },
-    { type: "background.changed", processes: [{ id: "bash-1", kind: "shell", description: "npm run dev" }] },
-  ]);
-});
-
 test("a workflow keeps reporting between the turns of the session it runs under", async () => {
   const capture = liveCapture();
   const provider = new ClaudeAgentProvider(liveQueryFactory(capture));

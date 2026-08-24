@@ -17,7 +17,7 @@ import { pruneDeletedTasks } from "./task-pruning.js";
 import {
   applyRunEvent,
   applyTask,
-  applyWorkflowEvent,
+  applyThreadEvent,
   ATTENDED_RUN,
   automationRunLabel,
   automationRunPrompt,
@@ -44,7 +44,7 @@ import type {
   StartRunCommand,
   SteerRunCommand,
   StopProcessCommand,
-  WorkflowEvent,
+  ThreadEvent,
 } from "../contracts/ipc.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../domain/automation.js";
@@ -74,8 +74,8 @@ export type WorkspaceEvent =
   | { type: "action.failed"; message: string }
   | ProjectEvent
   | { type: "run.event"; event: RunEvent }
-  /** A workflow reports to its thread rather than to a run, which may be long over by then. */
-  | { type: "workflow.event"; event: WorkflowEvent }
+  /** Work that reports to its thread rather than to a run, which may be long over by then. */
+  | { type: "thread.event"; event: ThreadEvent }
   | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord; worktree?: CreatedWorktree }
   | { type: "run.unresolved"; pendingId: string; message: string }
   | { type: "automation.fired"; fire: AutomationFire }
@@ -1424,10 +1424,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       return settled(drained.state, [...environment, ...said, ...drained.effects]);
     }
 
-    case "workflow.event": {
+    case "thread.event": {
       const { event } = input;
       if (!state.tasks.some((task) => task.id === event.taskId)) return settled(state);
-      return settled(applyWorkflowEvent(state, event));
+      return settled(applyThreadEvent(state, event));
     }
 
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */

@@ -1,4 +1,4 @@
-import type { RunEvent, WorkflowEvent } from "../contracts/ipc.js";
+import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import { createFailureMessage, createTaskMessage, type Task, type TaskOutcome } from "../domain/task.js";
@@ -98,8 +98,8 @@ export type RunTransitionState = {
   approvals: Record<string, ApprovalView>;
   streamingTails: Record<string, StreamingTail>;
   /**
-   * What each task's live run has running in the background. The agent process (re)starts with none,
-   * so this is never persisted and never outlives the run that reported it.
+   * What each task's session has running in the background. The agent process (re)starts with none and
+   * says so, so this is never persisted, and it outlives the run that started the work.
    */
   backgroundProcesses: Record<string, BackgroundProcess[]>;
   /** What each task has driven as a dynamic workflow. A workflow left running outlives the run that started it. */
@@ -185,8 +185,22 @@ function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, 
   });
 }
 
+/** What the agent process reports about work that outlives the run that started it. */
+export function applyThreadEvent<T extends RunTransitionState>(state: T, event: ThreadEvent): T {
+  return event.type === "background.changed" ? applyBackgroundEvent(state, event) : applyWorkflowEvent(state, event);
+}
+
+/**
+ * What the thread's session has running in the background, kept by the thread: a shell or a monitor
+ * outlives the run that started it. A stop already asked for stays marked until the process is gone.
+ */
+function applyBackgroundEvent<T extends RunTransitionState>(state: T, event: BackgroundEvent): T {
+  const stopping = new Set((state.backgroundProcesses[event.taskId] ?? []).filter((process) => process.stopping).map((process) => process.id));
+  return withBackgroundProcesses(state, event.taskId, event.processes.map((process) => stopping.has(process.id) ? { ...process, stopping: true } : process));
+}
+
 /** What a workflow reports, kept by its thread: the run that started it may be long over. */
-export function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: WorkflowEvent): T {
+function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: WorkflowEvent): T {
   if (event.type === "workflow.started") {
     return updateWorkflow(state, event.taskId, event.id, (existing) => ({
       ...(existing ?? { phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: now() }),
@@ -222,14 +236,14 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "run.started") {
     /** A workflow the last run left running is still going; the ones that ended are that run's history. */
     const carried = (state.workflows[event.taskId] ?? []).filter((workflow) => workflow.status === "running");
-    return withWorkflows(withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []), event.taskId, carried);
+    return withWorkflows(withStreamingTail(withSequence, event.taskId, null), event.taskId, carried);
   }
   if (event.type === "run.status") {
     if (event.status === "running" || event.status === "awaiting-approval") {
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
     }
-    /** The agent process ends with the run, taking every process it started with it. */
-    let next = withRunStatus(withActiveRun(withBackgroundProcesses(withStreamingTail(withSequence, event.taskId, null), event.taskId, []), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
+    /** What the run left running is the session's, which outlives it, so only the session can end it. */
+    let next = withRunStatus(withActiveRun(withStreamingTail(withSequence, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
     const { [event.runId]: _expired, ...approvals } = next.approvals;
     next = { ...next, approvals } as T;
     next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
@@ -356,11 +370,6 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       finishedAt: now(),
       activity: existing?.activity ?? [],
     }));
-  }
-  /** A stop already asked for stays marked until the run stops reporting that process. */
-  if (event.type === "background.changed") {
-    const stopping = new Set((state.backgroundProcesses[event.taskId] ?? []).filter((process) => process.stopping).map((process) => process.id));
-    return withBackgroundProcesses(withSequence, event.taskId, event.processes.map((process) => stopping.has(process.id) ? { ...process, stopping: true } : process));
   }
   if (event.type === "approval.requested") {
     const input = event.intent.input && typeof event.intent.input === "object" && !Array.isArray(event.intent.input)

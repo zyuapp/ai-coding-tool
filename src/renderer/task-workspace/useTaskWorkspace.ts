@@ -4,6 +4,7 @@ import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { threadHandleOptions } from "../../application/thread-projection";
 import { reduce, WORKSPACE_ERRORS, type WorkspaceEffect, type WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
+import type { AgentEvent } from "../../contracts/ipc";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
@@ -26,6 +27,11 @@ import { drainLatestPersistence, hasPersistenceDelta, persistenceDelta, persiste
 export type { ApprovalView } from "../../application/task-workspace";
 
 type EnvironmentRefreshEffect = Extract<WorkspaceEffect, { type: "refresh-environment" }>;
+
+/** Which channel the event arrived on: a run's own, or the thread's, which outlives every run. */
+function agentEventInput(event: AgentEvent): WorkspaceInput {
+  return "runId" in event ? { type: "run.event", event } : { type: "thread.event", event };
+}
 
 function initialState(store: ReturnType<typeof createLocalTaskStore>): WorkspaceState {
   const loaded = store.load();
@@ -382,7 +388,7 @@ export function useTaskWorkspace() {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
-    return window.desktop.onAgentEvent((event) => void dispatchRef.current("runId" in event ? { type: "run.event", event } : { type: "workflow.event", event }));
+    return window.desktop.onAgentEvent((event) => void dispatchRef.current(agentEventInput(event)));
   }, []);
 
   useEffect(() => {

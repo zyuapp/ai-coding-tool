@@ -51,6 +51,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     authorize: async () => "allow",
     emit() {},
     reportWorkflow() {},
+    reportBackground() {},
     beginAgentTurn: () => null,
   };
   return { ...base, ...overrides };

@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isAutomationRequest, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
+import { isAutomationAck, isAutomationRequest, isBackgroundEvent, isBrowserAction, isBrowserBounds, isRunCommand, isRunEvent, isShortcutOverrides, isThreadRequest, isThreadResponse, isWindowTheme, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type BrowserPageEvent, type ComputerUsePermission, type CreateWorktreeRequest, type ReleaseWorktreeRequest, type RunCommand, type RunEvent, type StartRunCommand, type WindowTheme } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import { isAutomationDraft, isAutomationPatch, type Automation, type AutomationRunStatus, type TickKind } from "../domain/automation.js";
 import { DEFAULT_CAPTURE_OPTIONS, isCaptureOptions } from "../domain/capture.js";
@@ -83,6 +83,8 @@ const THREAD_REQUEST_TIMEOUT = 8_000;
 /** A wait answers when the thread it names settles, so the relay outlives the wait itself. */
 const THREAD_WAIT_SLACK = 5_000;
 const runStates = new Map<string, RunState>();
+/** Threads the agent process last reported background work for, so its death can take that work off the panel. */
+const backgroundThreads = new Set<string>();
 const pendingStarts = new Map<string, StartRunCommand>();
 const automationDispatches = new Map<string, AutomationDispatchState>();
 const threadRequests = new Map<string, ReturnType<typeof setTimeout>>();
@@ -120,6 +122,13 @@ function publishRunEvent(event: RunEvent) {
     automationDispatches.get(event.runId)?.settle?.(event.status);
     runStates.delete(key);
   }
+}
+
+/** Kept apart from the run gate: what the set says outlives whichever run started the work. */
+function publishBackgroundEvent(event: BackgroundEvent) {
+  if (event.processes.length) backgroundThreads.add(event.taskId);
+  else backgroundThreads.delete(event.taskId);
+  sendToRenderer(event);
 }
 
 function getAutomationScheduler() {
@@ -291,8 +300,9 @@ function startAgent() {
   });
   agent.on("message", (event: unknown) => {
     if (isRunEvent(event)) publishRunEvent(event);
-    /** No run to gate it: the workflow it comes from outlives the run that started it. */
+    /** No run to gate them: a workflow, a shell and a monitor all outlive the run that started them. */
     else if (isWorkflowEvent(event)) sendToRenderer(event);
+    else if (isBackgroundEvent(event)) publishBackgroundEvent(event);
     else if (isAutomationRequest(event)) void handleAutomationRequest(event);
     else if (isThreadRequest(event)) handleThreadRequest(event);
     /** A request no guard could read is answered rather than dropped: a dropped one hangs the tool call. */
@@ -304,6 +314,9 @@ function startAgent() {
       pendingStarts.clear();
       const message = `Agent process exited${code === null ? "" : ` with code ${code}`}.`;
       for (const event of failedEventsForTransportLoss(runStates.values(), message)) publishRunEvent(event);
+      /** The processes died with it, and no session is left to say so. */
+      for (const taskId of backgroundThreads) sendToRenderer({ type: "background.changed", taskId, processes: [] });
+      backgroundThreads.clear();
     }
   });
   agent.stderr?.on("data", (chunk) => console.error(String(chunk)));
