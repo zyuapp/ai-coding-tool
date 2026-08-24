@@ -30,7 +30,7 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
   }
 
   return (
-    <main className="settings-main" onKeyDown={(event) => {
+    <main className="settings-main worktree-settings" onKeyDown={(event) => {
       if (event.key !== "Escape" || !confirming) return;
       event.preventDefault();
       event.stopPropagation();
@@ -85,7 +85,9 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
                             <button type="button" onClick={() => cancel(worktree.root)}>Cancel</button>
                           </>
                         : <>
-                            {worktree.available && <button type="button" onClick={() => onReveal(worktree.root)}>Reveal in Finder</button>}
+                            {worktree.available
+                              ? <button type="button" onClick={() => onReveal(worktree.root)}>Reveal in Finder</button>
+                              : <span aria-hidden="true" />}
                             {worktree.busy
                               ? <em>Run active</em>
                               : <button ref={(button) => {
