@@ -33,14 +33,14 @@ type MenuListProps = {
   className?: string;
   style?: CSSProperties;
   menuRef?: RefObject<HTMLDivElement | null>;
-  /** False while a list is opened by the pointer, which leaves the keyboard where it was. */
+  /** True when the keyboard opened a nested list; false while the pointer opened it. */
   autoFocus?: boolean;
   /** Set on a list opened from an item, which draws it beside that item and answers ArrowLeft. */
   onLeave?: () => void;
 };
 
 /** Choosing an item always closes the menu, so no item has to remember to. */
-function MenuList({ entries, onClose, className, style, menuRef, autoFocus = true, onLeave }: MenuListProps) {
+function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLeave }: MenuListProps) {
   /** Which item's own list is open, and whether the keyboard asked for it, which is what focuses it. */
   const [sub, setSub] = useState<{ index: number; focus: boolean } | null>(null);
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -66,10 +66,11 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus = tru
   }, [isSubmenu, list]);
 
   const first = usable[0];
-  /** A list takes the keyboard when the keyboard opened it, whether that was on mount or on ArrowRight. */
+  /** A top-level list takes focus without highlighting a row; a keyboard-opened nested list selects its first row. */
   useEffect(() => {
     if (autoFocus) buttons.current[first ?? -1]?.focus();
-  }, [autoFocus, first]);
+    else if (!isSubmenu) list.current?.focus();
+  }, [autoFocus, first, isSubmenu, list]);
 
   function move(delta: number) {
     if (!usable.length) return;
@@ -102,6 +103,7 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus = tru
       className={`menu-popover ${checkable ? "menu-checkable" : ""} ${placement.flipped ? "menu-flipped" : ""} ${className ?? ""}`.replace(/\s+/g, " ").trim()}
       data-popover-menu
       role="menu"
+      tabIndex={isSubmenu ? undefined : -1}
       style={placement.lift && typeof style?.top === "number" ? { ...style, top: style.top - placement.lift } : style}
       onKeyDown={onKeyDown}
     >

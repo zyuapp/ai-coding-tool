@@ -55,12 +55,14 @@ test("a right-click menu draws its groups, its rules, and the keystrokes its ite
   await view.unmount();
 });
 
-test("the arrow keys walk the items, and pass over the rule between them", async () => {
+test("a menu opens without a highlighted row, then the arrow keys walk its items", async () => {
   const view = await mount(React.createElement(ContextMenu, { entries: ENTRIES, at: { x: 20, y: 20 }, onClose() {} }));
   const menu = document.querySelector<HTMLElement>(".context-menu-popover")!;
   const press = async (key: string) => { await act(async () => { menu.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); }); };
 
-  assert.equal(document.activeElement?.textContent, "Rename", "the first item is ready for the keyboard");
+  assert.equal(document.activeElement, menu, "the menu is ready for the keyboard without selecting an item");
+  await press("ArrowDown");
+  assert.equal(document.activeElement?.textContent, "Rename");
   await press("ArrowDown");
   await press("ArrowDown");
   assert.equal(document.activeElement?.textContent, "Copy link", "the rule is not an item to stop on");
@@ -88,6 +90,7 @@ test("ArrowRight opens an item's own list and ArrowLeft comes back out of it", a
   const menu = document.querySelector<HTMLElement>(".context-menu-popover")!;
   const press = async (target: HTMLElement, key: string) => { await act(async () => { target.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key, bubbles: true })); }); };
 
+  await press(menu, "ArrowDown");
   await press(menu, "ArrowDown");
   await press(menu, "ArrowRight");
   assert.equal(document.activeElement?.textContent, "No folder", "the keyboard lands on the first item of the list it opened");

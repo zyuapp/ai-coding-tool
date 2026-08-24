@@ -480,6 +480,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   backdrop-filter: blur(28px) saturate(180%);
   box-shadow: var(--shadow-menu);
   font-size: var(--text-menu);
+  outline: none;
 }
 .menu-popover button {
   display: flex;
