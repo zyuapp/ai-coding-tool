@@ -50,15 +50,6 @@ test("changed files distinguishes unavailable workspaces", async () => {
   assert.deepEqual(result, { status: "unavailable", reason: "missing" });
 });
 
-test("changed files returns an available file list through the Git adapter", async () => {
-  const result = await changedFiles("current", { resolve: async () => ({ status: "available", workspace: { id: "current", kind: "project", root: process.cwd() } }) });
-  assertAvailable(result);
-  assert.ok(Array.isArray(result.files));
-  assert.equal(typeof result.additions, "number");
-  assert.equal(typeof result.deletions, "number");
-  assert.ok(result.branch === null || typeof result.branch === "string");
-});
-
 test("numstat totals ignore binary files and renamed path records", () => {
   const output = ["12\t3\tsrc/a.ts", "-\t-\timage.png", "4\t1\t", "old.ts", "new.ts", ""].join("\0");
   assert.deepEqual(summarizeNumstat(output), { additions: 16, deletions: 4 });

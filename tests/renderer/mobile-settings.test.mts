@@ -47,7 +47,7 @@ test("a bridge that is off says so and offers nothing to pair with", () => {
   const text = document.body.textContent ?? "";
   assert.match(text, /Off/);
   assert.match(text, /Turn phone access on to pair a phone/);
-  assert.match(text, /No phone has paired with this Mac/);
+  assert.match(text, /No phone has paired/);
   assert.equal(document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-pairing-heading'] button")?.disabled, true);
 
   click("[aria-labelledby='phone-availability-heading'] [role='switch']");
@@ -105,7 +105,7 @@ test("paired phones are listed with a way to cut each one off", () => {
   const calls = draw(remote);
   const text = document.body.textContent ?? "";
   assert.match(text, /2 paired/);
-  assert.match(text, /Has not connected yet/);
+  assert.match(text, /Never connected/);
   assert.match(text, /1 connected/);
   assert.match(text, /Live\./);
 
@@ -124,7 +124,7 @@ test("a machine without Tailscale says so and cannot be switched on", () => {
     tailscale: { status: "missing", magicDnsName: null, serving: false, certs: false, error: null },
   };
   const calls = draw(remote);
-  assert.match(document.body.textContent ?? "", /Tailscale is not installed on this Mac/);
+  assert.match(document.body.textContent ?? "", /Not installed\. Install Tailscale/);
   const toggle = document.querySelector<HTMLButtonElement>("[data-route='tailscale'] [role='switch']");
   assert.equal(toggle?.disabled, true);
 
@@ -149,7 +149,7 @@ test("a tailnet that issues no certificate says where to turn it on, and cannot 
     tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: false, error: null },
   };
   draw(remote);
-  assert.match(document.body.textContent ?? "", /does not issue HTTPS certificates yet/);
+  assert.match(document.body.textContent ?? "", /issues no HTTPS certificate/);
   assert.match(document.body.textContent ?? "", /admin console, under DNS/);
   const toggle = document.querySelector<HTMLButtonElement>("[data-route='tailscale'] [role='switch']");
   assert.equal(toggle?.disabled, true, "the switch offered to turn on something that hangs");

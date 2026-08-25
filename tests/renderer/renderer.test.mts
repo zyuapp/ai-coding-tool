@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
-import { test, afterAll, vi } from "vitest";
-import { JSDOM } from "jsdom";
+import { test, vi } from "vitest";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import { settleUntil } from "../support/settle.mts";
@@ -19,84 +17,7 @@ import type { SettingsPanelProps } from "../../src/renderer/components/SettingsP
 import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
 import { mobileDesktopStub, mobileSettingsProps } from "../support/mobile-desktop.mts";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "MutationObserver", "Image", "navigator", "File", "Blob", "FileReader", "DOMParser", "innerWidth", "innerHeight"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-/** jsdom has no animation frames. Everything queued for one runs together, on a single timestamp. */
-let animationTime = 0;
-let frameId = 0;
-let drain: ReturnType<typeof setTimeout> | null = null;
-const queuedFrames = new Map<number, FrameRequestCallback>();
-function runFrame() {
-  if (drain !== null) clearTimeout(drain);
-  drain = null;
-  animationTime += 33;
-  /** Only the frames asked for before this one, and only while a frame ahead has not cancelled them. */
-  for (const id of [...queuedFrames.keys()]) {
-    const callback = queuedFrames.get(id);
-    if (!callback) continue;
-    queuedFrames.delete(id);
-    callback(animationTime);
-  }
-}
-function scheduleFrame() {
-  if (drain || queuedFrames.size === 0) return;
-  drain = setTimeout(runFrame, 0);
-}
-const animationFunctions = {
-  requestAnimationFrame: (fn: FrameRequestCallback) => { const id = (frameId += 1); queuedFrames.set(id, fn); scheduleFrame(); return id; },
-  cancelAnimationFrame: (id: number) => queuedFrames.delete(id),
-};
-for (const name of Object.keys(animationFunctions) as Array<keyof typeof animationFunctions>) {
-  const value = animationFunctions[name];
-  Object.defineProperty(globalThis, name, { configurable: true, value });
-  Object.defineProperty(dom.window, name, { configurable: true, value });
-}
-/** jsdom has no ResizeObserver, and the transcript's scrolling is driven by one. */
-class ResizeObserverStub implements ResizeObserver {
-  static live: ResizeObserverStub[] = [];
-  constructor(readonly callback: ResizeObserverCallback) { ResizeObserverStub.live.push(this); }
-  observe(_target: Element, _options?: ResizeObserverOptions) {}
-  unobserve(_target: Element) {}
-  disconnect() { ResizeObserverStub.live = ResizeObserverStub.live.filter((observer) => observer !== this); }
-}
-for (const target of [globalThis, dom.window]) {
-  Object.defineProperty(target, "ResizeObserver", { configurable: true, value: ResizeObserverStub });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-/** React watches the focused field through the event methods only IE ever had, which jsdom has not. */
-for (const prototype of [dom.window.HTMLInputElement.prototype, dom.window.HTMLTextAreaElement.prototype]) {
-  Object.defineProperty(prototype, "attachEvent", { configurable: true, value: () => {} });
-  Object.defineProperty(prototype, "detachEvent", { configurable: true, value: () => {} });
-}
-/**
- * jsdom lays nothing out and hit tests nothing, so a test places the rectangles it cares about and
- * the document answers from them. The last one placed is the one on top.
- */
-type TestBox = { x: number; y: number; width: number; height: number };
-const placed: Array<{ selector: string; box: TestBox }> = [];
-function place(selector: string, box: TestBox) {
-  placed.push({ selector, box });
-  const element = document.querySelector(selector);
-  if (element) element.getBoundingClientRect = () => ({
-    ...box,
-    top: box.y,
-    right: box.x + box.width,
-    bottom: box.y + box.height,
-    left: box.x,
-    toJSON: () => box,
-  });
-  return box;
-}
-dom.window.document.elementFromPoint = (x, y) => {
-  const hit = [...placed].reverse().find(({ selector, box }) => document.querySelector(selector)
-    && x >= box.x && y >= box.y && x <= box.x + box.width && y <= box.y + box.height);
-  return hit ? document.querySelector(hit.selector) : null;
-};
-Object.defineProperty(dom.window.HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: () => {} });
-Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", { configurable: true, writable: true, value: () => {} });
-Object.defineProperty(dom.window.Element.prototype, "getAnimations", { configurable: true, value: () => [] });
+import { dom, fireResizeObservers, item, mount, place, placed, pumpResizeObservers, query, rowHeights, sizeOf, type TestBox } from "../support/renderer-dom.mts";
 
 const { SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
 const { SubagentInspector } = await import("../../src/renderer/components/SubagentInspector.tsx");
@@ -116,33 +37,6 @@ const { AutomationPanel, automationStatusLabel, formatCountdown } = await import
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 const { SideChat } = await import("../../src/renderer/components/SideChat.tsx");
 const { WorkflowPanel } = await import("../../src/renderer/components/WorkflowPanel.tsx");
-
-afterAll(async () => {
-  dom.window.close();
-});
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async render(next: React.ReactNode) { await act(async () => { root.render(next); }); },
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
-function item<T>(value: T | null | undefined): T {
-  assert.ok(value !== null && value !== undefined);
-  return value;
-}
-
-function query<E extends Element = HTMLElement>(root: ParentNode, selector: string): E {
-  const element = root.querySelector<E>(selector);
-  assert.ok(element, `Expected ${selector}`);
-  return element;
-}
 
 function startCommand(command: RunCommand | undefined): Extract<RunCommand, { type: "start" }> {
   assert.equal(command?.type, "start");
@@ -539,15 +433,11 @@ test("the subagents panel windows a large roster, leads with failures, and filte
     activity: [],
   }));
   /** jsdom measures every row at nothing, which would fit the whole roster on one screen. */
-  Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
-    configurable: true,
-    get() { return this.classList?.contains("subagent-row") ? 51 : 0; },
-  });
+  const measuredRows = rowHeights((node) => node.classList?.contains("subagent-row") ? 51 : 0);
   const view = await mount(React.createElement(AgentsPanel, { subagents: many, onSelect() {} }));
   const list = query(view.container, ".agents-panel-list");
-  Object.defineProperty(list, "offsetWidth", { value: 360 });
-  Object.defineProperty(list, "offsetHeight", { value: 720 });
-  await act(async () => { for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer); });
+  sizeOf(list, 360, 720);
+  await pumpResizeObservers();
 
   const rows = view.container.querySelectorAll(".subagent-row").length;
   assert.ok(rows > 0 && rows < 80, `a windowed list should draw a screenful, drew ${rows}`);
@@ -560,7 +450,7 @@ test("the subagents panel windows a large roster, leads with failures, and filte
     ["Agent 700"],
   );
 
-  Reflect.deleteProperty(window.HTMLElement.prototype, "offsetHeight");
+  measuredRows.restore();
   await view.unmount();
 });
 
@@ -586,7 +476,11 @@ test("subagent inspector renders activity and closes", async () => {
     summary: "Renderer inspected",
     activity: [{ id: "old", kind: "text", text: "Earlier", at: 0 }, { id: "text", kind: "text", text: "Reading", at: 1 }, { id: "tool", kind: "tool", title: "Read", text: "{\"file\":\"App.tsx\"}", at: 2 }, ...Array.from({ length: 58 }, (_, index) => ({ id: `later-${index}`, kind: "text" as const, text: `Later ${index}`, at: index + 3 }))] satisfies SubagentActivity[],
   };
+  /** The log is windowed, and a virtualiser reads every height off the element, which jsdom reports at nothing. */
+  const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
   const view = await mount(React.createElement(SubagentInspector, { subagent, onClose: () => { closed = true; } }));
+  sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
+  await pumpResizeObservers();
 
   assert.match(view.container.textContent, /Renderer inspected/);
   assert.match(view.container.textContent, /321 tokens/);
@@ -597,6 +491,7 @@ test("subagent inspector renders activity and closes", async () => {
   assert.equal(view.container.querySelector(".agent-activity-earlier"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Close subagent details"]').click(); });
   assert.equal(closed, true);
+  measuredRows.restore();
   await view.unmount();
 });
 
@@ -2774,7 +2669,7 @@ function threadHarness() {
   /** The transcript places itself in a frame, which the shimmed one runs on a timer. */
   const settle = async () => { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); }); };
   const resize = async () => act(async () => {
-    for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer);
+    fireResizeObservers();
     await new Promise((resolve) => setTimeout(resolve, 40));
   });
   return {
@@ -3683,7 +3578,7 @@ function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
   });
   /** Entries are empty because the transcript's observer only cares that something resized. */
   const resize = async () => act(async () => {
-    for (const observer of [...ResizeObserverStub.live]) observer.callback([], observer);
+    fireResizeObservers();
     await new Promise((resolve) => setTimeout(resolve, 40));
   });
   return { scroller, sentTo, render, resize, bottom: scrollHeight };

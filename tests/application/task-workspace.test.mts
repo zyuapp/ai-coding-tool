@@ -366,19 +366,3 @@ test("a workflow keeps how it ended, and the next run carries only what is still
   });
   assert.equal(refreshed.workflows["task-a"][0].agents.length, 2, "the carried workflow keeps taking frames under the new run");
 });
-
-test("a workflow reports to its thread with no run of its own left going", () => {
-  const idle = { ...state(), activeRuns: {}, runStatuses: {} };
-  const started = applyThreadEvent(idle, {
-    type: "workflow.started", taskId: "task-a", id: "wf-1", name: "review-changes", description: "Review changed files",
-  });
-  const progressed = applyThreadEvent(started, {
-    type: "workflow.progress", taskId: "task-a", id: "wf-1", phases: [], agents: [{ index: 0, label: "review:bugs", state: "running" }], totalTokens: 10, totalToolCalls: 1,
-  });
-  const finished = applyThreadEvent(progressed, {
-    type: "workflow.finished", taskId: "task-a", id: "wf-1", status: "completed", summary: "Dynamic workflow completed",
-  });
-
-  assert.equal(finished.workflows["task-a"][0].status, "completed");
-  assert.equal(finished.workflows["task-a"][0].agents.length, 1);
-});

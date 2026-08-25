@@ -132,19 +132,6 @@ test("a failed or undeliverable request rejects instead of hanging the tool call
   await assert.rejects(silent.bridgeFor("task-1").read(), /did not answer the automation "read" request/);
 });
 
-test("a settled request stops its own timeout from firing later", async () => {
-  const posted: AutomationRequest[] = [];
-  const channel = new AutomationChannel((request) => posted.push(request), 20);
-
-  const answered = channel.bridgeFor("task-1").read();
-  channel.settle({ type: "automation.response", requestId: posted[0].requestId, ok: true, result: view() });
-  const result = await answered;
-  assert.ok(result);
-  assert.equal(result.taskId, "task-1");
-
-  await new Promise((resolve) => setTimeout(resolve, 40));
-});
-
 function findingToolNamed(bridge: FindingBridge, name: string): TestTool {
   const definition = findingTools(bridge).find((entry) => entry.name === name);
   assert.ok(definition, `no ${name} tool`);

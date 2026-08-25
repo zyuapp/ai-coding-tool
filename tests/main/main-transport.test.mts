@@ -41,6 +41,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   const { userData, agents, window, trusted, untrusted } = main;
 
   const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
+  const forkedBefore = agents.length;
   const saveAttachment = handler<(event: IpcEvent, data: unknown) => Promise<string>>("attachment:save");
   const saved = await saveAttachment(trusted, Buffer.from([1, 2, 3]).toString("base64"));
   assert.equal(path.dirname(saved), path.join(userData, "attachments"));
@@ -72,7 +73,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   runCommand(trusted, command("cancelled", "run-cancelled"));
   runCommand(trusted, { type: "cancel", taskId: "cancelled", runId: "run-cancelled" });
   await tick();
-  assert.equal(agents.length, 0, "a run cancelled before dispatch does not start the agent process");
+  assert.equal(agents.length, forkedBefore, "a run cancelled before dispatch does not start the agent process");
 
   runCommand(trusted, command("concurrent-a", "run-concurrent-a"));
   runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
@@ -116,7 +117,15 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
 
 test("thread requests are relayed to the window and only its answers reach the agent", async () => {
   const { agents, trusted, untrusted } = main;
-  const agent = agents.at(-1);
+  const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
+  const workspace = await handler<(event: IpcEvent) => Promise<WorkspaceRecord>>("workspace:projectless")(trusted);
+  runCommand(trusted, {
+    type: "start", channel: "main", taskId: "task-caller", runId: "run-relay",
+    prompt: "work", workspaceId: workspace.id, policy: "confirm", model: "opus", effort: "high",
+  } satisfies StartRunCommand);
+  const carrying = () => agents.find((process) => process.messages.some((message) => message.runId === "run-relay"));
+  await waitFor(carrying);
+  const agent = carrying();
   assert.ok(agent);
   const request: ThreadRequest = { type: "thread.request", requestId: "request-1", taskId: "task-caller", op: "list" };
 

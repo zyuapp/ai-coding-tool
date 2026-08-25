@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { MobileClientMessage, MobileView } from "../../src/contracts/mobile.ts";
+import { MOBILE_CREDENTIAL_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
 
 const CODE = "K7M2P9QX";
@@ -85,6 +86,23 @@ function typeInto(selector: string, text: string) {
   });
 }
 
+/**
+ * A fresh page on a stated footing: a pairing code in the address, or a device already paired, or
+ * neither. The page reads both once on mount, so a test that leaves them to a neighbour is reading
+ * that neighbour's leftovers.
+ */
+function openPhone({ code = null, paired = false }: { code?: string | null; paired?: boolean } = {}): FakeSocket {
+  localStorage.clear();
+  if (paired) localStorage.setItem(MOBILE_CREDENTIAL_KEY, JSON.stringify({ token: TOKEN, deviceId: "d1", deviceName: "Phone" }));
+  window.history.replaceState(null, "", code ? `/m#pair=${code}` : "/m");
+  const host = document.createElement("div");
+  document.body.replaceChildren(host);
+  act(() => void createRoot(host).render(React.createElement(App)));
+  const line = lines.at(-1);
+  assert.ok(line, "the page opened no socket");
+  return line;
+}
+
 function click(selector: string) {
   const node = document.querySelector(selector);
   assert.ok(node, `no ${selector}`);
@@ -92,11 +110,7 @@ function click(selector: string) {
 }
 
 test("the phone page pairs from the address, opens a thread, and answers an approval", () => {
-  const host = document.createElement("div");
-  document.body.append(host);
-  act(() => void createRoot(host).render(React.createElement(App)));
-
-  const line = lines[0]!;
+  const line = openPhone({ code: CODE });
   assert.equal(line.url, "wss://mac.ts.net/m/socket");
   /** The code is out of the address before anything else, so a reload cannot try to spend it twice. */
   assert.equal(window.location.hash, "");
@@ -133,13 +147,9 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
 });
 
 test("the phone shows the thread the Mac actually has open, and says what went wrong", () => {
-  const host = document.createElement("div");
-  document.body.replaceChildren(host);
-  act(() => void createRoot(host).render(React.createElement(App)));
-
-  const line = lines.at(-1)!;
+  const line = openPhone({ paired: true });
   act(() => line.onopen?.());
-  assert.equal(line.sent[0]?.kind, "resume", "the token from the last page got it back in without a code");
+  assert.equal(line.sent[0]?.kind, "resume", "a stored token gets the page back in without a code");
 
   function receive(message: unknown) {
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
@@ -160,11 +170,7 @@ test("the phone shows the thread the Mac actually has open, and says what went w
 });
 
 test("New opens the thread the Mac is about to start, and the first message starts it", () => {
-  const host = document.createElement("div");
-  document.body.replaceChildren(host);
-  act(() => void createRoot(host).render(React.createElement(App)));
-
-  const line = lines.at(-1)!;
+  const line = openPhone({ paired: true });
   act(() => line.onopen?.());
 
   function receive(message: unknown) {

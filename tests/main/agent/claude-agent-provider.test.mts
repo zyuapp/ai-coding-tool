@@ -477,8 +477,7 @@ test("a run steered into ends on the turn that answers the steering, not the one
 });
 
 test("a run ends on its turn's result even though its input stream stays open", async () => {
-  const capture: StreamingCapture = { sent: [] };
-  const provider = new ClaudeAgentProvider(streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }], capture));
+  const provider = new ClaudeAgentProvider(streamingQueryFactory([{ type: "result", subtype: "success", is_error: false, result: "done" }]));
 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
 });
