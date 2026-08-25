@@ -42,7 +42,10 @@ test("a code is traded for a token the Mac keeps only the hash of", async (t) =>
   assert.ok(paired.ok);
 
   assert.equal(devices.authenticate(paired.token)?.id, paired.device.id);
-  assert.equal(devices.authenticate(`${paired.token.slice(0, 63)}0`), null);
+  /** Changed, not set: a last digit that was already the replacement would be the same token. */
+  const wrong = `${paired.token.slice(0, 63)}${paired.token.endsWith("0") ? "1" : "0"}`;
+  assert.notEqual(wrong, paired.token);
+  assert.equal(devices.authenticate(wrong), null);
   assert.equal(devices.authenticate(""), null);
   assert.equal(paired.device.name, "iPhone");
 
