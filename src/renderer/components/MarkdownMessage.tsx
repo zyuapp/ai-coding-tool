@@ -1,7 +1,8 @@
 import { Children, createContext, isValidElement, memo, useContext, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
+import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
 import { ContextMenu } from "./PopoverMenu";
 
@@ -28,13 +29,47 @@ export function useMessageLinks() {
 /** Whether this document is the part of a stream still being written, whose last block will grow. */
 const Unsettled = createContext(false);
 
-function MarkdownPre({ children, ...props }: ComponentProps<"pre">) {
+/** The Markdown this document was rendered from, which a block slices to copy itself back out. */
+const Source = createContext("");
+
+/** What a node was written as. A block still being streamed has nothing settled to copy yet. */
+function useBlockSource(node: ExtraProps["node"]) {
+  const source = useContext(Source);
+  const unsettled = useContext(Unsettled);
+  const at = node?.position;
+  if (unsettled || !at) return "";
+  return source.slice(at.start.offset ?? 0, at.end.offset ?? 0);
+}
+
+function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & ExtraProps) {
   const unsettled = useContext(Unsettled);
   const child = Children.count(children) === 1 ? Children.only(children) : null;
-  if (isValidElement<{ className?: string; children?: ReactNode }>(child) && child.props.className?.split(" ").includes("language-mermaid")) {
-    return <MermaidBlock source={String(child.props.children ?? "").replace(/\n$/, "")} pending={unsettled} />;
+  const code = isValidElement<{ className?: string; children?: ReactNode }>(child) ? child : null;
+  /** The fence marks frame the block, so what is copied is only what was written inside them. */
+  const inside = String(code?.props.children ?? "").replace(/\n$/, "");
+  const copied = unsettled ? "" : inside;
+  if (code?.props.className?.split(" ").includes("language-mermaid")) {
+    return (
+      <Copyable text={copied} label="Copy the diagram">
+        <MermaidBlock source={inside} pending={unsettled} />
+      </Copyable>
+    );
   }
-  return <pre {...props}>{children}</pre>;
+  return (
+    <Copyable text={copied} label="Copy the code">
+      <pre {...props}>{children}</pre>
+    </Copyable>
+  );
+}
+
+/** A table has no plain text of its own, so it is copied as the Markdown it was written as. */
+function MarkdownTable({ node, ...props }: ComponentProps<"table"> & ExtraProps) {
+  const source = useBlockSource(node);
+  return (
+    <Copyable text={source} label="Copy the table" className="copyable-table">
+      <table {...props} />
+    </Copyable>
+  );
 }
 
 export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> & { openInApp?: () => void }) {
@@ -104,15 +139,17 @@ function wordSpans() {
 export const MarkdownMessage = memo(function MarkdownMessage({ children, animate }: { children: string; animate?: boolean }) {
   return (
     <Unsettled.Provider value={!!animate}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={animate ? [wordSpans] : []}
-        skipHtml
-        urlTransform={(url) => (APP_HREF.test(url) ? url : defaultUrlTransform(url))}
-        components={{ pre: MarkdownPre, a: MarkdownLink }}
-      >
-        {children}
-      </ReactMarkdown>
+      <Source.Provider value={children}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={animate ? [wordSpans] : []}
+          skipHtml
+          urlTransform={(url) => (APP_HREF.test(url) ? url : defaultUrlTransform(url))}
+          components={{ pre: MarkdownPre, table: MarkdownTable, a: MarkdownLink }}
+        >
+          {children}
+        </ReactMarkdown>
+      </Source.Provider>
     </Unsettled.Provider>
   );
 });

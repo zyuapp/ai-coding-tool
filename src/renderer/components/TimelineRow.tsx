@@ -3,6 +3,7 @@ import type { StreamingTail } from "../../application/task-workspace";
 import type { TaskMessage } from "../../domain/task";
 import { timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
 import { AnnotationRow } from "./AnnotationRow";
+import { CopyButton } from "./CopyButton";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import { StreamingText } from "./StreamingText";
@@ -63,6 +64,8 @@ export function TimelineRow({ group, index, offset, measure, streamingTail, onVi
             ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
             : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} />}
           {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} /></div>}
+          {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
+          {group.final && <div className="answer-actions"><CopyButton text={group.final.text} label="Copy the answer" /></div>}
         </article>
       ) : message!.kind === "system" ? (
         <SystemNotice message={message!} />

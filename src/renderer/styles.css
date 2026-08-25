@@ -1381,6 +1381,39 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .markdown-body th, .markdown-body td { border: 1px solid var(--line); padding: 8px 11px; text-align: left; }
 .markdown-body th { background: var(--surface-raised); color: var(--ink-soft); font-weight: 620; }
 .markdown-body tr:nth-child(even) td { background: var(--sunken); }
+/* A block that can be copied out on its own. The wrapper carries the block's margin so the button,
+   pinned to the wrapper, stays put while the block scrolls under it. */
+.copyable { position: relative; margin: 17px 0; }
+.markdown-body .copyable > pre, .markdown-body .copyable > table, .copyable > .mermaid-block { margin: 0; }
+/* The wrapper hugs a narrow table so its button sits at the table's edge, not the column's. */
+.copyable-table { width: max-content; max-width: 100%; }
+.copy-affordance {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0;
+  background: var(--surface-raised);
+  color: var(--quiet-strong);
+  opacity: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 110ms ease-out;
+  /* Inert while hidden, so selecting the answer's text is never caught by a button nobody can see. */
+  pointer-events: none;
+}
+/* Straddling the top edge, so the button never covers the first line of code or a heading cell. */
+.copyable > .copy-affordance { position: absolute; z-index: 2; top: -10px; right: 9px; }
+/* The button hangs off the top of its block, so its own hover holds it up once the pointer leaves. */
+.copyable:hover > .copy-affordance, .copy-affordance:hover, .message.assistant.turn:hover .answer-actions .copy-affordance,
+.copy-affordance:focus-visible, .copy-affordance.copied { opacity: 1; pointer-events: auto; }
+.copy-affordance:hover { border-color: var(--line-bright); color: var(--ink-soft); }
+.copy-affordance.copied { border-color: var(--success-line); color: var(--success-soft); }
+/* Reserved height, so the answer never shifts when the button fades in. */
+.answer-actions { display: flex; height: 24px; margin-top: 9px; }
+@media (prefers-reduced-motion: reduce) { .copy-affordance { transition: none; } }
 .mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 .mermaid-block:has(.mermaid-open:hover) { border-color: var(--line-bright); }
 .mermaid-loading { display: block; padding: 16px; color: var(--quiet-strong); text-align: center; font-size: var(--text-meta); }
