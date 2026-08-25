@@ -8,11 +8,12 @@ import { promptWithPastes } from "../pastes.js";
 import { pruneDeletedTasks } from "../task-pruning.js";
 import { ATTENDED_RUN, applyTask, threadMark, withActiveRun, withBackgroundProcesses, withRunStatus, type RunProvenance, type ThreadMark } from "../task-workspace.js";
 import { viewPreferences } from "../view-preferences.js";
-import { DRAFT_DOCK, browserTarget, dockFor, dockOwner, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, projectFor, taskWorkspaceId, withDiff, withDock, withPrompt, workflowById, worktreeClaimants, worktreeFor, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, projectFor, taskWorkspaceId, withDiff, withDock, withPrompt, workflowById, worktreeClaimants, worktreeFor, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import type { ChangedFilesResult, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
 import type { DiffRange } from "../../domain/diff.js";
+import { searchesItself, type FindTarget } from "../../domain/find.js";
 import { PLAIN_ENGLISH_STYLE } from "../../domain/output-style.js";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type RunStatus } from "../../domain/run.js";
 import { createTaskMessage, type Annotation, type AttachedFile, type PastedText, type Project, type RunAttachment, type Task } from "../../domain/task.js";
@@ -554,42 +555,45 @@ export function closeSideChats(state: WorkspaceState, closing: SideChat[]): Work
   };
 }
 
-/** What a search asks of whoever holds the text. A thread's own matches are counted in the view. */
+/** What a search asks of whoever holds the text. A thread and a review are counted where they are drawn. */
 export function searchEffects(find: FindState, { findNext, forward }: { findNext: boolean; forward: boolean }): WorkspaceEffect[] {
   const query = find.query.trim();
-  if (!query || find.target.kind === "transcript") return [];
+  if (!query || !searchesItself(find.target)) return [];
   return find.target.kind === "browser"
     ? [{ type: "find-in-page", tabId: find.target.tabId, query, forward, findNext }]
-    : [{ type: "find-in-terminal", terminalId: find.target.terminalId, query, forward }];
+    : find.target.kind === "terminal" ? [{ type: "find-in-terminal", terminalId: find.target.terminalId, query, forward }] : [];
 }
 
 /** A page and a shell keep highlighting what was found until they are told to stop. */
 export function stopSearchEffects(find: FindState | null): WorkspaceEffect[] {
-  if (!find || find.target.kind === "transcript") return [];
+  if (!find || !searchesItself(find.target)) return [];
   return find.target.kind === "browser"
     ? [{ type: "stop-find-in-page", tabId: find.target.tabId }]
-    : [{ type: "stop-find-in-terminal", terminalId: find.target.terminalId }];
+    : find.target.kind === "terminal" ? [{ type: "stop-find-in-terminal", terminalId: find.target.terminalId }] : [];
 }
 
-/** A shell holds the keyboard only while the dock in front is open on it. */
-function showsTerminal(state: WorkspaceState, terminalId: string): boolean {
+/** Find belongs to the view it is searching, so it goes when that view does. */
+function findViewGone(state: WorkspaceState, target: FindTarget): boolean {
   const { owner, dock } = frontDock(state);
-  return dock.open && dock.tab === terminalId && ownerOfTerminal(state, terminalId) === owner;
+  switch (target.kind) {
+    case "thread": return target.taskId !== state.currentId
+      && !dockSideChats(state, owner).some((chat) => chat.id === target.taskId);
+    case "browser": return !ownerOfBrowserTab(state, target.tabId);
+    case "terminal": return !ownerOfTerminal(state, target.terminalId);
+    case "review": return target.owner !== owner || !dock.panels.includes(DIFF_PANEL);
+    case "panel": return target.owner !== owner || !dock.panels.includes(target.panel);
+  }
 }
 
-/** Find belongs to what it is searching, so it goes when that thread, page, or shell does. */
-export function prunedFind(state: WorkspaceState, before: WorkspaceState): WorkspaceState {
-  const focusedTerminalId = state.focusedTerminalId && showsTerminal(state, state.focusedTerminalId) ? state.focusedTerminalId : null;
-  const find = state.find;
-  const gone = !find
-    ? false
-    : find.target.kind === "transcript"
-      ? state.currentId !== before.currentId
-      : find.target.kind === "browser"
-        ? !ownerOfBrowserTab(state, find.target.tabId)
-        : !ownerOfTerminal(state, find.target.terminalId);
-  if (!gone && focusedTerminalId === state.focusedTerminalId) return state;
-  return { ...state, focusedTerminalId, ...(gone ? { find: null, findResults: null } : {}) };
+/**
+ * Runs at the end of every reduce, which is also what validates an externally supplied target: a
+ * review or a panel naming a dock that is not in front is cleared on the reduce that opened it.
+ */
+export function prunedFind(state: WorkspaceState): WorkspaceState {
+  const keyboardTab = state.keyboardTab && dockHoldsTab(state, state.keyboardTab) ? state.keyboardTab : null;
+  const gone = state.find !== null && findViewGone(state, state.find.target);
+  if (!gone && keyboardTab === state.keyboardTab) return state;
+  return { ...state, keyboardTab, ...(gone ? { find: null, findResults: null } : {}) };
 }
 
 /** A dock follows a workflow only while its record is there, so a run that clears one closes its panel. */
@@ -606,11 +610,7 @@ export function prunedWorkflowPanels(state: WorkspaceState): WorkspaceState {
   if (next === state) { const workflows = validWorkflowPanels.get(state.docks) ?? new WeakSet(); workflows.add(state.workflows); validWorkflowPanels.set(state.docks, workflows); }
   return next;
 }
-/** The dock tab the review is drawn in, which the picker and the composer both name. */
-export const DIFF_PANEL = "diff";
-
-/** The dock tab one workflow is followed in. */
-export const WORKFLOW_PANEL = "workflow";
+export { DIFF_PANEL, WORKFLOW_PANEL };
 
 /** The checkout the thread in front works in: what Git is read from, for its diff as for its status. */
 export function currentWorkspaceId(state: WorkspaceState) {

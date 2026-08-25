@@ -1,7 +1,7 @@
 import { apply } from "./workspace-reducer/dispatch.js";
 import { prunedFind, prunedWorkflowPanels, settled, shownPageEffects, TAKE_KEYS } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { dockFor, dockOwner, findTargetFor, recordVisit, type WorkspaceState } from "./workspace-state.js";
+import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import { dockTabShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
 
@@ -21,7 +21,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
     }, settled(state));
   }
   const applied = apply(state, input);
-  const transition = { state: prunedWorkflowPanels(prunedFind(applied.state, state)), effects: applied.effects };
+  const transition = { state: prunedWorkflowPanels(prunedFind(applied.state)), effects: applied.effects };
   if (transition.state.currentId === state.currentId) return transition;
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
@@ -73,7 +73,7 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
      * The shell that already has the keyboard is one the user is done with, so it goes away instead.
      */
     case "terminal.focus": {
-      if (state.focusedTerminalId) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
+      if (keyboardTerminalId(state)) return [{ type: "view.set-dock-open", open: false }, { type: "view.focus-composer" }];
       const latest = dockFor(state, dockOwner(state)).terminals.at(-1);
       return [...leaving, latest ? { type: "terminal.select", terminalId: latest.id } : { type: "terminal.open" }];
     }

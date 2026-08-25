@@ -78,13 +78,18 @@ function renderRow(row: Row, onSelect: (id: string) => void) {
     : <SubagentRow subagent={row.subagent} onSelect={onSelect} />;
 }
 
-export function AgentsPanel({ subagents, onSelect }: { subagents: Subagent[]; onSelect: (id: string) => void }) {
+export function AgentsPanel({ subagents, finding = false, onSelect }: {
+  subagents: Subagent[];
+  /** Whether a search is reading this panel: it reads what was drawn, so while one is open every row is. */
+  finding?: boolean;
+  onSelect: (id: string) => void;
+}) {
   const [status, setStatus] = useState<SubagentStatus | null>(null);
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const counts = useMemo(() => countByStatus(subagents), [subagents]);
   const rows = useMemo(() => rowsFor(matchSubagents(subagents, status, query), !status), [subagents, status, query]);
-  const virtual = rows.length > VIRTUALIZE_ABOVE;
+  const virtual = rows.length > VIRTUALIZE_ABOVE && !finding;
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,

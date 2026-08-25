@@ -15,9 +15,11 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   onAnnotateSide: (quote: string) => void;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
+  /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
+  const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentTask?.id ?? null) ? find : null;
   return (
     <div className="work-area">
-      {find?.target.kind === "transcript" && findBar}
+      {mine && findBar}
       {!workspace.currentTask && (
         <ThreadModeSwitch
           projects={workspace.projects}
@@ -27,7 +29,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
       )}
       <div className="conversation" ref={transcriptRef}>
         <ConversationTimeline
-          find={find?.target.kind === "transcript" ? find : null}
+          find={mine}
           currentTask={workspace.currentTask}
           folder={workspace.folder}
           status={workspace.status}

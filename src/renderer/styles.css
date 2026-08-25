@@ -897,6 +897,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
  *  under the tab strip, whose menu hangs over it. */
 .right-dock-content { isolation: isolate; }
 .right-dock-content, .right-dock-content > div { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
+/** The bar takes its own strip above a panel, exactly as it does above a page or a shell. */
+.right-dock-content > .dock-panel { display: grid; grid-template-rows: minmax(0, 1fr); }
+.right-dock-content > .dock-panel:has(> .find-bar) { grid-template-rows: auto minmax(0, 1fr); }
+.dock-panel-body { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .right-dock-content > [hidden] { display: none; }
 .right-dock-picker { display: grid; place-content: center; gap: 24px; padding: 32px; }
 .right-dock-picker > header { text-align: center; }
@@ -2083,6 +2087,7 @@ pre {
   background: var(--sunken);
   height: 100%;
 }
+.side-chat:has(> .find-bar) { grid-template-rows: 72px auto minmax(0, 1fr) auto auto; }
 .side-chat-header {
   min-width: 0;
   display: flex;

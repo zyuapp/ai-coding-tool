@@ -7,7 +7,7 @@ import { MAC } from "../platform";
 import { subscribeToDesktop } from "./desktop-subscriptions";
 import { errorMessage } from "./errors";
 import { subscribeToMobile } from "./mobile-bridge";
-import { onTerminalFindResults, onTerminalFocus, onTerminalResize } from "./terminal-views";
+import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
 import { answerThreadRequest, type ThreadWaiterList } from "./thread-requests";
 import { hasPersistenceDelta, persistenceDelta, persistenceState, storeBackfill, type PersistenceQueue } from "./workspace-persistence";
 
@@ -107,12 +107,31 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
 
   useEffect(() => {
     const stopReporting = onTerminalFindResults((terminalId, results) => void host.dispatch({ type: "find.results", target: { kind: "terminal", terminalId }, results }));
-    const stopWatching = onTerminalFocus((terminalId) => void host.dispatch({ type: "terminal.focus", terminalId }));
     const stopSizing = onTerminalResize((terminalId, cols, rows) => void host.dispatch({ type: "terminal.resize", terminalId, cols, rows }));
     return () => {
       stopReporting();
-      stopWatching();
       stopSizing();
+    };
+  }, []);
+
+  /**
+   * Which dock tab the keyboard is in, read from where the caret actually is: focus moving out of one
+   * view and into another fires twice, so the answer is settled once a frame from `document.activeElement`.
+   */
+  useEffect(() => {
+    let frame = 0;
+    const look = () => {
+      frame = 0;
+      const tab = document.activeElement?.closest("[data-dock-tab]")?.getAttribute("data-dock-tab") ?? null;
+      void host.dispatch({ type: "view.dock-keys", tab });
+    };
+    const settle = () => { frame ||= requestAnimationFrame(look); };
+    window.addEventListener("focusin", settle);
+    window.addEventListener("focusout", settle);
+    return () => {
+      window.removeEventListener("focusin", settle);
+      window.removeEventListener("focusout", settle);
+      cancelAnimationFrame(frame);
     };
   }, []);
 

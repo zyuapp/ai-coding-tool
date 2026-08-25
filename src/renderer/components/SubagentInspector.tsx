@@ -10,9 +10,10 @@ const TAIL = 60;
 /** Above this many rows the log is windowed; a short log is cheaper drawn whole. */
 const VIRTUALIZE_ABOVE = 50;
 
-function activityItem(item: SubagentActivity) {
+function activityItem(item: SubagentActivity, finding: boolean) {
   return item.kind === "tool" ? (
-    <details className="agent-tool">
+    /** A search reads what is drawn, so a tool's output is drawn open while one is reading the panel. */
+    <details className="agent-tool" {...(finding ? { open: true } : {})}>
       <summary><Wrench size={14} />{item.title ?? "Tool"}</summary>
       <pre>{item.text}</pre>
     </details>
@@ -21,12 +22,17 @@ function activityItem(item: SubagentActivity) {
   );
 }
 
-export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; onClose: () => void }) {
+export function SubagentInspector({ subagent, finding = false, onClose }: {
+  subagent: Subagent;
+  /** Whether a search is reading this view: it reads what was drawn, so while one is open the whole log is. */
+  finding?: boolean;
+  onClose: () => void;
+}) {
   const [limit, setLimit] = useState(TAIL);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const start = Math.max(0, subagent.activity.length - limit);
+  const start = finding ? 0 : Math.max(0, subagent.activity.length - limit);
   const shown = subagent.activity.length - start;
-  const virtual = shown > VIRTUALIZE_ABOVE;
+  const virtual = shown > VIRTUALIZE_ABOVE && !finding;
   const virtualizer = useVirtualizer({
     count: shown,
     getScrollElement: () => scrollRef.current,
@@ -78,12 +84,12 @@ export function SubagentInspector({ subagent, onClose }: { subagent: Subagent; o
                     ref={virtualizer.measureElement}
                     style={{ transform: `translateY(${row.start}px)` }}
                   >
-                    {activityItem(subagent.activity[start + row.index]!)}
+                    {activityItem(subagent.activity[start + row.index]!, finding)}
                   </div>
                 ))
                 : Array.from({ length: shown }, (_, index) => {
                   const item = subagent.activity[start + index]!;
-                  return <div className="agent-activity-row static" key={item.id}>{activityItem(item)}</div>;
+                  return <div className="agent-activity-row static" key={item.id}>{activityItem(item, finding)}</div>;
                 })}
             </div>
           )}

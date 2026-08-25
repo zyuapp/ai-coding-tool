@@ -5,7 +5,7 @@ import { useFocusReturn } from "../focus";
 
 export type FindBarProps = {
   find: FindView;
-  /** What is being searched, as the bar says it: "transcript", "page", "terminal". */
+  /** What is being searched, as the bar says it: "thread", "page", "terminal", "review", or a panel's own name. */
   label: string;
   onQuery: (query: string) => void;
   onStep: (delta: -1 | 1) => void;
@@ -23,7 +23,8 @@ export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps)
   }, [find.focus]);
 
   const searching = find.query.trim().length > 0;
-  const count = searching ? `${find.matches ? find.index + 1 : 0}/${find.matches}` : "";
+  /** A view still reading has a total that is not final yet, so the bar says so rather than settling on it. */
+  const count = searching ? `${find.matches ? find.index + 1 : 0}/${find.matches}${find.counting ? "+" : ""}` : "";
 
   return (
     <div className="find-bar" role="search">
@@ -42,8 +43,8 @@ export function FindBar({ find, label, onQuery, onStep, onClose }: FindBarProps)
           event.preventDefault();
         }}
       />
-      <span className={`find-count ${searching && !find.matches ? "empty" : ""}`.trimEnd()} aria-live="polite">
-        {searching && !find.matches ? "No matches" : count}
+      <span className={`find-count ${searching && !find.matches && !find.counting ? "empty" : ""}`.trimEnd()} aria-live="polite">
+        {searching && !find.matches ? (find.counting ? "Counting…" : "No matches") : count}
       </span>
       <button type="button" aria-label="Previous match" disabled={!find.matches} onClick={() => onStep(-1)}><ChevronUp size={15} /></button>
       <button type="button" aria-label="Next match" disabled={!find.matches} onClick={() => onStep(1)}><ChevronDown size={15} /></button>

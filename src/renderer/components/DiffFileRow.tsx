@@ -34,7 +34,7 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
       <button className="diff-file-open" type="button" aria-expanded={open} {...reach} onClick={onToggle}>
         <span className="diff-file-caret" aria-hidden="true">{open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</span>
         <span className="diff-file-icon"><StatusIcon status={file.status} /></span>
-        <span className="diff-file-name" title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
+        <span className="diff-file-name" data-find-row={`${file.path}\n`} title={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
           <em>{folder}</em>{name}
         </span>
         {file.previousPath && <span className="diff-file-renamed" title={`Renamed from ${file.previousPath}`}>renamed</span>}

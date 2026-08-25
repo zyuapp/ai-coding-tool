@@ -11,7 +11,7 @@ import { WorkspaceConversation } from "./components/WorkspaceConversation";
 import { WorkspaceSession } from "./components/WorkspaceSession";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { WorkspaceHeader } from "./components/WorkspaceHeader";
-import { buildDock, unreviewedFileCount } from "./components/dock-registry";
+import { buildDock, findLabel, unreviewedFileCount } from "./components/dock-registry";
 import { useTaskWorkspace } from "./task-workspace/useTaskWorkspace";
 import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
 import { attachDroppedFiles, imageSources } from "./dropped-files";
@@ -31,15 +31,6 @@ export function App() {
   /** The right dock takes the same space, so it hides the panel without discarding the choice. */
   const sessionPanelVisible = workspace.sessionPanelOpen && !rightDockOpen;
   const find = workspace.find;
-  const findBar = find ? (
-    <FindBar
-      find={find}
-      label={find.target.kind === "browser" ? "page" : find.target.kind === "terminal" ? "terminal" : "thread"}
-      onQuery={workspace.actions.setFindQuery}
-      onStep={workspace.actions.stepFind}
-      onClose={workspace.actions.closeFind}
-    />
-  ) : null;
 
   function addSideChat() {
     void workspace.dispatch({ type: "side-chat.open", chatId: crypto.randomUUID() });
@@ -87,6 +78,17 @@ export function App() {
     onOpenPanel: openRightTab,
     onAddSideChat: addSideChat,
   });
+
+  /** Built after the registry, which is the only thing that knows what a panel is called. */
+  const findBar = find ? (
+    <FindBar
+      find={find}
+      label={findLabel(find.target, dockPanels)}
+      onQuery={workspace.actions.setFindQuery}
+      onStep={workspace.actions.stepFind}
+      onClose={workspace.actions.closeFind}
+    />
+  ) : null;
 
   /** The `/` menu is the dock registry, so a view added there is reachable from the composer too. */
   const composerActions = dockLaunchers

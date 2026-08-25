@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { DiffSummaryResult } from "../../contracts/ipc";
-import type { DiffState } from "../../application/workspace-state";
+import type { DiffState, FindView } from "../../application/workspace-state";
+import type { FindResults } from "../../domain/find";
 import type { Annotation, AnnotationAnchor } from "../../domain/task";
 import { commentQuote, rangeKey, type DiffRange } from "../../domain/diff";
 import {
@@ -14,6 +15,7 @@ import {
   type Selection,
 } from "../diff/panel-rows";
 import { useDrawnFiles, usePanelRows, usePinnedFile, useRoomForTwo, useSelectionSpan } from "../diff/use-panel";
+import { useReadWholeReview, useReviewFind } from "../diff/use-review-find";
 import { useLazyColours } from "../diff/use-colours";
 import { DiffToolbar } from "./DiffToolbar";
 import { PanelRowView, PinnedFileRow } from "./DiffRows";
@@ -40,6 +42,9 @@ export type DiffPanelProps = {
   onRemoveComment: (annotationId: string) => void;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
+  /** The find bar, when it is this review being searched. The bar itself is drawn by the dock. */
+  find?: FindView | null;
+  onFindResults?: (results: FindResults) => void;
 };
 
 function summaryMessage(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined) {
@@ -67,6 +72,8 @@ export function DiffPanel({
   onRemoveComment,
   openMenu,
   onSetOpenMenu,
+  find = null,
+  onFindResults,
 }: DiffPanelProps) {
   const available = diff.result?.status === "available" ? diff.result : null;
   const files = useMemo(() => available?.files ?? [], [available]);
@@ -80,14 +87,15 @@ export function DiffPanel({
   const roomForTwo = useRoomForTwo(panelRef);
   const split = diff.split && roomForTwo;
 
-  const { drawn, settling, patches, noteFor } = useDrawnFiles(workspaceId, diff.range, files, collapsed);
+  const readAll = useReadWholeReview(`${workspaceId ?? ""}|${rangeKey(diff.range)}`, find?.query);
+  const { drawn, settling, notes, patches, versionOf, patchOf, noteFor } = useDrawnFiles(workspaceId, diff.range, files, collapsed, readAll);
   const span = useSelectionSpan(selection, drawn);
 
   /** Draft comments only mark the exact comparison and rows they were made from. */
   const diffComments = useMemo(() => anchoredDiffComments(annotations, rangeKey(diff.range), drawn), [annotations, diff.range, drawn]);
   const commentRows = useMemo(() => indexDiffComments(diffComments), [diffComments]);
 
-  const rows = usePanelRows({ files, collapsed, drawn, settling, patches, split, span, selectionPath: selection?.path, noteFor });
+  const rows = usePanelRows({ files, collapsed, drawn, settling, notes, split, span, selectionPath: selection?.path, noteFor });
 
   const windowed = rows.length > VIRTUALIZE_ABOVE;
   const virtualizer = useVirtualizer({
@@ -102,6 +110,11 @@ export function DiffPanel({
   const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
 
   useLazyColours(rows.length, windowed ? virtualizer : null, (index) => colourRow(rows[index], drawn));
+
+  useReviewFind({
+    find, files, versionOf, patchOf, patches, rows, collapsed, windowed, virtualizer, scrollRef, onSetCollapsed,
+    onResults: onFindResults ?? (() => undefined),
+  });
 
   /** The caret goes to the note when a run is first picked, and stays wherever the user puts it after. */
   useEffect(() => {

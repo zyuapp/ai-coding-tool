@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { fileFingerprint, type DiffFileSummary, type DiffRange } from "../../domain/diff";
-import { usePatches, type PatchRequest, type PatchState } from "./use-patch";
+import { usePatches, type PatchRequest } from "./use-patch";
 import {
   buildPanelRows,
   drawFile,
@@ -36,20 +36,35 @@ export function useRoomForTwo(panel: RefObject<HTMLElement | null>) {
   return roomForTwo;
 }
 
-/** Every open file's patch, parsed and tokenized, and whether the list is still waiting for its first. */
-export function useDrawnFiles(workspaceId: string | undefined, range: DiffRange, files: DiffFileSummary[], collapsed: Set<string>) {
-  /** Only the files that are open and have lines in them are worth reading a patch for. */
-  const requests = useMemo<PatchRequest[]>(
-    () => files
-      .filter((file) => !file.binary && !collapsed.has(file.path))
-      .map((file) => ({
-        path: file.path,
-        ...(file.previousPath ? { previousPath: file.previousPath } : {}),
-        version: `${file.path}|${fileFingerprint(file)}`,
-      })),
-    [files, collapsed],
-  );
-  const { patches, at } = usePatches(workspaceId, range, requests);
+/** What reading one file's patch is asked for by, keyed so a file rewritten under the user is read again. */
+function requestsFor(files: DiffFileSummary[]): PatchRequest[] {
+  return files.map((file) => ({
+    path: file.path,
+    ...(file.previousPath ? { previousPath: file.previousPath } : {}),
+    version: `${file.path}|${fileFingerprint(file)}`,
+  }));
+}
+
+/**
+ * Every open file's patch, parsed and tokenized, and whether the list is still waiting for its first.
+ * `readAll` asks for the folded files' patches too, which is what a search over the whole review needs.
+ */
+export function useDrawnFiles(
+  workspaceId: string | undefined,
+  range: DiffRange,
+  files: DiffFileSummary[],
+  collapsed: Set<string>,
+  readAll: boolean,
+) {
+  /** Only the files that are open and have lines in them are worth drawing. */
+  const requests = useMemo(() => requestsFor(files.filter((file) => !file.binary && !collapsed.has(file.path))), [files, collapsed]);
+  /**
+   * What is read, which is either the open files or all of them. Never the two spliced together:
+   * the reads are keyed by this list, so one that shifted whenever a file was folded would cancel
+   * every read still in flight.
+   */
+  const everything = useMemo(() => requestsFor(files.filter((file) => !file.binary)), [files]);
+  const { patches, at } = usePatches(workspaceId, range, readAll ? everything : requests);
 
   /**
    * Whether the list is still waiting for its first patch. Nothing is drawn until one settles —
@@ -73,6 +88,7 @@ export function useDrawnFiles(workspaceId: string | undefined, range: DiffRange,
    * screen, which on a large review is the whole diff through a grammar again for every file in it.
    */
   const drawings = useRef(new Map<string, DrawnFile>());
+  const published = useRef(new Map<string, DrawnFile>());
   const drawn = useMemo(() => {
     const built = new Map<string, DrawnFile>();
     const held = drawings.current;
@@ -85,11 +101,32 @@ export function useDrawnFiles(workspaceId: string | undefined, range: DiffRange,
       built.set(request.path, drawing);
     }
     drawings.current = kept;
+    /**
+     * The same map again when nothing under it moved. A search reads the folded files too, and each
+     * of those landing changes nothing that is drawn: without this every one of them would rebuild
+     * the whole row list, which on a long review is the one cost that would be felt.
+     */
+    const settled = published.current.size === built.size && [...built].every(([path, drawing]) => published.current.get(path) === drawing);
+    if (settled) return published.current;
+    published.current = built;
     return built;
     // `at` reads `patches`, which is a fresh map whenever one has landed.
   }, [requests, patches]);
 
-  return { drawn, settling, patches, noteFor: (path: string) => patchNote(at(versionOf.get(path) ?? "")) };
+  /**
+   * What the notes under the open files say. Rows are rebuilt on this rather than on every patch that
+   * lands, so a file being read for a search never redraws a review it is not drawn in.
+   */
+  const notes = useMemo(
+    () => requests.map((request) => `${request.path}:${patchNote(at(request.version)) ?? ""}`).join("\n"),
+    // `at` reads `patches`, which is a fresh map whenever one has landed.
+    [requests, patches],
+  );
+
+  /** Where one file's patch has got to: unasked for, being read, read, or more than can be shown. */
+  const patchOf = (path: string) => at(versionOf.get(path) ?? "");
+
+  return { drawn, settling, notes, patches, versionOf, patchOf, noteFor: (path: string) => patchNote(patchOf(path)) };
 }
 
 export function useSelectionSpan(selection: Selection | null, drawn: Map<string, DrawnFile>) {
@@ -97,11 +134,11 @@ export function useSelectionSpan(selection: Selection | null, drawn: Map<string,
 }
 
 /** Every drawn line of the review, rebuilt only when something under it has moved. */
-export function usePanelRows(input: PanelRowsInput & { patches: Map<string, PatchState> }) {
-  const { files, collapsed, drawn, settling, split, span, selectionPath, patches } = input;
+export function usePanelRows(input: PanelRowsInput & { notes: string }) {
+  const { files, collapsed, drawn, settling, split, span, selectionPath, notes } = input;
   return useMemo(
     () => buildPanelRows(input),
-    [settling, files, collapsed, drawn, patches, split, span, selectionPath],
+    [settling, files, collapsed, drawn, notes, split, span, selectionPath],
   );
 }
 

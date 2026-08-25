@@ -7,7 +7,7 @@ import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
   type: "file.open" | "app.open-folder" | "terminal.open" | "terminal.select" | "terminal.close"
-    | "terminal.input" | "terminal.resize" | "terminal.focus" | "terminal.updated";
+    | "terminal.input" | "terminal.resize" | "terminal.updated";
 }>;
 
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
@@ -73,9 +73,6 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
 
     case "terminal.resize":
       return settled(state, [{ type: "terminal.resize", terminalId: input.terminalId, cols: input.cols, rows: input.rows }]);
-
-    case "terminal.focus":
-      return settled({ ...state, focusedTerminalId: input.terminalId });
 
     case "terminal.updated": {
       const { terminalId, ...patch } = input.update;

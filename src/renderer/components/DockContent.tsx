@@ -1,12 +1,39 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { BrowserPanel } from "./BrowserPanel";
 import { DockSideChats } from "./DockSideChat";
 import { TerminalPanel } from "./TerminalPanel";
 import type { DockLauncher, DockPanel } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
-import type { FindView } from "../../application/workspace-state";
+import { usePanelFind } from "../find/use-panel-find";
+import { DIFF_PANEL, type FindView } from "../../application/workspace-state";
+import type { FindResults } from "../../domain/find";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
+
+/**
+ * One panel's tab: the view, and the find bar above it when it is the one being searched. The bar
+ * sits in the same place in every tab, so a panel never draws one of its own.
+ */
+function DockPanelTab({ panel, active, find, findBar, onResults }: {
+  panel: DockPanel;
+  active: boolean;
+  find: FindView | null;
+  findBar: ReactNode;
+  onResults: (results: FindResults) => void;
+}) {
+  const body = useRef<HTMLDivElement>(null);
+  /** The review counts its rows rather than its drawing, since most of them are never drawn. */
+  const drawnFind = find?.target.kind === "panel" && find.target.panel === panel.id ? find : null;
+  usePanelFind({ root: body, find: drawnFind, onResults });
+  const mine = drawnFind !== null || (find?.target.kind === "review" && panel.id === DIFF_PANEL);
+  return (
+    <div className="dock-panel" data-dock-tab={panel.id} hidden={!active}>
+      {mine && findBar}
+      {/** The body is its own element so the query typed into the bar is never painted as a match. */}
+      <div className="dock-panel-body" ref={body}>{panel.render()}</div>
+    </div>
+  );
+}
 
 /** Everything the dock can show, with only the tab that is selected left unhidden. */
 export function DockContent({ workspace, panels, launchers, activeTab, find, findBar, dockOpen, settingsVisible, focusTokenFor, onCloseTab }: {
@@ -40,11 +67,18 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
         </div>
       </div>
       {panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map((panel) => (
-        <div key={panel.id} hidden={activeTab !== panel.id}>{panel.render()}</div>
+        <DockPanelTab
+          key={panel.id}
+          panel={panel}
+          active={activeTab === panel.id}
+          find={find}
+          findBar={findBar}
+          onResults={(results) => { if (find) void workspace.actions.reportFind(find.target, results); }}
+        />
       ))}
       {/** A page is a native view main draws over the panel, so only the one on top is ever drawn. */}
       {browserTab && (
-        <div>
+        <div data-dock-tab={browserTab.id}>
           <BrowserPanel
             tab={browserTab}
             focusToken={focusTokenFor(browserTab.id)}
@@ -58,7 +92,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
         </div>
       )}
       {shownTerminal && (
-        <div>
+        <div data-dock-tab={shownTerminal.id}>
           <TerminalPanel
             terminal={shownTerminal}
             focusToken={focusTokenFor(shownTerminal.id)}
@@ -74,6 +108,8 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
           workspace={workspace}
           source={workspace.currentTask}
           activeTab={activeTab}
+          find={find}
+          findBar={findBar}
           focusTokenFor={focusTokenFor}
           onClose={onCloseTab}
         />

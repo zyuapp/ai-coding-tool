@@ -5,7 +5,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 
 export const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "MutationObserver", "Image", "navigator", "File", "Blob", "FileReader", "DOMParser", "innerWidth", "innerHeight"]) {
+for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "MutationObserver", "Image", "navigator", "File", "Blob", "FileReader", "DOMParser", "NodeFilter", "Range", "innerWidth", "innerHeight"]) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
 }
 /** jsdom has no animation frames. Everything queued for one runs together, on a single timestamp. */

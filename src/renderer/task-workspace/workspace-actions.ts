@@ -1,6 +1,7 @@
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
+import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment, TaskDropTarget } from "../../domain/task";
@@ -104,6 +105,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setFindQuery: (query: string) => dispatch({ type: "view.find-query", query }),
     stepFind: (delta: -1 | 1) => dispatch({ type: "view.find-step", delta }),
     closeFind: () => dispatch({ type: "view.find-close" }),
+    reportFind: (target: FindTarget, results: FindResults) => dispatch({ type: "find.results", target, results }),
     resizeTerminal: (terminalId: string, cols: number, rows: number) => dispatch({ type: "terminal.resize", terminalId, cols, rows }),
     setRemoteEnabled: (enabled: boolean) => dispatch({ type: "remote.set-enabled", enabled }),
     setRemoteLanExposed: (exposed: boolean) => dispatch({ type: "remote.set-lan-exposed", exposed }),

@@ -46,6 +46,7 @@ function CommentMarkers({ row, comments, onEditComment }: {
 }
 
 type LineRowProps = {
+  path: string;
   row: DiffRow;
   tokens: Map<string, ThemedToken[]>;
   selected: boolean;
@@ -56,7 +57,7 @@ type LineRowProps = {
 };
 
 /** One line of the one-column view. Its gutter is the only thing that selects, the way a review reads. */
-function LineRow({ row, tokens, selected, commented, comments, onSelect, onEditComment }: LineRowProps) {
+function LineRow({ path, row, tokens, selected, commented, comments, onSelect, onEditComment }: LineRowProps) {
   if (row.kind === "hunk") return <div className="diff-line hunk">{row.text}</div>;
   return (
     <div className={`diff-line ${row.kind}${commented ? " commented" : ""}${selected ? " selected" : ""}`}>
@@ -73,12 +74,13 @@ function LineRow({ row, tokens, selected, commented, comments, onSelect, onEditC
         <span>{row.newLine ?? ""}</span>
       </button>
       <span className="diff-marker" aria-hidden="true">{row.kind === "add" ? "+" : row.kind === "delete" ? "−" : " "}</span>
-      <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
+      <code data-find-row={`${path}\n${row.key}`}><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
   );
 }
 
 type SplitCellProps = {
+  path: string;
   row: DiffRow | null;
   tokens: Map<string, ThemedToken[]>;
   side: DiffSide;
@@ -90,7 +92,7 @@ type SplitCellProps = {
 };
 
 /** One column of the two-column view. Either side's gutter selects, and both colour the same way. */
-function SplitCell({ row, tokens, side, selected, commented, comments, onSelect, onEditComment }: SplitCellProps) {
+function SplitCell({ path, row, tokens, side, selected, commented, comments, onSelect, onEditComment }: SplitCellProps) {
   if (!row || row.kind === "hunk") return <div className="diff-split-cell empty" />;
   return (
     <div className={`diff-split-cell ${row.kind}${commented ? " commented" : ""}${selected ? " selected" : ""}`}>
@@ -105,7 +107,7 @@ function SplitCell({ row, tokens, side, selected, commented, comments, onSelect,
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>
         <span>{side === "old" ? row.oldLine ?? "" : row.newLine ?? ""}</span>
       </button>
-      <code><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
+      <code data-find-row={`${path}\n${row.key}`}><RowText text={row.text} tokens={tokens.get(row.key)} /></code>
     </div>
   );
 }
@@ -134,6 +136,7 @@ function SplitPairRow({ path, left, right, tokens, indexByKey, comments, isSelec
   return (
     <div className="diff-split-row">
       <SplitCell
+        path={path}
         row={left}
         tokens={tokens}
         side="old"
@@ -144,6 +147,7 @@ function SplitPairRow({ path, left, right, tokens, indexByKey, comments, isSelec
         onEditComment={onEditComment}
       />
       <SplitCell
+        path={path}
         row={right}
         tokens={tokens}
         side="new"
@@ -229,6 +233,7 @@ export function PanelRowView({
     const key = `${row.path}\n${row.index}`;
     return (
       <LineRow
+        path={row.path}
         row={row.row}
         tokens={tokens}
         selected={isSelected(row.path, row.index)}

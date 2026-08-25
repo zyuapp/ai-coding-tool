@@ -96,12 +96,13 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "file.open": case "app.open-folder": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":
-    case "terminal.resize": case "terminal.focus": case "terminal.updated":
+    case "terminal.resize": case "terminal.updated":
       return reduceDesktop(state, input);
 
     case "view.set-menu": case "view.go-back": case "view.go-forward":
     case "view.set-focused": case "view.find-open": case "view.find-query":
     case "view.find-step": case "view.find-close": case "find.results":
+    case "view.dock-keys":
     case "view.dismiss-computer-use-setup":
       return reduceView(state, input);
   }

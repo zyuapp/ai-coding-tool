@@ -431,6 +431,27 @@ test("subagent inspector renders activity and closes", async () => {
   await view.unmount();
 });
 
+test("a search reading the inspector gets the whole log, drawn open", async () => {
+  const subagent: Subagent = {
+    ...subagents[0],
+    activity: [
+      { id: "tool", kind: "tool", title: "Read", text: "reading App.tsx", at: 0 },
+      ...Array.from({ length: 120 }, (_, index) => ({ id: `step-${index}`, kind: "text" as const, text: `Step ${index}`, at: index + 1 })),
+    ] satisfies SubagentActivity[],
+  };
+  const measuredRows = rowHeights((node) => node.classList?.contains("agent-activity-row") ? 40 : 0);
+  const view = await mount(React.createElement(SubagentInspector, { subagent, finding: true, onClose() {} }));
+  sizeOf(query(view.container, ".inspector-scroll"), 360, 720);
+  await pumpResizeObservers();
+
+  assert.equal(view.container.querySelectorAll(".agent-activity-row").length, 121, "a search reads what was drawn, so all of it is drawn");
+  assert.equal(view.container.querySelector(".agent-activity-earlier"), null, "there is nothing earlier left to load");
+  assert.equal(query<HTMLDetailsElement>(view.container, "details.agent-tool").open, true, "a match inside a tool's output has to be visible to be stepped onto");
+  assert.match(view.container.textContent, /Step 0/);
+  measuredRows.restore();
+  await view.unmount();
+});
+
 test("workspace header keeps session summary and right panel controls separate", async () => {
   let sidebarToggles = 0;
   let summaryToggles = 0;

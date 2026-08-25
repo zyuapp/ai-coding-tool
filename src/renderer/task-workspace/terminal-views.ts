@@ -25,7 +25,6 @@ type TerminalView = {
 
 const views = new Map<string, TerminalView>();
 let publishInput: (terminalId: string, data: string) => void = () => undefined;
-let publishFocus: (terminalId: string | null) => void = () => undefined;
 let publishFind: (terminalId: string, results: FindResults) => void = () => undefined;
 let publishResize: (terminalId: string, cols: number, rows: number) => void = () => undefined;
 let xterm: Promise<{ Terminal: typeof Terminal; FitAddon: typeof FitAddon; SearchAddon: typeof SearchAddon }> | null = null;
@@ -52,12 +51,6 @@ if (typeof window !== "undefined" && "requestIdleCallback" in window) {
 /** Where keystrokes go. Set by the panel, since a view can exist before the panel is mounted. */
 export function onTerminalInput(handler: (terminalId: string, data: string) => void) {
   publishInput = handler;
-}
-
-/** Which view has the keyboard, so ⌘F knows whether it means this shell or the transcript. */
-export function onTerminalFocus(handler: (terminalId: string | null) => void) {
-  publishFocus = handler;
-  return () => { publishFocus = () => undefined; };
 }
 
 /** The grid a shell ends up with when nothing resized its container, which only a type change does. */
@@ -159,8 +152,6 @@ function terminalRecord(terminalId: string): TerminalView {
   if (existing) return existing;
   const container = document.createElement("div");
   container.className = "terminal-surface";
-  container.addEventListener("focusin", () => publishFocus(terminalId));
-  container.addEventListener("focusout", () => publishFocus(null));
   const view: TerminalView = { container, terminal: null, fit: null, search: null, pending: [], opened: false };
   views.set(terminalId, view);
   return view;

@@ -1,6 +1,6 @@
 import { GitFork, X } from "lucide-react";
-import { useRef } from "react";
-import type { SideChatView } from "../../application/workspace-state";
+import { useRef, type ReactNode } from "react";
+import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment, type Project, type Task } from "../../domain/task";
 import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../../domain/run";
@@ -10,10 +10,13 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, focusToken = 0, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, focusToken = 0, find = null, findBar, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
+  /** The bar, and the match it is showing, when it is this chat's own thread being searched. */
+  find?: FindView | null;
+  findBar?: ReactNode;
   source: Task;
   project?: Project;
   /** Threads this chat's `@` menu offers. */
@@ -57,8 +60,10 @@ export function SideChat({ chat, focusToken = 0, source, project, threads, onPro
         </div>
         <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>
       </header>
+      {findBar}
       <div className="side-chat-transcript" ref={transcriptRef}>
         <ConversationTimeline
+          find={find}
           currentTask={chat.task}
           folder={project?.root ?? ""}
           status={chat.status}

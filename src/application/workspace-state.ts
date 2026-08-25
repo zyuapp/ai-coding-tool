@@ -5,17 +5,23 @@ import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 
 export type { ReadingPoint };
+import { DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
+export {
+  DIFF_PANEL, DOCK_PICKER, DRAFT_DOCK, EMPTY_DOCK, WORKFLOW_PANEL, activeBrowserTab, activeTerminal, browserTarget,
+  dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock,
+  keyboardTerminalId, ownerOfBrowserTab, ownerOfTerminal, terminalTarget, withDock,
+} from "./workspace-dock.js";
+export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 export { EMPTY_DIFF, diffFor, diffMatches, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
-import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
-import { memoizedFindHits, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
+import type { BrowserApproval } from "../domain/browser.js";
+import { memoizedFindHits, searchesItself, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
-import type { TerminalSession } from "../domain/terminal.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
@@ -158,26 +164,6 @@ export type ProjectEdit = {
   error: string | null;
 };
 
-/**
- * One thread's right dock: whether it is showing, which panels are open as tabs, which tab is on top,
- * and the pages and shells that thread opened. A page and a shell belong to the thread that asked for
- * one, so a run drives its own dock and never the dock of whichever thread the user is looking at.
- * Only the records live here. What a page holds and what a shell has printed never become state.
- */
-export type ThreadDock = {
-  open: boolean;
-  /** Whether the dock is taking the whole workspace, which only a dock that is showing ever does. */
-  expanded: boolean;
-  panels: string[];
-  tab: string;
-  /** The workflow the dock's workflow panel is following, kept per thread the way its panels are. */
-  workflowId: string | null;
-  browserTabs: BrowserTab[];
-  browserTabId: string | null;
-  terminals: TerminalSession[];
-  terminalId: string | null;
-};
-
 export type WorkspaceState = {
   tasks: Task[];
   projects: Project[];
@@ -266,8 +252,8 @@ export type WorkspaceState = {
   /** The find bar, and what a page or a shell reported after searching itself. */
   find: FindState | null;
   findResults: FindResults | null;
-  /** Which shell has the keyboard, so find knows whether ⌘F means the shell or the transcript. */
-  focusedTerminalId: string | null;
+  /** Which dock tab the keyboard is in, so ⌘F knows whether it means that view or the thread. */
+  keyboardTab: string | null;
   /** The origins a run may reach without asking. Visiting a site adds it. */
   browserOrigins: string[];
   browserApproval: BrowserApproval | null;
@@ -362,7 +348,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     readingPoints: {},
     find: null,
     findResults: null,
-    focusedTerminalId: null,
+    keyboardTab: null,
     browserOrigins: [],
     browserApproval: null,
     openMenu: null,
@@ -472,44 +458,6 @@ function sessionStarted(state: WorkspaceState): boolean {
     || Object.keys(state.pendingRuns).length > 0;
 }
 
-/** The dock tab that offers the panels, shown whenever no panel is on top. */
-export const DOCK_PICKER = "home";
-
-/** The dock the app shows while no thread is current, so a draft has a dock of its own too. */
-export const DRAFT_DOCK = "draft";
-
-export const EMPTY_DOCK: ThreadDock = {
-  open: false,
-  expanded: false,
-  panels: [],
-  tab: DOCK_PICKER,
-  workflowId: null,
-  browserTabs: [],
-  browserTabId: null,
-  terminals: [],
-  terminalId: null,
-};
-
-/**
- * Whose dock a command belongs in: the thread it names, else the one the user is looking at. A side
- * chat is a tab within its source thread's dock, so its own commands land in that same dock.
- */
-export function dockOwner(state: Pick<WorkspaceState, "currentId" | "sideChats">, taskId?: string | null): string {
-  const id = taskId ?? state.currentId;
-  if (!id) return DRAFT_DOCK;
-  return state.sideChats.find((chat) => chat.id === id)?.sourceTaskId ?? id;
-}
-
-export function dockFor(state: Pick<WorkspaceState, "docks">, owner: string): ThreadDock {
-  return state.docks[owner] ?? EMPTY_DOCK;
-}
-
-/** The dock in front, and whose it is: the pair every view command starts from. */
-export function frontDock(state: Pick<WorkspaceState, "currentId" | "sideChats" | "docks">): { owner: string; dock: ThreadDock } {
-  const owner = dockOwner(state);
-  return { owner, dock: dockFor(state, owner) };
-}
-
 /** A workflow by id, wherever it is kept: a dock follows one workflow, not one thread's list. */
 export function workflowById(state: Pick<WorkspaceState, "workflows">, id: string | null): Workflow | undefined {
   if (!id) return undefined;
@@ -518,79 +466,6 @@ export function workflowById(state: Pick<WorkspaceState, "workflows">, id: strin
     if (found) return found;
   }
   return undefined;
-}
-
-export function withDock(state: WorkspaceState, owner: string, patch: Partial<ThreadDock>): WorkspaceState {
-  return { ...state, docks: { ...state.docks, [owner]: { ...dockFor(state, owner), ...patch } } };
-}
-
-/** Which dock holds a page or a shell, for the events and commands that only name its id. */
-export function ownerOfBrowserTab(state: WorkspaceState, tabId: string): string | undefined {
-  return Object.keys(state.docks).find((owner) => state.docks[owner].browserTabs.some((tab) => tab.id === tabId));
-}
-
-export function ownerOfTerminal(state: WorkspaceState, terminalId: string): string | undefined {
-  return Object.keys(state.docks).find((owner) => state.docks[owner].terminals.some((terminal) => terminal.id === terminalId));
-}
-
-/** The forks a dock draws as tabs: the ones taken from the thread that owns it. */
-export function dockSideChats(state: Pick<WorkspaceState, "sideChats">, owner: string) {
-  return state.sideChats.filter((chat) => chat.sourceTaskId === owner);
-}
-
-/**
- * What a dock tab is showing. A page and a shell are tabs in their own right rather than tabs within
- * a panel, so `tab` names one of them directly and there is one strip in the app, not two.
- */
-export function dockTabKind(state: WorkspaceState, owner: string, tab: string) {
-  const dock = dockFor(state, owner);
-  if (dock.browserTabs.some((page) => page.id === tab)) return "browser" as const;
-  if (dock.terminals.some((terminal) => terminal.id === tab)) return "terminal" as const;
-  if (dockSideChats(state, owner).some((chat) => chat.id === tab)) return "side-chat" as const;
-  return dock.panels.includes(tab) ? "panel" as const : "picker" as const;
-}
-
-/** Every tab in the dock, in the order the strip draws them. */
-export function dockTabIds(state: WorkspaceState, owner: string) {
-  const dock = dockFor(state, owner);
-  return [
-    ...dock.panels,
-    ...dock.browserTabs.map((page) => page.id),
-    ...dock.terminals.map((terminal) => terminal.id),
-    ...dockSideChats(state, owner).map((chat) => chat.id),
-  ];
-}
-
-/** Which tab takes over when `tab` closes: its neighbour on the left, else on the right, else the picker. */
-export function dockTabAfterClosing(state: WorkspaceState, owner: string, tab: string) {
-  const tabs = dockTabIds(state, owner);
-  const index = tabs.indexOf(tab);
-  if (index === -1) return dockFor(state, owner).tab;
-  const remaining = tabs.filter((id) => id !== tab);
-  return remaining[index - 1] ?? remaining[index] ?? DOCK_PICKER;
-}
-
-export function activeBrowserTab(dock: ThreadDock) {
-  return dock.browserTabs.find((tab) => tab.id === dock.browserTabId);
-}
-
-/** Which tab a browser command acts on: the one it names, else the one that dock is showing. */
-export function browserTarget(dock: ThreadDock, tabId: string | undefined) {
-  return tabId === undefined ? activeBrowserTab(dock) : dock.browserTabs.find((tab) => tab.id === tabId);
-}
-
-export function activeTerminal(dock: ThreadDock) {
-  return dock.terminals.find((terminal) => terminal.id === dock.terminalId);
-}
-
-/**
- * Which terminal a read acts on: the one it names, else the one the asking thread opened, else the
- * one its dock is showing. A thread with a shell of its own never reads somebody else's by accident.
- */
-export function terminalTarget(dock: ThreadDock, terminalId: string | undefined, taskId?: string) {
-  if (terminalId !== undefined) return dock.terminals.find((terminal) => terminal.id === terminalId);
-  const own = taskId === undefined ? undefined : dock.terminals.reduceRight<TerminalSession | undefined>((found, terminal) => found ?? (terminal.taskId === taskId ? terminal : undefined), undefined);
-  return own ?? activeTerminal(dock);
 }
 
 /** The folder the app is pointed at: the thread's own checkout, else its project, else the last one opened. */
@@ -706,30 +581,51 @@ export function recordVisit(state: WorkspaceState, taskId: string): WorkspaceSta
 }
 
 /**
- * What ⌘F searches: the page while one has the keys, else the shell holding them, else the thread
+ * What ⌘F searches: the page when the keystroke came from one and the dock is showing it, else the
+ * dock view holding the keys — a shell, a side chat's thread, the review, a panel — else the thread
  * being read. A keystroke is the only thing that knows about the page, because a page swallows it.
  */
 export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): FindTarget {
-  const dock = dockFor(state, dockOwner(state));
+  const { owner, dock } = frontDock(state);
   /** The page holding the keys is the one the dock is showing, which a run's page never is. */
   const page = dock.browserTabs.find((tab) => tab.id === dock.tab);
   if (surface === "browser" && page) return { kind: "browser", tabId: page.id };
-  if (state.focusedTerminalId) return { kind: "terminal", terminalId: state.focusedTerminalId };
-  return { kind: "transcript" };
+  const thread: FindTarget = { kind: "thread", taskId: state.currentId };
+  const tab = state.keyboardTab;
+  if (!tab) return thread;
+  switch (dockTabKind(state, owner, tab)) {
+    case "browser": return { kind: "browser", tabId: tab };
+    case "terminal": return { kind: "terminal", terminalId: tab };
+    case "side-chat": return { kind: "thread", taskId: tab };
+    case "panel": return tab === DIFF_PANEL ? { kind: "review", owner } : { kind: "panel", owner, panel: tab };
+    case "picker": return thread;
+  }
 }
 
-/** The find bar as it is drawn: its matches counted here for a thread, reported for a page or a shell. */
-export type FindView = FindState & FindResults & { hit: FindHit | null };
+/** The find bar as it is drawn: counted here for a thread, reported by the view for everything else. */
+export type FindView = FindState & { matches: number; counting: boolean; hit: FindHit | null };
 
 function findView(state: WorkspaceState, currentTask: Task | undefined): FindView | null {
   const find = state.find;
   if (!find) return null;
-  if (find.target.kind !== "transcript") {
-    return { ...find, matches: state.findResults?.matches ?? 0, index: state.findResults?.index ?? 0, hit: null };
+  const target = find.target;
+  if (target.kind === "thread") {
+    /** A side chat is a task like any other, so naming it is all the same search needs. */
+    const task = target.taskId === (currentTask?.id ?? null)
+      ? currentTask
+      : state.tasks.find((item) => item.id === target.taskId);
+    const hits = memoizedFindHits(task?.messages ?? [], find.query);
+    const index = hits.length ? Math.min(find.index, hits.length - 1) : 0;
+    return { ...find, index, matches: hits.length, counting: false, hit: hits[index] ?? null };
   }
-  const hits = memoizedFindHits(currentTask?.messages ?? [], find.query);
-  const index = hits.length ? Math.min(find.index, hits.length - 1) : 0;
-  return { ...find, index, matches: hits.length, hit: hits[index] ?? null };
+  const reported = state.findResults;
+  const matches = reported?.matches ?? 0;
+  if (searchesItself(find.target)) {
+    return { ...find, matches, index: reported?.index ?? 0, counting: false, hit: null };
+  }
+  /** Nothing reported yet is a view still counting, not a view that found nothing. */
+  const counting = reported ? reported.counting ?? false : find.query.trim().length > 0;
+  return { ...find, matches, index: matches ? Math.min(find.index, matches - 1) : 0, counting, hit: null };
 }
 
 export type WorkspaceView = ReturnType<typeof deriveView>;

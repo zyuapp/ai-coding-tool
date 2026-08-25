@@ -7,6 +7,7 @@ import { WorkflowPanel } from "./WorkflowPanel";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { DIFF_PANEL } from "../../application/workspace-reducer";
 import type { DiffState } from "../../application/workspace-state";
+import type { FindTarget } from "../../domain/find";
 import type { ReactNode } from "react";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -34,6 +35,17 @@ export type DockTab = { id: string; title: string; icon: LucideIcon; badge?: num
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 export const ADD_TAB_MENU = "dock-add";
 
+/** What the bar says it is searching, which only the registry knows the name of. */
+export function findLabel(target: FindTarget, panels: DockPanel[]): string {
+  switch (target.kind) {
+    case "browser": return "page";
+    case "terminal": return "terminal";
+    case "review": return "review";
+    case "panel": return panels.find((panel) => panel.id === target.panel)?.title.toLowerCase() ?? "panel";
+    case "thread": return "thread";
+  }
+}
+
 export function unreviewedFileCount(diff: DiffState) {
   return diff.result?.status === "available" ? diff.result.files.filter((file) => !diff.viewed[file.path]).length : 0;
 }
@@ -50,6 +62,12 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   onOpenPanel: (id: string) => void;
   onAddSideChat: () => void;
 }): DockRegistry {
+  /** The bar points at one view at a time, and a review only ever counts a search that names it. */
+  const reviewFind = workspace.find?.target.kind === "review" ? workspace.find : null;
+  const searchedPanel = workspace.find?.target.kind === "panel" ? workspace.find.target.panel : null;
+  /** The searcher reads what a panel drew, so every view the tab can show draws whole while it reads. */
+  const findingAgents = searchedPanel === "agents";
+
   const panels: DockPanel[] = [
     {
       id: "agents",
@@ -59,8 +77,8 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       icon: Bot,
       badge: workingSubagents,
       render: () => (inspectedSubagent
-        ? <SubagentInspector subagent={inspectedSubagent} onClose={onCloseInspector} />
-        : <AgentsPanel subagents={workspace.subagents} onSelect={onInspectSubagent} />),
+        ? <SubagentInspector subagent={inspectedSubagent} finding={findingAgents} onClose={onCloseInspector} />
+        : <AgentsPanel subagents={workspace.subagents} finding={findingAgents} onSelect={onInspectSubagent} />),
     },
     {
       id: "workflow",
@@ -86,6 +104,8 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
           openMenu={workspace.openMenu}
           onSetOpenMenu={workspace.actions.setOpenMenu}
+          find={reviewFind}
+          onFindResults={(results) => { if (reviewFind) void workspace.actions.reportFind(reviewFind.target, results); }}
           onSetRange={workspace.actions.setDiffRange}
           onSetCollapsed={workspace.actions.setDiffCollapsed}
           onSetViewed={workspace.actions.setDiffViewed}

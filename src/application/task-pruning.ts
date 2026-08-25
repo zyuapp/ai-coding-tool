@@ -1,4 +1,4 @@
-import type { WorkspaceState } from "./workspace-state.js";
+import type { SideChat, ThreadDock, WorkspaceState } from "./workspace-state.js";
 
 function withoutTaskKeys<T>(record: Record<string, T>, removed: Set<string>): Record<string, T> {
   let cleaned: Record<string, T> | null = null;
@@ -30,6 +30,18 @@ function withoutMatching<T>(items: T[], matches: (item: T) => boolean): T[] {
   return kept;
 }
 
+/** Whether any dock still draws this tab: a panel, a page, a shell, or a side chat of its own. */
+function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab: string): boolean {
+  if (sideChats.some((chat) => chat.id === tab)) return true;
+  for (const owner in docks) {
+    const dock = docks[owner]!;
+    if (dock.panels.includes(tab)
+      || dock.browserTabs.some((page) => page.id === tab)
+      || dock.terminals.some((terminal) => terminal.id === tab)) return true;
+  }
+  return false;
+}
+
 /** A permanently deleted thread leaves no session-only record holding its data or making it reachable. */
 export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): WorkspaceState {
   if (!removed.size) return state;
@@ -39,17 +51,7 @@ export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): 
     if (!removed.has(state.history[index]!)) historyIndex += 1;
   }
   const docks = withoutTaskKeys(state.docks, removed);
-  let focusedTerminalId = state.focusedTerminalId;
-  if (focusedTerminalId) {
-    let found = false;
-    for (const owner in docks) {
-      if (docks[owner]!.terminals.some((terminal) => terminal.id === focusedTerminalId)) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) focusedTerminalId = null;
-  }
+  const sideChats = withoutMatching(state.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceTaskId));
   return {
     ...state,
     creatingWorktrees: withoutMatching(state.creatingWorktrees, (taskId) => removed.has(taskId)),
@@ -64,7 +66,7 @@ export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): 
     readingPoints: withoutTaskKeys(state.readingPoints, removed),
     pendingRuns: withoutMatchingValues(state.pendingRuns, (pending) => Boolean(pending.taskId && removed.has(pending.taskId))),
     queuedMessages: withoutTaskKeys(state.queuedMessages, removed),
-    sideChats: withoutMatching(state.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceTaskId)),
+    sideChats,
     lastRunIds: withoutTaskKeys(state.lastRunIds, removed),
     activeRuns: withoutTaskKeys(state.activeRuns, removed),
     runStatuses: withoutTaskKeys(state.runStatuses, removed),
@@ -74,7 +76,7 @@ export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): 
     workflows: withoutTaskKeys(state.workflows, removed),
     automations: withoutMatching(state.automations, (automation) => removed.has(automation.taskId)),
     dockFocus: state.dockFocus && (removed.has(state.dockFocus.owner) || removed.has(state.dockFocus.tab)) ? null : state.dockFocus,
-    focusedTerminalId,
+    keyboardTab: state.keyboardTab && dockKeeps(docks, sideChats, state.keyboardTab) ? state.keyboardTab : null,
     browserApproval: state.browserApproval && !removed.has(state.browserApproval.taskId) ? state.browserApproval : null,
   };
 }

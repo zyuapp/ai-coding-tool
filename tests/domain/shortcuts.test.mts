@@ -194,14 +194,14 @@ test("the shell that has the keyboard is put away when it is asked for again", (
   const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
   const opened = reduce(state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
   const shell = dockFor(opened.state, "a").terminals.at(-1)!;
-  const typing = run(opened.state, [{ type: "terminal.focus", terminalId: shell.id }]);
+  const typing = run(opened.state, [{ type: "view.dock-keys", tab: shell.id }]);
 
   const away = reduce(typing, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
   assert.equal(dockFor(away.state, "a").open, false, "the dock goes");
   assert.equal(away.state.composerFocus, typing.composerFocus + 1, "and the composer has the caret back");
   assert.equal(dockFor(away.state, "a").terminals.length, 1, "the shell itself stays open");
 
-  assert.equal(away.state.focusedTerminalId, null, "a shell off the screen holds no keyboard");
+  assert.equal(away.state.keyboardTab, null, "a shell off the screen holds no keyboard");
 
   const back = reduce(away.state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
   assert.equal(dockFor(back.state, "a").open, true, "and asking once more brings it back");

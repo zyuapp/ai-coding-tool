@@ -1,25 +1,30 @@
+import type { ReactNode } from "react";
 import { SideChat } from "./SideChat";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
+import type { FindView } from "../../application/workspace-state";
 import type { Task } from "../../domain/task";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The side chats the dock holds as tabs of their own, each drawn from the workspace's own records. */
-export function DockSideChats({ workspace, source, activeTab, focusTokenFor, onClose }: {
+export function DockSideChats({ workspace, source, activeTab, find, findBar, focusTokenFor, onClose }: {
   workspace: Workspace;
   source: Task;
   activeTab: string;
+  find: FindView | null;
+  findBar: ReactNode;
   focusTokenFor: (tab: string) => number;
   onClose: (chatId: string) => void;
 }) {
   return (
     <>
       {workspace.sideChats.map((chat) => (
-        <div key={chat.id} hidden={activeTab !== chat.id}>
+        <div key={chat.id} data-dock-tab={chat.id} hidden={activeTab !== chat.id}>
           <SideChat
             chat={chat}
             focusToken={focusTokenFor(chat.id)}
+            {...(find?.target.kind === "thread" && find.target.taskId === chat.id ? { find, findBar } : {})}
             source={source}
             project={workspace.currentProject}
             threads={workspace.threadHandlesFor(chat.id)}

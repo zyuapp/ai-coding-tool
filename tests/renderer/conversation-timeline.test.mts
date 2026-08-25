@@ -420,11 +420,12 @@ test("find opens the fold the match it is showing was written into", async () =>
     { kind: "assistant", text: "Done." },
   );
   const find: NonNullable<TimelineProps["find"]> = {
-    target: { kind: "transcript" },
+    target: { kind: "thread", taskId: null },
     query: "retry",
     index: 0,
     focus: 1,
     matches: 1,
+    counting: false,
     hit: { messageId: "m1", field: "detail", start: 0, occurrence: 0 },
   };
   const view = await mount(timelineView(messages, "idle", undefined, undefined, find));

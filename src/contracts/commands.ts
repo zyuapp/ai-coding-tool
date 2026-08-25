@@ -210,9 +210,7 @@ export type TerminalCommand =
   | { type: "terminal.close"; terminalId: string }
   /** Keystrokes on their way to the shell, and the size it believes it has. Neither changes state. */
   | { type: "terminal.input"; terminalId: string; data: string }
-  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
-  /** Which shell has the keyboard, with a null when it lost them. Only find reads it. */
-  | { type: "terminal.focus"; terminalId: string | null };
+  | { type: "terminal.resize"; terminalId: string; cols: number; rows: number };
 
 /* ── Phone bridge ─────────────────────────────────────────────────────────── */
 
@@ -316,9 +314,12 @@ export type ViewCommand =
   | { type: "view.capture-shortcut"; action: string | null }
   | { type: "view.dismiss-computer-use-setup" }
   | { type: "view.refresh-environment" }
+  /** Which dock tab the keyboard is in, with a null when it has gone back to the thread. Only find reads it. */
+  | { type: "view.dock-keys"; tab: string | null }
   /**
    * Find. What is searched is whatever the keyboard is on: the page while one has the keys, else the
-   * shell holding them, else the transcript. `target` names it outright for a caller that already knows.
+   * dock view holding them, else the thread being read. `target` names it outright for a caller that
+   * already knows.
    */
   | { type: "view.find-open"; target?: FindTarget }
   | { type: "view.find-query"; query: string }

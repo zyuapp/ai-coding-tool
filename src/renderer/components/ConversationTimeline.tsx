@@ -5,7 +5,8 @@ import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { Annotation, AnnotationAnchor, Task } from "../../domain/task";
 import { groupTimeline, messageRows } from "../timeline/grouping";
-import { paintMatches } from "../timeline/highlights";
+import { MAX_FIND_HITS, targetKey } from "../../domain/find";
+import { drawnMatches, paintMatches } from "../find/paint";
 import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
 import { useReadingView } from "../timeline/use-reading-view";
 import { AnnotatePopover, AnnotationMarkers, NoteEditor } from "./AnnotateLayer";
@@ -81,11 +82,17 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const hit = find?.hit ?? null;
   const rendered = virtualizer.getVirtualItems().map((item) => item.key).join(",");
 
-  useEffect(() => {
-    paintMatches(timelineRef.current, find?.query ?? "", hit);
-  }, [find?.query, hit?.messageId, hit?.occurrence, rendered]);
+  const painter = find ? targetKey(find.target) : "";
 
-  useEffect(() => () => paintMatches(null, "", null), []);
+  /** Only what a message says is lit, so a match is never painted onto the chrome around it. */
+  useEffect(() => {
+    const needle = find?.query.trim().toLowerCase() ?? "";
+    const found = drawnMatches(timelineRef.current, needle, "data-message-id", MAX_FIND_HITS);
+    const active = hit ? found.find((match) => match.owner === hit.messageId && match.occurrence === hit.occurrence) : undefined;
+    paintMatches(painter, found.map((match) => match.range), active?.range ?? null);
+  }, [painter, find?.query, hit?.messageId, hit?.occurrence, rendered]);
+
+  useEffect(() => () => paintMatches(painter, [], null), [painter]);
 
   const { atBottom, scrollToFoot } = useReadingView({
     scrollContainerRef, timelineRef, virtualizer, taskId: currentTask?.id, rowOfMessage,

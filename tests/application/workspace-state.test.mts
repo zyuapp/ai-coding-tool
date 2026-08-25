@@ -63,7 +63,7 @@ test("transcript find invalidates when a thread receives a new messages array", 
     ...emptyWorkspaceState(),
     tasks: [found],
     currentId: found.id,
-    find: { target: { kind: "transcript" }, query: "needle", index: 0, focus: 0 },
+    find: { target: { kind: "thread", taskId: found.id }, query: "needle", index: 0, focus: 0 },
   };
   assert.equal(deriveView(state).find!.matches, 1);
   const second: TaskMessage = { id: "second", kind: "user", text: "another needle", at: 2 };
