@@ -31,6 +31,7 @@ import { adoptUserDataFolder } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { flashWindow } from "./capture-flash.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
+import { mobileBridgeHolding, mobileWindowGone, serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
@@ -548,6 +549,8 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      /** A phone reads this renderer's state while the window is hidden, so it is never throttled. */
+      backgroundThrottling: false,
     },
   });
   browser.startBrowserHost(window, {
@@ -582,8 +585,15 @@ async function createWindow() {
   });
   if (placement.maximized && !placement.fullScreen) window.maximize();
   watchWindowPlacement(window);
+  /** A phone reads the window's own state, so closing it while one is paired only puts it away. */
+  window.on("close", (event) => {
+    if (quitState !== "running" || !mobileBridgeHolding()) return;
+    event.preventDefault();
+    window?.hide();
+  });
   window.on("closed", () => {
     rendererListening = false;
+    mobileWindowGone();
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
   });
@@ -640,12 +650,16 @@ app.whenReady().then(async () => {
   await searchPath;
   installAppMenu(() => void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error)));
   await createWindow();
+  void startMobileBridge({ window: () => window, userData, staticRoot: path.join(__dirname, "../../mobile") })
+    .catch((error) => console.error("Could not start the phone bridge:", error));
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
   app.on("activate", () => {
     if (queueReopen()) return;
+    /** A window a paired phone kept alive was hidden rather than destroyed, so it is shown again. */
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+    else revealWindow();
   });
 });
 
@@ -671,6 +685,7 @@ app.on("before-quit", (event) => {
   automationScheduler?.stop();
   pendingStarts.clear();
   agent?.kill();
+  void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
   if (window && !window.isDestroyed()) window.hide();
   void stopComputerUse()
     .catch((error) => console.error("Could not stop computer use:", error))
@@ -886,6 +901,7 @@ const noticeHost: NoticeHost = { window: () => window, reveal: revealWindow };
 serveThreadNotices(noticeHost, trustedSender);
 serveBadgeCount(trustedSender);
 serveExternalApps(trustedSender);
+serveMobileBridge(trustedSender);
 
 ipcMain.on("thread:answer", (event, response: unknown) => {
   if (!trustedSender(event) || !isThreadResponse(response)) return;

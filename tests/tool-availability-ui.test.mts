@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { SettingsPanel, type SettingsPanelProps } from "../src/renderer/components/SettingsPanel.tsx";
+import { emptyMobileServerState } from "../src/domain/mobile.ts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
 for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "KeyboardEvent", "navigator"]) {
@@ -38,11 +39,13 @@ function panel(overrides: Partial<SettingsPanelProps>) {
     theme: "aicodingtool-dark", themeMode: "auto", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 13,
     allowedOrigins: [],
     plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
+    remote: emptyMobileServerState(),
     shortcuts: [], capturingShortcut: null,
     onSetThemeFamily() {}, onSetThemeMode() {}, onSetUiFont() {}, onSetMonoFont() {}, onSetReadingSize() {}, onSetTerminalSize() {},
     onSetPlainEnglish() {}, onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
     onRestoreTask() {}, onClearArchive() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
     onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {},
+    onSetRemoteEnabled() {}, onSetRemoteLanExposed() {}, onCreateRemotePairingCode() {}, onRevokeRemoteDevice() {}, onSetTailscaleServe() {}, onRefreshRemote() {},
     ...overrides,
   });
 }

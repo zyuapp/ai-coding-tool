@@ -16,6 +16,7 @@ import type { ProjectSidebarProps } from "../src/renderer/components/ProjectSide
 import type { SessionPanelProps } from "../src/renderer/components/SessionPanel.tsx";
 import type { SettingsPanelProps } from "../src/renderer/components/SettingsPanel.tsx";
 import type { TaskComposerProps } from "../src/renderer/components/TaskComposer.tsx";
+import { mobileDesktopStub, mobileSettingsProps } from "./support/mobile-desktop.mts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
 for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "MutationObserver", "Image", "navigator", "File", "Blob", "FileReader", "DOMParser", "innerWidth", "innerHeight"]) {
@@ -247,7 +248,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onClearBrowserData() {},
     onCaptureShortcut() {},
     onSetShortcut() {},
-    onResetShortcuts() {},
+    onResetShortcuts() {}, ...mobileSettingsProps,
     ...overrides,
   });
 }
@@ -953,7 +954,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    openFolder: async () => null,
+    ...mobileDesktopStub, openFolder: async () => null,
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },
@@ -1037,8 +1038,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
     onWindowScreenshot: (next) => { windowGrabbed = next; return () => {}; },
     onDesktopShortcutRefused: (next) => { shortcutRefused = next; return () => {}; },
-    closeWindow: () => { browserCalls.push(["close-window"]); },
-    focusWindow: () => { browserCalls.push(["focus-window"]); },
+    closeWindow: () => { browserCalls.push(["close-window"]); }, focusWindow: () => { browserCalls.push(["focus-window"]); },
     announceThread: () => {},
     setBadgeCount: () => {},
     ...overrides,

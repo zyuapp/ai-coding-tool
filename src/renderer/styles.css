@@ -1921,6 +1921,15 @@ pre {
 .settings-group-action button:hover { border-color: var(--line-bright); background: var(--control-hover); }
 .settings-group-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
 .settings-group-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.phone-address strong { font: var(--text-control)/1.4 var(--mono); }
+.phone-pairing { display: flex; align-items: center; gap: 20px; border-top: 1px solid var(--line); padding: 19px 0; }
+.phone-qr { flex: 0 0 auto; width: 168px; height: 168px; border-radius: 10px; background: #fff; }
+.phone-qr.placeholder { background: var(--wash); }
+.phone-pairing-copy { min-width: 0; }
+.phone-pairing-copy strong { color: var(--ink-dim); font: 620 var(--text-heading)/1.2 var(--mono); letter-spacing: 0.18em; }
+.phone-pairing-copy p { margin: 7px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); }
+.phone-pairing-copy code { display: block; overflow: hidden; margin-top: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.settings-group-action button > svg { vertical-align: -2px; margin-right: 5px; }
 .settings-empty { margin: 0; border-top: 1px solid var(--line); padding: 19px 0; color: var(--quiet-strong); font-size: var(--text-control); }
 .settings-error { margin: 0; border-top: 1px solid var(--accent-line-soft); padding: 13px 0; color: var(--accent-soft); font-size: var(--text-control); }
 .settings-notice { margin: 0; border-top: 1px solid var(--line); padding: 13px 0; color: var(--success-soft); font-size: var(--text-control); }

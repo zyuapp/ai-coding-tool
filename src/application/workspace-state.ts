@@ -8,6 +8,7 @@ export type { ReadingPoint };
 import { fileFingerprint, rangeKey, UNCOMMITTED, type DiffRange } from "../domain/diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
+import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import type { BrowserApproval, BrowserTab } from "../domain/browser.js";
 import { memoizedFindHits, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -296,6 +297,8 @@ export type WorkspaceState = {
   sideChatSequence: number;
   /** Latest run per task, so a reply from a superseded run can be dropped. */
   lastRunIds: Record<string, string>;
+  /** The bridge a phone reaches this Mac through, as the main process last reported it. */
+  remote: MobileServerState;
   focused: boolean;
 } & RunTransitionState & {
   storageError: string | null;
@@ -387,6 +390,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     sideChats: [],
     sideChatSequence: 0,
     lastRunIds: {},
+    remote: emptyMobileServerState(),
     focused: true,
     activeRuns: {},
     runStatuses: {},
@@ -906,6 +910,7 @@ export function deriveView(state: WorkspaceState) {
     currentFolder: currentFolder(state),
     openMenu: state.openMenu,
     find: findView(state, currentTask),
+    remote: state.remote,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: dockSideChats(state, owner).flatMap((chat): SideChatView[] => {

@@ -13,6 +13,7 @@ import type { RunAttachment, TaskDropTarget } from "../../domain/task";
 import { subscribeToDesktop } from "./desktop-subscriptions";
 import { errorMessage } from "./errors";
 import { answerThreadRequest, releaseThreadWaiters, type ThreadRequestHost, type ThreadWaiter } from "./thread-requests";
+import { nextMobileUpdate, noMobileView, runRemoteEffect, subscribeToMobile, type MobileViewHolder } from "./mobile-bridge";
 import { createLocalTaskStore } from "./local-task-store";
 import { resolveRunWorkspace } from "./resolve-run-workspace";
 import { displayShortcut } from "../../domain/shortcuts";
@@ -54,6 +55,7 @@ export function useTaskWorkspace() {
   const dispatchRef = useRef<(input: WorkspaceInput) => Promise<void>>(null!);
   const threadWaiters = useRef<ThreadWaiter[]>([]);
   const environmentRefreshes = useRef(new Map<string, EnvironmentRefreshEffect | null>());
+  const mobileView = useRef<MobileViewHolder>(noMobileView());
 
   async function persistLatest() {
     try {
@@ -65,12 +67,20 @@ export function useTaskWorkspace() {
     }
   }
 
+  /** Every connected phone sees what the window sees, so each change costs the difference between them. */
+  function publishToPhones(next: WorkspaceState) {
+    if (!("desktop" in window)) return;
+    const update = nextMobileUpdate(mobileView.current, next, Date.now());
+    if (update) window.desktop.publishMobileView(update);
+  }
+
   function commit(next: WorkspaceState, persist = true) {
     const previous = stateRef.current;
     if (next === previous) return;
     stateRef.current = next;
     setState(next);
     releaseThreadWaiters(threadWaiters, next);
+    publishToPhones(next);
     if (!persist || !persistenceReady.current || !next.writable || next.storageError) return;
     const snapshot = persistenceState(next);
     const delta = persistenceDelta(persistenceState(previous), snapshot);
@@ -342,6 +352,16 @@ export function useTaskWorkspace() {
       case "announce-thread":
         window.desktop.announceThread(effect.notice);
         return;
+
+      /** The bridge's own settings, each of which answers with the whole of what the bridge is doing. */
+      case "remote.set-enabled": case "remote.set-lan-exposed": case "remote.create-pairing-code":
+      case "remote.revoke-device": case "remote.set-tailscale-serve": case "remote.refresh":
+        try {
+          await dispatch({ type: "remote.changed", remote: await runRemoteEffect(effect, window.desktop) });
+        } catch (error) {
+          await dispatch({ type: "action.failed", message: errorMessage(error) });
+        }
+        return;
     }
   }
 
@@ -403,6 +423,11 @@ export function useTaskWorkspace() {
       for (const waiter of threadWaiters.current) window.clearTimeout(waiter.timer);
       threadWaiters.current = [];
     };
+  }, []);
+
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    return subscribeToMobile({ state: () => stateRef.current, dispatch: (input) => dispatchRef.current(input) }, window.desktop);
   }, []);
 
   useEffect(() => {
@@ -639,6 +664,12 @@ export function useTaskWorkspace() {
       stepFind: (delta: -1 | 1) => dispatch({ type: "view.find-step", delta }),
       closeFind: () => dispatch({ type: "view.find-close" }),
       resizeTerminal: (terminalId: string, cols: number, rows: number) => dispatch({ type: "terminal.resize", terminalId, cols, rows }),
+      setRemoteEnabled: (enabled: boolean) => dispatch({ type: "remote.set-enabled", enabled }),
+      setRemoteLanExposed: (exposed: boolean) => dispatch({ type: "remote.set-lan-exposed", exposed }),
+      createRemotePairingCode: () => dispatch({ type: "remote.create-pairing-code" }),
+      revokeRemoteDevice: (deviceId: string) => dispatch({ type: "remote.revoke-device", deviceId }),
+      setTailscaleServe: (enabled: boolean) => dispatch({ type: "remote.set-tailscale-serve", enabled }),
+      refreshRemote: () => dispatch({ type: "remote.refresh" }),
     },
   };
 }

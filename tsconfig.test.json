@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["tests/**/*.mts", "scripts/**/*.mts", "eslint.config.mts", "vite.config.mts", "src/renderer/global.d.ts"]
+  "include": ["tests/**/*.mts", "scripts/**/*.mts", "eslint.config.mts", "vite.config.mts", "vite.mobile.config.mts", "src/renderer/global.d.ts"]
 }

@@ -21,7 +21,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | ViewCommand;
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
@@ -213,6 +213,26 @@ export type TerminalCommand =
   | { type: "terminal.resize"; terminalId: string; cols: number; rows: number }
   /** Which shell has the keyboard, with a null when it lost them. Only find reads it. */
   | { type: "terminal.focus"; terminalId: string | null };
+
+/* ── Phone bridge ─────────────────────────────────────────────────────────── */
+
+/**
+ * The desktop settings screen driving the bridge a phone reaches this Mac through. Every one of
+ * these is the user's own: a phone changes threads, never the door it came in by. Not to be confused
+ * with `MobileCommand` in contracts/mobile.ts, which is what a phone is allowed to send.
+ */
+export type RemoteCommand =
+  | { type: "remote.set-enabled"; enabled: boolean }
+  /** The opt-in second bind that anything on the same network can reach. Off by default. */
+  | { type: "remote.set-lan-exposed"; exposed: boolean }
+  /** Mints the code the QR carries. Minting a second one discards the first. */
+  | { type: "remote.create-pairing-code" }
+  | { type: "remote.revoke-device"; deviceId: string }
+  | { type: "remote.set-tailscale-serve"; enabled: boolean }
+  /** Asks Tailscale again whether it is installed, signed in, and what this machine is called. */
+  | { type: "remote.refresh" };
+
+/* ── End phone bridge ─────────────────────────────────────────────────────── */
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =

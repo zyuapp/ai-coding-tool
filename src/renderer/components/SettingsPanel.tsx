@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, Check, FolderGit2, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal } from "lucide-react";
+import { Archive, ArrowLeft, Check, FolderGit2, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal, Smartphone } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
@@ -7,12 +7,14 @@ import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { MobileSettings } from "./MobileSettings";
+import type { MobileServerState } from "../../domain/mobile";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
 import type { WorktreeSettingsView } from "../../application/workspace-state";
 import { WorktreeSettings } from "./WorktreeSettings";
 
-export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "worktrees" | "shortcuts" | "browser" | "archive";
+export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "worktrees" | "shortcuts" | "browser" | "phone" | "archive";
 
 function daysLeft(archivedAt: number) {
   const remaining = Math.ceil((archivedAt + ARCHIVE_RETENTION_MS - Date.now()) / 86_400_000);
@@ -39,6 +41,56 @@ function AvailabilitySection({ id, label, description, enabled, onChange }: { id
         </div>
       </div>
     </section>
+  );
+}
+
+/** The list of pages. Two of them ask for a fresh read as they are opened. */
+function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }: { section: SettingsSection; onSelect: (section: SettingsSection) => void; onRefreshWorktrees: () => void; onRefreshRemote: () => void }) {
+  return (
+    <nav aria-label="Settings sections">
+      <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => onSelect("general")}>
+        <SlidersHorizontal size={17} aria-hidden="true" />
+        <span>General</span>
+      </button>
+      <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => onSelect("appearance")}>
+        <Palette size={17} aria-hidden="true" />
+        <span>Appearance</span>
+      </button>
+      <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => onSelect("usage")}>
+        <Gauge size={17} aria-hidden="true" />
+        <span>Usage</span>
+      </button>
+      <button className={section === "worktrees" ? "active" : ""} type="button" aria-current={section === "worktrees" ? "page" : undefined} onClick={() => {
+        onSelect("worktrees");
+        onRefreshWorktrees();
+      }}>
+        <FolderGit2 size={17} aria-hidden="true" />
+        <span>Worktrees</span>
+      </button>
+      <button className={section === "shortcuts" ? "active" : ""} type="button" aria-current={section === "shortcuts" ? "page" : undefined} onClick={() => onSelect("shortcuts")}>
+        <Keyboard size={17} aria-hidden="true" />
+        <span>Shortcuts</span>
+      </button>
+      <button className={section === "computer-use" ? "active" : ""} type="button" aria-current={section === "computer-use" ? "page" : undefined} onClick={() => onSelect("computer-use")}>
+        <MonitorCog size={17} aria-hidden="true" />
+        <span>Computer use</span>
+      </button>
+      <button className={section === "browser" ? "active" : ""} type="button" aria-current={section === "browser" ? "page" : undefined} onClick={() => onSelect("browser")}>
+        <Globe size={17} aria-hidden="true" />
+        <span>Browser</span>
+      </button>
+      <button className={section === "phone" ? "active" : ""} type="button" aria-current={section === "phone" ? "page" : undefined} onClick={() => {
+        onSelect("phone");
+        onRefreshRemote();
+      }}>
+        <Smartphone size={17} aria-hidden="true" />
+        <span>Phone</span>
+      </button>
+      <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => onSelect("archive")}>
+        <Archive size={17} aria-hidden="true" />
+        <span>Archived threads</span>
+      </button>
+    </nav>
   );
 }
 
@@ -69,6 +121,8 @@ export type SettingsPanelProps = {
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
   browserTools: boolean;
   notifications: boolean;
+  /** The phone bridge, as the main process last reported it. */
+  remote: MobileServerState;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
@@ -92,6 +146,12 @@ export type SettingsPanelProps = {
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
   onResetShortcuts: () => void;
+  onSetRemoteEnabled: (enabled: boolean) => void;
+  onSetRemoteLanExposed: (exposed: boolean) => void;
+  onCreateRemotePairingCode: () => void;
+  onRevokeRemoteDevice: (deviceId: string) => void;
+  onSetTailscaleServe: (enabled: boolean) => void;
+  onRefreshRemote: () => void;
 };
 
 export function SettingsPanel({
@@ -113,6 +173,7 @@ export function SettingsPanel({
   computerUse,
   browserTools,
   notifications,
+  remote,
   shortcuts,
   capturingShortcut,
   onSetThemeFamily,
@@ -135,6 +196,12 @@ export function SettingsPanel({
   onCaptureShortcut,
   onSetShortcut,
   onResetShortcuts,
+  onSetRemoteEnabled,
+  onSetRemoteLanExposed,
+  onCreateRemotePairingCode,
+  onRevokeRemoteDevice,
+  onSetTailscaleServe,
+  onRefreshRemote,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -216,43 +283,7 @@ export function SettingsPanel({
           <span>Back to AI Coding Tool</span>
         </button>
         <h1>Settings</h1>
-        <nav aria-label="Settings sections">
-          <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => setSection("general")}>
-            <SlidersHorizontal size={17} aria-hidden="true" />
-            <span>General</span>
-          </button>
-          <button className={section === "appearance" ? "active" : ""} type="button" aria-current={section === "appearance" ? "page" : undefined} onClick={() => setSection("appearance")}>
-            <Palette size={17} aria-hidden="true" />
-            <span>Appearance</span>
-          </button>
-          <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => setSection("usage")}>
-            <Gauge size={17} aria-hidden="true" />
-            <span>Usage</span>
-          </button>
-          <button className={section === "worktrees" ? "active" : ""} type="button" aria-current={section === "worktrees" ? "page" : undefined} onClick={() => {
-            setSection("worktrees");
-            onRefreshWorktrees();
-          }}>
-            <FolderGit2 size={17} aria-hidden="true" />
-            <span>Worktrees</span>
-          </button>
-          <button className={section === "shortcuts" ? "active" : ""} type="button" aria-current={section === "shortcuts" ? "page" : undefined} onClick={() => setSection("shortcuts")}>
-            <Keyboard size={17} aria-hidden="true" />
-            <span>Shortcuts</span>
-          </button>
-          <button className={section === "computer-use" ? "active" : ""} type="button" aria-current={section === "computer-use" ? "page" : undefined} onClick={() => setSection("computer-use")}>
-            <MonitorCog size={17} aria-hidden="true" />
-            <span>Computer use</span>
-          </button>
-          <button className={section === "browser" ? "active" : ""} type="button" aria-current={section === "browser" ? "page" : undefined} onClick={() => setSection("browser")}>
-            <Globe size={17} aria-hidden="true" />
-            <span>Browser</span>
-          </button>
-          <button className={section === "archive" ? "active" : ""} type="button" aria-current={section === "archive" ? "page" : undefined} onClick={() => setSection("archive")}>
-            <Archive size={17} aria-hidden="true" />
-            <span>Archived threads</span>
-          </button>
-        </nav>
+        <SettingsNav section={section} onSelect={setSection} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
       </aside>
 
       {section === "appearance" && (
@@ -398,6 +429,18 @@ export function SettingsPanel({
             ))}
         </section>
       </main>
+      )}
+
+      {section === "phone" && (
+        <MobileSettings
+          remote={remote}
+          onSetEnabled={onSetRemoteEnabled}
+          onSetLanExposed={onSetRemoteLanExposed}
+          onCreatePairingCode={onCreateRemotePairingCode}
+          onRevokeDevice={onRevokeRemoteDevice}
+          onSetTailscaleServe={onSetTailscaleServe}
+          onRefreshTailscale={onRefreshRemote}
+        />
       )}
 
       {section === "archive" && (

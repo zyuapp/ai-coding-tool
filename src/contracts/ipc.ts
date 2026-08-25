@@ -16,6 +16,7 @@ import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus }
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
+import type { MobileDesktopAPI } from "./mobile.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
 export type WindowTheme = {
@@ -206,7 +207,7 @@ export type AutomationResponse = {
   requestId: string;
 } & ({ ok: true; result: unknown } | { ok: false; message: string });
 
-export type DesktopAPI = {
+export type DesktopAPI = MobileDesktopAPI & {
   openFolder(): Promise<WorkspaceRecord | null>;
   /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
   registerProject(root: string): Promise<WorkspaceRecord>;

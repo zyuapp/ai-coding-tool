@@ -103,7 +103,7 @@ function fakePlugins(computerUse: boolean): Plugin[] {
     enforce: "pre",
     resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
     load(id) {
-      if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, Menu=e.Menu, BaseWindow=e.BaseWindow, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, Notification=e.Notification, protocol=e.protocol, screen=e.screen, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+      if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, Menu=e.Menu, BaseWindow=e.BaseWindow, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, powerSaveBlocker=e.powerSaveBlocker, Notification=e.Notification, protocol=e.protocol, screen=e.screen, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
     },
   }];
   if (computerUse) {
@@ -247,6 +247,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     },
     Notification,
     nativeTheme: { themeSource: "system" },
+    powerSaveBlocker: { start: () => 1, stop() {}, isStarted: () => true },
     screen: { getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }] },
     dialog,
     Menu,

@@ -689,7 +689,7 @@ export function App() {
           terminalSize={workspace.terminalSize}
           allowedOrigins={workspace.browserOrigins}
           plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
-          notifications={workspace.notifications}
+          notifications={workspace.notifications} remote={workspace.remote}
           shortcuts={workspace.shortcuts}
           capturingShortcut={workspace.capturingShortcut}
           onSetThemeFamily={(family) => void workspace.actions.setThemeFamily(family)}
@@ -706,7 +706,7 @@ export function App() {
           onClearBrowserData={() => void workspace.actions.clearBrowserData()}
           onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
           onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
-          onResetShortcuts={() => void workspace.actions.resetShortcuts()}
+          onResetShortcuts={() => void workspace.actions.resetShortcuts()} onSetRemoteEnabled={(enabled) => void workspace.actions.setRemoteEnabled(enabled)} onSetRemoteLanExposed={(exposed) => void workspace.actions.setRemoteLanExposed(exposed)} onCreateRemotePairingCode={() => void workspace.actions.createRemotePairingCode()} onRevokeRemoteDevice={(deviceId) => void workspace.actions.revokeRemoteDevice(deviceId)} onSetTailscaleServe={(enabled) => void workspace.actions.setTailscaleServe(enabled)} onRefreshRemote={() => void workspace.actions.refreshRemote()}
         />
       )}
     </main>

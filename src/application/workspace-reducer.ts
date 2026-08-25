@@ -6,6 +6,7 @@ import { annotationsFor, composerDraft, filesFor, focusComposer, focusedTab, ima
 import { threadHandleOptions } from "./thread-projection.js";
 import { expandThreadHandles } from "../domain/thread-handles.js";
 import { reduceProjects, type ProjectEvent, type RegisterProjectEffect } from "./project-commands.js";
+import { isRemoteInput, reduceRemote, type RemoteEffect, type RemoteEvent } from "./remote-commands.js";
 import { forkedTasks, sideChatTask } from "./task-fork.js";
 import { activitySections, moveTask as moveTaskInList, nextSortIndex, orderTasks } from "./task-order.js";
 import { dismissableTasks, dismissed, readAttention, withoutOutcome } from "../domain/attention.js";
@@ -98,7 +99,9 @@ export type WorkspaceEvent =
   /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
   | { type: "shortcut.captured"; binding: string | null }
   /** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
-  | { type: "find.results"; target: FindTarget; results: FindResults };
+  | { type: "find.results"; target: FindTarget; results: FindResults }
+  /** What the main process says the phone bridge now is, after anything at all moved it. */
+  | RemoteEvent;
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -175,7 +178,9 @@ export type WorkspaceEffect =
   /** Takes the keyboard off a page in the panel, which is the only way the find bar can have it. */
   | { type: "focus-window" }
   /** A finding on its way to the desktop, which is the only place a user who is elsewhere can be reached. */
-  | { type: "announce-thread"; notice: ThreadNotice };
+  | { type: "announce-thread"; notice: ThreadNotice }
+  /** A change to the phone bridge, which only the main process can actually make. */
+  | RemoteEffect;
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
@@ -909,6 +914,7 @@ function stopCapture(state: WorkspaceState): WorkspaceEffect[] {
 
 /** Every input but the keystroke, which {@link reduce} has already turned into the commands it means. */
 function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" }>): WorkspaceTransition {
+  if (isRemoteInput(input)) return reduceRemote(state, input);
   switch (input.type) {
     case "task.new": {
       /** A checkout names the project it was cut from, so starting in one settles both answers. */

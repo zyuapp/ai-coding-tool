@@ -6,6 +6,8 @@ import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
 import type { TerminalUpdate } from "./domain/terminal";
 import type { ThreadRequest, ThreadResponse } from "./contracts/threads";
+import type { MobileRequest, MobileResponse, MobileViewUpdate } from "./contracts/mobile";
+import type { MobileServerState } from "./domain/mobile";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
 const api: DesktopAPI = {
@@ -73,6 +75,25 @@ const api: DesktopAPI = {
     return () => ipcRenderer.removeListener("thread:request", handler);
   },
   answerThreadRequest: (response: ThreadResponse) => ipcRenderer.send("thread:answer", response),
+  mobileState: () => ipcRenderer.invoke("mobile:state"),
+  setMobileEnabled: (enabled: boolean) => ipcRenderer.invoke("mobile:set-enabled", enabled),
+  setMobileLanExposed: (exposed: boolean) => ipcRenderer.invoke("mobile:set-lan", exposed),
+  createMobilePairingCode: () => ipcRenderer.invoke("mobile:pair-code"),
+  revokeMobileDevice: (deviceId: string) => ipcRenderer.invoke("mobile:revoke", deviceId),
+  setTailscaleServe: (enabled: boolean) => ipcRenderer.invoke("mobile:tailscale-serve", enabled),
+  refreshTailscale: () => ipcRenderer.invoke("mobile:tailscale-refresh"),
+  onMobileState: (listener: (state: MobileServerState) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: MobileServerState) => listener(payload);
+    ipcRenderer.on("mobile:changed", handler);
+    return () => ipcRenderer.removeListener("mobile:changed", handler);
+  },
+  onMobileRequest: (listener: (request: MobileRequest) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: MobileRequest) => listener(payload);
+    ipcRenderer.on("mobile:request", handler);
+    return () => ipcRenderer.removeListener("mobile:request", handler);
+  },
+  answerMobileRequest: (response: MobileResponse) => ipcRenderer.send("mobile:answer", response),
+  publishMobileView: (update: MobileViewUpdate) => ipcRenderer.send("mobile:publish", update),
   openBrowserTab: (tabId: string, url?: string) => ipcRenderer.invoke("browser:open", tabId, url),
   navigateBrowser: (tabId: string, url: string) => ipcRenderer.invoke("browser:navigate", tabId, url),
   browserHistory: (tabId: string, delta: -1 | 1) => ipcRenderer.invoke("browser:history", tabId, delta),

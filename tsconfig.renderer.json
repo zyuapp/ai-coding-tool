@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["src/renderer/**/*", "src/domain/**/*", "src/application/**/*", "src/contracts/**/*"]
+  "include": ["src/renderer/**/*", "src/mobile/**/*", "src/domain/**/*", "src/application/**/*", "src/contracts/**/*"]
 }
