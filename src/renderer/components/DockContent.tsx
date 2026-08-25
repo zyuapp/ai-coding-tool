@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { BrowserPanel } from "./BrowserPanel";
 import { DockSideChats } from "./DockSideChat";
 import { TerminalPanel } from "./TerminalPanel";
@@ -14,9 +14,11 @@ type Workspace = ReturnType<typeof useTaskWorkspace>;
  * One panel's tab: the view, and the find bar above it when it is the one being searched. The bar
  * sits in the same place in every tab, so a panel never draws one of its own.
  */
-function DockPanelTab({ panel, active, find, findBar, onResults }: {
+export function DockPanelTab({ panel, active, focusToken, find, findBar, onResults }: {
   panel: DockPanel;
   active: boolean;
+  /** Bumped whenever something asks this panel to take the keyboard. */
+  focusToken: number;
   find: FindView | null;
   findBar: ReactNode;
   onResults: (results: FindResults) => void;
@@ -26,11 +28,24 @@ function DockPanelTab({ panel, active, find, findBar, onResults }: {
   const drawnFind = find?.target.kind === "panel" && find.target.panel === panel.id ? find : null;
   usePanelFind({ root: body, find: drawnFind, onResults });
   const mine = drawnFind !== null || (find?.target.kind === "review" && panel.id === DIFF_PANEL);
+
+  /**
+   * A panel holds the keyboard the way a page, a shell and a side chat already do. Without this the
+   * caret stays in the composer while the user reads the panel, and ⌘F would answer with the thread.
+   */
+  useEffect(() => {
+    if (focusToken) body.current?.focus({ preventScroll: true });
+  }, [focusToken]);
+
   return (
     <div className="dock-panel" data-dock-tab={panel.id} hidden={!active}>
       {mine && findBar}
-      {/** The body is its own element so the query typed into the bar is never painted as a match. */}
-      <div className="dock-panel-body" ref={body}>{panel.render()}</div>
+      {/**
+        * The body is its own element so the query typed into the bar is never painted as a match, and
+        * it takes the keys itself: a panel is read rather than typed into, so nothing inside it would
+        * otherwise ever hold them.
+        */}
+      <div className="dock-panel-body" ref={body} tabIndex={-1}>{panel.render()}</div>
     </div>
   );
 }
@@ -71,6 +86,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
           key={panel.id}
           panel={panel}
           active={activeTab === panel.id}
+          focusToken={focusTokenFor(panel.id)}
           find={find}
           findBar={findBar}
           onResults={(results) => { if (find) void workspace.actions.reportFind(find.target, results); }}
