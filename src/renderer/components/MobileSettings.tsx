@@ -20,18 +20,16 @@ function addressOf(remote: MobileServerState, kind: MobileAddress["kind"]): Mobi
 function tailscaleMessage(tailscale: TailscaleState): string {
   switch (tailscale.status) {
     case "ready": {
-      if (!tailscale.certs) return "Signed in, but this tailnet does not issue HTTPS certificates yet. Turn HTTPS on in the Tailscale admin console, under DNS, then check again.";
-      return tailscale.magicDnsName
-        ? `Signed in as ${tailscale.magicDnsName}.`
-        : "Signed in. Tailscale has yet to say what this machine is called.";
+      if (!tailscale.certs) return "Signed in. This tailnet issues no HTTPS certificate. Turn HTTPS on in the Tailscale admin console, under DNS.";
+      return tailscale.magicDnsName ? `Signed in as ${tailscale.magicDnsName}.` : "Signed in.";
     }
-    case "missing": return "Tailscale is not installed on this Mac. Install it to reach the app from a phone that is not on this network.";
-    case "logged-out": return "Tailscale is installed but signed out. Sign in to it, then come back here.";
+    case "missing": return "Not installed. Install Tailscale to reach this Mac from outside the network.";
+    case "logged-out": return "Installed, but signed out. Sign in to Tailscale first.";
     default: return "Looking for Tailscale…";
   }
 }
 
-/** How long the code on screen has left, counted down to nothing rather than into the past. */
+/** Milliseconds left on the code, floored at zero. */
 function useCountdown(expiresAt: number | null): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -48,7 +46,7 @@ function countdownLabel(remaining: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-/** The pairing URL as a QR, drawn off the main thread and thrown away when the code changes. */
+/** The pairing URL as a QR image, redrawn when the URL changes. */
 function useQrCode(url: string | null): string | null {
   const [image, setImage] = useState<string | null>(null);
   useEffect(() => {
@@ -67,14 +65,14 @@ function useQrCode(url: string | null): string | null {
 
 function connectionLabel(connection: MobileConnectionState): string {
   if (connection === "live") return "Live.";
-  return connection === "resuming" ? "Catching up on what it missed." : "Reconnecting…";
+  return connection === "resuming" ? "Catching up…" : "Reconnecting…";
 }
 
 function lastSeenLabel(device: PairedDeviceView): string {
-  if (device.lastSeenAt === null) return "Has not connected yet.";
+  if (device.lastSeenAt === null) return "Never connected.";
   const days = Math.floor((Date.now() - device.lastSeenAt) / 86_400_000);
-  if (days === 0) return "Last seen today.";
-  return days === 1 ? "Last seen yesterday." : `Last seen ${days} days ago.`;
+  if (days === 0) return "Seen today.";
+  return days === 1 ? "Seen yesterday." : `Seen ${days} days ago.`;
 }
 
 /** The QR and the code beside it, live only while an unspent code has time left on it. */
@@ -87,7 +85,7 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-pairing-heading">Pairing</h3>
-          <p>Scan this with the phone's camera. The code works once and dies after two minutes; the phone keeps a key of its own from then on.</p>
+          <p>Scan this with the phone's camera. The code works once and expires in two minutes.</p>
         </div>
         <div className="settings-group-action">
           <button type="button" disabled={!listening} onClick={onCreatePairingCode}>{live ? "New code" : "Show a code"}</button>
@@ -95,7 +93,7 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
       </div>
 
       {!listening && <p className="settings-empty">Turn phone access on to pair a phone.</p>}
-      {listening && !live && <p className="settings-empty">No code on screen. Ask for one when the phone is in your hand.</p>}
+      {listening && !live && <p className="settings-empty">No code on screen.</p>}
       {listening && live && (
         <div className="phone-pairing">
           {qr
@@ -106,7 +104,7 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
             <p>Expires in {countdownLabel(remaining)}.</p>
             <code>{pairing.url}</code>
             {pairing.address.kind === "loopback" && (
-              <p className="phone-pairing-warning">This address means the phone itself, so scanning it goes nowhere. Turn on a way in above, then ask for a new code.</p>
+              <p className="phone-pairing-warning">This address points at the phone itself. Turn on a way in above, then ask for a new code.</p>
             )}
           </div>
         </div>
@@ -115,10 +113,7 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
   );
 }
 
-/**
- * One way in, told from end to end: whether it is on, what it costs, and the address it hands out.
- * A reader who cares about only one of the two never has to read the other.
- */
+/** One way in: its state, its trade-off, and the address it serves. */
 function Route({ id, name, on, summary, address, note, action, disabled, chosen, onToggle }: {
   id: string;
   name: string;
@@ -164,7 +159,7 @@ function RouteSection({ remote, listening, onSetLanExposed, onSetTailscaleServe,
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-routes-heading">How your phone gets here</h3>
-          <p>Pick a way in. With neither on, the page answers this Mac alone and the QR code has nowhere to point.</p>
+          <p>Pick a way in. With neither on, only this Mac can open the page.</p>
         </div>
       </div>
 
@@ -179,7 +174,7 @@ function RouteSection({ remote, listening, onSetLanExposed, onSetTailscaleServe,
             chosen={remote.primary?.kind === "tailscale-https"}
             summary={tailscaleMessage(tailscale)}
             address={addressOf(remote, "tailscale-https")}
-            note="Works anywhere, including mobile data. Real certificate, so the phone sees no warning, and nothing of yours is on the open internet. Needs Tailscale on the phone too."
+            note="Works anywhere, including mobile data. Real certificate, so the phone sees no warning. Needs Tailscale on the phone too."
             action={<button type="button" onClick={onRefreshTailscale}><RefreshCw size={13} aria-hidden="true" /> Check again</button>}
             disabled={tailscale.status !== "ready" || (!tailscale.certs && !tailscale.serving)}
             onToggle={() => onSetTailscaleServe(!tailscale.serving)}
@@ -190,14 +185,14 @@ function RouteSection({ remote, listening, onSetLanExposed, onSetTailscaleServe,
             name="On this Wi-Fi"
             on={remote.lanExposed}
             chosen={remote.primary?.kind === "lan"}
-            summary={remote.lanExposed ? "Anything sharing this network can reach the page." : "Nothing but this Mac can reach the page."}
+            summary={remote.lanExposed ? "Anything on this network can reach the page." : "Only this Mac can reach the page."}
             address={addressOf(remote, "lan")}
-            note="Nothing to install, but the link is plain HTTP: anyone listening on the network reads the key your phone signs in with, and that key drives this Mac until you revoke it. Fine at home, not on a network you share."
+            note="Nothing to install, but the link is plain HTTP. Anyone on the network can read the phone's key and drive this Mac. Fine at home, not on a shared network."
             disabled={false}
             onToggle={() => onSetLanExposed(!remote.lanExposed)}
           />
 
-          {!routed && <p className="settings-empty">No way in is on. A QR code made now would point at this Mac itself.</p>}
+          {!routed && <p className="settings-empty">No way in is on. A QR code made now points at this Mac itself.</p>}
         </>
       )}
 
@@ -206,14 +201,14 @@ function RouteSection({ remote, listening, onSetLanExposed, onSetTailscaleServe,
   );
 }
 
-/** The phones on the line right now, which is what keeps this Mac awake. */
+/** The phones connected right now. */
 function SessionSection({ sessions }: { sessions: MobileSessionView[] }) {
   return (
     <section className="settings-group" aria-labelledby="phone-sessions-heading">
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-sessions-heading">Connected</h3>
-          <p>A phone on the line holds this Mac awake for as long as it is there and five minutes after, so a run it started survives the screen locking. Closing the lid still sleeps the Mac.</p>
+          <p>A connected phone holds this Mac awake, and for five minutes after it leaves. Closing the lid still sleeps the Mac.</p>
         </div>
         <div className="settings-group-action"><span>{sessions.length} connected</span></div>
       </div>
@@ -239,13 +234,13 @@ function DeviceSection({ devices, onRevokeDevice }: { devices: PairedDeviceView[
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-devices-heading">Paired phones</h3>
-          <p>Revoking a phone forgets its key and cuts it off at once. While any phone is paired, closing this window puts it away rather than quitting; the Dock icon brings it back.</p>
+          <p>Revoking a phone forgets its key and cuts it off at once. While any phone is paired, closing this window hides it rather than quitting.</p>
         </div>
         <div className="settings-group-action"><span>{devices.length} paired</span></div>
       </div>
 
       {devices.length === 0
-        ? <p className="settings-empty">No phone has paired with this Mac.</p>
+        ? <p className="settings-empty">No phone has paired.</p>
         : devices.map((device) => (
           <div className="setting-row" key={device.id}>
             <span className="setting-status blank"><Smartphone size={13} /></span>
@@ -287,7 +282,7 @@ export function MobileSettings({
     <main className="settings-main">
       <div className="settings-page-heading">
         <h2>Phone</h2>
-        <p>Reach your threads from a phone's browser. The phone sends the same commands the window does, so nothing it asks for happens anywhere else.</p>
+        <p>Reach your threads from a phone's browser. The phone sends the same commands this window does.</p>
       </div>
 
       <section className="settings-group" aria-labelledby="phone-availability-heading">
@@ -300,7 +295,7 @@ export function MobileSettings({
           <span className={`setting-status ${listening ? "granted" : ""}`}>{listening && <Check size={13} />}</span>
           <div>
             <strong>Phone access</strong>
-            <p>Runs a small server on this Mac that a paired phone talks to. Turning it off drops every phone at once.</p>
+            <p>Runs a small server that a paired phone talks to. Turning it off drops every phone.</p>
           </div>
           <div className="setting-row-action">
             <button type="button" role="switch" aria-checked={remote.enabled} onClick={() => onSetEnabled(!remote.enabled)}>{remote.enabled ? "Turn off" : "Turn on"}</button>
@@ -309,7 +304,7 @@ export function MobileSettings({
 
         {listening && addressOf(remote, "loopback") && (
           <p className="phone-local">
-            Serving on <code>{addressOrigin(addressOf(remote, "loopback")!)}</code>, which only this Mac can open. A phone needs one of the ways in below.
+            Serving on <code>{addressOrigin(addressOf(remote, "loopback")!)}</code>, which only this Mac can open. A phone needs a way in below.
           </p>
         )}
 
