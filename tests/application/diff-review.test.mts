@@ -127,7 +127,7 @@ test("opening the review asks for the comparison it is going to draw", () => {
 
 test("the review opens on the comparison the session panel is already counting from", () => {
   const counted = workspace({
-    environment: { workspaceId: "workspace-a", result: { status: "available", files: [], branch: "topic", baseline: "origin/main", additions: 3, deletions: 1 } },
+    environments: { "workspace-a": { status: "available", files: [], branch: "topic", baseline: "origin/main", additions: 3, deletions: 1 } },
   });
   const opened = reduce(counted, { type: "diff.toggle" });
 

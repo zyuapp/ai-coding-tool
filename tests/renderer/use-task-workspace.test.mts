@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
@@ -653,4 +653,40 @@ test("resolving a run through the picker insists on the same folder", async () =
 
   assert.equal(wrong.type, "run.unresolved");
   assert.match(wrong.message, /same project folder/);
+});
+
+test("the checkout on screen is read again while nothing runs in it", async (t) => {
+  vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  /** The hook asks the window for its timers, and jsdom's window keeps its own. */
+  const windowTimers = { setInterval: dom.window.setInterval, clearInterval: dom.window.clearInterval };
+  for (const name of ["setInterval", "clearInterval"] as const) {
+    Object.defineProperty(dom.window, name, { configurable: true, value: globalThis[name] });
+  }
+  t.onTestFinished(() => {
+    for (const name of ["setInterval", "clearInterval"] as const) {
+      Object.defineProperty(dom.window, name, { configurable: true, value: windowTimers[name] });
+    }
+    vi.useRealTimers();
+  });
+  let reads = 0;
+  const desktop = fakeDesktop({
+    openFolder: async () => ({ id: "workspace-1", kind: "project", root: "/project" }),
+    changedFiles: async () => {
+      reads += 1;
+      return { status: "available", files: [], branch: "main", baseline: "origin/main", additions: 0, deletions: 0 };
+    },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => { await workspace.get().actions.openFolder(); });
+  const opened = reads;
+
+  await act(async () => { vi.advanceTimersByTime(14_000); });
+  assert.equal(reads, opened, "an idle checkout is not read on the running cadence");
+
+  await act(async () => {
+    vi.advanceTimersByTime(2_000);
+    await new Promise((resolve) => setImmediate(resolve));
+  });
+  assert.equal(reads, opened + 1, "work done outside the app is picked up without a run");
+  await workspace.view.unmount();
 });

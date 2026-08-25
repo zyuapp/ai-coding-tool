@@ -4,7 +4,7 @@ import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ChangedFilesResult } from "../../src/contracts/ipc.ts";
 import type { TaskStoreData } from "../../src/domain/task.ts";
-import { task, workspace, activeRun, automation, effectAt, required, run, running, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, automation, effectAt, heldWorktree, inside, PROJECT, required, run, running, send } from "./workspace-reducer-fixtures.mts";
 
 test("archiving a task retires its automation and cancels a run still going", () => {
   const state = workspace({
@@ -125,7 +125,8 @@ test("a run already going survives the load, and keeps reporting into its thread
 test("changed files from a superseded run never overwrite the snapshot", () => {
   const state = workspace({ tasks: [task("task-a")], lastRunIds: { "task-a": "run-2" } });
   const stale = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", runId: "run-1", result: { status: "available", files: ["stale"], branch: "old", baseline: null, additions: 0, deletions: 0 } });
-  assert.equal(stale.state, state);
+  assert.equal(stale.state.tasks, state.tasks);
+  assert.equal(required(stale.state.environments["workspace-1"]).status, "available", "the checkout itself is worth recording whoever asked");
 
   const current = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", runId: "run-2", result: { status: "available", files: ["fresh"], branch: "main", baseline: null, additions: 1, deletions: 0 } });
   assert.deepEqual(current.state.tasks[0].lastChangeSnapshot.files, ["fresh"]);
@@ -135,7 +136,7 @@ test("an unchanged environment refresh does not rewrite the workspace or task", 
   const result: ChangedFilesResult = { status: "available", files: [" M src/App.tsx"], branch: "main", baseline: "origin/main", additions: 2, deletions: 1 };
   const state = workspace({
     tasks: [task("task-a", { lastChangeSnapshot: { files: [...result.files], capturedAt: 1 } })],
-    environment: { workspaceId: "workspace-1", result },
+    environments: { "workspace-1": result },
   });
 
   const unchanged = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", result: { ...result, files: [...result.files] } });
@@ -144,7 +145,85 @@ test("an unchanged environment refresh does not rewrite the workspace or task", 
   const movedBranch = reduce(state, { type: "environment.updated", workspaceId: "workspace-1", taskId: "task-a", result: { ...result, branch: "feature" } });
   assert.notEqual(movedBranch.state, state);
   assert.equal(movedBranch.state.tasks, state.tasks, "environment details do not rewrite an unchanged task snapshot");
-  const environment = required(movedBranch.state.environment);
-  assert.equal(environment.result.status, "available");
-  assert.equal(environment.result.branch, "feature");
+  const environment = required(movedBranch.state.environments["workspace-1"]);
+  assert.equal(environment.status, "available");
+  assert.equal(environment.status === "available" && environment.branch, "feature");
+});
+
+const READ: ChangedFilesResult = { status: "available", files: [" M src/App.tsx"], branch: "main", baseline: "origin/main", additions: 2, deletions: 1 };
+const CHECKOUT = required(PROJECT.workspaceId);
+
+test("a checkout answering never takes the answer off the checkout on screen", () => {
+  const tree = heldWorktree("wt1");
+  const state = workspace({
+    projects: [PROJECT],
+    ...inside(tree, [task("task-b", { projectId: PROJECT.id })]),
+    currentId: "task-a",
+    activeRuns: { "task-b": activeRun("task-b", "run-1") },
+    lastRunIds: { "task-b": "run-1" },
+  });
+  const both = { ...state, tasks: [task("task-a", { projectId: PROJECT.id }), ...state.tasks] };
+
+  const seeded = reduce(both, { type: "environment.updated", workspaceId: CHECKOUT, result: READ });
+  assert.equal(deriveView(seeded.state).environment, READ);
+
+  const elsewhere = reduce(seeded.state, {
+    type: "environment.updated",
+    workspaceId: tree.workspaceId,
+    taskId: "task-b",
+    runId: "run-1",
+    result: { status: "available", files: [], branch: "feature", baseline: "origin/main", additions: 0, deletions: 0 },
+  });
+
+  const view = deriveView(elsewhere.state);
+  assert.equal(view.workspaceId, CHECKOUT);
+  assert.equal(view.environment, READ, "the thread in front keeps the answer about its own checkout");
+  assert.equal(required(elsewhere.state.environments[tree.workspaceId]).status, "available", "and the other checkout has its own");
+});
+
+test("a thread returned to shows what Git last said while the new read runs", () => {
+  const tree = heldWorktree("wt1");
+  const state = workspace({
+    projects: [PROJECT],
+    ...inside(tree, [task("task-b", { projectId: PROJECT.id })]),
+    currentId: "task-a",
+  });
+  const both = { ...state, tasks: [task("task-a", { projectId: PROJECT.id }), ...state.tasks] };
+  const read = reduce(both, { type: "environment.updated", workspaceId: CHECKOUT, result: READ }).state;
+
+  const away = reduce(read, { type: "task.select", taskId: "task-b" }).state;
+  assert.equal(deriveView(away).environment, null, "a checkout nothing has read yet says nothing");
+
+  const back = reduce(away, { type: "task.select", taskId: "task-a" }).state;
+  assert.equal(deriveView(back).environment, READ);
+});
+
+test("an answer is forgotten once its checkout is gone", () => {
+  const tree = heldWorktree("wt1");
+  const state = workspace({
+    projects: [PROJECT],
+    ...inside(tree, [task("task-a", { projectId: PROJECT.id })]),
+    currentId: "task-a",
+    environments: { [tree.workspaceId]: READ },
+  });
+
+  const deleted = reduce(state, {
+    type: "worktree.deleted",
+    worktreeId: tree.id,
+    root: tree.root,
+    snapshot: { commit: null, shortCommit: null, ref: null },
+  });
+  assert.equal(deleted.state.environments[tree.workspaceId], undefined);
+});
+
+test("an answer about a checkout the app no longer has is not kept", () => {
+  const state = workspace({
+    projects: [PROJECT],
+    tasks: [task("task-a", { projectId: PROJECT.id })],
+    currentId: "task-a",
+    environments: { "worktree-gone": READ },
+  });
+
+  const read = reduce(state, { type: "environment.updated", workspaceId: CHECKOUT, result: READ });
+  assert.deepEqual(Object.keys(read.state.environments), [CHECKOUT]);
 });

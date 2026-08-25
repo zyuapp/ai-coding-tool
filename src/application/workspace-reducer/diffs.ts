@@ -1,6 +1,6 @@
 /** The review: which comparison a dock holds, and what Git answers about it. */
 import { reduceDock } from "./dock.js";
-import { DIFF_PANEL, currentWorkspaceId, now, readDiff, sameChangedFiles, sameStrings, settled } from "./shared.js";
+import { DIFF_PANEL, environmentFor, now, readDiff, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { applyTask } from "../task-workspace.js";
 import { diffFor, diffMatches, dockFor, dockOwner, retainedViews, withDiff, type WorkspaceState } from "../workspace-state.js";
@@ -13,19 +13,9 @@ type DiffInput = Extract<WorkspaceInput, {
 
 export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceTransition {
   switch (input.type) {
-    case "view.refresh-environment": {
-      const currentTask = state.tasks.find((task) => task.id === state.currentId);
-      const workspaceId = currentWorkspaceId(state);
-      if (!workspaceId) return settled(state.environment === null ? state : { ...state, environment: null });
-      const taskId = currentTask?.id;
-      const runId = taskId ? state.lastRunIds[taskId] : undefined;
-      return settled(state, [{
-        type: "refresh-environment",
-        workspaceId,
-        ...(taskId ? { taskId } : {}),
-        ...(runId ? { runId } : {}),
-      }]);
-    }
+    /** A thread with no checkout has nothing to read; what other checkouts said is still theirs. */
+    case "view.refresh-environment":
+      return settled(state, refreshEnvironment(state));
 
     case "diff.toggle": {
       const dock = dockFor(state, dockOwner(state));
@@ -90,11 +80,12 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
     }
 
     case "environment.updated": {
-      if (input.taskId && input.runId && state.lastRunIds[input.taskId] !== input.runId) return settled(state);
-      const previous = state.environment?.workspaceId === input.workspaceId ? state.environment.result : null;
+      const previous = environmentFor(state, input.workspaceId);
       const next: WorkspaceState = sameChangedFiles(previous, input.result)
         ? state
-        : { ...state, environment: { workspaceId: input.workspaceId, result: input.result } };
+        : { ...state, environments: retainedEnvironments(state, input.workspaceId, input.result) };
+      /** The checkout is worth recording whoever asked; only the thread's own snapshot is the run's. */
+      if (input.runId && input.taskId && state.lastRunIds[input.taskId] !== input.runId) return settled(next);
       if (!input.taskId || input.result.status !== "available") return settled(next);
       const files = input.result.files;
       const task = state.tasks.find((item) => item.id === input.taskId);

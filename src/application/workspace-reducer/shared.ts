@@ -482,9 +482,11 @@ export function leaveWorktree(state: WorkspaceState, taskId: string, note: Retur
  * pointing at a folder that is not there.
  */
 export function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => ReturnType<typeof createTaskMessage>): WorkspaceState {
+  const gone = state.worktrees.find((worktree) => worktree.id === worktreeId);
   return {
     ...state,
     worktrees: state.worktrees.filter((worktree) => worktree.id !== worktreeId),
+    ...(gone ? { environments: withoutEnvironment(state.environments, gone.workspaceId) } : {}),
     ...(state.draftWorktreeId === worktreeId ? { draftWorktreeId: null } : {}),
     tasks: state.tasks.map((task) => {
       if (task.worktreeId !== worktreeId) return task;
@@ -620,13 +622,52 @@ export function currentWorkspaceId(state: WorkspaceState) {
 }
 
 /**
+ * Asks Git about the checkout the thread in front works in. It names the run its answer follows, so a
+ * reply about work a newer run has already moved past is not written onto the thread.
+ */
+export function refreshEnvironment(state: WorkspaceState): WorkspaceEffect[] {
+  const workspaceId = currentWorkspaceId(state);
+  if (!workspaceId) return [];
+  const taskId = state.tasks.find((task) => task.id === state.currentId)?.id;
+  const runId = taskId ? state.lastRunIds[taskId] : undefined;
+  return [{ type: "refresh-environment", workspaceId, ...(taskId ? { taskId } : {}), ...(runId ? { runId } : {}) }];
+}
+
+/** What Git last said about a checkout, or null while none of it has been read yet. */
+export function environmentFor(state: WorkspaceState, workspaceId: string | undefined) {
+  return (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
+}
+
+/** Forgets one checkout's answer, so a directory that is gone leaves nothing behind it. */
+export function withoutEnvironment(environments: WorkspaceState["environments"], workspaceId: string) {
+  if (!(workspaceId in environments)) return environments;
+  const { [workspaceId]: _gone, ...rest } = environments;
+  return rest;
+}
+
+/**
+ * The answers worth keeping: one per checkout the app still has, plus the one just read. A checkout
+ * the user deleted outside the app is forgotten here rather than kept for the rest of the session.
+ */
+export function retainedEnvironments(state: WorkspaceState, workspaceId: string, result: ChangedFilesResult) {
+  const live = new Set([
+    workspaceId,
+    ...state.projects.map((project) => project.workspaceId),
+    ...state.worktrees.map((worktree) => worktree.workspaceId),
+  ]);
+  const kept: WorkspaceState["environments"] = { [workspaceId]: result };
+  for (const [id, answer] of Object.entries(state.environments)) if (id !== workspaceId && live.has(id)) kept[id] = answer;
+  return kept;
+}
+
+/**
  * What a review opens on. The session panel counts from where HEAD left the origin default branch, so
  * a review reached from that row starts on the same comparison and reports the same totals. Without
  * an origin to measure from there is nothing but the working tree, which is what it falls back to.
  */
 export function initialRange(state: WorkspaceState, diff: DiffState): DiffRange {
   if (diff.result !== null) return diff.range;
-  const counted = state.environment && state.environment.workspaceId === currentWorkspaceId(state) ? state.environment.result : null;
+  const counted = environmentFor(state, currentWorkspaceId(state));
   const baseline = counted?.status === "available" ? counted.baseline : null;
   return baseline ? { kind: "branches", base: baseline, compare: null } : diff.range;
 }

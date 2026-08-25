@@ -26,6 +26,12 @@ function initialState(store: ReturnType<typeof createLocalTaskStore>): Workspace
   return reduce(stored, { type: "preferences.loaded", preferences: loadViewPreferences() }).state;
 }
 
+/** How often Git is read again while a run is writing in the checkout on screen. */
+const RUNNING_REFRESH_MS = 2_000;
+
+/** And while nothing runs there, which is only for changes the app itself did not make. */
+const IDLE_REFRESH_MS = 15_000;
+
 /**
  * Holds workspace state and turns dispatched commands into state plus effects. All behaviour lives in
  * the reducer; this hook only owns React state, the effect runner, and persistence.
@@ -135,10 +141,17 @@ export function useTaskWorkspace() {
 
   const currentRunId = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
 
+  /**
+   * The checkout on screen is read now, and again on a timer: quickly while a run writes in it, slowly
+   * otherwise, because a terminal, an editor or another app moves Git with nothing to announce it. A
+   * window nobody can see reads nothing, and gets its answer when it comes back instead.
+   */
   useEffect(() => {
     void dispatchRef.current({ type: "view.refresh-environment" });
-    if (!currentRunId) return;
-    const timer = window.setInterval(() => void dispatchRef.current({ type: "view.refresh-environment" }), 2_000);
+    const every = currentRunId ? RUNNING_REFRESH_MS : IDLE_REFRESH_MS;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== "hidden") void dispatchRef.current({ type: "view.refresh-environment" });
+    }, every);
     return () => window.clearInterval(timer);
   }, [view.currentProject?.workspaceId, view.workspaceId, view.currentTask?.id, currentRunId]);
 

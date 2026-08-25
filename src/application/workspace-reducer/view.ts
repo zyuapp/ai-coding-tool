@@ -1,5 +1,5 @@
 /** Where the user is looking: history, focus, and the find bar. */
-import { searchEffects, settled, stopCapture, stopSearchEffects } from "./shared.js";
+import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { dockHoldsTab, findTargetFor, projectFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { readAttention } from "../../domain/attention.js";
@@ -37,9 +37,10 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       }, taskId));
     }
 
+    /** Git moves while the window is away — in a terminal, an editor, another checkout — so coming back reads it. */
     case "view.set-focused":
       return input.focused
-        ? settled(readAttention({ ...state, focused: true }, state.currentId))
+        ? settled(readAttention({ ...state, focused: true }, state.currentId), refreshEnvironment(state))
         : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
 
     /** A tab the dock in front is not holding is nobody holding the keyboard, which the picker reports too. */

@@ -258,7 +258,12 @@ export type WorkspaceState = {
   browserOrigins: string[];
   browserApproval: BrowserApproval | null;
   openMenu: string | null;
-  environment: { workspaceId: string; result: ChangedFilesResult } | null;
+  /**
+   * What Git last said about each checkout, keyed by checkout. A checkout is what a branch and a set
+   * of changes belong to, so a scan of one never overwrites another, and a thread returned to shows
+   * what was last read while a new scan runs. Session-only, and never persisted.
+   */
+  environments: Record<string, ChangedFilesResult>;
   computerUseSetup: boolean;
   automations: AutomationView[];
   pendingRuns: Record<string, PendingRun>;
@@ -352,7 +357,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     browserOrigins: [],
     browserApproval: null,
     openMenu: null,
-    environment: null,
+    environments: {},
     computerUseSetup: false,
     automations: [],
     pendingRuns: {},
@@ -647,7 +652,7 @@ export function deriveView(state: WorkspaceState) {
   const workspaceId = currentTask
     ? taskWorkspaceId(state, currentTask)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
-  const environment = workspaceId && state.environment?.workspaceId === workspaceId ? state.environment.result : null;
+  const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
   const owner = dockOwner(state);
   const dock = dockFor(state, owner);
   const waitingOn = waitFor(state, currentTask);

@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { DIFF_PANEL, reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, dockOwner } from "../../src/application/workspace-state.ts";
 import type { FindTarget } from "../../src/domain/find.ts";
-import { task, workspace, effectAt, run, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, effectAt, PROJECT, required, run, send } from "./workspace-reducer-fixtures.mts";
 
 test("visiting threads builds a trail that back and forward walk without extending it", () => {
   const state = run(workspace({ tasks: [task("task-a"), task("task-b"), task("task-c")] }), [
@@ -161,4 +161,14 @@ test("closing the panel being searched takes its find bar with it", () => {
 
   assert.equal(closed.find, null);
   assert.equal(closed.findResults, null);
+});
+
+test("coming back to the window reads Git again", () => {
+  const state = workspace({ projects: [PROJECT], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+
+  const back = reduce({ ...state, focused: false }, { type: "view.set-focused", focused: true });
+  assert.deepEqual(back.effects, [{ type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a" }]);
+
+  const away = reduce(state, { type: "view.set-focused", focused: false });
+  assert.deepEqual(away.effects, [], "a window left alone asks nothing");
 });

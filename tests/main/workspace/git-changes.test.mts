@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test, describe } from "vitest";
@@ -176,5 +176,29 @@ test("changed files reports detached HEAD and non-Git failures", async (t) => {
   assert.equal(detached.branch, `detached@${stdout.trim()}`);
   assert.equal(failed.status, "error");
   assert.match(failed.message, /not a git repository/i);
+});
+test("an untracked file is only read again once it moves", async (t) => {
+  const root = await repository();
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  const file = path.join(root, "notes.txt");
+  const written = new Date(1_760_000_000_000);
+  await writeFile(file, "one\ntwo\n");
+  await utimes(file, written, written);
+
+  const first = await changedFiles("fixture", workspaces(root));
+  assertAvailable(first);
+  assert.equal(first.additions, 2);
+
+  /** The same size and the same moment is the same file, whatever the bytes now say. */
+  await writeFile(file, "\n".repeat(8));
+  await utimes(file, written, written);
+  const unchanged = await changedFiles("fixture", workspaces(root));
+  assertAvailable(unchanged);
+  assert.equal(unchanged.additions, 2, "a file that has not moved is not opened again");
+
+  await utimes(file, written, new Date(written.getTime() + 2_000));
+  const moved = await changedFiles("fixture", workspaces(root));
+  assertAvailable(moved);
+  assert.equal(moved.additions, 8, "a file that moved is counted again");
 });
 });

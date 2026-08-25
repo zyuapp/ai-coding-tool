@@ -26,6 +26,29 @@ export function summarizeNumstat(output: string) {
   return { additions, deletions };
 }
 
+/**
+ * What one untracked file counted, against the size and modification time it counted. A poll asks
+ * about the same files over and over, and reading them all again on every tick is the slow part of a
+ * scan, so a file that has not moved is not opened again.
+ */
+type CountedFile = { size: number; modifiedAt: number; lines: number };
+
+const untrackedCounts = new Map<string, CountedFile>();
+
+/** Bounds the memory. A count only saves work, so throwing the lot away costs one slower scan. */
+const UNTRACKED_CACHE_LIMIT = 4_096;
+
+function rememberCount(file: string, counted: CountedFile) {
+  if (untrackedCounts.size >= UNTRACKED_CACHE_LIMIT) untrackedCounts.clear();
+  untrackedCounts.set(file, counted);
+  return counted.lines;
+}
+
+function countLines(contents: Buffer) {
+  if (contents.includes(0)) return 0;
+  return contents.reduce((count, byte) => count + (byte === 10 ? 1 : 0), 0) + (contents.length > 0 && contents.at(-1) !== 10 ? 1 : 0);
+}
+
 async function untrackedFileLines(root: string, file: string) {
   const candidate = path.resolve(root, file);
   const relative = path.relative(root, candidate);
@@ -33,9 +56,10 @@ async function untrackedFileLines(root: string, file: string) {
   try {
     const metadata = await lstat(candidate);
     if (!metadata.isFile() || metadata.size > 5_000_000) return 0;
+    const counted = untrackedCounts.get(candidate);
+    if (counted && counted.size === metadata.size && counted.modifiedAt === metadata.mtimeMs) return counted.lines;
     const contents = await readFile(candidate);
-    if (contents.includes(0)) return 0;
-    return contents.reduce((count, byte) => count + (byte === 10 ? 1 : 0), 0) + (contents.length > 0 && contents.at(-1) !== 10 ? 1 : 0);
+    return rememberCount(candidate, { size: metadata.size, modifiedAt: metadata.mtimeMs, lines: countLines(contents) });
   } catch {
     // The file may disappear while Git and the filesystem are being sampled.
     return 0;

@@ -46,9 +46,11 @@ export const BRANCH_MENU = "session:branch";
 /** The sidebar carries the few that want reading; the whole roster lives in the Subagents panel. */
 const SIDEBAR_LIMIT = 6;
 
-function environmentMessage(environment: ChangedFilesResult | null, hasProject: boolean) {
+function environmentMessage(environment: ChangedFilesResult | null, hasProject: boolean, workspaceId: string | undefined) {
   if (!hasProject) return "Open a project to inspect Git";
-  if (!environment) return "Reopen the project to inspect Git";
+  if (!workspaceId) return "Reopen the project to inspect Git";
+  /** A checkout with no answer yet is one still being read; the rows fill in when it answers. */
+  if (!environment) return "Reading Git…";
   if (environment.status === "error") return environment.message;
   if (environment.status === "unknown") return "Workspace is no longer registered";
   if (environment.status === "unavailable") return `Workspace is ${environment.reason}`;
@@ -250,6 +252,7 @@ function InstallGitHubCliRow() {
 
 export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
+  const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
   const pullRequest = usePullRequest(workspaceId, available?.branch ?? null, taskId);
@@ -284,7 +287,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, taskId, loc
               />
               {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
               {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
-              {environmentMessage(environment, hasProject) && <p className="session-note">{environmentMessage(environment, hasProject)}</p>}
+              {message && <p className="session-note">{message}</p>}
               <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
                 <span className="session-row-icon"><AlarmClock size={18} /></span>
                 <span>Automations</span>

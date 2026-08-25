@@ -288,6 +288,7 @@ const liveWorkflow: Workflow = {
 };
 
 test("session panel renders Git and subagent states and selects an agent", async () => {
+  window.desktop = fakeDesktop();
   let selected: string | undefined;
   let openedAutomations = 0;
   const view = await mount(renderSessionPanel({
@@ -313,15 +314,17 @@ test("session panel renders Git and subagent states and selects an agent", async
   assert.equal(openedAutomations, 1);
 
   const environments: Array<[SessionPanelProps["environment"], string]> = [
-    [null, "Reopen the project to inspect Git"],
+    [null, "Reading Git…"],
     [{ status: "unknown", workspaceId: "gone" }, "Workspace is no longer registered"],
     [{ status: "unavailable", reason: "missing" }, "Workspace is missing"],
     [{ status: "error", message: "git failed" }, "git failed"],
   ];
   for (const [environment, message] of environments) {
-    await view.render(renderSessionPanel({ environment, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
+    await view.render(renderSessionPanel({ environment, hasProject: true, workspaceId: "workspace-a", subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
     assert.match(view.container.textContent, new RegExp(message));
   }
+  await view.render(renderSessionPanel({ environment: null, hasProject: true, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
+  assert.match(view.container.textContent, /Reopen the project to inspect Git/, "a project that is no longer open has no checkout to read");
   await view.render(renderSessionPanel({ environment: null, hasProject: false, subagents: [], backgroundProcesses: [], workflows: [], automationCount: 0, onSelect() {}, onOpenAutomations() {} }));
   assert.match(view.container.textContent, /Open a project to inspect Git/);
   await view.unmount();
