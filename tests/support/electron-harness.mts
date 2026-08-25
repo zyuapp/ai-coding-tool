@@ -2,9 +2,11 @@ import { EventEmitter } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createServer, type Plugin } from "vite";
+import type { Plugin } from "vite";
 import type { TestContext } from "vitest";
 import type { BrowserBounds } from "../../src/domain/browser.js";
+import { fakeMobileHost, MOBILE_HOST_MODULE, type FakeMobileHost } from "./mobile-host-stub.mjs";
+import { isolatedViteServer } from "./vite-server.mjs";
 
 type Callback = (...args: unknown[]) => unknown;
 type RegisteredCallback = (...args: never[]) => unknown;
@@ -18,6 +20,7 @@ type StartOptions = { computerUse?: ComputerUseStub };
 type HarnessGlobals = typeof globalThis & {
   __aicodingtoolElectron?: unknown;
   __aicodingtoolComputerUse?: ComputerUseStub;
+  __aicodingtoolMobileHost?: FakeMobileHost;
 };
 
 export function registered<T extends RegisteredCallback>(registry: Map<string, Callback>, name: string): T {
@@ -104,6 +107,15 @@ function fakePlugins(computerUse: boolean): Plugin[] {
     resolveId(id) { if (id === "virtual:fake-electron") return "\0fake-electron"; },
     load(id) {
       if (id === "\0fake-electron") return "const e = globalThis.__aicodingtoolElectron; export const app=e.app, Menu=e.Menu, BaseWindow=e.BaseWindow, BrowserWindow=e.BrowserWindow, dialog=e.dialog, globalShortcut=e.globalShortcut, ipcMain=e.ipcMain, nativeTheme=e.nativeTheme, net=e.net, powerSaveBlocker=e.powerSaveBlocker, Notification=e.Notification, protocol=e.protocol, screen=e.screen, session=e.session, shell=e.shell, utilityProcess=e.utilityProcess, WebContentsView=e.WebContentsView;";
+    },
+  }, {
+    name: "fake-mobile-host",
+    enforce: "pre",
+    resolveId(id, importer) {
+      if (id === "./mobile-host.mjs" && importer?.endsWith("/src/main/mobile/bridge.ts")) return "\0fake-mobile-host";
+    },
+    load(id) {
+      if (id === "\0fake-mobile-host") return MOBILE_HOST_MODULE;
     },
   }];
   if (computerUse) {
@@ -274,6 +286,8 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     WebContentsView: FakeWebContentsView,
   };
   const globals = globalThis as HarnessGlobals;
+  const mobileHost = fakeMobileHost();
+  globals.__aicodingtoolMobileHost = mobileHost.host;
   globals.__aicodingtoolElectron = electron;
   globalThis.__dirname = path.join(process.cwd(), "dist/main/main");
   const versions = process.versions as NodeJS.ProcessVersions & { chrome?: string };
@@ -281,7 +295,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
 
   const plugins = fakePlugins(options.computerUse !== undefined);
 
-  const vite = await createServer({
+  const { vite, close: closeVite } = await isolatedViteServer({
     logLevel: "silent",
     appType: "custom",
     /** xterm's `module` field points at a file it does not ship, so its real ESM build is named here. */
@@ -295,10 +309,11 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     if (disposed) return;
     disposed = true;
     appListeners.get("will-quit")?.();
-    await vite.close();
+    await closeVite();
     await rm(userData, { recursive: true, force: true });
     Reflect.deleteProperty(globals, "__aicodingtoolElectron");
     Reflect.deleteProperty(globals, "__aicodingtoolComputerUse");
+    Reflect.deleteProperty(globals, "__aicodingtoolMobileHost");
     Reflect.deleteProperty(globalThis, "__dirname");
     Reflect.deleteProperty(versions, "chrome");
   };
@@ -310,6 +325,8 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     throw cause;
   }
   while (windows.length === 0) await tick();
+  /** Boot's last step, awaited so nothing it started is still running when the test tears Vite down. */
+  await mobileHost.running;
 
   const window = windows[0];
   if (!window) throw new Error("Main did not create a window.");

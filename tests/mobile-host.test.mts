@@ -72,6 +72,8 @@ async function bridge(t: { onTestFinished(callback: () => void | Promise<void>):
     userData: folder,
     staticRoot: folder,
     tailscale: noTailscale(),
+    /** Whatever the machine offers, so this never takes the port the developer's own app serves on. */
+    port: 0,
     send: (request) => { requests.push(request); return true; },
     onState: (state) => { states.push(state); },
   });

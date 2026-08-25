@@ -36,8 +36,19 @@ function fixedClock(start = 1_000) {
   };
 }
 
-/** An hour out, so nothing in these tests races a real tick. */
-const HOURLY = "0 * * * *";
+/**
+ * Hourly, half an hour out at the nearest. A schedule fixed at the top of the hour is under a minute
+ * away whenever the suite runs at :59, and the tick it fired then landed in a test's own count.
+ */
+const HOURLY = `${(new Date().getMinutes() + 30) % 60} * * * *`;
+
+/** Croner fires on the real clock, so a run arrives when the machine gets to it rather than on a tick. */
+async function until(held: () => boolean, what: string) {
+  for (let attempt = 0; attempt < 600 && !held(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.ok(held(), what);
+}
 
 /** Croner timers hold the event loop open, so every scheduler is torn down even when a test fails. */
 function schedulerFor(
@@ -349,7 +360,7 @@ test("the button the user pressed is never a quiet tick, and neither is a one-sh
 
   const soon = new Date(Date.now() + 1_500).toISOString();
   scheduler.save({ taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error." });
-  await new Promise((resolve) => setTimeout(resolve, 2_500));
+  await until(() => ticks.length === 2, "the one-shot never fired");
   assert.deepEqual(ticks.slice(1), [["task-2", { quiet: false, unattended: true }]], "a one-shot that vanishes when it runs must leave a trace of having run");
 });
 

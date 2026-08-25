@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { createServer } from "vite";
 import { registered, startMainProcess, tick, waitFor } from "./support/electron-harness.mjs";
+import { isolatedViteServer } from "./support/vite-server.mjs";
 
 type IpcEvent = { sender: unknown };
 type ComputerUsePermissions = { accessibility: boolean; screenRecording: boolean };
@@ -26,7 +26,7 @@ test("computer-use startup cannot create a host after shutdown begins", { skip: 
     currentMacOsPermissionStatus: () => permissions,
     EmbeddedCuaDriverHost: class { constructor() { hosts += 1; } },
   };
-  const vite = await createServer({
+  const { vite, close: closeVite } = await isolatedViteServer({
     logLevel: "silent",
     appType: "custom",
     resolve: { alias: { electron: "virtual:fake-electron", "@trycua/cua-driver": "virtual:fake-cua-driver" } },
@@ -44,7 +44,7 @@ test("computer-use startup cannot create a host after shutdown begins", { skip: 
       },
     }],
   });
-  t.onTestFinished(async () => { await vite.close(); Reflect.deleteProperty(globals, "__aicodingtoolQuitComputerUse"); });
+  t.onTestFinished(async () => { await closeVite(); Reflect.deleteProperty(globals, "__aicodingtoolQuitComputerUse"); });
   const computerUse = await vite.ssrLoadModule("/src/main/computer-use-host.ts");
 
   const starting = computerUse.computerUseForRun();

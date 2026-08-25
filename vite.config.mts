@@ -1,9 +1,14 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: "./",
   plugins: [react()],
+  /**
+   * A test run serves no browser, so pre-bundling has nothing to serve. Discovery still ran, and
+   * left a `node_modules/.vite/deps_temp_*` folder of its own behind on every run.
+   */
+  optimizeDeps: mode === "test" ? { noDiscovery: true, include: [] } : {},
   test: {
     include: ["tests/**/*.test.mts"],
     testTimeout: 20_000,
@@ -27,4 +32,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

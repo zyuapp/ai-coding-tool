@@ -31,6 +31,11 @@ export type MobileHostOptions = {
    * differently on two machines.
    */
   tailscale?: TailscaleHooks;
+  /**
+   * The port to ask for, {@link MOBILE_DEFAULT_PORT} when absent. A test passes 0 rather than take a
+   * well-known port on the developer's machine, which the running app may already be serving on.
+   */
+  port?: number;
 };
 
 export type TailscaleHooks = {
@@ -155,7 +160,7 @@ function makeServer() {
   return new MobileServer({
     devices: store,
     staticRoot: host().staticRoot,
-    port: MOBILE_DEFAULT_PORT,
+    port: host().port ?? MOBILE_DEFAULT_PORT,
     allowedOrigins: origins,
     snapshot: (sessionId) => bridge.snapshot(sessionId),
     command: (sessionId, command) => bridge.command(sessionId, command),

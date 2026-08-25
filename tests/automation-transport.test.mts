@@ -5,8 +5,11 @@ import type { AutomationAck, AutomationFire, AutomationRequest, AutomationRespon
 import type { AutomationDraft, AutomationRunStatus, AutomationView } from "../src/domain/automation.js";
 import type { RunStatus } from "../src/domain/run.js";
 
-/** An hour out, so a real tick never races the manual runs these tests drive. */
-const HOURLY = "0 * * * *";
+/**
+ * Hourly, half an hour out at the nearest, so a real tick never races the manual runs these tests
+ * drive. Fixed at the top of the hour it is under a minute away whenever the suite runs at :59.
+ */
+const HOURLY = `${(new Date().getMinutes() + 30) % 60} * * * *`;
 
 /** Booting main starts a Vite server, so every test in this file shares one and works on its own task. */
 let main: MainHarness;
