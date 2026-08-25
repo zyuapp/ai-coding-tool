@@ -351,7 +351,7 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
       mode: "confirm",
       model: "opus",
       runActive: false,
-      history: ["first question", "first question", "second question"].map((text) => ({ text, annotations: [], pastes: [], files: [], attachments: [] })),
+      history: ["first question", "first question", "second\nquestion"].map((text) => ({ text, annotations: [], pastes: [], files: [], attachments: [] })),
       onPromptChange: setPrompt,
       onModeChange() {},
       onModelChange() {},
@@ -371,30 +371,24 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
     textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
   });
 
+  const upIs = async (expected: string, why: string) => { await press("ArrowUp"); assert.equal(textarea.value, expected, why); };
+  const downIs = async (expected: string, why: string) => { await press("ArrowDown"); assert.equal(textarea.value, expected, why); };
+
   await act(async () => { textarea.focus(); });
   await type("a draft");
-  await press("ArrowUp");
-  assert.equal(textarea.value, "second question", "up recalls the newest sent prompt");
-  await press("ArrowUp");
-  assert.equal(textarea.value, "first question", "up again walks back, skipping the repeated send");
-  await press("ArrowUp");
-  assert.equal(textarea.value, "first question", "the oldest entry is the end of the line");
-  await press("ArrowDown");
-  assert.equal(textarea.value, "second question");
-  await press("ArrowDown");
-  assert.equal(textarea.value, "a draft", "down past the newest restores the stashed draft");
-  await press("ArrowDown");
-  assert.equal(textarea.value, "a draft", "with no recall going, down is just a caret move");
-
+  await upIs("a draft", "up in a typed draft moves the caret, not the history");
+  await type("");
+  await upIs("second\nquestion", "up in an empty composer recalls the newest sent prompt");
+  await upIs("second\nquestion", "up below the first line of a recalled prompt moves the caret");
+  await act(async () => { textarea.setSelectionRange(0, 0); });
+  await upIs("first question", "up from the first line walks back, skipping the repeated send");
+  await upIs("first question", "the oldest entry is the end of the line");
+  await downIs("second\nquestion", "down walks forward again");
+  await downIs("", "down past the newest restores the stashed empty draft");
+  await downIs("", "with no recall going, down is just a caret move");
   await press("ArrowUp");
   await type("second question edited");
-  await press("ArrowUp");
-  assert.equal(textarea.value, "second question", "editing a recalled prompt starts recall over from the newest");
-
-  await type("line one\nline two");
-  await act(async () => { textarea.setSelectionRange(textarea.value.length, textarea.value.length); });
-  await press("ArrowUp");
-  assert.equal(textarea.value, "line one\nline two", "up below the first line moves the caret, not the history");
+  await upIs("second question edited", "editing a recalled prompt ends the recall");
   await view.unmount();
 });
 

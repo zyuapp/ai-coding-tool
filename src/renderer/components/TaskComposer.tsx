@@ -259,7 +259,8 @@ export function TaskComposer({
 
   /** Step through the sent history; the live draft is stashed and comes back below the newest entry. */
   function stepRecall(step: -1 | 1) {
-    if (step === 1 && recall === null) return false;
+    /** A recall starts from an empty composer only, so an arrow key in a draft stays a caret move. */
+    if (recall === null && (step === 1 || prompt !== "")) return false;
     const index = (recall?.index ?? recallable.length) + step;
     if (index < 0) return false;
     const draft = recall?.draft ?? { text: prompt, annotations, pastes, files, attachments: images.map((image) => image.path) };
