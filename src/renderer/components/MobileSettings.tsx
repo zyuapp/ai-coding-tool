@@ -106,6 +106,9 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
             <strong>{pairing.code}</strong>
             <p>Expires in {countdownLabel(remaining)}.</p>
             <code>{pairing.url}</code>
+            {pairing.address.kind === "loopback" && (
+              <p className="phone-pairing-warning">This address means the phone itself, so scanning it goes nowhere. Turn on Tailscale or this network below, then ask for a new code.</p>
+            )}
           </div>
         </div>
       )}

@@ -218,6 +218,7 @@ export async function setMobileLanExposed(exposed: boolean): Promise<MobileServe
   if (settings.lanExposed === exposed) return mobileState();
   settings = { ...settings, lanExposed: exposed };
   writeSettings();
+  devices?.discardCode();
   if (settings.enabled) {
     await inTurn(stopServer);
     await inTurn(startServer);
@@ -268,6 +269,7 @@ async function applyTailscaleServe(enabled: boolean) {
 export async function setTailscaleServe(enabled: boolean): Promise<MobileServerState> {
   settings = { ...settings, tailscaleServe: enabled };
   writeSettings();
+  devices?.discardCode();
   await applyTailscaleServe(enabled);
   announce();
   return mobileState();

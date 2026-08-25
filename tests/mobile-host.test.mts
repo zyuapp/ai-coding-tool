@@ -112,6 +112,24 @@ test("a pairing code needs a listening server and carries the address in its fra
   assert.equal(host.mobileState().pairing, null, "turning the bridge off throws away the code with it");
 });
 
+test("a code minted before the address changed is thrown away rather than left pointing at the old one", async (t) => {
+  const { host } = await bridge(t);
+  const on = await host.setMobileEnabled(true);
+  const offer = await host.createMobilePairingCode();
+  assert.equal(offer.address.kind, "loopback");
+  assert.equal(host.mobileState().pairing?.code, offer.code);
+
+  await host.setMobileLanExposed(true);
+  assert.equal(host.mobileState().pairing, null, "the loopback code survived a change of address");
+
+  const after = await host.createMobilePairingCode();
+  assert.notEqual(after.address.kind, "loopback", "the new code still points at loopback");
+  assert.ok(after.url.includes(`:${host.mobileState().port ?? on.port}/m/#pair=`), after.url);
+
+  await host.setMobileLanExposed(false);
+  assert.equal(host.mobileState().pairing, null, "turning it back off left the network code on screen");
+});
+
 test("a phone paired through the host reaches the window, and revoking it drops the line", async (t) => {
   const { host, requests } = await bridge(t);
   const on = await host.setMobileEnabled(true);

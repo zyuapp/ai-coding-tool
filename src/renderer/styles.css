@@ -1929,6 +1929,7 @@ pre {
 .phone-pairing-copy strong { color: var(--ink-dim); font: 620 var(--text-heading)/1.2 var(--mono); letter-spacing: 0.18em; }
 .phone-pairing-copy p { margin: 7px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); }
 .phone-pairing-copy code { display: block; overflow: hidden; margin-top: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.phone-pairing-copy .phone-pairing-warning { color: var(--accent-soft); }
 .settings-group-action button > svg { vertical-align: -2px; margin-right: 5px; }
 .settings-empty { margin: 0; border-top: 1px solid var(--line); padding: 19px 0; color: var(--quiet-strong); font-size: var(--text-control); }
 .settings-error { margin: 0; border-top: 1px solid var(--accent-line-soft); padding: 13px 0; color: var(--accent-soft); font-size: var(--text-control); }
