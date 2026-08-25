@@ -555,3 +555,37 @@ test("settings rebind a shortcut, and the window is told what to match", async (
 
   await view.unmount();
 });
+
+const capabilitySwitch = (root: ParentNode, section: string) =>
+  query<HTMLButtonElement>(root, `[aria-labelledby='${section}-heading'] .setting-row-action button`);
+
+test("each capability page carries a switch that turns the whole capability off", async () => {
+  const changed: Array<[string, boolean]> = [];
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({
+    initialSection: "computer-use",
+    onSetComputerUse: (enabled) => changed.push(["computer-use", enabled]),
+    onSetBrowserTools: (enabled) => changed.push(["browser-tools", enabled]),
+  }));
+  await act(async () => {});
+
+  assert.equal(capabilitySwitch(view.container, "computer-use").getAttribute("aria-checked"), "true");
+  await act(async () => { capabilitySwitch(view.container, "computer-use").click(); });
+
+  const browserTab = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Browser"));
+  await act(async () => { browserTab.click(); });
+  assert.equal(capabilitySwitch(view.container, "browser-tools").getAttribute("aria-checked"), "true");
+  await act(async () => { capabilitySwitch(view.container, "browser-tools").click(); });
+
+  assert.deepEqual(changed, [["computer-use", false], ["browser-tools", false]]);
+  await view.unmount();
+});
+
+test("a switch that is off says so and offers to turn it back on", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "computer-use", computerUse: false }));
+  await act(async () => {});
+  assert.equal(capabilitySwitch(view.container, "computer-use").getAttribute("aria-checked"), "false");
+  assert.equal(capabilitySwitch(view.container, "computer-use").textContent, "Turn on");
+  await view.unmount();
+});

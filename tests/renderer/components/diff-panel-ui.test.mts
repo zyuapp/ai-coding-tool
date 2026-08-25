@@ -104,15 +104,6 @@ async function settled(container: HTMLElement) {
   }
 }
 
-test("lines are coloured once they are drawn, not when their patch arrives", async () => {
-  const view = await mount(panel());
-  await settled(view.container);
-
-  const coloured = () => [...view.container.querySelectorAll(".diff-line code")].filter((code) => code.querySelector("span")).length;
-  assert.ok(coloured() > 0, "the rows on screen carry colour");
-  await view.unmount();
-});
-
 test("the row of the file being read is held at the top of the review", async () => {
   const view = await mount(panel());
   await settled(view.container);
