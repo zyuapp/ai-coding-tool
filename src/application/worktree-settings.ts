@@ -9,6 +9,8 @@ export type WorktreeSettingsView = ManagedWorktree & {
   recorded: boolean;
   threads: Array<{ id: string; title: string; archived: boolean }>;
   busy: boolean;
+  /** The delete for this checkout is running, so the row waits instead of offering the button again. */
+  deleting: boolean;
 };
 
 export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>): WorktreeSettingsView[] | null {
@@ -39,6 +41,7 @@ export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>):
       recorded: Boolean(record),
       threads,
       busy: threads.some((task) => busy.has(task.id)),
+      deleting: state.deletingWorktrees.includes(directory.root),
     };
   }).sort((left, right) => left.name.localeCompare(right.name));
 }

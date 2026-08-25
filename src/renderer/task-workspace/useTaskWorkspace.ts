@@ -202,7 +202,7 @@ export function useTaskWorkspace() {
           });
           await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot });
         } catch (error) {
-          await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
+          await dispatch({ type: "worktrees.failed", root: effect.root, message: errorMessage(error) });
         }
         return;
 

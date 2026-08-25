@@ -65,7 +65,7 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
                   : worktree.repository === null
                     ? "Git repository unavailable"
                     : worktree.branch ?? "Detached";
-                const deleting = confirming === worktree.root;
+                const confirmingDelete = confirming === worktree.root && !worktree.deleting;
                 return (
                   <div className="setting-row worktree-setting-row" key={worktree.root}>
                     <span className={`setting-status ${worktree.available ? "granted" : "archived"}`}><FolderGit2 size={13} /></span>
@@ -73,10 +73,15 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
                       <strong>{worktree.name}</strong>
                       <p>{[worktree.project, status, threadLabel(worktree)].filter(Boolean).join(" · ")}</p>
                       <code title={worktree.root}>{worktree.root}</code>
-                      {deleting && worktree.repository === null && worktree.available && <small>This directory is not connected to a Git repository, so Git cannot preserve its contents.</small>}
+                      {confirmingDelete && worktree.repository === null && worktree.available && <small>This directory is not connected to a Git repository, so Git cannot preserve its contents.</small>}
                     </div>
                     <div className="setting-row-action">
-                      {deleting
+                      {worktree.deleting
+                        ? <>
+                            <span aria-hidden="true" />
+                            <em>Deleting…</em>
+                          </>
+                        : confirmingDelete
                         ? <>
                             <button ref={confirmation} className="danger" type="button" onClick={() => {
                               setConfirming(null);

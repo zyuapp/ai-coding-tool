@@ -207,6 +207,8 @@ export type WorkspaceState = {
   worktreeManagementNotice: string | null;
   /** Threads whose checkout is being made, so nothing asks for a second one while the first lands. */
   creatingWorktrees: string[];
+  /** Roots of checkouts being deleted, so the list shows the wait and refuses a second delete. */
+  deletingWorktrees: string[];
   lastFolder: string | null;
   currentId: string | null;
   /** Threads the user has landed on this session, oldest first, with a cursor for back and forward. */
@@ -310,6 +312,10 @@ function projectEditorView(state: WorkspaceState): ProjectEditorView | null {
   return { project, checkouts, saving: edit.saving, error: edit.error };
 }
 
+export function withoutWorktreeRoot(state: Pick<WorkspaceState, "deletingWorktrees">, root: string) {
+  return state.deletingWorktrees.filter((item) => item !== root);
+}
+
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
   return {
     tasks: [],
@@ -319,6 +325,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     worktreeManagementError: null,
     worktreeManagementNotice: null,
     creatingWorktrees: [],
+    deletingWorktrees: [],
     lastFolder: null,
     currentId: null,
     history: [],

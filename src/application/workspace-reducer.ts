@@ -29,7 +29,7 @@ import {
   type RunProvenance,
   type ThreadMark,
 } from "./task-workspace.js";
-import { blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, frontDock, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withDiff, withDock, retainedViews, withPrompt, withStoreData, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
+import { blockedTaskIds, busyTaskIds, findTargetFor, browserTarget, diffFor, diffMatches, dockFor, dockOwner, DRAFT_DOCK, frontDock, dockTabAfterClosing, dockTabIds, dockTabKind, workflowById, ownerOfBrowserTab, ownerOfTerminal, projectFor, promptKey, reachableVisit, recordVisit, sameReadingPoint, sideChatIds, taskFileRoots, taskWorkspaceId, taskWorkspaceRoot, currentFolder, withDiff, withDock, retainedViews, withPrompt, withStoreData, withoutWorktreeRoot, worktreeById, worktreeClaimants, worktreeFor, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type DiffState, type SideChat, type ThreadDock, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type {
   ApprovalDecisionCommand,
@@ -84,7 +84,7 @@ export type WorkspaceEvent =
   | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
-  | { type: "worktrees.failed"; message: string }
+  | { type: "worktrees.failed"; message: string; root?: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
@@ -1122,10 +1122,10 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const managed = input.root ? state.managedWorktrees?.find((item) => item.root === input.root) : undefined;
       const worktree = recorded ?? managed;
       if (!worktree) return settled({ ...state, worktreeManagementError: WORKTREE_MISSING_ERROR });
+      if (state.deletingWorktrees.includes(worktree.root)) return settled(state);
       const claimants = state.tasks.filter((claimant) => claimant.worktreeId === worktree.id);
       if (claimants.some((claimant) => threadBusy(state, claimant.id))) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR, worktreeManagementError: WORKTREE_RUNNING_ERROR });
-      const title = worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id;
-      return settled({ ...state, actionError: null, worktreeManagementError: null }, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title }]);
+      return settled({ ...state, deletingWorktrees: [...state.deletingWorktrees, worktree.root], actionError: null, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id }]);
     }
 
     case "worktree.created": {
@@ -1149,7 +1149,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
 
     case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementError: null });
 
-    case "worktrees.failed": return settled({ ...state, managedWorktrees: [], worktreeManagementError: input.message });
+    /** A failed delete leaves the checkout on the list, so only its wait and the error change. */
+    case "worktrees.failed": return settled({ ...state, ...(input.root ? { deletingWorktrees: withoutWorktreeRoot(state, input.root) } : { managedWorktrees: [] }), worktreeManagementError: input.message });
 
     case "worktree.released": {
       const task = state.tasks.find((item) => item.id === input.taskId);
@@ -1168,7 +1169,7 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
       const text = commit ? `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.` : "Worktree deleted. Back on the project checkout.";
       const dropped = worktree ? dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
       const notice = ref ? `Deleted ${input.root}. Recover it with git show ${ref}.` : commit ? `Deleted ${input.root}. Recover loose work with git show ${shortCommit ?? commit}.` : `Deleted ${input.root}.`;
-      return apply({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
+      return apply({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
     }
 
     case "task.send": {

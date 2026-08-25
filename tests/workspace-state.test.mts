@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { reduce } from "../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, withStoreData, type WorkspaceState } from "../src/application/workspace-state.ts";
 import type { Task, TaskMessage } from "../src/domain/task.ts";
 import type { Worktree } from "../src/domain/worktree.ts";
@@ -67,4 +68,24 @@ test("transcript find invalidates when a thread receives a new messages array", 
   assert.equal(deriveView(state).find!.matches, 1);
   const second: TaskMessage = { id: "second", kind: "user", text: "another needle", at: 2 };
   assert.equal(deriveView({ ...state, tasks: [{ ...found, messages: [first, second] }] }).find!.matches, 2);
+});
+
+test("a worktree being deleted shows the wait, refuses a repeat, and clears on failure", () => {
+  const worktree = checkout("wt1", "/worktrees/repo-wt1");
+  const state: WorkspaceState = {
+    ...emptyWorkspaceState(),
+    tasks: [task("task-a", worktree.id)],
+    worktrees: [worktree],
+    managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: "/repo", branch: null }],
+  };
+
+  const deleting = reduce(state, { type: "worktree.delete", root: worktree.root });
+  assert.deepEqual(deleting.state.deletingWorktrees, [worktree.root]);
+  assert.equal(deriveView(deleting.state).managedWorktrees?.[0]?.deleting, true);
+  assert.deepEqual(reduce(deleting.state, { type: "worktree.delete", root: worktree.root }).effects, []);
+
+  const failed = reduce(deleting.state, { type: "worktrees.failed", root: worktree.root, message: "Git said no." });
+  assert.deepEqual(failed.state.deletingWorktrees, []);
+  assert.equal(failed.state.worktreeManagementError, "Git said no.");
+  assert.deepEqual(failed.state.managedWorktrees?.map((item) => item.root), [worktree.root]);
 });
