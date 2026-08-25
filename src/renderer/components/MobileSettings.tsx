@@ -23,9 +23,12 @@ function addressLabel(address: MobileAddress): string {
 
 function tailscaleMessage(tailscale: TailscaleState): string {
   switch (tailscale.status) {
-    case "ready": return tailscale.magicDnsName
-      ? `Signed in as ${tailscale.magicDnsName}.`
-      : "Signed in. Tailscale has yet to say what this machine is called.";
+    case "ready": {
+      if (!tailscale.certs) return "Signed in, but this tailnet does not issue HTTPS certificates yet. Turn HTTPS on in the Tailscale admin console, under DNS, then check again.";
+      return tailscale.magicDnsName
+        ? `Signed in as ${tailscale.magicDnsName}.`
+        : "Signed in. Tailscale has yet to say what this machine is called.";
+    }
     case "missing": return "Tailscale is not installed on this Mac. Install it to reach the app from a phone that is not on this network.";
     case "logged-out": return "Tailscale is installed but signed out. Sign in to it, then come back here.";
     default: return "Looking for Tailscale…";
@@ -136,7 +139,7 @@ function TailscaleSection({ tailscale, listening, onSetTailscaleServe, onRefresh
           <p>{tailscaleMessage(tailscale)}</p>
         </div>
         <div className="setting-row-action">
-          <button type="button" role="switch" aria-checked={tailscale.serving} disabled={tailscale.status !== "ready" || !listening} onClick={() => onSetTailscaleServe(!tailscale.serving)}>
+          <button type="button" role="switch" aria-checked={tailscale.serving} disabled={tailscale.status !== "ready" || (!tailscale.certs && !tailscale.serving) || !listening} onClick={() => onSetTailscaleServe(!tailscale.serving)}>
             {tailscale.serving ? "Turn off" : "Turn on"}
           </button>
         </div>

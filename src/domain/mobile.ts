@@ -144,13 +144,18 @@ export type TailscaleState = {
   status: "unknown" | "missing" | "logged-out" | "ready";
   /** The MagicDNS name of this machine, once Tailscale will say what it is. */
   magicDnsName: string | null;
+  /**
+   * Whether the tailnet will issue this machine a certificate. A tailnet with HTTPS turned off says
+   * no, and serving over HTTPS is refused rather than attempted, because it hangs instead of failing.
+   */
+  certs: boolean;
   /** Whether `tailscale serve` is currently pointed at the local server. */
   serving: boolean;
   error: string | null;
 };
 
 export function emptyTailscaleState(): TailscaleState {
-  return { status: "unknown", magicDnsName: null, serving: false, error: null };
+  return { status: "unknown", magicDnsName: null, certs: false, serving: false, error: null };
 }
 
 /** Everything the desktop settings section draws, and everything a phone bridge decision reads. */

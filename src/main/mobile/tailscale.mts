@@ -8,6 +8,8 @@ const run = promisify(execFile);
 
 /** Long enough for a cold daemon to answer, short enough that settings never look frozen. */
 const TAILSCALE_TIMEOUT = 10_000;
+/** Serve provisions a certificate on its first call, which is slow the way any certificate is. */
+const TAILSCALE_SERVE_TIMEOUT = 90_000;
 
 /** Where a Mac keeps the command: the app bundle first, then the two package managers. */
 const KNOWN_PATHS = [
@@ -54,9 +56,19 @@ function readable(error: unknown) {
   return text.trim().replace(/^Error:\s*/i, "") || "Tailscale could not be reached.";
 }
 
-async function tailscale(binary: string, args: string[]) {
-  const { stdout } = await run(binary, args, { timeout: TAILSCALE_TIMEOUT, maxBuffer: 4 * 1024 * 1024 });
+async function tailscale(binary: string, args: string[], timeout = TAILSCALE_TIMEOUT) {
+  const { stdout } = await run(binary, args, { timeout, maxBuffer: 4 * 1024 * 1024 });
   return stdout;
+}
+
+/**
+ * Whether the tailnet will issue this machine a certificate. A tailnet with HTTPS turned off answers
+ * with no domains at all, and `serve --https` against it hangs rather than refusing, so this is
+ * checked before serve is ever asked.
+ */
+function certDomains(status: unknown): string[] {
+  const domains = (status as { CertDomains?: unknown } | null)?.CertDomains;
+  return Array.isArray(domains) ? domains.filter((domain): domain is string => typeof domain === "string") : [];
 }
 
 /** MagicDNS names come back with the root dot the DNS protocol writes; a URL wants it gone. */
@@ -105,6 +117,7 @@ export async function readTailscale(port: number | null, knownName: string | nul
   const state: TailscaleState = {
     status: backendStatus((status as { BackendState?: unknown }).BackendState),
     magicDnsName: trimDnsName((self as { DNSName?: unknown } | null)?.DNSName) ?? knownName,
+    certs: certDomains(status).length > 0,
     serving: false,
     error: null,
   };
@@ -120,12 +133,17 @@ export async function readTailscale(port: number | null, knownName: string | nul
 
 export type TailscaleAction = { ok: true } | { ok: false; message: string };
 
+/** The one failure a user must go elsewhere to fix, so it names where rather than what went wrong. */
+export const CERTS_OFF = "This tailnet does not issue HTTPS certificates yet. Turn on HTTPS in the Tailscale admin console, under DNS, then check again.";
+
 /** Puts HTTPS on 443 in front of the local port. Tailscale holds this itself, across restarts of this app. */
 export async function startTailscaleServe(port: number): Promise<TailscaleAction> {
   const binary = await findTailscale();
   if (!binary) return { ok: false, message: "Tailscale is not installed on this Mac." };
+  const ready = await readTailscale(null);
+  if (ready.status === "ready" && !ready.certs) return { ok: false, message: CERTS_OFF };
   try {
-    await tailscale(binary, ["serve", "--bg", "--https=443", `http://127.0.0.1:${port}`]);
+    await tailscale(binary, ["serve", "--bg", "--https=443", `http://127.0.0.1:${port}`], TAILSCALE_SERVE_TIMEOUT);
     return { ok: true };
   } catch (error) {
     return { ok: false, message: readable(error) };

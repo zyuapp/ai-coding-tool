@@ -39,9 +39,14 @@ function click(selector: string, index = 0) {
   act(() => void node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
 }
 
-/** Waits for an effect that resolves a promise — the QR is drawn off the render. */
-async function settle() {
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+/** Waits for an effect that resolves a promise — the QR is drawn off the render, and encoding a PNG
+ * takes as long as the machine is busy, so this waits for the drawing rather than for a moment. */
+async function settle(until: () => boolean = () => true) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
+    if (until()) return;
+  }
+  assert.fail("the render never settled");
 }
 
 test("a bridge that is off says so and offers nothing to pair with", () => {
@@ -65,11 +70,11 @@ test("a listening bridge draws every address, and the QR of the code on screen",
     port: 7737,
     addresses: [TAILNET, LOOPBACK],
     primary: TAILNET,
-    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: true, error: null },
+    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: true, certs: true, error: null },
     pairing: { code: "K7M2P9QX", expiresAt: at + 90_000, address: TAILNET, url: pairingUrl(TAILNET, "K7M2P9QX") },
   };
   const calls = draw(remote);
-  await settle();
+  await settle(() => document.querySelector("img.phone-qr") !== null);
 
   const text = document.body.textContent ?? "";
   assert.match(text, /Listening/);
@@ -123,7 +128,7 @@ test("a machine without Tailscale says so and cannot be switched on", () => {
     port: 7737,
     addresses: [LOOPBACK],
     primary: LOOPBACK,
-    tailscale: { status: "missing", magicDnsName: null, serving: false, error: null },
+    tailscale: { status: "missing", magicDnsName: null, serving: false, certs: false, error: null },
   };
   const calls = draw(remote);
   assert.match(document.body.textContent ?? "", /Tailscale is not installed on this Mac/);
@@ -138,4 +143,21 @@ test("a bridge that failed to start says why", () => {
   draw({ ...emptyMobileServerState(), enabled: true, status: "error", error: "listen EADDRINUSE: address already in use 127.0.0.1:7737" });
   assert.match(document.body.textContent ?? "", /Failed to start/);
   assert.match(document.querySelector("[role='alert']")?.textContent ?? "", /EADDRINUSE/);
+});
+
+test("a tailnet that issues no certificate says where to turn it on, and cannot be switched on", () => {
+  const remote: MobileServerState = {
+    ...emptyMobileServerState(),
+    enabled: true,
+    status: "listening",
+    port: 7737,
+    addresses: [LOOPBACK],
+    primary: LOOPBACK,
+    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: false, error: null },
+  };
+  draw(remote);
+  assert.match(document.body.textContent ?? "", /does not issue HTTPS certificates yet/);
+  assert.match(document.body.textContent ?? "", /admin console, under DNS/);
+  const toggle = document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-tailscale-heading'] [role='switch']");
+  assert.equal(toggle?.disabled, true, "the switch offered to turn on something that hangs");
 });
