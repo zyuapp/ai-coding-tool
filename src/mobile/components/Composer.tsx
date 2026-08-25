@@ -14,7 +14,8 @@ export function Composer({ running, waiting, settingsLabel, onSend, onStop, onOp
   waiting: number;
   settingsLabel: string;
   onSend: (text: string) => void;
-  onStop: () => void;
+  /** Only a thread that exists can be running, so a thread yet to be started passes nothing. */
+  onStop?: () => void;
   onOpenSettings: () => void;
 }) {
   const [draft, setDraft] = useState("");
@@ -45,7 +46,7 @@ export function Composer({ running, waiting, settingsLabel, onSend, onStop, onOp
           placeholder="Message"
           enterKeyHint="enter"
           autoCapitalize="sentences"
-          onChange={(event) => setDraft(event.target.value)}
+          onInput={(event) => setDraft(event.currentTarget.value)}
         />
         {running
           ? <button type="button" className="round stop" onClick={onStop} aria-label="Stop this run"><Square size={16} strokeWidth={2.4} /></button>

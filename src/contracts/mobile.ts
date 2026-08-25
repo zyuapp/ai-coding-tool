@@ -89,6 +89,18 @@ export type MobileThreadView = {
 };
 
 /**
+ * The thread the desktop is about to start: an empty composer pointed at a project. A thread exists
+ * only once its first message is sent, so this is what stands in the open thread's place until then.
+ */
+export type MobileDraftView = {
+  /** The folder the thread would start in, or null when it would belong to no project. */
+  projectName: string | null;
+  /** The composer draft, which the phone and the desktop share. */
+  prompt: string;
+  settings: MobileThreadSettings;
+};
+
+/**
  * What a phone sees: the thread list grouped by project, and the one conversation it has open. It is
  * the desktop's own derivation narrowed to a small screen, so the two can never disagree.
  */
@@ -96,6 +108,8 @@ export type MobileView = {
   groups: MobileProjectGroup[];
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
+  /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
+  draft: MobileDraftView | null;
   /**
    * What went wrong, as the desktop is also showing it. A phone is acknowledged the moment the
    * reducer decides, so a failure raised by the work that decision described arrives only here.
@@ -121,6 +135,8 @@ export type MobilePatch = {
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }
     | { kind: "changed"; id: string; delta: MobileThreadDelta };
+  /** Present only when it moved, and null when a thread took its place. */
+  draft?: MobileDraftView | null;
   /** Present only when it moved, because null is a value here rather than an absence. */
   error?: string | null;
 };

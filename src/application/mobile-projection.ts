@@ -1,7 +1,7 @@
 import { deriveView, type WorkspaceState } from "./workspace-state.js";
 import { threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName } from "../domain/task.js";
-import type { MobileMessage, MobilePatch, MobileProjectGroup, MobileThreadDelta, MobileThreadEntry, MobileThreadView, MobileView } from "../contracts/mobile.js";
+import type { MobileDraftView, MobileMessage, MobilePatch, MobileProjectGroup, MobileThreadDelta, MobileThreadEntry, MobileThreadView, MobileView } from "../contracts/mobile.js";
 
 /**
  * The phone's view, derived from workspace state alone, and the difference between two of them.
@@ -19,7 +19,7 @@ export const MOBILE_TRANSCRIPT_MESSAGES = 40;
 export const MOBILE_APPROVAL_DETAIL_LIMIT = 4_000;
 
 export function emptyMobileView(): MobileView {
-  return { groups: [], thread: null, error: null };
+  return { groups: [], thread: null, draft: null, error: null };
 }
 
 /** Everything a phone reads, derived from workspace state alone. */
@@ -44,7 +44,17 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     ({ projectId: project.id, name: projectName(project), threads: entries.get(project.id) ?? [] }));
   /** Always last, and always there, because it is the only way to start a thread in no project. */
   groups.push({ projectId: null, name: "Recents", threads: entries.get(null) ?? [] });
-  return { groups, thread: projectMobileThread(state, view), error: state.actionError };
+  const thread = projectMobileThread(state, view);
+  return { groups, thread, draft: thread ? null : projectMobileDraft(view), error: state.actionError };
+}
+
+/** What the desktop's empty composer is pointed at, which is all a thread yet to exist amounts to. */
+function projectMobileDraft(view: ReturnType<typeof deriveView>): MobileDraftView {
+  return {
+    projectName: view.currentProject ? projectName(view.currentProject) : null,
+    prompt: view.prompt,
+    settings: { model: view.model, effort: view.effort, policy: view.policy },
+  };
 }
 
 function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deriveView>): MobileThreadView | null {
@@ -93,6 +103,7 @@ export function diffMobileView(previous: MobileView, next: MobileView): MobilePa
   if (!same(previous.groups, next.groups)) patch.groups = next.groups;
   const thread = diffMobileThread(previous.thread, next.thread);
   if (thread) patch.thread = thread;
+  if (!same(previous.draft, next.draft)) patch.draft = next.draft;
   if (previous.error !== next.error) patch.error = next.error;
   return Object.keys(patch).length ? patch : null;
 }
@@ -127,7 +138,11 @@ function appendedMessages(previous: MobileMessage[], next: MobileMessage[]): Mob
 
 /** Puts a patch back on the view the phone holds, which is the other half of {@link diffMobileView}. */
 export function applyMobilePatch(view: MobileView, patch: MobilePatch): MobileView {
-  const rest = { groups: patch.groups ?? view.groups, error: "error" in patch ? patch.error ?? null : view.error };
+  const rest = {
+    groups: patch.groups ?? view.groups,
+    draft: "draft" in patch ? patch.draft ?? null : view.draft,
+    error: "error" in patch ? patch.error ?? null : view.error,
+  };
   if (!patch.thread) return { ...rest, thread: view.thread };
   if (patch.thread.kind === "closed") return { ...rest, thread: null };
   if (patch.thread.kind === "opened") return { ...rest, thread: patch.thread.thread };

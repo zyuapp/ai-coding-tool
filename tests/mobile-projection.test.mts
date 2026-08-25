@@ -147,6 +147,46 @@ test("the open thread carries its transcript, approval, queue, draft and setting
   assert.deepEqual(thread.settings, { model: "sonnet", effort: "high", policy: "allow-edits" });
 });
 
+test("a Mac with no thread open describes the one it is about to start", () => {
+  const state = workspace([task("in-app", { projectId: "project-app" })], {
+    draftProjectId: "project-app",
+    draftModel: "sonnet",
+    draftEffort: "low",
+    draftPolicy: "autonomous",
+    prompts: { "draft:project-app": "half typed" },
+  });
+
+  const view = projectMobileView(state, NOW);
+  assert.equal(view.thread, null);
+  assert.deepEqual(view.draft, {
+    projectName: "App",
+    prompt: "half typed",
+    settings: { model: "sonnet", effort: "low", policy: "autonomous" },
+  });
+
+  const open = projectMobileView({ ...state, currentId: "in-app" }, NOW);
+  assert.equal(open.draft, null, "a thread and a thread yet to exist are never both open");
+});
+
+test("starting and finishing a draft both travel, and a patch puts them back", () => {
+  const open = workspace([task("in-app", { projectId: "project-app" })], { currentId: "in-app" });
+  const drafting = workspace([task("in-app", { projectId: "project-app" })], { draftProjectId: "project-app" });
+
+  const started = diffMobileView(projectMobileView(open, NOW), projectMobileView(drafting, NOW));
+  assert.equal(started?.thread?.kind, "closed");
+  assert.equal(started?.draft?.projectName, "App");
+  assert.deepEqual(applyMobilePatch(projectMobileView(open, NOW), started!), projectMobileView(drafting, NOW));
+
+  const sent = diffMobileView(projectMobileView(drafting, NOW), projectMobileView(open, NOW));
+  assert.equal(sent?.thread?.kind, "opened");
+  assert.equal(sent?.draft, null);
+  assert.deepEqual(applyMobilePatch(projectMobileView(drafting, NOW), sent!), projectMobileView(open, NOW));
+
+  const typed = workspace([task("in-app", { projectId: "project-app" })], { draftProjectId: "project-app", prompts: { "draft:project-app": "one word" } });
+  const moved = diffMobileView(projectMobileView(drafting, NOW), projectMobileView(typed, NOW));
+  assert.deepEqual(moved, { draft: { projectName: "App", prompt: "one word", settings: { model: "opus", effort: "high", policy: "confirm" } } });
+});
+
 test("the transcript is bounded in both directions", () => {
   const messages = Array.from({ length: MOBILE_TRANSCRIPT_MESSAGES + 5 }, (_, index) => message(`m${index}`, NOW - index));
   messages.push(message("x".repeat(10_000), NOW));

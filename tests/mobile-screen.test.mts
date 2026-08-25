@@ -62,6 +62,7 @@ function view(): MobileView {
       prompt: "",
       settings: { model: "opus", effort: "high", policy: "confirm" },
     },
+    draft: null,
     error: null,
   };
 }
@@ -70,6 +71,18 @@ function view(): MobileView {
 function lastCommand(line: FakeSocket) {
   const frame = line.sent.at(-1);
   return frame?.kind === "command" ? frame.command : null;
+}
+
+/** React reads the value off the node, so a keystroke is the native setter plus the event it raises. */
+function typeInto(selector: string, text: string) {
+  const node = document.querySelector(selector);
+  assert.ok(node, `no ${selector}`);
+  const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")?.set;
+  assert.ok(setter);
+  act(() => {
+    setter.call(node, text);
+    node.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+  });
 }
 
 function click(selector: string) {
@@ -144,4 +157,43 @@ test("the phone shows the thread the Mac actually has open, and says what went w
 
   receive({ kind: "patch", sequence: 3, patch: { error: "That worktree is busy." } });
   assert.match(document.querySelector(".banner")?.textContent ?? "", /That worktree is busy/);
+});
+
+test("New opens the thread the Mac is about to start, and the first message starts it", () => {
+  const host = document.createElement("div");
+  document.body.replaceChildren(host);
+  act(() => void createRoot(host).render(React.createElement(App)));
+
+  const line = lines.at(-1)!;
+  act(() => line.onopen?.());
+
+  function receive(message: unknown) {
+    act(() => line.onmessage?.({ data: JSON.stringify(message) }));
+  }
+  receive({ kind: "snapshot", sequence: 1, sessionId: "s3", view: view() });
+
+  click(".group-header .ghost");
+  assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });
+
+  /** The Mac has no thread open from here until a message makes one, which is what it answers with. */
+  const draft = { projectName: "App", prompt: "", settings: { model: "opus" as const, effort: "high" as const, policy: "confirm" as const } };
+  receive({ kind: "patch", sequence: 2, patch: { thread: { kind: "closed" }, draft } });
+  assert.match(document.body.textContent ?? "", /Say what this thread is for/);
+  assert.doesNotMatch(document.body.textContent ?? "", /Opening the thread/);
+
+  click(".composer-settings");
+  click(".sheet-option");
+  assert.deepEqual(lastCommand(line), { type: "task.set-policy", policy: "autonomous" }, "a thread yet to exist has no id to name");
+  click(".sheet .primary");
+
+  typeInto(".composer-field textarea", "start here");
+  click(".round.send");
+  assert.deepEqual(line.sent.slice(-2).map((frame) => frame.kind === "command" ? frame.command : null), [
+    { type: "view.set-prompt", prompt: "start here" },
+    { type: "task.send" },
+  ]);
+
+  /** The send made the thread, and the Mac opening it is what takes the phone off the draft. */
+  receive({ kind: "patch", sequence: 3, patch: { thread: { kind: "opened", thread: view().thread! }, draft: null } });
+  assert.match(document.body.textContent ?? "", /Fix the parser/);
 });
