@@ -1,5 +1,5 @@
 /** The review: which comparison a dock holds, and what Git answers about it. */
-import { apply } from "./dispatch.js";
+import { reduceDock } from "./dock.js";
 import { DIFF_PANEL, currentWorkspaceId, now, readDiff, sameChangedFiles, sameStrings, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { applyTask } from "../task-workspace.js";
@@ -30,7 +30,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
     case "diff.toggle": {
       const dock = dockFor(state, dockOwner(state));
       const showing = dock.open && dock.tab === DIFF_PANEL;
-      return apply(state, showing
+      return reduceDock(state, showing
         ? { type: "view.close-dock-panel", panel: DIFF_PANEL }
         : { type: "view.open-dock-panel", panel: DIFF_PANEL });
     }

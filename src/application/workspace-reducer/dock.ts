@@ -1,5 +1,7 @@
 /** The dock itself: its tabs, its panels, and how much of the window it takes. */
-import { apply } from "./dispatch.js";
+import { reduceBrowser } from "./browser.js";
+import { reduceDesktop } from "./desktop.js";
+import { reduceSideChats } from "./side-chats.js";
 import { DIFF_PANEL, TAKE_KEYS, WORKFLOW_PANEL, browserEffectsForTab, focusDockTab, initialRange, readDiff, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
@@ -20,11 +22,10 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       if (dock.expanded) return settled(withDock(state, owner, { expanded: false }));
       const kind = dockTabKind(state, owner, dock.tab);
       const closed = kind === "picker" ? settled(withDock(state, owner, { open: false }))
-        : kind === "browser" ? apply(state, { type: "browser.close-tab", tabId: dock.tab })
-        : kind === "terminal" ? apply(state, { type: "terminal.close", terminalId: dock.tab })
-        : apply(state, kind === "side-chat"
-          ? { type: "side-chat.close", chatId: dock.tab }
-          : { type: "view.close-dock-panel", panel: dock.tab });
+        : kind === "browser" ? reduceBrowser(state, { type: "browser.close-tab", tabId: dock.tab })
+        : kind === "terminal" ? reduceDesktop(state, { type: "terminal.close", terminalId: dock.tab })
+        : kind === "side-chat" ? reduceSideChats(state, { type: "side-chat.close", chatId: dock.tab })
+        : reduceDock(state, { type: "view.close-dock-panel", panel: dock.tab });
       /** Whatever the closed view was holding is gone with it, so the window takes the keys back. */
       return { state: closed.state, effects: [...closed.effects, ...TAKE_KEYS] };
     }
@@ -34,14 +35,14 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       if (state.settingsOpen) return settled(state);
       const { owner, dock } = frontDock(state);
       const kind = dock.open ? dockTabKind(state, owner, dock.tab) : "picker";
-      return apply(state, kind === "browser" ? { type: "browser.new-tab" } : { type: "terminal.open" });
+      return kind === "browser" ? reduceBrowser(state, { type: "browser.new-tab" }) : reduceDesktop(state, { type: "terminal.open" });
     }
 
     case "view.select-dock-index": {
       const owner = dockOwner(state);
       const tabs = dockTabIds(state, owner);
       const tab = input.index === -1 ? tabs[tabs.length - 1] : tabs[input.index];
-      return tab ? apply(state, { type: "view.select-dock-tab", tab }) : settled(state);
+      return tab ? reduceDock(state, { type: "view.select-dock-tab", tab }) : settled(state);
     }
 
     case "view.set-dock-open": {
@@ -78,7 +79,7 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
       const listed = state.currentId ? state.workflows[state.currentId] ?? [] : [];
       if (!listed.some((workflow) => workflow.id === input.workflowId)) return settled(state);
       const opened = withDock(state, dockOwner(state), { workflowId: input.workflowId });
-      return apply(opened, { type: "view.open-dock-panel", panel: WORKFLOW_PANEL });
+      return reduceDock(opened, { type: "view.open-dock-panel", panel: WORKFLOW_PANEL });
     }
 
     case "view.close-dock-panel": {

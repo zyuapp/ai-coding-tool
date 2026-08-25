@@ -1,5 +1,5 @@
 /** Where a thread works: the branch it starts from, and the checkouts the app keeps. */
-import { apply } from "./dispatch.js";
+import { reduceDiffs } from "./diffs.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RUNNING_ERROR, dropWorktree, leaveWorktree, now, releaseWorktrees, rereadDiff, runsInWorkspace, settled, targetId, threadBusy, withCreatingWorktree, withoutCreatingWorktree } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { applyTask } from "../task-workspace.js";
@@ -63,7 +63,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     case "task.checkout-branch": {
       const taskId = targetId(state, input.taskId);
       const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
-      if (!task) return apply(state, { type: "task.set-branch", branch: input.branch, ...(input.create ? { create: true } : {}) });
+      if (!task) return reduceWorktrees(state, { type: "task.set-branch", branch: input.branch, ...(input.create ? { create: true } : {}) });
       const workspaceId = taskWorkspaceId(state, task);
       if (!workspaceId) return settled({ ...state, actionError: SWITCH_PROJECT_ERROR });
       if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
@@ -139,7 +139,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const text = commit ? `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.` : "Worktree deleted. Back on the project checkout.";
       const dropped = worktree ? dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
       const notice = ref ? `Deleted ${input.root}. Recover it with git show ${ref}.` : commit ? `Deleted ${input.root}. Recover loose work with git show ${shortCommit ?? commit}.` : `Deleted ${input.root}.`;
-      return apply({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
+      return reduceDiffs({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
     }
   }
 }

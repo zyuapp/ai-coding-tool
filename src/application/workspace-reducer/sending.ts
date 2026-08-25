@@ -1,5 +1,4 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
-import { apply } from "./dispatch.js";
 import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
@@ -46,7 +45,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         };
         const drafted = draftKey === undefined ? state : clearedDraft(state, draftKey);
         const next = withQueued(drafted, task.id, [...queuedFor(state, task.id), queued]);
-        return input.steer ? apply(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
+        return input.steer ? reduceSending(next, { type: "task.steer-queued", taskId: task.id, messageId: queued.id }) : settled(next);
       }
       /**
        * Which checkout a thread yet to exist starts in: one the caller named, else the one the draft

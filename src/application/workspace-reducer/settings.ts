@@ -1,5 +1,4 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
-import { apply } from "./dispatch.js";
 import { TAKE_KEYS, persistView, settled, stopCapture, targetId } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
@@ -117,7 +116,7 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       const action = state.capturingShortcut;
       if (!action) return settled(state);
       if (input.binding === null) return settled({ ...state, capturingShortcut: null }, stopCapture(state));
-      return apply(state, { type: "view.set-shortcut", action, binding: input.binding });
+      return reduceSettings(state, { type: "view.set-shortcut", action, binding: input.binding });
     }
 
     case "view.inspect-subagent": {

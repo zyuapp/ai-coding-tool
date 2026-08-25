@@ -1,5 +1,5 @@
 /** Threads themselves: making one, choosing it, and what the list can do to it. */
-import { apply } from "./dispatch.js";
+import { reduceWorktrees } from "./worktrees.js";
 import { TAKE_KEYS, closeSideChats, disposeDocks, now, retireAutomations, settled, targetId } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
@@ -123,9 +123,9 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
       const source = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
       if (!source || sideChatIds(state).has(source.id)) return settled(state);
       const { tasks, fork } = forkedTasks(state.tasks, source, crypto.randomUUID(), now());
-      const opened = apply({ ...state, tasks, openMenu: null }, { type: "task.select", taskId: fork.id });
+      const opened = reduceTasks({ ...state, tasks, openMenu: null }, { type: "task.select", taskId: fork.id });
       if (!input.worktree) return opened;
-      const located = apply(opened.state, { type: "task.set-worktree", taskId: fork.id, worktree: true });
+      const located = reduceWorktrees(opened.state, { type: "task.set-worktree", taskId: fork.id, worktree: true });
       return { state: located.state, effects: [...opened.effects, ...located.effects] };
     }
 
