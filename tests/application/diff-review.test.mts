@@ -113,7 +113,7 @@ function reviewing(state: WorkspaceState, files: DiffFileSummary[]): WorkspaceSt
   }).state;
 }
 
-describe("Diff review", { concurrent: true }, () => {
+describe("Opening a review", { concurrent: true }, () => {
 
 test("opening the review asks for the comparison it is going to draw", () => {
   const opened = reduce(workspace(), { type: "diff.toggle" });
@@ -174,6 +174,10 @@ test("asking for the comparison already on screen reads nothing again", () => {
 
   assert.deepEqual(same.effects, []);
 });
+
+});
+
+describe("The file list a review draws", { concurrent: true }, () => {
 
 test("a review opens side by side", () => {
   assert.equal(diff(reviewing(workspace(), [file("a.ts")])).split, true);
@@ -259,6 +263,10 @@ test("ticking a file the list does not have changes nothing", () => {
 
   assert.deepEqual(diff(ticked.state).viewed, {});
 });
+
+});
+
+describe("Where a review lives", { concurrent: true }, () => {
 
 test("a run that settles reads the review the thread has open again", () => {
   const withTask = workspace({

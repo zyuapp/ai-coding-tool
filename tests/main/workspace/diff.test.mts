@@ -61,7 +61,7 @@ function assertAvailable<T extends { status: string }>(result: T): asserts resul
   assert.equal(result.status, "available");
 }
 
-describe("Diff", { concurrent: true }, () => {
+describe("Diff patches", { concurrent: true }, () => {
 
 test("a patch parses into hunks that keep both sides' line numbers", () => {
   const file = parseFilePatch(PATCH, "fallback.ts");
@@ -95,6 +95,9 @@ test("the missing-newline marker annotates rather than adding a line", () => {
   const file = parseFilePatch("@@ -1 +1 @@\n-a\n\\ No newline at end of file\n+b\n", "a.txt");
   assert.deepEqual(file.hunks[0].rows.map((row) => row.text), ["a", "b"]);
 });
+});
+
+describe("Diff rows", { concurrent: true }, () => {
 
 test("rows are drawn flat, with each hunk headed by one of its own", () => {
   const rows = diffRows(parseFilePatch(PATCH, "src/app.ts"));
@@ -148,6 +151,9 @@ test("both views key their rows the same way, so both find the same tokens", () 
   assert.ok(sides.length > 0);
   for (const row of sides) assert.ok(unified.has(row.key), `${row.key} is not a key the one-column view uses`);
 });
+});
+
+describe("Diff values", { concurrent: true }, () => {
 
 test("a grammar is chosen by extension, and an unreadable one asks for none", () => {
   assert.equal(languageForPath("src/app.tsx"), "tsx");
@@ -178,6 +184,9 @@ test("a file's fingerprint moves when its counts do", () => {
   assert.equal(fileFingerprint(file), fileFingerprint({ ...file }));
   assert.notEqual(fileFingerprint(file), fileFingerprint({ ...file, additions: 3 }));
 });
+});
+
+describe("Diff summaries", { concurrent: true }, () => {
 
 test("a summary distinguishes unknown workspaces", async () => {
   const result = await diffSummary("missing", { kind: "uncommitted" }, {
@@ -233,21 +242,6 @@ test("a branch comparison measures from where the two sides last agreed", async 
   assert.deepEqual(result.files.map((file) => file.path), ["mine.txt"]);
 });
 
-test("a patch is read for one file, and an untracked one is diffed against emptiness", async (t) => {
-  const root = await repository();
-  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
-  await writeFile(path.join(root, "tracked.txt"), "one\nTWO\n");
-  await writeFile(path.join(root, "fresh.txt"), "brand\nnew\n");
-
-  const tracked = await diffPatch("fixture", { kind: "uncommitted" }, "tracked.txt", workspaces(root));
-  assertAvailable(tracked);
-  assert.deepEqual(parseFilePatch(tracked.patch, "tracked.txt").hunks[0].rows.map((row) => row.kind), ["context", "delete", "add"]);
-
-  const fresh = await diffPatch("fixture", { kind: "uncommitted" }, "fresh.txt", workspaces(root));
-  assertAvailable(fresh);
-  assert.deepEqual(parseFilePatch(fresh.patch, "fresh.txt").hunks[0].rows.map((row) => row.text), ["brand", "new"]);
-});
-
 test("a repository with no commits lists what it holds instead of failing", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-diff-empty-"));
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));
@@ -263,6 +257,29 @@ test("a repository with no commits lists what it holds instead of failing", asyn
   const patch = await diffPatch("fixture", { kind: "uncommitted" }, "first.txt", workspaces(root));
   assertAvailable(patch);
   assert.deepEqual(parseFilePatch(patch.patch, "first.txt").hunks[0].rows.map((row) => row.text), ["one", "two"]);
+});
+
+test("a file whose name holds a tab is still one file", () => {
+  const files = readNumstat("2\t1\ttabbed\tname.txt\0", new Map());
+  assert.deepEqual(files.map((file) => [file.path, file.additions, file.deletions]), [["tabbed\tname.txt", 2, 1]]);
+});
+});
+
+describe("Diff patches from a repository", { concurrent: true }, () => {
+
+test("a patch is read for one file, and an untracked one is diffed against emptiness", async (t) => {
+  const root = await repository();
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  await writeFile(path.join(root, "tracked.txt"), "one\nTWO\n");
+  await writeFile(path.join(root, "fresh.txt"), "brand\nnew\n");
+
+  const tracked = await diffPatch("fixture", { kind: "uncommitted" }, "tracked.txt", workspaces(root));
+  assertAvailable(tracked);
+  assert.deepEqual(parseFilePatch(tracked.patch, "tracked.txt").hunks[0].rows.map((row) => row.kind), ["context", "delete", "add"]);
+
+  const fresh = await diffPatch("fixture", { kind: "uncommitted" }, "fresh.txt", workspaces(root));
+  assertAvailable(fresh);
+  assert.deepEqual(parseFilePatch(fresh.patch, "fresh.txt").hunks[0].rows.map((row) => row.text), ["brand", "new"]);
 });
 
 test("a path is a path, not a glob, however it is spelt", async (t) => {
@@ -289,16 +306,10 @@ test("a rename's patch shows what changed, not the whole file over again", async
   assert.equal(rows.filter((row) => row.kind === "delete").length, 0, "the old path is not re-added");
 });
 
-test("a file whose name holds a tab is still one file", () => {
-  const files = readNumstat("2\t1\ttabbed\tname.txt\0", new Map());
-  assert.deepEqual(files.map((file) => [file.path, file.additions, file.deletions]), [["tabbed\tname.txt", 2, 1]]);
-});
-
 test("a patch outside the workspace is refused rather than read", async (t) => {
   const root = await repository();
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));
   const result = await diffPatch("fixture", { kind: "uncommitted" }, "../escape.txt", workspaces(root));
   assert.deepEqual(result, { status: "error", message: "Path is outside the workspace." });
 });
-
 });

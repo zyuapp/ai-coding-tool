@@ -228,6 +228,33 @@ function applyWorkflowEvent<T extends RunTransitionState>(state: T, event: Workf
   }));
 }
 
+/** A run reaching its end: the run record goes, and what it left behind is settled on its thread. */
+function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract<RunEvent, { type: "run.status" }>): T {
+  /** What the run left running is the session's, which outlives it, so only the session can end it. */
+  let next = withRunStatus(withActiveRun(withStreamingTail(state, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
+  const { [event.runId]: _expired, ...approvals } = next.approvals;
+  next = { ...next, approvals } as T;
+  next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
+  const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
+  if (subagents?.some((subagent) => subagent.status === "working")) {
+    const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
+    next = applyTask(next, event.taskId, (task) => ({
+      ...task,
+      subagents: task.subagents?.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent),
+      updatedAt: now(),
+    }));
+  }
+  /** A run cut short took its workflows with it; a run that answered leaves them running in the background. */
+  const workflows = next.workflows[event.taskId];
+  if (event.status !== "succeeded" && workflows?.some((workflow) => workflow.status === "running")) {
+    next = withWorkflows(next, event.taskId, workflows.map((workflow) => workflow.status === "running"
+      ? { ...workflow, status: "stopped" as const, finishedAt: now(), stopping: false }
+      : workflow));
+  }
+  if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.message!)], updatedAt: now() }));
+  return next;
+}
+
 export function applyRunEvent<T extends RunTransitionState>(state: T, event: RunEvent): T {
   const active = state.activeRuns[event.taskId];
   if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return state;
@@ -242,29 +269,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     if (event.status === "running" || event.status === "awaiting-approval") {
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
     }
-    /** What the run left running is the session's, which outlives it, so only the session can end it. */
-    let next = withRunStatus(withActiveRun(withStreamingTail(withSequence, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
-    const { [event.runId]: _expired, ...approvals } = next.approvals;
-    next = { ...next, approvals } as T;
-    next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
-    const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
-    if (subagents?.some((subagent) => subagent.status === "working")) {
-      const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
-      next = applyTask(next, event.taskId, (task) => ({
-        ...task,
-        subagents: task.subagents?.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent),
-        updatedAt: now(),
-      }));
-    }
-    /** A run cut short took its workflows with it; a run that answered leaves them running in the background. */
-    const workflows = next.workflows[event.taskId];
-    if (event.status !== "succeeded" && workflows?.some((workflow) => workflow.status === "running")) {
-      next = withWorkflows(next, event.taskId, workflows.map((workflow) => workflow.status === "running"
-        ? { ...workflow, status: "stopped" as const, finishedAt: now(), stopping: false }
-        : workflow));
-    }
-    if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.message!)], updatedAt: now() }));
-    return next;
+    return applyRunFinished(withSequence, event);
   }
   if (event.type === "assistant.tail") {
     return withStreamingTail(withSequence, event.taskId, event.text ? { messageId: event.messageId, text: event.text } : null);
