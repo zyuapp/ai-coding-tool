@@ -8,7 +8,7 @@ This app is designed to make it easier for people and agents to work together. F
 4. User experience. Every feature affects the app as a whole, no matter how small it seems. Before adding one, consider how it will change existing features and interactions. The result should make the app easier to use, never feel bolted on.
 
 # How we work
-1. We have sole ownership of this codebase, so do not create branches. Work directly on main, then commit and push your changes when finished, even if you could not verify them.
+1. We have sole ownership of this codebase, so do not create branches. Work directly on main, then commit your changes when finished, even if you could not verify them.
 2. I often request unrelated changes to main in multiple threads at the same time. Commit only the changes requested in the current thread, and leave all other work untouched.
 3. I use this AGENTS.md to define what matters for the project. Do not edit it unless I explicitly ask you to.
 4. Keep HTML mockups out of the repository. Write them to /tmp and serve them from there.
