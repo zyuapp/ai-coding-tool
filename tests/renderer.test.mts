@@ -233,7 +233,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    plainEnglish: false, chromeBrowser: false, notifications: true,
+    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
@@ -242,7 +242,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetMonoFont() {},
     onSetReadingSize() {},
     onSetTerminalSize() {},
-    onSetPlainEnglish() {}, onSetChromeBrowser() {}, onSetNotifications() {},
+    onSetPlainEnglish() {}, onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
     onRestoreTask() {}, onClearArchive() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
@@ -1132,8 +1132,8 @@ test("computer-use settings refresh permissions", async () => {
   assert.match(view.container.textContent, /Setup required/);
   assert.match(view.container.textContent, /Enable Accessibility/);
   assert.match(view.container.textContent, /Enable Screen Recording/);
-  assert.equal(view.container.querySelectorAll(".setting-row-action button").length, 2);
-  const buttons = view.container.querySelectorAll<HTMLButtonElement>(".setting-row-action button");
+  const buttons = query<HTMLElement>(view.container, "[aria-labelledby='permissions-heading']").querySelectorAll<HTMLButtonElement>(".setting-row-action button");
+  assert.equal(buttons.length, 2);
   await act(async () => { item(buttons[0]).click(); });
   await act(async () => { item(buttons[1]).click(); });
   assert.deepEqual(requested, ["accessibility", "screenRecording"]);

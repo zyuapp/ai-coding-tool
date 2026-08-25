@@ -574,6 +574,8 @@ export function useTaskWorkspace() {
       setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
       setPlainEnglish: (enabled: boolean) => dispatch({ type: "view.set-plain-english", enabled }),
       setChromeBrowser: (enabled: boolean) => dispatch({ type: "view.set-chrome-browser", enabled }),
+      setComputerUse: (enabled: boolean) => dispatch({ type: "view.set-computer-use", enabled }),
+      setBrowserTools: (enabled: boolean) => dispatch({ type: "view.set-browser-tools", enabled }),
       setNotifications: (enabled: boolean) => dispatch({ type: "view.set-notifications", enabled }),
       setSidebarOpen: (open: boolean) => dispatch({ type: "view.set-sidebar-open", open }),
       setShortcut: (action: string, binding: string | null) => dispatch({ type: "view.set-shortcut", action, binding }),

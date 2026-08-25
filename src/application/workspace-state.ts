@@ -255,6 +255,10 @@ export type WorkspaceState = {
   plainEnglish: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
+  /** Whether a run may see and operate other applications. */
+  computerUse: boolean;
+  /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
+  browserTools: boolean;
   /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
   notifications: boolean;
   settingsOpen: boolean;
@@ -358,6 +362,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     captureFocus: true,
     plainEnglish: false,
     chromeBrowser: false,
+    computerUse: true,
+    browserTools: true,
     notifications: true,
     settingsOpen: false,
     shortcuts: {},
@@ -877,6 +883,8 @@ export function deriveView(state: WorkspaceState) {
     captureFocus: state.captureFocus,
     plainEnglish: state.plainEnglish,
     chromeBrowser: state.chromeBrowser,
+    computerUse: state.computerUse,
+    browserTools: state.browserTools,
     notifications: state.notifications,
     shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut,

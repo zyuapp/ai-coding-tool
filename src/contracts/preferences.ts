@@ -27,6 +27,10 @@ export type ViewPreferences = {
   plainEnglish: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
+  /** Whether a run may see and operate other applications. On when absent. */
+  computerUse: boolean;
+  /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
+  browserTools: boolean;
   /** Whether a thread that needs the user reaches the desktop while the window is behind something else. */
   notifications: boolean;
   /** Only the bindings that differ from the defaults; an action bound to nothing is stored as null. */

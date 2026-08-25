@@ -202,7 +202,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [computerUseInstructions, linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.chromeBrowser ? [chromeInstructions] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.chromeBrowser ? [chromeInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         skills: "all" as const,
         forwardSubagentText: true,

@@ -249,6 +249,8 @@ export type ViewCommand =
   | { type: "view.set-capture-options"; options: CaptureOptions }
   | { type: "view.set-plain-english"; enabled: boolean }
   | { type: "view.set-chrome-browser"; enabled: boolean }
+  | { type: "view.set-computer-use"; enabled: boolean }
+  | { type: "view.set-browser-tools"; enabled: boolean }
   | { type: "view.set-notifications"; enabled: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }

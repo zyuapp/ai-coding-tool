@@ -20,6 +20,28 @@ function daysLeft(archivedAt: number) {
   return remaining === 1 ? "Deletes in 1 day" : `Deletes in ${remaining} days`;
 }
 
+/** One switch that turns a whole capability on or off, above the settings that only matter while it is on. */
+function AvailabilitySection({ id, label, description, enabled, onChange }: { id: string; label: string; description: string; enabled: boolean; onChange: (enabled: boolean) => void }) {
+  return (
+    <section className="settings-group" aria-labelledby={`${id}-heading`}>
+      <div className="settings-group-heading">
+        <div><h3 id={`${id}-heading`}>Availability</h3></div>
+      </div>
+
+      <div className="setting-row">
+        <span className={`setting-status ${enabled ? "granted" : ""}`}>{enabled && <Check size={13} />}</span>
+        <div>
+          <strong>{label}</strong>
+          <p>{description}</p>
+        </div>
+        <div className="setting-row-action">
+          <button type="button" role="switch" aria-checked={enabled} onClick={() => onChange(!enabled)}>{enabled ? "Turn off" : "Turn on"}</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export type SettingsPanelProps = {
   onClose: () => void;
   /** The page settings opens on, which computer-use setup asks for by name. */
@@ -42,6 +64,10 @@ export type SettingsPanelProps = {
   plainEnglish: boolean;
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
+  /** Whether a run may see and operate other applications. */
+  computerUse: boolean;
+  /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
+  browserTools: boolean;
   notifications: boolean;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
@@ -54,6 +80,8 @@ export type SettingsPanelProps = {
   onSetTerminalSize: (size: number) => void;
   onSetPlainEnglish: (enabled: boolean) => void;
   onSetChromeBrowser: (enabled: boolean) => void;
+  onSetComputerUse: (enabled: boolean) => void;
+  onSetBrowserTools: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
@@ -82,6 +110,8 @@ export function SettingsPanel({
   allowedOrigins,
   plainEnglish,
   chromeBrowser,
+  computerUse,
+  browserTools,
   notifications,
   shortcuts,
   capturingShortcut,
@@ -93,6 +123,8 @@ export function SettingsPanel({
   onSetTerminalSize,
   onSetPlainEnglish,
   onSetChromeBrowser,
+  onSetComputerUse,
+  onSetBrowserTools,
   onSetNotifications,
   onRestoreTask,
   onClearArchive,
@@ -330,6 +362,9 @@ export function SettingsPanel({
           <p>The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere AI Coding Tool works.</p>
         </div>
 
+        <AvailabilitySection id="browser-tools" label="Browser use" enabled={browserTools} onChange={onSetBrowserTools}
+          description="Claude can open and read pages in the browser panel. Off leaves the panel to you alone." />
+
         <section className="settings-group" aria-labelledby="browser-session-heading">
           <div className="settings-group-heading">
             <div>
@@ -416,6 +451,9 @@ export function SettingsPanel({
           <h2>Computer use</h2>
           <p>Let AI Coding Tool see and control other applications when you ask it to.</p>
         </div>
+
+        <AvailabilitySection id="computer-use" label="Computer use" enabled={computerUse} onChange={onSetComputerUse}
+          description="Claude can see and operate other applications. Off leaves it no way to reach them, whatever the permissions below say." />
 
         <section className="settings-group" aria-labelledby="permissions-heading" aria-live="polite">
           <div className="settings-group-heading">

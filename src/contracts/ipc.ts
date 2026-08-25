@@ -65,6 +65,10 @@ export type StartRunCommand = {
   outputStyle?: string;
   /** Set when the user turned Claude in Chrome on: the run also reaches their own Chrome. */
   chromeBrowser?: true;
+  /** Set when the user turned computer use off: the run gets no computer-use tools. */
+  computerUseTools?: false;
+  /** Set when the user turned browser use off: the run gets no browser-panel tools. */
+  browserTools?: false;
   continuation?: Continuation;
   forkContinuation?: boolean;
   /** Set only by a scheduled tick: nobody is present, so an approval nobody answers is denied for them. */
@@ -601,7 +605,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.outputStyle === undefined || isString(command.outputStyle, MAX_OUTPUT_STYLE)) && (command.chromeBrowser === undefined || command.chromeBrowser === true) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isModel(command.model) && isEffort(command.effort) && (command.outputStyle === undefined || isString(command.outputStyle, MAX_OUTPUT_STYLE)) && (command.chromeBrowser === undefined || command.chromeBrowser === true) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);

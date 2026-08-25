@@ -139,7 +139,7 @@ export class RunCoordinator {
         automations: this.options.automations?.(command.taskId),
         findings: this.options.findings?.(command.taskId),
         threads: this.options.threads?.(command.taskId),
-        browser: this.options.browser?.(command.taskId),
+        browser: command.browserTools === false ? undefined : this.options.browser?.(command.taskId),
         terminal: this.options.terminal?.(command.taskId),
         steering: active.steering,
         abortController: active.abortController,

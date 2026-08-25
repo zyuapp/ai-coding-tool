@@ -479,7 +479,7 @@ function startRunCommand(state: WorkspaceState, task: Task, runId: string, promp
     policy,
     model: task.model ?? DEFAULT_MODEL,
     effort: task.effort ?? DEFAULT_EFFORT,
-    ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}), ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}),
+    ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}), ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}), ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(task.continuation ? { continuation: task.continuation } : {}),
   };
 }
@@ -1788,8 +1788,8 @@ function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "vi
     }
 
     case "view.set-plain-english": case "view.set-chrome-browser":
-    case "view.set-notifications": {
-      const field = { "view.set-plain-english": "plainEnglish", "view.set-chrome-browser": "chromeBrowser", "view.set-notifications": "notifications" }[input.type] as "plainEnglish" | "chromeBrowser" | "notifications";
+    case "view.set-computer-use": case "view.set-browser-tools": case "view.set-notifications": {
+      const field = { "view.set-plain-english": "plainEnglish", "view.set-chrome-browser": "chromeBrowser", "view.set-computer-use": "computerUse", "view.set-browser-tools": "browserTools", "view.set-notifications": "notifications" }[input.type] as "plainEnglish" | "chromeBrowser" | "computerUse" | "browserTools" | "notifications";
       if (state[field] === input.enabled) return settled(state);
       const next = { ...state, [field]: input.enabled };
       return settled(next, persistView(next));

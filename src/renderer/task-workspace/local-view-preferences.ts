@@ -18,6 +18,8 @@ export function loadViewPreferences(): ViewPreferences {
     captureFocus: stored.captureFocus ?? true,
     plainEnglish: stored.plainEnglish ?? false,
     chromeBrowser: stored.chromeBrowser ?? false,
+    computerUse: stored.computerUse ?? true,
+    browserTools: stored.browserTools ?? true,
     notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
     sidebarMode: stored.sidebarMode ?? "projects",
