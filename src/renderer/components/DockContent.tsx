@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { BrowserPanel } from "./BrowserPanel";
 import { DockSideChats } from "./DockSideChat";
 import { TerminalPanel } from "./TerminalPanel";
@@ -24,6 +24,7 @@ export function DockPanelTab({ panel, active, focusToken, find, findBar, onResul
   onResults: (results: FindResults) => void;
 }) {
   const body = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   /** The review counts its rows rather than its drawing, since most of them are never drawn. */
   const drawnFind = find?.target.kind === "panel" && find.target.panel === panel.id ? find : null;
   usePanelFind({ root: body, find: drawnFind, onResults });
@@ -37,8 +38,18 @@ export function DockPanelTab({ panel, active, focusToken, find, findBar, onResul
     if (focusToken) body.current?.focus({ preventScroll: true });
   }, [focusToken]);
 
+  /**
+   * How tall the panel's own header is, so the bar hangs under it rather than over what it holds.
+   * Every panel draws its header first, and a panel that draws none gets the top of the panel.
+   */
+  useLayoutEffect(() => {
+    if (!mine) return;
+    const head = body.current?.firstElementChild?.querySelector(":scope > header");
+    panelRef.current?.style.setProperty("--find-head", `${head?.getBoundingClientRect().height ?? 0}px`);
+  });
+
   return (
-    <div className="dock-panel" data-dock-tab={panel.id} hidden={!active}>
+    <div className="dock-panel" ref={panelRef} data-dock-tab={panel.id} hidden={!active}>
       {mine && findBar}
       {/**
         * The body is its own element so the query typed into the bar is never painted as a match, and

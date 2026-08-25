@@ -897,9 +897,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
  *  under the tab strip, whose menu hangs over it. */
 .right-dock-content { isolation: isolate; }
 .right-dock-content, .right-dock-content > div { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
-/** The bar takes its own strip above a panel, exactly as it does above a page or a shell. */
+/** The bar hangs from a row of no height, so a panel is the same size whether find is open or not. */
 .right-dock-content > .dock-panel { display: grid; grid-template-rows: minmax(0, 1fr); }
-.right-dock-content > .dock-panel:has(> .find-bar) { grid-template-rows: auto minmax(0, 1fr); }
+.right-dock-content > .dock-panel:has(> .find-slot) { grid-template-rows: auto minmax(0, 1fr); }
+/** Under the panel's own header, which the panel measures for itself, so the bar covers none of it. */
+.dock-panel > .find-slot > .find-bar { top: calc(var(--find-head, 0px) + 10px); }
 .dock-panel-body { min-width: 0; min-height: 0; height: 100%; overflow: hidden; }
 .right-dock-content > [hidden] { display: none; }
 .right-dock-picker { display: grid; place-content: center; gap: 24px; padding: 32px; }
@@ -957,6 +959,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 ::highlight(find-active) { background: var(--find-active); color: var(--accent-ink); }
 ::highlight(annotation-mark) { background: var(--info-surface); color: var(--ink); }
 
+/** The strip: what the bar looks like where it must stay in the layout, over a page drawn on top of it. */
 .find-bar { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line-soft); padding: 7px 10px; background: var(--surface); }
 .find-bar > svg { flex: 0 0 auto; color: var(--quiet); }
 .find-bar input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px; background: var(--surface-input); color: var(--ink-soft); font-size: var(--text-control); }
@@ -967,8 +970,23 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .find-count { flex: 0 0 auto; color: var(--quiet); font-size: var(--text-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .find-count.empty { color: var(--danger-soft); }
 
-/* Over the transcript, which scrolls under it, rather than in the column the transcript is laid out in. */
-.work-area > .find-bar { position: absolute; z-index: 9; top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
+/**
+ * The slot keeps the bar's place in a view — under whatever header the view has, over what it
+ * searches — and takes no height of its own, so opening and closing find moves nothing.
+ */
+.find-slot { position: relative; z-index: 12; height: 0; }
+.find-slot > .find-bar { position: absolute; top: 10px; right: 12px; width: min(340px, calc(100% - 24px)); border: 1px solid var(--line); border-radius: 11px; padding: 6px 8px; background: var(--surface-glass); backdrop-filter: blur(12px); box-shadow: var(--shadow-menu); }
+
+/* The transcript has no header of its own, so its bar floats from the top of the whole area. */
+.work-area > .find-slot { position: absolute; top: 0; right: 0; left: 0; }
+.work-area > .find-slot > .find-bar { top: 12px; right: clamp(20px, 4vw, 64px); width: min(420px, calc(100% - 40px)); }
+
+/**
+ * The page is a native view main draws over the panel, so its bar cannot float: it would sit under
+ * the page. It keeps the strip, and the panel gives it the room.
+ */
+.browser-panel > .find-slot { height: auto; }
+.browser-panel > .find-slot > .find-bar { position: static; width: auto; border: 0; border-bottom: 1px solid var(--line-soft); border-radius: 0; padding: 7px 10px; background: var(--surface); backdrop-filter: none; box-shadow: none; }
 
 /** The mode is the thread's own choice, so it sits under its name rather than in with the details. */
 .thread-mode {
@@ -1002,7 +1020,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 /** The session panel takes the right of the strip, so the mode centres on what is left of it. */
 .workspace.summary-open .work-area > .thread-mode { transform: translateX(calc(-50% - 141px)); }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
-.workspace.summary-open .work-area > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
+.workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
 .agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
@@ -2120,7 +2138,7 @@ pre {
   background: var(--sunken);
   height: 100%;
 }
-.side-chat:has(> .find-bar) { grid-template-rows: 72px auto minmax(0, 1fr) auto auto; }
+.side-chat:has(> .find-slot) { grid-template-rows: 72px auto minmax(0, 1fr) auto auto; }
 .side-chat-header {
   min-width: 0;
   display: flex;
@@ -2189,7 +2207,8 @@ pre {
 .side-chat-transcript .message.user .message-text { max-width: 88%; padding: 9px 13px; }
 .side-chat-transcript .message-text { font-size: var(--text-content); }
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid var(--danger-line); background: var(--danger-surface); color: var(--danger-soft); font-size: var(--text-control); }
-.composer-wrap.side { padding: 10px 14px 0; background: none; }
+/** The side chat lays its own rows out, so the composer takes the row it falls in rather than the workspace's third. */
+.composer-wrap.side { grid-column: auto; grid-row: auto; padding: 10px 14px 0; background: none; }
 .composer-wrap.side .composer { border-radius: 14px; box-shadow: none; }
 .composer-wrap.side .queued-row { grid-column: auto; grid-row: auto; }
 .composer-wrap.side textarea:disabled { cursor: not-allowed; }
@@ -3386,7 +3405,7 @@ button.file-name { cursor: pointer; }
   .message.user .message-text { max-width: 85%; }
   .workspace.summary-open .composer-wrap { margin-right: 272px; }
   .workspace.summary-open .conversation { padding-right: 300px; }
-  .workspace.summary-open .work-area > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 272px); }
+  .workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 272px); }
   .session-panel { width: 260px; right: 12px; }
 }
 
@@ -3429,7 +3448,7 @@ button.file-name { cursor: pointer; }
   .conversation { padding: 36px 18px 20px; }
   .workspace.summary-open .conversation { padding-right: 18px; }
   /** The panel takes the whole width here, so the bar sits over it instead of beside it. */
-  .workspace.summary-open .work-area > .find-bar { right: clamp(20px, 4vw, 64px); }
+  .workspace.summary-open .work-area > .find-slot > .find-bar { right: clamp(20px, 4vw, 64px); }
   .composer-wrap { padding: 10px 14px 14px; }
   .composer-settings { gap: 0; }
   .setting-menu > summary { padding-inline: 6px; }
