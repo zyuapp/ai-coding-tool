@@ -1,5 +1,4 @@
-import { createHighlighterCoreSync, type HighlighterCore, type LanguageRegistration, type ThemedToken, type ThemeRegistrationRaw } from "shiki/core";
-import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+import type { HighlighterCore, LanguageRegistration, ThemedToken, ThemeRegistrationRaw } from "shiki/core";
 import { hunkText, hunkTextIndex, languageForPath, type DiffFile } from "../../domain/diff";
 
 export type { ThemedToken };
@@ -58,35 +57,46 @@ const THEME = {
 } satisfies ThemeRegistrationRaw;
 
 let highlighter: HighlighterCore | null = null;
-let unavailable = false;
+let built: Promise<void> | null = null;
 
 /**
- * Built once, synchronously: the JavaScript regex engine needs no WebAssembly, so a file opens
- * already coloured rather than repainting a moment later.
+ * Fetched once, beside the first grammar: the engine is a quarter of a megabyte and a window that
+ * never opens a patch never reads a line. Its own build is synchronous, because the JavaScript regex
+ * engine needs no WebAssembly, so once it is here a file opens already coloured.
  */
-function shiki() {
-  if (highlighter || unavailable) return highlighter;
-  try {
-    highlighter = createHighlighterCoreSync({
-      themes: [THEME],
-      langs: [],
-      engine: createJavaScriptRegexEngine({ forgiving: true }),
-    });
-  } catch {
-    unavailable = true;
-  }
-  return highlighter;
+function shiki(): Promise<void> {
+  built ??= (async () => {
+    try {
+      const [{ createHighlighterCoreSync }, { createJavaScriptRegexEngine }] = await Promise.all([
+        import("shiki/core"),
+        import("shiki/engine/javascript"),
+      ]);
+      highlighter = createHighlighterCoreSync({
+        themes: [THEME],
+        langs: [],
+        engine: createJavaScriptRegexEngine({ forgiving: true }),
+      });
+    } catch {
+      highlighter = null;
+    }
+  })();
+  return built;
 }
 
 /** Registers the grammar a path needs. Resolves either way: a language nothing can read draws plain. */
 export async function ensureLanguage(lang: string | null) {
-  const engine = lang ? shiki() : null;
-  if (!lang || !engine || engine.getLoadedLanguages().includes(lang)) return;
+  if (!lang) return;
   let pending = fetched.get(lang);
   if (!pending) {
     const load = GRAMMARS[lang];
     pending = load
-      ? load().then((grammar) => engine.loadLanguage(grammar.default)).then(() => warm(engine, lang)).catch(() => undefined)
+      ? Promise.all([shiki(), load()])
+        .then(async ([, grammar]) => {
+          if (!highlighter) return;
+          await highlighter.loadLanguage(grammar.default);
+          warm(highlighter, lang);
+        })
+        .catch(() => undefined)
       : Promise.resolve();
     fetched.set(lang, pending);
   }
@@ -115,7 +125,7 @@ const HIGHLIGHT_LIMIT = 100_000;
 
 export function highlightBlock(code: string, lang: string | null): ThemedToken[][] | null {
   if (!lang || !code || code.length > HIGHLIGHT_LIMIT) return null;
-  const engine = shiki();
+  const engine = highlighter;
   if (!engine || !engine.getLoadedLanguages().includes(lang)) return null;
   try {
     return engine.codeToTokens(code, { lang, theme: "aicodingtool" }).tokens;

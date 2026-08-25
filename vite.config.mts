@@ -24,8 +24,9 @@ export default defineConfig(({ mode }) => ({
       output: {
         codeSplitting: {
           groups: [
-            /** React and the markdown pipeline are both loaded with the window, so the entry carries neither. */
+            /** React, the sidebar drag, and the markdown pipeline all load with the window, so the entry carries none of them. */
             { name: "react", test: /node_modules[\\/](?:react|react-dom|scheduler|react-is|use-sync-external-store)[\\/]/ },
+            { name: "dnd", test: /node_modules[\\/](?:@hello-pangea[\\/]dnd|react-redux|redux|use-memo-one|memoize-one|raf-schd|css-box-model)[\\/]/ },
             { name: "markdown", test: /node_modules[\\/](?:react-markdown|remark-[^\\/]+|rehype-[^\\/]+|unified|micromark[^\\/]*|mdast-[^\\/]+|hast-[^\\/]+|unist-[^\\/]+|vfile[^\\/]*|character-entities[^\\/]*|property-information|space-separated-tokens|comma-separated-tokens|decode-named-character-reference|html-url-attributes|trim-lines|devlop|bail|trough|extend|is-plain-obj|zwitch|longest-streak|ccount|escape-string-regexp|markdown-table|estree-util-is-identifier-name|style-to-js|style-to-object|inline-style-parser)[\\/]/ },
           ],
         },

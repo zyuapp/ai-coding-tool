@@ -1,6 +1,5 @@
 import { Check, RefreshCw, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toDataURL } from "qrcode";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
 
 function statusLabel(remote: MobileServerState): string {
@@ -46,7 +45,8 @@ function countdownLabel(remaining: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-/** The pairing URL as a QR image, redrawn when the URL changes. */
+/** The pairing URL as a QR image, redrawn when the URL changes. The encoder is fetched with the
+ * first pairing offer, because pairing a phone is the only thing in the app that draws a QR. */
 function useQrCode(url: string | null): string | null {
   const [image, setImage] = useState<string | null>(null);
   useEffect(() => {
@@ -55,7 +55,8 @@ function useQrCode(url: string | null): string | null {
       return;
     }
     let cancelled = false;
-    void toDataURL(url, { margin: 1, scale: 6, errorCorrectionLevel: "M" })
+    void import("qrcode")
+      .then(({ toDataURL }) => toDataURL(url, { margin: 1, scale: 6, errorCorrectionLevel: "M" }))
       .then((drawn) => { if (!cancelled) setImage(drawn); })
       .catch(() => { if (!cancelled) setImage(null); });
     return () => { cancelled = true; };
