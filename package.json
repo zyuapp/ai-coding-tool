@@ -13,7 +13,6 @@
   "scripts": {
     "build": "vite build && npm run build:mobile && tsc -p tsconfig.main.json",
     "build:mobile": "vite build --config vite.mobile.config.mts",
-    "start:mobile": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/mobile-harness.mts",
     "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
