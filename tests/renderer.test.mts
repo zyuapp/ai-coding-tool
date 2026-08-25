@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../src/contracts/threads.ts";
+import { settleUntil } from "./support/settle.mts";
 import type { AutomationPatch, AutomationView } from "../src/domain/automation.ts";
 import type { CliStatus } from "../src/domain/cli.ts";
 import type { PlanUsage } from "../src/domain/plan-usage.ts";
@@ -1194,16 +1195,14 @@ test("a window grabbed by the desktop hotkey waits in the composer, and never tw
   const view = await mount(React.createElement(App));
 
   await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/aicodingtool-attachments/grabbed.png" }); });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
-  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1);
+  await settleUntil(() => view.container.querySelectorAll(".attachment-chip").length === 1, "a grabbed window never became a chip");
   assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').disabled, false);
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Remove image 1"]').click(); });
   assert.equal(view.container.querySelectorAll(".attachment-chip").length, 0);
 
   await act(async () => { desktop.grabWindow({ app: "Figma", title: "Untitled", path: "/tmp/aicodingtool-attachments/again.png" }); });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
-  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a second press attaches the newer window");
+  await settleUntil(() => view.container.querySelectorAll(".attachment-chip").length === 1, "a second press attaches the newer window");
   await view.unmount();
 });
 
@@ -1508,8 +1507,7 @@ test("a side chat composes with everything the main composer has", async () => {
   const paste = new dom.window.Event("paste", { bubbles: true });
   Object.defineProperty(paste, "clipboardData", { value: { files: [new dom.window.File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] } });
   await act(async () => { textarea.dispatchEvent(paste); });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1, "a side chat takes a pasted image");
+  await settleUntil(() => view.container.querySelectorAll(".attachment-chip").length === 1, "a side chat takes a pasted image");
   await view.unmount();
 });
 
@@ -1918,9 +1916,8 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   const paste = new dom.window.Event("paste", { bubbles: true });
   Object.defineProperty(paste, "clipboardData", { value: { files: [new dom.window.File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" })] } });
   await act(async () => { query<HTMLTextAreaElement>(view.container, "textarea").dispatchEvent(paste); });
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-
-  assert.equal(view.container.querySelectorAll(".attachment-chip").length, 1);
+  /** Reading the file and saving it is a chain of promises, so this waits for the chip, not a tick. */
+  await settleUntil(() => view.container.querySelectorAll(".attachment-chip").length === 1);
   assert.equal(query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').disabled, false);
 
   await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Send task"]').click(); });

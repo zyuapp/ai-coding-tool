@@ -51,9 +51,18 @@ test("Serve is only ours when a handler points at this very port", () => {
 });
 
 /**
- * The host is a module singleton, so each test takes it, uses it and gives it back. It never asks
- * Tailscale to serve anything: the setting that would is off, and left off.
+ * A machine with no Tailscale. Answering for it rather than shelling out is what keeps these tests
+ * saying the same thing on a developer's Mac that happens to be serving and on one that is not.
  */
+function noTailscale() {
+  return {
+    read: () => Promise.resolve({ status: "missing" as const, magicDnsName: null, certs: false, serving: false, error: null }),
+    start: () => Promise.resolve({ ok: false as const, message: "no Tailscale in this test" }),
+    stop: () => Promise.resolve({ ok: true as const }),
+  };
+}
+
+/** The host is a module singleton, so each test takes it, uses it and gives it back. */
 async function bridge(t: { onTestFinished(callback: () => void | Promise<void>): void }) {
   const host = await import("../src/main/mobile/mobile-host.mts");
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-host-"));
@@ -62,6 +71,7 @@ async function bridge(t: { onTestFinished(callback: () => void | Promise<void>):
   await host.startMobileHost({
     userData: folder,
     staticRoot: folder,
+    tailscale: noTailscale(),
     send: (request) => { requests.push(request); return true; },
     onState: (state) => { states.push(state); },
   });
@@ -123,8 +133,10 @@ test("a code minted before the address changed is thrown away rather than left p
   assert.equal(host.mobileState().pairing, null, "the loopback code survived a change of address");
 
   const after = await host.createMobilePairingCode();
-  assert.notEqual(after.address.kind, "loopback", "the new code still points at loopback");
-  assert.ok(after.url.includes(`:${host.mobileState().port ?? on.port}/m/#pair=`), after.url);
+  assert.ok(after.url.includes(`/m/#pair=${after.code}`), after.url);
+  /** A machine with no network card of its own has nothing but loopback to offer, and that is fine. */
+  const lan = host.mobileState().addresses.find((address) => address.kind === "lan");
+  if (lan) assert.equal(after.address.kind, "lan", "the new code still points at loopback");
 
   await host.setMobileLanExposed(false);
   assert.equal(host.mobileState().pairing, null, "turning it back off left the network code on screen");

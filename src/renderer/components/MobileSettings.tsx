@@ -13,12 +13,8 @@ function statusLabel(remote: MobileServerState): string {
   }
 }
 
-function addressLabel(address: MobileAddress): string {
-  switch (address.kind) {
-    case "tailscale-https": return "Over Tailscale, with a real certificate.";
-    case "lan": return "Anything on this network can reach it.";
-    default: return "This Mac only.";
-  }
+function addressOf(remote: MobileServerState, kind: MobileAddress["kind"]): MobileAddress | null {
+  return remote.addresses.find((address) => address.kind === kind) ?? null;
 }
 
 function tailscaleMessage(tailscale: TailscaleState): string {
@@ -110,7 +106,7 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
             <p>Expires in {countdownLabel(remaining)}.</p>
             <code>{pairing.url}</code>
             {pairing.address.kind === "loopback" && (
-              <p className="phone-pairing-warning">This address means the phone itself, so scanning it goes nowhere. Turn on Tailscale or this network below, then ask for a new code.</p>
+              <p className="phone-pairing-warning">This address means the phone itself, so scanning it goes nowhere. Turn on a way in above, then ask for a new code.</p>
             )}
           </div>
         </div>
@@ -119,31 +115,91 @@ function PairingSection({ pairing, listening, onCreatePairingCode }: { pairing: 
   );
 }
 
-function TailscaleSection({ tailscale, listening, onSetTailscaleServe, onRefreshTailscale }: { tailscale: TailscaleState; listening: boolean; onSetTailscaleServe: (enabled: boolean) => void; onRefreshTailscale: () => void }) {
+/**
+ * One way in, told from end to end: whether it is on, what it costs, and the address it hands out.
+ * A reader who cares about only one of the two never has to read the other.
+ */
+function Route({ id, name, on, summary, address, note, action, disabled, chosen, onToggle }: {
+  id: string;
+  name: string;
+  on: boolean;
+  summary: string;
+  address: MobileAddress | null;
+  note: string;
+  action?: React.ReactNode;
+  disabled: boolean;
+  chosen: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <section className="settings-group" aria-labelledby="phone-tailscale-heading">
+    <div className="phone-route" data-route={id}>
+      <div className="setting-row">
+        <span className={`setting-status ${on ? "granted" : ""}`}>{on && <Check size={13} />}</span>
+        <div>
+          <strong>{name}{chosen && <em className="phone-route-chosen">In the QR code</em>}</strong>
+          <p>{summary}</p>
+        </div>
+        <div className="setting-row-action">
+          {action}
+          <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={onToggle}>{on ? "Turn off" : "Turn on"}</button>
+        </div>
+      </div>
+      <p className="phone-route-note">{note}</p>
+      {on && address && <code className="phone-route-address">{addressOrigin(address)}</code>}
+    </div>
+  );
+}
+
+function RouteSection({ remote, listening, onSetLanExposed, onSetTailscaleServe, onRefreshTailscale }: {
+  remote: MobileServerState;
+  listening: boolean;
+  onSetLanExposed: (exposed: boolean) => void;
+  onSetTailscaleServe: (enabled: boolean) => void;
+  onRefreshTailscale: () => void;
+}) {
+  const { tailscale } = remote;
+  const routed = tailscale.serving || remote.lanExposed;
+  return (
+    <section className="settings-group" aria-labelledby="phone-routes-heading">
       <div className="settings-group-heading">
         <div>
-          <h3 id="phone-tailscale-heading">Tailscale</h3>
-          <p>Tailscale Serve puts HTTPS with a real certificate in front of the local server, so a phone anywhere on your tailnet can reach it.</p>
-        </div>
-        <div className="settings-group-action">
-          <button type="button" onClick={onRefreshTailscale}><RefreshCw size={13} aria-hidden="true" /> Check again</button>
+          <h3 id="phone-routes-heading">How your phone gets here</h3>
+          <p>Pick a way in. With neither on, the page answers this Mac alone and the QR code has nowhere to point.</p>
         </div>
       </div>
 
-      <div className="setting-row">
-        <span className={`setting-status ${tailscale.serving ? "granted" : ""}`}>{tailscale.serving && <Check size={13} />}</span>
-        <div>
-          <strong>Serve over HTTPS</strong>
-          <p>{tailscaleMessage(tailscale)}</p>
-        </div>
-        <div className="setting-row-action">
-          <button type="button" role="switch" aria-checked={tailscale.serving} disabled={tailscale.status !== "ready" || (!tailscale.certs && !tailscale.serving) || !listening} onClick={() => onSetTailscaleServe(!tailscale.serving)}>
-            {tailscale.serving ? "Turn off" : "Turn on"}
-          </button>
-        </div>
-      </div>
+      {!listening && <p className="settings-empty">Turn phone access on to choose a way in.</p>}
+
+      {listening && (
+        <>
+          <Route
+            id="tailscale"
+            name="Over Tailscale"
+            on={tailscale.serving}
+            chosen={remote.primary?.kind === "tailscale-https"}
+            summary={tailscaleMessage(tailscale)}
+            address={addressOf(remote, "tailscale-https")}
+            note="Works anywhere, including mobile data. Real certificate, so the phone sees no warning, and nothing of yours is on the open internet. Needs Tailscale on the phone too."
+            action={<button type="button" onClick={onRefreshTailscale}><RefreshCw size={13} aria-hidden="true" /> Check again</button>}
+            disabled={tailscale.status !== "ready" || (!tailscale.certs && !tailscale.serving)}
+            onToggle={() => onSetTailscaleServe(!tailscale.serving)}
+          />
+
+          <Route
+            id="lan"
+            name="On this Wi-Fi"
+            on={remote.lanExposed}
+            chosen={remote.primary?.kind === "lan"}
+            summary={remote.lanExposed ? "Anything sharing this network can reach the page." : "Nothing but this Mac can reach the page."}
+            address={addressOf(remote, "lan")}
+            note="Nothing to install, but the link is plain HTTP: anyone listening on the network reads the key your phone signs in with, and that key drives this Mac until you revoke it. Fine at home, not on a network you share."
+            disabled={false}
+            onToggle={() => onSetLanExposed(!remote.lanExposed)}
+          />
+
+          {!routed && <p className="settings-empty">No way in is on. A QR code made now would point at this Mac itself.</p>}
+        </>
+      )}
 
       {tailscale.error && <p className="settings-error" role="alert">{tailscale.error}</p>}
     </section>
@@ -251,42 +307,24 @@ export function MobileSettings({
           </div>
         </div>
 
-        {remote.addresses.map((address) => (
-          <div className="setting-row" key={`${address.kind}-${address.host}-${address.port}`}>
-            <span className="setting-status blank" aria-hidden="true" />
-            <div className="phone-address">
-              <strong>{addressOrigin(address)}</strong>
-              <p>{addressLabel(address)}</p>
-            </div>
-            <div className="setting-row-action">
-              {remote.primary?.kind === address.kind && <em>In the QR code</em>}
-            </div>
-          </div>
-        ))}
+        {listening && addressOf(remote, "loopback") && (
+          <p className="phone-local">
+            Serving on <code>{addressOrigin(addressOf(remote, "loopback")!)}</code>, which only this Mac can open. A phone needs one of the ways in below.
+          </p>
+        )}
 
         {remote.error && <p className="settings-error" role="alert">{remote.error}</p>}
       </section>
 
+      <RouteSection
+        remote={remote}
+        listening={listening}
+        onSetLanExposed={onSetLanExposed}
+        onSetTailscaleServe={onSetTailscaleServe}
+        onRefreshTailscale={onRefreshTailscale}
+      />
+
       <PairingSection pairing={remote.pairing} listening={listening} onCreatePairingCode={onCreatePairingCode} />
-
-      <TailscaleSection tailscale={remote.tailscale} listening={listening} onSetTailscaleServe={onSetTailscaleServe} onRefreshTailscale={onRefreshTailscale} />
-
-      <section className="settings-group" aria-labelledby="phone-network-heading">
-        <div className="settings-group-heading">
-          <div><h3 id="phone-network-heading">Local network</h3></div>
-        </div>
-
-        <div className="setting-row">
-          <span className={`setting-status ${remote.lanExposed ? "granted" : ""}`}>{remote.lanExposed && <Check size={13} />}</span>
-          <div>
-            <strong>Listen on this network</strong>
-            <p>Less safe. The address is plain HTTP, so anything sharing the network sees the traffic and can try the pairing code. Tailscale is the better door.</p>
-          </div>
-          <div className="setting-row-action">
-            <button type="button" role="switch" aria-checked={remote.lanExposed} onClick={() => onSetLanExposed(!remote.lanExposed)}>{remote.lanExposed ? "Turn off" : "Turn on"}</button>
-          </div>
-        </div>
-      </section>
 
       <SessionSection sessions={remote.sessions} />
 

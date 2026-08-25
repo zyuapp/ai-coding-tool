@@ -15,7 +15,7 @@ import { allowedOrigins, bindHost, reachableAddresses, tailscaleAddress } from "
 import { MobileServer } from "./mobile-server.mjs";
 import { PairingStore } from "./pairing.mjs";
 import { MobileRelay } from "./session-host.mjs";
-import { readTailscale, startTailscaleServe, stopTailscaleServe } from "./tailscale.mjs";
+import { readTailscale, startTailscaleServe, stopTailscaleServe, type TailscaleAction } from "./tailscale.mjs";
 
 export type MobileHostOptions = {
   userData: string;
@@ -25,7 +25,21 @@ export type MobileHostOptions = {
   send(request: MobileRequest): boolean;
   /** What settings should now say. Called after anything at all moves. */
   onState(state: MobileServerState): void;
+  /**
+   * How Tailscale is asked about and driven. The real one when absent, which is every caller but a
+   * test: shelling out to whatever Tailscale the machine happens to be running makes a test answer
+   * differently on two machines.
+   */
+  tailscale?: TailscaleHooks;
 };
+
+export type TailscaleHooks = {
+  read(port: number | null, knownName: string | null): Promise<TailscaleState>;
+  start(port: number): Promise<TailscaleAction>;
+  stop(): Promise<TailscaleAction>;
+};
+
+const REAL_TAILSCALE: TailscaleHooks = { read: readTailscale, start: startTailscaleServe, stop: stopTailscaleServe };
 
 /** What the user chose, kept across launches so a paired phone still reaches a Mac that restarted. */
 type MobileSettings = {
@@ -244,8 +258,12 @@ export async function revokeMobileDevice(deviceId: string): Promise<MobileServer
 }
 
 async function refreshTailscaleState() {
-  tailscale = await readTailscale(server?.port ?? null, tailscale.magicDnsName);
+  tailscale = await tailscaleHooks().read(server?.port ?? null, tailscale.magicDnsName);
   return tailscale;
+}
+
+function tailscaleHooks(): TailscaleHooks {
+  return options?.tailscale ?? REAL_TAILSCALE;
 }
 
 export async function refreshTailscale(): Promise<MobileServerState> {
@@ -258,10 +276,10 @@ export async function refreshTailscale(): Promise<MobileServerState> {
 async function applyTailscaleServe(enabled: boolean) {
   const port = server?.port ?? null;
   const action = !enabled
-    ? await stopTailscaleServe()
+    ? await tailscaleHooks().stop()
     : port === null
       ? { ok: false as const, message: "Turn the phone bridge on before serving it over Tailscale." }
-      : await startTailscaleServe(port);
+      : await tailscaleHooks().start(port);
   await refreshTailscaleState();
   if (!action.ok) tailscale = { ...tailscale, error: action.message };
 }

@@ -5,6 +5,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { MobileSettings } from "../src/renderer/components/MobileSettings.tsx";
 import { emptyMobileServerState, pairingUrl, type MobileServerState } from "../src/domain/mobile.ts";
+import { settleUntil } from "./support/settle.mts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
 for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "MouseEvent"]) {
@@ -39,15 +40,7 @@ function click(selector: string, index = 0) {
   act(() => void node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
 }
 
-/** Waits for an effect that resolves a promise — the QR is drawn off the render, and encoding a PNG
- * takes as long as the machine is busy, so this waits for the drawing rather than for a moment. */
-async function settle(until: () => boolean = () => true) {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 10)); });
-    if (until()) return;
-  }
-  assert.fail("the render never settled");
-}
+
 
 test("a bridge that is off says so and offers nothing to pair with", () => {
   const calls = draw(emptyMobileServerState());
@@ -74,7 +67,7 @@ test("a listening bridge draws every address, and the QR of the code on screen",
     pairing: { code: "K7M2P9QX", expiresAt: at + 90_000, address: TAILNET, url: pairingUrl(TAILNET, "K7M2P9QX") },
   };
   const calls = draw(remote);
-  await settle(() => document.querySelector("img.phone-qr") !== null);
+  await settleUntil(() => document.querySelector("img.phone-qr") !== null, "no QR was ever drawn");
 
   const text = document.body.textContent ?? "";
   assert.match(text, /Listening/);
@@ -89,9 +82,9 @@ test("a listening bridge draws every address, and the QR of the code on screen",
   assert.equal(qr.alt, "QR code for https://mac.tail1234.ts.net/m/#pair=K7M2P9QX");
   assert.equal(qr.alt.includes("?"), false, "the code rides the fragment, where no proxy sees it");
 
-  click("[aria-labelledby='phone-tailscale-heading'] [role='switch']");
+  click("[data-route='tailscale'] [role='switch']");
   assert.deepEqual(calls.serve, [false], "the switch offers the opposite of what is happening");
-  click("[aria-labelledby='phone-network-heading'] [role='switch']");
+  click("[data-route='lan'] [role='switch']");
   assert.deepEqual(calls.lan, [true]);
 });
 
@@ -132,10 +125,10 @@ test("a machine without Tailscale says so and cannot be switched on", () => {
   };
   const calls = draw(remote);
   assert.match(document.body.textContent ?? "", /Tailscale is not installed on this Mac/);
-  const toggle = document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-tailscale-heading'] [role='switch']");
+  const toggle = document.querySelector<HTMLButtonElement>("[data-route='tailscale'] [role='switch']");
   assert.equal(toggle?.disabled, true);
 
-  click("[aria-labelledby='phone-tailscale-heading'] .settings-group-action button");
+  click("[data-route='tailscale'] .setting-row-action button");
   assert.equal(calls.refreshes, 1);
 });
 
@@ -158,6 +151,40 @@ test("a tailnet that issues no certificate says where to turn it on, and cannot 
   draw(remote);
   assert.match(document.body.textContent ?? "", /does not issue HTTPS certificates yet/);
   assert.match(document.body.textContent ?? "", /admin console, under DNS/);
-  const toggle = document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-tailscale-heading'] [role='switch']");
+  const toggle = document.querySelector<HTMLButtonElement>("[data-route='tailscale'] [role='switch']");
   assert.equal(toggle?.disabled, true, "the switch offered to turn on something that hangs");
+});
+
+test("each way in is told in one place, and neither is offered before the bridge is on", () => {
+  const off: MobileServerState = { ...emptyMobileServerState(), enabled: false, status: "off" };
+  draw(off);
+  assert.equal(document.querySelector("[data-route='tailscale']"), null, "a route was offered with the bridge off");
+  assert.equal(document.querySelector("[data-route='lan']"), null);
+  assert.match(document.body.textContent ?? "", /Turn phone access on to choose a way in/);
+
+  const on: MobileServerState = {
+    ...emptyMobileServerState(),
+    enabled: true,
+    status: "listening",
+    port: 7737,
+    addresses: [LOOPBACK],
+    primary: LOOPBACK,
+    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: true, error: null },
+  };
+  draw(on);
+
+  const tailnet = document.querySelector("[data-route='tailscale']");
+  const lan = document.querySelector("[data-route='lan']");
+  assert.ok(tailnet && lan, "both ways in should be drawn once the bridge is on");
+  /** Each block carries its own switch, its own state and its own cost, so neither is read halfway. */
+  for (const route of [tailnet, lan]) {
+    assert.ok(route.querySelector("[role='switch']"), "a way in was drawn without its own switch");
+    assert.ok(route.querySelector(".phone-route-note")?.textContent?.trim(), "a way in was drawn without saying what it costs");
+  }
+  assert.match(lan.textContent ?? "", /plain HTTP/, "the plain link should say what it leaks");
+  assert.match(tailnet.textContent ?? "", /mobile data/, "Tailscale should say it works away from home");
+
+  assert.equal(document.querySelector("[data-route='tailscale'] .phone-route-address"), null, "an address was shown for a way in that is off");
+  assert.match(document.body.textContent ?? "", /No way in is on/);
+  assert.match(document.body.textContent ?? "", /only this Mac can open/);
 });
