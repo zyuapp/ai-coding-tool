@@ -26,9 +26,9 @@ const fileCaps = {
   "src/application/workspace-state.ts": 703,
   "src/main/main.ts": 1026,
   "src/renderer/components/ConversationTimeline.tsx": 776,
-  "tests/claude-agent-provider.test.mts": 633,
-  "tests/renderer.test.mts": 4081,
-  "tests/workspace-reducer.test.mts": 2137,
+  "tests/main/agent/claude-agent-provider.test.mts": 633,
+  "tests/renderer/renderer.test.mts": 4081,
+  "tests/application/workspace-reducer.test.mts": 2137,
 };
 
 const functionCaps = {
@@ -42,10 +42,10 @@ const functionCaps = {
   "src/renderer/components/SettingsPanel.tsx": 384,
   "src/renderer/components/TaskComposer.tsx": 447,
   "src/renderer/task-workspace/useTaskWorkspace.ts": 547,
-  "tests/diff-review.test.mts": 231,
-  "tests/diff.test.mts": 203,
+  "tests/application/diff-review.test.mts": 231,
+  "tests/main/workspace/diff.test.mts": 203,
   "tests/support/electron-harness.mts": 188,
-  "tests/worktrees.test.mts": 308,
+  "tests/main/workspace/worktrees.test.mts": 308,
 };
 
 const sizeRules = {
