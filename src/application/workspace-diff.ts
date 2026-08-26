@@ -1,5 +1,5 @@
 import type { DiffSummaryResult } from "../contracts/ipc.js";
-import { fileFingerprint, rangeKey, UNCOMMITTED, type DiffRange } from "../domain/diff.js";
+import { fileFingerprint, foldedForSize, rangeKey, UNCOMMITTED, type DiffFileSummary, type DiffRange } from "../domain/diff.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 /**
@@ -46,6 +46,22 @@ export function retainedViews(viewed: Record<string, string>, result: DiffSummar
   if (result.status !== "available") return viewed;
   const fingerprints = new Map(result.files.map((file) => [file.path, fileFingerprint(file)]));
   return Object.fromEntries(Object.entries(viewed).filter(([path, mark]) => fingerprints.get(path) === mark));
+}
+
+/**
+ * The folds a fresh list lands with. A file the user has already decided about keeps their decision;
+ * a file that is new, or that changed under them, folds when it is too large to draw. That is how a
+ * checkout which blows up under an open review folds itself away instead of taking the window with it.
+ */
+export function foldedOnLoad(diff: DiffState, files: DiffFileSummary[]): string[] {
+  const before = diff.result?.status === "available"
+    ? new Map(diff.result.files.map((file) => [file.path, fileFingerprint(file)]))
+    : new Map<string, string>();
+  const oversized = foldedForSize(files);
+  const held = new Set(diff.collapsed);
+  return files
+    .filter((file) => before.get(file.path) === fileFingerprint(file) ? held.has(file.path) : oversized.has(file.path))
+    .map((file) => file.path);
 }
 
 /** Whether a landed list still answers what its dock is asking, which a slow read may not. */

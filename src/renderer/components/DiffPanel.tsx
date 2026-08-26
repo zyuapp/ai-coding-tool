@@ -4,7 +4,7 @@ import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
 import type { Annotation, AnnotationAnchor } from "../../domain/task";
-import { commentQuote, DRAWN_LINE_BUDGET, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";
+import { commentQuote, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";
 import {
   anchoredDiffComments,
   colourRow,
@@ -57,9 +57,9 @@ function summaryMessage(result: DiffSummaryResult | null, loading: boolean, work
   return result.files.length === 0 ? "Nothing has changed in this comparison" : null;
 }
 
-/** Whether the review still holds a file that opened folded because it is too large to draw whole. */
+/** Whether the review still holds a file that opened folded because it is too large to draw. */
 function overDrawingBudget(files: DiffFileSummary[], collapsed: Set<string>) {
-  return foldedForSize(files).some((path) => collapsed.has(path));
+  return [...foldedForSize(files)].some((path) => collapsed.has(path));
 }
 
 /** The one line above the list: why it is not there, what it waits for, or why it opened folded. */
@@ -73,7 +73,7 @@ function panelNote(panel: {
   const message = summaryMessage(panel.result, panel.loading, panel.workspaceId);
   if (message) return message;
   if (panel.settling) return "Reading the changes…";
-  if (panel.overBudget) return `This review is large, so files past the first ${DRAWN_LINE_BUDGET.toLocaleString()} changed lines start folded.`;
+  if (panel.overBudget) return "This review is large, so its biggest files start folded.";
   return null;
 }
 

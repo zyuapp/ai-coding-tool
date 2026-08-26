@@ -3,8 +3,8 @@ import { reduceDock } from "./dock.js";
 import { DIFF_PANEL, environmentFor, now, readDiff, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { applyTask } from "../task-workspace.js";
-import { diffFor, diffMatches, dockFor, dockOwner, retainedViews, withDiff, type WorkspaceState } from "../workspace-state.js";
-import { fileFingerprint, foldedForSize, rangeKey } from "../../domain/diff.js";
+import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, type WorkspaceState } from "../workspace-state.js";
+import { fileFingerprint, rangeKey } from "../../domain/diff.js";
 
 type DiffInput = Extract<WorkspaceInput, {
   type: "view.refresh-environment" | "diff.toggle" | "diff.refresh" | "diff.set-range" | "diff.set-collapsed"
@@ -70,20 +70,11 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       if (!diffMatches(diff, input.workspaceId, input.range)) return settled(state);
       const viewed = retainedViews(diff.viewed, input.result);
       const listed = input.result.status === "available" ? input.result.files : null;
-      const present = listed ? new Set(listed.map((file) => file.path)) : null;
-      /**
-       * The first list of a comparison folds what the panel cannot afford to draw. A re-read never
-       * does: by then the folds are the user's, and taking one off again would undo their reading.
-       */
-      const first = diff.result === null;
       return settled(withDiff(state, input.owner, {
         result: input.result,
         loading: false,
         viewed,
-        /** A file whose tick was dropped changed under the user, so it comes back open to be read again. */
-        ...(listed && first ? { collapsed: foldedForSize(listed) }
-          : present ? { collapsed: diff.collapsed.filter((path) => present.has(path) && !(diff.viewed[path] && !viewed[path])) }
-          : {}),
+        ...(listed ? { collapsed: foldedOnLoad(diff, listed) } : {}),
       }));
     }
 

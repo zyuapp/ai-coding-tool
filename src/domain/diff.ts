@@ -210,21 +210,30 @@ export function fileFingerprint(file: DiffFileSummary) {
 
 /**
  * How many changed lines a review draws before it folds the rest away. Every drawn line costs about
- * half a kilobyte of parsed rows, and the panel holds them for as long as the thread is open, so a
- * comparison of a million lines drawn whole is hundreds of megabytes the machine never gets back.
+ * half a kilobyte of parsed rows, and the panel holds them for as long as the thread is open: this
+ * many is about fifty megabytes, and a comparison of a million lines drawn whole is over five hundred.
+ * Set well above any review a person writes, so the fold only ever meets one a tool made.
  */
-export const DRAWN_LINE_BUDGET = 20_000;
+export const DRAWN_LINE_BUDGET = 100_000;
 
 /**
- * The files a first read folds away: everything past the point the budget runs out. The first file is
- * always drawn, however large it is, so a review always opens on something to read.
+ * One file's share of that budget. Without it a single generated file — a lockfile, a snapshot, a
+ * bundle — spends the whole review's allowance and folds away the work the user opened the review to
+ * read. A file this large is written by a tool far more often than it is read a line at a time.
  */
-export function foldedForSize(files: DiffFileSummary[]): string[] {
-  const folded: string[] = [];
+export const DRAWN_FILE_LIMIT = 20_000;
+
+/**
+ * The files too large to draw: each one over its own share, and then whatever no longer fits. Size
+ * decides rather than position, so one generated file folds itself instead of the files after it.
+ */
+export function foldedForSize(files: DiffFileSummary[]): Set<string> {
+  const folded = new Set<string>();
   let drawn = 0;
-  for (const [index, file] of files.entries()) {
-    if (index > 0 && drawn >= DRAWN_LINE_BUDGET) folded.push(file.path);
-    else drawn += file.additions + file.deletions;
+  for (const file of files) {
+    const lines = file.additions + file.deletions;
+    if (lines > DRAWN_FILE_LIMIT || drawn + lines > DRAWN_LINE_BUDGET) folded.add(file.path);
+    else drawn += lines;
   }
   return folded;
 }

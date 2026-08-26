@@ -13,7 +13,7 @@ export {
 } from "./workspace-dock.js";
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
-export { EMPTY_DIFF, diffFor, diffMatches, retainedViews, withDiff } from "./workspace-diff.js";
+export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
