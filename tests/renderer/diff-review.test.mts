@@ -98,7 +98,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
     pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (workspaceId, range) => ({ status: "available", range, ignoreWhitespace: false, files: [], additions: 0, deletions: 0 }),
+    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
     createBranch: async () => {},
@@ -254,10 +254,10 @@ async function showSession(view: MountView) {
 /** A desktop whose comparison holds one changed file with a patch to draw. */
 function reviewableDesktop() {
   return fakeDesktop({
-    diffSummary: async (workspaceId, range) => ({
+    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({
       status: "available",
       range,
-      ignoreWhitespace: false,
+      ignoreWhitespace,
       files: [{ path: "src/app.ts", status: "modified", additions: 2, deletions: 1, binary: false }],
       additions: 2,
       deletions: 1,
@@ -428,11 +428,11 @@ test("the two sides are picked apart, and remote branches are offered to compare
   await view.unmount();
 });
 
-test("hiding whitespace reads the comparison again, and the file that only moved leaves the list", async () => {
+test("a review hides the lines that only moved, and showing them reads the comparison again", async () => {
   seedReviewableProject();
   const asked: boolean[] = [];
   window.desktop = fakeDesktop({
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => {
+    diffSummary: async (workspaceId, range, ignoreWhitespace = true) => {
       asked.push(ignoreWhitespace);
       return {
         status: "available",
@@ -452,13 +452,14 @@ test("hiding whitespace reads the comparison again, and the file that only moved
   await openReview(view);
 
   const names = () => [...view.container.querySelectorAll(".diff-files .diff-file-name")].map((name) => name.textContent);
+  assert.deepEqual(names(), ["src/app.ts"], "the file whose lines only moved is not in the review");
+  assert.equal(query(view.container, 'button[aria-label="Show whitespace changes"]').getAttribute("aria-pressed"), "true");
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Show whitespace changes"]').click(); });
+  for (let turn = 0; turn < 100 && names().length < 2; turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  assert.deepEqual(asked, [true, false], "the same comparison is read again, counted with whitespace");
   assert.deepEqual(names(), ["src/app.ts", "src/spaced.ts"]);
-
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Hide whitespace changes"]').click(); });
-  for (let turn = 0; turn < 100 && names().length > 1; turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-
-  assert.deepEqual(asked, [false, true], "the same comparison is read again, counted without whitespace");
-  assert.deepEqual(names(), ["src/app.ts"]);
-  assert.equal(query(view.container, 'button[aria-label="Show whitespace changes"]').getAttribute("aria-pressed"), "true", "the button offers the way back");
+  assert.ok(view.container.querySelector('button[aria-label="Hide whitespace changes"]'), "the button offers the way back");
   await view.unmount();
 });

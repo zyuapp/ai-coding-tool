@@ -18,7 +18,7 @@ export type DiffState = {
   /** Ticked-off paths, each against the counts it had when ticked, so a file that moves un-ticks. */
   viewed: Record<string, string>;
   split: boolean;
-  /** Whether lines that only changed their spacing are left out of the review. */
+  /** Whether lines that only changed their spacing are left out of the review. On unless turned off. */
   ignoreWhitespace: boolean;
 };
 
@@ -30,7 +30,7 @@ export const EMPTY_DIFF: DiffState = {
   collapsed: [],
   viewed: {},
   split: true,
-  ignoreWhitespace: false,
+  ignoreWhitespace: true,
 };
 
 export function diffFor(state: Pick<WorkspaceState, "diffs">, owner: string): DiffState {

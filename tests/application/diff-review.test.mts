@@ -38,7 +38,7 @@ function diff(state: WorkspaceState): DiffState {
 }
 
 /** A file list as the desktop answers with one. */
-function summary(files: DiffFileSummary[], range: DiffRange = { kind: "uncommitted" }, ignoreWhitespace = false): AvailableDiffSummary {
+function summary(files: DiffFileSummary[], range: DiffRange = { kind: "uncommitted" }, ignoreWhitespace = true): AvailableDiffSummary {
   return {
     status: "available",
     range,
@@ -110,7 +110,7 @@ function reviewing(state: WorkspaceState, files: DiffFileSummary[]): WorkspaceSt
     owner: effect.owner,
     workspaceId: effect.workspaceId,
     range: effect.range,
-    result: summary(files, effect.range),
+    result: summary(files, effect.range, effect.ignoreWhitespace),
   }).state;
 }
 
@@ -132,7 +132,7 @@ test("opening the review asks for the comparison it is going to draw", () => {
   const opened = reduce(workspace(), { type: "diff.toggle" });
 
   assert.deepEqual(opened.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "draft", workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: false },
+    { type: "read-diff", owner: "draft", workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: true },
   ]);
   assert.equal(dockFor(opened.state, "draft").tab, DIFF_PANEL);
   assert.equal(diff(opened.state).loading, true);
@@ -192,51 +192,51 @@ test("asking for the comparison already on screen reads nothing again", () => {
 
 describe("A review that ignores whitespace", { concurrent: true }, () => {
 
-test("hiding whitespace reads the same comparison again, counted without it", () => {
+test("a review hides the lines that only moved until it is asked not to", () => {
   const reviewed = reviewing(workspace(), [file("a.ts")]);
-  const hidden = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: true });
+  assert.equal(diff(reviewed).ignoreWhitespace, true, "a review opens without them");
 
-  assert.equal(diff(hidden.state).ignoreWhitespace, true);
-  assert.deepEqual(readDiffEffect(hidden.effects), {
+  const shown = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: false });
+  assert.equal(diff(shown.state).ignoreWhitespace, false);
+  assert.deepEqual(readDiffEffect(shown.effects), {
     type: "read-diff",
     owner: "draft",
     workspaceId: "workspace-a",
     range: { kind: "uncommitted" },
-    ignoreWhitespace: true,
+    ignoreWhitespace: false,
   });
 });
 
 test("the setting already in force reads nothing again", () => {
   const reviewed = reviewing(workspace(), [file("a.ts")]);
-  const same = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: false });
+  const same = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: true });
 
   assert.deepEqual(same.effects, []);
 });
 
 test("a recount keeps what the user has read and folded", () => {
-  const reviewed = run(reviewing(workspace(), [file("a.ts", 4, 4), file("b.ts", 4, 4)]), [
+  const reviewed = run(reviewing(workspace(), [file("a.ts", 1, 1), file("b.ts", 2, 2)]), [
     { type: "diff.set-viewed", path: "a.ts", viewed: true },
     { type: "diff.set-collapsed", path: "b.ts", collapsed: true },
   ]);
-  const hidden = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: true });
-  /** The same two files, counted without the lines whose spacing was all that moved. */
-  const recounted = loaded(hidden.state, hidden.effects, [file("a.ts", 1, 1), file("b.ts", 2, 2)]);
+  const shown = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: false });
+  /** The same two files, counted with the lines whose spacing was all that moved. */
+  const recounted = loaded(shown.state, shown.effects, [file("a.ts", 4, 4), file("b.ts", 4, 4)]);
 
-  assert.deepEqual(Object.keys(diff(recounted).viewed), ["a.ts"]);
-  assert.deepEqual(diff(recounted).viewed, { "a.ts": "modified:1:1" }, "the tick is stamped at the counts it is listed at now");
+  assert.deepEqual(diff(recounted).viewed, { "a.ts": "modified:4:4" }, "the tick is stamped at the counts it is listed at now");
   assert.deepEqual(diff(recounted).collapsed, ["a.ts", "b.ts"]);
 });
 
 test("a file that changes after a recount still comes back unread", () => {
-  const reviewed = reduce(reviewing(workspace(), [file("a.ts", 4, 4)]), { type: "diff.set-viewed", path: "a.ts", viewed: true }).state;
-  const hidden = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: true });
-  const recounted = loaded(hidden.state, hidden.effects, [file("a.ts", 1, 1)]);
+  const reviewed = reduce(reviewing(workspace(), [file("a.ts", 1, 1)]), { type: "diff.set-viewed", path: "a.ts", viewed: true }).state;
+  const shown = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: false });
+  const recounted = loaded(shown.state, shown.effects, [file("a.ts", 4, 4)]);
   const rewritten = reduce(recounted, {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
     range: { kind: "uncommitted" },
-    result: summary([file("a.ts", 3, 1)], { kind: "uncommitted" }, true),
+    result: summary([file("a.ts", 6, 4)], { kind: "uncommitted" }, false),
   }).state;
 
   assert.deepEqual(diff(rewritten).viewed, {});
@@ -244,13 +244,13 @@ test("a file that changes after a recount still comes back unread", () => {
 
 test("a list counted the other way is dropped", () => {
   const reviewed = reviewing(workspace(), [file("a.ts")]);
-  const hidden = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: true });
-  const stale = reduce(hidden.state, {
+  const shown = reduce(reviewed, { type: "diff.set-ignore-whitespace", ignore: false });
+  const stale = reduce(shown.state, {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
     range: { kind: "uncommitted" },
-    result: summary([file("a.ts"), file("spaced.ts")]),
+    result: summary([file("a.ts"), file("spaced.ts")], { kind: "uncommitted" }, true),
   }).state;
 
   assert.deepEqual(availableResult(diff(stale)).files.map((item) => item.path), ["a.ts"], "the read before the toggle answers nothing now");
@@ -418,7 +418,7 @@ test("a run that settles reads the review the thread has open again", () => {
   });
 
   assert.deepEqual(settled.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "task-a", workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: false },
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: true },
   ]);
 });
 
@@ -483,7 +483,7 @@ test("a review composed in the draft is asked for again under the thread the sen
   const taskId = startRunEffect(started.effects).command.taskId;
 
   assert.deepEqual(started.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: false },
+    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: true },
   ], "the read is re-issued under the new thread");
 
   /** The reply the draft asked for is stale and drops; the one the thread asked for lands. */
@@ -509,7 +509,7 @@ test("a thread that moves into a worktree reviews the checkout it moved to", () 
   });
 
   assert.deepEqual(moved.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: { kind: "uncommitted" }, ignoreWhitespace: false },
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: { kind: "uncommitted" }, ignoreWhitespace: true },
   ]);
   assert.equal(diffFor(moved.state, "task-a").workspaceId, "workspace-wt");
   assert.equal(diffFor(moved.state, "task-a").result, null, "the old checkout's list is not what this one holds");

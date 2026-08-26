@@ -48,14 +48,18 @@ export type DiffPanelProps = {
   onFindResults?: (results: FindResults) => void;
 };
 
-function summaryMessage(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined) {
+function summaryMessage(result: DiffSummaryResult | null, loading: boolean, workspaceId: string | undefined, ignoreWhitespace: boolean) {
   if (!workspaceId) return "Open a project to review changes";
   /** A first read has nothing to draw, so one quiet line says why the list is not there yet. */
   if (!result) return loading ? "Reading the comparison…" : null;
   if (result.status === "error") return result.message;
   if (result.status === "unknown") return "Workspace is no longer registered";
   if (result.status === "unavailable") return `Workspace is ${result.reason}`;
-  return result.files.length === 0 ? "Nothing has changed in this comparison" : null;
+  if (result.files.length > 0) return null;
+  /** An empty review is worth one more line when a setting is what emptied it. */
+  return ignoreWhitespace
+    ? "Nothing has changed in this comparison. Lines that only changed spacing are hidden."
+    : "Nothing has changed in this comparison";
 }
 
 /** Whether the review still holds a file that opened folded because it is too large to draw. */
@@ -70,8 +74,9 @@ function panelNote(panel: {
   workspaceId: string | undefined;
   settling: boolean;
   overBudget: boolean;
+  ignoreWhitespace: boolean;
 }) {
-  const message = summaryMessage(panel.result, panel.loading, panel.workspaceId);
+  const message = summaryMessage(panel.result, panel.loading, panel.workspaceId, panel.ignoreWhitespace);
   if (message) return message;
   if (panel.settling) return "Reading the changes…";
   if (panel.overBudget) return "This review is large, so its biggest files start folded.";
@@ -213,7 +218,7 @@ export function DiffPanel({
   };
 
   const overBudget = useMemo(() => overDrawingBudget(files, collapsed), [files, collapsed]);
-  const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget });
+  const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget, ignoreWhitespace: diff.ignoreWhitespace });
 
   return (
     <section className="diff-panel" aria-label="Changes" ref={panelRef}>
