@@ -131,7 +131,9 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           aria-pressed={split}
           className={split ? "on" : ""}
           disabled={!roomForTwo}
-          title={roomForTwo ? undefined : "Widen the panel to compare in two columns"}
+          title={roomForTwo
+            ? (split ? "Read the changes in one column" : "Put the old and new sides beside each other")
+            : "Widen the panel to compare in two columns"}
           onClick={onToggleSplit}
         >
           {split ? <Rows3 size={15} /> : <Columns2 size={15} />}
@@ -141,12 +143,12 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           aria-label={ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"}
           aria-pressed={ignoreWhitespace}
           className={ignoreWhitespace ? "on" : ""}
-          title={ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"}
+          title={ignoreWhitespace ? "Show lines where only the spacing changed" : "Hide lines where only the spacing changed"}
           onClick={onToggleWhitespace}
         >
           <Pilcrow size={15} />
         </button>
-        <button type="button" aria-label="Read the comparison again" onClick={onRefresh}>
+        <button type="button" aria-label="Read the comparison again" title="Read the comparison again" onClick={onRefresh}>
           <RefreshCw size={15} className={loading ? "spinning" : ""} />
         </button>
       </div>

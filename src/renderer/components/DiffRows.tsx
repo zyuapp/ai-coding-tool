@@ -36,6 +36,7 @@ function CommentMarkers({ row, comments, onEditComment }: {
           key={comment.annotation.id}
           type="button"
           aria-label={`Edit comment ${comment.number} on ${rowLabel(row).toLowerCase()}`}
+          title="Read or edit this comment"
           onClick={() => onEditComment(comment)}
         >
           {comment.number}
