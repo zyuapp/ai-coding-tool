@@ -107,9 +107,10 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
        * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the
        * user was not already on is marked unread by it; the one on screen they cannot have missed.
        * A tick that looked and found nothing leaves neither, and leaves the thread where it was.
+       * A thread already filed away is past ranking, so a run ending under it leaves no verdict.
        */
       let next = outcome && !unseen
-        ? applyTask(applied, event.taskId, (task) => ({
+        ? applyTask(applied, event.taskId, (task) => task.archivedAt !== undefined ? task : ({
             ...task,
             outcome,
             ...(state.currentId === event.taskId ? {} : { outcomeUnread: true as const }),

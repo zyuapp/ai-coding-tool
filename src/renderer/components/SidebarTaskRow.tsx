@@ -18,6 +18,7 @@ export type RowAction = "archive" | "dismiss" | "none";
 const OUTCOME_LABELS: Record<TaskOutcome, string> = {
   finished: "Finished",
   failed: "Failed",
+  stopped: "Stopped",
 };
 
 const BLOCKED_LABEL = "Needs approval";

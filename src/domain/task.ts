@@ -109,7 +109,7 @@ export type ChangeSnapshot = {
 export type ContinuationStatus = "none" | "available" | "invalid";
 
 /** How the thread's newest settled run ended. Whether it is blocked on an approval lives in `activeRuns`. */
-export type TaskOutcome = "finished" | "failed";
+export type TaskOutcome = "finished" | "failed" | "stopped";
 
 /**
  * Something a run said it found, on purpose. A verdict belongs to one run and is cleared by the next;
@@ -713,7 +713,7 @@ function isTaskFinding(value: unknown): value is TaskFinding {
 }
 
 function isTaskOutcome(value: unknown): value is TaskOutcome {
-  return value === "finished" || value === "failed";
+  return value === "finished" || value === "failed" || value === "stopped";
 }
 
 function isRecord(value: unknown): value is Record<string, any> {

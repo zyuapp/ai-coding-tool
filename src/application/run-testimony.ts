@@ -8,12 +8,12 @@ import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
 import type { TaskOutcome } from "../domain/task.js";
 import { applyTask, withdrawRun, type ActiveRun, type RunTransitionState } from "./task-workspace.js";
 
-/** A run only earns a verdict when it settles on its own; cancelling is the user's own doing. */
+/** Every run that ends leaves a verdict, including the one the user stopped: it still waits on them. */
 export function outcomeFor(event: RunEvent): TaskOutcome | null {
   if (event.type !== "run.status") return null;
   if (event.status === "succeeded") return "finished";
   if (event.status === "failed") return "failed";
-  return null;
+  return event.status === "cancelled" ? "stopped" : null;
 }
 
 /** The run a scheduled tick is executing, and nothing else. Silence is only ever a schedule's to earn. */
@@ -54,9 +54,10 @@ export function withNothingToReport<T extends RunTransitionState>(state: T, task
 /** Why a settling run reaches the user, or null when it has earned its silence. */
 export type RunSurfacing = "failed" | "cancelled" | "attended" | "loud" | "reported" | "no-answer";
 
-/** How the run left off. Anything that is not a verdict of its own was ended for it. */
+/** How the run left off. Only a run that reached an end of its own finished or failed. */
 function howRunEnded(event: RunEvent): "finished" | "failed" | "cancelled" {
-  return outcomeFor(event) ?? "cancelled";
+  if (event.type !== "run.status") return "cancelled";
+  return event.status === "succeeded" ? "finished" : event.status === "failed" ? "failed" : "cancelled";
 }
 
 /** What the run said for itself. Only a quiet scheduled run that answered and raised nothing is silent. */

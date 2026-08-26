@@ -115,6 +115,47 @@ test("selecting a thread takes its mark off and leaves it ranked", () => {
   assert.deepEqual(deriveView(filed.state).activityTasks.priority, []);
 });
 
+test("a run the user stops keeps its thread in priority", () => {
+  const state = workspace({
+    tasks: [task("task-a", { outcome: "finished" }), task("task-b")],
+    currentId: "task-a",
+  });
+  const sending = reduce(state, { type: "view.set-prompt", prompt: "Try again" });
+  const sent = reduce(sending.state, { type: "task.send", attachments: [] });
+  const started = reduce(sent.state, { type: "run.resolved", pendingId: effectAt(sent, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.deepEqual(deriveView(started.state).activityTasks.running.map((item) => item.id), ["task-a"]);
+
+  const runId = effectAt(started, "start-run").command.runId;
+  const cancelling = reduce(started.state, { type: "run.cancel" });
+  assert.deepEqual(cancelling.effects, [{ type: "send-run-command", command: { type: "cancel", taskId: "task-a", runId } }]);
+  const stopped = reduce(cancelling.state, correlatedRunEvent("task-a", runId, 1, { type: "run.status", status: "cancelled" }));
+
+  assert.equal(stopped.state.tasks[0].outcome, "stopped");
+  assert.equal(stopped.state.tasks[0].outcomeUnread, undefined, "the user stopped it themselves, so nothing marks it");
+  const view = deriveView(stopped.state);
+  assert.deepEqual(view.activityTasks.priority.map((item) => item.id), ["task-a"], "it waits on the user rather than dropping into Threads");
+  assert.deepEqual(view.activityTasks.running, []);
+  assert.deepEqual(stopped.effects.filter((effect) => effect.type === "announce-thread"), [], "and a stop the user asked for says nothing on the desktop");
+
+  const filed = reduce(stopped.state, { type: "task.dismiss", taskId: "task-a" });
+  assert.equal(filed.state.tasks[0].outcome, undefined);
+  assert.deepEqual(deriveView(filed.state).activityTasks.priority, []);
+});
+
+test("a run ending under an archived thread leaves no verdict on it", () => {
+  const state = workspace({
+    tasks: [task("task-a", { archivedAt: 5 }), task("task-b")],
+    activeRuns: { "task-a": activeRun("task-a", "run-1") },
+    currentId: "task-b",
+  });
+
+  for (const status of ["cancelled", "succeeded", "failed"] as const) {
+    const settled = reduce(state, correlatedRunEvent("task-a", "run-1", 1, { type: "run.status", status }));
+    assert.equal(settled.state.tasks[0].outcome, undefined, `${status}: a thread already filed away is past ranking`);
+    assert.equal(settled.state.tasks[0].outcomeUnread, undefined, `${status}: and it never marks the app icon`);
+  }
+});
+
 test("a new run supersedes the verdict of the one before it", () => {
   const state = run(workspace({ tasks: [task("task-a", { outcome: "finished" })], currentId: "task-a" }), [
     { type: "view.set-prompt", prompt: "Try again" },

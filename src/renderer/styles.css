@@ -645,6 +645,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   background: var(--info);
 }
 .task-attention.failed { background: var(--danger); }
+.task-attention.stopped { background: var(--muted-strong); }
 .task-attention.approval { background: var(--accent); }
 .task-entry.is-dragging > .project-task-row,
 .task-entry.is-dragging > .task-row,

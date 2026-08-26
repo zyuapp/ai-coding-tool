@@ -217,7 +217,7 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
             const [thread] = settled.state.tasks;
             const row = `${origin} quiet=${quiet} ${status} notified=${notified} acknowledged=${acknowledged}`;
             const unseen = origin === "automation" && quiet && status === "succeeded" && acknowledged && !notified;
-            const expected = status === "cancelled" || unseen ? undefined : status === "succeeded" ? "finished" : "failed";
+            const expected = unseen ? undefined : status === "succeeded" ? "finished" : status === "failed" ? "failed" : "stopped";
             assert.equal(thread.outcome, expected, row);
             assert.equal(thread.outcomeUnread, expected === undefined ? undefined : true, row);
             assert.equal(thread.runEndedAt === undefined, unseen, `${row}: only an unseen tick puts the thread's ending back`);
