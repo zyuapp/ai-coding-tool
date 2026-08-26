@@ -3,11 +3,12 @@ import { test } from "vitest";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { MobileClientMessage, MobileView } from "../../src/contracts/mobile.ts";
+import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileView } from "../../src/contracts/mobile.ts";
 import { MOBILE_CREDENTIAL_KEY } from "../../src/mobile/client/storage.ts";
 import { App } from "../../src/mobile/App.tsx";
 
 const CODE = "K7M2P9QX";
+const BUILD = "b7f0c1d2e3a4b5c6";
 const TOKEN = "b".repeat(64);
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: `https://mac.ts.net/m#pair=${CODE}` });
@@ -116,13 +117,13 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.equal(window.location.hash, "");
 
   act(() => line.onopen?.());
-  assert.deepEqual(line.sent[0], { kind: "pair", version: 1, code: CODE, deviceName: "Phone" });
+  assert.deepEqual(line.sent[0], { kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: CODE, deviceName: "Phone" });
 
   function receive(message: unknown) {
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
   receive({ kind: "paired", sequence: 1, deviceId: "d1", deviceName: "Phone", token: TOKEN });
-  receive({ kind: "snapshot", sequence: 2, sessionId: "s1", view: view() });
+  receive({ kind: "snapshot", sequence: 2, sessionId: "s1", build: BUILD, view: view() });
 
   assert.match(document.body.textContent ?? "", /Fix the parser/);
   assert.match(document.body.textContent ?? "", /Needs you/);
@@ -154,14 +155,14 @@ test("the phone shows the thread the Mac actually has open, and says what went w
   function receive(message: unknown) {
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
-  receive({ kind: "snapshot", sequence: 1, sessionId: "s2", view: view() });
+  receive({ kind: "snapshot", sequence: 1, sessionId: "s2", build: BUILD, view: view() });
   click(".thread-row");
   assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
 
   /** Somebody at the Mac opened a different thread. The phone follows rather than waiting for its own. */
   const elsewhere = view();
   elsewhere.thread = { ...elsewhere.thread!, id: "t2", title: "Rewrite the docs", approval: null, queued: [] };
-  receive({ kind: "snapshot", sequence: 2, sessionId: "s2", view: elsewhere });
+  receive({ kind: "snapshot", sequence: 2, sessionId: "s2", build: BUILD, view: elsewhere });
   assert.match(document.body.textContent ?? "", /Rewrite the docs/);
   assert.doesNotMatch(document.body.textContent ?? "", /Opening the thread/);
 
@@ -176,7 +177,7 @@ test("New opens the thread the Mac is about to start, and the first message star
   function receive(message: unknown) {
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
-  receive({ kind: "snapshot", sequence: 1, sessionId: "s3", view: view() });
+  receive({ kind: "snapshot", sequence: 1, sessionId: "s3", build: BUILD, view: view() });
 
   click(".group-header .ghost");
   assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });

@@ -45,6 +45,8 @@ export type MobileClientState = {
   sessionId: string | null;
   /** The newest sequence this phone has seen, which is what a resume is measured against. */
   lastSequence: number;
+  /** The build of the page this phone is running, learnt from the first snapshot it ever reads. */
+  build: string | null;
   view: MobileView;
   outbox: OutboxEntry[];
   /** Consecutive failed connections, which is what the backoff counts. */
@@ -70,7 +72,9 @@ export type MobileClientEffect =
   | { kind: "disconnect" }
   | { kind: "settle"; delayMs: number }
   /** Null forgets the token, which is what an unauthorised phone must do before it shows a code. */
-  | { kind: "store"; credential: MobileCredential | null };
+  | { kind: "store"; credential: MobileCredential | null }
+  /** Fetches the page again, which is the only way a phone gets the build the Mac now serves. */
+  | { kind: "reload" };
 
 export type MobileClientStep = { state: MobileClientState; effects: MobileClientEffect[] };
 
@@ -110,6 +114,7 @@ export function initialMobileClient(input: { credential: MobileCredential | null
     connection: "offline",
     sessionId: null,
     lastSequence: 0,
+    build: null,
     view: emptyMobileView(),
     outbox: [],
     attempt: 0,
@@ -212,8 +217,13 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
       const credential: MobileCredential = { token: message.token, deviceId: message.deviceId, deviceName: message.deviceName };
       return { state: { ...seen, credential, code: null, entry: "ready", notice: null }, effects: [{ kind: "store", credential }] };
     }
+    /**
+     * A snapshot names the build the Mac serves. A page from an older one cannot draw what the Mac
+     * now describes, so it fetches itself again rather than carry on showing the wrong screen.
+     */
     case "snapshot": {
-      const fresh = { ...seen, sessionId: message.sessionId, view: message.view, notice: null };
+      if (seen.build !== null && seen.build !== message.build) return { state: seen, effects: [{ kind: "reload" }] };
+      const fresh = { ...seen, build: message.build, sessionId: message.sessionId, view: message.view, notice: null };
       return live(fresh);
     }
     case "patch":

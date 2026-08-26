@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
@@ -113,6 +113,19 @@ test("the server hands out the phone page and nothing outside it", async (t) => 
   assert.equal((await fetch(`${origin}/m/%zz`)).status, 404, "a path no browser could have escaped is not one we hold");
   assert.equal((await fetch(`${origin}/m/`, { method: "POST" })).status, 405);
   assert.equal((await fetch(`${origin}/m/socket`)).status, 400, "the socket address is not a page");
+});
+
+test("a snapshot names the build of the page the server hands out", async (t) => {
+  const { devices, socketUrl, origin } = await harness(t);
+  const code = devices.mint(Date.now());
+  const client = phone(socketUrl);
+  t.onTestFinished(() => client.socket.close());
+  await client.opened();
+
+  client.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  const opening = await client.waitFor("snapshot");
+  const served = await (await fetch(`${origin}/m/`)).text();
+  assert.equal(opening.build, createHash("sha256").update(served).digest("hex").slice(0, 16));
 });
 
 test("a phone trades its code for a token and is handed the view", async (t) => {

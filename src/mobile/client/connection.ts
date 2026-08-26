@@ -41,6 +41,7 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
     if (effect.kind === "send") {
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(effect.message));
     } else if (effect.kind === "store") writeCredential(store, effect.credential);
+    else if (effect.kind === "reload") window.location.reload();
     else if (effect.kind === "disconnect") drop();
     else if (effect.kind === "connect") schedule(effect.delayMs);
     else if (effect.kind === "settle") {

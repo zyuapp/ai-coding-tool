@@ -118,9 +118,11 @@ test("client messages are read defensively, since the phone is the boundary", ()
 
 test("every server message carries a sequence", () => {
   const view = { groups: [], thread: null };
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", view }), true);
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sessionId: "session-1", view }), false);
-  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", view: [] }), false);
+  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", build: "b7f0c1d2e3a4b5c6", view }), true);
+  assert.equal(isMobileServerMessage({ kind: "snapshot", sessionId: "session-1", build: "b7f0c1d2e3a4b5c6", view }), false);
+  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", build: "b7f0c1d2e3a4b5c6", view: [] }), false);
+  /** Without the build it names, a page could never tell that the Mac had started serving another. */
+  assert.equal(isMobileServerMessage({ kind: "snapshot", sequence: 1, sessionId: "session-1", view }), false);
   assert.equal(isMobileServerMessage({ kind: "patch", sequence: 2, patch: {} }), true);
   assert.equal(isMobileServerMessage({ kind: "paired", sequence: 1, deviceId: "device-1", deviceName: "iPhone", token: "abc" }), true);
   assert.equal(isMobileServerMessage({ kind: "ack", sequence: 3, requestId: "request-1", ok: true }), true);

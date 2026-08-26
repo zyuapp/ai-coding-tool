@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { MobileServerMessage, MobileView } from "../../src/contracts/mobile.ts";
+import { MOBILE_PROTOCOL_VERSION, type MobileServerMessage, type MobileView } from "../../src/contracts/mobile.ts";
 import {
   backoffDelay,
   initialMobileClient,
@@ -27,8 +27,10 @@ function view(title: string): MobileView {
   };
 }
 
-function snapshot(sequence: number, sessionId = "s1", body = view("Thread")): MobileServerMessage {
-  return { kind: "snapshot", sequence, sessionId, view: body };
+const BUILD = "b7f0c1d2e3a4b5c6";
+
+function snapshot(sequence: number, sessionId = "s1", body = view("Thread"), build = BUILD): MobileServerMessage {
+  return { kind: "snapshot", sequence, sessionId, build, view: body };
 }
 
 /** Runs a run of events through the reducer and keeps every effect they asked for. */
@@ -52,7 +54,7 @@ test("a page opened with a code trades it for a token and keeps it", () => {
   const start = initialMobileClient({ credential: null, code: CODE, deviceName: "iPhone" });
   assert.equal(start.entry, "pairing");
   const opened = run(start, [{ kind: "opened" }]);
-  assert.deepEqual(sent(opened.effects), [{ kind: "pair", version: 1, code: CODE, deviceName: "iPhone" }]);
+  assert.deepEqual(sent(opened.effects), [{ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: CODE, deviceName: "iPhone" }]);
 
   const done = run(opened.state, [{ kind: "received", message: { kind: "paired", sequence: 1, deviceId: "d1", deviceName: "iPhone", token: TOKEN } }]);
   assert.equal(done.state.entry, "ready");
@@ -89,7 +91,7 @@ test("a phone that comes back resumes from the sequence it last saw", () => {
   const live = run(paired(), [{ kind: "received", message: { kind: "patch", sequence: 2, patch: { thread: { kind: "changed", id: "t1", delta: { status: "running" } } } } }]).state;
   assert.equal(live.lastSequence, 2);
   const again = run({ ...live, connection: "offline" }, [{ kind: "opened" }]);
-  assert.deepEqual(sent(again.effects), [{ kind: "resume", version: 1, token: TOKEN, sessionId: "s1", lastSequence: 2 }]);
+  assert.deepEqual(sent(again.effects), [{ kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: TOKEN, sessionId: "s1", lastSequence: 2 }]);
   assert.equal(again.state.connection, "resuming");
 });
 
@@ -204,6 +206,21 @@ test("a dropped line is redialled with a backoff that a wake cuts short", () => 
   const woken = run(dropped.state, [{ kind: "wake" }]);
   assert.deepEqual(woken.effects, [{ kind: "connect", delayMs: 0 }]);
   assert.equal(woken.state.attempt, 0);
+});
+
+test("a page from a build the Mac no longer serves fetches itself again", () => {
+  const started = paired();
+  assert.equal(started.build, BUILD);
+
+  /** The same build says nothing: a phone that reconnects all day is never reloaded for it. */
+  const again = run(started, [{ kind: "received", message: snapshot(2, "s2") }]);
+  assert.deepEqual(again.effects.filter((effect) => effect.kind === "reload"), []);
+  assert.equal(again.state.view.thread?.title, "Thread");
+
+  const rebuilt = run(again.state, [{ kind: "received", message: snapshot(3, "s3", view("Newer"), "0000111122223333") }]);
+  assert.deepEqual(rebuilt.effects, [{ kind: "reload" }]);
+  /** The page it is about to leave is not repainted from a view it cannot draw. */
+  assert.equal(rebuilt.state.view.thread?.title, "Thread");
 });
 
 test("the pairing code is read from the fragment, the query, and nowhere else", () => {

@@ -6,7 +6,7 @@ import { test } from "vitest";
 import WebSocket from "ws";
 import { allowedOrigins, bindHost, lanAddressesFrom, reachableAddresses } from "../../../src/main/mobile/addresses.mts";
 import { servesPort } from "../../../src/main/mobile/tailscale.mts";
-import type { MobileRequest } from "../../../src/contracts/mobile.ts";
+import { MOBILE_PROTOCOL_VERSION, type MobileRequest } from "../../../src/contracts/mobile.ts";
 import type { MobileServerState } from "../../../src/domain/mobile.ts";
 
 const INTERFACES = {
@@ -155,7 +155,7 @@ test("a phone paired through the host reaches the window, and revoking it drops 
   socket.on("message", (data) => heard.push(JSON.parse(String(data))));
   socket.on("error", () => undefined);
   await new Promise<void>((resolve, reject) => { socket.on("open", () => resolve()); socket.on("error", reject); });
-  socket.send(JSON.stringify({ kind: "pair", version: 1, code: offer.code, deviceName: "iPhone" }));
+  socket.send(JSON.stringify({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: offer.code, deviceName: "iPhone" }));
 
   await until(() => heard.some((message) => message.kind === "paired"), "the phone never paired");
   await until(() => requests.some((request) => request.op === "snapshot"), "the window was never asked for a view");

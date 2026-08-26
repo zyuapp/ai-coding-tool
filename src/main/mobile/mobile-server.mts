@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { createReadStream, readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
@@ -49,6 +49,9 @@ const MAX_COMMANDS_IN_FLIGHT = 64;
  * would otherwise keep delivering messages for `ws`'s own half-minute, so it is cut instead.
  */
 const CLOSE_GRACE_MS = 250;
+
+/** What the build is called when the page cannot be read. Every phone agrees on it, so none reloads. */
+const UNKNOWN_BUILD = "unknown";
 
 const MIME_TYPES: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -133,6 +136,8 @@ export class MobileServer {
   private sockets: WebSocketServer | null = null;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private listening: number | null = null;
+  /** What the served page hashes to, read once a server starts because a running one cannot change it. */
+  private build = UNKNOWN_BUILD;
   private failure: string | null = null;
   /** Sockets that have connected but not yet said who they are. */
   private pending = 0;
@@ -160,6 +165,7 @@ export class MobileServer {
   async start(host: string): Promise<void> {
     if (this.http) return;
     this.failure = null;
+    this.build = buildStamp(this.options.staticRoot);
     const server = createServer((request, response) => {
       this.serve(request, response).catch(() => {
         if (!response.headersSent) plain(response, 500, "Something went wrong.");
@@ -203,7 +209,7 @@ export class MobileServer {
   publish(update: MobileViewUpdate) {
     for (const session of this.sessions.values()) {
       if (session.awaitingSnapshot) continue;
-      this.emit(session, update.kind === "snapshot" ? { kind: "snapshot", sessionId: session.id, view: update.view } : { kind: "patch", patch: update.patch });
+      this.emit(session, update.kind === "snapshot" ? { kind: "snapshot", sessionId: session.id, build: this.build, view: update.view } : { kind: "patch", patch: update.patch });
     }
   }
 
@@ -280,7 +286,7 @@ export class MobileServer {
     try {
       const view = await this.options.snapshot(session.id);
       session.awaitingSnapshot = false;
-      this.emit(session, { kind: "snapshot", sessionId: session.id, view });
+      this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view });
     } catch (error) {
       session.awaitingSnapshot = false;
       this.emit(session, { kind: "error", code: "internal", message: error instanceof Error ? error.message : String(error) });
@@ -495,6 +501,18 @@ export class MobileServer {
       return;
     }
     plain(response, 404, "Not found");
+  }
+}
+
+/**
+ * The build of the page this server hands out, which is what a phone compares its own against. A
+ * page it cannot read is one no phone can be holding, so nothing is asked to reload over it.
+ */
+function buildStamp(staticRoot: string): string {
+  try {
+    return createHash("sha256").update(readFileSync(path.join(staticRoot, "index.html"))).digest("hex").slice(0, 16);
+  } catch {
+    return UNKNOWN_BUILD;
   }
 }
 

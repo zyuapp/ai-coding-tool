@@ -141,8 +141,12 @@ export type MobilePatch = {
   error?: string | null;
 };
 
-/** Bumped when a message shape changes in a way an older phone page could misread. */
-export const MOBILE_PROTOCOL_VERSION = 1;
+/**
+ * Bumped when a message shape changes in a way an older phone page could misread, and to retire a
+ * page for any other reason: a phone the Mac turns away is told to reload, where one left running
+ * is wrong in silence.
+ */
+export const MOBILE_PROTOCOL_VERSION = 2;
 
 const MAX_ID_LENGTH = 256;
 const MAX_PROMPT_LENGTH = 1_000_000;
@@ -346,6 +350,8 @@ export type MobilePairedMessage = Sequenced & {
 export type MobileSnapshotMessage = Sequenced & {
   kind: "snapshot";
   sessionId: string;
+  /** Which build of the phone page the Mac serves. A page from another one reloads itself. */
+  build: string;
   view: MobileView;
 };
 
@@ -387,7 +393,7 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
 export function isMobileServerMessage(value: unknown): value is MobileServerMessage {
   if (!isRecord(value) || !isCount(value.sequence)) return false;
   if (value.kind === "paired") return isString(value.deviceId) && isString(value.deviceName, MAX_DEVICE_NAME_LENGTH) && isString(value.token, MAX_TOKEN_LENGTH);
-  if (value.kind === "snapshot") return isString(value.sessionId) && isRecord(value.view);
+  if (value.kind === "snapshot") return isString(value.sessionId) && isString(value.build) && isRecord(value.view);
   if (value.kind === "patch") return isRecord(value.patch);
   if (value.kind === "ack") {
     if (!isString(value.requestId)) return false;
