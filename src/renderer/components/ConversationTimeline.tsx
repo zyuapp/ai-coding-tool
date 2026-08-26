@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, FolderSymlink, ListCollapse, type LucideIcon } from "lucide-react";
+import { ChevronDown, FolderSymlink, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
@@ -131,9 +131,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       )}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
-          <ListCollapse aria-hidden="true" />
-          <span>Compacting messages…</span>
-          <span className="activity-dots" aria-hidden="true"><i /><i /><i /></span>
+          <span className="compacting-sweep">Compacting messages…</span>
         </div>
       )}
       {status === "running" && !compacting && (
