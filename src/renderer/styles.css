@@ -168,6 +168,9 @@
   --shadow-popover: 0 16px 40px rgb(var(--p-shadow) / calc(0.42 * var(--p-shadow-scale)));
   --shadow-panel: 0 22px 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-composer: 0 15px 45px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale)));
+  /* The floating surfaces carry a close contact shadow instead of a border. */
+  --shadow-float: 0 1px 2px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale))), 0 6px 16px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
+  --shadow-float-lift: 0 1px 3px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 10px 26px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
   --shadow-overlay: 0 30px 80px rgb(var(--p-shadow) / calc(0.55 * var(--p-shadow-scale)));
   --shadow-drag: 0 10px 26px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
   --shadow-sidebar: 20px 0 60px rgb(var(--p-shadow) / calc(0.45 * var(--p-shadow-scale)));
@@ -2107,14 +2110,13 @@ pre {
   max-height: calc(100% - 110px);
   overflow: auto;
   border-radius: 16px;
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-float);
   animation: panel-in 150ms ease-out;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
 }
 .session-card {
   overflow: hidden;
-  border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--surface);
 }
@@ -2210,7 +2212,7 @@ pre {
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid var(--danger-line); background: var(--danger-surface); color: var(--danger-soft); font-size: var(--text-control); }
 /** The side chat lays its own rows out, so the composer takes the row it falls in rather than the workspace's third. */
 .composer-wrap.side { grid-column: auto; grid-row: auto; padding: 10px 14px 0; background: none; }
-.composer-wrap.side .composer { border-radius: 14px; box-shadow: none; }
+.composer-wrap.side .composer { border-radius: 14px; }
 .composer-wrap.side .queued-row { grid-column: auto; grid-row: auto; }
 .composer-wrap.side textarea:disabled { cursor: not-allowed; }
 .side-chat-note { margin: 7px 17px 12px; color: var(--quiet-soft); font-size: var(--text-meta); }
@@ -2638,12 +2640,12 @@ pre {
   max-width: 860px;
   margin: 0 auto;
   overflow: visible;
-  border: 1px solid var(--line);
   border-radius: 17px;
   background: var(--surface);
-  box-shadow: var(--shadow-composer);
+  box-shadow: var(--shadow-float);
+  transition: box-shadow 140ms ease-out;
 }
-.composer:focus-within { border-color: var(--line-strong); }
+.composer:focus-within { box-shadow: var(--shadow-float-lift); }
 .command-menu {
   position: absolute;
   z-index: 40;
