@@ -211,15 +211,16 @@ export function fileFingerprint(file: DiffFileSummary) {
 /**
  * How many changed lines a review draws before it folds the rest away. Every drawn line costs about
  * half a kilobyte of parsed rows, and the panel holds them for as long as the thread is open: this
- * many is about fifty megabytes, and a comparison of a million lines drawn whole is over five hundred.
+ * many is about a hundred megabytes, and a comparison of a million lines drawn whole is five hundred.
  * Set well above any review a person writes, so the fold only ever meets one a tool made.
  */
-export const DRAWN_LINE_BUDGET = 100_000;
+export const DRAWN_LINE_BUDGET = 200_000;
 
 /**
- * One file's share of that budget. Without it a single generated file — a lockfile, a snapshot, a
- * bundle — spends the whole review's allowance and folds away the work the user opened the review to
- * read. A file this large is written by a tool far more often than it is read a line at a time.
+ * The most one file may take of that budget. Without it a single generated file — a lockfile, a
+ * snapshot, a bundle — spends the review's whole allowance and folds away the work the user opened
+ * the review to read. This does not follow the budget: it is the point past which a file is written
+ * by a tool rather than read a line at a time, and that point does not move.
  */
 export const DRAWN_FILE_LIMIT = 20_000;
 
