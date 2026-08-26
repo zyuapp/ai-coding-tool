@@ -36,7 +36,7 @@ function CommentMarkers({ row, comments, onEditComment }: {
           key={comment.annotation.id}
           type="button"
           aria-label={`Edit comment ${comment.number} on ${rowLabel(row).toLowerCase()}`}
-          data-tip="Read or edit this comment"
+          data-tip="Edit comment"
           onClick={() => onEditComment(comment)}
         >
           {comment.number}
@@ -67,7 +67,7 @@ function LineRow({ path, row, tokens, selected, commented, comments, onSelect, o
         className="diff-gutter"
         type="button"
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
-        data-tip="Add a comment. Shift-click to take in a range of lines."
+        data-tip="Add comment"
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>
@@ -102,7 +102,7 @@ function SplitCell({ path, row, tokens, side, selected, commented, comments, onS
         className="diff-gutter static"
         type="button"
         aria-label={`Add comment on ${rowLabel(row).toLowerCase()}`}
-        data-tip="Add a comment. Shift-click to take in a range of lines."
+        data-tip="Add comment"
         onClick={(event) => onSelect(event.shiftKey)}
       >
         <i className="diff-comment-affordance" aria-hidden="true"><MessageSquarePlus size={12} /></i>

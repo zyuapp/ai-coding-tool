@@ -47,7 +47,7 @@ function SidePicker({ id, label, value, extra, title, workspaceId, openMenu, onS
         aria-label={`${label}: ${shown}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        data-tip={`${title}: ${shown}`}
+        data-tip={title}
         disabled={!workspaceId}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
@@ -132,9 +132,7 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           aria-pressed={split}
           className={split ? "on" : ""}
           disabled={!roomForTwo}
-          data-tip={roomForTwo
-            ? (split ? "Read the changes in one column" : "Put the old and new sides beside each other")
-            : "Widen the panel to compare in two columns"}
+          data-tip={roomForTwo ? (split ? "One column" : "Two columns") : "Too narrow"}
           onClick={onToggleSplit}
         >
           {split ? <Rows3 size={15} /> : <Columns2 size={15} />}
@@ -144,12 +142,12 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           aria-label={ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"}
           aria-pressed={ignoreWhitespace}
           className={ignoreWhitespace ? "on" : ""}
-          data-tip={ignoreWhitespace ? "Show lines where only the spacing changed" : "Hide lines where only the spacing changed"}
+          data-tip={ignoreWhitespace ? "Show spacing" : "Hide spacing"}
           onClick={onToggleWhitespace}
         >
           <Pilcrow size={15} />
         </button>
-        <button type="button" aria-label="Read the comparison again" data-tip="Read the comparison again" onClick={onRefresh}>
+        <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}>
           <RefreshCw size={15} className={loading ? "spinning" : ""} />
         </button>
       </div>

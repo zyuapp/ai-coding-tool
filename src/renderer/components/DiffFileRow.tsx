@@ -10,11 +10,11 @@ function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {
 
 /** What the icon beside a name is saying, for a reader who has not learnt the four of them yet. */
 const STATUS_TOOLTIPS: Record<DiffFileSummary["status"], string> = {
-  added: "This file is new",
-  untracked: "This file is new, and Git is not tracking it yet",
-  deleted: "This file is gone",
-  renamed: "This file moved",
-  modified: "This file changed",
+  added: "New file",
+  untracked: "New, untracked",
+  deleted: "Deleted file",
+  renamed: "Moved file",
+  modified: "Changed file",
 };
 
 /** The name a path is listed under, with its folder kept quiet beside it. */
@@ -41,27 +41,27 @@ export function FileHeader({ file, open, viewed, echo = false, onToggle, onOpenF
   return (
     <div className={`diff-file-row ${viewed ? "viewed" : ""}`.trimEnd()}>
       <button className="diff-file-open" type="button" aria-expanded={open} {...reach} onClick={onToggle}>
-        <span className="diff-file-caret" aria-hidden="true" data-tip={open ? "Fold this file away" : "Show this file's lines"}>
+        <span className="diff-file-caret" aria-hidden="true" data-tip={open ? "Fold" : "Unfold"}>
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </span>
         <span className="diff-file-icon" data-tip={STATUS_TOOLTIPS[file.status]}><StatusIcon status={file.status} /></span>
-        <span className="diff-file-name" data-find-row={`${file.path}\n`} data-tip={file.previousPath ? `${file.previousPath} → ${file.path}` : file.path}>
+        <span className="diff-file-name" data-find-row={`${file.path}\n`} data-tip={file.path}>
           <em>{folder}</em>{name}
         </span>
-        {file.previousPath && <span className="diff-file-renamed" data-tip={`Renamed from ${file.previousPath}`}>renamed</span>}
+        {file.previousPath && <span className="diff-file-renamed" data-tip={file.previousPath}>renamed</span>}
         {!file.binary && <span className="change-counts"><strong>+{file.additions}</strong><em>−{file.deletions}</em></span>}
       </button>
       <button
         className="diff-file-editor"
         type="button"
         aria-label={`Open ${file.path} in your editor`}
-        data-tip="Open this file in your editor"
+        data-tip="Editor"
         {...reach}
         onClick={() => onOpenFile(file.path)}
       >
         <FileSymlink size={14} />
       </button>
-      <label className="diff-file-viewed" data-tip={viewed ? "Mark this file not viewed" : "Mark this file viewed, which folds it away"}>
+      <label className="diff-file-viewed" data-tip={viewed ? "Mark unviewed" : "Mark viewed"}>
         <input
           type="checkbox"
           aria-label={`Mark ${file.path} viewed`}
