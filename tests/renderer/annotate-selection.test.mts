@@ -138,3 +138,50 @@ test("a note left empty is dropped rather than kept as a blank annotation", asyn
   assert.equal(editor(), null);
   await view.unmount();
 });
+
+/**
+ * What a browser does to the last word of a block: the selection runs past the block's end and
+ * lands in whatever follows it, which under an answer is the answer's own row of buttons.
+ */
+function selectLastWordSpilling(word: string) {
+  const root = document.querySelector('[data-message-id="m1"]');
+  assert.ok(root, "the answer is drawn");
+  const walker = document.createTreeWalker(root, dom.window.NodeFilter.SHOW_TEXT);
+  let node: Node | null = null;
+  for (let at = walker.nextNode(); at; at = walker.nextNode()) {
+    if (at.nodeValue?.includes(word)) node = at;
+  }
+  assert.ok(node, `no text node holding ${word}`);
+  const after = document.querySelector(".answer-actions");
+  assert.ok(after, "the answer has a row of its own under the text");
+  const range = document.createRange();
+  range.setStart(node, (node.nodeValue ?? "").indexOf(word));
+  range.setEnd(after, 0);
+  const selection = dom.window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+test("a double click on the last paragraph still offers to annotate it", async () => {
+  const added: Draft[] = [];
+  const view = await mount(harness((draft) => added.push(draft)));
+
+  dom.window.getSelection()?.removeAllRanges();
+  await pointer("pointerdown");
+  await pointer("pointerup");
+  await pointer("pointerdown");
+  selectLastWordSpilling("again");
+  await pointer("pointerup");
+
+  assert.ok(toolbar(), "the selection running past the block does not take the toolbar away");
+
+  await act(async () => { query<HTMLButtonElement>(document.body, ".annotate-popover button").click(); });
+  const input = editor();
+  assert.ok(input, "the note editor opens on it");
+  await type(input, "note");
+  await act(async () => {
+    input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  });
+  assert.deepEqual(added.map((draft) => draft.quote), ["again"], "the quote stops at the answer's own text");
+  await view.unmount();
+});

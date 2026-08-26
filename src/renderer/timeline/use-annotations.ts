@@ -81,6 +81,20 @@ type CaptureOptions = {
   dismissNote: () => void;
 };
 
+/**
+ * The part of a selection that lies inside one message. A double click on a block's last word runs
+ * the selection past the block and into whatever follows it, which under an answer is the answer's
+ * own row of buttons. Clipping it keeps that click a selection of the word rather than of nothing.
+ */
+function clippedTo(message: Element, range: Range) {
+  const bounds = document.createRange();
+  bounds.selectNodeContents(message);
+  const inside = range.cloneRange();
+  if (inside.compareBoundaryPoints(Range.START_TO_START, bounds) < 0) inside.setStart(bounds.startContainer, bounds.startOffset);
+  if (inside.compareBoundaryPoints(Range.END_TO_END, bounds) > 0) inside.setEnd(bounds.endContainer, bounds.endOffset);
+  return inside;
+}
+
 /** Selected assistant text grows an annotate popover; anything else puts it away. */
 export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, onAnnotateAdd, setSelection, dismissNote }: CaptureOptions) {
   useEffect(() => {
@@ -90,8 +104,6 @@ export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, o
       const root = timelineRef.current;
       const selected = window.getSelection();
       if (!root || !selected || selected.isCollapsed || selected.rangeCount === 0) return setSelection(null);
-      const quote = selected.toString().trim();
-      if (!quote) return setSelection(null);
       const range = selected.getRangeAt(0);
       /** A highlight lives in one message, so a selection is only offered within a single one. */
       const messageOf = (node: Node) => {
@@ -100,17 +112,23 @@ export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, o
         return element.closest("[data-message-id]");
       };
       const startMessage = messageOf(range.startContainer);
-      if (!startMessage || startMessage !== messageOf(range.endContainer)) return setSelection(null);
-      const messageId = startMessage.getAttribute("data-message-id");
-      if (!messageId) return setSelection(null);
-      const rect = range.getBoundingClientRect();
+      const endMessage = messageOf(range.endContainer);
+      /** Two messages are two highlights, which is one more than an annotation can wear. */
+      if (startMessage && endMessage && startMessage !== endMessage) return setSelection(null);
+      const message = startMessage ?? endMessage;
+      const messageId = message?.getAttribute("data-message-id");
+      if (!message || !messageId) return setSelection(null);
+      const inside = clippedTo(message, range);
+      const quote = inside.toString().trim();
+      if (!quote) return setSelection(null);
+      const rect = inside.getBoundingClientRect();
       setSelection({
         quote,
         anchor: {
           kind: "message",
           messageId,
-          start: renderedOffset(startMessage, range.startContainer, range.startOffset),
-          end: renderedOffset(startMessage, range.endContainer, range.endOffset),
+          start: renderedOffset(message, inside.startContainer, inside.startOffset),
+          end: renderedOffset(message, inside.endContainer, inside.endOffset),
         },
         x: rect.left + rect.width / 2,
         y: rect.top,
