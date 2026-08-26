@@ -1,4 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, FolderSymlink, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
@@ -73,9 +73,15 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentTask?.runEndedAt }),
     [messages, status, streamingTail?.messageId, currentTask?.runEndedAt],
   );
+  /** Every scroll the virtualizer makes for itself passes through here, which is how the reading view knows it is not the reader's. */
+  const virtualizerScrolledAt = useRef(-Infinity);
   const virtualizer = useVirtualizer({
     count: groups.length,
     getScrollElement: () => scrollContainerRef.current,
+    scrollToFn: (offset, options, instance) => {
+      virtualizerScrolledAt.current = performance.now();
+      elementScroll(offset, options, instance);
+    },
     estimateSize: (index) => {
       const group = groups[index];
       if (group?.kind === "turn") return group.final ? 140 : 64;
@@ -102,7 +108,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   useEffect(() => () => paintMatches(painter, [], null), [painter]);
 
   const { atBottom, scrollToFoot } = useReadingView({
-    scrollContainerRef, timelineRef, virtualizer, taskId: currentTask?.id, rowOfMessage,
+    scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, taskId: currentTask?.id, rowOfMessage,
     hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin,
   });
   useSelectionCapture({ timelineRef, scrollContainerRef, taskId: currentTask?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });

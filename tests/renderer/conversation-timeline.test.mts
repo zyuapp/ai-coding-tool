@@ -8,7 +8,7 @@ import type { AutomationPatch, AutomationView } from "../../src/domain/automatio
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { mobileDesktopStub } from "../support/mobile-desktop.mts";
 
-import { fireResizeObservers, item, mount, query } from "../support/renderer-dom.mts";
+import { fireResizeObservers, item, mount, query, rowHeights } from "../support/renderer-dom.mts";
 
 const { ConversationTimeline, groupTimeline, READING_SETTLE_MS } = await import("../../src/renderer/components/ConversationTimeline.tsx");
 
@@ -256,9 +256,13 @@ function threadHarness() {
   function recordScroll(options?: ScrollToOptions): void;
   function recordScroll(x: number, y: number): void;
   function recordScroll(options: ScrollToOptions | number = {}, y = 0) {
-    const top = typeof options === "number" ? y : (options.top ?? 0);
-    scrolls.push(top);
+    const asked = typeof options === "number" ? y : (options.top ?? 0);
+    scrolls.push(asked);
+    /** A browser can only scroll as far as there is content, and it tells the page once it has moved. */
+    const top = Math.max(0, Math.min(asked, scroller.scrollHeight - scroller.clientHeight));
+    if (top === offset) return;
     offset = top;
+    scroller.dispatchEvent(new Event("scroll"));
   }
   Object.defineProperty(scroller, "scrollTo", { configurable: true, value: recordScroll });
   document.body.append(scroller);
@@ -446,6 +450,34 @@ test("the virtualizer correcting its own estimates does not take the view from t
   assert.deepEqual(points["read"], left, "the correction is never saved as where the reader was");
 
   await done(view);
+});
+
+test("a row measuring past its estimate corrects the scroller without taking the view", async () => {
+  /** Rows far taller than the 64/88/140px estimates, which is what makes the virtualizer correct itself. */
+  const measuredRows = rowHeights((node) => node.classList?.contains("timeline-row") ? 620 : 0);
+  const { scrolls, points, thread, scrollTo, settle, resize, done } = threadHarness();
+  try {
+    const view = await mount(thread("read", 12));
+    await settle();
+    await scrollTo(1200);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80)); });
+    const left = item(points["read"]);
+
+    await view.render(thread("other", 12, "o"));
+    await settle();
+    scrolls.length = 0;
+    await view.render(thread("read", 12));
+    await settle();
+    await resize();
+    assert.ok(scrolls.length >= 1, "reopening the thread places it rather than leaving it where the other one sat");
+
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80)); });
+    assert.deepEqual(points["read"], left, "measuring the rows never rewrites where the reader was");
+
+    await done(view);
+  } finally {
+    measuredRows.restore();
+  }
 });
 
 test("find opens the fold the match it is showing was written into", async () => {

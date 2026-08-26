@@ -23,6 +23,9 @@ const READER_GRIP_MS = 400;
 /** A press that travels less than this is a click on the transcript rather than a drag of the view. */
 const DRAG_WITHIN = 4;
 
+/** How soon after the virtualizer scrolls itself the resulting event arrives, which it owns rather than the reader. */
+const CORRECTION_WITHIN_MS = 100;
+
 /** How long a view waits for its reader to stop moving before telling the workspace where they are. */
 export const READING_SETTLE_MS = 150;
 
@@ -52,6 +55,8 @@ type ReadingViewOptions = {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   timelineRef: RefObject<HTMLDivElement | null>;
   virtualizer: Virtualizer<HTMLDivElement, Element>;
+  /** When the virtualizer last scrolled this scroller to correct its own estimates. */
+  virtualizerScrolledAt: RefObject<number>;
   taskId?: string;
   rowOfMessage: Map<string, number>;
   /** The match being read, if this transcript is the one being searched. */
@@ -70,7 +75,7 @@ type ReadingViewOptions = {
  * Every scroll of this transcript: where a reopened thread lands, where a match or a fresh answer
  * takes the view, and where the reader is reported to have settled.
  */
-export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, taskId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
+export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, taskId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
   const refs = useViewRefs();
   const { view, restoreScroll, placeAt, observed, placedFrom } = refs;
   const [atBottom, setAtBottom] = useState(true);
@@ -79,6 +84,13 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
   incoming.current = readingPoint ?? null;
   const rows = useRef(rowOfMessage);
   rows.current = rowOfMessage;
+  /**
+   * The thread this transcript renders right now. A switch re-renders before the effects swap over,
+   * so a scroll in that gap reaches the old thread's listener while the rows under it are the new
+   * thread's. Reading one against the other files a row of theirs as a place of ours.
+   */
+  const rendering = useRef<string | undefined>(undefined);
+  rendering.current = taskId;
 
   /** Reading a match takes the view over, the way scrolling by hand does. */
   useEffect(() => {
@@ -148,6 +160,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
     };
     const readerMoving = () => dragging || performance.now() - touchedAt < READER_GRIP_MS;
     const onScroll = () => {
+      if (rendering.current !== taskId) return;
       const bottom = atFoot();
       setAtBottom(bottom);
       /** The reader taking the view is the one thing that stops it being placed for them. */
@@ -157,7 +170,9 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
       const held = view.current;
       if (held.at === "foot") observed.current = null;
       else if (held.at === "row") observed.current = { anchor: held.id, depth: held.depth };
-      else observed.current = bottom ? null : observe();
+      /** A view at rest is read off the scroller, so a correction the reader had no hand in is left out of it. */
+      else if (readerMoving() || performance.now() - virtualizerScrolledAt.current >= CORRECTION_WITHIN_MS) observed.current = bottom ? null : observe();
+      else return;
       reportSoon();
     };
     const place = () => {
