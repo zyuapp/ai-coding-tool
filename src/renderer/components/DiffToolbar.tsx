@@ -47,11 +47,12 @@ function SidePicker({ id, label, value, extra, title, workspaceId, openMenu, onS
         aria-label={`${label}: ${shown}`}
         aria-haspopup="listbox"
         aria-expanded={open}
+        data-tip={`${title}: ${shown}`}
         disabled={!workspaceId}
         onClick={() => onSetOpenMenu(open ? null : id)}
       >
         <span className="diff-side-label" aria-hidden="true">{label}</span>
-        <code title={shown}>{shown}</code>
+        <code data-tip={shown}>{shown}</code>
         <ChevronDown size={13} />
       </button>
       {open && (
@@ -131,7 +132,7 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           aria-pressed={split}
           className={split ? "on" : ""}
           disabled={!roomForTwo}
-          title={roomForTwo
+          data-tip={roomForTwo
             ? (split ? "Read the changes in one column" : "Put the old and new sides beside each other")
             : "Widen the panel to compare in two columns"}
           onClick={onToggleSplit}
@@ -143,12 +144,12 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           aria-label={ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"}
           aria-pressed={ignoreWhitespace}
           className={ignoreWhitespace ? "on" : ""}
-          title={ignoreWhitespace ? "Show lines where only the spacing changed" : "Hide lines where only the spacing changed"}
+          data-tip={ignoreWhitespace ? "Show lines where only the spacing changed" : "Hide lines where only the spacing changed"}
           onClick={onToggleWhitespace}
         >
           <Pilcrow size={15} />
         </button>
-        <button type="button" aria-label="Read the comparison again" title="Read the comparison again" onClick={onRefresh}>
+        <button type="button" aria-label="Read the comparison again" data-tip="Read the comparison again" onClick={onRefresh}>
           <RefreshCw size={15} className={loading ? "spinning" : ""} />
         </button>
       </div>

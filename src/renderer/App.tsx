@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
+import { TooltipLayer } from "./components/TooltipLayer";
 import { ProjectEditDialog } from "./components/ProjectEditDialog";
 import { RightDock } from "./components/RightDock";
 import { Sidebar } from "./components/Sidebar";
@@ -190,6 +191,7 @@ export function App() {
         />
       )}
       {settingsVisible && <WorkspaceSettings workspace={workspace} onClose={closeSettings} />}
+      <TooltipLayer />
     </main>
     </DiagramViewerHost>
     </MessageLinkProvider>

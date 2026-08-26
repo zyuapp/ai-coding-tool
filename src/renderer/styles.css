@@ -3675,3 +3675,24 @@ button.file-name { cursor: pointer; }
 .project-edit-actions button:disabled { opacity: 0.42; cursor: not-allowed; }
 .project-edit-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .project-edit-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+/* The one tooltip, drawn wherever the pointer is resting. Never in the way: it takes no clicks. */
+.tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1100;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-inverse-soft);
+  box-shadow: var(--shadow-tooltip);
+  color: var(--ink-inverse);
+  font-size: var(--text-meta);
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  visibility: hidden;
+}
+.tooltip[data-placed] { visibility: visible; }
