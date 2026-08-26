@@ -1580,16 +1580,16 @@ pre {
   font-size: var(--text-content);
 }
 .waiting-row > svg { width: 16px; height: 16px; color: var(--muted-strong); stroke-width: 1.8; }
-/** A band of brighter ink travels across the letters, so the wait reads as motion in the word itself. */
-.compacting-sweep {
+/** A band of brighter ink travels across the letters, so a wait reads as motion in the word itself. */
+.text-sweep {
   background-image: linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--ink) 50%, var(--muted) 65%, var(--muted) 100%);
   background-size: 260% 100%;
   background-clip: text;
   color: transparent;
-  animation: compacting-sweep 1.9s linear infinite;
+  animation: text-sweep 1.9s linear infinite;
 }
-@keyframes compacting-sweep { from { background-position: 130% 0; } to { background-position: -130% 0; } }
-@media (prefers-reduced-motion: reduce) { .compacting-sweep { background-image: none; color: var(--muted); } }
+@keyframes text-sweep { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+@media (prefers-reduced-motion: reduce) { .text-sweep { background-image: none; color: var(--muted); } }
 .activity-dots { display: inline-flex; gap: 3px; margin-left: 1px; }
 .activity-dots i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; animation: bounce 1.1s infinite ease-in-out; }
 .activity-dots i:nth-child(2) { animation-delay: 0.14s; }
@@ -2307,6 +2307,10 @@ pre {
 .session-note { margin: 2px 6px 0 34px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.4; }
 .session-location { border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; padding-bottom: 4px; }
 .session-location-row { position: relative; grid-template-columns: 22px minmax(0, 1fr) 22px; }
+/** The name, with the count of everyone else in the same checkout kept quiet beside it. */
+.session-location-name { min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+.session-location-name em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-location-name small { flex: none; color: var(--quiet-strong); font-size: var(--text-meta); }
 .session-location-row .menu-trigger { display: grid; place-items: center; width: 22px; height: 22px; color: var(--quiet-strong); opacity: 0; }
 .session-location-row:hover .menu-trigger, .session-location-row.open .menu-trigger { opacity: 1; }
 .session-location-row .menu-trigger:hover, .session-location-row.open .menu-trigger { color: var(--ink-dim); }

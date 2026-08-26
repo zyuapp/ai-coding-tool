@@ -79,7 +79,7 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
                       {worktree.deleting
                         ? <>
                             <span aria-hidden="true" />
-                            <em>Deleting…</em>
+                            <em className="text-sweep">Deleting…</em>
                           </>
                         : confirmingDelete
                         ? <>

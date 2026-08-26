@@ -55,6 +55,7 @@ export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): 
   return {
     ...state,
     creatingWorktrees: withoutMatching(state.creatingWorktrees, (taskId) => removed.has(taskId)),
+    releasingWorktrees: withoutMatching(state.releasingWorktrees, (taskId) => removed.has(taskId)),
     history,
     historyIndex: Math.min(historyIndex, history.length - 1),
     prompts: withoutTaskKeys(state.prompts, removed),

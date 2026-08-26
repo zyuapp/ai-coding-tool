@@ -30,7 +30,7 @@ export function useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnota
     window.getSelection()?.removeAllRanges();
     setSelection(null);
   }, null);
-  useDismissibleLayer(noting !== null, [noteEditor], () => setNoting(null), noteReturn);
+  useDismissibleLayer(noting !== null, [noteEditor], () => dismissNote(), noteReturn);
 
   function openNote(selected: Selected) {
     setNoting({ quote: selected.quote, anchor: selected.anchor, note: "", x: selected.x, y: selected.y });
@@ -50,6 +50,16 @@ export function useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnota
     setNoting(null);
   }
 
+  /**
+   * A note the user has typed is work, and clicking back into the transcript is how they pick the
+   * next thing to annotate. So anything that puts the editor away keeps what they wrote, and only
+   * drops a note still empty. Escape throws it away, which is the one gesture that means "never mind".
+   */
+  function dismissNote() {
+    if (noting && noting.note.trim()) commitNote(noting);
+    else setNoting(null);
+  }
+
   function removeNote(annotationId: string) {
     onAnnotateRemove?.(annotationId);
     setNoting(null);
@@ -57,7 +67,7 @@ export function useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnota
 
   return {
     selection, setSelection, noting, setNoting, selectionToolbar, noteEditor, noteReturn,
-    openNote, referToSide, commitNote, removeNote, closeNote: () => setNoting(null),
+    openNote, referToSide, commitNote, dismissNote, removeNote, closeNote: () => setNoting(null),
   };
 }
 
@@ -67,11 +77,12 @@ type CaptureOptions = {
   taskId?: string;
   onAnnotateAdd?: AnnotateHandlers["onAnnotateAdd"];
   setSelection: Dispatch<SetStateAction<Selected | null>>;
-  setNoting: Dispatch<SetStateAction<NoteDraft | null>>;
+  /** Puts an open note away, keeping whatever the user had already typed into it. */
+  dismissNote: () => void;
 };
 
 /** Selected assistant text grows an annotate popover; anything else puts it away. */
-export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, onAnnotateAdd, setSelection, setNoting }: CaptureOptions) {
+export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, onAnnotateAdd, setSelection, dismissNote }: CaptureOptions) {
   useEffect(() => {
     if (!onAnnotateAdd) return;
     let frame = 0;
@@ -122,12 +133,14 @@ export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, o
   }, [onAnnotateAdd]);
 
   /** Popovers sit where the selection was, so any scroll puts them away rather than leaving them adrift. */
+  const putAway = useRef(dismissNote);
+  putAway.current = dismissNote;
   useEffect(() => {
     const scroller = scrollContainerRef.current;
     if (!scroller || !onAnnotateAdd) return;
     const dismiss = () => {
       setSelection((current) => (current ? null : current));
-      setNoting((current) => (current ? null : current));
+      putAway.current();
     };
     scroller.addEventListener("scroll", dismiss, { passive: true });
     return () => scroller.removeEventListener("scroll", dismiss);

@@ -177,6 +177,9 @@ test("switching back to local hands the worktree back, and the thread records wh
     title: "task-a",
   }]);
   assert.ok(leaving.state.tasks[0].worktreeId, "the thread keeps its worktree until the snapshot lands");
+  assert.deepEqual(leaving.state.releasingWorktrees, ["task-a"]);
+  assert.equal(deriveView(leaving.state).location.kind, "releasing", "the row says the checkout is going rather than claiming the thread still works in it");
+  assert.equal(deriveView(leaving.state).waitingOn, "worktree-release");
 
   const released = reduce(leaving.state, {
     type: "worktree.released",
@@ -523,4 +526,64 @@ test("resolving into a worktree never restates where the project itself is", () 
 
   assert.deepEqual(moved.state.projects, [PROJECT], "the project keeps its own folder and workspace");
   assert.equal(deriveView(moved.state).folder, "/repo");
+});
+
+test("a thread whose worktree is being removed waits instead of asking twice", () => {
+  const worktree = heldWorktree();
+  const state = projected({
+    ...inside(worktree, [task("task-a", { projectId: PROJECT.id })]),
+    currentId: "task-a",
+    prompts: { "task-a": "anything" },
+  });
+
+  const leaving = reduce(state, { type: "task.set-worktree", worktree: false });
+
+  const again = reduce(leaving.state, { type: "task.set-worktree", worktree: false });
+  assert.deepEqual(again.effects, [], "the second ask removes no directory the first one is already taking");
+  assert.equal(again.state.actionError, WORKSPACE_ERRORS.worktreeReleasing);
+
+  const sending = reduce(leaving.state, { type: "task.send", attachments: [] });
+  assert.deepEqual(sending.effects, [], "a run has nowhere settled to start while the folder is going");
+  assert.equal(sending.state.actionError, WORKSPACE_ERRORS.worktreeReleasing);
+
+  const deleting = reduce(leaving.state, { type: "worktree.delete", root: worktree.root });
+  assert.deepEqual(deleting.effects, []);
+  assert.equal(deleting.state.worktreeManagementError, WORKSPACE_ERRORS.worktreeReleasing);
+});
+
+test("a worktree that will not come back leaves its thread where it was, with the reason", () => {
+  const worktree = heldWorktree();
+  const state = projected({ ...inside(worktree, [task("task-a", { projectId: PROJECT.id })]), currentId: "task-a" });
+
+  const leaving = reduce(state, { type: "task.set-worktree", worktree: false });
+  const failed = reduce(leaving.state, { type: "worktree.release-failed", taskId: "task-a", message: "Git said no" });
+
+  assert.deepEqual(failed.state.releasingWorktrees, []);
+  assert.equal(failed.state.actionError, "Git said no");
+  assert.equal(failed.state.tasks[0].worktreeId, worktree.id, "the checkout is still there, so the thread is still in it");
+  assert.equal(deriveView(failed.state).location.kind, "worktree");
+});
+
+test("deleting a checkout from Settings tells every thread standing in it", () => {
+  const worktree = heldWorktree();
+  const state = projected({
+    ...inside(worktree, [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })]),
+    currentId: "task-a",
+    managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: PROJECT.root, branch: null }],
+  });
+
+  const deleting = reduce(state, { type: "worktree.delete", root: worktree.root });
+
+  assert.equal(deriveView(deleting.state).location.kind, "releasing");
+  assert.equal(deriveView(deleting.state).waitingOn, "worktree-release");
+  assert.deepEqual([...deriveView(deleting.state).runningTaskIds].sort(), ["task-a", "task-b"], "both threads wait on the ground being taken from under them");
+
+  const gone = reduce(deleting.state, {
+    type: "worktree.deleted",
+    worktreeId: worktree.id,
+    root: worktree.root,
+    snapshot: { commit: null, shortCommit: null, ref: null },
+  });
+  assert.equal(deriveView(gone.state).location.kind, "local");
+  assert.deepEqual(gone.state.releasingWorktrees, []);
 });

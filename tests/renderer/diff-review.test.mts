@@ -374,6 +374,58 @@ test("ticking a file off folds its patch away and empties the tab's count", asyn
   await view.unmount();
 });
 
+/** A comparison of three files, so a review has somewhere to go when one of them is ticked off. */
+function threeFileDesktop() {
+  return fakeDesktop({
+    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({
+      status: "available",
+      range,
+      ignoreWhitespace,
+      files: ["src/one.ts", "src/two.ts", "src/three.ts"].map((path) => ({ path, status: "modified" as const, additions: 2, deletions: 1, binary: false })),
+      additions: 6,
+      deletions: 3,
+    }),
+    diffPatch: async () => ({ status: "available", patch: REVIEW_PATCH }),
+  });
+}
+
+/** Which row the review was scrolled to, since jsdom scrolls nothing of its own. */
+function watchScrolling() {
+  const original = item(Object.getOwnPropertyDescriptor(dom.window.HTMLElement.prototype, "scrollIntoView"));
+  const scrolled: string[] = [];
+  Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    writable: true,
+    value(this: HTMLElement) { scrolled.push(this.querySelector(".diff-file-name")?.textContent ?? this.className); },
+  });
+  return { scrolled, restore() { Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", original); } };
+}
+
+test("ticking a file off brings the next file still to read to the top", async () => {
+  seedReviewableProject();
+  window.desktop = threeFileDesktop();
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+  const watch = watchScrolling();
+
+  const tick = (path: string) => act(async () => { query<HTMLInputElement>(view.container, `input[aria-label="Mark ${path} viewed"]`).click(); });
+
+  await tick("src/one.ts");
+  assert.deepEqual(watch.scrolled, ["src/two.ts"], "the file under the one just read comes to the top");
+
+  await tick("src/two.ts");
+  assert.deepEqual(watch.scrolled, ["src/two.ts", "src/three.ts"], "and so on down the list, one click a file");
+
+  await tick("src/three.ts");
+  assert.deepEqual(watch.scrolled, ["src/two.ts", "src/three.ts"], "nothing is left below, so the review stays where the user left it");
+
+  await tick("src/one.ts");
+  assert.deepEqual(watch.scrolled, ["src/two.ts", "src/three.ts"], "un-ticking a file opens it where the reader already is");
+
+  watch.restore();
+  await view.unmount();
+});
+
 test("the two-column view colours its lines the way the one-column view does", async () => {
   seedReviewableProject();
   window.desktop = reviewableDesktop();

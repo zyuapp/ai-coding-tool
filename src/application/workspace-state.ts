@@ -70,10 +70,12 @@ export type PendingRun = {
 export type ThreadLocation =
   | { kind: "local" }
   | { kind: "creating" }
-  | { kind: "worktree"; worktree: Worktree };
+  | { kind: "releasing" }
+  /** `threads` counts everyone in the checkout, which says whether leaving it takes it away. */
+  | { kind: "worktree"; worktree: Worktree; threads: number };
 
-/** What a thread is waiting on before it can work: a checkout being made, or a run finding one. */
-export type ThreadWait = "worktree" | "run";
+/** What a thread is waiting on before it can work: a checkout being made or removed, or a run finding one. */
+export type ThreadWait = "worktree" | "worktree-release" | "run";
 
 /** A checkout with the threads working in it, which is how a project offers starting one more there. */
 export type WorktreeGroup = {
@@ -178,6 +180,8 @@ export type WorkspaceState = {
   worktreeManagementNotice: string | null;
   /** Threads whose checkout is being made, so nothing asks for a second one while the first lands. */
   creatingWorktrees: string[];
+  /** Threads giving up their checkout, so the wait is shown and nothing asks to leave twice. */
+  releasingWorktrees: string[];
   /** Roots of checkouts being deleted, so the list shows the wait and refuses a second delete. */
   deletingWorktrees: string[];
   lastFolder: string | null;
@@ -307,6 +311,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     worktreeManagementError: null,
     worktreeManagementNotice: null,
     creatingWorktrees: [],
+    releasingWorktrees: [],
     deletingWorktrees: [],
     lastFolder: null,
     currentId: null,
@@ -531,7 +536,21 @@ export function busyTaskIds(state: WorkspaceState): Set<string> {
   const busy = new Set(Object.keys(state.activeRuns));
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const taskId of state.creatingWorktrees) busy.add(taskId);
+  /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
+  for (const taskId of leavingTaskIds(state)) busy.add(taskId);
   return busy;
+}
+
+/**
+ * Threads whose checkout is going: the ones that asked to leave, and every thread in a checkout the
+ * user is deleting, whichever thread or Settings asked for it.
+ */
+export function leavingTaskIds(state: Pick<WorkspaceState, "tasks" | "worktrees" | "releasingWorktrees" | "deletingWorktrees">): Set<string> {
+  const leaving = new Set(state.releasingWorktrees);
+  if (state.deletingWorktrees.length === 0) return leaving;
+  const going = new Set(state.worktrees.filter((worktree) => state.deletingWorktrees.includes(worktree.root)).map((worktree) => worktree.id));
+  for (const task of state.tasks) if (task.worktreeId && going.has(task.worktreeId)) leaving.add(task.id);
+  return leaving;
 }
 
 /** Threads stopped on a question only the user can answer, which outranks any work they were doing. */
@@ -542,6 +561,7 @@ export function blockedTaskIds(state: WorkspaceState): Set<string> {
 /** What the current thread is waiting on, if anything: its own checkout, or where a send will run. */
 export function waitFor(state: WorkspaceState, currentTask: Task | undefined): ThreadWait | null {
   if (currentTask && state.creatingWorktrees.includes(currentTask.id)) return "worktree";
+  if (currentTask && leavingTaskIds(state).has(currentTask.id)) return "worktree-release";
   const key = promptKey(state);
   const resolving = Object.values(state.pendingRuns).find((pending) =>
     (currentTask !== undefined && pending.taskId === currentTask.id) || pending.draftKey === key);
@@ -549,9 +569,12 @@ export function waitFor(state: WorkspaceState, currentTask: Task | undefined): T
   return resolving.creatingWorktree ? "worktree" : "run";
 }
 
-export function locationOf(state: Pick<WorkspaceState, "worktrees" | "creatingWorktrees">, task: Task | undefined): ThreadLocation {
+type LocationState = Pick<WorkspaceState, "tasks" | "worktrees" | "creatingWorktrees" | "releasingWorktrees" | "deletingWorktrees">;
+
+export function locationOf(state: LocationState, task: Task | undefined): ThreadLocation {
+  if (task && leavingTaskIds(state).has(task.id)) return { kind: "releasing" };
   const worktree = worktreeFor(state, task);
-  if (worktree) return { kind: "worktree", worktree };
+  if (worktree) return { kind: "worktree", worktree, threads: worktreeClaimants(state, worktree.id).length };
   return task && state.creatingWorktrees.includes(task.id) ? { kind: "creating" } : { kind: "local" };
 }
 

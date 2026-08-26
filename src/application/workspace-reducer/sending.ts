@@ -1,9 +1,9 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
-import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued } from "./shared.js";
+import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
 import { threadHandleOptions } from "../thread-projection.js";
-import { promptKey, worktreeById, worktreeFor, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
+import { leavingTaskIds, promptKey, worktreeById, worktreeFor, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
 import { findProject } from "../../domain/task.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 
@@ -33,6 +33,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const task = state.tasks.find((item) => item.id === (input.taskId ?? (draftKey === undefined ? null : state.currentId)));
       /** A thread halfway into a checkout of its own has nowhere settled to run, so the send waits for the user. */
       if (task && state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
+      /** A checkout on its way out is the same: the folder a run would start in is about to go. */
+      if (task && leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
       if (task && state.activeRuns[task.id]) {
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),

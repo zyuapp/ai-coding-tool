@@ -63,15 +63,26 @@ type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
 /** What the row says, and what its menu offers, for each place a thread can be. */
 function locationLabel(location: ThreadLocation) {
   if (location.kind === "creating") return { text: "Creating worktree…", title: "A checkout of its own is being made" };
+  if (location.kind === "releasing") return { text: "Removing worktree…", title: "The checkout is being handed back" };
   if (location.kind === "worktree") return { text: "Worktree", title: location.worktree.root };
   return { text: "Local", title: "Runs in your project checkout" };
+}
+
+/**
+ * What leaving the checkout does, which is the one thing the row cannot show: the last thread out
+ * takes the directory with it, and any thread before that only walks out of it.
+ */
+function leaveLabel(threads: number) {
+  return threads > 1 ? "Return to local and leave the worktree" : "Return to local and remove the worktree";
 }
 
 /** One entry: it says where the thread works, and its menu carries the only move it has. */
 function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktree }: LocationRowProps) {
   const inWorktree = location.kind === "worktree";
-  const creating = location.kind === "creating";
+  const working = location.kind === "creating" || location.kind === "releasing";
   const { text, title } = locationLabel(location);
+  /** Only a checkout more than one thread works in is worth counting; the rest is the row's own name. */
+  const shared = location.kind === "worktree" && location.threads > 1 ? location.threads : 0;
 
   return (
     <div className="session-location">
@@ -83,14 +94,16 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
         className="session-row session-location-row"
         popoverClassName="session-menu-popover"
         items={[{
-          label: inWorktree ? "Return to local" : "Hand off to worktree",
-          disabled: runActive || creating,
+          label: location.kind === "worktree" ? leaveLabel(location.threads) : "Hand off to worktree",
+          disabled: runActive || working,
           onSelect: () => onSetWorktree(!inWorktree),
         }]}
       >
-        <span className="session-row-icon">{inWorktree || creating ? <FolderSymlink size={18} /> : <House size={18} />}</span>
-        <span title={title}>{text}</span>
-        {creating && <span className="activity-dots" aria-hidden="true"><i /><i /><i /></span>}
+        <span className="session-row-icon">{inWorktree || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
+        <span className="session-location-name" title={title}>
+          <em className={working ? "text-sweep" : undefined}>{text}</em>
+          {shared > 0 && <small title={`${shared} threads work in this worktree`}>{shared} threads</small>}
+        </span>
       </PopoverMenu>
     </div>
   );

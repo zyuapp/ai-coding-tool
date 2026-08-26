@@ -1,16 +1,16 @@
 /** Where a thread works: the branch it starts from, and the checkouts the app keeps. */
 import { reduceDiffs } from "./diffs.js";
-import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RUNNING_ERROR, dropWorktree, leaveWorktree, now, releaseWorktrees, rereadDiff, runsInWorkspace, settled, targetId, threadBusy, withCreatingWorktree, withoutCreatingWorktree } from "./shared.js";
+import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR, dropWorktree, leaveWorktree, now, releaseWorktrees, rereadDiff, runsInWorkspace, settled, targetId, threadBusy, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { applyTask } from "../task-workspace.js";
-import { projectFor, taskWorkspaceId, withoutWorktreeRoot, worktreeFor, type WorkspaceState } from "../workspace-state.js";
+import { leavingTaskIds, projectFor, taskWorkspaceId, withoutWorktreeRoot, worktreeFor, type WorkspaceState } from "../workspace-state.js";
 import { createTaskMessage } from "../../domain/task.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 type WorktreeInput = Extract<WorkspaceInput, {
   type: "task.set-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
     | "worktree.delete" | "worktree.created" | "worktree.failed" | "worktrees.loaded" | "worktrees.failed"
-    | "worktree.released" | "worktree.deleted";
+    | "worktree.released" | "worktree.release-failed" | "worktree.deleted";
 }>;
 
 export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): WorkspaceTransition {
@@ -27,6 +27,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       /** Asking for a checkout of its own is asking for a new one, so it drops any the user had picked. */
       if (!task) return settled(input.taskId === undefined ? { ...state, draftWorktree: input.worktree, draftWorktreeId: null } : state);
       if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
+      if (leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
       if (threadBusy(state, task.id)) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
       if (input.worktree) {
         if (task.worktreeId) return settled(state);
@@ -45,7 +46,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
           leaving.root,
         )));
       }
-      return settled({ ...state, actionError: null }, releasing);
+      return settled(withReleasingWorktree({ ...state, actionError: null }, releasing.map((effect) => effect.taskId)), releasing);
     }
 
     /** Only a thread yet to be created can be told where to start; an existing one already is. */
@@ -67,6 +68,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const workspaceId = taskWorkspaceId(state, task);
       if (!workspaceId) return settled({ ...state, actionError: SWITCH_PROJECT_ERROR });
       if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
+      if (leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
       if (runsInWorkspace(state, workspaceId) || threadBusy(state, task.id)) return settled({ ...state, actionError: SWITCH_RUNNING_ERROR });
       return settled({ ...state, actionError: null }, [{
         type: "checkout-branch",
@@ -95,6 +97,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       if (state.deletingWorktrees.includes(worktree.root)) return settled(state);
       const claimants = state.tasks.filter((claimant) => claimant.worktreeId === worktree.id);
       if (claimants.some((claimant) => threadBusy(state, claimant.id))) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR, worktreeManagementError: WORKTREE_RUNNING_ERROR });
+      /** A checkout a thread is already walking out of is on its way; asking again would remove it twice. */
+      if (claimants.some((claimant) => state.releasingWorktrees.includes(claimant.id))) return settled({ ...state, worktreeManagementError: WORKTREE_RELEASING_ERROR });
       return settled({ ...state, deletingWorktrees: [...state.deletingWorktrees, worktree.root], actionError: null, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id }]);
     }
 
@@ -116,6 +120,10 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
 
     case "worktree.failed":
       return settled({ ...withoutCreatingWorktree(state, input.taskId), actionError: input.message });
+
+    /** The checkout is still there and the thread is still in it, so only the wait and the error change. */
+    case "worktree.release-failed":
+      return settled({ ...withoutReleasingWorktree(state, [input.taskId]), actionError: input.message });
 
     case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementError: null });
 

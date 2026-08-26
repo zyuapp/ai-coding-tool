@@ -73,7 +73,7 @@ export function NoteEditor({ noting, editorRef, onChange, onCommit, onClose, onR
         autoFocus
         value={noting.note}
         placeholder="Annotate…"
-        onChange={(event) => onChange({ ...noting, note: event.target.value })}
+        onInput={(event) => onChange({ ...noting, note: event.currentTarget.value })}
         onKeyDown={(event) => {
           /** Both keys close the editor, and neither may go on to land in the composer behind it. */
           if (event.key !== "Enter" && event.key !== "Escape") return;

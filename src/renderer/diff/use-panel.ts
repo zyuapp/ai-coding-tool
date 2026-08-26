@@ -143,6 +143,45 @@ export function usePanelRows(input: PanelRowsInput & { notes: string }) {
   );
 }
 
+type TickOptions = {
+  scroller: RefObject<HTMLDivElement | null>;
+  rows: PanelRow[];
+  windowed: boolean;
+  virtualizer: Virtualizer<HTMLDivElement, Element>;
+  files: DiffFileSummary[];
+  viewed: Record<string, string>;
+  /** True while a search owns the scroll, which the review must not be moved out from under. */
+  searching: boolean;
+  onSetViewed: (path: string, viewed: boolean) => void;
+};
+
+/**
+ * Ticking a file off folds it away, which pulls everything under it up past the reader. The next
+ * file still to read comes to the top instead, so working down the list is one click a file. The
+ * fold rebuilds the rows, so the row to scroll to only exists a render after it is asked for.
+ * Un-ticking a file opens it where the reader already is, and moving the review then would lose them.
+ */
+export function useTickThrough({ scroller, rows, windowed, virtualizer, files, viewed, searching, onSetViewed }: TickOptions) {
+  const wanted = useRef<string | null>(null);
+  useEffect(() => {
+    const path = wanted.current;
+    if (path === null) return;
+    const index = rows.findIndex((row) => row.kind === "file" && row.path === path);
+    if (index === -1) return;
+    wanted.current = null;
+    if (windowed) virtualizer.scrollToIndex(index, { align: "start" });
+    else (scroller.current?.children[index] as HTMLElement | undefined)?.scrollIntoView({ block: "start" });
+  }, [rows, windowed]);
+
+  return (path: string, tick: boolean) => {
+    if (tick && !searching) {
+      const from = files.findIndex((file) => file.path === path);
+      wanted.current = files.slice(from + 1).find((file) => !viewed[file.path])?.path ?? null;
+    }
+    onSetViewed(path, tick);
+  };
+}
+
 /**
  * Which row sits under the top edge of the review. The windowed list is drawn out of flow, so its
  * rows are found through the window's own measurements; a short list is in flow and found by offset.

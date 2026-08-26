@@ -31,6 +31,7 @@ export const WORKTREE_ELSEWHERE_ERROR = "That worktree is a checkout of another 
 export const TERMINAL_FOLDER_ERROR = "Open a project folder before starting a terminal.";
 export const WORKTREE_RUNNING_ERROR = "Stop this thread's run before changing where it works.";
 export const WORKTREE_CREATING_ERROR = "This thread's worktree is still being created.";
+export const WORKTREE_RELEASING_ERROR = "This thread's worktree is still being removed.";
 
 export const CHECKOUT_RUNNING_ERROR = "Stop the threads running in this project before starting one on another branch.";
 export const SWITCH_RUNNING_ERROR = "Stop the threads running in this checkout before switching it to another branch.";
@@ -49,6 +50,7 @@ export const WORKSPACE_ERRORS = {
   terminalFolder: TERMINAL_FOLDER_ERROR,
   worktreeRunning: WORKTREE_RUNNING_ERROR,
   worktreeCreating: WORKTREE_CREATING_ERROR,
+  worktreeReleasing: WORKTREE_RELEASING_ERROR,
   checkoutRunning: CHECKOUT_RUNNING_ERROR,
   switchRunning: SWITCH_RUNNING_ERROR,
   switchProject: SWITCH_PROJECT_ERROR,
@@ -286,6 +288,22 @@ export function withoutCreatingWorktree(state: WorkspaceState, taskId: string): 
   return { ...state, creatingWorktrees: state.creatingWorktrees.filter((item) => item !== taskId) };
 }
 
+/**
+ * Snapshotting a checkout and taking the directory away is as slow as making one, and the thread is
+ * still standing in it meanwhile. Marking it here is what says so and what refuses a second ask.
+ */
+export function withReleasingWorktree(state: WorkspaceState, taskIds: string[]): WorkspaceState {
+  const added = taskIds.filter((taskId) => !state.releasingWorktrees.includes(taskId));
+  if (!added.length) return state;
+  return { ...state, releasingWorktrees: [...state.releasingWorktrees, ...added] };
+}
+
+export function withoutReleasingWorktree(state: WorkspaceState, taskIds: string[]): WorkspaceState {
+  const going = new Set(taskIds);
+  if (!state.releasingWorktrees.some((taskId) => going.has(taskId))) return state;
+  return { ...state, releasingWorktrees: state.releasingWorktrees.filter((taskId) => !going.has(taskId)) };
+}
+
 export function queuedFor(state: WorkspaceState, taskId: string): QueuedMessage[] {
   return state.queuedMessages[taskId] ?? [];
 }
@@ -483,8 +501,10 @@ export function leaveWorktree(state: WorkspaceState, taskId: string, note: Retur
  */
 export function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => ReturnType<typeof createTaskMessage>): WorkspaceState {
   const gone = state.worktrees.find((worktree) => worktree.id === worktreeId);
+  const claimants = new Set(worktreeClaimants(state, worktreeId).map((task) => task.id));
   return {
     ...state,
+    releasingWorktrees: state.releasingWorktrees.filter((taskId) => !claimants.has(taskId)),
     worktrees: state.worktrees.filter((worktree) => worktree.id !== worktreeId),
     ...(gone ? { environments: withoutEnvironment(state.environments, gone.workspaceId) } : {}),
     ...(state.draftWorktreeId === worktreeId ? { draftWorktreeId: null } : {}),
@@ -497,7 +517,7 @@ export function dropWorktree(state: WorkspaceState, worktreeId: string, note: ()
 }
 
 /** Hands back a checkout only when every linked thread explicitly leaves it. */
-export function releaseWorktrees(state: WorkspaceState, leaving: Task[]): WorkspaceEffect[] {
+export function releaseWorktrees(state: WorkspaceState, leaving: Task[]): Extract<WorkspaceEffect, { type: "release-worktree" }>[] {
   const going = new Set(leaving.map((task) => task.id));
   const released = new Set<string>();
   return leaving.flatMap((task) => {

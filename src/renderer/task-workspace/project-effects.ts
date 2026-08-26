@@ -74,7 +74,7 @@ export async function runProjectEffect(effect: ProjectEffect, host: EffectHost):
         });
         await dispatch({ type: "worktree.released", taskId: effect.taskId, snapshot });
       } catch (error) {
-        await dispatch({ type: "action.failed", message: errorMessage(error) });
+        await dispatch({ type: "worktree.release-failed", taskId: effect.taskId, message: errorMessage(error) });
       }
       return;
 

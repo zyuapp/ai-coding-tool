@@ -38,6 +38,7 @@ export type WorkspaceEvent =
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
   | { type: "worktrees.failed"; message: string; root?: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
+  | { type: "worktree.release-failed"; taskId: string; message: string }
   | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */

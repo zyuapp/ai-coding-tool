@@ -51,6 +51,13 @@ export type ConversationTimelineProps = {
   onAnnotateSide?: (quote: string) => void;
 };
 
+/** What each wait is called, in the thread the wait is happening in. */
+const WAIT_LABELS: Record<ThreadWait, string> = {
+  worktree: "Creating worktree…",
+  "worktree-release": "Removing worktree…",
+  run: "Starting…",
+};
+
 export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -98,7 +105,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
     scrollContainerRef, timelineRef, virtualizer, taskId: currentTask?.id, rowOfMessage,
     hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin,
   });
-  useSelectionCapture({ timelineRef, scrollContainerRef, taskId: currentTask?.id, onAnnotateAdd, setSelection: annotate.setSelection, setNoting: annotate.setNoting });
+  useSelectionCapture({ timelineRef, scrollContainerRef, taskId: currentTask?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
 
   if (!currentTask?.messages.length && !streamingTail) {
@@ -125,13 +132,12 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
       {waitingOn && (
         <div className="waiting-row" role="status" aria-live="polite">
           <FolderSymlink aria-hidden="true" />
-          <span>{waitingOn === "worktree" ? "Creating worktree…" : "Starting…"}</span>
-          <span className="activity-dots" aria-hidden="true"><i /><i /><i /></span>
+          <span className="text-sweep">{WAIT_LABELS[waitingOn]}</span>
         </div>
       )}
       {status === "running" && compacting && (
         <div className="compacting-row" role="status" aria-live="polite">
-          <span className="compacting-sweep">Compacting messages…</span>
+          <span className="text-sweep">Compacting messages…</span>
         </div>
       )}
       {status === "running" && !compacting && (
