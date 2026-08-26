@@ -14,8 +14,14 @@ const FOOT: View = { at: "foot" };
 /** How far into a row an answer's first line sits, so it is not flush against the top of the view. */
 const ANSWER_DEPTH = -16;
 
-/** A scroll landing this close to the one we asked for is that scroll arriving rather than the reader moving. */
-const LANDED_WITHIN = 4;
+/**
+ * How long a scroll after the reader's last input still belongs to that input, which carries a
+ * trackpad's momentum and a held arrow key past the gaps between their events.
+ */
+const READER_GRIP_MS = 400;
+
+/** A press that travels less than this is a click on the transcript rather than a drag of the view. */
+const DRAG_WITHIN = 4;
 
 /** How long a view waits for its reader to stop moving before telling the workspace where they are. */
 export const READING_SETTLE_MS = 150;
@@ -24,12 +30,8 @@ export const READING_SETTLE_MS = 150;
 type ViewRefs = {
   view: RefObject<View>;
   restoreScroll: RefObject<() => void>;
-  /** The one way anything scrolls the view, so every offset it asks for is one it can recognise. */
+  /** The one way this view scrolls itself, which leaves the reader's own scrolls to be told apart. */
   placeAt: RefObject<(top: number, behavior?: ScrollBehavior) => void>;
-  /** Where the view was last asked to sit, which tells a scroll of ours from one of the reader's. */
-  placedAt: RefObject<number>;
-  /** The target of a smooth scroll still on its way, which owns the events it passes on the way. */
-  pendingScroll: RefObject<number | null>;
   /** Where this thread's reader is right now, as a reading point. */
   observed: RefObject<ReadingPoint>;
   /** The point the view was last placed from or reported, which keeps a report echoing back inert. */
@@ -41,8 +43,6 @@ function useViewRefs(): ViewRefs {
     view: useRef<View>(FOOT),
     restoreScroll: useRef<() => void>(() => {}),
     placeAt: useRef<(top: number, behavior?: ScrollBehavior) => void>(() => {}),
-    placedAt: useRef(-1),
-    pendingScroll: useRef<number | null>(null),
     observed: useRef<ReadingPoint>(null),
     placedFrom: useRef<ReadingPoint>(null),
   };
@@ -72,7 +72,7 @@ type ReadingViewOptions = {
  */
 export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, taskId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
   const refs = useViewRefs();
-  const { view, restoreScroll, placeAt, placedAt, pendingScroll, observed, placedFrom } = refs;
+  const { view, restoreScroll, placeAt, observed, placedFrom } = refs;
   const [atBottom, setAtBottom] = useState(true);
   /** The reading point prop, read by effects that must not re-run when it changes. */
   const incoming = useRef<ReadingPoint>(null);
@@ -105,16 +105,9 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
       const top = virtualizer.getVirtualItemForOffset(scroller.scrollTop);
       return top ? { anchor: String(top.key), depth: scroller.scrollTop - top.start } : null;
     };
-    /**
-     * The one way anything scrolls the view. It records where it asked to sit, and an instant jump
-     * confirms its own landing here — wherever no event will say so. A smooth scroll keeps its mark
-     * until it lands or the browser ends it.
-     */
+    /** The one way this view scrolls itself. */
     const settle = (top: number, behavior?: ScrollBehavior) => {
-      placedAt.current = top;
-      pendingScroll.current = top;
       scroller.scrollTo({ top, ...(behavior ? { behavior } : {}) });
-      if (!behavior && Math.abs(scroller.scrollTop - top) <= LANDED_WITHIN) pendingScroll.current = null;
     };
     placeAt.current = settle;
     /** Hands the thread's place to the workspace once it stops moving, unless that is what it already holds. */
@@ -130,22 +123,41 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
       clearTimeout(commitTimer);
       commitTimer = setTimeout(report, READING_SETTLE_MS);
     };
-    const onScrollEnd = () => {
-      pendingScroll.current = null;
+    /**
+     * A scroll is the reader's when their hand is on the view, and nothing else can say so: the
+     * virtualizer corrects this same scroller by itself whenever a row measures taller than its
+     * estimate, and an offset we did not ask for is that correction as often as it is the reader.
+     */
+    let touchedAt = -Infinity;
+    let pressedAt: { x: number; y: number } | null = null;
+    let dragging = false;
+    const touch = () => { touchedAt = performance.now(); };
+    const onPress = (event: PointerEvent) => { pressedAt = { x: event.clientX, y: event.clientY }; };
+    /** A press that travels is a drag of the scrollbar or of a selection, either of which scrolls. A click does not. */
+    const onPressMove = (event: PointerEvent) => {
+      if (!pressedAt || dragging) return;
+      if (Math.abs(event.clientX - pressedAt.x) + Math.abs(event.clientY - pressedAt.y) < DRAG_WITHIN) return;
+      dragging = true;
+      touch();
     };
+    const onRelease = () => {
+      pressedAt = null;
+      if (!dragging) return;
+      dragging = false;
+      touch();
+    };
+    const readerMoving = () => dragging || performance.now() - touchedAt < READER_GRIP_MS;
     const onScroll = () => {
-      /** Ours is a scroll that sits where we asked, or one still riding a smooth scroll home. Everything else is the reader's. */
-      const landed = Math.abs(scroller.scrollTop - placedAt.current) <= LANDED_WITHIN;
-      const ours = landed || pendingScroll.current !== null;
-      if (landed) pendingScroll.current = null;
       const bottom = atFoot();
       setAtBottom(bottom);
-      if (!ours) {
-        if (bottom) view.current = FOOT;
-        else view.current = { at: "rest" };
-      }
+      /** The reader taking the view is the one thing that stops it being placed for them. */
+      if (readerMoving()) view.current = bottom ? FOOT : { at: "rest" };
       if (!taskId) return;
-      observed.current = bottom ? null : observe();
+      /** Where the view means to sit is what the workspace hears, so a scroll on the way there is never mistaken for the reader. */
+      const held = view.current;
+      if (held.at === "foot") observed.current = null;
+      else if (held.at === "row") observed.current = { anchor: held.id, depth: held.depth };
+      else observed.current = bottom ? null : observe();
       reportSoon();
     };
     const place = () => {
@@ -153,7 +165,10 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
       if (held.at === "foot") return settle(scroller.scrollHeight);
       if (held.at === "rest") return;
       const anchor = timeline.querySelector(`[data-message-id="${held.id}"], [data-group-id="${held.id}"]`);
-      if (anchor) settle(scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top + held.depth);
+      if (anchor) return settle(scroller.scrollTop + anchor.getBoundingClientRect().top - scroller.getBoundingClientRect().top + held.depth);
+      /** A row still outside the window is fetched by index, which brings it in for the next pass to measure. */
+      const row = rows.current.get(held.id);
+      if (row !== undefined) settle((virtualizer.getOffsetForIndex(row, "start")?.[0] ?? scroller.scrollTop) + held.depth);
     };
     restoreScroll.current = () => {
       cancelAnimationFrame(frame);
@@ -164,13 +179,17 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
       restoreScroll.current();
     });
     scroller.addEventListener("scroll", onScroll, { passive: true });
-    scroller.addEventListener("scrollend", onScrollEnd);
+    scroller.addEventListener("wheel", touch, { passive: true });
+    scroller.addEventListener("touchmove", touch, { passive: true });
+    scroller.addEventListener("keydown", touch);
+    scroller.addEventListener("pointerdown", onPress);
+    window.addEventListener("pointermove", onPressMove);
+    window.addEventListener("pointerup", onRelease);
+    window.addEventListener("pointercancel", onRelease);
     observer.observe(timeline);
     measure();
 
     /** A thread reopens where its reader left it wherever that row still exists; one whose row is gone opens at its foot. */
-    placedAt.current = -1;
-    pendingScroll.current = null;
     const left = taskId ? incoming.current : null;
     const row = left ? rows.current.get(left.anchor) : undefined;
     view.current = !left || row === undefined ? FOOT : { at: "row", id: left.anchor, depth: left.depth };
@@ -183,7 +202,13 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, t
       cancelAnimationFrame(frame);
       report();
       scroller.removeEventListener("scroll", onScroll);
-      scroller.removeEventListener("scrollend", onScrollEnd);
+      scroller.removeEventListener("wheel", touch);
+      scroller.removeEventListener("touchmove", touch);
+      scroller.removeEventListener("keydown", touch);
+      scroller.removeEventListener("pointerdown", onPress);
+      window.removeEventListener("pointermove", onPressMove);
+      window.removeEventListener("pointerup", onRelease);
+      window.removeEventListener("pointercancel", onRelease);
       observer.disconnect();
     };
   }, [taskId, scrollContainerRef, virtualizer]);

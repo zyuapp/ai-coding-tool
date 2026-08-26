@@ -232,8 +232,11 @@ test("a reader who scrolls away keeps the view, and is offered a way back to the
 
   /** The reader drags the scrollbar well away from the end. */
   await act(async () => {
+    harness.scroller.dispatchEvent(new PointerEvent("pointerdown", { clientX: 850, clientY: 100 }));
+    window.dispatchEvent(new PointerEvent("pointermove", { clientX: 850, clientY: 400 }));
     harness.scroller.scrollTop = 600;
     harness.scroller.dispatchEvent(new Event("scroll"));
+    window.dispatchEvent(new PointerEvent("pointerup", { clientX: 850, clientY: 400 }));
   });
   const button = query<HTMLButtonElement>(view.container, ".scroll-to-end");
 

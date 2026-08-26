@@ -283,7 +283,16 @@ function threadHarness() {
       onReadingPointMove: (point: TimelineReadingPoint) => { points[id] = point; moves.push({ id, point }); },
     });
   };
+  /** The reader moving the view themselves, which is a scroll with one of their gestures behind it. */
   const scrollTo = async (top: number) => {
+    await act(async () => {
+      scroller.dispatchEvent(new Event("wheel"));
+      scroller.scrollTop = top;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+  };
+  /** The virtualizer correcting this scroller once a row measures taller than its estimate. */
+  const correctTo = async (top: number) => {
     await act(async () => {
       scroller.scrollTop = top;
       scroller.dispatchEvent(new Event("scroll"));
@@ -302,6 +311,7 @@ function threadHarness() {
     moves,
     thread,
     scrollTo,
+    correctTo,
     settle,
     resize,
     done: async (view: ThreadMountedView) => { await view.unmount(); scroller.remove(); },
@@ -404,11 +414,36 @@ test("a reader who scrolls after a restore is left where they put themselves", a
   await view.render(thread("read", 12));
   await settle();
 
-  /** A plain scroll, with no gesture behind it: a keyboard or the scrollbar reads exactly like this. */
   await scrollTo(900);
   scrolls.length = 0;
   await resize();
   assert.deepEqual(scrolls, [], "the restored row stops holding once the reader moves");
+
+  await done(view);
+});
+
+test("the virtualizer correcting its own estimates does not take the view from the thread being restored", async () => {
+  const { scrolls, points, thread, scrollTo, correctTo, settle, resize, done } = threadHarness();
+
+  const view = await mount(thread("read", 12));
+  await settle();
+  await scrollTo(300);
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80)); });
+  const left = item(points["read"]);
+
+  await view.render(thread("other", 12, "o"));
+  await settle();
+  await view.render(thread("read", 12));
+  await settle();
+
+  /** A row measuring taller than its estimate moves this scroller without the reader touching it. */
+  scrolls.length = 0;
+  await correctTo(1800);
+  await resize();
+  assert.ok(scrolls.length >= 1, "the restore keeps placing the row it was asked to hold");
+
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, READING_SETTLE_MS + 80)); });
+  assert.deepEqual(points["read"], left, "the correction is never saved as where the reader was");
 
   await done(view);
 });
