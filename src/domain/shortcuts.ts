@@ -193,6 +193,7 @@ export const FIXED_SHORTCUTS: readonly ShortcutBinding[] = [
   { action: "terminal.focus", binding: "Mod+J", surface: "any" },
   { action: "tab.close", binding: "Mod+W", surface: "any" },
   { action: "dock.toggle", binding: "Mod+\\", surface: "any" },
+  { action: "dock.toggle", binding: "Mod+Alt+B", surface: "any" },
   { action: "dock.expand", binding: "Mod+Shift+\\", surface: "any" },
   { action: "sidebar.toggle", binding: "Mod+B", surface: "any" },
   { action: "settings.toggle", binding: "Mod+,", surface: "any" },

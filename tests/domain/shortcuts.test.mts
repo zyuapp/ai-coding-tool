@@ -110,6 +110,7 @@ test("only bound, unclaimed keystrokes reach the matcher", () => {
   assert.equal(shortcutFor(bindings, parseShortcut("Mod+R")!, "any"), undefined, "reloading is a page's keystroke");
   assert.equal(shortcutFor(bindings, parseShortcut("Mod+R")!, "browser")!.action, "page.reload");
   assert.equal(shortcutFor(bindings, parseShortcut("Mod+W")!, "browser")!.action, "tab.close", "the rest work inside a page too");
+  assert.equal(shortcutFor(bindings, parseShortcut("Mod+Alt+B")!, "any")!.action, "dock.toggle", "the panel answers a second keystroke of its own");
 
   const shared = resolveShortcuts({ "run.deny": "Mod+W" });
   assert.deepEqual(shared.filter((binding) => binding.binding === "Mod+W").map((binding) => binding.action), ["tab.close"], "a fixed keystroke is not one an override can take");
