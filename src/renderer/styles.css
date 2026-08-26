@@ -3676,7 +3676,8 @@ button.file-name { cursor: pointer; }
 .project-edit-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .project-edit-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
-/* The one tooltip, drawn wherever the pointer is resting. Never in the way: it takes no clicks. */
+/* The one tooltip, drawn wherever the pointer is resting. It is a small menu: same surface, same
+   line, same ink, so every theme carries it without a rule of its own. Never in the way: no clicks. */
 .tooltip {
   position: fixed;
   top: 0;
@@ -3684,11 +3685,12 @@ button.file-name { cursor: pointer; }
   z-index: 1100;
   width: max-content;
   max-width: min(280px, calc(100vw - 32px));
-  padding: 6px 10px;
+  border: 1px solid var(--line-mid);
   border-radius: 8px;
-  background: var(--surface-inverse-soft);
+  padding: 5px 9px;
+  background: var(--surface-menu);
   box-shadow: var(--shadow-tooltip);
-  color: var(--ink-inverse);
+  color: var(--ink-soft);
   font-size: var(--text-meta);
   line-height: 1.35;
   text-align: center;
