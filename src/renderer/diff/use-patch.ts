@@ -24,8 +24,9 @@ const CONCURRENCY = 4;
  *
  * A fresh map is published on every arrival, so whatever draws these can memoise on it.
  */
-export function usePatches(workspaceId: string | undefined, range: DiffRange, requests: PatchRequest[]) {
-  const key = `${workspaceId ?? ""}|${rangeKey(range)}`;
+export function usePatches(workspaceId: string | undefined, range: DiffRange, ignoreWhitespace: boolean, requests: PatchRequest[]) {
+  /** Whitespace is part of the key: the same file counted the other way is a different set of lines. */
+  const key = `${workspaceId ?? ""}|${rangeKey(range)}|${ignoreWhitespace ? "w" : ""}`;
   const cache = useRef(new Map<string, PatchState>());
   const [patches, setPatches] = useState<Map<string, PatchState>>(cache.current);
   const wanted = requests.map((request) => request.version).join("\n");
@@ -45,7 +46,7 @@ export function usePatches(workspaceId: string | undefined, range: DiffRange, re
         if (!request) return;
         /** The grammar is fetched beside the patch, so the lines are coloured the moment they are drawn. */
         const [state] = await Promise.all([
-          window.desktop.diffPatch(workspaceId, range, request.path, request.previousPath)
+          window.desktop.diffPatch(workspaceId, range, request.path, request.previousPath, ignoreWhitespace)
             .then((result): PatchState => result.status === "available"
               ? { status: "available", file: parseFilePatch(result.patch, request.path) }
               : result)

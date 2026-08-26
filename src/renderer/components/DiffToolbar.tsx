@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ChevronDown, Columns2, RefreshCw, Rows3 } from "lucide-react";
+import { ChevronDown, Columns2, Pilcrow, RefreshCw, Rows3 } from "lucide-react";
 import { UNCOMMITTED, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { useDismissibleLayer } from "../focus";
@@ -78,16 +78,18 @@ export type DiffToolbarProps = {
   loading: boolean;
   split: boolean;
   roomForTwo: boolean;
+  ignoreWhitespace: boolean;
   workspaceId?: string;
   openMenu: string | null;
   onSetOpenMenu: (menu: string | null) => void;
   onSetRange: (range: DiffRange) => void;
   onToggleSplit: () => void;
+  onToggleWhitespace: () => void;
   onRefresh: () => void;
 };
 
 /** What is being compared, in how many columns, and the way to read it again. */
-export function DiffToolbar({ range, loading, split, roomForTwo, workspaceId, openMenu, onSetOpenMenu, onSetRange, onToggleSplit, onRefresh }: DiffToolbarProps) {
+export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespace, workspaceId, openMenu, onSetOpenMenu, onSetRange, onToggleSplit, onToggleWhitespace, onRefresh }: DiffToolbarProps) {
   const base = range.kind === "uncommitted" ? HEAD_SIDE.value : range.base;
   const compare = range.kind === "uncommitted" ? WORKING_SIDE.value : range.compare ?? WORKING_SIDE.value;
   const rangeFrom = (nextBase: string, nextCompare: string): DiffRange =>
@@ -133,6 +135,16 @@ export function DiffToolbar({ range, loading, split, roomForTwo, workspaceId, op
           onClick={onToggleSplit}
         >
           {split ? <Rows3 size={15} /> : <Columns2 size={15} />}
+        </button>
+        <button
+          type="button"
+          aria-label={ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"}
+          aria-pressed={ignoreWhitespace}
+          className={ignoreWhitespace ? "on" : ""}
+          title={ignoreWhitespace ? "Show whitespace changes" : "Hide whitespace changes"}
+          onClick={onToggleWhitespace}
+        >
+          <Pilcrow size={15} />
         </button>
         <button type="button" aria-label="Read the comparison again" onClick={onRefresh}>
           <RefreshCw size={15} className={loading ? "spinning" : ""} />

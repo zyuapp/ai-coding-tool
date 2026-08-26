@@ -66,6 +66,7 @@ function diffState(): DiffState {
     result: {
       status: "available",
       range: { kind: "uncommitted" },
+      ignoreWhitespace: false,
       files: PATHS.map((path) => ({ path, status: "modified" as const, additions: 2, deletions: 1, binary: false })),
       additions: 4,
       deletions: 2,
@@ -74,6 +75,7 @@ function diffState(): DiffState {
     collapsed: [],
     viewed: {},
     split: false,
+    ignoreWhitespace: false,
   };
 }
 
@@ -85,6 +87,7 @@ function panel(): React.ReactElement {
     onSetCollapsed: () => {},
     onSetViewed: () => {},
     onSetSplit: () => {},
+    onSetIgnoreWhitespace: () => {},
     onRefresh: () => {},
     onOpenFile: () => {},
     annotations: [],

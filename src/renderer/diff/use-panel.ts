@@ -52,6 +52,7 @@ function requestsFor(files: DiffFileSummary[]): PatchRequest[] {
 export function useDrawnFiles(
   workspaceId: string | undefined,
   range: DiffRange,
+  ignoreWhitespace: boolean,
   files: DiffFileSummary[],
   collapsed: Set<string>,
   readAll: boolean,
@@ -64,7 +65,7 @@ export function useDrawnFiles(
    * every read still in flight.
    */
   const everything = useMemo(() => requestsFor(files.filter((file) => !file.binary)), [files]);
-  const { patches, at } = usePatches(workspaceId, range, readAll ? everything : requests);
+  const { patches, at } = usePatches(workspaceId, range, ignoreWhitespace, readAll ? everything : requests);
 
   /**
    * Whether the list is still waiting for its first patch. Nothing is drawn until one settles —

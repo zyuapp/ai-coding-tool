@@ -18,6 +18,8 @@ export type DiffState = {
   /** Ticked-off paths, each against the counts it had when ticked, so a file that moves un-ticks. */
   viewed: Record<string, string>;
   split: boolean;
+  /** Whether lines that only changed their spacing are left out of the review. */
+  ignoreWhitespace: boolean;
 };
 
 export const EMPTY_DIFF: DiffState = {
@@ -28,6 +30,7 @@ export const EMPTY_DIFF: DiffState = {
   collapsed: [],
   viewed: {},
   split: true,
+  ignoreWhitespace: false,
 };
 
 export function diffFor(state: Pick<WorkspaceState, "diffs">, owner: string): DiffState {
@@ -39,13 +42,29 @@ export function withDiff(state: WorkspaceState, owner: string, patch: Partial<Di
 }
 
 /**
- * The ticks that survive a fresh list: a file whose counts moved has changed since it was read, so
- * it comes back unread rather than staying ticked against work the user has not seen.
+ * Whether a fresh list counts the same files a different way, which is what the whitespace toggle
+ * does. Nothing changed under the user, so what they had read and folded is still read and folded.
  */
-export function retainedViews(viewed: Record<string, string>, result: DiffSummaryResult) {
+export function recounted(previous: DiffSummaryResult | null, result: DiffSummaryResult) {
+  return previous?.status === "available"
+    && result.status === "available"
+    && previous.ignoreWhitespace !== result.ignoreWhitespace;
+}
+
+/**
+ * The ticks that survive a fresh list: a file whose counts moved has changed since it was read, so
+ * it comes back unread rather than staying ticked against work the user has not seen. A recount is
+ * the exception, and its ticks are stamped again with the counts the file is now listed at.
+ */
+export function retainedViews(viewed: Record<string, string>, result: DiffSummaryResult, previous: DiffSummaryResult | null = null) {
   if (result.status !== "available") return viewed;
   const fingerprints = new Map(result.files.map((file) => [file.path, fileFingerprint(file)]));
-  return Object.fromEntries(Object.entries(viewed).filter(([path, mark]) => fingerprints.get(path) === mark));
+  const before = previous?.status === "available" && recounted(previous, result)
+    ? new Map(previous.files.map((file) => [file.path, fileFingerprint(file)]))
+    : null;
+  const kept = Object.entries(viewed)
+    .filter(([path, mark]) => fingerprints.has(path) && (fingerprints.get(path) === mark || before?.get(path) === mark));
+  return Object.fromEntries(kept.map(([path]) => [path, fingerprints.get(path)!]));
 }
 
 /**
@@ -53,14 +72,16 @@ export function retainedViews(viewed: Record<string, string>, result: DiffSummar
  * a file that is new, or that changed under them, folds when it is too large to draw. That is how a
  * checkout which blows up under an open review folds itself away instead of taking the window with it.
  */
-export function foldedOnLoad(diff: DiffState, files: DiffFileSummary[]): string[] {
+export function foldedOnLoad(diff: DiffState, files: DiffFileSummary[], result: DiffSummaryResult): string[] {
   const before = diff.result?.status === "available"
     ? new Map(diff.result.files.map((file) => [file.path, fileFingerprint(file)]))
     : new Map<string, string>();
+  const counted = recounted(diff.result, result);
   const oversized = foldedForSize(files);
   const held = new Set(diff.collapsed);
+  const known = (file: DiffFileSummary) => counted ? before.has(file.path) : before.get(file.path) === fileFingerprint(file);
   return files
-    .filter((file) => before.get(file.path) === fileFingerprint(file) ? held.has(file.path) : oversized.has(file.path))
+    .filter((file) => known(file) ? held.has(file.path) : oversized.has(file.path))
     .map((file) => file.path);
 }
 

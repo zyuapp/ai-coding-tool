@@ -8,7 +8,7 @@ import { promptWithPastes } from "../pastes.js";
 import { pruneDeletedTasks } from "../task-pruning.js";
 import { ATTENDED_RUN, applyTask, threadMark, withActiveRun, withBackgroundProcesses, withRunStatus, type RunProvenance, type ThreadMark } from "../task-workspace.js";
 import { viewPreferences } from "../view-preferences.js";
-import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, projectFor, taskWorkspaceId, withDiff, withDock, withPrompt, workflowById, worktreeClaimants, worktreeFor, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, diffFor, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, projectFor, taskWorkspaceId, withDiff, withDock, withPrompt, workflowById, worktreeClaimants, worktreeFor, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import type { ChangedFilesResult, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
@@ -679,9 +679,11 @@ export function initialRange(state: WorkspaceState, diff: DiffState): DiffRange 
  */
 export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
   if (!workspaceId) return settled(withDiff(state, owner, { ...patch, range, workspaceId: null, result: null, loading: false }));
+  /** The read takes the whitespace setting the review lands with, which is the one it already had. */
+  const ignoreWhitespace = patch.ignoreWhitespace ?? diffFor(state, owner).ignoreWhitespace;
   return settled(
     withDiff(state, owner, { ...patch, range, workspaceId, loading: true }),
-    [{ type: "read-diff", owner, workspaceId, range }],
+    [{ type: "read-diff", owner, workspaceId, range, ignoreWhitespace }],
   );
 }
 

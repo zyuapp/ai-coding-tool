@@ -57,7 +57,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "view.refresh-environment": case "diff.toggle": case "diff.refresh":
     case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":
-    case "diff.set-split": case "diff.loaded": case "environment.updated":
+    case "diff.set-split": case "diff.set-ignore-whitespace": case "diff.loaded": case "environment.updated":
       return reduceDiffs(state, input);
 
     case "store.loaded": case "store.absent": case "preferences.loaded":

@@ -306,6 +306,40 @@ test("a rename's patch shows what changed, not the whole file over again", async
   assert.equal(rows.filter((row) => row.kind === "delete").length, 0, "the old path is not re-added");
 });
 
+test("a summary that ignores whitespace drops a file whose lines only moved", async (t) => {
+  const root = await repository();
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  await writeFile(path.join(root, "spaced.txt"), "one\ntwo\n");
+  await git(root, "add", "spaced.txt");
+  await git(root, "commit", "-m", "spaced");
+  await writeFile(path.join(root, "spaced.txt"), "  one\ntwo  \n");
+  await writeFile(path.join(root, "tracked.txt"), "one\n  two\nthree\n");
+
+  const counted = await diffSummary("fixture", { kind: "uncommitted" }, workspaces(root));
+  assertAvailable(counted);
+  assert.deepEqual(counted.files.map((file) => file.path), ["spaced.txt", "tracked.txt"]);
+  assert.equal(counted.ignoreWhitespace, false);
+
+  const ignored = await diffSummary("fixture", { kind: "uncommitted" }, workspaces(root), true);
+  assertAvailable(ignored);
+  assert.deepEqual(ignored.files.map((file) => [file.path, file.additions, file.deletions]), [["tracked.txt", 1, 0]]);
+  assert.equal(ignored.ignoreWhitespace, true);
+});
+
+test("a patch that ignores whitespace keeps only the lines whose contents changed", async (t) => {
+  const root = await repository();
+  t.onTestFinished(() => rm(root, { recursive: true, force: true }));
+  await writeFile(path.join(root, "tracked.txt"), "  one\ntwo!\n");
+
+  const counted = await diffPatch("fixture", { kind: "uncommitted" }, "tracked.txt", workspaces(root));
+  assertAvailable(counted);
+  assert.deepEqual(parseFilePatch(counted.patch, "tracked.txt").hunks[0].rows.filter((row) => row.kind === "add").map((row) => row.text), ["  one", "two!"]);
+
+  const ignored = await diffPatch("fixture", { kind: "uncommitted" }, "tracked.txt", workspaces(root), undefined, true);
+  assertAvailable(ignored);
+  assert.deepEqual(parseFilePatch(ignored.patch, "tracked.txt").hunks[0].rows.filter((row) => row.kind === "add").map((row) => row.text), ["two!"]);
+});
+
 test("a patch outside the workspace is refused rather than read", async (t) => {
   const root = await repository();
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));

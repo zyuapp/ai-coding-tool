@@ -114,7 +114,7 @@ export async function runProjectEffect(effect: ProjectEffect, host: EffectHost):
 
     case "read-diff":
       try {
-        const result = await desktop.diffSummary(effect.workspaceId, effect.range);
+        const result = await desktop.diffSummary(effect.workspaceId, effect.range, effect.ignoreWhitespace);
         await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result });
       } catch (error) {
         await dispatch({

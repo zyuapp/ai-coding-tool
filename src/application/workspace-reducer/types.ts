@@ -81,7 +81,7 @@ export type WorkspaceEffect =
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
-  | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange }
+  | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }

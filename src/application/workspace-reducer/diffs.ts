@@ -8,7 +8,7 @@ import { fileFingerprint, rangeKey } from "../../domain/diff.js";
 
 type DiffInput = Extract<WorkspaceInput, {
   type: "view.refresh-environment" | "diff.toggle" | "diff.refresh" | "diff.set-range" | "diff.set-collapsed"
-    | "diff.set-viewed" | "diff.set-split" | "diff.loaded" | "environment.updated";
+    | "diff.set-viewed" | "diff.set-split" | "diff.set-ignore-whitespace" | "diff.loaded" | "environment.updated";
 }>;
 
 export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceTransition {
@@ -65,16 +65,26 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
     case "diff.set-split":
       return settled(withDiff(state, dockOwner(state), { split: input.split }));
 
+    /** The same comparison counted a different way, so the list is read again and the review stays put. */
+    case "diff.set-ignore-whitespace": {
+      const owner = dockOwner(state);
+      const diff = diffFor(state, owner);
+      if (diff.ignoreWhitespace === input.ignore) return settled(state);
+      return readDiff(state, owner, diff.range, { ignoreWhitespace: input.ignore });
+    }
+
     case "diff.loaded": {
       const diff = diffFor(state, input.owner);
       if (!diffMatches(diff, input.workspaceId, input.range)) return settled(state);
-      const viewed = retainedViews(diff.viewed, input.result);
+      /** A list counted the other way was read before the toggle, so it no longer answers anything. */
+      if (input.result.status === "available" && input.result.ignoreWhitespace !== diff.ignoreWhitespace) return settled(state);
+      const viewed = retainedViews(diff.viewed, input.result, diff.result);
       const listed = input.result.status === "available" ? input.result.files : null;
       return settled(withDiff(state, input.owner, {
         result: input.result,
         loading: false,
         viewed,
-        ...(listed ? { collapsed: foldedOnLoad(diff, listed) } : {}),
+        ...(listed ? { collapsed: foldedOnLoad(diff, listed, input.result) } : {}),
       }));
     }
 

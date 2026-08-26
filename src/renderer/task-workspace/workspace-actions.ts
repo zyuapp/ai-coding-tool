@@ -88,6 +88,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setDiffCollapsed: (path: string, collapsed: boolean) => dispatch({ type: "diff.set-collapsed", path, collapsed }),
     setDiffViewed: (path: string, viewed: boolean) => dispatch({ type: "diff.set-viewed", path, viewed }),
     setDiffSplit: (split: boolean) => dispatch({ type: "diff.set-split", split }),
+    setDiffIgnoreWhitespace: (ignore: boolean) => dispatch({ type: "diff.set-ignore-whitespace", ignore }),
     openBrowser: (url: string, newTab = false, tabId?: string) => dispatch({ type: "browser.open", url, ...(newTab ? { newTab } : {}), ...(tabId ? { tabId } : {}) }),
     newBrowserTab: () => dispatch({ type: "browser.new-tab" }),
     selectBrowserTab: (tabId: string) => dispatch({ type: "browser.select-tab", tabId }),

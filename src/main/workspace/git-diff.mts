@@ -16,6 +16,14 @@ export const PATCH_LIMIT = 2_000_000;
 /** How much unchanged code surrounds each hunk. Three is what Git and every review tool default to. */
 const CONTEXT = 3;
 
+/**
+ * What a comparison that ignores whitespace passes to Git. `-w` drops a line whose only change is
+ * spacing, and drops a file whose only changes were those lines, so the review is what was rewritten.
+ */
+function spacing(ignoreWhitespace: boolean) {
+  return ignoreWhitespace ? ["-w"] : [];
+}
+
 /** How long a resolved base is reused for. Long enough for one review's patches, short enough to move. */
 const BASE_TTL_MS = 30_000;
 
@@ -183,7 +191,7 @@ function readNameStatus(output: string) {
   return statuses;
 }
 
-export async function diffSummary(workspaceId: string, range: DiffRange, workspaces: Pick<WorkspaceService, "resolve">): Promise<DiffSummaryResult> {
+export async function diffSummary(workspaceId: string, range: DiffRange, workspaces: Pick<WorkspaceService, "resolve">, ignoreWhitespace = false): Promise<DiffSummaryResult> {
   let resolved;
   try {
     resolved = await workspaces.resolve(workspaceId);
@@ -196,9 +204,10 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
   try {
     const root = resolved.workspace.root;
     const revs = await revisions(root, range);
+    const space = spacing(ignoreWhitespace);
     const [numstat, nameStatus, untracked] = await Promise.all([
-      run(root, ["diff", "--numstat", "-z", "--relative", "--find-renames", ...revs, "--"]),
-      run(root, ["diff", "--name-status", "-z", "--relative", "--find-renames", ...revs, "--"]),
+      run(root, ["diff", "--numstat", "-z", "--relative", "--find-renames", ...space, ...revs, "--"]),
+      run(root, ["diff", "--name-status", "-z", "--relative", "--find-renames", ...space, ...revs, "--"]),
       /** Only a comparison that ends at the working tree can have files Git has never seen. */
       range.kind === "uncommitted" || range.compare === null ? untrackedFiles(root) : Promise.resolve([]),
     ]);
@@ -208,6 +217,7 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
     return {
       status: "available",
       range,
+      ignoreWhitespace,
       files,
       additions: files.reduce((total, file) => total + file.additions, 0),
       deletions: files.reduce((total, file) => total + file.deletions, 0),
@@ -217,7 +227,7 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
   }
 }
 
-export async function diffPatch(workspaceId: string, range: DiffRange, filePath: string, workspaces: Pick<WorkspaceService, "resolve">, previousPath?: string): Promise<DiffPatchResult> {
+export async function diffPatch(workspaceId: string, range: DiffRange, filePath: string, workspaces: Pick<WorkspaceService, "resolve">, previousPath?: string, ignoreWhitespace = false): Promise<DiffPatchResult> {
   let resolved;
   try {
     resolved = await workspaces.resolve(workspaceId);
@@ -235,10 +245,11 @@ export async function diffPatch(workspaceId: string, range: DiffRange, filePath:
     const revs = await revisions(root, range);
     /** Both sides of a rename, or Git sees only the new path and calls the whole file an addition. */
     const paths = previousPath && previousPath !== filePath ? [previousPath, filePath] : [filePath];
-    const patch = await run(root, ["diff", `-U${CONTEXT}`, "--relative", "--find-renames", ...revs, "--", ...paths]);
+    const space = spacing(ignoreWhitespace);
+    const patch = await run(root, ["diff", `-U${CONTEXT}`, "--relative", "--find-renames", ...space, ...revs, "--", ...paths]);
     /** Nothing tracked answers for a file Git has never seen, so it is diffed against emptiness. */
     if (patch.trim()) return { status: "available", patch };
-    const fresh = await runAllowingDifferences(root, ["diff", `-U${CONTEXT}`, "--no-index", "--", "/dev/null", filePath]);
+    const fresh = await runAllowingDifferences(root, ["diff", `-U${CONTEXT}`, ...space, "--no-index", "--", "/dev/null", filePath]);
     return { status: "available", patch: fresh };
   } catch (error) {
     const failure = error as { code?: string; message?: string };

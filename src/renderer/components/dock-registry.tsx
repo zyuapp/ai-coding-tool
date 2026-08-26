@@ -110,6 +110,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           onSetCollapsed={workspace.actions.setDiffCollapsed}
           onSetViewed={workspace.actions.setDiffViewed}
           onSetSplit={workspace.actions.setDiffSplit}
+          onSetIgnoreWhitespace={workspace.actions.setDiffIgnoreWhitespace}
           onRefresh={workspace.actions.refreshDiff}
           onOpenFile={(path) => void workspace.dispatch({ type: "file.open", path })}
           annotations={workspace.annotations}

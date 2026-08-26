@@ -229,9 +229,9 @@ export type DesktopAPI = MobileDesktopAPI & {
   onAgentEvent(listener: (event: AgentEvent) => void): () => void;
   changedFiles(workspaceId: WorkspaceId): Promise<ChangedFilesResult>;
   /** The files a comparison touches, with their counts. Cheap enough to read whenever a run ends. */
-  diffSummary(workspaceId: WorkspaceId, range: DiffRange): Promise<DiffSummaryResult>;
+  diffSummary(workspaceId: WorkspaceId, range: DiffRange, ignoreWhitespace?: boolean): Promise<DiffSummaryResult>;
   /** One file's patch, read only once that file is drawn. A rename needs both of its paths. */
-  diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string): Promise<DiffPatchResult>;
+  diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string, ignoreWhitespace?: boolean): Promise<DiffPatchResult>;
   /** The local branches a thread can start from, newest first. */
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
   /** What the checkout has to say about its pull request, including that `gh` is not installed. */
@@ -418,7 +418,8 @@ export type CommandDiscoveryResult =
 
 /** A comparison's file list. Patches are fetched one at a time and never travel with the list. */
 export type DiffSummaryResult =
-  | { status: "available"; range: DiffRange; files: DiffFileSummary[]; additions: number; deletions: number }
+  /** `ignoreWhitespace` is how the counts were taken, which is what tells a recount from a rewrite. */
+  | { status: "available"; range: DiffRange; ignoreWhitespace: boolean; files: DiffFileSummary[]; additions: number; deletions: number }
   | { status: "unavailable"; reason: "missing" | "not-directory" | "inaccessible" | "changed" }
   | { status: "unknown"; workspaceId: WorkspaceId }
   | { status: "error"; message: string };

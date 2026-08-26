@@ -32,7 +32,9 @@ export type DiffCommand =
   /** Folds one file shut, or opens it again. Every file starts open. */
   | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
   | { type: "diff.set-viewed"; path: string; viewed: boolean }
-  | { type: "diff.set-split"; split: boolean };
+  | { type: "diff.set-split"; split: boolean }
+  /** Reads the comparison again, leaving out the lines that only changed their spacing. */
+  | { type: "diff.set-ignore-whitespace"; ignore: boolean };
 
 /** Commands that carry no `taskId` act on the task the user is looking at, read from `currentId`. */
 export type TaskCommand =

@@ -33,6 +33,7 @@ export type DiffPanelProps = {
   onSetCollapsed: (path: string, collapsed: boolean) => void;
   onSetViewed: (path: string, viewed: boolean) => void;
   onSetSplit: (split: boolean) => void;
+  onSetIgnoreWhitespace: (ignore: boolean) => void;
   onRefresh: () => void;
   onOpenFile: (path: string) => void;
   annotations: Annotation[];
@@ -77,6 +78,22 @@ function panelNote(panel: {
   return null;
 }
 
+/** What the review adds up to: how much of it the user has ticked off, and what it costs in lines. */
+function ReviewProgress({ files, viewed, additions, deletions }: {
+  files: DiffFileSummary[];
+  viewed: Record<string, string>;
+  additions: number;
+  deletions: number;
+}) {
+  if (files.length === 0) return null;
+  return (
+    <p className="diff-progress">
+      <span>{files.filter((file) => viewed[file.path]).length} of {files.length} viewed</span>
+      <span className="change-counts"><strong>+{additions}</strong><em>−{deletions}</em></span>
+    </p>
+  );
+}
+
 export function DiffPanel({
   diff,
   workspaceId,
@@ -84,6 +101,7 @@ export function DiffPanel({
   onSetCollapsed,
   onSetViewed,
   onSetSplit,
+  onSetIgnoreWhitespace,
   onRefresh,
   onOpenFile,
   annotations,
@@ -107,8 +125,8 @@ export function DiffPanel({
   const roomForTwo = useRoomForTwo(panelRef);
   const split = diff.split && roomForTwo;
 
-  const readAll = useReadWholeReview(`${workspaceId ?? ""}|${rangeKey(diff.range)}`, find?.query);
-  const { drawn, settling, notes, patches, versionOf, patchOf, noteFor } = useDrawnFiles(workspaceId, diff.range, files, collapsed, readAll);
+  const readAll = useReadWholeReview(`${workspaceId ?? ""}|${rangeKey(diff.range)}|${diff.ignoreWhitespace}`, find?.query);
+  const { drawn, settling, notes, patches, versionOf, patchOf, noteFor } = useDrawnFiles(workspaceId, diff.range, diff.ignoreWhitespace, files, collapsed, readAll);
   const span = useSelectionSpan(selection, drawn);
 
   /** Draft comments only mark the exact comparison and rows they were made from. */
@@ -194,7 +212,6 @@ export function DiffPanel({
     onSetViewed,
   };
 
-  const viewedCount = files.filter((file) => diff.viewed[file.path]).length;
   const overBudget = useMemo(() => overDrawingBudget(files, collapsed), [files, collapsed]);
   const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget });
 
@@ -205,20 +222,17 @@ export function DiffPanel({
         loading={diff.loading}
         split={split}
         roomForTwo={roomForTwo}
+        ignoreWhitespace={diff.ignoreWhitespace}
         {...(workspaceId ? { workspaceId } : {})}
         openMenu={openMenu}
         onSetOpenMenu={onSetOpenMenu}
         onSetRange={onSetRange}
         onToggleSplit={() => onSetSplit(!diff.split)}
+        onToggleWhitespace={() => onSetIgnoreWhitespace(!diff.ignoreWhitespace)}
         onRefresh={onRefresh}
       />
 
-      {available && files.length > 0 && (
-        <p className="diff-progress">
-          <span>{viewedCount} of {files.length} viewed</span>
-          <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>
-        </p>
-      )}
+      {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} />}
       {notice && <p className="session-note">{notice}</p>}
 
       <div className="diff-scroll">

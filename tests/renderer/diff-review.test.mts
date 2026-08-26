@@ -98,7 +98,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
     pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (workspaceId, range) => ({ status: "available", range, files: [], additions: 0, deletions: 0 }),
+    diffSummary: async (workspaceId, range) => ({ status: "available", range, ignoreWhitespace: false, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
     createBranch: async () => {},
@@ -257,6 +257,7 @@ function reviewableDesktop() {
     diffSummary: async (workspaceId, range) => ({
       status: "available",
       range,
+      ignoreWhitespace: false,
       files: [{ path: "src/app.ts", status: "modified", additions: 2, deletions: 1, binary: false }],
       additions: 2,
       deletions: 1,
@@ -424,5 +425,40 @@ test("the two sides are picked apart, and remote branches are offered to compare
 
   await act(async () => { item([...document.querySelectorAll<HTMLElement>('.branch-menu [role="option"]')].find((option) => option.textContent === "origin/main")).click(); });
   assert.deepEqual(sides(), ["origin/main", "Working tree"]);
+  await view.unmount();
+});
+
+test("hiding whitespace reads the comparison again, and the file that only moved leaves the list", async () => {
+  seedReviewableProject();
+  const asked: boolean[] = [];
+  window.desktop = fakeDesktop({
+    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => {
+      asked.push(ignoreWhitespace);
+      return {
+        status: "available",
+        range,
+        ignoreWhitespace,
+        files: [
+          { path: "src/app.ts", status: "modified", additions: 2, deletions: 1, binary: false },
+          ...(ignoreWhitespace ? [] : [{ path: "src/spaced.ts", status: "modified" as const, additions: 1, deletions: 1, binary: false }]),
+        ],
+        additions: ignoreWhitespace ? 2 : 3,
+        deletions: ignoreWhitespace ? 1 : 2,
+      };
+    },
+    diffPatch: async () => ({ status: "available", patch: REVIEW_PATCH }),
+  });
+  const view = await mount(React.createElement(App));
+  await openReview(view);
+
+  const names = () => [...view.container.querySelectorAll(".diff-files .diff-file-name")].map((name) => name.textContent);
+  assert.deepEqual(names(), ["src/app.ts", "src/spaced.ts"]);
+
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Hide whitespace changes"]').click(); });
+  for (let turn = 0; turn < 100 && names().length > 1; turn += 1) await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  assert.deepEqual(asked, [false, true], "the same comparison is read again, counted without whitespace");
+  assert.deepEqual(names(), ["src/app.ts"]);
+  assert.equal(query(view.container, 'button[aria-label="Show whitespace changes"]').getAttribute("aria-pressed"), "true", "the button offers the way back");
   await view.unmount();
 });
