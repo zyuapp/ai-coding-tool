@@ -209,6 +209,27 @@ export function fileFingerprint(file: DiffFileSummary) {
 }
 
 /**
+ * How many changed lines a review draws before it folds the rest away. Every drawn line costs about
+ * half a kilobyte of parsed rows, and the panel holds them for as long as the thread is open, so a
+ * comparison of a million lines drawn whole is hundreds of megabytes the machine never gets back.
+ */
+export const DRAWN_LINE_BUDGET = 20_000;
+
+/**
+ * The files a first read folds away: everything past the point the budget runs out. The first file is
+ * always drawn, however large it is, so a review always opens on something to read.
+ */
+export function foldedForSize(files: DiffFileSummary[]): string[] {
+  const folded: string[] = [];
+  let drawn = 0;
+  for (const [index, file] of files.entries()) {
+    if (index > 0 && drawn >= DRAWN_LINE_BUDGET) folded.push(file.path);
+    else drawn += file.additions + file.deletions;
+  }
+  return folded;
+}
+
+/**
  * What the panel is comparing. `uncommitted` is the working tree against HEAD, which is the shape a
  * thread's own edits have before anything is committed. `branches` compares from where the two sides
  * last agreed, the way a pull request reads, and a null `compare` means the working tree itself.

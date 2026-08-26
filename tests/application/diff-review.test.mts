@@ -17,7 +17,7 @@ import {
   type WorkspaceState,
 } from "../../src/application/workspace-state.ts";
 import type { DiffSummaryResult } from "../../src/contracts/ipc.js";
-import type { DiffFileSummary, DiffRange } from "../../src/domain/diff.js";
+import { DRAWN_LINE_BUDGET, type DiffFileSummary, type DiffRange } from "../../src/domain/diff.js";
 import type { Project, Task } from "../../src/domain/task.js";
 
 const PROJECT: Project = { id: "project-a", root: "/repo", workspaceId: "workspace-a" };
@@ -255,6 +255,41 @@ test("a file that is gone from the list stops being folded", () => {
   });
 
   assert.deepEqual(diff(rewritten.state).collapsed, []);
+});
+
+test("a review past the drawing budget opens with the rest folded", () => {
+  const huge = file("huge.ts", DRAWN_LINE_BUDGET, 0);
+  const reviewed = reviewing(workspace(), [huge, file("b.ts"), file("c.ts")]);
+
+  assert.deepEqual(diff(reviewed).collapsed, ["b.ts", "c.ts"], "only what the budget paid for is drawn");
+});
+
+test("the first file is drawn however large it is", () => {
+  const reviewed = reviewing(workspace(), [file("huge.ts", DRAWN_LINE_BUDGET * 10, 0)]);
+
+  assert.deepEqual(diff(reviewed).collapsed, []);
+});
+
+test("a small review is drawn whole", () => {
+  const reviewed = reviewing(workspace(), [file("a.ts", 10), file("b.ts", 10)]);
+
+  assert.deepEqual(diff(reviewed).collapsed, []);
+});
+
+test("a fresh list never folds a file the user opened", () => {
+  const huge = file("huge.ts", DRAWN_LINE_BUDGET, 0);
+  const opened = run(reviewing(workspace(), [huge, file("b.ts")]), [
+    { type: "diff.set-collapsed", path: "b.ts", collapsed: false },
+  ]);
+  const reread = reduce(opened, {
+    type: "diff.loaded",
+    owner: "draft",
+    workspaceId: "workspace-a",
+    range: { kind: "uncommitted" },
+    result: summary([huge, file("b.ts")]),
+  });
+
+  assert.deepEqual(diff(reread.state).collapsed, []);
 });
 
 test("ticking a file the list does not have changes nothing", () => {

@@ -4,7 +4,7 @@ import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
 import type { Annotation, AnnotationAnchor } from "../../domain/task";
-import { commentQuote, rangeKey, type DiffRange } from "../../domain/diff";
+import { commentQuote, DRAWN_LINE_BUDGET, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";
 import {
   anchoredDiffComments,
   colourRow,
@@ -55,6 +55,26 @@ function summaryMessage(result: DiffSummaryResult | null, loading: boolean, work
   if (result.status === "unknown") return "Workspace is no longer registered";
   if (result.status === "unavailable") return `Workspace is ${result.reason}`;
   return result.files.length === 0 ? "Nothing has changed in this comparison" : null;
+}
+
+/** Whether the review still holds a file that opened folded because it is too large to draw whole. */
+function overDrawingBudget(files: DiffFileSummary[], collapsed: Set<string>) {
+  return foldedForSize(files).some((path) => collapsed.has(path));
+}
+
+/** The one line above the list: why it is not there, what it waits for, or why it opened folded. */
+function panelNote(panel: {
+  result: DiffSummaryResult | null;
+  loading: boolean;
+  workspaceId: string | undefined;
+  settling: boolean;
+  overBudget: boolean;
+}) {
+  const message = summaryMessage(panel.result, panel.loading, panel.workspaceId);
+  if (message) return message;
+  if (panel.settling) return "Reading the changes…";
+  if (panel.overBudget) return `This review is large, so files past the first ${DRAWN_LINE_BUDGET.toLocaleString()} changed lines start folded.`;
+  return null;
 }
 
 export function DiffPanel({
@@ -175,7 +195,8 @@ export function DiffPanel({
   };
 
   const viewedCount = files.filter((file) => diff.viewed[file.path]).length;
-  const message = summaryMessage(diff.result, diff.loading, workspaceId);
+  const overBudget = useMemo(() => overDrawingBudget(files, collapsed), [files, collapsed]);
+  const notice = panelNote({ result: diff.result, loading: diff.loading, workspaceId, settling, overBudget });
 
   return (
     <section className="diff-panel" aria-label="Changes" ref={panelRef}>
@@ -198,9 +219,7 @@ export function DiffPanel({
           <span className="change-counts"><strong>+{available.additions}</strong><em>−{available.deletions}</em></span>
         </p>
       )}
-      {message ? <p className="session-note">{message}</p>
-        : settling ? <p className="session-note">Reading the changes…</p>
-        : null}
+      {notice && <p className="session-note">{notice}</p>}
 
       <div className="diff-scroll">
         <div className="diff-files" ref={scrollRef} onScroll={syncPinned} aria-label="Changed files">
