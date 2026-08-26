@@ -1434,8 +1434,11 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .copy-affordance.copied { border-color: var(--success-line); color: var(--success-soft); }
 /* Reserved height, so the answer never shifts when the button fades in. */
 /* The inset matches a block's own button, so every button in an answer stands in one column. */
-.answer-actions { display: flex; justify-content: flex-end; height: 24px; margin-top: 9px; padding-right: 7px; }
-@media (prefers-reduced-motion: reduce) { .copy-affordance { transition: none; } }
+.answer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 24px; margin-top: 9px; padding-right: 7px; }
+/* Out of a selection of the answer, so a copy of it carries no clock time. */
+.answer-time { color: var(--quiet-strong); font-size: var(--text-meta); font-variant-numeric: tabular-nums; opacity: 0; user-select: none; transition: opacity 110ms ease-out; }
+.message.assistant.turn:hover .answer-time, .answer-actions:focus-within .answer-time { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .copy-affordance, .answer-time { transition: none; } }
 .mermaid-block { min-height: 76px; margin: 17px 0; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 15px; background: var(--sunken); scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 .mermaid-block:has(.mermaid-open:hover) { border-color: var(--line-bright); }
 .mermaid-loading { display: block; padding: 16px; color: var(--quiet-strong); text-align: center; font-size: var(--text-meta); }

@@ -10,6 +10,11 @@ import { StreamingText } from "./StreamingText";
 import { SystemNotice } from "./SystemNotice";
 import { SettledSteps, TurnSegments } from "./TurnWork";
 
+let clockFormatter: Intl.DateTimeFormat | undefined;
+let momentFormatter: Intl.DateTimeFormat | undefined;
+const clockTime = (at: number) => (clockFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(at);
+const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" })).format(at);
+
 function UserMessage({ message, onView }: { message: TaskMessage; onView: (source: string) => void }) {
   return (
     <article className="message user">
@@ -65,7 +70,12 @@ export function TimelineRow({ group, index, offset, measure, streamingTail, onVi
             : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} />}
           {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} /></div>}
           {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
-          {group.final && <div className="answer-actions"><CopyButton text={group.final.text} label="Copy the answer" /></div>}
+          {group.final && (
+            <div className="answer-actions">
+              <time className="answer-time" dateTime={new Date(group.final.at).toISOString()} title={fullMoment(group.final.at)}>{clockTime(group.final.at)}</time>
+              <CopyButton text={group.final.text} label="Copy the answer" />
+            </div>
+          )}
         </article>
       ) : message!.kind === "system" ? (
         <SystemNotice message={message!} />

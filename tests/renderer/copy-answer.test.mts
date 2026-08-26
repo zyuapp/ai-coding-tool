@@ -112,6 +112,11 @@ test("a finished answer copies whole, without the tool work that led to it", asy
   await copyFrom(view.container, "Copy the answer");
 
   assert.deepEqual(written, [ANSWER], "the answer is copied as written, and the tool call is not part of it");
+  const time = query<HTMLTimeElement>(view.container, ".answer-time");
+  assert.equal(time.textContent, new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(2000));
+  assert.equal(time.title, new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" }).format(2000));
+  assert.ok(time.compareDocumentPosition(query(view.container, ".answer-actions .copy-affordance")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    "the time stands before the copy button");
   await view.unmount();
   scroller.remove();
 });
