@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
-import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
+import { effortsFor, modelsFor, type AgentModel } from "../../domain/agent-engine";
+import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description: string };
 
@@ -11,20 +12,17 @@ const MODES: Choice<ExecutionPolicy>[] = [
   { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files" },
 ];
 
-const MODELS: Choice<AgentModel>[] = [
-  { value: "fable", label: "Fable", description: "Most capable for demanding work" },
-  { value: "opus", label: "Opus", description: "Best for complex reasoning" },
-  { value: "sonnet", label: "Sonnet", description: "Balanced speed and capability" },
-  { value: "haiku", label: "Haiku", description: "Fastest for lightweight work" },
-];
+const MODELS: Choice<AgentModel>[] = modelsFor("claude").map((spec) => ({ value: spec.id, label: spec.label, description: spec.description }));
 
-const EFFORTS: Choice<AgentEffort>[] = [
-  { value: "max", label: "Max effort", description: "Everything the model has, slowest" },
-  { value: "xhigh", label: "Extra high effort", description: "Deeper than high, where the model offers it" },
-  { value: "high", label: "High effort", description: "Deep reasoning" },
-  { value: "medium", label: "Medium effort", description: "Moderate thinking" },
-  { value: "low", label: "Low effort", description: "Minimal thinking, fastest replies" },
-];
+const EFFORT_CHOICES: Record<AgentEffort, Omit<Choice<AgentEffort>, "value">> = {
+  max: { label: "Max effort", description: "Everything the model has, slowest" },
+  xhigh: { label: "Extra high effort", description: "Deeper than high, where the model offers it" },
+  high: { label: "High effort", description: "Deep reasoning" },
+  medium: { label: "Medium effort", description: "Moderate thinking" },
+  low: { label: "Low effort", description: "Minimal thinking, fastest replies" },
+};
+
+const EFFORTS: Choice<AgentEffort>[] = effortsFor("claude").map((value) => ({ value, ...EFFORT_CHOICES[value] }));
 
 function Group<T extends string>({ heading, choices, value, onChange }: { heading: string; choices: Choice<T>[]; value: T; onChange: (value: T) => void }) {
   return (

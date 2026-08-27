@@ -1,6 +1,7 @@
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
+import { isAgentEffort, isAgentModel, type AgentModel } from "../domain/agent-engine.js";
+import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText, TaskMessageKind } from "../domain/task.js";
 
 /**
@@ -173,14 +174,6 @@ function isPolicy(value: unknown): value is ExecutionPolicy {
   return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
 }
 
-function isModel(value: unknown): value is AgentModel {
-  return value === "fable" || value === "opus" || value === "sonnet" || value === "haiku";
-}
-
-function isEffort(value: unknown): value is AgentEffort {
-  return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max";
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -253,9 +246,9 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.set-policy":
       return named && isPolicy(command.policy);
     case "task.set-model":
-      return named && isModel(command.model);
+      return named && isAgentModel(command.model);
     case "task.set-effort":
-      return named && isEffort(command.effort);
+      return named && isAgentEffort(command.effort);
     case "task.steer-queued":
     case "task.drop-queued":
       return named && isString(command.messageId);

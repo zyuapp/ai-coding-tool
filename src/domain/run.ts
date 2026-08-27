@@ -1,6 +1,4 @@
 export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous";
-export type AgentModel = "fable" | "opus" | "sonnet" | "haiku";
-export const DEFAULT_MODEL: AgentModel = "opus";
 
 /** How much reasoning a run asks for. Models that do not offer a level fall back to the nearest one they do. */
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -78,8 +76,3 @@ export type Run = {
   status: RunStatus;
   sequence: number;
 };
-
-/** Runs always request the widest context a model offers; only Haiku stops short of 1M. */
-export function contextWindowLimit(model: AgentModel) {
-  return model === "haiku" ? 200_000 : 1_000_000;
-}

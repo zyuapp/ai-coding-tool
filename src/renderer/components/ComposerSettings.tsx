@@ -1,6 +1,7 @@
 import { Brain, Check, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
+import { effortsFor, modelsFor, type AgentModel } from "../../domain/agent-engine";
+import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
 type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: LucideIcon };
@@ -12,20 +13,19 @@ const modes: Choice<ExecutionPolicy>[] = [
   { value: "confirm", label: "Let me decide", short: "Confirm", description: "Ask before using tools or changing files", icon: Hand },
 ];
 
-const models: Choice<AgentModel>[] = [
-  { value: "fable", label: "Fable", short: "Fable", description: "Most capable for demanding work", icon: Sparkles },
-  { value: "opus", label: "Opus", short: "Opus", description: "Best for complex reasoning", icon: Brain },
-  { value: "sonnet", label: "Sonnet", short: "Sonnet", description: "Balanced speed and capability", icon: Gauge },
-  { value: "haiku", label: "Haiku", short: "Haiku", description: "Fastest for lightweight work", icon: Feather },
-];
+const modelIcons: Record<AgentModel, LucideIcon> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather };
 
-const efforts: Choice<AgentEffort>[] = [
-  { value: "max", label: "Max effort", short: "Max", description: "Everything the model has, slowest", icon: Flame },
-  { value: "xhigh", label: "Extra high effort", short: "Extra high", description: "Deeper than high, where the model offers it", icon: Signal },
-  { value: "high", label: "High effort", short: "High", description: "Deep reasoning", icon: SignalHigh },
-  { value: "medium", label: "Medium effort", short: "Medium", description: "Moderate thinking", icon: SignalMedium },
-  { value: "low", label: "Low effort", short: "Low", description: "Minimal thinking, fastest replies", icon: SignalLow },
-];
+const models: Choice<AgentModel>[] = modelsFor("claude").map((spec) => ({ value: spec.id, label: spec.label, short: spec.label, description: spec.description, icon: modelIcons[spec.id] }));
+
+const effortChoices: Record<AgentEffort, Omit<Choice<AgentEffort>, "value">> = {
+  max: { label: "Max effort", short: "Max", description: "Everything the model has, slowest", icon: Flame },
+  xhigh: { label: "Extra high effort", short: "Extra high", description: "Deeper than high, where the model offers it", icon: Signal },
+  high: { label: "High effort", short: "High", description: "Deep reasoning", icon: SignalHigh },
+  medium: { label: "Medium effort", short: "Medium", description: "Moderate thinking", icon: SignalMedium },
+  low: { label: "Low effort", short: "Low", description: "Minimal thinking, fastest replies", icon: SignalLow },
+};
+
+const efforts: Choice<AgentEffort>[] = effortsFor("claude").map((value) => ({ value, ...effortChoices[value] }));
 
 function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, onChange }: {
   label: string;

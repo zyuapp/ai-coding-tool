@@ -1,7 +1,8 @@
 import type { BackgroundReport, ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
+import type { AgentModel } from "../../domain/agent-engine.js";
+import type { AgentEffort, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
 export type ThreadBridge = {

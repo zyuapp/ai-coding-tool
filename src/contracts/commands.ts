@@ -6,7 +6,8 @@ import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
-import type { AgentEffort, AgentModel, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
+import type { AgentModel } from "../domain/agent-engine.js";
+import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**

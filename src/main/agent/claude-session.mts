@@ -1,7 +1,7 @@
 import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
-import { contextWindowLimit } from "../../domain/run.js";
-import type { AgentModel, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import { contextWindowLimit, type AgentModel } from "../../domain/agent-engine.js";
+import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
@@ -481,7 +481,7 @@ export class ClaudeSession {
         stream.emit({
           type: "usage",
           tokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-          limit: contextWindowLimit(stream.model),
+          limit: contextWindowLimit("claude", stream.model),
           model: message.message.model,
         });
       }

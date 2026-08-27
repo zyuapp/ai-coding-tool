@@ -6,7 +6,8 @@ import { query, type Options, type PermissionMode, type Query, type SDKMessage, 
 import { test } from "vitest";
 import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../../../src/main/agent/claude-agent-provider.mts";
 import type { BackgroundReport, WorkflowReport } from "../../../src/contracts/ipc.ts";
-import type { AgentModel, ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";
+import type { AgentModel } from "../../../src/domain/agent-engine.ts";
+import type { ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";
 import type { AutomationBridge, ProviderEvent, ProviderRunInput, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { input, liveQueryFactory, liveTurn, poolQueryFactory, poolTurn, queryFactory, tick, turn, type LiveQueryCapture, type PoolCapture, type QueryCapture } from "../../support/claude-session.mjs";
 

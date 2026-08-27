@@ -1,4 +1,5 @@
-import type { AgentEffort, AgentModel, Continuation, ExecutionPolicy, Subagent } from "./run.js";
+import { isAgentEffort, isAgentModel, type AgentModel } from "./agent-engine.js";
+import type { AgentEffort, Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 
 export const TASK_STORE_VERSION = 2 as const;
@@ -821,14 +822,6 @@ function isContinuation(value: unknown): value is Continuation {
 
 function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
   return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
-}
-
-function isAgentModel(value: unknown): value is AgentModel {
-  return value === "fable" || value === "opus" || value === "sonnet" || value === "haiku";
-}
-
-function isAgentEffort(value: unknown): value is AgentEffort {
-  return value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max";
 }
 
 function isContextUsage(value: unknown): value is ContextUsage {
