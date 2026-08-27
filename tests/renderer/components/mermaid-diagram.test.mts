@@ -16,6 +16,21 @@ test("a diagram keeps the size it was drawn at instead of the container's cap", 
   assert.match(diagram.markup, /background-color/);
 });
 
+test("a diagram Mermaid could not size is framed by what it drew", () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 148"><g></g></svg>';
+  const drawing = dom.window.SVGElement.prototype as unknown as { getBBox?: () => DOMRect };
+  drawing.getBBox = () => ({ x: 10, y: 4, width: 300, height: 100 }) as DOMRect;
+
+  try {
+    const diagram = naturalDiagram(svg);
+
+    assert.deepEqual([diagram.width, diagram.height], [316, 116]);
+    assert.match(diagram.markup, /viewBox="2 -4 316 116"/);
+  } finally {
+    delete drawing.getBBox;
+  }
+});
+
 test("markup without a usable viewBox is left exactly as it came", () => {
   const svg = '<svg xmlns="http://www.w3.org/2000/svg"><g></g></svg>';
 

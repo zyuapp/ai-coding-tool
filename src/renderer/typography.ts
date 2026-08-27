@@ -53,12 +53,12 @@ function settle(choice: TypographyChoice) {
 
 /**
  * The choice lives on the root; the stylesheet does the rest. What CSS cannot reach is redrawn
- * here: xterm holds the font it was built with, and Mermaid bakes one into its SVG.
+ * here: xterm holds the font it was built with, and Mermaid bakes a family and a size into its SVG.
  */
 export function applyTypography(choice: TypographyChoice): void {
   const changed = settle(choice);
   if (changed.monoFont || changed.terminalSize) restyleTerminalViews();
-  if (changed.uiFont || changed.monoFont) redrawDiagrams();
+  if (changed.uiFont || changed.monoFont || changed.readingSize) redrawDiagrams();
 }
 
 /** Runs before the first render, so the window never paints type the user has already left. */
