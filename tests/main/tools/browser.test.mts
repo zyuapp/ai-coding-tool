@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { browserTools } from "../../../src/main/agent/browser-tools.mts";
+import { browserTools } from "../../../src/main/tools/browser.mts";
 import { ThreadChannel } from "../../../src/main/agent/thread-channel.mts";
 import type { BrowserBridge } from "../../../src/main/agent/agent-provider.mts";
 import type { BrowserRead, BrowserWrite, ThreadRequest } from "../../../src/contracts/threads.js";

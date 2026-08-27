@@ -1,8 +1,8 @@
-import { createSdkMcpServer, tool, type McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import type { TerminalReadResult } from "../../contracts/threads.js";
 import { describeTerminal, DEFAULT_TERMINAL_LINES, MAX_TERMINAL_LINES, type TerminalSnapshot } from "../../domain/terminal.js";
-import type { TerminalBridge } from "./agent-provider.mjs";
+import type { TerminalBridge } from "../agent/agent-provider.mjs";
+import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
 export const TERMINAL_SERVER_NAME = "aicodingtool-terminal";
 
@@ -37,41 +37,36 @@ async function report(work: () => Promise<string>) {
   }
 }
 
-export function terminalServer(bridge: TerminalBridge): McpServerConfig {
-  return createSdkMcpServer({
-    name: TERMINAL_SERVER_NAME,
-    version: "1.0.0",
-    alwaysLoad: true,
-    tools: terminalTools(bridge),
-  });
-}
+export const TERMINAL_TOOLS: readonly ToolDefinition<TerminalBridge>[] = [
+  defineTool({
+    name: "terminal_list",
+    description: "List the terminals the AICodingTool terminal panel has open, with the folder each runs in and whether its shell is still alive.",
+    input: {},
+    readOnly: true,
+    run: (bridge) => report(async () => readText(await bridge.read({ op: "terminals" }))),
+  }),
+  defineTool({
+    name: "terminal_read",
+    description: [
+      "Read what a terminal in the AICodingTool terminal panel has printed, as plain text with the escape sequences resolved.",
+      "This is the user's own shell, not yours: you can read it but never type into it, so use Bash to run anything yourself.",
+      "Prefer `match` over a large `lines` when hunting for an error — it filters before the output is returned.",
+    ].join(" "),
+    input: {
+      terminalId: terminalField,
+      lines: z.number().optional().describe(`How many of the newest lines to return. Defaults to ${DEFAULT_TERMINAL_LINES}, and never exceeds ${MAX_TERMINAL_LINES}.`),
+      match: z.string().optional().describe("Keep only lines containing this text, case-insensitively."),
+    },
+    readOnly: true,
+    run: (bridge, args) => report(async () => readText(await bridge.read({
+      op: "snapshot",
+      ...(args.terminalId ? { terminalId: args.terminalId } : {}),
+      ...(args.lines === undefined ? {} : { lines: args.lines }),
+      ...(args.match ? { match: args.match } : {}),
+    }))),
+  }),
+];
 
 export function terminalTools(bridge: TerminalBridge) {
-  return [
-    tool(
-      "terminal_list",
-      "List the terminals the AICodingTool terminal panel has open, with the folder each runs in and whether its shell is still alive.",
-      {},
-      async () => report(async () => readText(await bridge.read({ op: "terminals" }))),
-    ),
-    tool(
-      "terminal_read",
-      [
-        "Read what a terminal in the AICodingTool terminal panel has printed, as plain text with the escape sequences resolved.",
-        "This is the user's own shell, not yours: you can read it but never type into it, so use Bash to run anything yourself.",
-        "Prefer `match` over a large `lines` when hunting for an error — it filters before the output is returned.",
-      ].join(" "),
-      {
-        terminalId: terminalField,
-        lines: z.number().optional().describe(`How many of the newest lines to return. Defaults to ${DEFAULT_TERMINAL_LINES}, and never exceeds ${MAX_TERMINAL_LINES}.`),
-        match: z.string().optional().describe("Keep only lines containing this text, case-insensitively."),
-      },
-      async (args) => report(async () => readText(await bridge.read({
-        op: "snapshot",
-        ...(args.terminalId ? { terminalId: args.terminalId } : {}),
-        ...(args.lines === undefined ? {} : { lines: args.lines }),
-        ...(args.match ? { match: args.match } : {}),
-      }))),
-    ),
-  ];
+  return bindTools(bridge, TERMINAL_TOOLS);
 }

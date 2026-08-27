@@ -5,19 +5,18 @@ import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolInt
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
-import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
-import { BROWSER_SERVER_NAME } from "./browser-tools.mjs";
-import { THREAD_SERVER_NAME } from "./thread-tools.mjs";
+import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
+import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
+import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
+import { readOnlyToolNames } from "./claude-mcp-host.mjs";
 
 const setupToolName = "mcp__aicodingtool-computer-use__request_setup";
 /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
 const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
 /** Reading the workspace changes nothing, so it needs no approval; starting or stopping a run does. */
-const threadToolPrefix = `mcp__${THREAD_SERVER_NAME}__`;
-const readOnlyThreadTools = new Set([`${threadToolPrefix}list_threads`, `${threadToolPrefix}read_thread`, `${threadToolPrefix}wait_for_thread`]);
+const readOnlyThreadTools = readOnlyToolNames(THREAD_SERVER_NAME, THREAD_TOOLS);
 /** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
-const browserToolPrefix = `mcp__${BROWSER_SERVER_NAME}__`;
-const readOnlyBrowserTools = new Set([`${browserToolPrefix}browser_read`, `${browserToolPrefix}browser_tabs`]);
+const readOnlyBrowserTools = readOnlyToolNames(BROWSER_SERVER_NAME, BROWSER_TOOLS);
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";

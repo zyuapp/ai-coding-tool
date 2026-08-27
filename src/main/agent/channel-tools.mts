@@ -1,4 +1,4 @@
-import { AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
+import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import type { RunChannel } from "../../contracts/ipc.js";
 
 function mcpTool(server: string, name: string) {

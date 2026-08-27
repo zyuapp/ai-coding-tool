@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { terminalTools } from "../../../src/main/agent/terminal-tools.mts";
+import { terminalTools } from "../../../src/main/tools/terminal.mts";
 import type { TerminalBridge } from "../../../src/main/agent/agent-provider.mts";
 import type { TerminalRead, TerminalReadResult } from "../../../src/contracts/threads.js";
 import type { TerminalSnapshot } from "../../../src/domain/terminal.js";

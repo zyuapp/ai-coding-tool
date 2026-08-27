@@ -2,11 +2,12 @@ import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig,
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
-import { automationServer, AUTOMATION_SERVER_NAME } from "./automation-tools.mjs";
-import { browserServer, BROWSER_SERVER_NAME } from "./browser-tools.mjs";
-import { terminalServer, TERMINAL_SERVER_NAME } from "./terminal-tools.mjs";
+import { automationTools, AUTOMATION_SERVER_NAME, findingTools } from "../tools/automation.mjs";
+import { browserTools, BROWSER_SERVER_NAME } from "../tools/browser.mjs";
+import { terminalTools, TERMINAL_SERVER_NAME } from "../tools/terminal.mjs";
+import { threadTools, THREAD_SERVER_NAME } from "../tools/threads.mjs";
 import { withheldTools } from "./channel-tools.mjs";
-import { threadServer, THREAD_SERVER_NAME } from "./thread-tools.mjs";
+import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 
 type QueryFactory = typeof query;
@@ -183,10 +184,12 @@ export class ClaudeAgentProvider implements AgentProvider {
         })],
       });
     }
-    if (input.automations) mcpServers[AUTOMATION_SERVER_NAME] = automationServer(input.automations, input.findings);
-    if (input.threads) mcpServers[THREAD_SERVER_NAME] = threadServer(input.threads);
-    if (input.browser) mcpServers[BROWSER_SERVER_NAME] = browserServer(input.browser);
-    if (input.terminal) mcpServers[TERMINAL_SERVER_NAME] = terminalServer(input.terminal);
+    if (input.automations) {
+      mcpServers[AUTOMATION_SERVER_NAME] = claudeMcpServer(AUTOMATION_SERVER_NAME, [...automationTools(input.automations), ...(input.findings ? findingTools(input.findings) : [])]);
+    }
+    if (input.threads) mcpServers[THREAD_SERVER_NAME] = claudeMcpServer(THREAD_SERVER_NAME, threadTools(input.threads));
+    if (input.browser) mcpServers[BROWSER_SERVER_NAME] = claudeMcpServer(BROWSER_SERVER_NAME, browserTools(input.browser));
+    if (input.terminal) mcpServers[TERMINAL_SERVER_NAME] = claudeMcpServer(TERMINAL_SERVER_NAME, terminalTools(input.terminal));
     return {
       prompt,
       options: {

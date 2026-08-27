@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ThreadChannel } from "../../../src/main/agent/thread-channel.mts";
-import { threadTools } from "../../../src/main/agent/thread-tools.mts";
+import { threadTools } from "../../../src/main/tools/threads.mts";
 import type { ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import type {
   ExternalCommand,
