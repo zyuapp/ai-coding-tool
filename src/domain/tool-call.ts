@@ -21,8 +21,6 @@ type ToolNaming = {
   families: Record<string, ToolFamily>;
   /** Argument keys in the order they identify a call, so the first one present is the one to show. */
   namingKeys: readonly string[];
-  /** Families for tools the engine names by prefix rather than by listed name. */
-  familyOfPrefix?: (name: string) => ToolFamily | undefined;
 };
 
 const NAMING: Record<AgentEngine, ToolNaming> = {
@@ -50,7 +48,7 @@ function ownToolFamily(name: string): ToolFamily | undefined {
 
 export function toolFamily(engine: AgentEngine, name: string): ToolFamily {
   const naming = NAMING[engine];
-  return naming.families[name] ?? naming.familyOfPrefix?.(name) ?? ownToolFamily(name) ?? "other";
+  return naming.families[name] ?? ownToolFamily(name) ?? "other";
 }
 
 /** Path segments beyond the last two say where a repo lives, not which file the call touched. */

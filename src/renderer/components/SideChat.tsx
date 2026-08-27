@@ -68,6 +68,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         <ConversationTimeline
           find={find}
           currentTask={chat.task}
+          engine={chat.task.engine}
           engineLabel={engineLabel}
           folder={project?.root ?? ""}
           status={chat.status}

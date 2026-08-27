@@ -34,6 +34,7 @@ function harness(onAdd: (draft: Draft) => void) {
   document.body.append(scroller);
   return React.createElement(ConversationTimeline, {
     currentTask: TASK,
+    engine: "claude",
     engineLabel: "Claude",
     folder: "/repo",
     status: "idle" as const,

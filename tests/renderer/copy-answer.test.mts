@@ -105,7 +105,7 @@ test("a finished answer copies whole, without the tool work that led to it", asy
     ],
   };
   const view = await mount(React.createElement(ConversationTimeline, {
-    currentTask: task, engineLabel: "Claude", folder: "/p", status: "idle" as const, compacting: false,
+    currentTask: task, engine: "claude", engineLabel: "Claude", folder: "/p", status: "idle" as const, compacting: false,
     waitingOn: null, scrollContainerRef: { current: scroller },
   }));
 

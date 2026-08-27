@@ -31,6 +31,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
         <ConversationTimeline
           find={mine}
           currentTask={workspace.currentTask}
+          engine={workspace.engine}
           engineLabel={workspace.engineLabel}
           folder={workspace.folder}
           status={workspace.status}

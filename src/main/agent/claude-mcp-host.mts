@@ -2,7 +2,7 @@ import { createSdkMcpServer, tool, type McpServerConfig } from "@anthropic-ai/cl
 import type { BoundTool } from "../tools/tool-definition.mjs";
 
 /** How Claude names a tool an MCP server offers. */
-function mcpToolName(server: string, name: string) {
+export function mcpToolName(server: string, name: string) {
   return `mcp__${server}__${name}`;
 }
 

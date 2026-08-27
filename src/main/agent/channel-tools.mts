@@ -1,9 +1,6 @@
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import type { RunChannel } from "../../contracts/ipc.js";
-
-function mcpTool(server: string, name: string) {
-  return `mcp__${server}__${name}`;
-}
+import { mcpToolName } from "./claude-mcp-host.mjs";
 
 /** Asked through the UI instead, on every channel. */
 const ALWAYS_WITHHELD = ["AskUserQuestion"];
@@ -20,12 +17,12 @@ const ALWAYS_WITHHELD = ["AskUserQuestion"];
 export const WITHHELD_BY_CHANNEL: Record<RunChannel, readonly string[]> = {
   main: [],
   side: [
-    mcpTool(AUTOMATION_SERVER_NAME, "schedule"),
-    mcpTool(AUTOMATION_SERVER_NAME, "update"),
-    mcpTool(AUTOMATION_SERVER_NAME, "stop"),
+    mcpToolName(AUTOMATION_SERVER_NAME, "schedule"),
+    mcpToolName(AUTOMATION_SERVER_NAME, "update"),
+    mcpToolName(AUTOMATION_SERVER_NAME, "stop"),
     /** A side chat is in no list the user can reach, so a finding raised there could never be read. */
-    mcpTool(AUTOMATION_SERVER_NAME, "notify"),
-    mcpTool(AUTOMATION_SERVER_NAME, "nothing_to_report"),
+    mcpToolName(AUTOMATION_SERVER_NAME, "notify"),
+    mcpToolName(AUTOMATION_SERVER_NAME, "nothing_to_report"),
   ],
 };
 

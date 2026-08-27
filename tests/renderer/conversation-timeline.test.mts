@@ -238,7 +238,7 @@ function timelineView(
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
+    currentTask: task, engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
   });
 }
 
@@ -282,6 +282,7 @@ function threadHarness() {
     };
     return React.createElement(ConversationTimeline, {
       currentTask,
+      engine: "claude",
       engineLabel: "Claude",
       folder: "/p", status: "idle", compacting: false, waitingOn: null, scrollContainerRef,
       readingPoint: points[id] ?? null,
