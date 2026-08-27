@@ -376,7 +376,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   transform: translateY(-2px) rotate(45deg);
   transition: transform 120ms ease;
 }
-.section-toggle[aria-expanded="false"] .section-chevron { transform: translateY(2px) rotate(-45deg); }
+.section-toggle[aria-expanded="false"] .section-chevron,
+.subagent-group[aria-expanded="false"] .section-chevron { transform: translateY(2px) rotate(-45deg); }
 .section-menu { position: relative; height: 34px; }
 .section-menu,
 .section-action { opacity: 0; }
@@ -1066,15 +1067,23 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .subagent-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 5px; }
 .subagent-row.static, .agent-activity-row.static { position: static; }
 .subagent-group {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   padding: 6px 8px 2px;
   color: var(--quiet);
   font-size: var(--text-meta);
   font-weight: 560;
+  cursor: pointer;
 }
+.subagent-group:hover { color: var(--ink-soft); }
+.subagent-group > span:first-child { display: flex; align-items: center; gap: 7px; }
+.subagent-group .section-chevron { width: 7px; height: 7px; }
 .agents-panel-empty { flex: 1; display: grid; place-content: center; justify-items: center; padding: 24px 24px 10vh; text-align: center; }
 .agents-panel-empty h2 { margin: 15px 0 7px; color: var(--ink-dim); font-size: var(--text-heading); font-weight: 560; }
 .agents-panel-empty p { max-width: 290px; margin: 0; color: var(--quiet); font-size: var(--text-control); line-height: 1.5; }
@@ -2399,6 +2408,7 @@ pre {
 .task-worktree { flex: none; color: var(--info-soft); }
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 12px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }
+.subagent-heading .section-toggle { flex: 1; height: 26px; color: inherit; font-weight: inherit; }
 .subagent-heading > span:last-child { color: var(--info-soft); font-size: var(--text-meta); font-weight: 550; }
 .session-empty { margin: 7px 0 0; color: var(--quiet-soft); font-size: var(--text-meta); line-height: 1.5; }
 .subagent-list { display: grid; gap: 2px; margin-top: 8px; }

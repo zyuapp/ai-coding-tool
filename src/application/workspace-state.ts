@@ -25,7 +25,7 @@ import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_EFFORT, DEFAULT_MODEL, type AgentEffort, type AgentModel, type ExecutionPolicy } from "../domain/run.js";
+import { DEFAULT_EFFORT, DEFAULT_MODEL, OPEN_SUBAGENT_GROUPS, type AgentEffort, type AgentModel, type ExecutionPolicy, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
@@ -212,6 +212,8 @@ export type WorkspaceState = {
   projectEdit: ProjectEdit | null;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
+  /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
+  subagentGroups: SubagentGroups;
   theme: string;
   /** The ground the user asked for, which "auto" leaves to the system's own appearance. */
   themeMode: ThemeMode;
@@ -340,6 +342,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     terminalSize: TERMINAL_SIZE.default,
     sidebarMode: "projects",
     sidebarOpen: true,
+    subagentGroups: OPEN_SUBAGENT_GROUPS,
     sessionPanelOpen: false,
     captureSound: true,
     captureFocus: true,
@@ -749,6 +752,7 @@ export function deriveView(state: WorkspaceState) {
     expandedProjects: state.expandedProjects,
     projectEditor: projectEditorView(state),
     sections: state.sections,
+    subagentGroups: state.subagentGroups,
     theme: state.theme,
     themeMode: state.themeMode,
     uiFont: state.uiFont,

@@ -4,7 +4,7 @@ import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { BackgroundProcess, Subagent, SubagentActivity } from "../../src/domain/run.ts";
+import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
@@ -26,6 +26,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     runActive: false,
     openMenu: null,
     subagents: [],
+    subagentGroups: OPEN_SUBAGENT_GROUPS,
     backgroundProcesses: [],
     workflows: [],
     automationCount: 0,
@@ -36,6 +37,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onOpenWorkflow() {},
     onStopProcess() {},
     onSetOpenMenu() {},
+    onSetSubagentGroup() {},
     onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,
@@ -373,7 +375,7 @@ test("the subagents panel windows a large roster, leads with failures, and filte
   }));
   /** jsdom measures every row at nothing, which would fit the whole roster on one screen. */
   const measuredRows = rowHeights((node) => node.classList?.contains("subagent-row") ? 51 : 0);
-  const view = await mount(React.createElement(AgentsPanel, { subagents: many, onSelect() {} }));
+  const view = await mount(React.createElement(AgentsPanel, { subagents: many, groups: OPEN_SUBAGENT_GROUPS, onSelect() {}, onSetGroup() {} }));
   const list = query(view.container, ".agents-panel-list");
   sizeOf(list, 360, 720);
   await pumpResizeObservers();
@@ -390,6 +392,51 @@ test("the subagents panel windows a large roster, leads with failures, and filte
   );
 
   measuredRows.restore();
+  await view.unmount();
+});
+
+test("a folded status group hides its rows and reports the fold", async () => {
+  const subagents: Subagent[] = [
+    { id: "a", description: "Explore renderer", status: "completed", startedAt: 1, activity: [] },
+    { id: "b", description: "Read the reducer", status: "working", startedAt: 2, activity: [] },
+  ];
+  const folds: Array<[string, boolean]> = [];
+  const view = await mount(React.createElement(AgentsPanel, {
+    subagents,
+    groups: OPEN_SUBAGENT_GROUPS,
+    onSelect() {},
+    onSetGroup(group, open) { folds.push([group, open]); },
+  }));
+
+  assert.match(view.container.textContent, /Explore renderer/);
+  const completed = [...view.container.querySelectorAll<HTMLButtonElement>(".subagent-group")].find((node) => node.textContent?.includes("Completed"));
+  await act(async () => { item(completed).click(); });
+  assert.deepEqual(folds, [["completed", false]]);
+
+  await view.render(React.createElement(AgentsPanel, {
+    subagents,
+    groups: { ...OPEN_SUBAGENT_GROUPS, completed: false },
+    onSelect() {},
+    onSetGroup() {},
+  }));
+  assert.doesNotMatch(view.container.textContent, /Explore renderer/, "a folded group drops its rows");
+  assert.match(view.container.textContent, /Completed/, "the heading stays so the fold can be undone");
+  assert.match(view.container.textContent, /Read the reducer/, "an unfolded group is untouched");
+  await view.unmount();
+});
+
+test("the sidebar folds its subagent list and leaves the count on show", async () => {
+  const subagents: Subagent[] = [{ id: "a", description: "Explore renderer", status: "working", startedAt: 1, activity: [] }];
+  const folds: Array<[string, boolean]> = [];
+  const view = await mount(renderSessionPanel({ subagents, onSetSubagentGroup(group, open) { folds.push([group, open]); } }));
+
+  assert.match(view.container.textContent, /Explore renderer/);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".subagent-heading .section-toggle").click(); });
+  assert.deepEqual(folds, [["sidebar", false]]);
+
+  await view.render(renderSessionPanel({ subagents, subagentGroups: { ...OPEN_SUBAGENT_GROUPS, sidebar: false } }));
+  assert.doesNotMatch(view.container.textContent, /Explore renderer/, "a folded list drops its rows");
+  assert.match(view.container.textContent, /1 working/, "the count stays readable while folded");
   await view.unmount();
 });
 

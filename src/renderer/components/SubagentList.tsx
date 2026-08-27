@@ -1,7 +1,7 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Bot, CheckCircle2, CircleDot, Search, XCircle } from "lucide-react";
-import type { Subagent, SubagentStatus } from "../../domain/run";
+import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
 
 /** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
 const STATUS_RANK: Record<SubagentStatus, number> = { failed: 0, working: 1, stopped: 2, completed: 3 };
@@ -55,9 +55,10 @@ export const SubagentRow = memo(function SubagentRow({ subagent, onSelect }: { s
   );
 });
 
-type Row = { kind: "header"; status: SubagentStatus; count: number } | { kind: "agent"; subagent: Subagent };
+type Row = { kind: "header"; status: SubagentStatus; count: number; open: boolean } | { kind: "agent"; subagent: Subagent };
 
-function rowsFor(subagents: Subagent[], grouped: boolean): Row[] {
+/** A folded group keeps its heading and drops its rows, so what is folded stays out of the window entirely. */
+function rowsFor(subagents: Subagent[], grouped: boolean, groups: SubagentGroups): Row[] {
   if (!grouped) return subagents.map((subagent) => ({ kind: "agent", subagent }));
   const counts = countByStatus(subagents);
   const rows: Row[] = [];
@@ -65,30 +66,39 @@ function rowsFor(subagents: Subagent[], grouped: boolean): Row[] {
   for (const subagent of subagents) {
     if (subagent.status !== bucket) {
       bucket = subagent.status;
-      rows.push({ kind: "header", status: bucket, count: counts[bucket] });
+      rows.push({ kind: "header", status: bucket, count: counts[bucket], open: groups[bucket] });
     }
-    rows.push({ kind: "agent", subagent });
+    if (groups[subagent.status]) rows.push({ kind: "agent", subagent });
   }
   return rows;
 }
 
-function renderRow(row: Row, onSelect: (id: string) => void) {
-  return row.kind === "header"
-    ? <p className="subagent-group">{statusLabel(row.status)}<span>{row.count}</span></p>
-    : <SubagentRow subagent={row.subagent} onSelect={onSelect} />;
+function renderRow(row: Row, onSelect: (id: string) => void, onSetGroup: (group: SubagentGroup, open: boolean) => void) {
+  if (row.kind === "agent") return <SubagentRow subagent={row.subagent} onSelect={onSelect} />;
+  return (
+    <button className="subagent-group" type="button" aria-expanded={row.open} onClick={() => onSetGroup(row.status, !row.open)}>
+      <span>{statusLabel(row.status)}<span className="section-chevron" aria-hidden="true" /></span>
+      <span>{row.count}</span>
+    </button>
+  );
 }
 
-export function AgentsPanel({ subagents, finding = false, onSelect }: {
+export function AgentsPanel({ subagents, groups, finding = false, onSelect, onSetGroup }: {
   subagents: Subagent[];
+  /** Which status headings are unfolded. */
+  groups: SubagentGroups;
   /** Whether a search is reading this panel: it reads what was drawn, so while one is open every row is. */
   finding?: boolean;
   onSelect: (id: string) => void;
+  onSetGroup: (group: SubagentGroup, open: boolean) => void;
 }) {
   const [status, setStatus] = useState<SubagentStatus | null>(null);
   const [query, setQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const counts = useMemo(() => countByStatus(subagents), [subagents]);
-  const rows = useMemo(() => rowsFor(matchSubagents(subagents, status, query), !status), [subagents, status, query]);
+  /** A search reads what the panel drew, so while one is open every group unfolds. */
+  const shown = finding ? OPEN_SUBAGENT_GROUPS : groups;
+  const rows = useMemo(() => rowsFor(matchSubagents(subagents, status, query), !status, shown), [subagents, status, query, shown]);
   const virtual = rows.length > VIRTUALIZE_ABOVE && !finding;
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -151,14 +161,14 @@ export function AgentsPanel({ subagents, finding = false, onSelect }: {
                   ref={virtualizer.measureElement}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
-                  {renderRow(rows[item.index]!, onSelect)}
+                  {renderRow(rows[item.index]!, onSelect, onSetGroup)}
                 </div>
               ))}
             </div>
           ) : (
             rows.map((row, index) => (
               <div className="subagent-row static" key={row.kind === "agent" ? row.subagent.id : `header:${row.status}${index}`}>
-                {renderRow(row, onSelect)}
+                {renderRow(row, onSelect, onSetGroup)}
               </div>
             ))
           )}

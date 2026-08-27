@@ -22,6 +22,20 @@ export type RunStatus = "running" | "awaiting-approval" | "succeeded" | "failed"
 
 export type SubagentStatus = "working" | "completed" | "failed" | "stopped";
 
+/** Every foldable group of subagents: the sidebar's own list, and one heading per status in the panel. */
+export const SUBAGENT_GROUPS = ["sidebar", "working", "failed", "stopped", "completed"] as const;
+
+export type SubagentGroup = (typeof SUBAGENT_GROUPS)[number];
+
+export type SubagentGroups = Record<SubagentGroup, boolean>;
+
+/** Every group unfolded, which is how the app starts before the user folds anything. */
+export const OPEN_SUBAGENT_GROUPS: SubagentGroups = { sidebar: true, working: true, failed: true, stopped: true, completed: true };
+
+export function isSubagentGroup(value: unknown): value is SubagentGroup {
+  return SUBAGENT_GROUPS.includes(value as SubagentGroup);
+}
+
 export type SubagentActivity = {
   id: string;
   kind: "text" | "tool";

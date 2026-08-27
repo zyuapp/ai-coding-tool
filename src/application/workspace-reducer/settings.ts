@@ -6,6 +6,7 @@ import { applyTask } from "../task-workspace.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
+import { isSubagentGroup } from "../../domain/run.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
 
@@ -14,7 +15,8 @@ type SettingsInput = Extract<WorkspaceInput, {
     | "view.set-mono-font" | "view.set-reading-size" | "view.set-terminal-size" | "view.set-sidebar-mode" | "view.set-sidebar-open"
     | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured"
     | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-plain-english" | "view.set-chrome-browser"
-    | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open";
+    | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
+    | "view.set-subagent-group";
 }>;
 
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
@@ -86,6 +88,12 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     case "view.set-sidebar-open": {
       if (state.sidebarOpen === input.open) return settled(state);
       const next = { ...state, sidebarOpen: input.open };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-subagent-group": {
+      if (!isSubagentGroup(input.group) || state.subagentGroups[input.group] === input.open) return settled(state);
+      const next = { ...state, subagentGroups: { ...state.subagentGroups, [input.group]: input.open } };
       return settled(next, persistView(next));
     }
 

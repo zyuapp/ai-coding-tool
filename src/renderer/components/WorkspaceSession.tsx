@@ -20,6 +20,8 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       openMenu={workspace.openMenu}
       onSetOpenMenu={workspace.actions.setOpenMenu}
       subagents={workspace.subagents}
+      subagentGroups={workspace.subagentGroups}
+      onSetSubagentGroup={(group, open) => void workspace.actions.setSubagentGroup(group, open)}
       backgroundProcesses={workspace.backgroundProcesses}
       workflows={workspace.workflows}
       automationCount={workspace.automation ? 1 : 0}

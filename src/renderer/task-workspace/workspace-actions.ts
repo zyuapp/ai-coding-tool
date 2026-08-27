@@ -2,7 +2,7 @@ import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
-import type { AgentEffort, AgentModel, ExecutionPolicy } from "../../domain/run";
+import type { AgentEffort, AgentModel, ExecutionPolicy, SubagentGroup } from "../../domain/run";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment, TaskDropTarget } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
@@ -29,6 +29,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     dismissTask: (taskId: string) => dispatch({ type: "task.dismiss", taskId }),
     dismissAllTasks: () => dispatch({ type: "task.dismiss-all" }),
     setSectionOpen: (section: SidebarSection, open: boolean) => dispatch({ type: "view.set-section-open", section, open }),
+    setSubagentGroup: (group: SubagentGroup, open: boolean) => dispatch({ type: "view.set-subagent-group", group, open }),
     setTheme: (theme: string) => dispatch({ type: "view.set-theme", theme }),
     setThemeFamily: (family: string) => dispatch({ type: "view.set-theme-family", family, systemDark: systemPrefersDark() }),
     setThemeMode: (mode: ThemeMode) => dispatch({ type: "view.set-theme-mode", mode, systemDark: systemPrefersDark() }),

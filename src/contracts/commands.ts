@@ -6,7 +6,7 @@ import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
-import type { AgentEffort, AgentModel, ExecutionPolicy } from "../domain/run.js";
+import type { AgentEffort, AgentModel, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
 /**
@@ -249,6 +249,8 @@ export type ViewCommand =
   | { type: "view.edit-project"; projectId: string | null }
   /** Folds one of the sidebar's lists, whichever mode draws it. */
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
+  /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */
+  | { type: "view.set-subagent-group"; group: SubagentGroup; open: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
   /** The family to paint, on whichever ground the mode in effect asks for. */

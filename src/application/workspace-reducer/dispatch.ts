@@ -80,7 +80,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.inspect-subagent": case "subagent.activity.loaded": case "view.set-capture-options":
     case "view.set-plain-english": case "view.set-chrome-browser": case "view.set-computer-use":
     case "view.set-browser-tools": case "view.set-notifications": case "view.set-session-panel-open":
-    case "view.set-settings-open":
+    case "view.set-settings-open": case "view.set-subagent-group":
       return reduceSettings(state, input);
 
     case "view.close-tab": case "view.new-tab": case "view.select-dock-index":

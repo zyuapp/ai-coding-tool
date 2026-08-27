@@ -1,6 +1,7 @@
 import type { ShortcutOverrides } from "../domain/shortcuts.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { SidebarMode } from "../domain/sidebar.js";
+import type { SubagentGroups } from "../domain/run.js";
 
 /** Presentation choices the window remembers between launches. */
 export type ViewPreferences = {
@@ -23,6 +24,8 @@ export type ViewPreferences = {
   captureFocus: boolean;
   /** Which shape the sidebar reopens in. Which of its lists are folded is not remembered. */
   sidebarMode: SidebarMode;
+  /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
+  subagentGroups: SubagentGroups;
   /** Whether runs answer in the Simplified Technical English output style the app installs. */
   plainEnglish: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */

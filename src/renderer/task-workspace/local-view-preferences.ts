@@ -1,5 +1,6 @@
 import { readViewPreferences, writeViewPreferences } from "../../application/view-preferences";
 import type { ViewPreferences } from "../../contracts/preferences";
+import { OPEN_SUBAGENT_GROUPS } from "../../domain/run";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE } from "../../domain/theme";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../../domain/typography";
 
@@ -23,6 +24,7 @@ export function loadViewPreferences(): ViewPreferences {
     notifications: stored.notifications ?? true,
     sidebarOpen: stored.sidebarOpen ?? window.innerWidth >= 900,
     sidebarMode: stored.sidebarMode ?? "projects",
+    subagentGroups: stored.subagentGroups ?? OPEN_SUBAGENT_GROUPS,
     shortcuts: stored.shortcuts ?? {},
     browserTabs: stored.browserTabs ?? {},
     browserOrigins: stored.browserOrigins ?? [],

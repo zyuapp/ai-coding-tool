@@ -2,7 +2,7 @@ import { AlarmClock, ChevronDown, FileDiff, FolderSymlink, GitBranch, GitMerge, 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";
-import type { BackgroundProcess, Subagent } from "../../domain/run";
+import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
@@ -24,6 +24,8 @@ export type SessionPanelProps = {
   runActive: boolean;
   openMenu: string | null;
   subagents: Subagent[];
+  /** Which subagent groups are unfolded; this panel reads only its own list. */
+  subagentGroups: SubagentGroups;
   backgroundProcesses: BackgroundProcess[];
   workflows: Workflow[];
   automationCount: number;
@@ -35,6 +37,7 @@ export type SessionPanelProps = {
   onOpenWorkflow: (id: string) => void;
   onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
+  onSetSubagentGroup: (group: SubagentGroup, open: boolean) => void;
   onSetWorktree: (worktree: boolean) => void;
   /** `create` names a branch the repository does not have yet, made at the checkout's HEAD first. */
   onCheckoutBranch: (branch: string, create: boolean) => void;
@@ -263,7 +266,7 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
@@ -311,15 +314,20 @@ export function SessionPanel({ environment, hasProject, workspaceId, taskId, loc
             {subagents.length > 0 && (
               <div className="subagent-section">
                 <div className="subagent-heading">
-                  <span>Subagents</span>
+                  <button className="section-toggle" type="button" aria-expanded={subagentGroups.sidebar} onClick={() => onSetSubagentGroup("sidebar", !subagentGroups.sidebar)}>
+                    <span>Subagents</span>
+                    <span className="section-chevron" aria-hidden="true" />
+                  </button>
                   {working > 0 && <span>{working} working</span>}
                 </div>
-                <div className="subagent-list" aria-live="polite">
-                  {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
-                  {subagents.length > shown.length && (
-                    <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View All</button>
-                  )}
-                </div>
+                {subagentGroups.sidebar && (
+                  <div className="subagent-list" aria-live="polite">
+                    {shown.map((subagent) => <SubagentRow key={subagent.id} subagent={subagent} onSelect={onSelect} />)}
+                    {subagents.length > shown.length && (
+                      <button className="subagent-view-all" type="button" onClick={onOpenAgents}>View All</button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -6,6 +6,7 @@ import { afterAll, test } from "vitest";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { PullRequestAnswer } from "../../src/domain/pull-request.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
+import { OPEN_SUBAGENT_GROUPS } from "../../src/domain/run.ts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
 for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "innerWidth", "innerHeight"]) {
@@ -69,6 +70,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     runActive: false,
     openMenu: null,
     subagents: [],
+    subagentGroups: OPEN_SUBAGENT_GROUPS,
     backgroundProcesses: [],
     workflows: [],
     automationCount: 0,
@@ -79,6 +81,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onOpenWorkflow() {},
     onStopProcess() {},
     onSetOpenMenu() {},
+    onSetSubagentGroup() {},
     onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,

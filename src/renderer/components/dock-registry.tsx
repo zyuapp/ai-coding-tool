@@ -78,7 +78,13 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       badge: workingSubagents,
       render: () => (inspectedSubagent
         ? <SubagentInspector subagent={inspectedSubagent} finding={findingAgents} onClose={onCloseInspector} />
-        : <AgentsPanel subagents={workspace.subagents} finding={findingAgents} onSelect={onInspectSubagent} />),
+        : <AgentsPanel
+            subagents={workspace.subagents}
+            groups={workspace.subagentGroups}
+            finding={findingAgents}
+            onSelect={onInspectSubagent}
+            onSetGroup={(group, open) => void workspace.actions.setSubagentGroup(group, open)}
+          />),
     },
     {
       id: "workflow",
