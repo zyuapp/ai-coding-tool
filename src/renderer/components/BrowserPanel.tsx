@@ -77,7 +77,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
       {approval && (
         <div className="browser-approval" role="alert">
           <ShieldAlert size={16} aria-hidden="true" />
-          <p>Claude wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.</p>
+          <p>The agent wants to open <strong>{browserTabTitle({ title: "", url: approval.url })}</strong>. It browses with every login you have here.</p>
           <button className="primary" type="button" onClick={() => onDecide(true)}>Allow this site</button>
           <button type="button" onClick={() => onDecide(false)}>Block</button>
         </div>

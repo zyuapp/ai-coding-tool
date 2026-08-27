@@ -23,6 +23,7 @@ export function DockSideChats({ workspace, source, activeTab, find, findBar, foc
         <div key={chat.id} data-dock-tab={chat.id} hidden={activeTab !== chat.id}>
           <SideChat
             chat={chat}
+            engineLabel={workspace.engineLabel}
             focusToken={focusTokenFor(chat.id)}
             {...(find?.target.kind === "thread" && find.target.taskId === chat.id ? { find, findBar } : {})}
             source={source}

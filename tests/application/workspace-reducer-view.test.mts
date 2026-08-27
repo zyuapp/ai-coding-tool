@@ -182,6 +182,7 @@ test("a thread's panels are fed only where its engine can fill them", () => {
   const state = workspace({ tasks: [task("task-a", { subagents: [subagent] })], currentId: "task-a", workflows: { "task-a": [workflow] } });
   const claude = deriveView(state);
   assert.deepEqual(claude.capabilities, capabilitiesFor("claude"));
+  assert.equal(claude.engineLabel, "Claude");
   assert.deepEqual(claude.workflows, [workflow]);
   assert.deepEqual(claude.subagents, [subagent]);
 

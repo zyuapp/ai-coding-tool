@@ -137,6 +137,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       render: () => (
         <AutomationPanel
           automation={workspace.automation}
+          engineLabel={workspace.engineLabel}
           lastFoundAt={workspace.lastFoundAt}
           lastChecked={workspace.lastChecked}
           onUpdate={(patch) => void workspace.actions.updateAutomation(patch)}
@@ -151,7 +152,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   const launchers: DockLauncher[] = [
     ...panels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, open: () => onOpenPanel(id) }] : []),
     { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() },
-    { id: "terminal", title: "Terminal", description: "Run a shell here and let Claude read what it prints", command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder, open: () => void workspace.actions.openTerminal() },
+    { id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder, open: () => void workspace.actions.openTerminal() },
     { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentTask, open: onAddSideChat },
   ];
 

@@ -67,7 +67,7 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, permissions
       </div>
 
       <AvailabilitySection id="computer-use" label="Computer use" enabled={computerUse} onChange={onSetComputerUse}
-        description="Claude can see and operate other applications. Off leaves it no way to reach them, whatever the permissions below say." />
+        description="The agent can see and operate other applications. Off leaves it no way to reach them, whatever the permissions below say." />
 
       <section className="settings-group" aria-labelledby="permissions-heading" aria-live="polite">
         <div className="settings-group-heading">

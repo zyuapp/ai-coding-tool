@@ -399,7 +399,7 @@ export function AppearanceSettings({
           <span className="setting-status blank" aria-hidden="true" />
           <div>
             <strong>Interface</strong>
-            <p>The window itself: its threads, its menus, and what Claude writes back.</p>
+            <p>The window itself: its threads, its menus, and what the agent writes back.</p>
           </div>
           <div className="setting-row-action">
             <FontSelect axis="uiFont" label="Interface font" chosen={uiFont} onChoose={onSetUiFont} />

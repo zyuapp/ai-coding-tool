@@ -225,7 +225,7 @@ const automationView = (overrides: Partial<AutomationView> = {}): AutomationView
 
 test("the automation panel explains itself before an automation exists", async () => {
   const view = await mount(React.createElement(AutomationPanel, {
-    automation: null, lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
+    automation: null, engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate() {}, onDelete() {}, onRunNow() {},
   }));
 
   assert.match(view.container.textContent, /Ask Claude to repeat this task/);
@@ -238,7 +238,7 @@ test("the automation panel edits the schedule and prompt in one save", async () 
   const patches: AutomationPatch[] = [];
   const automation = automationView();
   const view = await mount(React.createElement(AutomationPanel, {
-    automation, lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
+    automation, engineLabel: "Claude", lastFoundAt: null, lastChecked: null, onUpdate: (patch) => { patches.push(patch); }, onDelete() {}, onRunNow() {},
   }));
 
   const schedule = query<HTMLInputElement>(view.container, 'input[aria-label="Automation schedule"]');
@@ -274,6 +274,7 @@ test("the automation panel pauses, reruns, and removes without editing", async (
   let ranNow = 0;
   const view = await mount(React.createElement(AutomationPanel, {
     automation: automationView(),
+    engineLabel: "Claude",
     lastFoundAt: null,
     lastChecked: null,
     onUpdate: (patch) => { patches.push(patch); },
@@ -291,6 +292,7 @@ test("the automation panel pauses, reruns, and removes without editing", async (
 
   await view.render(React.createElement(AutomationPanel, {
     automation: automationView({ paused: true, nextRunAt: null }),
+    engineLabel: "Claude",
     lastFoundAt: null,
     lastChecked: null,
     onUpdate: (patch) => { patches.push(patch); },

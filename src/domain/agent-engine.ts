@@ -88,6 +88,11 @@ export function capabilitiesFor(engine: AgentEngine): EngineCapabilities {
   return ENGINES[engine].capabilities;
 }
 
+/** What the engine is called wherever the app speaks of the agent running a thread. */
+export function engineLabel(engine: AgentEngine): string {
+  return ENGINES[engine].label;
+}
+
 /** A model the engine does not offer is measured against the engine's default model. */
 export function contextWindowLimit(engine: AgentEngine, model: AgentModel): number {
   const { models, defaultModel } = ENGINES[engine];

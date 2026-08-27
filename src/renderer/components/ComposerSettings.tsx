@@ -78,9 +78,10 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   </details>;
 }
 
-export function ComposerSettings({ mode, engine, model, effort, onModeChange, onModelChange, onEffortChange }: {
+export function ComposerSettings({ mode, engine, engineLabel, model, effort, onModeChange, onModelChange, onEffortChange }: {
   mode: ExecutionPolicy;
   engine: AgentEngine;
+  engineLabel: string;
   model: AgentModel;
   effort: AgentEffort;
   onModeChange: (mode: ExecutionPolicy) => void;
@@ -89,9 +90,9 @@ export function ComposerSettings({ mode, engine, model, effort, onModeChange, on
 }) {
   return (
     <div className="composer-settings">
-      <ChoiceMenu label="Permission mode" axis="Mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
+      <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
       <ChoiceMenu label="Model" axis="Model" heading="Choose a model" choices={modelsOf(engine)} value={model} onChange={(choice) => onModelChange(engine, choice)} />
-      <ChoiceMenu label="Effort" axis="Effort" heading="How hard should Claude think?" choices={effortsOf(engine)} value={effort} onChange={onEffortChange} />
+      <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf(engine)} value={effort} onChange={onEffortChange} />
     </div>
   );
 }

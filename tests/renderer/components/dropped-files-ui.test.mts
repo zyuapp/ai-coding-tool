@@ -51,7 +51,7 @@ function composer(props: Partial<TaskComposerProps>) {
     folder: "/project",
     workspaceId: "workspace-1",
     mode: "confirm",
-    engine: "claude",
+    engine: "claude", engineLabel: "Claude",
     model: "opus",
     effort: "medium",
     runActive: false,

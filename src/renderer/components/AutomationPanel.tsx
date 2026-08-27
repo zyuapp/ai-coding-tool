@@ -4,6 +4,8 @@ import type { AutomationPatch, AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {
   automation: AutomationView | null;
+  /** What the engine running this thread is called. */
+  engineLabel: string;
   /** When a run on this thread last found something, which is the only proof a quiet schedule works. */
   lastFoundAt: number | null;
   lastChecked: { at: number; note: string } | null;
@@ -55,7 +57,7 @@ export function lastRunLabel(automation: AutomationView, at: number) {
   return `${automation.lastStatus ?? "ran"} at ${formatMoment(when, at)}`;
 }
 
-export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
+export function AutomationPanel({ automation, engineLabel, lastFoundAt, lastChecked, onUpdate, onDelete, onRunNow }: AutomationPanelProps) {
   const [schedule, setSchedule] = useState(automation?.schedule ?? "");
   const [prompt, setPrompt] = useState(automation?.prompt ?? "");
   const [surfaceWhen, setSurfaceWhen] = useState(automation?.surfaceWhen ?? "");
@@ -83,7 +85,7 @@ export function AutomationPanel({ automation, lastFoundAt, lastChecked, onUpdate
         <div className="agents-panel-empty">
           <span className="agent-orb"><AlarmClock size={17} /></span>
           <h2>No automation yet</h2>
-          <p>Ask Claude to repeat this task — “run this every morning at 8” — and it appears here.</p>
+          <p>Ask {engineLabel} to repeat this task — “run this every morning at 8” — and it appears here.</p>
         </div>
       </section>
     );

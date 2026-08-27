@@ -33,7 +33,7 @@ function timelineView(
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
+    currentTask: task, engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
   });
 }
 
@@ -190,7 +190,7 @@ function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
   type TimelineProps = React.ComponentProps<typeof ConversationTimeline>;
   const render = (messages: Task["messages"], status: TimelineProps["status"], streamingTail: TimelineProps["streamingTail"]) => React.createElement(ConversationTimeline, {
     currentTask: { id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
-    folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
+    engineLabel: "Claude", folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
   });
   /** Entries are empty because the transcript's observer only cares that something resized. */
   const resize = async () => act(async () => {

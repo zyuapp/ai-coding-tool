@@ -18,9 +18,9 @@ import { useComposerRecall } from "./composer-recall";
 
 export type { ComposerAction };
 
-function composerPlaceholder(surface: "main" | "side", folder: string, disabled: boolean) {
+function composerPlaceholder(surface: "main" | "side", folder: string, disabled: boolean, engineLabel: string) {
   if (surface === "side") return disabled ? "Main context required" : "Ask a side question";
-  return folder ? "Ask Claude to work on anything" : "Ask Claude anything";
+  return folder ? `Ask ${engineLabel} to work on anything` : `Ask ${engineLabel} anything`;
 }
 
 function sendLabel(surface: "main" | "side", runActive: boolean) {
@@ -44,6 +44,8 @@ export type TaskComposerProps = {
   waiting?: boolean;
   mode: ExecutionPolicy;
   engine: AgentEngine;
+  /** What the engine is called, for wording that speaks of the agent. */
+  engineLabel: string;
   model: AgentModel;
   effort: AgentEffort;
   contextUsage?: ContextUsage;
@@ -93,6 +95,7 @@ export function TaskComposer({
   waiting = false,
   mode,
   engine,
+  engineLabel,
   model,
   effort,
   contextUsage,
@@ -160,7 +163,7 @@ export function TaskComposer({
           onBlur={(event) => composerBlur(event, menus, caret)}
           onKeyDown={(event) => composerKeyDown(event, { menus, runActive, sending: attachments.sending, stepRecall, submit })}
           disabled={disabled}
-          placeholder={composerPlaceholder(surface, folder, disabled)}
+          placeholder={composerPlaceholder(surface, folder, disabled, engineLabel)}
           aria-label={surface === "side" ? "Side chat prompt" : "Task prompt"}
           aria-autocomplete="list"
           aria-controls={menuControls(menus)}
@@ -169,7 +172,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

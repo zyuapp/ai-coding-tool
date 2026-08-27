@@ -791,6 +791,7 @@ test("the panel keeps the sentence a schedule surfaces for, rather than trading 
   const panel = (surfaceWhen?: string) => React.createElement(AutomationPanel, {
     /** A record only ever changes with its moment, which is what the panel reloads its fields on. */
     automation: surfaceWhen === undefined ? automation : { ...automation, surfaceWhen, updatedAt: 2 },
+    engineLabel: "Claude",
     lastFoundAt: null,
     lastChecked: null,
     onUpdate: (patch) => patches.push(patch),

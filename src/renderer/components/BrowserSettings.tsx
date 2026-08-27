@@ -35,13 +35,13 @@ export function BrowserSettings({
       </div>
 
       <AvailabilitySection id="browser-tools" label="Browser use" enabled={browserTools} onChange={onSetBrowserTools}
-        description="Claude can open and read pages in the browser panel. Off leaves the panel to you alone." />
+        description="The agent can open and read pages in the browser panel. Off leaves the panel to you alone." />
 
       <section className="settings-group" aria-labelledby="browser-session-heading">
         <div className="settings-group-heading">
           <div>
             <h3 id="browser-session-heading">Session</h3>
-            <p>Signing out clears every cookie, cache, and stored login, and takes back the sites Claude may open on its own.</p>
+            <p>Signing out clears every cookie, cache, and stored login, and takes back the sites the agent may open on its own.</p>
           </div>
           <div className="settings-group-action">
             <span>{allowedOrigins.length} {allowedOrigins.length === 1 ? "site allowed" : "sites allowed"}</span>
@@ -58,13 +58,13 @@ export function BrowserSettings({
         </div>
 
         {allowedOrigins.length === 0
-          ? <p className="settings-empty">Claude has to ask before it opens any site.</p>
+          ? <p className="settings-empty">The agent has to ask before it opens any site.</p>
           : allowedOrigins.map((origin) => (
             <div className="setting-row" key={origin}>
               <span className="setting-status granted"><Check size={13} /></span>
               <div>
                 <strong>{origin}</strong>
-                <p>Claude can open this site without asking.</p>
+                <p>The agent can open this site without asking.</p>
               </div>
             </div>
           ))}

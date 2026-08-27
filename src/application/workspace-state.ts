@@ -25,7 +25,7 @@ import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, capabilitiesFor, defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel, type EngineCapabilities } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities } from "../domain/agent-engine.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
@@ -719,6 +719,8 @@ export function deriveView(state: WorkspaceState) {
     folderLabel: currentProject ? projectName(currentProject) : "",
     policy: currentTask?.executionPolicy ?? state.draftPolicy,
     engine,
+    /** The engine's name, for wording that speaks of the agent running this thread. */
+    engineLabel: engineLabel(engine),
     /** What the engine can feed, so a panel it cannot is not offered for this thread. */
     capabilities,
     model: currentTask ? currentTask.model ?? defaultModelFor(currentTask.engine) : state.draftModel,

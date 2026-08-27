@@ -324,6 +324,7 @@ test("a side chat composes with everything the main composer has", async () => {
       approval: { approvalId: "approval-1", taskId: "chat-1", runId: "run-1", title: "Run a command", description: "ls", toolName: "Bash", input: { command: "ls" } },
       prompt,
     },
+    engineLabel: "Claude",
     source: { ...chatTask, id: "main-task", title: "Main", continuation: { provider: "claude", value: "main-session" } },
     onPrompt,
     onAnnotateAdd() {},

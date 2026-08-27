@@ -11,8 +11,10 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, focusToken = 0, find = null, findBar, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
+  /** What the engine running this chat is called. */
+  engineLabel: string;
   /** Bumped whenever something asks this chat to take the caret. */
   focusToken?: number;
   /** The bar, and the match it is showing, when it is this chat's own thread being searched. */
@@ -66,6 +68,7 @@ export function SideChat({ chat, focusToken = 0, find = null, findBar, source, p
         <ConversationTimeline
           find={find}
           currentTask={chat.task}
+          engineLabel={engineLabel}
           folder={project?.root ?? ""}
           status={chat.status}
           compacting={chat.compacting}
@@ -93,6 +96,7 @@ export function SideChat({ chat, focusToken = 0, find = null, findBar, source, p
         {...(project?.workspaceId ? { workspaceId: project.workspaceId } : {})}
         mode={chat.task.executionPolicy}
         engine={chat.task.engine}
+        engineLabel={engineLabel}
         model={chat.task.model ?? defaultModelFor(chat.task.engine)}
         effort={chat.task.effort ?? defaultEffortFor(chat.task.engine)}
         {...(chat.task.contextUsage ? { contextUsage: chat.task.contextUsage } : {})}

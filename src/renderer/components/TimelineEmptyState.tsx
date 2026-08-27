@@ -12,12 +12,14 @@ function FolderIcon() {
 type EmptyStateProps = {
   /** False while the stored threads are still on their way, when an empty transcript means nothing. */
   restored: boolean;
+  /** What the engine running this thread is called. */
+  engineLabel: string;
   folder: string;
   empty?: { icon: LucideIcon; title: string; description: string };
   startOptions?: ReactNode;
 };
 
-export function TimelineEmptyState({ restored, folder, empty, startOptions }: EmptyStateProps) {
+export function TimelineEmptyState({ restored, engineLabel, folder, empty, startOptions }: EmptyStateProps) {
   /** A transcript that has nothing yet because nothing has been read is not a transcript with nothing in it. */
   if (!restored) return <div className="empty-state" />;
   const EmptyIcon = empty?.icon;
@@ -25,7 +27,7 @@ export function TimelineEmptyState({ restored, folder, empty, startOptions }: Em
     <div className="empty-state">
       <div className="empty-glyph">{EmptyIcon ? <EmptyIcon /> : <FolderIcon />}</div>
       <h2>{empty?.title ?? "Start a task"}</h2>
-      <p>{empty?.description ?? (folder ? "Tell Claude what you want to change, investigate, or build in this project." : "Ask a question or start a self-contained task.")}</p>
+      <p>{empty?.description ?? (folder ? `Tell ${engineLabel} what you want to change, investigate, or build in this project.` : "Ask a question or start a self-contained task.")}</p>
       {startOptions}
     </div>
   );

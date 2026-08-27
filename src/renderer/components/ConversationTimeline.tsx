@@ -24,6 +24,8 @@ const EMPTY_ANNOTATIONS: Annotation[] = [];
 
 export type ConversationTimelineProps = {
   currentTask?: Task;
+  /** What the engine running this thread is called. */
+  engineLabel: string;
   folder: string;
   status: "idle" | "running" | "stopped";
   compacting: boolean;
@@ -59,7 +61,7 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
   run: "Starting…",
 };
 
-export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentTask, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
   const engine = currentTask?.engine ?? DEFAULT_ENGINE;
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -117,7 +119,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
 
   if (!currentTask?.messages.length && !streamingTail) {
-    return <TimelineEmptyState restored={restored} folder={folder} empty={empty} startOptions={startOptions} />;
+    return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
   }
 
   return (
