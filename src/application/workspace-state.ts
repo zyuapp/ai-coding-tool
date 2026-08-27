@@ -25,7 +25,7 @@ import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_MODEL, type AgentModel } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
@@ -197,6 +197,7 @@ export type WorkspaceState = {
   draftWorktree: boolean;
   /** The checkout the next new thread starts in, when the user picked one the project already has. */
   draftWorktreeId: string | null;
+  draftEngine: AgentEngine;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   prompts: Record<string, string>;
@@ -325,6 +326,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftBranch: null,
     draftWorktree: false,
     draftWorktreeId: null,
+    draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     prompts: {},
@@ -408,6 +410,7 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
     historyIndex: firstTask ? 0 : -1,
     draftProjectId: firstProject,
     draftPolicy: firstTask?.executionPolicy ?? "confirm",
+    draftEngine: firstTask?.engine ?? DEFAULT_ENGINE,
     draftModel: firstTask?.model ?? DEFAULT_MODEL,
     draftEffort: firstTask?.effort ?? DEFAULT_EFFORT,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
@@ -451,6 +454,7 @@ export function withStoreData(state: WorkspaceState, data: TaskStoreData): Works
     historyIndex: landing.historyIndex,
     draftProjectId: landing.draftProjectId,
     draftPolicy: landing.draftPolicy,
+    draftEngine: landing.draftEngine,
     draftModel: landing.draftModel,
     draftEffort: landing.draftEffort,
     expandedProjects: landing.expandedProjects,
@@ -700,8 +704,9 @@ export function deriveView(state: WorkspaceState) {
     /** What that folder is called: the name the user gave the project, else the folder's own. */
     folderLabel: currentProject ? projectName(currentProject) : "",
     policy: currentTask?.executionPolicy ?? state.draftPolicy,
-    model: currentTask?.model ?? state.draftModel,
-    effort: currentTask?.effort ?? state.draftEffort,
+    engine: currentTask?.engine ?? state.draftEngine,
+    model: currentTask ? currentTask.model ?? defaultModelFor(currentTask.engine) : state.draftModel,
+    effort: currentTask ? currentTask.effort ?? defaultEffortFor(currentTask.engine) : state.draftEffort,
     prompt: state.prompts[promptKey(state)] ?? "",
     annotations: annotationsFor(state, promptKey(state)),
     pastes: pastesFor(state, promptKey(state)),

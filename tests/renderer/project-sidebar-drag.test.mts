@@ -257,6 +257,7 @@ function seedProjectTasks(tasks: SeedProjectTask[]) {
   localStorage.clear();
   localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
+      engine: "claude",
       executionPolicy: "confirm",
       messages: [],
       continuationStatus: "none",
@@ -395,7 +396,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
 
 test("a thread drag leaves a folded folder folded, and opens no gap where it sits", async () => {
   const task = (id: string, projectId: string): Task => ({
-    id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
+    id, title: id, ...(projectId ? { projectId } : {}), engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
   });
   const projects = [{ id: "open-project", root: "/open" }, { id: "shut-project", root: "/shut" }];

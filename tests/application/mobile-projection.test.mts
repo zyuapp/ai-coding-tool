@@ -15,6 +15,7 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
   return {
     id,
     title: id,
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",
@@ -118,6 +119,7 @@ test("the open thread carries its transcript, approval, queue, draft and setting
       projectId: "project-app",
       model: "sonnet",
       effort: "high",
+      engine: "claude",
       executionPolicy: "allow-edits",
       messages: [message("do it", NOW - 2_000), message("on it", NOW - 1_000, "assistant")],
     }),
@@ -144,7 +146,7 @@ test("the open thread carries its transcript, approval, queue, draft and setting
   assert.match(thread.approval!.detail, /rm -rf build/);
   assert.deepEqual(thread.queued, [{ id: "queued-1", text: "then this" }]);
   assert.equal(thread.prompt, "half typed");
-  assert.deepEqual(thread.settings, { model: "sonnet", effort: "high", policy: "allow-edits" });
+  assert.deepEqual(thread.settings, { engine: "claude", model: "sonnet", effort: "high", policy: "allow-edits" });
 });
 
 test("a Mac with no thread open describes the one it is about to start", () => {
@@ -161,7 +163,7 @@ test("a Mac with no thread open describes the one it is about to start", () => {
   assert.deepEqual(view.draft, {
     projectName: "App",
     prompt: "half typed",
-    settings: { model: "sonnet", effort: "low", policy: "autonomous" },
+    settings: { engine: "claude", model: "sonnet", effort: "low", policy: "autonomous" },
   });
 
   const open = projectMobileView({ ...state, currentId: "in-app" }, NOW);
@@ -184,7 +186,7 @@ test("starting and finishing a draft both travel, and a patch puts them back", (
 
   const typed = workspace([task("in-app", { projectId: "project-app" })], { draftProjectId: "project-app", prompts: { "draft:project-app": "one word" } });
   const moved = diffMobileView(projectMobileView(drafting, NOW), projectMobileView(typed, NOW));
-  assert.deepEqual(moved, { draft: { projectName: "App", prompt: "one word", settings: { model: "opus", effort: "high", policy: "confirm" } } });
+  assert.deepEqual(moved, { draft: { projectName: "App", prompt: "one word", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" } } });
 });
 
 test("the transcript is bounded in both directions", () => {

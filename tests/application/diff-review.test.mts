@@ -93,6 +93,7 @@ function thread(id: string, title: string): Task {
     id,
     title,
     projectId: PROJECT.id,
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",

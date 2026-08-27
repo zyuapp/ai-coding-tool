@@ -1,7 +1,7 @@
 import type { BackgroundReport, ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { AgentModel } from "../../domain/agent-engine.js";
+import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort, Continuation, ExecutionPolicy, SubagentStatus, ToolIntent } from "../../domain/run.js";
 
 /** The window's workspace, reachable from the run: reads are projections, writes are commands. */
@@ -91,6 +91,7 @@ export type ProviderRunInput = {
   projectless: boolean;
   computerUse: ComputerUseRunConfig;
   policy: ExecutionPolicy;
+  engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
   /** The Claude Code output style the run answers in, layered over the user's own settings. */

@@ -10,6 +10,7 @@ const command = {
   prompt: "inspect",
   workspaceId: "workspace-1",
   policy: "confirm",
+  engine: "claude",
   model: "opus",
   effort: "high",
 };

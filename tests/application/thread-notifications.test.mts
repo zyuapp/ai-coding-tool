@@ -7,7 +7,7 @@ import type { RunEvent } from "../../src/contracts/ipc.ts";
 import type { Task } from "../../src/domain/task.ts";
 
 function task(id: string): Task {
-  return { id, title: id, messages: [], createdAt: 1, updatedAt: 1, executionPolicy: "confirm", continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 0 } };
+  return { id, title: id, messages: [], createdAt: 1, updatedAt: 1, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 0 } };
 }
 
 function activeRun(taskId: string, overrides: Partial<ActiveRun> = {}): ActiveRun {

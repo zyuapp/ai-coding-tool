@@ -9,7 +9,7 @@ import type { Task } from "../../../src/domain/task.ts";
 import { input, liveQueryFactory, liveTurn, tick, turn, type LiveQueryCapture } from "../../support/claude-session.mjs";
 
 function task(id: string): Task {
-  return { id, title: id, executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 };
+  return { id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 };
 }
 
 function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {

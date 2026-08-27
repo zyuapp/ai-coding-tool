@@ -2,7 +2,7 @@ import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
-import type { AgentModel } from "../../domain/agent-engine";
+import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment, TaskDropTarget } from "../../domain/task";
@@ -56,7 +56,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     goForward: () => dispatch({ type: "view.go-forward" }),
     setPrompt: (prompt: string) => dispatch({ type: "view.set-prompt", prompt }),
     setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),
-    setModel: (model: AgentModel) => dispatch({ type: "task.set-model", model }),
+    setModel: (engine: AgentEngine, model: AgentModel) => dispatch({ type: "task.set-model", engine, model }),
     setEffort: (effort: AgentEffort) => dispatch({ type: "task.set-effort", effort }),
     setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
     setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),

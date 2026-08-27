@@ -6,6 +6,7 @@ function inherited(source: Task) {
   return {
     ...(source.projectId ? { projectId: source.projectId } : {}),
     executionPolicy: source.executionPolicy,
+    engine: source.engine,
     ...(source.model ? { model: source.model } : {}),
     ...(source.effort ? { effort: source.effort } : {}),
   };

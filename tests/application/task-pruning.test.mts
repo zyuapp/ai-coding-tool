@@ -10,6 +10,7 @@ function task(id: string, archived = false): Task {
   return {
     id,
     title: id,
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",

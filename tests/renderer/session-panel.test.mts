@@ -50,6 +50,7 @@ function renderTaskComposer(overrides: Partial<TaskComposerProps>) {
     prompt: "",
     folder: "",
     mode: "confirm",
+    engine: "claude",
     model: "opus",
     effort: "high",
     runActive: false,

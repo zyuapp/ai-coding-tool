@@ -10,6 +10,7 @@ import { applyTask } from "../task-workspace.js";
 import { DRAFT_DOCK, blockedTaskIds, busyTaskIds, projectFor, sideChatIds, worktreeById, type WorkspaceState } from "../workspace-state.js";
 import { dismissableTasks, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle } from "../../domain/task.js";
+import { engineHasModel } from "../../domain/agent-engine.js";
 
 type TaskInput = Extract<WorkspaceInput, {
   type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive"
@@ -144,7 +145,10 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
 
     case "task.set-model": {
       const taskId = targetId(state, input.taskId);
-      const drafted = input.taskId === undefined ? { ...state, draftModel: input.model } : state;
+      /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
+      const engine = state.tasks.find((task) => task.id === taskId)?.engine;
+      if (!engineHasModel(input.engine, input.model) || engine && !engineHasModel(engine, input.model)) return settled(state);
+      const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model } : state;
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, model: input.model, updatedAt: now() })) : drafted);
     }
 

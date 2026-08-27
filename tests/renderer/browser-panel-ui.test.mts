@@ -200,6 +200,7 @@ function seedTaskWithSubagent() {
   const task = {
     id: "task-with-agent",
     title: "Inspect",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     subagents: [subagents[1]],

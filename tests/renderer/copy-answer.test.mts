@@ -97,7 +97,7 @@ test("a finished answer copies whole, without the tool work that led to it", asy
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
   const task: Task = {
-    id: "t1", title: "T", executionPolicy: "confirm", continuationStatus: "none",
+    id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     messages: [
       { id: "m0", at: 1000, kind: "tool", text: "Read", detail: "src/domain/task.ts" },

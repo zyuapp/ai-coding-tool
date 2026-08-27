@@ -372,7 +372,7 @@ test("a tick that lands on a busy or archived task is declined instead of queued
 test("removing a project retires the automations of every task it takes with it", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const task = (id: string): Task => ({
-    id, title: id, projectId: project.id, executionPolicy: "confirm", messages: [],
+    id, title: id, projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   });
   const desktop = fakeDesktop({

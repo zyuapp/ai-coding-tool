@@ -16,6 +16,7 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
   return {
     id,
     title: id,
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",

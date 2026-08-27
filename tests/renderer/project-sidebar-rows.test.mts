@@ -277,6 +277,7 @@ function seedProjectTasks(tasks: SeedProjectTask[]) {
   localStorage.clear();
   localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
+      engine: "claude",
       executionPolicy: "confirm",
       messages: [],
       continuationStatus: "none",
@@ -292,7 +293,7 @@ function seedProjectTasks(tasks: SeedProjectTask[]) {
 
 test("activity mode ranks threads into priority, running, and the rest, and only priority dismisses", async () => {
   const thread = (id: string, overrides: Partial<Task> = {}): Task => ({
-    id, title: id, executionPolicy: "confirm", messages: [],
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
   });
   const dismissed: string[] = [];
@@ -375,7 +376,7 @@ test("activity mode ranks threads into priority, running, and the rest, and only
 
 test("only the priority heading offers to dismiss every dot at once", async () => {
   const thread = (id: string, overrides: Partial<Task> = {}): Task => ({
-    id, title: id, executionPolicy: "confirm", messages: [],
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
   });
   const sidebar = (priority: Task[]) => renderProjectSidebar({
@@ -499,7 +500,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
 
 test("the sidebar lists a project's threads as one list, and its menu starts another in a checkout", async () => {
   const thread = (id: string, overrides: Partial<Task> = {}): Task => ({
-    id, title: id, projectId: "project-1", executionPolicy: "confirm", messages: [],
+    id, title: id, projectId: "project-1", engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1, ...overrides,
   });
   const worktree = { id: "wt1", projectId: "project-1", root: "/worktrees/project-wt1", workspaceId: "ws-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
@@ -545,7 +546,7 @@ test("the sidebar lists a project's threads as one list, and its menu starts ano
 
 test("the sidebar marks the threads that run on a schedule and the ones with their own checkout", async () => {
   const task = (id: string, projectId?: string): Task => ({
-    id, title: id, ...(projectId ? { projectId } : {}), executionPolicy: "confirm", messages: [],
+    id, title: id, ...(projectId ? { projectId } : {}), engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
   });
   const view = await mount(renderProjectSidebar({
@@ -582,7 +583,7 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
 
 test("the sidebar follows the thread the keyboard steps to", async () => {
   const thread = (id: string): Task => ({
-    id, title: id, executionPolicy: "confirm", messages: [],
+    id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   });
   const scrolled: Array<{ className: string; options?: boolean | ScrollIntoViewOptions }> = [];

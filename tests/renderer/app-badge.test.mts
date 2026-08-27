@@ -11,6 +11,7 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
     messages: [],
     createdAt: 1,
     updatedAt: 1,
+    engine: "claude",
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 0 },

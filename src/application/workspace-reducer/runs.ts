@@ -165,6 +165,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
+    engine: state.draftEngine,
     model: state.draftModel,
     effort: state.draftEffort,
     messages: [],

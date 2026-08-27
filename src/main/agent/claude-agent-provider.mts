@@ -67,7 +67,7 @@ function sessionKey(input: ProviderRunInput) {
 }
 
 function continuationOf(input: ProviderRunInput) {
-  return input.continuation?.provider === "claude" ? input.continuation.value : undefined;
+  return input.continuation?.provider === input.engine ? input.continuation.value : undefined;
 }
 
 type Held = {

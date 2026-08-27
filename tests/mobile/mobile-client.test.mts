@@ -21,7 +21,7 @@ const TOKEN = "a".repeat(64);
 function view(title: string): MobileView {
   return {
     groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title, status: "idle", lastActivityAt: 1, unread: false }] }],
-    thread: { id: "t1", title, projectName: "App", messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], prompt: "", settings: { model: "opus", effort: "high", policy: "confirm" } },
+    thread: { id: "t1", title, projectName: "App", messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], prompt: "", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" } },
     draft: null,
     error: null,
   };

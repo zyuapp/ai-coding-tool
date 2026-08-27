@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import type { AgentModel } from "../../src/domain/agent-engine.ts";
 import { task, workspace, activeRun, automation, effectAt, required, run, running, queueMessage, send } from "./workspace-reducer-fixtures.mts";
 
 test("a composer send waits for its workspace, then starts the run and clears the draft", () => {
@@ -217,6 +218,14 @@ test("only a thread the send just created is named, from what the user typed and
   );
 });
 
+test("a model the engine does not offer changes neither the thread nor the draft", () => {
+  const state = workspace({ tasks: [task("task-a", { model: "opus" })], currentId: "task-a" });
+  const foreign = "gpt" as AgentModel;
+
+  assert.equal(reduce(state, { type: "task.set-model", engine: "claude", model: foreign }).state, state);
+  assert.equal(reduce(state, { type: "task.set-model", taskId: "task-a", engine: "claude", model: foreign }).state, state);
+});
+
 test("a command that names its task acts on that one, whichever task the user is looking at", () => {
   const state = workspace({
     tasks: [task("task-a"), task("task-b")],
@@ -224,10 +233,11 @@ test("a command that names its task acts on that one, whichever task the user is
     activeRuns: { "task-b": activeRun("task-b", "run-b") },
   });
 
-  const modelled = reduce(state, { type: "task.set-model", taskId: "task-b", model: "haiku" });
+  const modelled = reduce(state, { type: "task.set-model", taskId: "task-b", engine: "claude", model: "haiku" });
   assert.equal(modelled.state.tasks[1].model, "haiku");
   assert.equal(modelled.state.tasks[0].model, undefined);
   assert.equal(modelled.state.draftModel, workspace().draftModel, "naming a task leaves the composer's draft alone");
+  assert.equal(modelled.state.tasks[1].engine, "claude", "a thread keeps the engine it started on");
 
   assert.deepEqual(reduce(state, { type: "run.cancel", taskId: "task-b" }).effects, [
     { type: "send-run-command", command: { type: "cancel", taskId: "task-b", runId: "run-b" } },

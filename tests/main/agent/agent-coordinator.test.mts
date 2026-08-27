@@ -18,6 +18,7 @@ const base = (taskId: string, runId: string): InternalStartRunCommand => ({
   projectless: false,
   computerUse: { status: "unavailable", message: "test" },
   policy: "confirm",
+  engine: "claude",
   model: "opus",
   effort: "high",
 });
@@ -272,7 +273,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
   await terminal;
 
   let state: RunTransitionState = {
-    tasks: [{ id: "task-v", title: "Vertical flow", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
+    tasks: [{ id: "task-v", title: "Vertical flow", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
     activeRuns: { "task-v": {
       taskId: "task-v",
       runId: "run-v",

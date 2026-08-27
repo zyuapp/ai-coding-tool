@@ -1,6 +1,6 @@
 import { Brain, Check, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { effortsFor, modelsFor, type AgentModel } from "../../domain/agent-engine";
+import { effortsFor, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
@@ -15,7 +15,13 @@ const modes: Choice<ExecutionPolicy>[] = [
 
 const modelIcons: Record<AgentModel, LucideIcon> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather };
 
-const models: Choice<AgentModel>[] = modelsFor("claude").map((spec) => ({ value: spec.id, label: spec.label, short: spec.label, description: spec.description, icon: modelIcons[spec.id] }));
+/** Each engine's choices are built once, the first time its picker renders. */
+function perEngine<T>(build: (engine: AgentEngine) => T) {
+  const built = new Map<AgentEngine, T>();
+  return (engine: AgentEngine) => built.get(engine) ?? built.set(engine, build(engine)).get(engine)!;
+}
+
+const modelsOf = perEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, short: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
 
 const effortChoices: Record<AgentEffort, Omit<Choice<AgentEffort>, "value">> = {
   max: { label: "Max effort", short: "Max", description: "Everything the model has, slowest", icon: Flame },
@@ -25,7 +31,7 @@ const effortChoices: Record<AgentEffort, Omit<Choice<AgentEffort>, "value">> = {
   low: { label: "Low effort", short: "Low", description: "Minimal thinking, fastest replies", icon: SignalLow },
 };
 
-const efforts: Choice<AgentEffort>[] = effortsFor("claude").map((value) => ({ value, ...effortChoices[value] }));
+const effortsOf = perEngine((engine): Choice<AgentEffort>[] => effortsFor(engine).map((value) => ({ value, ...effortChoices[value] })));
 
 function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, onChange }: {
   label: string;
@@ -72,19 +78,20 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   </details>;
 }
 
-export function ComposerSettings({ mode, model, effort, onModeChange, onModelChange, onEffortChange }: {
+export function ComposerSettings({ mode, engine, model, effort, onModeChange, onModelChange, onEffortChange }: {
   mode: ExecutionPolicy;
+  engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
   onModeChange: (mode: ExecutionPolicy) => void;
-  onModelChange: (model: AgentModel) => void;
+  onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
 }) {
   return (
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading="How should Claude actions be approved?" choices={modes} value={mode} onChange={onModeChange} />
-      <ChoiceMenu label="Model" axis="Model" heading="Choose a model" choices={models} value={model} onChange={onModelChange} />
-      <ChoiceMenu label="Effort" axis="Effort" heading="How hard should Claude think?" choices={efforts} value={effort} onChange={onEffortChange} />
+      <ChoiceMenu label="Model" axis="Model" heading="Choose a model" choices={modelsOf(engine)} value={model} onChange={(choice) => onModelChange(engine, choice)} />
+      <ChoiceMenu label="Effort" axis="Effort" heading="How hard should Claude think?" choices={effortsOf(engine)} value={effort} onChange={onEffortChange} />
     </div>
   );
 }

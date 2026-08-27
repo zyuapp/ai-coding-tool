@@ -401,6 +401,22 @@ test("v2 drops the retired default model and context window instead of rejecting
   assert.equal("contextWindow" in parsed.data.tasks[0], false);
 });
 
+test("v2 tasks written before the engine was recorded load as Claude threads", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const tasks = JSON.parse(serialized.tasks!);
+  delete tasks.value[0].engine;
+
+  const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.data.tasks[0].engine, "claude");
+  assert.deepEqual(parsed.data, migrated.data);
+});
+
 test("a corrupt v2 envelope blocks writes instead of falling back to older data", () => {
   const raw = legacyValues();
   const memory = new Map<string, string | null>([
@@ -461,6 +477,7 @@ test("storage written before a checkout could hold two threads lifts the checkou
     id: "task-1",
     title: "Older thread",
     projectId: "project-1",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",
@@ -488,6 +505,7 @@ test("a thread claiming a checkout that is not there is local again, rather than
     id: "task-1",
     title: "Reconciled away",
     projectId: "project-1",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",
@@ -515,6 +533,7 @@ test("duplicate checkout ids keep the first record before invalid projects are r
     id: "task-shared",
     title: "Shared checkout",
     projectId: "project-1",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",

@@ -53,7 +53,7 @@ function projectMobileDraft(view: ReturnType<typeof deriveView>): MobileDraftVie
   return {
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     prompt: view.prompt,
-    settings: { model: view.model, effort: view.effort, policy: view.policy },
+    settings: { engine: view.engine, model: view.model, effort: view.effort, policy: view.policy },
   };
 }
 
@@ -83,7 +83,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
       : null,
     queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text })),
     prompt: view.prompt,
-    settings: { model: view.model, effort: view.effort, policy: view.policy },
+    settings: { engine: view.engine, model: view.model, effort: view.effort, policy: view.policy },
   };
 }
 

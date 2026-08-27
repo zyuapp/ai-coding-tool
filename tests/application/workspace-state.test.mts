@@ -10,6 +10,7 @@ function task(id: string, worktreeId?: string): Task {
     id,
     title: id,
     projectId: "project-1",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",

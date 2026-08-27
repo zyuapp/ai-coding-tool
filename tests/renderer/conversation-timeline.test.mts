@@ -233,7 +233,7 @@ function timelineView(
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
   const task: Task = {
-    id: "t1", title: "T", executionPolicy: "confirm", messages,
+    id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages,
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
@@ -272,7 +272,7 @@ function threadHarness() {
   const moves: Array<{ id: string; point: TimelineReadingPoint }> = [];
   const thread = (id: string, count: number, prefix?: string) => {
     const currentTask: Task = {
-      id, title: id, executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
+      id, title: id, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
       lastChangeSnapshot: { files: [], capturedAt: 1 },
       messages: transcript(...Array.from({ length: count }, (_, index): TimelineMessageSeed => ({
         kind: index % 2 === 0 ? "user" : "assistant",

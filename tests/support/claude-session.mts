@@ -44,6 +44,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     projectless: false,
     computerUse: { status: "unavailable", message: "test" },
     policy: "confirm",
+    engine: "claude",
     model: "opus",
     effort: "high",
     steering: { next: () => new Promise<null>(() => {}) },

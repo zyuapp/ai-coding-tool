@@ -16,6 +16,7 @@ function thread(...entries: MessageSeed[]): WorkspaceState {
   const task: Task = {
     id: "t1",
     title: "T",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: messages(...entries),
     continuationStatus: "none",

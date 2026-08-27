@@ -19,6 +19,7 @@ const ANSWER: TaskMessage = { id: "m1", kind: "assistant", text: "hello world ag
 const TASK = {
   id: "task-1",
   title: "Thread",
+  engine: "claude",
   executionPolicy: "confirm",
   continuationStatus: "none",
   lastChangeSnapshot: { files: [], capturedAt: 1 },

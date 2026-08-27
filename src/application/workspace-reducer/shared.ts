@@ -15,8 +15,8 @@ import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
 import type { DiffRange } from "../../domain/diff.js";
 import { searchesItself, type FindTarget } from "../../domain/find.js";
 import { PLAIN_ENGLISH_STYLE } from "../../domain/output-style.js";
-import { DEFAULT_MODEL } from "../../domain/agent-engine.js";
-import { DEFAULT_EFFORT, type RunStatus } from "../../domain/run.js";
+import { defaultEffortFor, defaultModelFor } from "../../domain/agent-engine.js";
+import type { RunStatus } from "../../domain/run.js";
 import { createTaskMessage, type Annotation, type AttachedFile, type PastedText, type Project, type RunAttachment, type Task } from "../../domain/task.js";
 import type { Worktree } from "../../domain/worktree.js";
 
@@ -334,8 +334,9 @@ export function startRunCommand(state: WorkspaceState, task: Task, runId: string
     prompt,
     workspaceId,
     policy,
-    model: task.model ?? DEFAULT_MODEL,
-    effort: task.effort ?? DEFAULT_EFFORT,
+    engine: task.engine,
+    model: task.model ?? defaultModelFor(task.engine),
+    effort: task.effort ?? defaultEffortFor(task.engine),
     ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}), ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}), ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(task.continuation ? { continuation: task.continuation } : {}),
   };

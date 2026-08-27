@@ -6,7 +6,7 @@ import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
-import type { AgentModel } from "../domain/agent-engine.js";
+import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
 
@@ -58,7 +58,8 @@ export type TaskCommand =
   | { type: "task.fork"; taskId?: string; worktree?: boolean }
   /** Without a `taskId` the setting also becomes the draft the next new task starts from. */
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }
-  | { type: "task.set-model"; taskId?: string; model: AgentModel }
+  /** A thread keeps its engine; the pair only moves the draft, and a model the engine lacks changes nothing. */
+  | { type: "task.set-model"; taskId?: string; engine: AgentEngine; model: AgentModel }
   | { type: "task.set-effort"; taskId?: string; effort: AgentEffort }
   /**
    * Asks the thread to run in its own checkout, or to come back to the project. The worktree is

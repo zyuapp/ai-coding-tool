@@ -77,7 +77,7 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
   const loadStore = registered<(event: IpcEvent) => unknown>(main.handlers, "task-store:load");
   const runCommand = registered<(event: IpcEvent, payload: unknown) => void>(main.listeners, "run:command");
   assert.doesNotThrow(() => loadStore(main.trusted), "queued persistence remains accepted until final shutdown");
-  runCommand(main.trusted, { type: "start", channel: "main", taskId: "late", runId: "late-run", prompt: "late", workspaceId: "missing", policy: "confirm", model: "opus", effort: "high" });
+  runCommand(main.trusted, { type: "start", channel: "main", taskId: "late", runId: "late-run", prompt: "late", workspaceId: "missing", policy: "confirm", engine: "claude", model: "opus", effort: "high" });
   await tick();
   assert.equal(runStarts, 0, "shutdown refuses new run work without rejecting persistence");
 

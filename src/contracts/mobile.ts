@@ -1,6 +1,6 @@
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import { isAgentEffort, isAgentModel, type AgentModel } from "../domain/agent-engine.js";
+import { engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText, TaskMessageKind } from "../domain/task.js";
 
@@ -66,6 +66,7 @@ export type MobileQueuedMessage = {
 
 /** What the open thread is set to run as, which the phone can change like any other command. */
 export type MobileThreadSettings = {
+  engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
   policy: ExecutionPolicy;
@@ -246,7 +247,7 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.set-policy":
       return named && isPolicy(command.policy);
     case "task.set-model":
-      return named && isAgentModel(command.model);
+      return named && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model);
     case "task.set-effort":
       return named && isAgentEffort(command.effort);
     case "task.steer-queued":

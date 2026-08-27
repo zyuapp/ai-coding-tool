@@ -8,6 +8,7 @@ function task(id: string): Task {
   return {
     id,
     title: id,
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",

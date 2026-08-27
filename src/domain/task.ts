@@ -1,8 +1,11 @@
-import { isAgentEffort, isAgentModel, type AgentModel } from "./agent-engine.js";
+import { engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "./agent-engine.js";
 import type { AgentEffort, Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 
 export const TASK_STORE_VERSION = 2 as const;
+
+/** Every thread written before the engine was recorded ran on Claude. */
+const UNRECORDED_ENGINE: AgentEngine = "claude";
 
 export type TaskMessageKind = "user" | "assistant" | "tool" | "system";
 
@@ -270,6 +273,8 @@ export type Task = {
   titleByUser?: boolean;
   projectId?: string;
   executionPolicy: ExecutionPolicy;
+  engine: AgentEngine;
+  /** One the engine offers; the engine's default when absent. */
   model?: AgentModel;
   effort?: AgentEffort;
   contextUsage?: ContextUsage;
@@ -511,12 +516,13 @@ function migrateLegacyTask(
   ) return null;
 
   const continuationStatus = continuationStatusFor(value.sessionId);
-  const continuation = continuationStatus === "available" ? toContinuation(value.sessionId) : undefined;
+  const continuation = continuationStatus === "available" ? toContinuation(UNRECORDED_ENGINE, value.sessionId) : undefined;
   return {
     id: value.id,
     title: value.title,
     ...(value.folder ? { projectId: projectByRoot.get(normalizeRoot(value.folder)) ?? legacyProjectId(value.folder) } : {}),
     executionPolicy: LEGACY_MODES[value.mode],
+    engine: UNRECORDED_ENGINE,
     messages,
     ...(continuation ? { continuation } : {}),
     continuationStatus,
@@ -657,8 +663,8 @@ function continuationStatusFor(value: unknown): ContinuationStatus {
   return typeof value === "string" && value.trim() ? "available" : "invalid";
 }
 
-function toContinuation(value: unknown): Continuation {
-  return { provider: "claude", value: String(value) };
+function toContinuation(engine: AgentEngine, value: unknown): Continuation {
+  return { provider: engine, value: String(value) };
 }
 
 function isLegacyMode(value: unknown): value is LegacyMode {
@@ -680,7 +686,8 @@ function isTaskBase(value: unknown): value is Task {
     (value.titleByUser === undefined || typeof value.titleByUser === "boolean") &&
     (value.projectId === undefined || nonEmptyString(value.projectId)) &&
     isExecutionPolicy(value.executionPolicy) &&
-    (value.model === undefined || isAgentModel(value.model)) &&
+    isAgentEngine(value.engine) &&
+    (value.model === undefined || isAgentModel(value.model) && engineHasModel(value.engine, value.model)) &&
     (value.effort === undefined || isAgentEffort(value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
@@ -764,8 +771,13 @@ function renamedMessageFields(value: unknown) {
   return message.withdrawn === undefined ? { ...message, withdrawn } : message;
 }
 
+function recordedEngine(value: unknown) {
+  if (!isRecord(value) || value.engine !== undefined) return value;
+  return { ...value, engine: UNRECORDED_ENGINE };
+}
+
 function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Task | null {
-  const retired = renamedFields(dropRetiredSettings(raw));
+  const retired = renamedFields(dropRetiredSettings(recordedEngine(raw)));
   const value = isRecord(retired) ? liftEmbeddedWorktree(retired, lifted) : retired;
   if (!isTaskBase(value)) {
     errors.push("v2 tasks contains an invalid value");

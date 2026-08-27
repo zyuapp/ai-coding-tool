@@ -66,6 +66,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
     prompt: "work",
     workspaceId: projectless.id,
     policy: "confirm",
+    engine: "claude",
     model: "opus",
     effort: "high",
   });
@@ -121,7 +122,7 @@ test("thread requests are relayed to the window and only its answers reach the a
   const workspace = await handler<(event: IpcEvent) => Promise<WorkspaceRecord>>("workspace:projectless")(trusted);
   runCommand(trusted, {
     type: "start", channel: "main", taskId: "task-caller", runId: "run-relay",
-    prompt: "work", workspaceId: workspace.id, policy: "confirm", model: "opus", effort: "high",
+    prompt: "work", workspaceId: workspace.id, policy: "confirm", engine: "claude", model: "opus", effort: "high",
   } satisfies StartRunCommand);
   const carrying = () => agents.find((process) => process.messages.some((message) => message.runId === "run-relay"));
   await waitFor(carrying);

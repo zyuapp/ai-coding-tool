@@ -28,7 +28,7 @@ function timelineView(
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
   const task: Task = {
-    id: "t1", title: "T", executionPolicy: "confirm", messages,
+    id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages,
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
@@ -189,7 +189,7 @@ function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
   const scrollContainerRef = { current: scroller };
   type TimelineProps = React.ComponentProps<typeof ConversationTimeline>;
   const render = (messages: Task["messages"], status: TimelineProps["status"], streamingTail: TimelineProps["streamingTail"]) => React.createElement(ConversationTimeline, {
-    currentTask: { id: "t1", title: "T", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
+    currentTask: { id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
     folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
   });
   /** Entries are empty because the transcript's observer only cares that something resized. */

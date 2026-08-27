@@ -130,6 +130,7 @@ export class RunCoordinator {
         projectless: active.projectless,
         computerUse: command.computerUse,
         policy: command.policy,
+        engine: command.engine,
         model: command.model,
         effort: command.effort,
         outputStyle: command.outputStyle,

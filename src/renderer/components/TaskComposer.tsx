@@ -4,7 +4,7 @@ import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import type { AgentModel } from "../../domain/agent-engine";
+import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
@@ -43,6 +43,7 @@ export type TaskComposerProps = {
   /** Set while a send already given is still finding the checkout it runs in, so nothing sends twice. */
   waiting?: boolean;
   mode: ExecutionPolicy;
+  engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
   contextUsage?: ContextUsage;
@@ -73,7 +74,7 @@ export type TaskComposerProps = {
   onImageRecall?: (paths: string[]) => void;
   onFileRemove?: (fileId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
-  onModelChange: (model: AgentModel) => void;
+  onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onSteerQueued: (messageId: string) => void;
@@ -91,6 +92,7 @@ export function TaskComposer({
   disabled = false,
   waiting = false,
   mode,
+  engine,
   model,
   effort,
   contextUsage,
@@ -167,7 +169,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
+          <ComposerSettings mode={mode} engine={engine} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

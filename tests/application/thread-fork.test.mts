@@ -9,6 +9,7 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
   return {
     id,
     title: id,
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     continuationStatus: "none",
@@ -45,6 +46,7 @@ test("a fork carries the conversation and sits under the thread it was copied fr
   const source = task("first", {
     title: "Fix the login",
     projectId: "project-1",
+    engine: "claude",
     executionPolicy: "autonomous",
     model: "opus",
     effort: "high",

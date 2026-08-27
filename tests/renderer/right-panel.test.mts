@@ -222,6 +222,7 @@ function seedTaskWithSubagent() {
   const task = {
     id: "task-with-agent",
     title: "Inspect",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [],
     subagents: [subagents[1]],
@@ -243,6 +244,7 @@ test("a side chat opened from the right panel sends on the side channel and stop
     tasks: JSON.stringify({ version: 2, value: [{
       id: "main-task",
       title: "Main task",
+      engine: "claude",
       executionPolicy: "confirm",
       messages: [],
       continuation: { provider: "claude", value: "main-session" },
@@ -296,6 +298,7 @@ test("a side chat composes with everything the main composer has", async () => {
   const chatTask: Task = {
     id: "chat-1",
     title: "Side chat",
+    engine: "claude",
     executionPolicy: "allow-edits",
     messages: [],
     continuationStatus: "none",
@@ -399,6 +402,7 @@ test("a view opened in the dock takes the caret with it", async () => {
     tasks: JSON.stringify({ version: 2, value: [{
       id: "task-1",
       title: "Inspect",
+      engine: "claude",
       executionPolicy: "confirm",
       messages: [],
       continuation: { provider: "claude", value: "main-session" },
@@ -429,6 +433,7 @@ test("hiding the panel hands the caret back instead of losing it", async () => {
     tasks: JSON.stringify({ version: 2, value: [{
       id: "task-1",
       title: "Inspect",
+      engine: "claude",
       executionPolicy: "confirm",
       messages: [],
       continuation: { provider: "claude", value: "main-session" },

@@ -22,6 +22,7 @@ test("SQLite task storage appends and updates messages without rewriting the tra
   const task: PersistedTask = {
     id: "task-1",
     title: "Render markdown",
+    engine: "claude",
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -61,6 +62,7 @@ test("SQLite task storage keeps subagent activity in rows of its own", async () 
   const task: PersistedTask = {
     id: "task-1",
     title: "Delegate",
+    engine: "claude",
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -103,6 +105,7 @@ test("SQLite task storage lifts subagents out of tasks written before they had r
   const task: PersistedTask & { subagents: Subagent[] } = {
     id: "task-1",
     title: "Delegate",
+    engine: "claude",
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -191,6 +194,7 @@ test("a project folder inside any of the app's own worktree roots is refused, an
   const task: PersistedTask = {
     id: "task-1",
     title: "Worktree work",
+    engine: "claude",
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -244,6 +248,7 @@ test("a checkout stored inside its thread is lifted into a record other threads 
     id: "task-1",
     title: "Older thread",
     projectId: "project-1",
+    engine: "claude",
     executionPolicy: "confirm",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },
@@ -279,6 +284,7 @@ test("SQLite task storage keeps what a thread's runs found, and which of its mes
   const task: PersistedTask = {
     id: "task-1",
     title: "Poll Datadog",
+    engine: "claude",
     executionPolicy: "autonomous",
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 },

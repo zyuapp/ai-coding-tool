@@ -83,6 +83,7 @@ const command = (overrides: Partial<InternalStartRunCommand> = {}): InternalStar
   projectless: false,
   computerUse: { status: "unavailable", message: "test" },
   policy: "confirm",
+  engine: "claude",
   model: "opus",
   effort: "high",
   ...overrides,
@@ -116,7 +117,7 @@ test("a run the computer-use setting is off for never reaches the driver", async
   const runCommand = registered<(event: { sender: unknown }, payload: unknown) => void>(main.listeners, "run:command");
   const start = (runId: string, overrides: Partial<InternalStartRunCommand>) => runCommand(main.trusted, {
     type: "start", channel: "main", taskId: runId, runId, prompt: "look around",
-    workspaceId: projectless.id, policy: "confirm", model: "opus", effort: "high", ...overrides,
+    workspaceId: projectless.id, policy: "confirm", engine: "claude", model: "opus", effort: "high", ...overrides,
   });
 
   start("run-off", { computerUseTools: false });

@@ -3,8 +3,8 @@ import { useRef, type ReactNode } from "react";
 import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
 import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment, type Project, type Task } from "../../domain/task";
-import { DEFAULT_MODEL, type AgentModel } from "../../domain/agent-engine";
-import { DEFAULT_EFFORT, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
+import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
@@ -42,7 +42,7 @@ export function SideChat({ chat, focusToken = 0, find = null, findBar, source, p
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
   onPolicyChange: (policy: ExecutionPolicy) => void;
-  onModelChange: (model: AgentModel) => void;
+  onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (effort: AgentEffort) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
@@ -92,8 +92,9 @@ export function SideChat({ chat, focusToken = 0, find = null, findBar, source, p
         folder={project?.root ?? ""}
         {...(project?.workspaceId ? { workspaceId: project.workspaceId } : {})}
         mode={chat.task.executionPolicy}
-        model={chat.task.model ?? DEFAULT_MODEL}
-        effort={chat.task.effort ?? DEFAULT_EFFORT}
+        engine={chat.task.engine}
+        model={chat.task.model ?? defaultModelFor(chat.task.engine)}
+        effort={chat.task.effort ?? defaultEffortFor(chat.task.engine)}
         {...(chat.task.contextUsage ? { contextUsage: chat.task.contextUsage } : {})}
         runActive={chat.running}
         queuedMessages={chat.queuedMessages}

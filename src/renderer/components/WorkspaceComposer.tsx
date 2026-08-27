@@ -16,6 +16,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       folder={workspace.folder}
       workspaceId={workspace.currentProject?.workspaceId}
       mode={workspace.policy}
+      engine={workspace.engine}
       model={workspace.model}
       effort={workspace.effort}
       contextUsage={workspace.currentTask?.contextUsage}

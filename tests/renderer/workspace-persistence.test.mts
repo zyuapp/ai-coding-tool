@@ -13,6 +13,7 @@ function snapshot(text: string): PersistenceState {
   const task: Task = {
     id: "task-1",
     title: "Task",
+    engine: "claude",
     executionPolicy: "confirm",
     messages: [{ id: "message-1", kind: "assistant", text, at: 1 }],
     continuationStatus: "none",

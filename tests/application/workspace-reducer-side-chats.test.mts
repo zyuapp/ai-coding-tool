@@ -39,6 +39,7 @@ test("a side chat forks the source thread once, then continues on its own branch
 
 test("a side chat snapshots the source settings at creation, then owns them", () => {
   const source = task("main-task", {
+    engine: "claude",
     executionPolicy: "confirm",
     model: "opus",
     effort: "high",
@@ -53,7 +54,7 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
 
   const retuned = run(opened, [
     { type: "task.set-policy", taskId: "chat-1", policy: "autonomous" },
-    { type: "task.set-model", taskId: "chat-1", model: "haiku" },
+    { type: "task.set-model", taskId: "chat-1", engine: "claude", model: "haiku" },
     { type: "task.set-effort", taskId: "chat-1", effort: "low" },
     { type: "task.set-policy", taskId: "main-task", policy: "allow-edits" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Fix the typo" },

@@ -62,7 +62,7 @@ function ThreadScreen({ thread, connection, waiting, send }: {
         settings={thread.settings}
         onClose={() => setSettingsOpen(false)}
         onPolicy={(policy) => send({ type: "task.set-policy", taskId: thread.id, policy })}
-        onModel={(model) => send({ type: "task.set-model", taskId: thread.id, model })}
+        onModel={(engine, model) => send({ type: "task.set-model", taskId: thread.id, engine, model })}
         onEffort={(effort) => send({ type: "task.set-effort", taskId: thread.id, effort })}
       />}
       {connection !== "live" && <span className="sr-only" role="status">{CONNECTION_LABELS[connection]}</span>}
@@ -98,7 +98,7 @@ function DraftScreen({ draft, waiting, send }: {
         settings={draft.settings}
         onClose={() => setSettingsOpen(false)}
         onPolicy={(policy) => send({ type: "task.set-policy", policy })}
-        onModel={(model) => send({ type: "task.set-model", model })}
+        onModel={(engine, model) => send({ type: "task.set-model", engine, model })}
         onEffort={(effort) => send({ type: "task.set-effort", effort })}
       />}
     </>

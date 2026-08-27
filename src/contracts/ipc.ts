@@ -8,7 +8,7 @@ import type { ExternalApp } from "../domain/external-apps.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE, type AttachedFileDraft } from "../domain/task.js";
-import { isAgentEffort, isAgentModel, type AgentModel } from "../domain/agent-engine.js";
+import { engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -61,6 +61,7 @@ export type StartRunCommand = {
   prompt: string;
   workspaceId: WorkspaceId;
   policy: ExecutionPolicy;
+  engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
   /** The Claude Code output style the run answers in. The user's own setting decides when absent. */
@@ -600,7 +601,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentModel(command.model) && isAgentEffort(command.effort) && (command.outputStyle === undefined || isString(command.outputStyle, MAX_OUTPUT_STYLE)) && (command.chromeBrowser === undefined || command.chromeBrowser === true) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && isString(command.prompt, MAX_PROMPT_LENGTH) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && (command.outputStyle === undefined || isString(command.outputStyle, MAX_OUTPUT_STYLE)) && (command.chromeBrowser === undefined || command.chromeBrowser === true) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);

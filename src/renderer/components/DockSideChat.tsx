@@ -47,7 +47,7 @@ export function DockSideChats({ workspace, source, activeTab, find, findBar, foc
             onDecide={(allow) => void workspace.dispatch({ type: "run.decide", allow, taskId: chat.id })}
             onPolicyChange={(policy) => void workspace.dispatch({ type: "task.set-policy", taskId: chat.id, policy })}
             onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", taskId: chat.id, imageId })}
-            onModelChange={(model) => void workspace.dispatch({ type: "task.set-model", taskId: chat.id, model })}
+            onModelChange={(engine, model) => void workspace.dispatch({ type: "task.set-model", taskId: chat.id, engine, model })}
             onEffortChange={(effort) => void workspace.dispatch({ type: "task.set-effort", taskId: chat.id, effort })}
             onSteerQueued={(messageId) => void workspace.dispatch({ type: "task.steer-queued", taskId: chat.id, messageId })}
             onDropQueued={(messageId) => void workspace.dispatch({ type: "task.drop-queued", taskId: chat.id, messageId })}

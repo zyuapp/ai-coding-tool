@@ -221,6 +221,7 @@ function seedReviewableProject() {
     tasks: JSON.stringify({ version: 2, value: [{
       id: "review-task",
       title: "Review",
+      engine: "claude",
       executionPolicy: "confirm",
       messages: [],
       continuationStatus: "none",
