@@ -3126,10 +3126,11 @@ button.file-name { cursor: pointer; }
   cursor: pointer;
 }
 .viewer-close:hover { color: var(--ink); }
-/* A diagram brings its own scroller, which fills the shell rather than being centred as one fixed item. */
-.viewer.diagram { display: block; }
+/* A zooming view brings its own scroller, which fills the shell rather than being centred as one fixed item. */
+.viewer.diagram, .viewer.image { display: block; }
 .viewer-stage { display: flex; width: 100%; height: 100%; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
-.viewer-stage .mermaid-svg { flex: none; margin: auto; cursor: default; }
+/* Auto margins centre a view that fits without cutting off the start of one that does not. */
+.viewer-stage .mermaid-svg, .viewer-stage img { flex: none; margin: auto; cursor: default; }
 .viewer-zoom {
   position: absolute;
   top: 58px;

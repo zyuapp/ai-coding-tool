@@ -1,16 +1,13 @@
-import { Minus, Plus, X } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { X } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";
+import { ZoomControls, useZoom } from "./ZoomView";
 
 let initialized = false;
 
 /** A rendered diagram and the size it was drawn at, in the units of its own viewBox. */
 export type Diagram = { markup: string; width: number; height: number };
-
-/** How far past the fitted size a diagram can be pushed. Fit is never above 1:1, so 1:1 is always reachable. */
-const MAX_SCALE = 4;
-const SCALE_STEP = 1.4;
 
 type Frame = { x: number; y: number; width: number; height: number };
 
@@ -74,10 +71,8 @@ function drawnAt(diagram: Diagram, scale: number): CSSProperties {
 /** The diagram over the whole window: fitted on entry, then scalable between that and 400%. */
 export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose: () => void }) {
   const dialog = useRef<HTMLDivElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
   const pressedOn = useRef<EventTarget | null>(null);
-  const [fit, setFit] = useState(1);
-  const [chosen, setChosen] = useState<number | null>(null);
+  const zoom = useZoom(diagram.width ? diagram : null);
   useModalFocus(dialog);
 
   useEffect(() => {
@@ -90,21 +85,6 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  useLayoutEffect(() => {
-    const element = stage.current;
-    if (!element || !diagram.width) return;
-    const measure = () => {
-      if (element.clientWidth > 0 && element.clientHeight > 0) {
-        setFit(Math.min(1, element.clientWidth / diagram.width, element.clientHeight / diagram.height));
-      }
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [diagram.width, diagram.height]);
-
-  const scale = Math.min(MAX_SCALE, Math.max(fit, chosen ?? fit));
   return createPortal(
     <div
       ref={dialog}
@@ -117,20 +97,12 @@ export function DiagramViewer({ diagram, onClose }: { diagram: Diagram; onClose:
       /** Only a press and release on the same backdrop dismisses, so a drag off the diagram does not. */
       onClick={(event) => { if (event.target === pressedOn.current) onClose(); }}
     >
-      <div className="viewer-zoom" onClick={(event) => event.stopPropagation()}>
-        <button type="button" aria-label="Zoom out" disabled={scale <= fit} onClick={() => setChosen(scale / SCALE_STEP)}>
-          <Minus size={15} aria-hidden="true" />
-        </button>
-        <span>{Math.round(scale * 100)}%</span>
-        <button type="button" aria-label="Zoom in" disabled={scale >= MAX_SCALE} onClick={() => setChosen(scale * SCALE_STEP)}>
-          <Plus size={15} aria-hidden="true" />
-        </button>
-      </div>
+      <ZoomControls zoom={zoom} />
       <button type="button" className="viewer-close" onClick={onClose} aria-label="Close diagram"><X size={16} /></button>
-      <div ref={stage} className="viewer-stage">
+      <div ref={zoom.stage} className="viewer-stage">
         <div
           className="mermaid-svg"
-          style={drawnAt(diagram, scale)}
+          style={drawnAt(diagram, zoom.scale)}
           onClick={(event) => event.stopPropagation()}
           dangerouslySetInnerHTML={{ __html: diagram.markup }}
         />

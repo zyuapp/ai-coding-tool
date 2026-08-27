@@ -64,6 +64,25 @@ test("the diagram viewer scales between the fitted size and 400%, and reports wh
   await view.unmount();
 });
 
+test("a pinch scales the diagram, while a plain wheel is left to scroll it", async () => {
+  const diagram = { markup: '<svg viewBox="0 0 400 200"></svg>', width: 400, height: 200 };
+  const view = await mount(React.createElement(DiagramViewer, { diagram, onClose: () => {} }));
+  const readout = () => query(document, ".viewer-zoom span").textContent;
+  const wheel = (ctrlKey: boolean) => query(document, ".viewer-stage").dispatchEvent(
+    new dom.window.WheelEvent("wheel", { ctrlKey, deltaY: -100, bubbles: true, cancelable: true }),
+  );
+
+  await act(async () => { wheel(true); });
+  assert.equal(readout(), "272%");
+
+  await act(async () => { wheel(false); });
+  assert.equal(readout(), "272%");
+
+  await act(async () => { wheel(true); });
+  assert.equal(readout(), "400%");
+  await view.unmount();
+});
+
 test("the diagram viewer closes on Escape and on the backdrop, but not on a drag off the diagram", async () => {
   const closed: string[] = [];
   const diagram = { markup: '<svg viewBox="0 0 400 200"></svg>', width: 400, height: 200 };
