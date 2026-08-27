@@ -16,12 +16,22 @@ export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"];
 /** Runs always request the widest context a model offers, so `contextWindow` is that ceiling. */
 export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number };
 
+/** The panels and controls an engine can feed; one that cannot is not drawn for its threads. */
+export type EngineCapabilities = {
+  planUsage: boolean;
+  workflows: boolean;
+  subagents: boolean;
+  steering: boolean;
+  compaction: boolean;
+};
+
 type EngineSpec = {
   label: string;
   models: readonly ModelSpec[];
   defaultModel: AgentModel;
   efforts: readonly AgentEffort[];
   defaultEffort: AgentEffort;
+  capabilities: EngineCapabilities;
 };
 
 const ENGINES: Record<AgentEngine, EngineSpec> = {
@@ -31,6 +41,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     defaultModel: "opus",
     efforts: ["max", "xhigh", "high", "medium", "low"],
     defaultEffort: "high",
+    capabilities: { planUsage: true, workflows: true, subagents: true, steering: true, compaction: true },
   },
 };
 
@@ -71,6 +82,10 @@ export function defaultModelFor(engine: AgentEngine): AgentModel {
 
 export function defaultEffortFor(engine: AgentEngine): AgentEffort {
   return ENGINES[engine].defaultEffort;
+}
+
+export function capabilitiesFor(engine: AgentEngine): EngineCapabilities {
+  return ENGINES[engine].capabilities;
 }
 
 /** A model the engine does not offer is measured against the engine's default model. */

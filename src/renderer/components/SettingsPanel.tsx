@@ -19,7 +19,7 @@ import { WorktreeSettings } from "./WorktreeSettings";
 export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "worktrees" | "shortcuts" | "browser" | "phone" | "archive";
 
 /** The list of pages. Two of them ask for a fresh read as they are opened. */
-function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }: { section: SettingsSection; onSelect: (section: SettingsSection) => void; onRefreshWorktrees: () => void; onRefreshRemote: () => void }) {
+function SettingsNav({ section, planUsage, onSelect, onRefreshWorktrees, onRefreshRemote }: { section: SettingsSection; planUsage: boolean; onSelect: (section: SettingsSection) => void; onRefreshWorktrees: () => void; onRefreshRemote: () => void }) {
   return (
     <nav aria-label="Settings sections">
       <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => onSelect("general")}>
@@ -30,10 +30,12 @@ function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }:
         <Palette size={17} aria-hidden="true" />
         <span>Appearance</span>
       </button>
-      <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => onSelect("usage")}>
-        <Gauge size={17} aria-hidden="true" />
-        <span>Usage</span>
-      </button>
+      {planUsage && (
+        <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => onSelect("usage")}>
+          <Gauge size={17} aria-hidden="true" />
+          <span>Usage</span>
+        </button>
+      )}
       <button className={section === "worktrees" ? "active" : ""} type="button" aria-current={section === "worktrees" ? "page" : undefined} onClick={() => {
         onSelect("worktrees");
         onRefreshWorktrees();
@@ -69,8 +71,9 @@ function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }:
 }
 
 /** The way out of settings, above the pages themselves. */
-function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshWorktrees, onRefreshRemote }: {
+function SettingsSidebar({ section, planUsage, backRef, onClose, onSelect, onRefreshWorktrees, onRefreshRemote }: {
   section: SettingsSection;
+  planUsage: boolean;
   backRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   onSelect: (section: SettingsSection) => void;
@@ -85,7 +88,7 @@ function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshWorktre
         <span>Back to AI Coding Tool</span>
       </button>
       <h1>Settings</h1>
-      <SettingsNav section={section} onSelect={onSelect} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsNav section={section} planUsage={planUsage} onSelect={onSelect} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
     </aside>
   );
 }
@@ -117,6 +120,8 @@ export type SettingsPanelProps = {
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
   browserTools: boolean;
   notifications: boolean;
+  /** Whether the current thread's engine reports plan usage, which is all the Usage page shows. */
+  planUsage: boolean;
   /** The phone bridge, as the main process last reported it. */
   remote: MobileServerState;
   shortcuts: ShortcutSetting[];
@@ -169,6 +174,7 @@ export function SettingsPanel({
   computerUse,
   browserTools,
   notifications,
+  planUsage,
   remote,
   shortcuts,
   capturingShortcut,
@@ -230,7 +236,7 @@ export function SettingsPanel({
         cancelConfirmation(confirmingSignOut);
       }}
     >
-      <SettingsSidebar section={section} backRef={back} onClose={onClose} onSelect={setSection} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsSidebar section={section} planUsage={planUsage} backRef={back} onClose={onClose} onSelect={setSection} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
       <main className="settings-main">
@@ -262,7 +268,7 @@ export function SettingsPanel({
       </main>
       )}
 
-      {section === "usage" && (
+      {section === "usage" && planUsage && (
       <main className="settings-main">
         <div className="settings-page-heading">
           <h2>Usage</h2>

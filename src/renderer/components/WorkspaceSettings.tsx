@@ -19,7 +19,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       terminalSize={workspace.terminalSize}
       allowedOrigins={workspace.browserOrigins}
       plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
-      notifications={workspace.notifications} remote={workspace.remote}
+      notifications={workspace.notifications} planUsage={workspace.capabilities.planUsage} remote={workspace.remote}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}
       onSetThemeFamily={(family) => void workspace.actions.setThemeFamily(family)}

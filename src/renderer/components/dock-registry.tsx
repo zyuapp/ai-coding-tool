@@ -68,8 +68,10 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
   /** The searcher reads what a panel drew, so every view the tab can show draws whole while it reads. */
   const findingAgents = searchedPanel === "agents";
 
+  const { subagents: feedsSubagents, workflows: feedsWorkflows } = workspace.capabilities;
+
   const panels: DockPanel[] = [
-    {
+    ...(feedsSubagents ? [{
       id: "agents",
       title: "Subagents",
       description: "View work delegated from this task",
@@ -85,8 +87,8 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
             onSelect={onInspectSubagent}
             onSetGroup={(group, open) => void workspace.actions.setSubagentGroup(group, open)}
           />),
-    },
-    {
+    }] : []),
+    ...(feedsWorkflows ? [{
       id: "workflow",
       title: workspace.inspectedWorkflow?.name ?? "Workflow",
       description: "Follow a dynamic workflow the run is driving",
@@ -94,7 +96,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       render: () => (workspace.inspectedWorkflow
         ? <WorkflowPanel workflow={workspace.inspectedWorkflow} onStop={workspace.actions.stopBackgroundProcess} />
         : <p className="session-empty">This workflow is no longer running.</p>),
-    },
+    }] : []),
     {
       id: DIFF_PANEL,
       title: "Changes",

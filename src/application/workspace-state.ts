@@ -25,8 +25,8 @@ import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
-import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type SubagentGroups } from "../domain/run.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, capabilitiesFor, defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel, type EngineCapabilities } from "../domain/agent-engine.js";
+import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
@@ -664,6 +664,17 @@ function findView(state: WorkspaceState, currentTask: Task | undefined): FindVie
   return { ...find, matches, index: matches ? Math.min(find.index, matches - 1) : 0, counting, hit: null };
 }
 
+const NO_SUBAGENTS: Subagent[] = [];
+const NO_WORKFLOWS: Workflow[] = [];
+
+/** What the thread's engine reports about its run; a feed the engine cannot fill stays empty. */
+export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceState, currentTask: Task | undefined) {
+  return {
+    subagents: capabilities.subagents ? currentTask?.subagents ?? NO_SUBAGENTS : NO_SUBAGENTS,
+    workflows: capabilities.workflows ? (state.currentId ? state.workflows[state.currentId] : undefined) ?? NO_WORKFLOWS : NO_WORKFLOWS,
+  };
+}
+
 export type WorkspaceView = ReturnType<typeof deriveView>;
 
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
@@ -689,6 +700,9 @@ export function deriveView(state: WorkspaceState) {
   const waitingOn = waitFor(state, currentTask);
   const busy = busyTaskIds(state);
   const blocked = blockedTaskIds(state);
+  const engine = currentTask?.engine ?? state.draftEngine;
+  const capabilities = capabilitiesFor(engine);
+  const feeds = engineFeeds(capabilities, state, currentTask);
   return {
     tasks: listedTasks,
     projects: orderProjects(state.projects),
@@ -704,7 +718,9 @@ export function deriveView(state: WorkspaceState) {
     /** What that folder is called: the name the user gave the project, else the folder's own. */
     folderLabel: currentProject ? projectName(currentProject) : "",
     policy: currentTask?.executionPolicy ?? state.draftPolicy,
-    engine: currentTask?.engine ?? state.draftEngine,
+    engine,
+    /** What the engine can feed, so a panel it cannot is not offered for this thread. */
+    capabilities,
     model: currentTask ? currentTask.model ?? defaultModelFor(currentTask.engine) : state.draftModel,
     effort: currentTask ? currentTask.effort ?? defaultEffortFor(currentTask.engine) : state.draftEffort,
     prompt: state.prompts[promptKey(state)] ?? "",
@@ -719,9 +735,9 @@ export function deriveView(state: WorkspaceState) {
     runningTaskIds: busy,
     blockedTaskIds: blocked,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
-    subagents: currentTask?.subagents ?? [],
+    subagents: feeds.subagents,
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
-    workflows: (state.currentId ? state.workflows[state.currentId] : undefined) ?? [],
+    workflows: feeds.workflows,
     /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
     inspectedWorkflow: workflowById(state, dock.workflowId) ?? null,
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,

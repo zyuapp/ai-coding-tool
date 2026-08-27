@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { DIFF_PANEL, reduce } from "../../src/application/workspace-reducer.ts";
-import { deriveView, dockOwner } from "../../src/application/workspace-state.ts";
+import { deriveView, dockOwner, engineFeeds } from "../../src/application/workspace-state.ts";
+import { capabilitiesFor } from "../../src/domain/agent-engine.ts";
 import type { FindTarget } from "../../src/domain/find.ts";
+import type { Subagent } from "../../src/domain/run.ts";
+import type { Workflow } from "../../src/domain/workflow.ts";
 import { task, workspace, effectAt, PROJECT, required, run, send } from "./workspace-reducer-fixtures.mts";
 
 test("visiting threads builds a trail that back and forward walk without extending it", () => {
@@ -171,4 +174,20 @@ test("coming back to the window reads Git again", () => {
 
   const away = reduce(state, { type: "view.set-focused", focused: false });
   assert.deepEqual(away.effects, [], "a window left alone asks nothing");
+});
+
+test("a thread's panels are fed only where its engine can fill them", () => {
+  const workflow: Workflow = { id: "wf-1", name: "Release", description: "", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
+  const subagent: Subagent = { id: "sub-1", description: "Inspect", status: "working", startedAt: 1, activity: [] };
+  const state = workspace({ tasks: [task("task-a", { subagents: [subagent] })], currentId: "task-a", workflows: { "task-a": [workflow] } });
+  const claude = deriveView(state);
+  assert.deepEqual(claude.capabilities, capabilitiesFor("claude"));
+  assert.deepEqual(claude.workflows, [workflow]);
+  assert.deepEqual(claude.subagents, [subagent]);
+
+  const silent = engineFeeds({ ...capabilitiesFor("claude"), workflows: false, subagents: false }, state, state.tasks[0]);
+  assert.deepEqual(silent.workflows, []);
+  assert.deepEqual(silent.subagents, []);
+  const fed = engineFeeds({ ...capabilitiesFor("claude"), workflows: false }, state, state.tasks[0]);
+  assert.deepEqual(fed.subagents, [subagent], "each feed is gated on its own flag");
 });

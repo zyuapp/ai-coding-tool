@@ -39,7 +39,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
+    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, planUsage: true,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
