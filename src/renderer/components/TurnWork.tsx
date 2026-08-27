@@ -1,6 +1,7 @@
 import { Bot, FileText, Globe, PenLine, Search, Terminal, Wrench, type LucideIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
+import type { AgentEngine } from "../../domain/agent-engine";
 import type { TaskMessage } from "../../domain/task";
 import { describeToolCall, type ToolFamily } from "../../domain/tool-call";
 import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../timeline/grouping";
@@ -74,8 +75,8 @@ function stepDuration(step: TimedStep): number | null {
  * says so once in its own summary, and repeating it there is what buried the argument to begin with.
  * `share` is how much of the run's slowest call this one took, so a long run shows where it went.
  */
-function ToolStep({ step, named = true, share }: { step: TimedStep; named?: boolean; share?: number }) {
-  const call = describeToolCall(step.message.text, step.message.detail);
+function ToolStep({ engine, step, named = true, share }: { engine: AgentEngine; step: TimedStep; named?: boolean; share?: number }) {
+  const call = describeToolCall(engine, step.message.text, step.message.detail);
   const label = call.argument || step.message.text;
   const summary = (
     <>
@@ -91,11 +92,11 @@ function ToolStep({ step, named = true, share }: { step: TimedStep; named?: bool
 }
 
 /** Run of tool calls: the newest one stays visible, the rest hide behind a +N counter. */
-function ToolRun({ steps }: { steps: TimedStep[] }) {
-  if (steps.length === 1) return <ToolStep step={steps[0]!} />;
+function ToolRun({ engine, steps }: { engine: AgentEngine; steps: TimedStep[] }) {
+  if (steps.length === 1) return <ToolStep engine={engine} step={steps[0]!} />;
   const hidden = steps.length - 1;
   const newest = steps.at(-1)!;
-  const call = describeToolCall(newest.message.text, newest.message.detail);
+  const call = describeToolCall(engine, newest.message.text, newest.message.detail);
   const uniform = steps.every((step) => step.message.text === steps[0]!.message.text);
   const longest = Math.max(...steps.map((step) => stepDuration(step) ?? 0));
   const summary = (
@@ -116,7 +117,7 @@ function ToolRun({ steps }: { steps: TimedStep[] }) {
         <div className="work-steps">
           {steps.map((step) => {
             const took = stepDuration(step);
-            return <ToolStep key={step.message.id} step={step} named={!uniform} share={longest > 0 && took !== null ? took / longest : undefined} />;
+            return <ToolStep key={step.message.id} engine={engine} step={step} named={!uniform} share={longest > 0 && took !== null ? took / longest : undefined} />;
           })}
         </div>
       )}
@@ -128,11 +129,11 @@ function ToolRun({ steps }: { steps: TimedStep[] }) {
  * A live turn streams its newest text. The tail can arrive before its first block commits, so it
  * renders under the message id it will belong to and keeps that node once the block lands.
  */
-export function TurnSegments({ segments, tail, live = false }: { segments: TurnSegment[]; tail?: StreamingTail | null; live?: boolean }) {
+export function TurnSegments({ engine, segments, tail, live = false }: { engine: AgentEngine; segments: TurnSegment[]; tail?: StreamingTail | null; live?: boolean }) {
   const newest = segments.at(-1);
   const streamingId = live ? tail?.messageId ?? (newest?.kind === "note" ? newest.message.id : undefined) : undefined;
   const nodes = segments.map((segment) => segment.kind === "tools"
-    ? <ToolRun key={segment.id} steps={segment.steps} />
+    ? <ToolRun key={segment.id} engine={engine} steps={segment.steps} />
     : (
       <div key={segment.id} data-message-id={segment.message.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
@@ -151,7 +152,7 @@ export function TurnSegments({ segments, tail, live = false }: { segments: TurnS
 }
 
 /** Settled turn: every step, tool calls and interim text alike, folds behind one row. */
-export function SettledSteps({ steps, endsAt }: { steps: TaskMessage[]; endsAt: number | null }) {
+export function SettledSteps({ engine, steps, endsAt }: { engine: AgentEngine; steps: TaskMessage[]; endsAt: number | null }) {
   const summary = (
     <>
       <span className="work-lead">Worked</span>
@@ -161,7 +162,7 @@ export function SettledSteps({ steps, endsAt }: { steps: TaskMessage[]; endsAt: 
   );
   return (
     <Fold className="work-group" holds={steps.map((step) => step.id)} summary={summary}>
-      {() => <div className="work-steps"><TurnSegments segments={toSegments(timeSteps(steps, endsAt))} /></div>}
+      {() => <div className="work-steps"><TurnSegments engine={engine} segments={toSegments(timeSteps(steps, endsAt))} /></div>}
     </Fold>
   );
 }

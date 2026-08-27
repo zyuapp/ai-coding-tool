@@ -1,6 +1,7 @@
 import { Bot, FileText, Globe, PenLine, Search, Terminal, Wrench, type LucideIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
+import type { AgentEngine } from "../../domain/agent-engine";
 import type { ToolFamily } from "../../domain/tool-call";
 import { clockTime, runFamily, summariseTools, transcriptBlocks } from "../format";
 import { Markdown } from "./Markdown";
@@ -15,8 +16,8 @@ const FAMILY_ICONS: Record<ToolFamily, LucideIcon> = {
   other: Wrench,
 };
 
-function ToolRun({ calls }: { calls: MobileMessage[] }) {
-  const Icon = FAMILY_ICONS[runFamily(calls)];
+function ToolRun({ engine, calls }: { engine: AgentEngine; calls: MobileMessage[] }) {
+  const Icon = FAMILY_ICONS[runFamily(engine, calls)];
   return (
     <div className="work">
       <span className="work-glyph" aria-hidden="true"><Icon size={14} strokeWidth={1.75} /></span>
@@ -68,7 +69,7 @@ export function Conversation({ thread }: { thread: MobileThreadView }) {
     <div className="transcript" ref={scroller}>
       {thread.omitted > 0 && <p className="omitted">{thread.omitted} earlier {thread.omitted === 1 ? "message" : "messages"} are only on the Mac.</p>}
       {blocks.map((block) => (block.kind === "tools"
-        ? <ToolRun key={block.key} calls={block.calls} />
+        ? <ToolRun key={block.key} engine={thread.settings.engine} calls={block.calls} />
         : <Message key={block.key} message={block.message} />))}
       {thread.streamingTail !== null && (
         <div className="turn assistant">

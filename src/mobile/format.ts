@@ -1,4 +1,5 @@
 import type { MobileMessage, MobileRunStatus } from "../contracts/mobile";
+import type { AgentEngine } from "../domain/agent-engine";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
 
 /**
@@ -35,8 +36,8 @@ export function summariseTools(calls: MobileMessage[]): string {
 }
 
 /** The family of the run's first call, which is what the row draws a glyph for. */
-export function runFamily(calls: MobileMessage[]): ToolFamily {
-  return toolFamily(calls[0]?.text ?? "");
+export function runFamily(engine: AgentEngine, calls: MobileMessage[]): ToolFamily {
+  return toolFamily(engine, calls[0]?.text ?? "");
 }
 
 const STATUS_LABELS: Record<MobileRunStatus, string> = {

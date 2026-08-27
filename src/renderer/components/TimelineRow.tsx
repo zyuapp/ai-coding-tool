@@ -1,5 +1,6 @@
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
+import type { AgentEngine } from "../../domain/agent-engine";
 import type { TaskMessage } from "../../domain/task";
 import { timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
 import { AnnotationRow } from "./AnnotationRow";
@@ -43,6 +44,8 @@ function UserMessage({ message, onView }: { message: TaskMessage; onView: (sourc
 }
 
 type TimelineRowProps = {
+  /** The engine whose tools the turn's steps name. */
+  engine: AgentEngine;
   group: TimelineGroup;
   index: number;
   /** Where the virtualizer holds this row, in the scroller's own terms. */
@@ -52,7 +55,7 @@ type TimelineRowProps = {
   onViewAttachment: (source: string) => void;
 };
 
-export function TimelineRow({ group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
+export function TimelineRow({ engine, group, index, offset, measure, streamingTail, onViewAttachment }: TimelineRowProps) {
   const message = group.kind === "message" ? group.message : null;
   return (
     <div
@@ -66,8 +69,8 @@ export function TimelineRow({ group, index, offset, measure, streamingTail, onVi
       {group.kind === "turn" ? (
         <article className="message assistant turn">
           {group.live
-            ? <TurnSegments segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
-            : group.steps.length > 0 && <SettledSteps steps={group.steps} endsAt={group.endsAt} />}
+            ? <TurnSegments engine={engine} segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
+            : group.steps.length > 0 && <SettledSteps engine={engine} steps={group.steps} endsAt={group.endsAt} />}
           {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} /></div>}
           {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
           {group.final && (

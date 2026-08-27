@@ -4,6 +4,8 @@
  * that tells one call from the next, so the view leads with it and the name becomes a glyph.
  */
 
+import type { AgentEngine } from "./agent-engine.js";
+
 export type ToolFamily = "shell" | "read" | "write" | "search" | "web" | "agent" | "other";
 
 export type ToolCall = {
@@ -14,25 +16,41 @@ export type ToolCall = {
   argument: string;
 };
 
-const FAMILIES: Record<string, ToolFamily> = {
-  Bash: "shell", BashOutput: "shell", KillShell: "shell",
-  Read: "read", NotebookRead: "read",
-  Write: "write", Edit: "write", MultiEdit: "write", NotebookEdit: "write",
-  Grep: "search", Glob: "search", ToolSearch: "search",
-  WebFetch: "web", WebSearch: "web",
-  Agent: "agent", Task: "agent", Skill: "agent", Workflow: "agent", SendMessage: "agent",
+/** How one engine names its tools: which name is which family, and which argument keys name a call. */
+type ToolNaming = {
+  families: Record<string, ToolFamily>;
+  /** Argument keys in the order they identify a call, so the first one present is the one to show. */
+  namingKeys: readonly string[];
+  /** Families for tools the engine names by prefix rather than by listed name. */
+  familyOfPrefix?: (name: string) => ToolFamily | undefined;
 };
 
-/** Argument keys in the order they identify a call, so the first one present is the one to show. */
-const NAMING_KEYS = ["command", "file_path", "notebook_path", "pattern", "query", "url", "path", "description", "prompt", "skill", "name"];
+const NAMING: Record<AgentEngine, ToolNaming> = {
+  claude: {
+    families: {
+      Bash: "shell", BashOutput: "shell", KillShell: "shell",
+      Read: "read", NotebookRead: "read",
+      Write: "write", Edit: "write", MultiEdit: "write", NotebookEdit: "write",
+      Grep: "search", Glob: "search", ToolSearch: "search",
+      WebFetch: "web", WebSearch: "web",
+      Agent: "agent", Task: "agent", Skill: "agent", Workflow: "agent", SendMessage: "agent",
+    },
+    namingKeys: ["command", "file_path", "notebook_path", "pattern", "query", "url", "path", "description", "prompt", "skill", "name"],
+  },
+};
 
 /** Longer than any row can show, and short enough that a heredoc cannot bloat the transcript. */
 const ARGUMENT_LIMIT = 240;
 
-export function toolFamily(name: string): ToolFamily {
-  if (FAMILIES[name]) return FAMILIES[name];
+/** Our own MCP tools carry the same names whichever engine calls them. */
+function ownToolFamily(name: string): ToolFamily | undefined {
   if (name.startsWith("browser_") || name.startsWith("mcp__aicodingtool-browser")) return "web";
-  return "other";
+  return undefined;
+}
+
+export function toolFamily(engine: AgentEngine, name: string): ToolFamily {
+  const naming = NAMING[engine];
+  return naming.families[name] ?? naming.familyOfPrefix?.(name) ?? ownToolFamily(name) ?? "other";
 }
 
 /** Path segments beyond the last two say where a repo lives, not which file the call touched. */
@@ -48,8 +66,8 @@ function oneLine(value: string): string {
 }
 
 /** The first named key the input carries, else its only string value, else nothing. */
-function namingValue(input: Record<string, unknown>): { key: string; value: string } | null {
-  for (const key of NAMING_KEYS) {
+function namingValue(namingKeys: readonly string[], input: Record<string, unknown>): { key: string; value: string } | null {
+  for (const key of namingKeys) {
     const value = input[key];
     if (typeof value === "string" && value.trim()) return { key, value: value.trim() };
   }
@@ -57,10 +75,10 @@ function namingValue(input: Record<string, unknown>): { key: string; value: stri
   return strings.length === 1 ? { key: strings[0][0], value: strings[0][1].trim() } : null;
 }
 
-export function describeToolCall(name: string, detail?: string): ToolCall {
-  const family = toolFamily(name);
+export function describeToolCall(engine: AgentEngine, name: string, detail?: string): ToolCall {
+  const family = toolFamily(engine, name);
   const input = parseInput(detail);
-  const naming = input && namingValue(input);
+  const naming = input && namingValue(NAMING[engine].namingKeys, input);
   if (!naming) return { family, argument: "" };
   const isPath = naming.key.endsWith("path") || naming.key === "file_path";
   const argument = oneLine(isPath ? shortPath(naming.value) : naming.value);

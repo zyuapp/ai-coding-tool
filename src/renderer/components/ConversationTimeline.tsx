@@ -3,6 +3,7 @@ import { ChevronDown, FolderSymlink, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
+import { DEFAULT_ENGINE } from "../../domain/agent-engine";
 import type { Annotation, AnnotationAnchor, Task } from "../../domain/task";
 import { groupTimeline, messageRows } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
@@ -60,6 +61,7 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
 
 export function ConversationTimeline({ currentTask, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentTask?.messages ?? [];
+  const engine = currentTask?.engine ?? DEFAULT_ENGINE;
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
@@ -125,6 +127,7 @@ export function ConversationTimeline({ currentTask, folder, status, compacting, 
         {virtualizer.getVirtualItems().map((item) => (
           <TimelineRow
             key={item.key}
+            engine={engine}
             group={groups[item.index]!}
             index={item.index}
             offset={item.start - scrollMargin}
