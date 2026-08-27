@@ -9,7 +9,7 @@ import { pruneDeletedTasks } from "../task-pruning.js";
 import { ATTENDED_RUN, applyTask, threadMark, withActiveRun, withBackgroundProcesses, withRunStatus, type RunProvenance, type ThreadMark } from "../task-workspace.js";
 import { viewPreferences } from "../view-preferences.js";
 import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, diffFor, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, projectFor, taskWorkspaceId, withDiff, withDock, withPrompt, workflowById, worktreeClaimants, worktreeFor, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
-import type { ChangedFilesResult, StartRunCommand } from "../../contracts/ipc.js";
+import type { ChangedFilesResult, ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
 import type { DiffRange } from "../../domain/diff.js";
@@ -325,7 +325,13 @@ export function clearedDraft(state: WorkspaceState, draftKey: string): Workspace
   return withFiles(withImages(withPastes(withAnnotations(withPrompt(state, draftKey, ""), draftKey, []), draftKey, []), draftKey, []), draftKey, []);
 }
 
+function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined {
+  if (!state.plainEnglish && !state.chromeBrowser) return undefined;
+  return { ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}), ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}) };
+}
+
 export function startRunCommand(state: WorkspaceState, task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
+  const claude = claudeRunSettings(state);
   return {
     type: "start",
     channel: "main",
@@ -337,7 +343,8 @@ export function startRunCommand(state: WorkspaceState, task: Task, runId: string
     engine: task.engine,
     model: task.model ?? defaultModelFor(task.engine),
     effort: task.effort ?? defaultEffortFor(task.engine),
-    ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}), ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}), ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
+    ...(claude ? { claude } : {}),
+    ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(task.continuation ? { continuation: task.continuation } : {}),
   };
 }

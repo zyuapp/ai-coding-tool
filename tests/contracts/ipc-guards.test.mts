@@ -27,6 +27,14 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand({ ...command, channel: "side", continuation: { provider: "claude", value: "session" }, forkContinuation: true }), true);
 });
 
+test("start commands carry the Claude engine's settings as one object", () => {
+  assert.equal(isRunCommand({ ...command, claude: {} }), true);
+  assert.equal(isRunCommand({ ...command, claude: { outputStyle: "Plain", chromeBrowser: true } }), true);
+  assert.equal(isRunCommand({ ...command, claude: { chromeBrowser: false } }), false);
+  assert.equal(isRunCommand({ ...command, claude: { outputStyle: 3 } }), false);
+  assert.equal(isRunCommand({ ...command, claude: "Plain" }), false);
+});
+
 test("internal worker commands require a resolved root and projectless flag", () => {
   assert.equal(isInternalRunCommand({ ...command, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), true);
   assert.equal(isInternalRunCommand(command), false);

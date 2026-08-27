@@ -263,6 +263,7 @@ export function retainedTasks(tasks: Task[], at: number): Task[] {
 export type ContextUsage = {
   tokens: number;
   limit: number;
+  /** The id the engine reported on the wire, not the AgentModel the thread chose. */
   model: string;
 };
 

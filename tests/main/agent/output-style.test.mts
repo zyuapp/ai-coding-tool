@@ -64,10 +64,10 @@ test("the setting is remembered and names the style every run answers in", () =>
   assert.equal(persisted.preferences.plainEnglish, true);
   assert.deepEqual(reduce(on.state, { type: "view.set-plain-english", enabled: true }).effects, [], "an unchanged choice writes nothing");
 
-  assert.equal(started(on.state).outputStyle, PLAIN_ENGLISH_STYLE);
+  assert.equal(started(on.state).claude?.outputStyle, PLAIN_ENGLISH_STYLE);
 
   const off = reduce(on.state, { type: "view.set-plain-english", enabled: false });
-  assert.equal(started(off.state).outputStyle, undefined, "with the setting off a run leaves the user's own style alone");
+  assert.equal(started(off.state).claude?.outputStyle, undefined, "with the setting off a run leaves the user's own style alone");
 });
 
 test("a stored setting survives the store loading", () => {
@@ -79,7 +79,7 @@ test("a stored setting survives the store loading", () => {
 test("a run that names a style selects it without replacing the user's own settings", async () => {
   const capture: QueryCapture = {};
   const provider = new ClaudeAgentProvider(queryFactory([], capture));
-  await provider.execute(input({ outputStyle: PLAIN_ENGLISH_STYLE }));
+  await provider.execute(input({ claude: { outputStyle: PLAIN_ENGLISH_STYLE } }));
   assert.ok(capture.options?.options);
   assert.deepEqual(capture.options.options.settings, { outputStyle: PLAIN_ENGLISH_STYLE });
   assert.deepEqual(capture.options.options.settingSources, ["user", "project", "local"], "the style layers over the sources rather than replacing them");
@@ -93,7 +93,7 @@ test("turning the setting on gives the thread a session of its own rather than r
   await poolTurn(provider, capture, {});
   assert.equal(capture.sessions.length, 1, "the same settings reuse the warm session");
 
-  await poolTurn(provider, capture, { outputStyle: PLAIN_ENGLISH_STYLE });
+  await poolTurn(provider, capture, { claude: { outputStyle: PLAIN_ENGLISH_STYLE } });
   assert.equal(capture.sessions.length, 2);
   assert.deepEqual(capture.sessions.at(-1)?.options.options?.settings, { outputStyle: PLAIN_ENGLISH_STYLE });
   provider.closeAll();

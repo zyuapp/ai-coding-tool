@@ -1,4 +1,4 @@
-import type { BackgroundReport, ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
+import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
@@ -55,6 +55,7 @@ export type ProviderEvent =
   | { type: "assistant"; messageId: string; text: string; append?: boolean }
   /** The buffered remainder that has not formed a complete block yet, so the UI can type it out. */
   | { type: "assistant-tail"; messageId: string; text: string }
+  /** `model` is the id the engine reported on the wire, not an AgentModel. */
   | { type: "usage"; tokens: number; limit: number; model: string }
   | { type: "compaction-status"; compacting: boolean; error?: string }
   | { type: "compaction"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number }
@@ -94,10 +95,8 @@ export type ProviderRunInput = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
-  /** The Claude Code output style the run answers in, layered over the user's own settings. */
-  outputStyle?: string;
-  /** Whether the run also reaches the user's own Chrome through the Claude in Chrome extension. */
-  chromeBrowser?: true;
+  /** Read by the Claude engine alone; any other engine leaves it unopened. */
+  claude?: ClaudeRunSettings;
   continuation?: Continuation;
   forkContinuation?: boolean;
   automations?: AutomationBridge;

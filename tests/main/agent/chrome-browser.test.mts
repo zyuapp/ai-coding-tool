@@ -28,7 +28,7 @@ function systemAppend(options: QueryCapture["options"]) {
 test("the setting starts off, is remembered, and marks every run it is on for", () => {
   const drafted = reduce(emptyWorkspaceState(), { type: "view.set-prompt", prompt: "Open my bank" }).state;
   assert.equal(drafted.chromeBrowser, false, "a workspace that has never been told reaches nobody's Chrome");
-  assert.equal(started(drafted).chromeBrowser, undefined);
+  assert.equal(started(drafted).claude?.chromeBrowser, undefined);
 
   const on = reduce(drafted, { type: "view.set-chrome-browser", enabled: true });
   assert.equal(on.state.chromeBrowser, true);
@@ -37,8 +37,8 @@ test("the setting starts off, is remembered, and marks every run it is on for", 
   assert.equal(persisted.preferences.chromeBrowser, true);
   assert.deepEqual(reduce(on.state, { type: "view.set-chrome-browser", enabled: true }).effects, [], "an unchanged choice writes nothing");
 
-  assert.equal(started(on.state).chromeBrowser, true);
-  assert.equal(started(reduce(on.state, { type: "view.set-chrome-browser", enabled: false }).state).chromeBrowser, undefined);
+  assert.equal(started(on.state).claude?.chromeBrowser, true);
+  assert.equal(started(reduce(on.state, { type: "view.set-chrome-browser", enabled: false }).state).claude?.chromeBrowser, undefined);
 });
 
 test("a stored setting survives the store loading", () => {
@@ -49,7 +49,7 @@ test("a stored setting survives the store loading", () => {
 test("a run the setting is on for enables the integration and says which browser the user means", async () => {
   const capture: QueryCapture = {};
   const provider = new ClaudeAgentProvider(queryFactory([], capture));
-  await provider.execute(input({ chromeBrowser: true }));
+  await provider.execute(input({ claude: { chromeBrowser: true } }));
   assert.deepEqual(capture.options?.options?.extraArgs, { chrome: null });
   assert.match(systemAppend(capture.options), /mcp__claude-in-chrome__/);
 });
@@ -70,7 +70,7 @@ test("turning the setting on gives the thread a session of its own rather than r
   await poolTurn(provider, capture, {});
   assert.equal(capture.sessions.length, 1, "the same settings reuse the warm session");
 
-  await poolTurn(provider, capture, { chromeBrowser: true });
+  await poolTurn(provider, capture, { claude: { chromeBrowser: true } });
   assert.equal(capture.sessions.length, 2);
   assert.deepEqual(capture.sessions.at(-1)?.options.options?.extraArgs, { chrome: null });
   provider.closeAll();
