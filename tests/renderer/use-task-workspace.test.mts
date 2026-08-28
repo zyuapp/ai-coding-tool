@@ -5,7 +5,7 @@ import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import { settleFrame, settleUntil } from "../support/settle.mts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { StoredTask, Task } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
@@ -371,7 +371,7 @@ test("workspace hook reopens a legacy project and prevents duplicate submissions
 
 test("workspace hook reads a stored subagent's activity only when it is opened", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
-  const task: Task = {
+  const task: StoredTask = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     subagents: [{ id: "agent-1", description: "Explore", status: "completed", startedAt: 1, finishedAt: 2, activity: [] }],
