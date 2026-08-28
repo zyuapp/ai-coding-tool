@@ -164,5 +164,7 @@ test("a share reads as a whole percentage, and a plan reads as its own name", ()
   assert.equal(formatShare(140), "100% used");
   assert.equal(formatShare(null), "Not reported");
   assert.equal(planLabel("max"), "Max plan");
+  assert.equal(planLabel("prolite"), "Pro plan");
+  assert.equal(planLabel("self_serve_business_usage_based"), "Business plan");
   assert.equal(planLabel(null), null);
 });

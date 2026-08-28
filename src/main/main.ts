@@ -491,13 +491,14 @@ ipcMain.handle("computer-use:enable", async (event, permission: ComputerUsePermi
   return requestComputerUsePermission(permission);
 });
 
-ipcMain.handle("usage:plan", async (event) => {
+ipcMain.handle("usage:plan", async (event, engine: unknown) => {
   if (!trustedSender(event)) return { status: "unavailable", message: "Untrusted IPC sender." } as const;
+  if (!isAgentEngine(engine)) return { status: "unavailable", message: "Invalid engine." } as const;
   try {
-    const { readPlanUsage } = await import("./agent/plan-usage.mjs");
-    return await readPlanUsage();
-  } catch (error) {
-    return { status: "unavailable", message: error instanceof Error ? error.message : String(error) } as const;
+    const { engineServices } = await import("./agent/engine-services.mjs");
+    return await engineServices[engine].planUsage();
+  } catch (cause) {
+    return { status: "unavailable", message: cause instanceof Error ? cause.message : String(cause) } as const;
   }
 });
 

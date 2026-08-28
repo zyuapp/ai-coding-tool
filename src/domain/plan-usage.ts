@@ -9,12 +9,12 @@ export type UsageWindow = {
 };
 
 /**
- * What the provider can say about the plan behind this machine's Claude sessions. A provider that
- * cannot answer reports why rather than throwing, so the panel always has something to draw.
+ * What one engine can say about the plan behind its account on this machine. An engine that cannot
+ * answer reports why rather than throwing, so the panel always has something to draw.
  */
 export type PlanUsage =
   | { status: "available"; subscription: string | null; windows: UsageWindow[] }
-  /** The session bills against an API key or a third-party provider, where plan limits do not apply. */
+  /** The engine is signed out or bills somewhere plan limits do not apply. */
   | { status: "not-applicable" }
   | { status: "unavailable"; message: string };
 
@@ -44,7 +44,16 @@ export function formatReset(resetsAt: string | null, now: number, timeZone: stri
     : `Resets ${day} at ${clock(at, timeZone)} (${timeZone})`;
 }
 
+const PLAN_LABELS: Record<string, string> = {
+  prolite: "Pro",
+  self_serve_business_prolite: "Business",
+  self_serve_business_usage_based: "Business",
+  enterprise_cbp_automation: "Enterprise",
+  enterprise_cbp_usage_based: "Enterprise",
+};
+
 export function planLabel(subscription: string | null) {
   if (!subscription) return null;
-  return `${subscription.charAt(0).toUpperCase()}${subscription.slice(1)} plan`;
+  const label = PLAN_LABELS[subscription] ?? subscription.split("_").map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`).join(" ");
+  return `${label} plan`;
 }

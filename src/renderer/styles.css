@@ -2025,8 +2025,14 @@ pre {
 .settings-restart { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--info-line); padding: 15px 0; }
 .settings-restart p { margin: 0; color: var(--info-soft); font-size: var(--text-control); }
 .settings-privacy { margin-top: 18px; color: var(--quiet); font-size: var(--text-meta); }
-.settings-group-action .usage-plan { border-radius: 999px; padding: 5px 9px; background: var(--info-surface-soft); color: var(--info-soft); font-size: var(--text-meta); font-weight: 600; }
+.usage-plan { border-radius: 999px; padding: 5px 9px; background: var(--info-surface-soft); color: var(--info-soft); font-size: var(--text-meta); font-weight: 600; }
 .settings-group-action button svg { margin-right: 6px; vertical-align: -2px; }
+.usage-providers { border-top: 1px solid var(--line); }
+.usage-provider { padding: 20px 0 0; }
+.usage-provider + .usage-provider { margin-top: 20px; border-top: 1px solid var(--line); }
+.usage-provider-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 16px; }
+.usage-provider-heading h4 { margin: 0; color: var(--ink-dim); font-size: var(--text-control); font-weight: 600; }
+.usage-provider > .settings-empty, .usage-provider > .settings-error { margin-top: 0; padding-bottom: 20px; }
 .usage-windows { display: grid; gap: 26px; border-top: 1px solid var(--line); padding: 22px 0; }
 .usage-window strong { color: var(--ink-dim); font-size: var(--text-control); font-weight: 570; }
 .usage-window p { margin: 9px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); }

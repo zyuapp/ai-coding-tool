@@ -19,7 +19,7 @@ test("Codex lists its own models and efforts, and feeds none of the Claude-only 
   assert.equal(defaultModelFor("codex"), "gpt-5.6-sol");
   assert.deepEqual(effortsFor("codex").map((spec) => spec.id), ["ultra", "xhigh", "high", "medium", "low"]);
   assert.equal(defaultEffortFor("codex"), "high");
-  assert.deepEqual(capabilitiesFor("codex"), { planUsage: false, workflows: false, subagents: false });
+  assert.deepEqual(capabilitiesFor("codex"), { workflows: false, subagents: false });
 });
 
 test("a model or effort belongs to one engine, not to every engine", () => {

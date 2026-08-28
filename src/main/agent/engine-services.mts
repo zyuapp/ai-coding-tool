@@ -1,5 +1,6 @@
 import type { AvailableCommand } from "../../contracts/ipc.js";
 import { AGENT_ENGINES, type AgentEngine, type EngineAccess, type EngineStatus } from "../../domain/agent-engine.js";
+import type { PlanUsage } from "../../domain/plan-usage.js";
 
 type Workspace = { workspaceRoot: string; projectless: boolean };
 
@@ -11,6 +12,8 @@ export type EngineServices = {
   commands(workspace: Workspace): Promise<AvailableCommand[]>;
   /** Names a thread from its first message and the screenshots sent with it. */
   suggestTitle(text: string, images: string[]): Promise<string | null>;
+  /** Reads the plan behind this engine's account without starting a thread. */
+  planUsage(): Promise<PlanUsage>;
   /** Absent for an engine that is always ready. */
   access?(): Promise<EngineAccess>;
   signIn?(openUrl: OpenUrl): Promise<EngineAccess>;
@@ -20,6 +23,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
   claude: {
     commands: async ({ workspaceRoot, projectless }) => (await import("./claude-agent-provider.mjs")).discoverClaudeCommands(workspaceRoot, projectless),
     suggestTitle: async (text, images) => (await import("./title-writer.mjs")).suggestTaskTitle(text, images),
+    planUsage: async () => (await import("./plan-usage.mjs")).readPlanUsage(),
   },
   codex: {
     commands: async (workspace) => {
@@ -27,6 +31,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
       return (await listSkills(skillRoots(workspace))).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" }));
     },
     suggestTitle: async (text, images) => (await import("../codex/codex-title-writer.mjs")).suggestCodexTitle(text, images),
+    planUsage: async () => (await import("../codex/codex-plan-usage.mjs")).readCodexPlanUsage(),
     access: async () => (await import("../codex/codex-account.mjs")).readCodexAccess(),
     signIn: async (openUrl) => (await import("../codex/codex-account.mjs")).signInToCodex(openUrl),
   },

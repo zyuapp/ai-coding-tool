@@ -9,6 +9,7 @@ import type { ServerNotification } from "./protocol/ServerNotification.js";
 import type { ServerRequest } from "./protocol/ServerRequest.js";
 import type { CommandExecutionRequestApprovalResponse } from "./protocol/v2/CommandExecutionRequestApprovalResponse.js";
 import type { FileChangeRequestApprovalResponse } from "./protocol/v2/FileChangeRequestApprovalResponse.js";
+import type { GetAccountRateLimitsResponse } from "./protocol/v2/GetAccountRateLimitsResponse.js";
 import type { GetAccountResponse } from "./protocol/v2/GetAccountResponse.js";
 import type { LoginAccountResponse } from "./protocol/v2/LoginAccountResponse.js";
 import type { McpServerElicitationRequestResponse } from "./protocol/v2/McpServerElicitationRequestResponse.js";
@@ -34,6 +35,7 @@ export interface ClientResponses {
   "turn/steer": TurnSteerResponse;
   "turn/interrupt": TurnInterruptResponse;
   "account/read": GetAccountResponse;
+  "account/rateLimits/read": GetAccountRateLimitsResponse;
   "account/login/start": LoginAccountResponse;
 }
 export type ClientResult<M extends ClientMethod> = M extends keyof ClientResponses ? ClientResponses[M] : unknown;

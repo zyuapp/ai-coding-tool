@@ -230,8 +230,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   commands(workspaceId: WorkspaceId, engine: AgentEngine): Promise<CommandDiscoveryResult>;
   computerUsePermissions(): Promise<ComputerUsePermissions>;
   enableComputerUse(permission: ComputerUsePermission): Promise<ComputerUsePermissions>;
-  /** The plan's rate-limit windows. Never rejects: a provider that cannot answer says why instead. */
-  planUsage(): Promise<PlanUsage>;
+  /** One engine's plan windows. Never rejects: an engine that cannot answer says why instead. */
+  planUsage(engine: AgentEngine): Promise<PlanUsage>;
   restartForComputerUse(): void;
   send(command: RunCommand): void;
   onAgentEvent(listener: (event: AgentEvent) => void): () => void;

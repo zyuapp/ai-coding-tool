@@ -5,6 +5,7 @@ import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
 import type { CliStatus } from "../../src/domain/cli.ts";
+import type { AgentEngine } from "../../src/domain/agent-engine.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
@@ -39,7 +40,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, planUsage: true,
+    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
@@ -355,31 +356,44 @@ test("computer-use settings refresh permissions", async () => {
   await view.unmount();
 });
 
-test("the usage section draws a bar per plan window, and reports a reader that cannot answer", async () => {
-  const windows: PlanUsage = {
-    status: "available",
-    subscription: "max",
-    windows: [
-      { id: "five_hour", label: "Current session", utilization: 17, resetsAt: "2026-08-18T08:19:00Z" },
-      { id: "model:Fable", label: "Current week (Fable)", utilization: 96, resetsAt: null },
-    ],
+test("the usage section draws every provider and reports one that cannot answer", async () => {
+  let answer: Record<AgentEngine, PlanUsage> = {
+    claude: {
+      status: "available",
+      subscription: "max",
+      windows: [
+        { id: "five_hour", label: "Current session", utilization: 17, resetsAt: "2026-08-18T08:19:00Z" },
+        { id: "model:Fable", label: "Current week (Fable)", utilization: 96, resetsAt: null },
+      ],
+    },
+    codex: {
+      status: "available",
+      subscription: "pro",
+      windows: [{ id: "codex:primary", label: "Current session", utilization: 23, resetsAt: null }],
+    },
   };
-  let answer: PlanUsage = windows;
-  window.desktop = fakeDesktop({ planUsage: async () => answer });
+  window.desktop = fakeDesktop({ planUsage: async (engine) => answer[engine] });
   const view = await mount(renderSettingsPanel({ onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Usage")).click(); });
 
   assert.match(view.container.textContent, /Max plan/);
+  assert.match(view.container.textContent, /Pro plan/);
+  assert.match(view.container.textContent, /Claude/);
+  assert.match(view.container.textContent, /Codex/);
   assert.match(view.container.textContent, /Current session/);
   assert.match(view.container.textContent, /17% used/);
   assert.match(view.container.textContent, /96% used/);
+  assert.match(view.container.textContent, /23% used/);
   const fills = view.container.querySelectorAll<HTMLElement>(".usage-window-fill");
-  assert.equal(fills.length, 2);
+  assert.equal(fills.length, 3);
   assert.equal(item(fills[0]).style.width, "17%");
   assert.equal(item(fills[0]).classList.contains("high"), false);
   assert.equal(item(fills[1]).classList.contains("high"), true);
 
-  answer = { status: "unavailable", message: "This build of the Claude SDK does not report plan usage." };
+  answer = {
+    claude: { status: "unavailable", message: "This build of the Claude SDK does not report plan usage." },
+    codex: { status: "not-applicable" },
+  };
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button").click(); });
   assert.equal(view.container.querySelectorAll(".usage-window-fill").length, 0);
   assert.match(query(view.container, ".settings-error").textContent, /does not report plan usage/);

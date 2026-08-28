@@ -47,7 +47,6 @@ export type EffortSpec = { id: AgentEffort; label: string; description: string }
 
 /** The panels and controls an engine can feed; one that cannot is not drawn for its threads. */
 export type EngineCapabilities = {
-  planUsage: boolean;
   workflows: boolean;
   subagents: boolean;
 };
@@ -68,7 +67,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     defaultModel: "opus",
     efforts: CLAUDE_EFFORTS,
     defaultEffort: "high",
-    capabilities: { planUsage: true, workflows: true, subagents: true },
+    capabilities: { workflows: true, subagents: true },
   },
   codex: {
     label: "Codex",
@@ -76,7 +75,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     defaultModel: "gpt-5.6-sol",
     efforts: CODEX_EFFORTS,
     defaultEffort: "high",
-    capabilities: { planUsage: false, workflows: false, subagents: false },
+    capabilities: { workflows: false, subagents: false },
   },
 };
 
