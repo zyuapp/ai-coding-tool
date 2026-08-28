@@ -72,7 +72,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}
       onCancel={workspace.actions.cancelRun}
-      onGoalClear={() => void workspace.actions.clearGoal()}
+      onGoalClear={() => { if (task) void workspace.actions.clearGoal(task.id); }}
     />
   );
 }

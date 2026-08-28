@@ -231,3 +231,28 @@ test("the review picker reads branches from the thread's worktree", async () => 
   assert.equal(query(view.container, ".review-branch-list code").textContent, "main");
   await view.unmount();
 });
+
+test("clearing a goal targets its existing thread", async () => {
+  window.desktop = composerDesktop();
+  const currentTask: Task = {
+    id: "task-goal", title: "Goal", engine: "codex", model: "gpt-5.6-sol", executionPolicy: "confirm",
+    messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const derived = deriveView({
+    ...emptyWorkspaceState(),
+    tasks: [currentTask],
+    currentId: currentTask.id,
+    goals: { [currentTask.id]: { objective: "Count to 100", status: "active" } },
+  });
+  const commands: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { commands.push(input); };
+  const view = await mount(React.createElement(WorkspaceComposer, {
+    workspace: { ...derived, threadHandles: [], threadHandlesFor: () => [], dispatch, actions: workspaceActions(dispatch) } as never,
+    actions: [],
+  }));
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+
+  assert.deepEqual(commands, [{ type: "task.send", taskId: "task-goal", text: "/goal clear", steer: true }]);
+  await view.unmount();
+});
