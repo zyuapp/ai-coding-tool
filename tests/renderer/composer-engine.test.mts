@@ -39,15 +39,15 @@ test("a thread that has an engine offers only its models, and says a new thread 
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual([...modelMenu.querySelectorAll(".setting-group-heading")].map((item) => item.textContent), ["Codex"]);
-  assert.deepEqual([...modelMenu.querySelectorAll("button.setting-option strong")].map((item) => item.textContent), ["Sol", "Terra"]);
+  assert.deepEqual([...modelMenu.querySelectorAll("button.setting-option strong")].map((item) => item.textContent), ["Sol", "Terra", "Luna"]);
   assert.ok(modelMenu.querySelector(".setting-rule"), "the other engine sits below a rule");
   const locked = query(modelMenu, ".setting-locked");
   assert.equal(locked.textContent, "Start a new thread to use Claude");
   assert.equal(locked.getAttribute("aria-disabled"), "true");
   await act(async () => { locked.click(); });
   assert.equal(chosen.length, 0, "the locked row does nothing");
-  await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.setting-option")[0]).click(); });
-  assert.deepEqual(chosen, [["codex", "gpt-5.6-sol"]]);
+  await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.setting-option")[2]).click(); });
+  assert.deepEqual(chosen, [["codex", "gpt-5.6-luna"]]);
   await view.unmount();
 });
 
@@ -69,7 +69,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 1, "opening the menu asks which engines can be picked");
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.deepEqual([...codex.querySelectorAll(".setting-option")].map((option) => option.getAttribute("aria-disabled")), ["true", "true"]);
+  assert.deepEqual([...codex.querySelectorAll(".setting-option")].map((option) => option.getAttribute("aria-disabled")), ["true", "true", "true"]);
   assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
   await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
   assert.equal(chosen.length, 0, "a greyed model is not chosen");

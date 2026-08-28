@@ -15,7 +15,7 @@ test("every engine defaults to a model and an effort it offers", () => {
 
 test("Codex lists its own models and efforts, and exposes its supported panels", () => {
   assert.equal(engineLabel("codex"), "Codex");
-  assert.deepEqual(modelsFor("codex").map((spec) => spec.id), ["gpt-5.6-sol", "gpt-5.6-terra"]);
+  assert.deepEqual(modelsFor("codex").map((spec) => spec.id), ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
   assert.equal(defaultModelFor("codex"), "gpt-5.6-sol");
   assert.deepEqual(effortsFor("codex").map((spec) => spec.id), ["ultra", "xhigh", "high", "medium", "low"]);
   assert.equal(defaultEffortFor("codex"), "high");

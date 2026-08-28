@@ -28,6 +28,7 @@ const CODEX_CONTEXT_WINDOW = 272_000;
 const CODEX_MODELS = [
   { id: "gpt-5.6-sol", label: "Sol", description: "Latest frontier agentic coding model", contextWindow: CODEX_CONTEXT_WINDOW },
   { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW },
+  { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW },
 ] as const;
 
 const CODEX_EFFORTS: readonly EffortSpec[] = [

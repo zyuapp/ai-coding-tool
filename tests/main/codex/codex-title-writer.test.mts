@@ -26,7 +26,7 @@ test("naming a thread on Codex runs one read-only, ephemeral exec held to a titl
   const args = capture.args!;
   assert.deepEqual(args.slice(0, 4), ["exec", "--ephemeral", "--ignore-user-config", "--skip-git-repo-check"]);
   assert.equal(args[args.indexOf("-s") + 1], "read-only");
-  assert.equal(args[args.indexOf("-m") + 1], "gpt-5.6-terra");
+  assert.equal(args[args.indexOf("-m") + 1], "gpt-5.6-luna");
   assert.equal(args[args.indexOf("-c") + 1], 'model_reasoning_effort="low"');
   assert.equal(args.at(-1), "-", "the prompt goes in on stdin");
   assert.equal(args.includes("-i"), false);
