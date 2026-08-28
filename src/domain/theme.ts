@@ -31,6 +31,8 @@ export const THEMES: Theme[] = [
   { id: "gruvbox-light", label: "Gruvbox Light", family: "Gruvbox", variant: "light", canvas: "#fbf1c7" },
   { id: "kanagawa-wave", label: "Kanagawa Wave", family: "Kanagawa", variant: "dark", canvas: "#1f1f28" },
   { id: "kanagawa-lotus", label: "Kanagawa Lotus", family: "Kanagawa", variant: "light", canvas: "#f2ecbc" },
+  { id: "lights-out", label: "Lights Out", family: "Lights Out", variant: "dark", canvas: "#000000" },
+  { id: "lights-on", label: "Lights On", family: "Lights Out", variant: "light", canvas: "#ffffff" },
   { id: "material-darker", label: "Material Darker", family: "Material", variant: "dark", canvas: "#212121" },
   { id: "material-lighter", label: "Material Lighter", family: "Material", variant: "light", canvas: "#fafafa" },
   { id: "monokai", label: "Monokai", family: "Monokai", variant: "dark", canvas: "#1e1f1c" },
