@@ -699,7 +699,7 @@ test("the composer offers model and effort choices, ordered most to least capabl
   );
   assert.deepEqual(
     [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
-    ["Fable", "Opus", "Sonnet", "Haiku", "Sol", "Terra"],
+    ["Fable", "Opus", "Sonnet", "Haiku", "Sol", "Terra", "Luna"],
   );
   assert.equal(modelMenu.querySelectorAll(".setting-option[aria-disabled]").length, 0);
   assert.equal(modelMenu.querySelector(".setting-rule"), null);
