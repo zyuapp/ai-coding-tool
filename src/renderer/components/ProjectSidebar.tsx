@@ -149,14 +149,15 @@ export function ProjectSidebar({
   });
 
   /**
-   * How wide every rail is: the most marks any one thread carries, and never less than the one slot
-   * an action needs. Reserving a slot no thread fills only pushes the marks away from the titles.
+   * How wide every rail is: the most marks any one thread carries. Reserving a slot no thread fills
+   * only pushes the marks away from the titles.
    */
   const railSlots = [...orderedTasks, ...recentTasks].reduce((widest, task) => Math.max(widest, markCount(task)), 1);
 
+  /** Every thread carries its engine mark, which also covers the one slot an action needs. */
   function markCount(task: Task) {
     const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || hasUnreadAttention(task);
-    return Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
+    return 1 + Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
   }
 
   /** Stepping through threads from the keyboard is blind unless the list follows the one now open. */
