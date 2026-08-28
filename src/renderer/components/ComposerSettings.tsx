@@ -3,7 +3,6 @@ import { useRef, useState, type ReactNode } from "react";
 import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineAccess } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
-import { EngineGlyph } from "./EngineGlyph";
 
 type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: LucideIcon };
 
@@ -109,7 +108,7 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
   const offered = modelGroups.filter((group) => !engineLocked || group.engine === engine);
   const locked = modelGroups.filter((group) => engineLocked && group.engine !== engine);
   /** Only a menu that offers another engine needs to know whether that engine can be picked. */
-  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={<><EngineGlyph engine={engine} />{selected.short}</>} {...(engineLocked ? {} : { onOpen })}>
+  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.short} {...(engineLocked ? {} : { onOpen })}>
     {(close) => <>
       {offered.map((group) => {
         const access = engineAccess[group.engine];

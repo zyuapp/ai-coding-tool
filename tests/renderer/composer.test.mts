@@ -690,7 +690,6 @@ test("the composer offers model and effort choices, ordered most to least capabl
   assert.equal(modelMenu.querySelectorAll(".setting-option[aria-disabled]").length, 0);
   assert.equal(modelMenu.querySelector(".setting-rule"), null);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Opus");
-  assert.equal(modelMenu.querySelector(".engine-glyph"), null, "a Claude thread carries no engine glyph");
   const effortMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[2]);
   await act(async () => { query<HTMLElement>(effortMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(

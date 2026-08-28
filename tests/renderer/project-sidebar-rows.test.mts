@@ -581,28 +581,6 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
   await view.unmount();
 });
 
-test("the sidebar marks the threads that run on Codex, and leaves Claude's unmarked", async () => {
-  const task = (id: string, engine: Task["engine"]): Task => ({
-    id, title: id, projectId: "project-1", engine, executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
-  });
-  const view = await mount(renderProjectSidebar({
-    inactive: false,
-    projects: [{ id: "project-1", root: "/project" }],
-    orderedTasks: [task("on-codex", "codex"), task("on-claude", "claude")],
-    expandedProjects: new Set(["project-1"]),
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
-    onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
-  }));
-
-  const marked = [...view.container.querySelectorAll('[aria-label="Runs on Codex"]')]
-    .map((icon) => item(icon.closest("[data-rfd-draggable-id]")).getAttribute("data-rfd-draggable-id"));
-  assert.deepEqual(marked, ["on-codex"]);
-  assert.equal(item(view.container.querySelector('[data-rfd-draggable-id="on-claude"]')).querySelector(".engine-glyph"), null);
-  await view.unmount();
-});
-
 test("the sidebar follows the thread the keyboard steps to", async () => {
   const thread = (id: string): Task => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],

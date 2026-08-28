@@ -30,7 +30,6 @@ test("a thread that has an engine offers only its models, and says a new thread 
 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
-  assert.equal(query(modelMenu, ".setting-value .engine-glyph").getAttribute("aria-label"), "Runs on Codex", "the model name carries the engine's glyph");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual([...modelMenu.querySelectorAll(".setting-group-heading")].map((item) => item.textContent), ["Codex"]);
   assert.deepEqual([...modelMenu.querySelectorAll("button.setting-option strong")].map((item) => item.textContent), ["Sol", "Terra"]);
