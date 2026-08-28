@@ -1,22 +1,14 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { clampTitle } from "../../domain/task.js";
 import { packagedClaudeExecutable } from "./claude-agent-provider.mjs";
+import { TITLE_INSTRUCTIONS, cleanTitle, titleQuestion } from "./title-text.mjs";
 
 type QueryFactory = typeof query;
 type ImageBlock = { type: "image"; source: { type: "base64"; media_type: "image/png"; data: string } };
 
-const MESSAGE_LIMIT = 2_000;
 const IMAGE_LIMIT = 2;
 const IMAGE_BYTE_LIMIT = 1024 * 1024;
-const instructions = "You name chat threads. Answer with a title of at most six words describing what the message and any screenshots with it are about, and nothing else: no quotes, no trailing punctuation, no preamble.";
-
-function cleanTitle(text: string) {
-  const line = text.split("\n").map((part) => part.trim()).find(Boolean) ?? "";
-  return clampTitle(line.replace(/^["'`]+|["'`]+$/g, "").replace(/\.+$/, ""));
-}
-
 async function imageBlocks(attachments: string[]): Promise<ImageBlock[]> {
   const read = await Promise.all(attachments.slice(0, IMAGE_LIMIT).map(async (file) => {
     try {
@@ -43,9 +35,7 @@ async function* oneTurn(images: ImageBlock[], text: string): AsyncGenerator<SDKU
  */
 export async function suggestTaskTitle(text: string, attachments: string[] = [], queryFactory: QueryFactory = query): Promise<string | null> {
   const images = await imageBlocks(attachments);
-  const question = text.trim()
-    ? `Name this thread.\n\n<message>\n${text.slice(0, MESSAGE_LIMIT)}\n</message>`
-    : "Name this thread from the screenshots it starts with.";
+  const question = titleQuestion(text);
   const session = queryFactory({
     prompt: images.length === 0 ? question : oneTurn(images, question),
     options: {
@@ -53,7 +43,7 @@ export async function suggestTaskTitle(text: string, attachments: string[] = [],
       cwd: tmpdir(),
       pathToClaudeCodeExecutable: packagedClaudeExecutable(),
       settingSources: [],
-      systemPrompt: instructions,
+      systemPrompt: TITLE_INSTRUCTIONS,
       tools: [],
       maxTurns: 1,
     },

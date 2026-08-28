@@ -35,7 +35,7 @@ export async function runRunEffect(effect: RunEffect, host: EffectHost): Promise
       return;
 
     case "suggest-title": {
-      const title = await desktop.suggestTaskTitle(effect.text, effect.attachments).catch(() => null);
+      const title = await desktop.suggestTaskTitle(effect.text, effect.attachments, effect.engine).catch(() => null);
       if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
       return;
     }

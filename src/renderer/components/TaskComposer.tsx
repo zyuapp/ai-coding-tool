@@ -4,11 +4,13 @@ import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
+import type { AgentEngine, AgentModel, EngineAccess } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
-import { ComposerSettings } from "./ComposerSettings";
+import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
+
+const NO_SIGN_IN = () => {};
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { QueuedRow } from "./QueuedRow";
@@ -46,6 +48,10 @@ export type TaskComposerProps = {
   engine: AgentEngine;
   /** What the engine is called, for wording that speaks of the agent. */
   engineLabel: string;
+  /** Set once the thread has an engine for good, which is from its first message on. */
+  engineLocked?: boolean;
+  /** Which engines a run may go to; one that cannot be picked says why. Every engine is ready unless told otherwise. */
+  engineAccess?: Record<AgentEngine, EngineAccess>;
   model: AgentModel;
   effort: AgentEffort;
   contextUsage?: ContextUsage;
@@ -78,6 +84,7 @@ export type TaskComposerProps = {
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
+  onSignIn?: (engine: AgentEngine) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
@@ -96,6 +103,8 @@ export function TaskComposer({
   mode,
   engine,
   engineLabel,
+  engineLocked = false,
+  engineAccess = EVERY_ENGINE_READY,
   model,
   effort,
   contextUsage,
@@ -121,6 +130,7 @@ export function TaskComposer({
   onModeChange,
   onModelChange,
   onEffortChange,
+  onSignIn = NO_SIGN_IN,
   onSend,
   onSteerQueued,
   onDropQueued,
@@ -172,7 +182,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onSignIn={onSignIn} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

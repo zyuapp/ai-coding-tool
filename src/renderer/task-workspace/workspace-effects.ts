@@ -32,6 +32,7 @@ export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHo
     case "apply-capture-options": case "capture-shortcut": case "announce-thread":
     case "remote.set-enabled": case "remote.set-lan-exposed": case "remote.create-pairing-code":
     case "remote.revoke-device": case "remote.set-tailscale-serve": case "remote.refresh":
+    case "engine.sign-in":
       return runSystemEffect(effect, host);
   }
 }

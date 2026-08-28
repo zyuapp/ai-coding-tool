@@ -711,6 +711,19 @@ button {
   color: var(--muted);
 }
 
+.sheet-subheading {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sheet-locked {
+  color: var(--muted);
+  background: transparent;
+  border-style: dashed;
+}
+
 .sheet-option {
   display: flex;
   align-items: center;

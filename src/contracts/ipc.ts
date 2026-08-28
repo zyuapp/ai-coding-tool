@@ -8,7 +8,7 @@ import type { ExternalApp } from "../domain/external-apps.js";
 import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE, type AttachedFileDraft } from "../domain/task.js";
-import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
+import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
@@ -264,7 +264,12 @@ export type DesktopAPI = MobileDesktopAPI & {
   /** What each of those paths is. A path that is neither a file nor a folder is left out. */
   describeFiles(paths: string[]): Promise<AttachedFileDraft[]>;
   /** Names a thread from its first message and any screenshots it carries, off the agent's run path. Null when no name came back. */
-  suggestTaskTitle(text: string, attachments: string[]): Promise<string | null>;
+  /** A title for a thread's first message, written by the engine the thread runs on. */
+  suggestTaskTitle(text: string, attachments: string[], engine: AgentEngine): Promise<string | null>;
+  /** Which engines can take a run, read once and kept until a sign-in moves it. */
+  engineStatus(): Promise<EngineStatus>;
+  /** Signs in through the engine's own flow, in the browser, and answers with the status after it. */
+  signInEngine(engine: AgentEngine): Promise<EngineStatus>;
   loadTaskStore(): Promise<TaskStoreData | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */

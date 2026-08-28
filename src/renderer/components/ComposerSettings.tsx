@@ -1,8 +1,9 @@
 import { Brain, Check, Feather, FileCheck2, Flame, Gauge, Hand, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
-import { useRef, useState } from "react";
-import { byEngine, effortsFor, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { useRef, useState, type ReactNode } from "react";
+import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineAccess } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
+import { EngineGlyph } from "./EngineGlyph";
 
 type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: LucideIcon };
 
@@ -27,15 +28,19 @@ const effortStyles: Record<AgentEffort, { short: string; icon: LucideIcon }> = {
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, short: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
 const effortsOf = byEngine((engine): Choice<AgentEffort>[] => effortsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, ...effortStyles[spec.id] })));
 
-function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, onChange }: {
+/** The model list is one list, headed by engine, so choosing a model is how an engine is chosen. */
+const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
+
+export const EVERY_ENGINE_READY = byEngine((): EngineAccess => "ready");
+
+function SettingMenu({ label, axis, heading, value, children }: {
   label: string;
   axis: string;
   heading: string;
-  choices: Choice<T>[];
-  value: T;
-  onChange: (value: T) => void;
+  value: ReactNode;
+  /** The options, handed the menu's own close so a pick can shut it. */
+  children: (close: () => void) => ReactNode;
 }) {
-  const selected = choices.find((item) => item.value === value) ?? choices[0];
   const details = useRef<HTMLDetailsElement>(null);
   const summary = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
@@ -45,47 +50,101 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   return <details ref={details} className="setting-menu" onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary ref={summary} aria-label={label}>
       <span className="setting-axis">{axis}</span>
-      <span className="setting-value">{selected.short}</span>
+      <span className="setting-value">{value}</span>
     </summary>
     {open && <div className="setting-popover" role="listbox" aria-label={heading} onKeyDown={moveListFocus}>
       <div className="setting-heading">{heading}</div>
-      {choices.map((item) => {
-        const Icon = item.icon;
-        return <button
-          type="button"
-          role="option"
-          aria-selected={item.value === value}
-          autoFocus={item.value === value}
-          className="setting-option"
-          key={item.value}
-          onClick={(event) => {
-            onChange(item.value);
-            close();
-          }}
-        >
-          <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
-          <span><strong>{item.label}</strong><small>{item.description}</small></span>
-          <span className="setting-check" aria-hidden="true">{item.value === value && <Check size={20} />}</span>
-        </button>;
-      })}
+      {children(close)}
     </div>}
   </details>;
 }
 
-export function ComposerSettings({ mode, engine, engineLabel, model, effort, onModeChange, onModelChange, onEffortChange }: {
+function Option<T extends string>({ item, selected, disabled = false, onSelect }: {
+  item: Choice<T>;
+  selected: boolean;
+  disabled?: boolean;
+  onSelect?: () => void;
+}) {
+  const Icon = item.icon;
+  return <button
+    type="button"
+    role="option"
+    aria-selected={selected}
+    {...(disabled ? { "aria-disabled": true } : {})}
+    autoFocus={selected}
+    className={`setting-option ${disabled && onSelect ? "sign-in" : ""}`.trim()}
+    onClick={onSelect}
+  >
+    <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
+    <span><strong>{item.label}</strong><small>{item.description}</small></span>
+    <span className="setting-check" aria-hidden="true">{selected && <Check size={20} />}</span>
+  </button>;
+}
+
+function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, onChange }: {
+  label: string;
+  axis: string;
+  heading: string;
+  choices: Choice<T>[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  const selected = choices.find((item) => item.value === value) ?? choices[0];
+  return <SettingMenu label={label} axis={axis} heading={heading} value={selected.short}>
+    {(close) => choices.map((item) => <Option key={item.value} item={item} selected={item.value === value} onSelect={() => { onChange(item.value); close(); }} />)}
+  </SettingMenu>;
+}
+
+function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onSignIn }: {
+  engine: AgentEngine;
+  engineLocked: boolean;
+  engineAccess: Record<AgentEngine, EngineAccess>;
+  model: AgentModel;
+  onChange: (engine: AgentEngine, model: AgentModel) => void;
+  onSignIn: (engine: AgentEngine) => void;
+}) {
+  const selected = modelsOf[engine].find((item) => item.value === model) ?? modelsOf[engine][0];
+  const offered = modelGroups.filter((group) => !engineLocked || group.engine === engine);
+  const locked = modelGroups.filter((group) => engineLocked && group.engine !== engine);
+  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={<><EngineGlyph engine={engine} />{selected.short}</>}>
+    {(close) => <>
+      {offered.map((group) => {
+        const access = engineAccess[group.engine];
+        const signIn = () => { onSignIn(group.engine); close(); };
+        const select = access === "ready"
+          ? (value: AgentModel) => { onChange(group.engine, value); close(); }
+          : access === "signed-out" ? signIn : undefined;
+        return <div key={group.engine} className="setting-group" role="group" aria-label={group.label}>
+          <div className="setting-group-heading">{group.label}</div>
+          {group.choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={access !== "ready"} {...(select ? { onSelect: () => select(item.value) } : {})} />)}
+          {access === "signed-out" && <button type="button" className="setting-hint" onClick={signIn}>Sign in to use {group.label}</button>}
+          {access === "unavailable" && <div className="setting-hint">{group.label} is not installed</div>}
+        </div>;
+      })}
+      {locked.length > 0 && <hr className="setting-rule" />}
+      {locked.map((group) => <div key={group.engine} className="setting-option setting-locked" role="option" aria-selected={false} aria-disabled="true">Start a new thread to use {group.label}</div>)}
+    </>}
+  </SettingMenu>;
+}
+
+export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, onModelChange, onEffortChange, onSignIn }: {
   mode: ExecutionPolicy;
   engine: AgentEngine;
   engineLabel: string;
+  /** Set once the thread has an engine for good, which is from its first message on. */
+  engineLocked: boolean;
+  engineAccess: Record<AgentEngine, EngineAccess>;
   model: AgentModel;
   effort: AgentEffort;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
+  onSignIn: (engine: AgentEngine) => void;
 }) {
   return (
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
-      <ChoiceMenu label="Model" axis="Model" heading="Choose a model" choices={modelsOf[engine]} value={model} onChange={(choice) => onModelChange(engine, choice)} />
+      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onSignIn={onSignIn} />
       <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[engine]} value={effort} onChange={(choice) => onEffortChange(engine, choice)} />
     </div>
   );

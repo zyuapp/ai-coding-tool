@@ -7,7 +7,7 @@ import type { AutomationPatch, AutomationView } from "../../src/domain/automatio
 import type { Task } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
-import { mobileDesktopStub } from "../support/mobile-desktop.mts";
+import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
@@ -129,7 +129,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...mobileDesktopStub, openFolder: async () => null,
+    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },

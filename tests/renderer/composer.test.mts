@@ -8,7 +8,7 @@ import type { AutomationPatch, AutomationView } from "../../src/domain/automatio
 import type { PastedText, RunAttachment } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
-import { mobileDesktopStub } from "../support/mobile-desktop.mts";
+import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
@@ -83,7 +83,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...mobileDesktopStub, openFolder: async () => null,
+    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },
@@ -679,10 +679,18 @@ test("the composer offers model and effort choices, ordered most to least capabl
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
-    [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
-    ["Fable", "Opus", "Sonnet", "Haiku"],
+    [...modelMenu.querySelectorAll(".setting-group-heading")].map((item) => item.textContent),
+    ["Claude", "Codex"],
+    "a draft lists every engine's models under that engine's name",
   );
+  assert.deepEqual(
+    [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
+    ["Fable", "Opus", "Sonnet", "Haiku", "Sol", "Terra"],
+  );
+  assert.equal(modelMenu.querySelectorAll(".setting-option[aria-disabled]").length, 0);
+  assert.equal(modelMenu.querySelector(".setting-rule"), null);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Opus");
+  assert.equal(modelMenu.querySelector(".engine-glyph"), null, "a Claude thread carries no engine glyph");
   const effortMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[2]);
   await act(async () => { query<HTMLElement>(effortMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(

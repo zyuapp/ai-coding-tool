@@ -3358,6 +3358,20 @@ button.file-name { cursor: pointer; }
 .setting-option > span:nth-child(2) { display: grid; gap: 4px; }
 .setting-option strong { font-size: var(--text-control); font-weight: 540; }
 .setting-option small { color: var(--quiet); font-size: var(--text-meta); line-height: 1.35; }
+.setting-option[aria-disabled="true"] { color: var(--quiet); cursor: default; }
+.setting-option[aria-disabled="true"]:hover { background: transparent; }
+.setting-option[aria-disabled="true"] .setting-icon, .setting-option[aria-disabled="true"] small { color: var(--quiet-soft); }
+/** An engine that only wants signing in still takes the click; that is what the click does. */
+.setting-option.sign-in { cursor: pointer; }
+.setting-option.sign-in:hover { background: var(--surface-hover); }
+.setting-group + .setting-group { margin-top: 4px; }
+.setting-group-heading { padding: 8px 9px 4px; color: var(--quiet); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.setting-hint { display: block; width: 100%; border: 0; padding: 2px 9px 8px; background: transparent; color: var(--quiet-strong); font-size: var(--text-meta); text-align: left; }
+button.setting-hint { cursor: pointer; }
+button.setting-hint:hover { color: var(--ink); }
+.setting-rule { margin: 8px 9px 4px; border: 0; border-top: 1px solid var(--line-soft); }
+.setting-locked { display: block; font-size: var(--text-control); }
+.engine-glyph { flex: none; color: var(--quiet-strong); }
 .setting-icon, .setting-check { display: grid; place-items: center; }
 .setting-icon { color: var(--muted-strong); }
 .setting-check { color: var(--ink-faint); }

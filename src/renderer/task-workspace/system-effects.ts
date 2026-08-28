@@ -5,7 +5,7 @@ import { reportFailure, type EffectHost } from "./effect-host";
 
 /** What the window itself, its schedules and its bridge are told, none of which belongs to a thread. */
 export type SystemEffect = Extract<WorkspaceEffect, {
-  type: `automation.${string}` | `remote.${string}` | "focus-window" | "close-window" | "apply-shortcuts"
+  type: `automation.${string}` | `remote.${string}` | `engine.${string}` | "focus-window" | "close-window" | "apply-shortcuts"
     | "apply-capture-options" | "capture-shortcut" | "announce-thread";
 }>;
 
@@ -59,6 +59,15 @@ export async function runSystemEffect(effect: SystemEffect, host: EffectHost): P
     case "remote.revoke-device": case "remote.set-tailscale-serve": case "remote.refresh":
       try {
         await dispatch({ type: "remote.changed", remote: await runRemoteEffect(effect, desktop) });
+      } catch (error) {
+        await dispatch({ type: "action.failed", message: errorMessage(error) });
+      }
+      return;
+
+    /** The engine's own sign-in, which answers with where every engine stands once it is over. */
+    case "engine.sign-in":
+      try {
+        await dispatch({ type: "engine.status", status: await desktop.signInEngine(effect.engine) });
       } catch (error) {
         await dispatch({ type: "action.failed", message: errorMessage(error) });
       }

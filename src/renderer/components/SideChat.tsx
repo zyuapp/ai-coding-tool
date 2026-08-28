@@ -98,6 +98,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         mode={chat.task.executionPolicy}
         engine={chat.task.engine}
         engineLabel={engineLabel}
+        engineLocked
         model={chat.task.model ?? defaultModelFor(chat.task.engine)}
         effort={chat.task.effort ?? defaultEffortFor(chat.task.engine)}
         {...(chat.task.contextUsage ? { contextUsage: chat.task.contextUsage } : {})}

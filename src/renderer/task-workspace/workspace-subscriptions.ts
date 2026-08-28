@@ -175,6 +175,16 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
     return subscribeToDesktop((input) => void host.dispatch(input));
   }, []);
 
+  /** Which engines can take a run, asked once; a sign-in answers with the status after it. */
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    let cancelled = false;
+    void window.desktop.engineStatus()
+      .then((status) => { if (!cancelled) return host.dispatch({ type: "engine.status", status }); })
+      .catch((error) => { if (!cancelled) return host.dispatch({ type: "action.failed", message: errorMessage(error) }); });
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (!("desktop" in window)) return;
     void window.desktop.listAutomations()

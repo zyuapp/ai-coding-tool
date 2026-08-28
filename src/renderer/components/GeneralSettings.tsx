@@ -13,6 +13,8 @@ function cliDescription(status: CliStatus | null) {
 }
 
 export type GeneralSettingsProps = {
+  /** Whether the settings only Claude reads are drawn, which is while Claude is the engine in front. */
+  claudeSettings: boolean;
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
   onSetPlainEnglish: (enabled: boolean) => void;
@@ -24,7 +26,7 @@ export type GeneralSettingsProps = {
   onSetNotifications: (enabled: boolean) => void;
 };
 
-export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
+export function GeneralSettings({ claudeSettings, plainEnglish, onSetPlainEnglish, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser
         </div>
       </section>
 
-      <section className="settings-group" aria-labelledby="experimental-heading">
+      {claudeSettings && <section className="settings-group" aria-labelledby="experimental-heading">
         <div className="settings-group-heading">
           <div>
             <h3 id="experimental-heading">Experimental</h3>
@@ -127,7 +129,7 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser
             <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
           </div>
         </div>
-      </section>
+      </section>}
     </>
   );
 }

@@ -8,7 +8,7 @@ import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type Subag
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
-import { mobileDesktopStub } from "../support/mobile-desktop.mts";
+import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
 
@@ -132,7 +132,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...mobileDesktopStub, openFolder: async () => null,
+    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },

@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { AgentEngine } from "./domain/agent-engine";
 import type { CaptureOptions } from "./domain/capture";
 import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ThreadNotice, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
@@ -49,7 +50,9 @@ const api: DesktopAPI = {
   readAttachment: (file: string) => ipcRenderer.invoke("attachment:read", file),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   describeFiles: (paths: string[]) => ipcRenderer.invoke("file:describe", paths),
-  suggestTaskTitle: (text: string, attachments: string[]) => ipcRenderer.invoke("task-title:suggest", text, attachments),
+  suggestTaskTitle: (text: string, attachments: string[], engine: AgentEngine) => ipcRenderer.invoke("task-title:suggest", text, attachments, engine),
+  engineStatus: () => ipcRenderer.invoke("engine:status"),
+  signInEngine: (engine: AgentEngine) => ipcRenderer.invoke("engine:sign-in", engine),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),

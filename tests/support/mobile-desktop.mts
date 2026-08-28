@@ -1,5 +1,6 @@
 import { emptyMobileServerState } from "../../src/domain/mobile.ts";
 import type { MobileDesktopAPI } from "../../src/contracts/mobile.ts";
+import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
 
 /** The phone bridge as a window that never runs one: off, with nothing paired and nothing connected. */
@@ -20,6 +21,12 @@ export const mobileDesktopStub: MobileDesktopAPI = {
   onMobileRequest: () => () => {},
   answerMobileRequest() {},
   publishMobileView() {},
+};
+
+/** Every engine ready, and a sign-in that changes nothing, for tests that are not about engines. */
+export const engineDesktopStub: Pick<DesktopAPI, "engineStatus" | "signInEngine"> = {
+  engineStatus: async () => ({ codex: "ready" }),
+  signInEngine: async () => ({ codex: "ready" }),
 };
 
 /** The same for the settings panel, whose phone page is not what any of these tests are about. */

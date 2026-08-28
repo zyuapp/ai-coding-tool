@@ -60,6 +60,7 @@ function ThreadScreen({ thread, connection, waiting, send }: {
       />
       {settingsOpen && <ThreadSettings
         settings={thread.settings}
+        locked
         onClose={() => setSettingsOpen(false)}
         onPolicy={(policy) => send({ type: "task.set-policy", taskId: thread.id, policy })}
         onModel={(engine, model) => send({ type: "task.set-model", taskId: thread.id, engine, model })}
@@ -96,6 +97,7 @@ function DraftScreen({ draft, waiting, send }: {
       />
       {settingsOpen && <ThreadSettings
         settings={draft.settings}
+        locked={false}
         onClose={() => setSettingsOpen(false)}
         onPolicy={(policy) => send({ type: "task.set-policy", policy })}
         onModel={(engine, model) => send({ type: "task.set-model", engine, model })}

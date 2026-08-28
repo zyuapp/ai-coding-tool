@@ -143,6 +143,8 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
 
   click(".composer-settings");
   assert.ok(document.querySelector(".sheet"));
+  assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude"], "a thread that exists offers only its own engine's models");
+  assert.equal(document.querySelector(".sheet-locked")?.textContent, "Start a new thread to use Codex");
   click(".sheet-option");
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", taskId: "t1", policy: "autonomous" });
 });
@@ -189,6 +191,8 @@ test("New opens the thread the Mac is about to start, and the first message star
   assert.doesNotMatch(document.body.textContent ?? "", /Opening the thread/);
 
   click(".composer-settings");
+  assert.deepEqual([...document.querySelectorAll(".sheet-subheading")].map((node) => node.textContent), ["Claude", "Codex"], "a draft may still choose either engine");
+  assert.equal(document.querySelector(".sheet-locked"), null);
   click(".sheet-option");
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", policy: "autonomous" }, "a thread yet to exist has no id to name");
   click(".sheet .primary");

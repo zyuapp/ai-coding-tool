@@ -7,12 +7,14 @@ import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
 import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
+import { isAgentEngine } from "../domain/agent-engine.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
+import type { EngineAccessHost } from "./codex/codex-account.mjs" with { "resolution-mode": "import" };
 import { attachmentsDirectory, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
@@ -443,19 +445,41 @@ ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {
   }
 });
 
-ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: unknown) => {
+ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: unknown, engine: unknown) => {
   if (!trustedSender(event)) return null;
-  if (typeof text !== "string") return null;
+  if (typeof text !== "string" || !isAgentEngine(engine)) return null;
   const images = (Array.isArray(attachments) ? attachments : [])
     .map((item) => typeof item === "string" ? savedAttachmentPath(item) : null)
     .filter((file): file is string => file !== null);
   if (!text.trim() && images.length === 0) return null;
   try {
+    if (engine === "codex") {
+      const { suggestCodexTitle } = await import("./codex/codex-title-writer.mjs");
+      return await suggestCodexTitle(text, images);
+    }
     const { suggestTaskTitle } = await import("./agent/title-writer.mjs");
     return await suggestTaskTitle(text, images);
   } catch {
     return null;
   }
+});
+
+let engineAccess: Promise<EngineAccessHost> | null = null;
+
+/** Made on first ask, since the engine it asks is a process of its own. */
+function engineAccessHost() {
+  return engineAccess ??= import("./codex/codex-account.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
+}
+
+ipcMain.handle("engine:status", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  return (await engineAccessHost()).read();
+});
+
+ipcMain.handle("engine:sign-in", async (event, engine: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!isAgentEngine(engine)) throw new Error("Invalid engine.");
+  return (await engineAccessHost()).signIn(engine, (url) => shell.openExternal(url));
 });
 
 ipcMain.handle("computer-use:permissions", async (event) => {

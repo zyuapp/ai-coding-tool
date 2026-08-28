@@ -9,7 +9,7 @@ import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
-import { mobileDesktopStub, mobileSettingsProps } from "../support/mobile-desktop.mts";
+import { engineDesktopStub, mobileDesktopStub, mobileSettingsProps } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
@@ -39,7 +39,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, planUsage: true,
+    claudeSettings: true, plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, planUsage: true,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
@@ -134,7 +134,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...mobileDesktopStub, openFolder: async () => null,
+    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },
@@ -579,6 +579,22 @@ test("each capability page carries a switch that turns the whole capability off"
   await act(async () => { capabilitySwitch(view.container, "browser-tools").click(); });
 
   assert.deepEqual(changed, [["computer-use", false], ["browser-tools", false]]);
+  await view.unmount();
+});
+
+test("the settings only Claude reads are not drawn while another engine is in front", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ claudeSettings: true }));
+  await act(async () => {});
+  assert.ok(view.container.querySelector("[aria-labelledby='experimental-heading']"));
+  assert.match(view.container.textContent ?? "", /Claude in Chrome/);
+  assert.match(view.container.textContent ?? "", /Simplified Technical English/);
+
+  await view.render(renderSettingsPanel({ claudeSettings: false }));
+  assert.equal(view.container.querySelector("[aria-labelledby='experimental-heading']"), null);
+  assert.doesNotMatch(view.container.textContent ?? "", /Claude in Chrome/);
+  assert.doesNotMatch(view.container.textContent ?? "", /Simplified Technical English/);
+  assert.match(view.container.textContent ?? "", /Desktop notifications/, "the rest of the page stays");
   await view.unmount();
 });
 

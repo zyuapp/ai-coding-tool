@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import type { WorkspaceState } from "../../src/application/workspace-state.ts";
+import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
 import { task, workspace, activeRun, automation, effectAt, required, run, running, queueMessage, send } from "./workspace-reducer-fixtures.mts";
 
@@ -186,7 +186,7 @@ test("a new thread asks for a name, and the name the user types outlasts the sug
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const taskId = started.state.tasks[0].id;
 
-  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, text: "Inspect the app", attachments: [] }]);
+  assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, engine: "claude", text: "Inspect the app", attachments: [] }]);
   assert.equal(started.state.tasks[0].title, "Inspect the app", "the typed message titles the thread until a suggestion lands");
 
   const named = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" }).state;
@@ -213,9 +213,42 @@ test("only a thread the send just created is named, from what the user typed and
   assert.equal(fromImage.state.tasks[0].title, "Screenshot");
   assert.deepEqual(
     fromImage.effects.filter((effect) => effect.type === "suggest-title"),
-    [{ type: "suggest-title", taskId: fromImage.state.tasks[0].id, text: "", attachments: ["/tmp/shot.png"] }],
+    [{ type: "suggest-title", taskId: fromImage.state.tasks[0].id, engine: "claude", text: "", attachments: ["/tmp/shot.png"] }],
     "a screenshot-only thread is named from the screenshot",
   );
+});
+
+test("choosing another engine's model moves the draft onto that engine, but never a thread that has a message", () => {
+  const drafted = reduce(workspace({ draftEffort: "max" }), { type: "task.set-model", engine: "codex", model: "gpt-5.6-terra" }).state;
+  assert.equal(drafted.draftEngine, "codex");
+  assert.equal(drafted.draftModel, "gpt-5.6-terra");
+  assert.equal(drafted.draftEffort, "high", "an effort the new engine lacks lands on its default");
+  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" }).state.draftEffort, "low", "an effort both engines offer stays");
+  assert.equal(deriveView(drafted).engineLocked, false, "a draft may still choose either engine");
+
+  const thread = task("task-a", { model: "opus", messages: [{ id: "m1", kind: "user", text: "Have a look", at: 5 }] });
+  const state = workspace({ tasks: [thread], currentId: "task-a" });
+  assert.equal(deriveView(state).engineLocked, true);
+  const held = reduce(state, { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" }).state;
+  assert.equal(held, state, "a thread keeps the engine its first message went to");
+  assert.equal(held.tasks[0].engine, "claude");
+  assert.equal(held.draftEngine, "claude", "nor does the draft move behind the thread's back");
+});
+
+test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {
+  const state = workspace();
+  assert.deepEqual(deriveView(state).engineAccess, { claude: "ready", codex: "ready" }, "every engine is ready until main says otherwise");
+  assert.deepEqual(reduce(state, { type: "engine.sign-in", engine: "codex" }).effects, [], "a ready engine has nothing to sign in to");
+
+  const signedOut = reduce(state, { type: "engine.status", status: { codex: "signed-out" } }).state;
+  assert.deepEqual(deriveView(signedOut).engineAccess, { claude: "ready", codex: "signed-out" });
+  assert.deepEqual(reduce(signedOut, { type: "engine.sign-in", engine: "codex" }).effects, [{ type: "engine.sign-in", engine: "codex" }]);
+  assert.deepEqual(reduce(signedOut, { type: "engine.sign-in", engine: "claude" }).effects, []);
+
+  const missing = reduce(signedOut, { type: "engine.status", status: { codex: "unavailable" } }).state;
+  assert.deepEqual(reduce(missing, { type: "engine.sign-in", engine: "codex" }).effects, [], "an engine that is not there cannot be signed in to");
+  assert.equal(deriveView(workspace({ draftEngine: "codex" })).claudeSettings, false, "Claude's own settings are only drawn while Claude is in front");
+  assert.equal(deriveView(state).claudeSettings, true);
 });
 
 test("a model the engine does not offer changes neither the thread nor the draft", () => {

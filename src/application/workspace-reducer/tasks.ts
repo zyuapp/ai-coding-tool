@@ -10,7 +10,7 @@ import { applyTask } from "../task-workspace.js";
 import { DRAFT_DOCK, blockedTaskIds, busyTaskIds, projectFor, sideChatIds, worktreeById, type WorkspaceState } from "../workspace-state.js";
 import { dismissableTasks, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle } from "../../domain/task.js";
-import { engineHasEffort, engineHasModel } from "../../domain/agent-engine.js";
+import { defaultEffortFor, engineHasEffort, engineHasModel } from "../../domain/agent-engine.js";
 
 type TaskInput = Extract<WorkspaceInput, {
   type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive"
@@ -148,7 +148,9 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
       /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
       const engine = state.tasks.find((task) => task.id === taskId)?.engine;
       if (!engineHasModel(input.engine, input.model) || engine && !engineHasModel(engine, input.model)) return settled(state);
-      const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model } : state;
+      /** A draft that changes engine keeps its effort only where the new engine offers it. */
+      const draftEffort = engineHasEffort(input.engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(input.engine);
+      const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort } : state;
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, model: input.model, updatedAt: now() })) : drafted);
     }
 

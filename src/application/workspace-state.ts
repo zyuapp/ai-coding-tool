@@ -25,7 +25,8 @@ import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities } from "../domain/agent-engine.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineAccess, type EngineCapabilities, type EngineStatus } from "../domain/agent-engine.js";
+import { engineAccessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
@@ -200,6 +201,8 @@ export type WorkspaceState = {
   draftEngine: AgentEngine;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
+  /** What main last said about which engines can take a run. Session-only, and never persisted. */
+  engineStatus: EngineStatus;
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
   annotations: Record<string, Annotation[]>;
@@ -329,6 +332,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
+    engineStatus: {},
     prompts: {},
     annotations: {},
     pastes: {},
@@ -675,6 +679,26 @@ export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceSt
   };
 }
 
+/** The engine in front: what it is called, what it can feed, and whether a picker may still move off it. */
+function engineView(state: WorkspaceState, currentTask: Task | undefined) {
+  const engine = currentTask?.engine ?? state.draftEngine;
+  const capabilities = capabilitiesFor(engine);
+  return {
+    engine,
+    /** The engine's name, for wording that speaks of the agent running this thread. */
+    engineLabel: engineLabel(engine),
+    /** A thread exists from its first message on, and keeps the engine that message went to. */
+    engineLocked: currentTask !== undefined,
+    /** Which engines a picker may hand a run to, and why the others cannot be picked. */
+    engineAccess: byEngine((candidate): EngineAccess => engineAccessOf(state, candidate)),
+    /** Settings that only Claude reads are drawn only while Claude is the engine in front. */
+    claudeSettings: engine === "claude",
+    /** What the engine can feed, so a panel it cannot is not offered for this thread. */
+    capabilities,
+    ...engineFeeds(capabilities, state, currentTask),
+  };
+}
+
 export type WorkspaceView = ReturnType<typeof deriveView>;
 
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
@@ -700,10 +724,8 @@ export function deriveView(state: WorkspaceState) {
   const waitingOn = waitFor(state, currentTask);
   const busy = busyTaskIds(state);
   const blocked = blockedTaskIds(state);
-  const engine = currentTask?.engine ?? state.draftEngine;
-  const capabilities = capabilitiesFor(engine);
-  const feeds = engineFeeds(capabilities, state, currentTask);
   return {
+    ...engineView(state, currentTask),
     tasks: listedTasks,
     projects: orderProjects(state.projects),
     orderedTasks,
@@ -718,11 +740,6 @@ export function deriveView(state: WorkspaceState) {
     /** What that folder is called: the name the user gave the project, else the folder's own. */
     folderLabel: currentProject ? projectName(currentProject) : "",
     policy: currentTask?.executionPolicy ?? state.draftPolicy,
-    engine,
-    /** The engine's name, for wording that speaks of the agent running this thread. */
-    engineLabel: engineLabel(engine),
-    /** What the engine can feed, so a panel it cannot is not offered for this thread. */
-    capabilities,
     model: currentTask ? currentTask.model ?? defaultModelFor(currentTask.engine) : state.draftModel,
     effort: currentTask ? currentTask.effort ?? defaultEffortFor(currentTask.engine) : state.draftEffort,
     prompt: state.prompts[promptKey(state)] ?? "",
@@ -737,9 +754,7 @@ export function deriveView(state: WorkspaceState) {
     runningTaskIds: busy,
     blockedTaskIds: blocked,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
-    subagents: feeds.subagents,
     backgroundProcesses: (state.currentId ? state.backgroundProcesses[state.currentId] : undefined) ?? [],
-    workflows: feeds.workflows,
     /** The workflow this thread's panel is on, which outlives a move to another thread and back. */
     inspectedWorkflow: workflowById(state, dock.workflowId) ?? null,
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,

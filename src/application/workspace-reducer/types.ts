@@ -1,9 +1,11 @@
 import type { ProjectEvent, RegisterProjectEffect } from "../project-commands.js";
 import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
+import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import type { ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
+import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
@@ -53,7 +55,8 @@ export type WorkspaceEvent =
   /** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
   | { type: "find.results"; target: FindTarget; results: FindResults }
   /** What the main process says the phone bridge now is, after anything at all moved it. */
-  | RemoteEvent;
+  | RemoteEvent
+  | EngineEvent;
 
 /** Work the reducer wants done outside itself. The renderer performs these; nothing else does. */
 export type WorkspaceEffect =
@@ -85,7 +88,7 @@ export type WorkspaceEffect =
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
-  | { type: "suggest-title"; taskId: string; text: string; attachments: string[] }
+  | { type: "suggest-title"; taskId: string; engine: AgentEngine; text: string; attachments: string[] }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
@@ -132,7 +135,8 @@ export type WorkspaceEffect =
   /** A finding on its way to the desktop, which is the only place a user who is elsewhere can be reached. */
   | { type: "announce-thread"; notice: ThreadNotice }
   /** A change to the phone bridge, which only the main process can actually make. */
-  | RemoteEffect;
+  | RemoteEffect
+  | EngineEffect;
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 

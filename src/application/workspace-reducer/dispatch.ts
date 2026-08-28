@@ -15,11 +15,13 @@ import { reduceDesktop } from "./desktop.js";
 import { reduceView } from "./view.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { isRemoteInput, reduceRemote } from "../remote-commands.js";
+import { isEngineInput, reduceEngine } from "../engine-access.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
 /** Every input but the keystroke, which {@link reduce} has already turned into the commands it means. */
 export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" }>): WorkspaceTransition {
   if (isRemoteInput(input)) return reduceRemote(state, input);
+  if (isEngineInput(input)) return reduceEngine(state, input);
   switch (input.type) {
     case "task.new": case "task.select": case "task.dismiss":
     case "task.dismiss-all": case "task.archive": case "task.restore":

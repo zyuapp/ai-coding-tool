@@ -83,6 +83,18 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
 export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
 
 const ENGINE_IDS = Object.keys(ENGINES) as AgentEngine[];
+/** Every engine, in the order pickers list them. */
+export const AGENT_ENGINES: readonly AgentEngine[] = ENGINE_IDS;
+
+/** Whether an engine can take a run right now, or what stands in the way. */
+export type EngineAccess = "ready" | "signed-out" | "unavailable";
+/** The access of the engines whose access can change. One not named is always ready. */
+export type EngineStatus = Partial<Record<AgentEngine, EngineAccess>>;
+
+export function isEngineAccess(value: unknown): value is EngineAccess {
+  return value === "ready" || value === "signed-out" || value === "unavailable";
+}
+
 const MODEL_IDS = new Set<string>(ENGINE_IDS.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));
 const EFFORT_IDS = new Set<string>(ENGINE_IDS.flatMap((engine) => ENGINES[engine].efforts.map((effort) => effort.id)));
 

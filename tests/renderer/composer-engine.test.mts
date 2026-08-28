@@ -1,0 +1,81 @@
+import assert from "node:assert/strict";
+import { test } from "vitest";
+import React, { act } from "react";
+import type { DesktopAPI } from "../../src/contracts/ipc.ts";
+import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
+
+import { item, mount, query } from "../support/renderer-dom.mts";
+
+const { TaskComposer } = await import("../../src/renderer/components/TaskComposer.tsx");
+
+/** Only what the composer itself reaches for: the command menu's list, and nothing about runs. */
+function composerDesktop(): DesktopAPI {
+  return {
+    ...mobileDesktopStub, ...engineDesktopStub,
+    projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
+    commands: async () => ({ status: "available", commands: [] }),
+  } as unknown as DesktopAPI;
+}
+
+test("a thread that has an engine offers only its models, and says a new thread is how to use the other", async () => {
+  window.desktop = composerDesktop();
+  const chosen: Array<[string, string]> = [];
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-5.6-terra", effort: "high", runActive: false,
+    onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => {});
+
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
+  assert.equal(query(modelMenu, ".setting-value .engine-glyph").getAttribute("aria-label"), "Runs on Codex", "the model name carries the engine's glyph");
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.deepEqual([...modelMenu.querySelectorAll(".setting-group-heading")].map((item) => item.textContent), ["Codex"]);
+  assert.deepEqual([...modelMenu.querySelectorAll("button.setting-option strong")].map((item) => item.textContent), ["Sol", "Terra"]);
+  assert.ok(modelMenu.querySelector(".setting-rule"), "the other engine sits below a rule");
+  const locked = query(modelMenu, ".setting-locked");
+  assert.equal(locked.textContent, "Start a new thread to use Claude");
+  assert.equal(locked.getAttribute("aria-disabled"), "true");
+  await act(async () => { locked.click(); });
+  assert.equal(chosen.length, 0, "the locked row does nothing");
+  await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.setting-option")[0]).click(); });
+  assert.deepEqual(chosen, [["codex", "gpt-5.6-sol"]]);
+  await view.unmount();
+});
+
+test("an engine that is signed out is greyed, and choosing it asks to sign in instead", async () => {
+  window.desktop = composerDesktop();
+  const chosen: string[] = [];
+  const signIns: string[] = [];
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: "ready", codex: "signed-out" }, model: "opus", effort: "high", runActive: false,
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn: (engine) => signIns.push(engine),
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => {});
+
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const codex = query(modelMenu, "[role=group][aria-label=Codex]");
+  assert.deepEqual([...codex.querySelectorAll(".setting-option")].map((option) => option.getAttribute("aria-disabled")), ["true", "true"]);
+  assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
+  await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
+  assert.equal(chosen.length, 0, "a greyed model is not chosen");
+  assert.deepEqual(signIns, ["codex"]);
+
+  await view.render(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: "ready", codex: "unavailable" }, model: "opus", effort: "high", runActive: false,
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn: (engine) => signIns.push(engine),
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const missing = query(modelMenu, "[role=group][aria-label=Codex]");
+  assert.equal(query(missing, ".setting-hint").textContent, "Codex is not installed");
+  await act(async () => { query<HTMLButtonElement>(missing, ".setting-option").click(); });
+  assert.deepEqual(signIns, ["codex"], "an engine that is not there offers no sign-in");
+  await view.unmount();
+});

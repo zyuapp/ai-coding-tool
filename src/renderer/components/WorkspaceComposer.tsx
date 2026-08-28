@@ -18,6 +18,8 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       mode={workspace.policy}
       engine={workspace.engine}
       engineLabel={workspace.engineLabel}
+      engineLocked={workspace.engineLocked}
+      engineAccess={workspace.engineAccess}
       model={workspace.model}
       effort={workspace.effort}
       contextUsage={workspace.currentTask?.contextUsage}
@@ -43,6 +45,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onModeChange={workspace.actions.setPolicy}
       onModelChange={workspace.actions.setModel}
       onEffortChange={workspace.actions.setEffort}
+      onSignIn={workspace.actions.signInEngine}
       onSend={(attachments, steer) => void workspace.actions.sendPrompt(attachments, steer)}
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}

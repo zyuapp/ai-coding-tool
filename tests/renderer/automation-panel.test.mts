@@ -6,7 +6,7 @@ import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
 import type { Task } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
-import { mobileDesktopStub } from "../support/mobile-desktop.mts";
+import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
@@ -86,7 +86,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const threadAnswers: ThreadResponse[] = [];
   let unsubscribed = false;
   const api: DesktopAPI = {
-    ...mobileDesktopStub, openFolder: async () => null,
+    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
     registerProject: async (root) => ({ id: root, kind: "project", root }),
     onOpenProject: (next) => { openProject = next; return () => {}; },
     onOpenThread: (next) => { openThread = next; return () => {}; },
