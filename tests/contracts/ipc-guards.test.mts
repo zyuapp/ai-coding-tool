@@ -78,6 +78,10 @@ test("run event guard accepts the computer-use setup signal", () => {
   assert.equal(isRunEvent({ type: "computer-use.setup-required", taskId: "task-1", runId: "run-1", sequence: 1 }), true);
 });
 
+test("run event guard accepts a lost continuation", () => {
+  assert.equal(isRunEvent({ type: "continuation.lost", taskId: "task-1", runId: "run-1", sequence: 1 }), true);
+});
+
 test("run event guard accepts tool intents without a write path", () => {
   assert.equal(isRunEvent({
     type: "tool.intent",

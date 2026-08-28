@@ -223,6 +223,14 @@ test("assistant chunks, tool intents, and continuation updates preserve order", 
   assert.equal(continued.tasks[0].continuationStatus, "available");
 });
 
+test("a continuation the engine no longer has is dropped, so the thread starts over rather than failing again", () => {
+  const continued = applyRunEvent(state(), { type: "continuation.updated", taskId: "task-a", runId: "run-a", sequence: 1, continuation: { provider: "codex", value: "thread-1" } });
+  const lost = applyRunEvent(continued, { type: "continuation.lost", taskId: "task-a", runId: "run-a", sequence: 2 });
+
+  assert.equal(lost.tasks[0].continuation, undefined);
+  assert.equal(lost.tasks[0].continuationStatus, "invalid");
+});
+
 test("streamed Markdown blocks append without injected newlines", () => {
   const first = applyRunEvent(state(), { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-1", text: "## Title\n\n", append: true });
   const second = applyRunEvent(first, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 2, messageId: "message-1", text: "Paragraph.", append: true });

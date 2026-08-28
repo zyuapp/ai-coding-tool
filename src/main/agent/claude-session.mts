@@ -1,10 +1,10 @@
 import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
 import { claudeEffort, contextWindowLimit, type AgentModel } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
+import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "./markdown-buffer.mjs";
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
@@ -80,24 +80,6 @@ export function toolDisplayName(toolName: string, input: unknown) {
 function normalizeToolIntent(toolName: string, input: unknown, toolUseID: string): ToolIntent {
   const writePath = writePathFor(toolName, input);
   return { toolId: toolUseID, name: toolDisplayName(toolName, input), input, ...(writePath === undefined ? {} : { writePath }) };
-}
-
-type MarkdownBuffer = {
-  /** Text the stream has produced but not released yet. */
-  text: string;
-  scan: BlockScan;
-};
-
-/** Releases whole Markdown blocks and keeps the rest buffered, so a half-written fence never ships. */
-function appendCompleteMarkdown(buffer: MarkdownBuffer, text: string) {
-  buffer.text += text;
-  const scan = scanBlocks(buffer.text, buffer.scan);
-  buffer.scan = scan;
-  if (!scan.safeEnd) return "";
-  const complete = buffer.text.slice(0, scan.safeEnd);
-  buffer.text = buffer.text.slice(scan.safeEnd);
-  buffer.scan = { safeEnd: 0, scanned: scan.scanned - scan.safeEnd, ...(scan.fence ? { fence: scan.fence } : {}) };
-  return complete;
 }
 
 type Pending = { message: SDKUserMessage; delivered?: () => void };
@@ -440,7 +422,7 @@ export class ClaudeSession {
       }
     } else if (message.type === "stream_event" && !message.parent_tool_use_id && message.event.type === "message_start") {
       stream.activeMainStreamId = message.event.message.id;
-      stream.streamedText.set(stream.activeMainStreamId, { text: "", scan: emptyScan() });
+      stream.streamedText.set(stream.activeMainStreamId, openMarkdownBuffer());
     } else if (message.type === "stream_event" && !message.parent_tool_use_id && stream.activeMainStreamId && message.event.type === "content_block_delta" && message.event.delta.type === "text_delta") {
       const buffered = stream.streamedText.get(stream.activeMainStreamId);
       if (buffered) {

@@ -395,5 +395,8 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     /** A session of the thread's own ends any inheritance: a copy forks what it was given until then. */
     return applyTask(withSequence, event.taskId, ({ inheritedContinuation: _spent, ...task }) => ({ ...task, continuation: event.continuation, continuationStatus: "available", updatedAt: now() }));
   }
+  if (event.type === "continuation.lost") {
+    return applyTask(withSequence, event.taskId, ({ continuation: _lost, ...task }) => ({ ...task, continuationStatus: "invalid", updatedAt: now() }));
+  }
   return withSequence;
 }

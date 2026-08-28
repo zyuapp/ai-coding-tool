@@ -62,6 +62,8 @@ export type ProviderEvent =
   | { type: "tool"; intent: ToolIntent }
   | { type: "computer-use.setup-required" }
   | { type: "continuation"; continuation: Continuation }
+  /** The continuation the run was given resumes nothing any more, so the thread has to start over. */
+  | { type: "continuation-lost" }
   | { type: "steered"; messageId: string }
   | { type: "subagent.started"; id: string; description: string; agentType?: string }
   | { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number }

@@ -474,6 +474,8 @@ export type RunEvent =
       description: string;
     })
   | (RunEventBase & { type: "continuation.updated"; continuation: Continuation })
+  /** The engine no longer has the session the thread was continuing, so the thread starts over next time. */
+  | (RunEventBase & { type: "continuation.lost" })
   /** A steered message reached the agent, so it is part of this run rather than the next one. */
   | (RunEventBase & { type: "queued.delivered"; messageId: string });
 
@@ -785,6 +787,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
+  if (event.type === "continuation.lost") return true;
   if (event.type === "queued.delivered") return isString(event.messageId);
   return false;
 }

@@ -2,6 +2,8 @@ import { isAutomationResponse, isInternalRunCommand, isThreadResponse, type Agen
 import type { ThreadRequest } from "../contracts/threads.js";
 import { ClaudeAgentProvider } from "./agent/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
+import { EngineRouter } from "./agent/engine-router.mjs";
+import { CodexAgentProvider } from "./codex/codex-agent-provider.mjs";
 import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";
 import { isWritePathInside } from "./path-policy.mjs";
@@ -23,7 +25,8 @@ const coordinatorOptions = {
   browser: (taskId: string) => threads.browserFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };
-const providers = { main: new ClaudeAgentProvider(), side: new ClaudeAgentProvider() };
+const engines = () => new EngineRouter({ claude: new ClaudeAgentProvider(), codex: new CodexAgentProvider() });
+const providers = { main: engines(), side: engines() };
 const coordinators = {
   main: new RunCoordinator(providers.main, (event) => parentPort.postMessage(event), coordinatorOptions),
   side: new RunCoordinator(providers.side, (event) => parentPort.postMessage(event), coordinatorOptions),

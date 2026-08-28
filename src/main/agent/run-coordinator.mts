@@ -171,6 +171,7 @@ export class RunCoordinator {
     if (event.type === "tool") this.publish(active, { type: "tool.intent", intent: event.intent });
     if (event.type === "computer-use.setup-required") this.publish(active, event);
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
+    if (event.type === "continuation-lost") this.publish(active, { type: "continuation.lost" });
     if (event.type === "steered") this.publish(active, { type: "queued.delivered", messageId: event.messageId });
     if (event.type === "subagent.started") this.publish(active, event);
     if (event.type === "subagent.progress") this.publish(active, event);
