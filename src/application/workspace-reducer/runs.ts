@@ -254,6 +254,8 @@ function startReview(state: WorkspaceState, pending: PendingRun, workspace: Work
   const command = {
     ...startRunCommand(state, task, pending.runId, "", workspace.id),
     operation: { type: "review" as const, target },
+    /** A copied task must own a fork before its detached reviewer branches from it. */
+    ...(task.inheritedContinuation ? { forkContinuation: true as const } : {}),
   };
   return settled(beginRun(state, task.id, pending.runId, { ...ATTENDED_RUN, operation: "review" }), [{ type: "start-run", command }]);
 }

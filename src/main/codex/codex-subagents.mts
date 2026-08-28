@@ -26,6 +26,12 @@ type Child = {
   bufferedActivity: BufferedActivity[];
   seenActivity: Set<string>;
   seenActivityOrder: string[];
+  reviewOutput?: string;
+  completedTurn?: {
+    id: string;
+    status: "completed" | "interrupted" | "failed";
+    message?: string;
+  };
 };
 
 type PendingItem = { threadId: string; item: ThreadItem };
@@ -152,6 +158,27 @@ export class CodexSubagents {
     this.changedBusy(wasBusy);
   }
 
+  /** A detached native review is a child thread even though it has no collaboration spawn metadata. */
+  registerReview(threadId: string, description: string) {
+    return this.withBusy(() => {
+      if (threadId === this.rootThreadId || this.ignoredThreads.has(threadId)) return;
+      const child = this.child(threadId);
+      this.mergeMetadata(child, { prompt: description, role: "reviewer" });
+      if (child.lifecycle === "unknown") this.setLifecycle(child, "working");
+      this.discover(child);
+    });
+  }
+
+  /** Review traffic may arrive before `review/start` returns its detached thread id. */
+  reviewState(threadId: string) {
+    const child = this.children.get(threadId);
+    if (!child) return undefined;
+    return {
+      ...(child.reviewOutput ? { output: child.reviewOutput } : {}),
+      ...(child.completedTurn ? { completed: child.completedTurn } : {}),
+    };
+  }
+
   /**
    * Whether a notification belongs somewhere other than the root conversation. Once the root is
    * known, unknown foreign ids are suppressed too: Codex can send child status before discovery.
@@ -219,7 +246,9 @@ export class CodexSubagents {
       if (!this.shouldSuppress(params.threadId)) return false;
       if (this.ignoredThreads.has(params.threadId)) return true;
       this.liveTurnsByThread.set(params.threadId, params.turn.id);
-      this.setLifecycle(this.child(params.threadId), "working");
+      const child = this.child(params.threadId);
+      child.completedTurn = undefined;
+      this.setLifecycle(child, "working");
       return true;
     });
   }
@@ -233,6 +262,13 @@ export class CodexSubagents {
       /** An older completion arriving after a resumed turn says nothing about the newer turn. */
       if (liveTurn && liveTurn !== params.turn.id) return true;
       const child = this.child(params.threadId);
+      if (params.turn.status !== "inProgress") {
+        child.completedTurn = {
+          id: params.turn.id,
+          status: params.turn.status,
+          ...(params.turn.error?.message ? { message: params.turn.error.message } : {}),
+        };
+      }
       if (params.turn.status === "completed") this.setLifecycle(child, "idle");
       else if (params.turn.status === "interrupted") this.setLifecycle(child, "stopped");
       else if (params.turn.status === "failed") this.setLifecycle(child, "failed", params.turn.error?.message);
@@ -351,6 +387,16 @@ export class CodexSubagents {
   }
 
   private receiveChildItem(child: Child, item: ThreadItem, started: boolean) {
+    if (item.type === "exitedReviewMode") {
+      if (started) return;
+      const text = item.review.trim();
+      if (!text) return;
+      child.reviewOutput = text;
+      child.summary = firstLine(text);
+      this.queueActivity(child, { type: "subagent.activity", id: child.id, activityId: `${item.id}:review`, kind: "text", text });
+      this.emitProgress(child);
+      return;
+    }
     if (item.type === "agentMessage") {
       if (started) return;
       const text = item.text.trim();

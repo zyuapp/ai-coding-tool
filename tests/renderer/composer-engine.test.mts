@@ -197,3 +197,37 @@ test("the review picker mirrors Codex's four target choices", async () => {
   assert.deepEqual(targets, [{ type: "uncommittedChanges" }]);
   await view.unmount();
 });
+
+test("the review picker reads branches from the thread's worktree", async () => {
+  const reads: string[] = [];
+  window.desktop = {
+    ...composerDesktop(),
+    branches: async (workspaceId: string) => {
+      reads.push(workspaceId);
+      return { status: "available", branches: ["main"], remotes: [], current: "feature" } as const;
+    },
+  };
+  const currentTask: Task = {
+    id: "task-1", title: "Worktree review", projectId: "project-1", worktreeId: "worktree-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
+    messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
+    lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const derived = deriveView({
+    ...emptyWorkspaceState(),
+    projects: [{ id: "project-1", root: "/project", workspaceId: "project-workspace" }],
+    worktrees: [{ id: "worktree-1", projectId: "project-1", root: "/worktree", workspaceId: "worktree-workspace", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }],
+    tasks: [currentTask],
+    currentId: currentTask.id,
+    reviewPicker: { taskId: currentTask.id, step: "base" },
+  });
+  const dispatch = async (_input: WorkspaceInput) => {};
+  const view = await mount(React.createElement(WorkspaceComposer, {
+    workspace: { ...derived, threadHandles: [], threadHandlesFor: () => [], dispatch, actions: workspaceActions(dispatch) } as never,
+    actions: [],
+  }));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+  assert.deepEqual(reads, ["worktree-workspace"]);
+  assert.equal(query(view.container, ".review-branch-list code").textContent, "main");
+  await view.unmount();
+});

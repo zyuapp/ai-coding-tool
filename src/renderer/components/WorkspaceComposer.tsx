@@ -30,7 +30,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", imageId })}
       prompt={workspace.prompt}
       folder={workspace.folder}
-      workspaceId={workspace.currentProject?.workspaceId}
+      workspaceId={workspace.workspaceId}
       mode={workspace.policy}
       engine={workspace.engine}
       engineLabel={workspace.engineLabel}

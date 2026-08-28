@@ -636,7 +636,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && isReviewTarget(operation.target)
     && command.channel === "main" && command.engine === "codex" && command.prompt === ""
     && isContinuation(command.continuation) && command.continuation.provider === "codex"
-    && command.forkContinuation === undefined;
+    && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
   const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
   if (!base) return false;

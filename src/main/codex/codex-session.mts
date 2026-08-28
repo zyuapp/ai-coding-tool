@@ -139,7 +139,22 @@ type Turn = {
   /** The context measured before this compaction began, before usage notifications can replace it. */
   compactionPreTokens?: number;
   compacting?: boolean;
+  /** A native review runs on this detached thread while the app run remains on its parent. */
+  reviewThreadId?: string;
+  reviewOutput?: string;
+  reviewFinalizing?: boolean;
 };
+
+type ReviewOperation = Extract<NonNullable<ProviderRunInput["operation"]>, { type: "review" }>;
+
+function reviewDescription(target: ReviewOperation["target"]) {
+  switch (target.type) {
+    case "uncommittedChanges": return "Review uncommitted changes";
+    case "baseBranch": return `Review against ${target.branch}`;
+    case "commit": return `Review commit ${target.sha}`;
+    case "custom": return firstLine(target.instructions);
+  }
+}
 
 /**
  * One live Codex thread, kept across turns. The app server process belongs to the session, so a
@@ -300,24 +315,27 @@ export class CodexSession {
     }
   }
 
-  /** A review is a specialized inline turn on the current thread, not a prompt sent to the model. */
+  /** A review forks a native Codex thread and reports it through the same session roster as subagents. */
   private async beginReview(turn: Turn, client: CodexClient, threadId: string) {
     const operation = turn.input.operation;
     if (operation?.type !== "review") return;
     let started: { turn: { id: string }; reviewThreadId: string };
     try {
-      started = await client.request("review/start", { threadId, target: operation.target, delivery: "inline" });
+      started = await client.request("review/start", { threadId, target: operation.target, delivery: "detached" });
     } catch (error) {
       if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not start the review: ${reasonOf(error)}` });
       return;
     }
     turn.turnId = started.turn.id;
+    turn.reviewThreadId = started.reviewThreadId;
     if (this.turn !== turn) return;
+    this.subagents?.registerReview(started.reviewThreadId, reviewDescription(operation.target));
+    this.reconcileReview(turn);
     if (turn.interruptWanted) {
       this.interrupt(turn);
       return;
     }
-    await this.drainSteering(turn);
+    await this.drainSteering(turn, started.reviewThreadId);
   }
 
   /**
@@ -351,7 +369,9 @@ export class CodexSession {
       if (!subagents.shouldSuppress(params.threadId)) this.receiveDelta(params.itemId, params.delta);
     });
     client.on("item/completed", (params) => {
-      if (!subagents.itemCompleted(params)) this.receiveCompleted(params.item);
+      const child = subagents.itemCompleted(params);
+      this.receiveReviewItem(params.threadId, params.item);
+      if (!child) this.receiveCompleted(params.item);
     });
     client.on("thread/tokenUsage/updated", (params) => {
       if (!subagents.tokenUsageUpdated(params)) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
@@ -360,7 +380,8 @@ export class CodexSession {
       if (!subagents.error(params) && this.turn && !params.willRetry) this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
-      if (!subagents.turnCompleted(params)) this.receiveTurnCompleted(params.turn);
+      const child = subagents.turnCompleted(params);
+      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child) this.receiveTurnCompleted(params.turn);
     });
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
@@ -368,7 +389,7 @@ export class CodexSession {
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
     const policy = codexPolicy(seed.policy);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, developerInstructions: DEVELOPER_INSTRUCTIONS };
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: DEVELOPER_INSTRUCTIONS };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
@@ -389,8 +410,15 @@ export class CodexSession {
       return;
     }
     if (!this.client || !this.threadId) return;
-    for (const child of this.subagents?.liveTurns ?? []) {
+    const children = this.subagents?.liveTurns ?? [];
+    for (const child of children) {
       void this.client.request("turn/interrupt", child).catch(() => {});
+    }
+    if (turn.reviewThreadId) {
+      if (!children.some((child) => child.threadId === turn.reviewThreadId && child.turnId === turn.turnId)) {
+        void this.client.request("turn/interrupt", { threadId: turn.reviewThreadId, turnId: turn.turnId }).catch(() => {});
+      }
+      return;
     }
     void this.client.request("turn/interrupt", { threadId: this.threadId, turnId: turn.turnId }).catch(() => {});
   }
@@ -399,12 +427,12 @@ export class CodexSession {
    * Feeds one run's steered messages into the turn already going. One the server refuses stays
    * queued on the thread, which sends it as the next turn once this run settles.
    */
-  private async drainSteering(turn: Turn) {
+  private async drainSteering(turn: Turn, threadId = this.threadId) {
     for (let steer = await turn.input.steering.next(); steer; steer = await turn.input.steering.next()) {
       const client = this.client;
-      if (this.turn !== turn || !client || !this.threadId || !turn.turnId) return;
+      if (this.turn !== turn || !client || !threadId || !turn.turnId) return;
       try {
-        await client.request("turn/steer", { threadId: this.threadId, input: [text(steer.prompt)], expectedTurnId: turn.turnId });
+        await client.request("turn/steer", { threadId, input: [text(steer.prompt)], expectedTurnId: turn.turnId });
         turn.input.emit({ type: "steered", messageId: steer.messageId });
       } catch {
         continue;
@@ -470,6 +498,50 @@ export class CodexSession {
     } else {
       turn.items.delete(item.id);
     }
+  }
+
+  /** Copies the detached review's final report into the visible parent transcript once. */
+  private receiveReviewItem(threadId: string, item: ThreadItem) {
+    const turn = this.turn;
+    if (!turn || turn.reviewThreadId !== threadId || item.type !== "exitedReviewMode") return;
+    const output = item.review.trim();
+    if (!output || turn.reviewOutput !== undefined) return;
+    turn.reviewOutput = output;
+    turn.input.emit({ type: "assistant", messageId: `review:${threadId}`, text: output });
+  }
+
+  /** Replays review traffic that raced ahead of the `review/start` response. */
+  private reconcileReview(turn: Turn) {
+    const threadId = turn.reviewThreadId;
+    if (!threadId) return;
+    const state = this.subagents?.reviewState(threadId);
+    if (state?.output) this.receiveReviewItem(threadId, { type: "exitedReviewMode", id: turn.turnId ?? threadId, review: state.output });
+    if (state?.completed) this.finishReview(turn, state.completed);
+  }
+
+  private receiveReviewTurnCompleted(threadId: string, completed: NotificationParams<"turn/completed">["turn"]) {
+    const turn = this.turn;
+    if (!turn || turn.reviewThreadId !== threadId || (turn.turnId !== undefined && turn.turnId !== completed.id)) return false;
+    this.finishReview(turn, completed);
+    return true;
+  }
+
+  /** Keeps the parent Codex history aligned with the review result shown in the app. */
+  private finishReview(turn: Turn, completed: { id: string; status: string; error?: { message: string } | null; message?: string }) {
+    if (this.turn !== turn || turn.reviewFinalizing) return;
+    turn.reviewFinalizing = true;
+    void (async () => {
+      if (completed.status === "completed" && turn.reviewOutput && this.client && this.threadId) {
+        await this.client.request("thread/inject_items", {
+          threadId: this.threadId,
+          items: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: turn.reviewOutput }] }],
+        }).catch(() => {});
+      }
+      if (this.turn !== turn) return;
+      if (completed.status === "completed") this.settle({ status: "succeeded" });
+      else if (completed.status === "interrupted") this.settle({ status: "cancelled" });
+      else this.settle({ status: "failed", message: completed.error?.message ?? completed.message ?? turn.failure ?? "Codex could not finish the review." });
+    })();
   }
 
   private setCompacting(turn: Turn, compacting: boolean, error?: string) {

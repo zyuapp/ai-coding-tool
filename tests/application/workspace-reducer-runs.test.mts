@@ -93,6 +93,7 @@ test("a Codex review picker starts a native review without adding a user message
   });
   const opened = reduce(state, { type: "review.open" });
   assert.deepEqual(deriveView(opened.state).reviewPicker, { taskId: "task-a", step: "targets" });
+  assert.equal(deriveView({ ...opened.state, activeRuns: { "task-a": activeRun("task-a", "other-run") } }).reviewPicker, null, "concurrent work hides a stale picker");
 
   const detailed = reduce(opened.state, { type: "review.set-step", step: "base" });
   assert.equal(deriveView(detailed.state).reviewPicker?.step, "base");
@@ -109,6 +110,15 @@ test("a Codex review picker starts a native review without adding a user message
   assert.deepEqual(command.operation, { type: "review", target: { type: "baseBranch", branch: "main" } });
   assert.equal(resolved.state.activeRuns["task-a"].operation, "review");
   assert.deepEqual(resolved.state.tasks[0].messages, []);
+
+  const copied = { ...state, tasks: [{ ...state.tasks[0], inheritedContinuation: true as const }] };
+  const copyPending = reduce(copied, { type: "review.start", target: { type: "uncommittedChanges" } });
+  const copyResolved = reduce(copyPending.state, {
+    type: "run.resolved",
+    pendingId: effectAt(copyPending, "resolve-run-workspace").pendingId,
+    workspace: { id: "workspace-1", kind: "project", root: "/project" },
+  });
+  assert.equal(effectAt(copyResolved, "start-run").command.forkContinuation, true, "a copied task owns a fork before its reviewer branches");
 
   const claude = { ...state, tasks: [{ ...state.tasks[0], engine: "claude" as const, continuation: { provider: "claude" as const, value: "session-1" } }] };
   assert.deepEqual(reduce(claude, { type: "review.open" }).effects, []);

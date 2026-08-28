@@ -54,6 +54,17 @@ test("a session serves the run's tools under one token and points the app server
   assert.equal(codex.host.served[0]!.released, true, "closing the session forgets its token");
 });
 
+test("a native review cannot create regular app threads", () => {
+  const tools = runTools(input({
+    ...bridges,
+    operation: { type: "review", target: { type: "uncommittedChanges" } },
+  })).flatMap((set) => set.tools.map((tool) => tool.name));
+
+  assert.ok(!tools.includes("list_threads"));
+  assert.ok(!tools.includes("start_thread"));
+  assert.ok(tools.includes("browser_open"), "unrelated review tools stay available");
+});
+
 test("a side chat is served the tools its channel allows, and a run with no bridges is served nothing", async () => {
   const side = harness();
   const { client } = await turn(side, { ...bridges, channel: "side" });

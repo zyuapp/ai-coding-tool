@@ -52,7 +52,7 @@ test("manual compaction is a validated Sol thread operation", () => {
   assert.equal(isRunCommand({ ...compact, forkContinuation: true }), false);
 });
 
-test("native Codex reviews accept only valid inline review targets", () => {
+test("native Codex reviews accept valid targets and inherited continuation forks", () => {
   const review = {
     ...command,
     engine: "codex",
@@ -71,7 +71,8 @@ test("native Codex reviews accept only valid inline review targets", () => {
   assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "baseBranch", branch: " " } } }), false);
   assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "commit", sha: "", title: null } } }), false);
   assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "custom", instructions: "" } } }), false);
-  assert.equal(isRunCommand({ ...review, forkContinuation: true }), false);
+  assert.equal(isRunCommand({ ...review, forkContinuation: true }), true);
+  assert.equal(isRunCommand({ ...review, forkContinuation: false }), false);
 });
 
 test("internal worker commands require a resolved root and projectless flag", () => {

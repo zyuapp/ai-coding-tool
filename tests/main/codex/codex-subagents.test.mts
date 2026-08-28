@@ -133,6 +133,28 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   assert.deepEqual(tracker.liveTurns, []);
 });
 
+test("a detached review is registered as a session subagent even when its events arrive first", () => {
+  const reports: SubagentReport[] = [];
+  const tracker = new CodexSubagents((report) => reports.push(report));
+  tracker.setRootThreadId(rootId);
+  tracker.turnStarted(turn("review-thread", "review-turn"));
+  tracker.itemCompleted(itemCompleted("review-thread", "review-turn", { type: "exitedReviewMode", id: "review-result", review: "[P1] Fix the race." }));
+  tracker.turnCompleted(turn("review-thread", "review-turn", "completed"));
+
+  assert.equal(reports.length, 0, "foreign traffic stays buffered until review/start identifies it");
+  tracker.registerReview("review-thread", "Review uncommitted changes");
+
+  assert.deepEqual(tracker.reviewState("review-thread"), {
+    output: "[P1] Fix the race.",
+    completed: { id: "review-turn", status: "completed" },
+  });
+  assert.deepEqual(reports[0], {
+    type: "subagent.started", id: "review-thread", description: "Review uncommitted changes", agentType: "reviewer", sessionScoped: true,
+  });
+  assert.equal(reports.some((report) => report.type === "subagent.activity" && report.text === "[P1] Fix the race."), true);
+  assert.deepEqual(reports.at(-1), { type: "subagent.activity", id: "review-thread", activityId: "review-result:review", kind: "text", text: "[P1] Fix the race." });
+});
+
 test("the session isolates child traffic from the parent and cancellation interrupts child and root turns independently", async () => {
   const providerEvents: ProviderEvent[] = [];
   const reports: SubagentReport[] = [];

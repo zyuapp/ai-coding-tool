@@ -836,7 +836,7 @@ export function deriveView(state: WorkspaceState) {
     terminals: dock.terminals,
     currentFolder: currentFolder(state),
     openMenu: state.openMenu,
-    reviewPicker: state.reviewPicker?.taskId === currentTask?.id ? state.reviewPicker : null,
+    reviewPicker: currentTask && state.reviewPicker?.taskId === currentTask.id && !busy.has(currentTask.id) ? state.reviewPicker : null,
     find: findView(state, currentTask),
     remote: state.remote,
     canGoBack: reachableVisit(state, -1) !== null,

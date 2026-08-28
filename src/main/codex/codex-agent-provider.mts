@@ -20,6 +20,8 @@ function sessionKey(input: ProviderRunInput) {
     Boolean(input.threads),
     Boolean(input.browser),
     Boolean(input.terminal),
+    /** Review has no turn-level overrides, so its process must agree with the thread settings. */
+    input.operation?.type === "review" ? [input.model, input.effort, input.policy] : null,
   ]);
 }
 

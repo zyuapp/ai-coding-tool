@@ -7,7 +7,7 @@ import type { BoundTool } from "../tools/tool-definition.mjs";
 import type { ProviderRunInput } from "./agent-provider.mjs";
 import { offeredOn } from "./channel-tools.mjs";
 
-export type ToolSources = Pick<ProviderRunInput, "channel" | "computerUse" | "automations" | "findings" | "threads" | "browser" | "terminal" | "emit">;
+export type ToolSources = Pick<ProviderRunInput, "channel" | "computerUse" | "operation" | "automations" | "findings" | "threads" | "browser" | "terminal" | "emit">;
 
 export type ServedToolSet = { server: string; tools: BoundTool[] };
 
@@ -23,7 +23,8 @@ export function runTools(input: ToolSources): ServedToolSet[] {
   if (input.automations) {
     sets.push({ server: AUTOMATION_SERVER_NAME, tools: [...automationTools(input.automations), ...(input.findings ? findingTools(input.findings) : [])] });
   }
-  if (input.threads) sets.push({ server: THREAD_SERVER_NAME, tools: threadTools(input.threads) });
+  /** A native review is already isolated in its own Codex thread. App thread tools would create sidebar tasks instead. */
+  if (input.threads && input.operation?.type !== "review") sets.push({ server: THREAD_SERVER_NAME, tools: threadTools(input.threads) });
   if (input.browser) sets.push({ server: BROWSER_SERVER_NAME, tools: browserTools(input.browser) });
   if (input.terminal) sets.push({ server: TERMINAL_SERVER_NAME, tools: terminalTools(input.terminal) });
   return sets.map(({ server, tools }) => ({ server, tools: offeredOn(input.channel, server, tools) }));
