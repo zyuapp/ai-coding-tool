@@ -7,7 +7,14 @@ export const APP_SERVER_NAME = "aicodingtool";
 export const TOOL_TOKEN_ENV = "AICODINGTOOL_MCP_TOKEN";
 export const COMPUTER_USE_SERVER_NAME = "cua-driver";
 
-type TomlValue = string | boolean | readonly string[] | Readonly<Record<string, string>>;
+type TomlTable = Readonly<Record<string, string | boolean>>;
+type TomlValue = string | boolean | readonly string[] | readonly TomlTable[] | TomlTable;
+
+/**
+ * Skills Codex bundles for its own desktop app. They answer "in-app browser" and "computer use"
+ * with that app's surfaces, which this app does not have, so its threads never see them.
+ */
+const FOREIGN_SKILLS = ["browser:control-in-app-browser", "computer-use:computer-use"];
 
 const ESCAPED: Record<string, string> = { "\\": "\\\\", "\"": "\\\"", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
 
@@ -19,8 +26,8 @@ function tomlString(value: string) {
 export function toml(value: TomlValue): string {
   if (typeof value === "string") return tomlString(value);
   if (typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return `[${value.map(tomlString).join(", ")}]`;
-  const entries = Object.entries(value as Record<string, string>).map(([key, entry]) => `${tomlString(key)} = ${tomlString(entry)}`);
+  if (Array.isArray(value)) return `[${(value as readonly (string | TomlTable)[]).map(toml).join(", ")}]`;
+  const entries = Object.entries(value as TomlTable).map(([key, entry]) => `${tomlString(key)} = ${toml(entry)}`);
   return entries.length ? `{ ${entries.join(", ")} }` : "{}";
 }
 
@@ -32,7 +39,7 @@ export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "compu
  * like any other MCP server, except where Claude would also grant it unasked.
  */
 export function codexConfig(input: ConfigSources, served: ServedTools | undefined): string[] {
-  const config: Record<string, TomlValue> = {};
+  const config: Record<string, TomlValue> = { "skills.config": FOREIGN_SKILLS.map((name) => ({ name, enabled: false })) };
   if (served) {
     config[`mcp_servers.${APP_SERVER_NAME}.url`] = served.url;
     config[`mcp_servers.${APP_SERVER_NAME}.bearer_token_env_var`] = TOOL_TOKEN_ENV;

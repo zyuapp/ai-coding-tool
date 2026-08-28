@@ -32,6 +32,7 @@ test("a session serves the run's tools under one token and points the app server
   const { client } = await turn(codex, bridges);
 
   assert.deepEqual(overrides(client.command.args), {
+    "skills.config": "[{ \"name\" = \"browser:control-in-app-browser\", \"enabled\" = false }, { \"name\" = \"computer-use:computer-use\", \"enabled\" = false }]",
     "mcp_servers.aicodingtool.url": "\"http://127.0.0.1:1/mcp\"",
     "mcp_servers.aicodingtool.bearer_token_env_var": "\"AICODINGTOOL_MCP_TOKEN\"",
     "mcp_servers.aicodingtool.default_tools_approval_mode": "\"approve\"",
@@ -45,7 +46,7 @@ test("a session serves the run's tools under one token and points the app server
   );
   assert.ok(codex.host.served[0]!.tools.some((tool) => tool.name === "schedule"));
   assert.equal((client.calls("thread/start")[0] as { developerInstructions?: string }).developerInstructions, DEVELOPER_INSTRUCTIONS);
-  assert.ok(DEVELOPER_INSTRUCTIONS.split(/\s+/).length < 60, "the skills paragraph stays short");
+  assert.ok(DEVELOPER_INSTRUCTIONS.split(/\s+/).length < 90, "the instructions stay short");
 
   await turn(codex, { ...bridges, prompt: "again", continuation: { provider: "codex", value: "thread-1" } });
   assert.equal(codex.host.served.length, 1, "a warm session keeps its token");
@@ -116,5 +117,10 @@ test("config values are written as TOML the app server parses", () => {
   assert.equal(toml(["x", "y z"]), "[\"x\", \"y z\"]");
   assert.equal(toml({}), "{}");
   assert.equal(toml({ "A-B": "1", C: "\"" }), "{ \"A-B\" = \"1\", \"C\" = \"\\\"\" }");
-  assert.deepEqual(codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, undefined), []);
+  assert.equal(toml([{ name: "a:b", enabled: false }]), "[{ \"name\" = \"a:b\", \"enabled\" = false }]");
+  assert.deepEqual(
+    codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, undefined),
+    ["-c", "skills.config=[{ \"name\" = \"browser:control-in-app-browser\", \"enabled\" = false }, { \"name\" = \"computer-use:computer-use\", \"enabled\" = false }]"],
+    "Codex's own desktop-app skills are switched off for every thread",
+  );
 });
