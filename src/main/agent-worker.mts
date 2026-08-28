@@ -7,6 +7,7 @@ import { CodexAgentProvider } from "./codex/codex-agent-provider.mjs";
 import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";
 import { isWritePathInside } from "./path-policy.mjs";
+import { McpHttpHost } from "./tools/mcp-http-host.mjs";
 
 type ParentPort = {
   on(event: "message", listener: (event: { data: unknown }) => void): void;
@@ -25,7 +26,9 @@ const coordinatorOptions = {
   browser: (taskId: string) => threads.browserFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };
-const engines = () => new EngineRouter({ claude: new ClaudeAgentProvider(), codex: new CodexAgentProvider() });
+/** One tool service for the whole worker; every Codex session gets a token of its own on it. */
+const toolHost = new McpHttpHost();
+const engines = () => new EngineRouter({ claude: new ClaudeAgentProvider(), codex: new CodexAgentProvider({ host: toolHost }) });
 const providers = { main: engines(), side: engines() };
 const coordinators = {
   main: new RunCoordinator(providers.main, (event) => parentPort.postMessage(event), coordinatorOptions),
@@ -34,6 +37,7 @@ const coordinators = {
 
 function closeSessions() {
   for (const provider of Object.values(providers)) provider.closeAll();
+  void toolHost.close();
 }
 
 /** Sessions outlive the runs that used them, so leaving takes them down explicitly. */

@@ -2,7 +2,10 @@ import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
+import { runTools } from "../agent/run-tools.mjs";
+import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerError, AppServerExited, codexAppServer, type AppServerClient, type AppServerCommand, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
+import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import type { ClientInfo } from "./protocol/ClientInfo.js";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
 import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
@@ -144,6 +147,8 @@ type Turn = {
  */
 export class CodexSession {
   private client: CodexClient | null = null;
+  /** The app's tools as this session's process reaches them; released with the session. */
+  private served: ServedTools | null = null;
   private opening: Promise<void> | null = null;
   private turn: Turn | null = null;
   private ended = false;
@@ -156,7 +161,7 @@ export class CodexSession {
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
 
-  constructor(readonly key: string, private readonly connect: CodexConnect, private readonly onEnded: () => void) {}
+  constructor(readonly key: string, private readonly connect: CodexConnect, private readonly host: ToolHost, private readonly onEnded: () => void) {}
 
   /** A turn is in flight, so the session owes an answer before it can take another. */
   get answering() {
@@ -216,6 +221,8 @@ export class CodexSession {
     this.settle({ status: "cancelled" });
     void this.client?.close();
     this.client = null;
+    this.served?.release();
+    this.served = null;
     this.onEnded();
   }
 
@@ -262,9 +269,22 @@ export class CodexSession {
     await this.drainSteering(turn);
   }
 
-  /** Spawns the server and puts the thread on it: a new one, the one the run continues, or a fork of it. */
+  /**
+   * Spawns the server and puts the thread on it: a new one, the one the run continues, or a fork of
+   * it. The app's tools are served first, since the process connects to them as the thread starts.
+   */
   private async open(seed: ProviderRunInput) {
-    const client = this.connect(codexAppServer([], { cwd: seed.workspaceRoot }));
+    const tools = runTools(seed).flatMap((set) => set.tools);
+    if (tools.length) {
+      const served = await this.host.serve(tools);
+      if (this.ended) {
+        served.release();
+        throw new OpenFailure("The Codex session ended before the run could start.");
+      }
+      this.served = served;
+    }
+    const env = this.served ? { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } : undefined;
+    const client = this.connect(codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(env ? { env } : {}) }));
     this.client = client;
     client.on("item/started", (params) => this.receiveStarted(params.item));
     client.on("item/agentMessage/delta", (params) => this.receiveDelta(params.itemId, params.delta));

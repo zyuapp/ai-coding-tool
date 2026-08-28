@@ -5,6 +5,8 @@ import type { RequestId } from "../../src/main/codex/protocol/RequestId.ts";
 import { CodexAgentProvider } from "../../src/main/codex/codex-agent-provider.mts";
 import type { CodexClient } from "../../src/main/codex/codex-session.mts";
 import type { ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
+import type { BoundTool, ToolResult } from "../../src/main/tools/tool-definition.mts";
+import type { ServedTools, ToolHost } from "../../src/main/tools/mcp-http-host.mts";
 
 export type Sent = { method: string; params: unknown };
 
@@ -135,21 +137,51 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
   return { ...base, ...overrides };
 }
 
+/** One set of tools a session asked the host to serve, and whether the session has let it go. */
+export type Serving = { token: string; tools: readonly BoundTool[]; released: boolean; call(name: string, args: unknown): Promise<ToolResult> };
+
+/** Stands in for the HTTP host: hands out tokens and remembers which sets are still served. */
+export class FakeToolHost implements ToolHost {
+  readonly url = "http://127.0.0.1:1/mcp";
+  readonly served: Serving[] = [];
+
+  serve(tools: readonly BoundTool[]): Promise<ServedTools> {
+    const serving: Serving = {
+      token: `token-${this.served.length + 1}`,
+      tools,
+      released: false,
+      call: (name, args) => {
+        const tool = tools.find((candidate) => candidate.name === name);
+        if (!tool) throw new Error(`${name} is not served`);
+        return tool.handler(args as never);
+      },
+    };
+    this.served.push(serving);
+    return Promise.resolve({ url: this.url, token: serving.token, release: () => { serving.released = true; } });
+  }
+}
+
 export type Harness = {
   provider: CodexAgentProvider;
   clients: FakeCodexClient[];
   latest: () => FakeCodexClient;
+  host: FakeToolHost;
 };
 
 /** A provider whose app servers are scripted fakes, one per session it opens. */
 export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; idleMs?: number } = {}): Harness {
   const clients: FakeCodexClient[] = [];
-  const provider = new CodexAgentProvider((command) => {
-    const client = new FakeCodexClient(command, { ...defaultScript, ...script }, options.handshake);
-    clients.push(client);
-    return client;
-  }, options.idleMs);
-  return { provider, clients, latest: () => clients.at(-1)! };
+  const host = new FakeToolHost();
+  const provider = new CodexAgentProvider({
+    connect: (command) => {
+      const client = new FakeCodexClient(command, { ...defaultScript, ...script }, options.handshake);
+      clients.push(client);
+      return client;
+    },
+    host,
+    idleMs: options.idleMs,
+  });
+  return { provider, clients, latest: () => clients.at(-1)!, host };
 }
 
 /** Runs one turn to its completion, delivering the given notifications before the server completes the turn. */

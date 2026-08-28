@@ -1,4 +1,5 @@
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerClient } from "./app-server-client.mjs";
 import { CodexSession, type CodexConnect } from "./codex-session.mjs";
 
@@ -7,9 +8,23 @@ const IDLE_SESSION_MS = 15 * 60 * 1_000;
 /** How many threads keep a session warm. Beyond this the least recently used idle one is let go. */
 const MAX_LIVE_SESSIONS = 4;
 
-/** Everything a session is built with. A run that disagrees with any of it needs a session of its own. */
+/**
+ * Everything a session is built with. A run that disagrees with any of it needs a session of its
+ * own. Computer use is granted unasked per process, so what decides that grant counts only while
+ * computer use is on.
+ */
 function sessionKey(input: ProviderRunInput) {
-  return JSON.stringify([input.channel, input.workspaceRoot, input.projectless]);
+  return JSON.stringify([
+    input.channel,
+    input.workspaceRoot,
+    input.projectless,
+    input.computerUse.status === "available" ? [input.computerUse.mcp, input.channel === "main" && input.policy === "autonomous"] : input.computerUse.status,
+    Boolean(input.automations),
+    Boolean(input.findings),
+    Boolean(input.threads),
+    Boolean(input.browser),
+    Boolean(input.terminal),
+  ]);
 }
 
 function continuationOf(input: ProviderRunInput) {
@@ -22,11 +37,25 @@ type Held = {
   idle?: ReturnType<typeof setTimeout>;
 };
 
+export type CodexProviderOptions = {
+  connect?: CodexConnect;
+  /** Serves the app's tools to every session; shared across providers in one process. */
+  host?: ToolHost;
+  idleMs?: number;
+};
+
 export class CodexAgentProvider implements AgentProvider {
   /** One warm session per thread: the process it holds is what makes a second turn cheap. */
   private readonly sessions = new Map<string, Held>();
+  private readonly connect: CodexConnect;
+  private readonly host: ToolHost;
+  private readonly idleMs: number;
 
-  constructor(private readonly connect: CodexConnect = (command) => new AppServerClient(command), private readonly idleMs: number = IDLE_SESSION_MS) {}
+  constructor(options: CodexProviderOptions = {}) {
+    this.connect = options.connect ?? ((command) => new AppServerClient(command));
+    this.host = options.host ?? new McpHttpHost();
+    this.idleMs = options.idleMs ?? IDLE_SESSION_MS;
+  }
 
   async execute(input: ProviderRunInput): Promise<ProviderResult> {
     const held = this.sessionFor(input);
@@ -67,7 +96,7 @@ export class CodexAgentProvider implements AgentProvider {
     }
     if (held) this.release(input.taskId, held);
     this.evict();
-    const session = new CodexSession(key, this.connect, () => {
+    const session = new CodexSession(key, this.connect, this.host, () => {
       if (this.sessions.get(input.taskId)?.session === session) this.sessions.delete(input.taskId);
     });
     const opened: Held = { session, usedAt: Date.now() };

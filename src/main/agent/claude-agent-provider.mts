@@ -1,10 +1,11 @@
-import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { query, type CanUseTool, type McpServerConfig, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { claudeEffort } from "../../domain/agent-engine.js";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 import { automationTools, AUTOMATION_SERVER_NAME, findingTools } from "../tools/automation.mjs";
 import { browserTools, BROWSER_SERVER_NAME } from "../tools/browser.mjs";
+import { computerUseSetupTools, COMPUTER_USE_SETUP_SERVER_NAME } from "../tools/computer-use.mjs";
 import { terminalTools, TERMINAL_SERVER_NAME } from "../tools/terminal.mjs";
 import { threadTools, THREAD_SERVER_NAME } from "../tools/threads.mjs";
 import { withheldTools } from "./channel-tools.mjs";
@@ -175,15 +176,7 @@ export class ClaudeAgentProvider implements AgentProvider {
     if (input.computerUse.status === "available") {
       mcpServers["cua-driver"] = { type: "stdio" as const, ...input.computerUse.mcp };
     } else if (input.computerUse.status === "setup-required") {
-      mcpServers["aicodingtool-computer-use"] = createSdkMcpServer({
-        name: "aicodingtool-computer-use",
-        version: "1.0.0",
-        alwaysLoad: true,
-        tools: [tool("request_setup", "Use when a task requires operating another application's interface but computer use needs to be enabled in AICodingTool. Call this rather than telling the user to install or configure anything.", {}, async () => {
-          input.emit({ type: "computer-use.setup-required" });
-          return { content: [{ type: "text", text: "AICodingTool opened Settings → Computer use. Ask the user to complete the required permissions, then retry after AICodingTool restarts." }] };
-        })],
-      });
+      mcpServers[COMPUTER_USE_SETUP_SERVER_NAME] = claudeMcpServer(COMPUTER_USE_SETUP_SERVER_NAME, computerUseSetupTools({ requestSetup: () => input.emit({ type: "computer-use.setup-required" }) }));
     }
     if (input.automations) {
       mcpServers[AUTOMATION_SERVER_NAME] = claudeMcpServer(AUTOMATION_SERVER_NAME, [...automationTools(input.automations), ...(input.findings ? findingTools(input.findings) : [])]);
