@@ -75,7 +75,7 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     defaultModel: "gpt-5.6-sol",
     efforts: CODEX_EFFORTS,
     defaultEffort: "high",
-    capabilities: { workflows: false, subagents: false },
+    capabilities: { workflows: false, subagents: true },
   },
 };
 

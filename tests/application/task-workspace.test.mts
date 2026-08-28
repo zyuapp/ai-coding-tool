@@ -6,7 +6,7 @@ import {
   type ActiveRun,
   type RunTransitionState,
 } from "../../src/application/task-workspace.ts";
-import type { RunEvent } from "../../src/contracts/ipc.js";
+import type { SubagentEvent } from "../../src/contracts/ipc.js";
 import type { Task } from "../../src/domain/task.js";
 
 function task(id: string): Task {
@@ -74,31 +74,25 @@ test("ignores events for another task and stale sequence numbers", () => {
 });
 
 test("collects subagent progress and nested activity", () => {
-  const started = applyRunEvent(state(), {
+  const started = applyThreadEvent(state(), {
     type: "subagent.started",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 1,
     id: "agent-1",
     description: "Inspect the renderer",
     agentType: "Explore",
   });
-  const active = applyRunEvent(started, {
+  const active = applyThreadEvent(started, {
     type: "subagent.activity",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 2,
     id: "agent-1",
     activityId: "tool-1",
     kind: "tool",
     title: "Read",
     text: "src/renderer/App.tsx",
   });
-  const finished = applyRunEvent(active, {
+  const finished = applyThreadEvent(active, {
     type: "subagent.finished",
     taskId: "task-a",
-    runId: "run-a",
-    sequence: 3,
     id: "agent-1",
     status: "completed",
     summary: "Renderer inspected",
@@ -106,7 +100,7 @@ test("collects subagent progress and nested activity", () => {
 
   assert.equal(subagentAt(finished.tasks[0], 0).status, "completed");
   assert.equal(subagentAt(finished.tasks[0], 0).activity[0].title, "Read");
-  const terminal = applyRunEvent(active, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" });
+  const terminal = applyRunEvent(active, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "succeeded" });
   assert.equal(subagentAt(terminal.tasks[0], 0).status, "completed");
 });
 
@@ -196,19 +190,59 @@ test("only a failure is toned as one; a compaction notice is not", () => {
 });
 
 test("subagent progress can arrive first and duplicate activity is ignored", () => {
-  const progressed = applyRunEvent(state(), {
-    type: "subagent.progress", taskId: "task-a", runId: "run-a", sequence: 1,
+  const progressed = applyThreadEvent(state(), {
+    type: "subagent.progress", taskId: "task-a",
     id: "agent-1", description: "Inspect", lastToolName: "Read", summary: "Working", totalTokens: 10,
   });
-  const activity: Omit<Extract<RunEvent, { type: "subagent.activity" }>, "sequence"> = {
-    type: "subagent.activity", taskId: "task-a", runId: "run-a", id: "agent-1", activityId: "same", kind: "text", text: "Only once",
+  const activity: Extract<SubagentEvent, { type: "subagent.activity" }> = {
+    type: "subagent.activity", taskId: "task-a", id: "agent-1", activityId: "same", kind: "text", text: "Only once",
   };
-  const once = applyRunEvent(progressed, { ...activity, sequence: 2 });
-  const twice = applyRunEvent(once, { ...activity, sequence: 3 });
+  const once = applyThreadEvent(progressed, activity);
+  const twice = applyThreadEvent(once, activity);
 
   assert.equal(subagentAt(twice.tasks[0], 0).status, "working");
   assert.equal(subagentAt(twice.tasks[0], 0).startedAt > 0, true);
   assert.equal(subagentAt(twice.tasks[0], 0).activity.length, 1);
+});
+
+test("idle subagents can resume without losing their history or cumulative usage", () => {
+  const started = applyThreadEvent(state(), {
+    type: "subagent.started", taskId: "task-a", id: "agent-1", description: "Inspect", agentType: "Explore", sessionScoped: true,
+  });
+  const progressed = applyThreadEvent(started, {
+    type: "subagent.progress", taskId: "task-a", id: "agent-1", description: "Inspect", lastToolName: "Read", totalTokens: 50,
+  });
+  const active = applyThreadEvent(progressed, {
+    type: "subagent.activity", taskId: "task-a", id: "agent-1", activityId: "note", kind: "text", text: "First result",
+  });
+  const idle = applyThreadEvent(active, {
+    type: "subagent.status", taskId: "task-a", id: "agent-1", status: "idle", summary: "Ready for more work",
+  });
+  const resumed = applyThreadEvent(idle, {
+    type: "subagent.status", taskId: "task-a", id: "agent-1", status: "working",
+  });
+  const staleUsage = applyThreadEvent(resumed, {
+    type: "subagent.progress", taskId: "task-a", id: "agent-1", description: "Inspect again", totalTokens: 20,
+  });
+  const subagent = subagentAt(staleUsage.tasks[0], 0);
+
+  assert.equal(subagent.status, "working");
+  assert.equal(subagent.finishedAt, undefined);
+  assert.equal(subagent.lastToolName, undefined);
+  assert.equal(subagent.summary, "Ready for more work");
+  assert.equal(subagent.totalTokens, 50);
+  assert.deepEqual(subagent.activity.map((item) => item.text), ["First result"]);
+  assert.equal(subagent.sessionScoped, true);
+});
+
+test("parent run completion does not finalize a session-scoped subagent", () => {
+  for (const status of ["succeeded", "failed", "cancelled"] as const) {
+    const initial = state();
+    initial.tasks[0].subagents = [{ id: "child", description: "Inspect", sessionScoped: true, status: "working", startedAt: 1, activity: [] }];
+    const terminal = applyRunEvent(initial, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status });
+    assert.equal(subagentAt(terminal.tasks[0], 0).status, "working");
+    assert.equal(subagentAt(terminal.tasks[0], 0).finishedAt, undefined);
+  }
 });
 
 test("assistant chunks, tool intents, and continuation updates preserve order", () => {

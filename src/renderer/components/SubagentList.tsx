@@ -4,19 +4,20 @@ import { Bot, CheckCircle2, CircleDot, Search, XCircle } from "lucide-react";
 import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
 
 /** Failures first, then the work still going: a session with a thousand subagents is read from the top. */
-const STATUS_RANK: Record<SubagentStatus, number> = { failed: 0, working: 1, stopped: 2, completed: 3 };
+const STATUS_RANK: Record<SubagentStatus, number> = { failed: 0, working: 1, idle: 2, stopped: 3, completed: 4 };
 
-const STATUS_FILTERS: SubagentStatus[] = ["working", "failed", "stopped", "completed"];
+const STATUS_FILTERS: SubagentStatus[] = ["working", "idle", "failed", "stopped", "completed"];
 
 /** Above this many rows the list is windowed; a handful of rows are cheaper drawn whole. */
 const VIRTUALIZE_ABOVE = 50;
 
 export function statusLabel(status: SubagentStatus) {
-  return status === "working" ? "Working" : status === "completed" ? "Completed" : status === "failed" ? "Failed" : "Stopped";
+  return { working: "Working", idle: "Idle", completed: "Completed", failed: "Failed", stopped: "Stopped" }[status];
 }
 
 export function StatusIcon({ status }: { status: SubagentStatus }) {
   if (status === "working") return <CircleDot className="agent-working-icon" size={16} />;
+  if (status === "idle") return <CircleDot size={16} />;
   if (status === "completed") return <CheckCircle2 size={16} />;
   return <XCircle size={16} />;
 }
@@ -40,7 +41,7 @@ export function matchSubagents(subagents: Subagent[], status: SubagentStatus | n
 }
 
 export function countByStatus(subagents: Subagent[]) {
-  const counts = { working: 0, failed: 0, stopped: 0, completed: 0 };
+  const counts: Record<SubagentStatus, number> = { working: 0, idle: 0, failed: 0, stopped: 0, completed: 0 };
   for (const subagent of subagents) counts[subagent.status] += 1;
   return counts;
 }

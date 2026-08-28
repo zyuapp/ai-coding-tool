@@ -9,7 +9,7 @@ import type { FindResults } from "../domain/find.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE, type AttachedFileDraft } from "../domain/task.js";
 import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentStatus, ToolIntent } from "../domain/run.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -472,10 +472,6 @@ export type RunEvent =
   | (RunEventBase & { type: "context.compacted"; trigger: "manual" | "auto"; preTokens: number; postTokens?: number })
   | (RunEventBase & { type: "tool.intent"; intent: ToolIntent })
   | (RunEventBase & { type: "computer-use.setup-required" })
-  | (RunEventBase & { type: "subagent.started"; id: string; description: string; agentType?: string })
-  | (RunEventBase & { type: "subagent.progress"; id: string; description: string; lastToolName?: string; summary?: string; totalTokens: number })
-  | (RunEventBase & { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string })
-  | (RunEventBase & { type: "subagent.finished"; id: string; status: Exclude<SubagentStatus, "working">; summary: string })
   | (RunEventBase & {
       type: "approval.requested";
       approvalId: string;
@@ -507,8 +503,11 @@ export type BackgroundReport = { type: "background.changed"; processes: Backgrou
 
 export type BackgroundEvent = BackgroundReport & { taskId: string };
 
+/** A subagent belongs to its thread, so its updates remain valid after the parent run settles. */
+export type SubagentEvent = SubagentReport & { taskId: string };
+
 /** What the agent process reports about work that answers to the thread rather than to a run. */
-export type ThreadEvent = WorkflowEvent | BackgroundEvent;
+export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent;
 
 /** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
 export type AgentEvent = RunEvent | ThreadEvent;
@@ -797,10 +796,6 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "context.compacted") return (event.trigger === "manual" || event.trigger === "auto") && typeof event.preTokens === "number" && Number.isFinite(event.preTokens) && event.preTokens >= 0 && (event.postTokens === undefined || (typeof event.postTokens === "number" && Number.isFinite(event.postTokens) && event.postTokens >= 0));
   if (event.type === "tool.intent") return isIntent(event.intent);
   if (event.type === "computer-use.setup-required") return true;
-  if (event.type === "subagent.started") return isString(event.id) && isString(event.description, 100_000) && (event.agentType === undefined || isString(event.agentType));
-  if (event.type === "subagent.progress") return isString(event.id) && isString(event.description, 100_000) && (event.lastToolName === undefined || isString(event.lastToolName)) && (event.summary === undefined || isString(event.summary, 100_000)) && typeof event.totalTokens === "number" && Number.isFinite(event.totalTokens) && event.totalTokens >= 0;
-  if (event.type === "subagent.activity") return isString(event.id) && isString(event.activityId) && (event.kind === "text" || event.kind === "tool") && (event.title === undefined || isString(event.title)) && typeof event.text === "string";
-  if (event.type === "subagent.finished") return isString(event.id) && (event.status === "completed" || event.status === "failed" || event.status === "stopped") && typeof event.summary === "string";
   if (event.type === "approval.requested") return isString(event.approvalId) && isIntent(event.intent) && isString(event.title) && isString(event.description, 100_000);
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   if (event.type === "continuation.lost") return true;
@@ -813,6 +808,39 @@ export function isBackgroundEvent(value: unknown): value is BackgroundEvent {
   const event = value as Record<string, unknown>;
   if (!isString(event.taskId) || event.type !== "background.changed") return false;
   return Array.isArray(event.processes) && event.processes.every(isBackgroundProcess);
+}
+
+export function isSubagentEvent(value: unknown): value is SubagentEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Record<string, unknown>;
+  if (!isString(event.taskId) || !isString(event.id)) return false;
+  if (event.type === "subagent.started") {
+    return isString(event.description, 100_000)
+      && (event.agentType === undefined || isString(event.agentType))
+      && (event.sessionScoped === undefined || event.sessionScoped === true);
+  }
+  if (event.type === "subagent.status") {
+    return (event.status === "working" || event.status === "idle")
+      && (event.summary === undefined || isString(event.summary, 100_000));
+  }
+  if (event.type === "subagent.progress") {
+    return isString(event.description, 100_000)
+      && (event.agentType === undefined || isString(event.agentType))
+      && (event.lastToolName === undefined || isString(event.lastToolName))
+      && (event.summary === undefined || isString(event.summary, 100_000))
+      && isCount(event.totalTokens);
+  }
+  if (event.type === "subagent.activity") {
+    return isString(event.activityId)
+      && (event.kind === "text" || event.kind === "tool")
+      && (event.title === undefined || isString(event.title))
+      && typeof event.text === "string";
+  }
+  if (event.type === "subagent.finished") {
+    return (event.status === "completed" || event.status === "failed" || event.status === "stopped")
+      && typeof event.summary === "string";
+  }
+  return false;
 }
 
 export function isWorkflowEvent(value: unknown): value is WorkflowEvent {

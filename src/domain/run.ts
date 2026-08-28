@@ -18,17 +18,27 @@ export type ToolIntent = {
 
 export type RunStatus = "running" | "awaiting-approval" | "succeeded" | "failed" | "cancelled";
 
-export type SubagentStatus = "working" | "completed" | "failed" | "stopped";
+export type SubagentLiveStatus = "working" | "idle";
+export type SubagentTerminalStatus = "completed" | "failed" | "stopped";
+export type SubagentStatus = SubagentLiveStatus | SubagentTerminalStatus;
+
+/** Provider-neutral updates for one delegated agent, before the owning task is attached for transport. */
+export type SubagentReport =
+  | { type: "subagent.started"; id: string; description: string; agentType?: string; sessionScoped?: true }
+  | { type: "subagent.status"; id: string; status: SubagentLiveStatus; summary?: string }
+  | { type: "subagent.progress"; id: string; description: string; agentType?: string; lastToolName?: string; summary?: string; totalTokens: number }
+  | { type: "subagent.activity"; id: string; activityId: string; kind: "text" | "tool"; title?: string; text: string }
+  | { type: "subagent.finished"; id: string; status: SubagentTerminalStatus; summary: string };
 
 /** Every foldable group of subagents: the sidebar's own list, and one heading per status in the panel. */
-export const SUBAGENT_GROUPS = ["sidebar", "working", "failed", "stopped", "completed"] as const;
+export const SUBAGENT_GROUPS = ["sidebar", "working", "idle", "failed", "stopped", "completed"] as const;
 
 export type SubagentGroup = (typeof SUBAGENT_GROUPS)[number];
 
 export type SubagentGroups = Record<SubagentGroup, boolean>;
 
 /** Every group unfolded, which is how the app starts before the user folds anything. */
-export const OPEN_SUBAGENT_GROUPS: SubagentGroups = { sidebar: true, working: true, failed: true, stopped: true, completed: true };
+export const OPEN_SUBAGENT_GROUPS: SubagentGroups = { sidebar: true, working: true, idle: true, failed: true, stopped: true, completed: true };
 
 export function isSubagentGroup(value: unknown): value is SubagentGroup {
   return SUBAGENT_GROUPS.includes(value as SubagentGroup);
@@ -46,6 +56,8 @@ export type Subagent = {
   id: string;
   description: string;
   agentType?: string;
+  /** A session-owned agent can continue after the parent run returns. */
+  sessionScoped?: true;
   status: SubagentStatus;
   lastToolName?: string;
   summary?: string;

@@ -2479,6 +2479,7 @@ pre {
 .process-stop:hover:not(:disabled) { background: var(--danger-chip); border-color: transparent; color: var(--danger); }
 .process-stop:disabled { opacity: 0.45; cursor: default; }
 .agent-orb { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--info-surface); color: var(--info); }
+.agent-orb.idle { background: var(--control); color: var(--quiet-strong); }
 .agent-orb.completed { background: var(--success-surface); color: var(--success); }
 .agent-orb.failed, .agent-orb.stopped { background: var(--danger-chip); color: var(--danger); }
 .agent-working-icon { color: var(--info); animation: pulse 1.4s ease-in-out infinite; }
@@ -2500,6 +2501,7 @@ pre {
 .agent-detail-heading h2 { margin: 1px 0 8px; color: var(--ink-soft); font-size: var(--text-control); font-weight: 580; line-height: 1.35; }
 .agent-status { display: flex; align-items: center; gap: 6px; color: var(--muted-soft); font-size: var(--text-meta); }
 .agent-status.working { color: var(--info); }
+.agent-status.idle { color: var(--quiet-strong); }
 .agent-status.completed { color: var(--success); }
 .agent-status.failed, .agent-status.stopped { color: var(--danger); }
 .agent-summary { border-block: 1px solid var(--line-soft); padding: 15px 22px; }

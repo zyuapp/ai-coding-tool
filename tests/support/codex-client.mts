@@ -133,6 +133,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     emit() {},
     reportWorkflow() {},
     reportBackground() {},
+    reportSubagent() {},
     beginAgentTurn: () => null,
   };
   return { ...base, ...overrides };
@@ -215,8 +216,9 @@ export async function opened(harness: Harness) {
 }
 
 export function completeTurn(client: FakeCodexClient, status: "completed" | "interrupted" | "failed" = "completed", error: { message: string } | null = null) {
+  const started = client.calls("turn/start").at(-1) as { threadId?: string } | undefined;
   client.notify("turn/completed", {
-    threadId: "thread-1",
+    threadId: started?.threadId ?? "thread-1",
     turn: { id: "turn-1", items: [], itemsView: "summary", status, error: error ? { message: error.message, codexErrorInfo: null, additionalDetails: null } : null, startedAt: 1, completedAt: 2, durationMs: 1000 },
   });
 }

@@ -446,11 +446,13 @@ test("the subagent search keeps what the query names, and the status keeps its o
     { id: "a", description: "Explore renderer", status: "completed", startedAt: 1, activity: [] },
     { id: "b", description: "Fix loader", status: "working", lastToolName: "Grep", startedAt: 2, activity: [] },
     { id: "c", description: "Audit deps", status: "failed", startedAt: 3, activity: [] },
+    { id: "d", description: "Ready reviewer", status: "idle", summary: "Ready for follow-up", startedAt: 4, activity: [] },
   ];
 
-  assert.deepEqual(matchSubagents(subagents, null, "").map((subagent) => subagent.id), ["c", "b", "a"], "failures are read first");
-  assert.deepEqual(matchSubagents(subagents, null, "   ").map((subagent) => subagent.id), ["c", "b", "a"], "an empty search is not a filter");
+  assert.deepEqual(matchSubagents(subagents, null, "").map((subagent) => subagent.id), ["c", "b", "d", "a"], "failures lead, followed by active and resumable agents");
+  assert.deepEqual(matchSubagents(subagents, null, "   ").map((subagent) => subagent.id), ["c", "b", "d", "a"], "an empty search is not a filter");
   assert.deepEqual(matchSubagents(subagents, "working", "").map((subagent) => subagent.id), ["b"]);
+  assert.deepEqual(matchSubagents(subagents, "idle", "").map((subagent) => subagent.id), ["d"]);
   assert.deepEqual(matchSubagents(subagents, null, "LOADER").map((subagent) => subagent.id), ["b"], "case never decides a match");
   assert.deepEqual(matchSubagents(subagents, null, "grep").map((subagent) => subagent.id), ["b"], "the tool a subagent is using is searchable");
   assert.deepEqual(matchSubagents(subagents, "failed", "loader"), []);

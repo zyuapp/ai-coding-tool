@@ -530,7 +530,7 @@ test("workspace hook keeps subagents when the task continues", async () => {
   await act(async () => { workspace.get().actions.setPrompt("First"); await workspace.get().actions.sendPrompt(); });
   const first = startCommand(desktop.sent[0]);
   await act(async () => {
-    desktop.listener({ type: "subagent.started", taskId: first.taskId, runId: first.runId, sequence: 1, id: "agent-1", description: "Inspect", agentType: "Explore" });
+    desktop.listener({ type: "subagent.started", taskId: first.taskId, id: "agent-1", description: "Inspect", agentType: "Explore" });
     desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 2, status: "succeeded" });
   });
   await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Query } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
-import { applyRunEvent, type RunTransitionState } from "../../../src/application/task-workspace.ts";
+import { applyRunEvent, applyThreadEvent, type RunTransitionState } from "../../../src/application/task-workspace.ts";
 import type { AgentEvent, InternalStartRunCommand, RunEvent } from "../../../src/contracts/ipc.ts";
 import type { ThreadBridge, AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
@@ -119,11 +119,13 @@ test("late output from a cancelled run cannot reach the replacement run", async 
   coordinator.start(base("task-new", "run-new"));
   await tick();
   oldRun.input.emit({ type: "assistant", messageId: "late", text: "late output" });
+  oldRun.input.emit({ type: "subagent.started", id: "late-child", description: "Late child" });
   oldRun.resolve({ status: "succeeded" });
   provider.runs[1].resolve({ status: "succeeded" });
   await tick();
 
   assert.equal(eventsFor(events, "run-old").some((event) => event.type === "assistant.delta"), false);
+  assert.equal(events.some((event) => event.type === "subagent.started" && event.id === "late-child"), false);
   assert.deepEqual(statuses(events, "run-old"), ["running", "cancelled"]);
   assert.deepEqual(statuses(events, "run-new"), ["running", "succeeded"]);
 });
@@ -146,6 +148,26 @@ test("a workflow's report reaches the thread once its run is over", async () => 
     { type: "workflow.finished", id: "wf-1", status: "completed", summary: "Dynamic workflow completed", taskId: "task-w" },
   ], "a settled run is no reason to hold back what its workflow is still doing");
   assert.deepEqual(statuses(events, "run-w"), ["running", "succeeded"]);
+});
+
+test("a subagent's report reaches the thread before and after its parent run", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+
+  coordinator.start(base("task-sub", "run-sub"));
+  await tick();
+  const { input, resolve } = provider.runs[0];
+  input.reportSubagent({ type: "subagent.started", id: "child-1", description: "Inspect", sessionScoped: true });
+  resolve({ status: "succeeded" });
+  await tick();
+  input.reportSubagent({ type: "subagent.status", id: "child-1", status: "idle", summary: "Ready" });
+
+  assert.deepEqual(events.filter((event) => event.type.startsWith("subagent.")), [
+    { type: "subagent.started", id: "child-1", description: "Inspect", sessionScoped: true, taskId: "task-sub" },
+    { type: "subagent.status", id: "child-1", status: "idle", summary: "Ready", taskId: "task-sub" },
+  ]);
+  assert.deepEqual(statuses(events, "run-sub"), ["running", "succeeded"]);
 });
 
 test("approval is scoped to the run and resumes only after its decision", async () => {
@@ -310,7 +332,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
     backgroundProcesses: {},
     workflows: {},
   };
-  for (const event of runEvents(events)) state = applyRunEvent(state, event);
+  for (const event of events) state = "runId" in event ? applyRunEvent(state, event) : applyThreadEvent(state, event);
 
   const task = state.tasks[0];
   assert.ok(task);

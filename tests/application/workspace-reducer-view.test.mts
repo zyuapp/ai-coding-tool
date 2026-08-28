@@ -191,4 +191,8 @@ test("a thread's panels are fed only where its engine can fill them", () => {
   assert.deepEqual(silent.subagents, []);
   const fed = engineFeeds({ ...capabilitiesFor("claude"), workflows: false }, state, state.tasks[0]);
   assert.deepEqual(fed.subagents, [subagent], "each feed is gated on its own flag");
+
+  const codex = deriveView({ ...state, tasks: [{ ...state.tasks[0], engine: "codex", model: "gpt-5.6-sol" }] });
+  assert.deepEqual(codex.subagents, [subagent], "Codex feeds the shared subagent panel");
+  assert.deepEqual(codex.workflows, []);
 });

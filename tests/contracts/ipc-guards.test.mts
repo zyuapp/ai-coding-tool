@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
 
 const command = {
   type: "start",
@@ -109,30 +109,35 @@ test("run event guard accepts tool intents without a write path", () => {
   }), true);
 });
 
-test("run event guard validates every subagent event", () => {
-  const base = { taskId: "task-1", runId: "run-1", sequence: 1, id: "agent-1" };
+test("subagent event guard validates thread-scoped lifecycle reports", () => {
+  const base = { taskId: "task-1", id: "agent-1" };
   const valid = [
-    { ...base, type: "subagent.started", description: "Inspect", agentType: "Explore" },
-    { ...base, type: "subagent.progress", description: "Inspect", lastToolName: "Read", summary: "Done", totalTokens: 42 },
+    { ...base, type: "subagent.started", description: "Inspect", agentType: "Explore", sessionScoped: true },
+    { ...base, type: "subagent.status", status: "working" },
+    { ...base, type: "subagent.status", status: "idle", summary: "Ready for more work" },
+    { ...base, type: "subagent.progress", description: "Inspect", agentType: "reviewer", lastToolName: "Read", summary: "Done", totalTokens: 42 },
     { ...base, type: "subagent.activity", activityId: "activity-1", kind: "text", text: "Working" },
     { ...base, type: "subagent.activity", activityId: "activity-2", kind: "tool", title: "Read", text: "{}" },
     { ...base, type: "subagent.finished", status: "completed", summary: "Done" },
     { ...base, type: "subagent.finished", status: "failed", summary: "Failed" },
     { ...base, type: "subagent.finished", status: "stopped", summary: "" },
   ];
-  for (const event of valid) assert.equal(isRunEvent(event), true, event.type);
+  for (const event of valid) assert.equal(isSubagentEvent(event), true, `${event.type}:${"status" in event ? event.status : ""}`);
+  assert.equal(isRunEvent({ ...valid[0], runId: "run-1", sequence: 1 }), false, "subagent reports do not pass through the run gate");
 
   const invalid = [
     { ...valid[0], description: "" },
-    { ...valid[1], totalTokens: -1 },
-    { ...valid[1], totalTokens: Number.NaN },
-    { ...valid[2], activityId: "" },
-    { ...valid[2], kind: "image" },
-    { ...valid[3], title: 42 },
-    { ...valid[4], status: "working" },
-    { ...valid[4], summary: 42 },
+    { ...valid[0], sessionScoped: false },
+    { ...valid[1], status: "waiting" },
+    { ...valid[3], totalTokens: -1 },
+    { ...valid[3], totalTokens: Number.NaN },
+    { ...valid[4], activityId: "" },
+    { ...valid[4], kind: "image" },
+    { ...valid[5], title: 42 },
+    { ...valid[6], status: "idle" },
+    { ...valid[6], summary: 42 },
   ];
-  for (const event of invalid) assert.equal(isRunEvent(event), false, JSON.stringify(event));
+  for (const event of invalid) assert.equal(isSubagentEvent(event), false, JSON.stringify(event));
 });
 
 test("workflow events name a thread instead of a run", () => {

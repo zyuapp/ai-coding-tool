@@ -128,6 +128,24 @@ test("serializes and parses v2 data without changing it", () => {
   assert.equal(parsed.preservedV1, null);
 });
 
+test("idle subagents survive reload, while work interrupted by restart becomes stopped", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  migrated.data.tasks[0].subagents = [
+    { id: "idle", description: "Ready", sessionScoped: true, status: "idle", startedAt: 10, activity: [] },
+    { id: "working", description: "Interrupted", sessionScoped: true, status: "working", startedAt: 11, activity: [] },
+  ];
+
+  const parsed = parseTaskStore(serializeTaskStore(migrated.data));
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.equal(parsed.data.tasks[0].subagents?.[0]?.status, "idle");
+  assert.equal(parsed.data.tasks[0].subagents?.[0]?.finishedAt, undefined);
+  assert.equal(parsed.data.tasks[0].subagents?.[1]?.status, "stopped");
+  assert.equal(parsed.data.tasks[0].subagents?.[1]?.finishedAt, migrated.data.tasks[0].updatedAt);
+});
+
 test("validating decoded v2 data matches serialized parsing", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

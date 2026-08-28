@@ -7,6 +7,7 @@ import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { skillRoots, skillTools } from "../tools/skills.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
+import { CodexSubagents } from "./codex-subagents.mjs";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
 import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
 import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionProfile.js";
@@ -151,6 +152,7 @@ export class CodexSession {
   private served: ServedTools | null = null;
   private opening: Promise<void> | null = null;
   private turn: Turn | null = null;
+  private subagents: CodexSubagents | null = null;
   private ended = false;
   /** How the session ended, kept for a run that arrives after it is already over. */
   private outcome: ProviderResult | null = null;
@@ -161,16 +163,22 @@ export class CodexSession {
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
 
-  constructor(readonly key: string, private readonly connect: CodexConnect, private readonly host: ToolHost, private readonly onEnded: () => void) {}
+  constructor(
+    readonly key: string,
+    private readonly connect: CodexConnect,
+    private readonly host: ToolHost,
+    private readonly onEnded: () => void,
+    private readonly onRested: () => void,
+  ) {}
 
   /** A turn is in flight, so the session owes an answer before it can take another. */
   get answering() {
     return this.turn !== null;
   }
 
-  /** Codex leaves nothing running behind a turn, so a session with no turn going is idle. */
+  /** Parent and child turns share one app-server process, so either kind keeps the session warm. */
   get busy() {
-    return this.answering;
+    return this.answering || Boolean(this.subagents?.busy);
   }
 
   get live() {
@@ -219,6 +227,8 @@ export class CodexSession {
     if (this.ended) return;
     this.ended = true;
     this.settle({ status: "cancelled" });
+    this.subagents?.close();
+    this.subagents = null;
     void this.client?.close();
     this.client = null;
     this.served?.release();
@@ -303,14 +313,31 @@ export class CodexSession {
     const env = this.served ? { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } : undefined;
     const client = this.connect(codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(env ? { env } : {}) }));
     this.client = client;
-    client.on("item/started", (params) => this.receiveStarted(params.item));
-    client.on("item/agentMessage/delta", (params) => this.receiveDelta(params.itemId, params.delta));
-    client.on("item/completed", (params) => this.receiveCompleted(params.item));
-    client.on("thread/tokenUsage/updated", (params) => this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow));
-    client.on("error", (params) => {
-      if (this.turn && !params.willRetry) this.turn.failure = params.error.message;
+    const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
+      if (!busy && !this.answering) this.onRested();
     });
-    client.on("turn/completed", (params) => this.receiveTurnCompleted(params.turn));
+    client.on("thread/started", (params) => { subagents.threadStarted(params); });
+    client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
+    client.on("thread/closed", (params) => { subagents.threadClosed(params); });
+    client.on("turn/started", (params) => { subagents.turnStarted(params); });
+    client.on("item/started", (params) => {
+      if (!subagents.itemStarted(params)) this.receiveStarted(params.item);
+    });
+    client.on("item/agentMessage/delta", (params) => {
+      if (!subagents.shouldSuppress(params.threadId)) this.receiveDelta(params.itemId, params.delta);
+    });
+    client.on("item/completed", (params) => {
+      if (!subagents.itemCompleted(params)) this.receiveCompleted(params.item);
+    });
+    client.on("thread/tokenUsage/updated", (params) => {
+      if (!subagents.tokenUsageUpdated(params)) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
+    });
+    client.on("error", (params) => {
+      if (!subagents.error(params) && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+    });
+    client.on("turn/completed", (params) => {
+      if (!subagents.turnCompleted(params)) this.receiveTurnCompleted(params.turn);
+    });
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
     await client.initialize(CLIENT_INFO);
@@ -329,6 +356,7 @@ export class CodexSession {
           throw error;
         });
     this.threadId = started.thread.id;
+    subagents.setRootThreadId(this.threadId);
   }
 
   private interrupt(turn: Turn) {
@@ -337,6 +365,9 @@ export class CodexSession {
       return;
     }
     if (!this.client || !this.threadId) return;
+    for (const child of this.subagents?.liveTurns ?? []) {
+      void this.client.request("turn/interrupt", child).catch(() => {});
+    }
     void this.client.request("turn/interrupt", { threadId: this.threadId, turnId: turn.turnId }).catch(() => {});
   }
 
@@ -448,21 +479,30 @@ export class CodexSession {
     return await turn.input.authorize(intent) === "allow";
   }
 
-  /** The newest call the agent has going against one MCP server, which is what its approval prompt is about. */
-  private pendingMcpCall(server: string) {
+  /** The pending item addressed by a server request, kept separate across concurrent threads. */
+  private pendingItem(threadId: string, itemId: string) {
+    if (threadId === this.threadId) return this.turn?.items.get(itemId);
+    return this.subagents?.pendingItem(threadId, itemId);
+  }
+
+  /** The newest call one thread has going against one MCP server, which is what its prompt is about. */
+  private pendingMcpCall(threadId: string, server: string) {
     let found: Extract<ThreadItem, { type: "mcpToolCall" }> | undefined;
-    for (const item of this.turn?.items.values() ?? []) {
-      if (item.type === "mcpToolCall" && item.server === server) found = item;
+    if (threadId === this.threadId) {
+      for (const item of this.turn?.items.values() ?? []) {
+        if (item.type === "mcpToolCall" && item.server === server) found = item;
+      }
+      return found;
     }
-    return found;
+    return this.subagents?.pendingMcpCall(threadId, server);
   }
 
   /** Every question the server asks goes to the run's user; a denial declines rather than cancels, so the turn goes on. */
   private answer(request: IncomingRequest) {
     switch (request.method) {
       case "item/commandExecution/requestApproval": {
-        const { itemId, command, cwd, reason } = request.params;
-        const started = this.turn?.items.get(itemId);
+        const { threadId, itemId, command, cwd, reason } = request.params;
+        const started = this.pendingItem(threadId, itemId);
         const input = {
           command: command ?? (started?.type === "commandExecution" ? started.command : ""),
           ...(cwd ? { cwd } : {}),
@@ -472,8 +512,8 @@ export class CodexSession {
         return;
       }
       case "item/fileChange/requestApproval": {
-        const { itemId, reason } = request.params;
-        const started = this.turn?.items.get(itemId);
+        const { threadId, itemId, reason } = request.params;
+        const started = this.pendingItem(threadId, itemId);
         const intent = (started && intentOf(started)) ?? { toolId: itemId, name: "file_change", input: {} };
         const input = { ...(isRecord(intent.input) ? intent.input : {}), ...(reason ? { reason } : {}) };
         void this.allowed({ ...intent, input }).then((allow) => request.respond({ decision: allow ? "accept" : "decline" }));
@@ -501,7 +541,7 @@ export class CodexSession {
           request.respond({ action: "decline", content: null, _meta: null });
           return;
         }
-        const started = this.pendingMcpCall(params.serverName);
+        const started = this.pendingMcpCall(params.threadId, params.serverName);
         const intent = (started && intentOf(started)) ?? {
           toolId: `${params.serverName}:${String(request.id)}`,
           name: toolNamed(params.message) ?? "mcp_tool_call",

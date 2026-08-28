@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
-import type { ToolIntent } from "../../domain/run.js";
+import type { SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
 
@@ -148,6 +148,7 @@ export class RunCoordinator {
         emit: (event) => this.handleProviderEvent(active, event),
         reportWorkflow: (report) => this.reportWorkflow(active.taskId, report),
         reportBackground: (report) => this.reportBackground(active.taskId, report),
+        reportSubagent: (report) => this.reportSubagent(active.taskId, report),
         beginAgentTurn: () => this.beginAgentTurn(active),
       });
       if (!this.isCurrent(active) || active.terminal) return;
@@ -160,6 +161,10 @@ export class RunCoordinator {
 
   private handleProviderEvent(active: ActiveRun, event: ProviderEvent) {
     if (!this.isCurrent(active) || active.terminal) return;
+    if (event.type === "subagent.started" || event.type === "subagent.status" || event.type === "subagent.progress" || event.type === "subagent.activity" || event.type === "subagent.finished") {
+      this.reportSubagent(active.taskId, event);
+      return;
+    }
     if (event.type === "assistant") {
       /** The committed block already contains whatever a waiting tail was holding. */
       active.pendingTail = undefined;
@@ -174,10 +179,6 @@ export class RunCoordinator {
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
     if (event.type === "continuation-lost") this.publish(active, { type: "continuation.lost" });
     if (event.type === "steered") this.publish(active, { type: "queued.delivered", messageId: event.messageId });
-    if (event.type === "subagent.started") this.publish(active, event);
-    if (event.type === "subagent.progress") this.publish(active, event);
-    if (event.type === "subagent.activity") this.publish(active, event);
-    if (event.type === "subagent.finished") this.publish(active, event);
   }
 
   /** A workflow answers to the thread rather than to a run, so nothing about a run's state holds it back. */
@@ -187,6 +188,11 @@ export class RunCoordinator {
 
   /** A shell or a monitor outlives the run that started it, so its set answers to the thread too. */
   private reportBackground(taskId: string, report: BackgroundReport) {
+    this.emit({ ...report, taskId });
+  }
+
+  /** A subagent answers to the thread even when the run that launched it is no longer current. */
+  private reportSubagent(taskId: string, report: SubagentReport) {
     this.emit({ ...report, taskId });
   }
 

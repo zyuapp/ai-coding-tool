@@ -103,10 +103,26 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
     .flatMap((event) => event.type === "background.changed" && event.taskId === taskId ? [event.processes] : []);
   assert.deepEqual(backgroundFor("concurrent-a"), [[shell]]);
 
+  agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "child-live", description: "Inspect", sessionScoped: true });
+  agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "child-idle", description: "Review", sessionScoped: true });
+  agents[0].emit("message", { type: "subagent.status", taskId: "concurrent-a", id: "child-idle", status: "idle" });
+  agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "invalid", description: "Invalid", sessionScoped: false });
+  await tick();
+  const subagentsFor = (taskId: string) => main.sentOn<AgentEvent>("run:event")
+    .filter((event) => event.type.startsWith("subagent.") && event.taskId === taskId);
+  assert.deepEqual(subagentsFor("concurrent-a").map((event) => event.type), ["subagent.started", "subagent.started", "subagent.status"]);
+
   agents[0].emit("exit", 9);
   assert.deepEqual(statusesFor("run-new"), ["failed"]);
   assert.deepEqual(backgroundFor("concurrent-a"), [[shell], []], "the processes died with the agent process, and nothing is left to say so");
   assert.deepEqual(backgroundFor("concurrent-b"), [[]], "a thread with nothing running is not told twice");
+  assert.deepEqual(subagentsFor("concurrent-a").at(-1), {
+    type: "subagent.finished",
+    taskId: "concurrent-a",
+    id: "child-live",
+    status: "stopped",
+    summary: "Codex stopped before this subagent finished.",
+  }, "the process crash settles only the child whose turn was live");
 
   runCommand(trusted, command("post", "run-post"));
   await waitFor(() => agents[1]?.messages.some((message) => message.runId === "run-post"));

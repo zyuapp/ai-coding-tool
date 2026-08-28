@@ -1,7 +1,7 @@
 import { utilityProcess, type BrowserWindow, type IpcMainEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { isAutomationRequest, isBackgroundEvent, isRunCommand, isRunEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand } from "../contracts/ipc.js";
+import { isAutomationRequest, isBackgroundEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
@@ -50,6 +50,9 @@ let agent: Electron.UtilityProcess | null = null;
 const runStates = new Map<string, RunState>();
 /** Threads the agent process last reported background work for, so its death can take that work off the panel. */
 const backgroundThreads = new Set<string>();
+/** Session-scoped Codex children, and the subset whose turns an agent-process death would cut short. */
+const sessionSubagents = new Map<string, Set<string>>();
+const liveSubagents = new Map<string, Set<string>>();
 const pendingStarts = new Map<string, StartRunCommand>();
 const automationDispatches = new Map<string, AutomationDispatchState>();
 const threadRequests = new Map<string, ReturnType<typeof setTimeout>>();
@@ -90,6 +93,26 @@ function publishRunEvent(host: RunHost, event: RunEvent) {
 function publishBackgroundEvent(host: RunHost, event: BackgroundEvent) {
   if (event.processes.length) backgroundThreads.add(event.taskId);
   else backgroundThreads.delete(event.taskId);
+  sendToRenderer(host, event);
+}
+
+function idsFor(index: Map<string, Set<string>>, taskId: string) {
+  let ids = index.get(taskId);
+  if (!ids) index.set(taskId, ids = new Set());
+  return ids;
+}
+
+/** Kept outside the run gate because a Codex child thread may work between parent turns. */
+function publishSubagentEvent(host: RunHost, event: SubagentEvent) {
+  if (event.type === "subagent.started" && event.sessionScoped) {
+    idsFor(sessionSubagents, event.taskId).add(event.id);
+    idsFor(liveSubagents, event.taskId).add(event.id);
+  } else if (event.type === "subagent.status" && sessionSubagents.get(event.taskId)?.has(event.id)) {
+    if (event.status === "working") idsFor(liveSubagents, event.taskId).add(event.id);
+    else liveSubagents.get(event.taskId)?.delete(event.id);
+  } else if (event.type === "subagent.finished") {
+    liveSubagents.get(event.taskId)?.delete(event.id);
+  }
   sendToRenderer(host, event);
 }
 
@@ -176,9 +199,10 @@ function startAgent(host: RunHost) {
   });
   agent.on("message", (event: unknown) => {
     if (isRunEvent(event)) publishRunEvent(host, event);
-    /** No run to gate them: a workflow, a shell and a monitor all outlive the run that started them. */
+    /** No run to gate them: workflows, background work, and child agents can all outlive a parent turn. */
     else if (isWorkflowEvent(event)) sendToRenderer(host, event);
     else if (isBackgroundEvent(event)) publishBackgroundEvent(host, event);
+    else if (isSubagentEvent(event)) publishSubagentEvent(host, event);
     else if (isAutomationRequest(event)) void handleAutomationRequest(host, event);
     else if (isThreadRequest(event)) handleThreadRequest(host, event);
     /** A request no guard could read is answered rather than dropped: a dropped one hangs the tool call. */
@@ -193,7 +217,12 @@ function startAgent(host: RunHost) {
       /** The processes died with it, and no session is left to say so. */
       for (const taskId of backgroundThreads) sendToRenderer(host, { type: "background.changed", taskId, processes: [] });
       backgroundThreads.clear();
+      for (const [taskId, ids] of liveSubagents) {
+        for (const id of ids) sendToRenderer(host, { type: "subagent.finished", taskId, id, status: "stopped", summary: "Codex stopped before this subagent finished." });
+      }
     }
+    sessionSubagents.clear();
+    liveSubagents.clear();
   });
   agent.stderr?.on("data", (chunk) => console.error(String(chunk)));
 }

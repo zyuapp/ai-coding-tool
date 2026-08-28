@@ -45,10 +45,10 @@ export class CodexAgentProvider implements AgentProvider {
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
     const key = sessionKey(input);
-    return this.pool.execute(input, key, { open: ({ ended }) => new CodexSession(key, this.connect, this.host, ended) });
+    return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested) });
   }
 
-  /** Codex leaves nothing running behind a turn, so there is never a process of the thread's to stop. */
+  /** Codex child agents are tracked separately; this API addresses shell and monitor processes only. */
   stopProcess(_taskId: string, _processId: string) {
     return false;
   }

@@ -788,7 +788,7 @@ function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Tas
   const continuation = value.continuation;
   if (continuation !== undefined && !isContinuation(continuation)) {
     const { continuation: _discarded, ...withoutContinuation } = value;
-    return { ...withoutContinuation, continuationStatus: "invalid" };
+    return settleStoredSubagents({ ...withoutContinuation, continuationStatus: "invalid" });
   }
   if (continuation && value.continuationStatus !== "available") {
     errors.push(`v2 task ${value.id} has an inconsistent continuation status`);
@@ -798,7 +798,18 @@ function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Tas
     errors.push(`v2 task ${value.id} has an inconsistent continuation status`);
     return null;
   }
-  return value;
+  return settleStoredSubagents(value);
+}
+
+/** No provider session survives an app restart, so work saved mid-turn cannot still be working. */
+function settleStoredSubagents(task: Task): Task {
+  if (!task.subagents?.some((subagent) => subagent.status === "working")) return task;
+  return {
+    ...task,
+    subagents: task.subagents.map((subagent) => subagent.status === "working"
+      ? { ...subagent, status: "stopped" as const, finishedAt: subagent.finishedAt ?? task.updatedAt }
+      : subagent),
+  };
 }
 
 function isTaskMessage(value: unknown): value is TaskMessage {
@@ -846,7 +857,8 @@ function isSubagent(value: unknown): value is Subagent {
     nonEmptyString(value.id) &&
     typeof value.description === "string" &&
     (value.agentType === undefined || typeof value.agentType === "string") &&
-    (value.status === "working" || value.status === "completed" || value.status === "failed" || value.status === "stopped") &&
+    (value.sessionScoped === undefined || value.sessionScoped === true) &&
+    (value.status === "working" || value.status === "idle" || value.status === "completed" || value.status === "failed" || value.status === "stopped") &&
     (value.lastToolName === undefined || typeof value.lastToolName === "string") &&
     (value.summary === undefined || typeof value.summary === "string") &&
     (value.totalTokens === undefined || finiteNumber(value.totalTokens) && value.totalTokens >= 0) &&

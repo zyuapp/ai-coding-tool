@@ -354,6 +354,27 @@ test("an MCP tool prompt is the call the agent has going against that server, an
   await denied.end();
 });
 
+test("MCP approval correlation stays inside the requesting root or child thread", async () => {
+  const session = await asking();
+  session.client.notify("item/started", started(mcpCall("mcp-root", "probe", "root_probe", { owner: "root" })));
+  session.client.notify("item/started", started({ type: "subAgentActivity", id: "discover-child", kind: "started", agentThreadId: "child-a", agentPath: "/root/reviewer" }));
+  session.client.notify("item/started", {
+    threadId: "child-a",
+    turnId: "child-turn",
+    startedAtMs: 1,
+    item: mcpCall("mcp-child", "probe", "child_probe", { owner: "child" }),
+  });
+
+  await session.client.ask("mcpServer/elicitation/request", { ...elicitation("probe", "child_probe", { owner: "child" }), threadId: "child-a", turnId: "child-turn" });
+  await session.client.ask("mcpServer/elicitation/request", elicitation("probe", "root_probe", { owner: "root" }));
+
+  assert.deepEqual(session.asked, [
+    { toolId: "mcp-child", name: "child_probe", input: { owner: "child" } },
+    { toolId: "mcp-root", name: "root_probe", input: { owner: "root" } },
+  ]);
+  await session.end();
+});
+
 test("permission and user-input requests go through the same gate", async () => {
   const allowed = await asking();
   const permissions = { network: { enabled: true }, fileSystem: null } as never;

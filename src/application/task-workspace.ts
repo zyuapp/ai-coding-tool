@@ -1,5 +1,5 @@
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
-import type { BackgroundProcess, Subagent } from "../domain/run.js";
+import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import { createFailureMessage, createTaskMessage, type Task, type TaskOutcome } from "../domain/task.js";
 
@@ -187,9 +187,105 @@ function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, 
   });
 }
 
+/** Shared subagent state changes, whether a run carries them or a session reports them later. */
+function applySubagentReport<T extends RunTransitionState>(state: T, taskId: string, event: SubagentReport): T {
+  if (event.type === "subagent.started") {
+    return updateSubagent(state, taskId, event.id, (existing) => {
+      const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = existing ?? {};
+      return {
+        ...preserved,
+        id: event.id,
+        description: event.description,
+        ...(event.agentType ? { agentType: event.agentType } : {}),
+        ...(event.sessionScoped ? { sessionScoped: true as const } : {}),
+        status: "working",
+        startedAt: existing?.startedAt ?? now(),
+        activity: existing?.activity ?? [],
+      };
+    });
+  }
+  if (event.type === "subagent.status") {
+    return updateSubagent(state, taskId, event.id, (existing) => {
+      const base: Subagent = existing ?? {
+        id: event.id,
+        description: "Subagent",
+        status: "working",
+        startedAt: now(),
+        activity: [],
+      };
+      if (event.status === "working") {
+        const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = base;
+        return { ...preserved, status: "working", ...(event.summary ? { summary: event.summary } : {}) };
+      }
+      const { finishedAt: _finishedAt, ...preserved } = base;
+      return { ...preserved, status: "idle", ...(event.summary ? { summary: event.summary } : {}) };
+    });
+  }
+  if (event.type === "subagent.progress") {
+    return updateSubagent(state, taskId, event.id, (existing) => ({
+      ...(existing ?? {
+        id: event.id,
+        status: "working" as const,
+        startedAt: now(),
+        activity: [],
+      }),
+      id: event.id,
+      description: event.description,
+      ...(event.agentType ? { agentType: event.agentType } : {}),
+      ...(event.lastToolName ? { lastToolName: event.lastToolName } : {}),
+      ...(event.summary ? { summary: event.summary } : {}),
+      totalTokens: Math.max(existing?.totalTokens ?? 0, event.totalTokens),
+    }));
+  }
+  if (event.type === "subagent.activity") {
+    return updateSubagent(state, taskId, event.id, (existing) => {
+      const base: Subagent = existing ?? {
+        id: event.id,
+        description: "Subagent",
+        status: "working",
+        startedAt: now(),
+        activity: [],
+      };
+      if (base.activity.some((item) => item.id === event.activityId)) return base;
+      return {
+        ...base,
+        activity: [...base.activity, {
+          id: event.activityId,
+          kind: event.kind,
+          ...(event.title ? { title: event.title } : {}),
+          text: event.text,
+          at: now(),
+        }],
+      };
+    });
+  }
+  return updateSubagent(state, taskId, event.id, (existing) => ({
+    ...(existing ?? {
+      id: event.id,
+      description: "Subagent",
+      startedAt: now(),
+      activity: [],
+    }),
+    status: event.status,
+    summary: event.summary || existing?.summary,
+    finishedAt: now(),
+  }));
+}
+
 /** What the agent process reports about work that outlives the run that started it. */
 export function applyThreadEvent<T extends RunTransitionState>(state: T, event: ThreadEvent): T {
-  return event.type === "background.changed" ? applyBackgroundEvent(state, event) : applyWorkflowEvent(state, event);
+  switch (event.type) {
+    case "subagent.started":
+    case "subagent.status":
+    case "subagent.progress":
+    case "subagent.activity":
+    case "subagent.finished":
+      return applySubagentReport(state, event.taskId, event);
+    case "background.changed":
+      return applyBackgroundEvent(state, event);
+    default:
+      return applyWorkflowEvent(state, event);
+  }
 }
 
 /**
@@ -238,11 +334,11 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   next = { ...next, approvals } as T;
   next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
   const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
-  if (subagents?.some((subagent) => subagent.status === "working")) {
+  if (subagents?.some((subagent) => subagent.status === "working" && !subagent.sessionScoped)) {
     const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
     next = applyTask(next, event.taskId, (task) => ({
       ...task,
-      subagents: task.subagents?.map((subagent) => subagent.status === "working" ? { ...subagent, status, finishedAt: now() } : subagent),
+      subagents: task.subagents?.map((subagent) => subagent.status === "working" && !subagent.sessionScoped ? { ...subagent, status, finishedAt: now() } : subagent),
       updatedAt: now(),
     }));
   }
@@ -319,63 +415,6 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       ...task,
       messages: [...task.messages, createTaskMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
       updatedAt: now(),
-    }));
-  }
-  if (event.type === "subagent.started") {
-    return updateSubagent(withSequence, event.taskId, event.id, (existing) => ({
-      id: event.id,
-      description: event.description,
-      ...(event.agentType ? { agentType: event.agentType } : {}),
-      status: "working",
-      startedAt: existing?.startedAt ?? now(),
-      activity: existing?.activity ?? [],
-    }));
-  }
-  if (event.type === "subagent.progress") {
-    return updateSubagent(withSequence, event.taskId, event.id, (existing) => ({
-      id: event.id,
-      description: event.description,
-      ...(existing?.agentType ? { agentType: existing.agentType } : {}),
-      status: existing?.status ?? "working",
-      ...(event.lastToolName ? { lastToolName: event.lastToolName } : {}),
-      ...(event.summary ? { summary: event.summary } : {}),
-      totalTokens: event.totalTokens,
-      startedAt: existing?.startedAt ?? now(),
-      ...(existing?.finishedAt ? { finishedAt: existing.finishedAt } : {}),
-      activity: existing?.activity ?? [],
-    }));
-  }
-  if (event.type === "subagent.activity") {
-    return updateSubagent(withSequence, event.taskId, event.id, (existing) => {
-      const activity = existing?.activity ?? [];
-      return {
-        id: event.id,
-        description: existing?.description ?? "Subagent",
-        ...(existing?.agentType ? { agentType: existing.agentType } : {}),
-        status: existing?.status ?? "working",
-        ...(existing?.lastToolName ? { lastToolName: existing.lastToolName } : {}),
-        ...(existing?.summary ? { summary: existing.summary } : {}),
-        ...(existing?.totalTokens === undefined ? {} : { totalTokens: existing.totalTokens }),
-        startedAt: existing?.startedAt ?? now(),
-        ...(existing?.finishedAt ? { finishedAt: existing.finishedAt } : {}),
-        activity: activity.some((item) => item.id === event.activityId)
-          ? activity
-          : [...activity, { id: event.activityId, kind: event.kind, ...(event.title ? { title: event.title } : {}), text: event.text, at: now() }],
-      };
-    });
-  }
-  if (event.type === "subagent.finished") {
-    return updateSubagent(withSequence, event.taskId, event.id, (existing) => ({
-      id: event.id,
-      description: existing?.description ?? "Subagent",
-      ...(existing?.agentType ? { agentType: existing.agentType } : {}),
-      status: event.status,
-      ...(existing?.lastToolName ? { lastToolName: existing.lastToolName } : {}),
-      summary: event.summary || existing?.summary,
-      ...(existing?.totalTokens === undefined ? {} : { totalTokens: existing.totalTokens }),
-      startedAt: existing?.startedAt ?? now(),
-      finishedAt: now(),
-      activity: existing?.activity ?? [],
     }));
   }
   if (event.type === "approval.requested") {

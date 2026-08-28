@@ -13,13 +13,13 @@ test("every engine defaults to a model and an effort it offers", () => {
   }
 });
 
-test("Codex lists its own models and efforts, and feeds none of the Claude-only panels", () => {
+test("Codex lists its own models and efforts, and exposes its supported panels", () => {
   assert.equal(engineLabel("codex"), "Codex");
   assert.deepEqual(modelsFor("codex").map((spec) => spec.id), ["gpt-5.6-sol", "gpt-5.6-terra"]);
   assert.equal(defaultModelFor("codex"), "gpt-5.6-sol");
   assert.deepEqual(effortsFor("codex").map((spec) => spec.id), ["ultra", "xhigh", "high", "medium", "low"]);
   assert.equal(defaultEffortFor("codex"), "high");
-  assert.deepEqual(capabilitiesFor("codex"), { workflows: false, subagents: false });
+  assert.deepEqual(capabilitiesFor("codex"), { workflows: false, subagents: true });
 });
 
 test("a model or effort belongs to one engine, not to every engine", () => {
