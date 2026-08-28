@@ -9,21 +9,12 @@ import type { ServerNotification } from "./protocol/ServerNotification.js";
 import type { ServerRequest } from "./protocol/ServerRequest.js";
 import type { CommandExecutionRequestApprovalResponse } from "./protocol/v2/CommandExecutionRequestApprovalResponse.js";
 import type { FileChangeRequestApprovalResponse } from "./protocol/v2/FileChangeRequestApprovalResponse.js";
-import type { GetAccountRateLimitsResponse } from "./protocol/v2/GetAccountRateLimitsResponse.js";
 import type { GetAccountResponse } from "./protocol/v2/GetAccountResponse.js";
-import type { ListMcpServerStatusResponse } from "./protocol/v2/ListMcpServerStatusResponse.js";
 import type { LoginAccountResponse } from "./protocol/v2/LoginAccountResponse.js";
-import type { LogoutAccountResponse } from "./protocol/v2/LogoutAccountResponse.js";
 import type { McpServerElicitationRequestResponse } from "./protocol/v2/McpServerElicitationRequestResponse.js";
-import type { ModelListResponse } from "./protocol/v2/ModelListResponse.js";
 import type { PermissionsRequestApprovalResponse } from "./protocol/v2/PermissionsRequestApprovalResponse.js";
-import type { SkillsListResponse } from "./protocol/v2/SkillsListResponse.js";
-import type { ThreadCompactStartResponse } from "./protocol/v2/ThreadCompactStartResponse.js";
 import type { ThreadForkResponse } from "./protocol/v2/ThreadForkResponse.js";
-import type { ThreadListResponse } from "./protocol/v2/ThreadListResponse.js";
-import type { ThreadReadResponse } from "./protocol/v2/ThreadReadResponse.js";
 import type { ThreadResumeResponse } from "./protocol/v2/ThreadResumeResponse.js";
-import type { ThreadRollbackResponse } from "./protocol/v2/ThreadRollbackResponse.js";
 import type { ThreadStartResponse } from "./protocol/v2/ThreadStartResponse.js";
 import type { ToolRequestUserInputResponse } from "./protocol/v2/ToolRequestUserInputResponse.js";
 import type { TurnInterruptResponse } from "./protocol/v2/TurnInterruptResponse.js";
@@ -39,20 +30,11 @@ export interface ClientResponses {
   "thread/start": ThreadStartResponse;
   "thread/resume": ThreadResumeResponse;
   "thread/fork": ThreadForkResponse;
-  "thread/list": ThreadListResponse;
-  "thread/read": ThreadReadResponse;
-  "thread/rollback": ThreadRollbackResponse;
-  "thread/compact/start": ThreadCompactStartResponse;
   "turn/start": TurnStartResponse;
   "turn/steer": TurnSteerResponse;
   "turn/interrupt": TurnInterruptResponse;
-  "model/list": ModelListResponse;
   "account/read": GetAccountResponse;
-  "account/rateLimits/read": GetAccountRateLimitsResponse;
   "account/login/start": LoginAccountResponse;
-  "account/logout": LogoutAccountResponse;
-  "skills/list": SkillsListResponse;
-  "mcpServerStatus/list": ListMcpServerStatusResponse;
 }
 export type ClientResult<M extends ClientMethod> = M extends keyof ClientResponses ? ClientResponses[M] : unknown;
 
@@ -121,6 +103,9 @@ const METHOD_NOT_FOUND = -32601;
 
 type Pending = { method: string; resolve(result: unknown): void; reject(error: Error): void };
 
+/** How the app introduces itself to the server. */
+export const CLIENT_INFO: ClientInfo = { name: "aicodingtool", title: "AICodingTool", version: "1" };
+
 /** The bundled `codex app-server` over stdio. */
 export function codexAppServer(args: readonly string[] = [], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): AppServerCommand {
   return { executable: codexExecutable(), args: ["app-server", "--listen", "stdio://", ...args], ...options };
@@ -167,7 +152,8 @@ export class AppServerClient {
 
   constructor(command: AppServerCommand) {
     this.exited = new Promise((resolve) => { this.settleExit = resolve; });
-    this.child = spawn(command.executable, command.args, { cwd: command.cwd, env: command.env, stdio: ["pipe", "pipe", "pipe"] });
+    /** Its own process group, so closing reaches what the server started under itself as well. */
+    this.child = spawn(command.executable, command.args, { cwd: command.cwd, env: command.env, stdio: ["pipe", "pipe", "pipe"], detached: true });
     this.child.stdout!.on("data", (chunk: Buffer) => this.receive(chunk));
     this.child.stderr!.on("data", (chunk: Buffer) => this.stderr.push(chunk));
     this.child.stdin!.on("error", () => {});
@@ -215,20 +201,27 @@ export class AppServerClient {
     return () => { this.requestHandlers.delete(handler); };
   }
 
-  stderrTail() {
-    return this.stderr.text();
-  }
-
+  /** Ends the conversation and, with it, the process group: a healthy server leaves on its own, the rest is signalled. */
   async close() {
     if (!this.exit) {
       this.child.stdin!.end();
-      this.child.kill("SIGTERM");
-      const kill = setTimeout(() => this.child.kill("SIGKILL"), KILL_GRACE_MS);
+      this.signal("SIGTERM");
+      const kill = setTimeout(() => this.signal("SIGKILL"), KILL_GRACE_MS);
       kill.unref();
       await this.exited;
       clearTimeout(kill);
     }
     return this.exited;
+  }
+
+  private signal(signal: NodeJS.Signals) {
+    const { pid } = this.child;
+    if (pid === undefined) return;
+    try {
+      process.kill(-pid, signal);
+    } catch {
+      this.child.kill(signal);
+    }
   }
 
   private send(message: object) {
@@ -316,3 +309,5 @@ export class AppServerClient {
     this.settleExit(this.exit);
   }
 }
+
+export const connectAppServer = (command: AppServerCommand) => new AppServerClient(command);

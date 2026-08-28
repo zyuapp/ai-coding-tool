@@ -18,7 +18,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       readingSize={workspace.readingSize}
       terminalSize={workspace.terminalSize}
       allowedOrigins={workspace.browserOrigins}
-      claudeSettings={workspace.claudeSettings} plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
+      plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
       notifications={workspace.notifications} planUsage={workspace.capabilities.planUsage} remote={workspace.remote}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}

@@ -1,13 +1,12 @@
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { ExecutionPolicy, ToolIntent } from "../../domain/run.js";
-import type { ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { runTools } from "../agent/run-tools.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { skillRoots, skillTools } from "../tools/skills.mjs";
-import { AppServerError, AppServerExited, codexAppServer, type AppServerClient, type AppServerCommand, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
+import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
-import type { ClientInfo } from "./protocol/ClientInfo.js";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
 import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
 import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionProfile.js";
@@ -20,8 +19,6 @@ import type { UserInput } from "./protocol/v2/UserInput.js";
 export type CodexClient = Pick<AppServerClient, "initialize" | "request" | "on" | "onRequest" | "close" | "exited">;
 
 export type CodexConnect = (command: AppServerCommand) => CodexClient;
-
-const CLIENT_INFO: ClientInfo = { name: "aicodingtool", title: "AICodingTool", version: "1" };
 
 /** How long an interrupted turn has to come back with a result before the session is given up on. */
 const INTERRUPT_GRACE_MS = 10_000;
@@ -56,10 +53,6 @@ const sandboxPolicies: Record<CodexSandbox, SandboxPolicy> = {
 /** What a run says, as the app server takes it. */
 function text(prompt: string): UserInput {
   return { type: "text", text: prompt, text_elements: [] };
-}
-
-function continuationOf(input: ProviderRunInput) {
-  return input.continuation?.provider === "codex" ? input.continuation.value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -265,8 +258,9 @@ export class CodexSession {
       return;
     }
     turn.turnId = started.turn.id;
+    if (this.turn !== turn) return;
     /** A run that went away while the server was starting its turn leaves nothing running behind it. */
-    if (this.turn !== turn || turn.interruptWanted) {
+    if (turn.interruptWanted) {
       this.interrupt(turn);
       return;
     }
@@ -293,7 +287,7 @@ export class CodexSession {
     client.on("item/started", (params) => this.receiveStarted(params.item));
     client.on("item/agentMessage/delta", (params) => this.receiveDelta(params.itemId, params.delta));
     client.on("item/completed", (params) => this.receiveCompleted(params.item));
-    client.on("thread/tokenUsage/updated", (params) => this.receiveUsage(params.tokenUsage.last.totalTokens));
+    client.on("thread/tokenUsage/updated", (params) => this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow));
     client.on("error", (params) => {
       if (this.turn && !params.willRetry) this.turn.failure = params.error.message;
     });
@@ -311,7 +305,9 @@ export class CodexSession {
       : seed.forkContinuation
         ? await client.request("thread/fork", { threadId: continuation, ...settings })
         : await client.request("thread/resume", { threadId: continuation, ...settings }).catch((error: unknown) => {
-          throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);
+          /** Only the server's own refusal says the thread is gone; a server that died may still have it. */
+          if (error instanceof AppServerError) throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);
+          throw error;
         });
     this.threadId = started.thread.id;
   }
@@ -400,11 +396,12 @@ export class CodexSession {
     }
   }
 
-  private receiveUsage(tokens: number) {
+  /** The window the server reports is the model's own; the catalogue's stands in while it reports none. */
+  private receiveUsage(tokens: number, contextWindow: number | null) {
     const turn = this.turn;
     if (!turn) return;
     this.lastTokens = tokens;
-    turn.input.emit({ type: "usage", tokens, limit: contextWindowLimit("codex", turn.input.model), model: turn.input.model });
+    turn.input.emit({ type: "usage", tokens, limit: contextWindow ?? contextWindowLimit("codex", turn.input.model), model: turn.input.model });
   }
 
   private receiveTurnCompleted(completed: NotificationParams<"turn/completed">["turn"]) {

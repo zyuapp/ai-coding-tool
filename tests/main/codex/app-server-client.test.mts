@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { afterEach, test } from "vitest";
 import { AppServerClient, AppServerError, AppServerExited, type IncomingRequest } from "../../../src/main/codex/app-server-client.mts";
+import type { ModelListResponse } from "../../../src/main/codex/protocol/v2/ModelListResponse.ts";
+import type { ThreadListResponse } from "../../../src/main/codex/protocol/v2/ThreadListResponse.ts";
 
 const fakeServer = fileURLToPath(new URL("../../support/fake-app-server.mts", import.meta.url));
 const clientInfo = { name: "test-client", title: null, version: "0" };
@@ -32,7 +34,7 @@ test("responses pair with their own request whatever order they arrive in", asyn
 
   const settled: string[] = [];
   const started = client.request("thread/start", { model: "gpt-5.6-sol" }).then((result) => { settled.push("thread/start"); return result; });
-  const listed = client.request("model/list", {}).then((result) => { settled.push("model/list"); return result; });
+  const listed = client.request("model/list", {}).then((result) => { settled.push("model/list"); return result as ModelListResponse; });
 
   const [thread, models] = await Promise.all([started, listed]);
   assert.equal(thread.thread.id, "thread-1");
@@ -95,7 +97,7 @@ test("a message split across writes, or sharing a write with the next, is framed
   await client.initialize(clientInfo);
   const warned = new Promise<string>((resolve) => client.on("warning", (params) => resolve((params as { message: string }).message)));
 
-  const threads = await client.request("thread/list", {});
+  const threads = await client.request("thread/list", {}) as ThreadListResponse;
 
   assert.equal(threads.data.length, 1);
   assert.equal((threads.data[0] as { id: string }).id.length, 200_000);

@@ -4,6 +4,7 @@ import { ClaudeAgentProvider } from "./agent/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
 import { EngineRouter } from "./agent/engine-router.mjs";
 import { CodexAgentProvider } from "./codex/codex-agent-provider.mjs";
+import { SessionPool } from "./agent/session-pool.mjs";
 import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";
 import { isWritePathInside } from "./path-policy.mjs";
@@ -28,7 +29,11 @@ const coordinatorOptions = {
 };
 /** One tool service for the whole worker; every Codex session gets a token of its own on it. */
 const toolHost = new McpHttpHost();
-const engines = () => new EngineRouter({ claude: new ClaudeAgentProvider(), codex: new CodexAgentProvider({ host: toolHost }) });
+/** A channel's engines share one pool, so the warm sessions of a channel are capped together. */
+const engines = () => {
+  const pool = new SessionPool();
+  return new EngineRouter({ claude: new ClaudeAgentProvider(undefined, pool), codex: new CodexAgentProvider({ host: toolHost, pool }) });
+};
 const providers = { main: engines(), side: engines() };
 const coordinators = {
   main: new RunCoordinator(providers.main, (event) => parentPort.postMessage(event), coordinatorOptions),

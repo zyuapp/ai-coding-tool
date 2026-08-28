@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { clampTitle } from "../../domain/task.js";
 
 /** How much of a first message a title is read from. */
@@ -16,4 +17,21 @@ export function titleQuestion(text: string) {
 export function cleanTitle(text: string) {
   const line = text.split("\n").map((part) => part.trim()).find(Boolean) ?? "";
   return clampTitle(line.replace(/^["'`]+|["'`]+$/g, "").replace(/\.+$/, ""));
+}
+
+/** How many screenshots ride along with a first message, and how large each may be. */
+const IMAGE_LIMIT = 2;
+export const IMAGE_BYTE_LIMIT = 1024 * 1024;
+
+/** The screenshots a writer is handed: the first few, and only those that are files of a size worth sending. */
+export async function readableImages(attachments: string[]): Promise<string[]> {
+  const checked = await Promise.all(attachments.slice(0, IMAGE_LIMIT).map(async (file) => {
+    try {
+      const metadata = await stat(file);
+      return metadata.isFile() && metadata.size > 0 && metadata.size <= IMAGE_BYTE_LIMIT ? file : null;
+    } catch {
+      return null;
+    }
+  }));
+  return checked.filter((file): file is string => file !== null);
 }

@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterAll, describe, test } from "vitest";
 import type { ProviderEvent, ProviderRunInput, ThreadBridge, ToolDecision } from "../../src/main/agent/agent-provider.mts";
 import { AppServerClient } from "../../src/main/codex/app-server-client.mts";
-import { EngineAccessHost } from "../../src/main/codex/codex-account.mts";
+import { readCodexAccess } from "../../src/main/codex/codex-account.mts";
 import { CodexAgentProvider } from "../../src/main/codex/codex-agent-provider.mts";
 import { McpHttpHost } from "../../src/main/tools/mcp-http-host.mts";
 import type { ThreadSummary } from "../../src/contracts/threads.ts";
@@ -15,7 +15,7 @@ import { input } from "../support/codex-client.mjs";
 
 /** Drives the bundled Codex binary for real, so it only runs when asked and signed in. */
 const wanted = process.env.CODEX_LIVE === "1";
-const signedIn = wanted && (await new EngineAccessHost().read()).codex === "ready";
+const signedIn = wanted && await readCodexAccess() === "ready";
 
 const CASE_MS = 120_000;
 const MODEL = "gpt-5.6-terra";

@@ -111,6 +111,34 @@ test("a thread the run continues is resumed, and a side chat forks it instead", 
   foreign.provider.closeAll();
 });
 
+test("a server that dies while resuming fails the run without giving up the continuation", async () => {
+  const emitted: ProviderEvent[] = [];
+  const codex = harness({
+    "thread/resume": () => { throw new AppServerExited({ code: 1, signal: null, stderr: "fatal: rollout store locked" }, "while thread/resume was pending"); },
+  });
+  const result = await codex.provider.execute(input({ continuation: { provider: "codex", value: "thread-9" }, emit: (event) => emitted.push(event) }));
+
+  assert.deepEqual(result, { status: "failed", message: "Codex could not start: fatal: rollout store locked" });
+  assert.deepEqual(emitted, [], "the thread may still be there, so nothing says it is lost");
+  assert.equal(codex.latest().closed, true);
+});
+
+test("a turn the server completes before it has named it needs no interrupt", async () => {
+  let name!: (turn: unknown) => void;
+  const codex = harness({ "turn/start": () => new Promise((resolve) => { name = resolve; }) });
+  const running = codex.provider.execute(input());
+  const client = await opened(codex);
+  await sentBy(client, "turn/start");
+
+  completeTurn(client);
+  assert.deepEqual(await running, { status: "succeeded" });
+  name({ turn: { id: turnId } });
+  await tick();
+  await tick();
+  assert.equal(client.calls("turn/interrupt").length, 0, "a turn already over is not interrupted");
+  codex.provider.closeAll();
+});
+
 test("a thread Codex no longer has fails the run, gives up the continuation, and never starts a fresh thread in its place", async () => {
   const emitted: ProviderEvent[] = [];
   const codex = harness({
@@ -231,7 +259,7 @@ test("context usage reports the last request against the model's window, and a c
   });
 
   assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
-    { type: "usage", tokens: 15_707, limit: 272_000, model: "gpt-5.6-terra" },
+    { type: "usage", tokens: 15_707, limit: 258_400, model: "gpt-5.6-terra" },
     { type: "compaction-status", compacting: true },
     { type: "compaction", trigger: "auto", preTokens: 15_707 },
     { type: "compaction-status", compacting: false },

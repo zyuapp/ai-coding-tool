@@ -111,7 +111,7 @@ test("while computer use still needs setup, the served setup tool asks the app t
 
 test("config values are written as TOML the app server parses", () => {
   assert.equal(toml("plain"), "\"plain\"");
-  assert.equal(toml("a\"b\\c\nd\te"), "\"a\\\"b\\\\c\\nd\\te\\u0001\"");
+  assert.equal(toml("a\"b\\c\nd\te"), "\"a\\\"b\\\\c\\nd\\te\\u0001\\u007f\"");
   assert.equal(toml(true), "true");
   assert.equal(toml(["x", "y z"]), "[\"x\", \"y z\"]");
   assert.equal(toml({}), "{}");

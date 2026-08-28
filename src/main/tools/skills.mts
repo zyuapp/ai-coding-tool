@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { open, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -11,6 +11,9 @@ export type Skill = { name: string; description: string; path: string };
 export type SkillRoots = readonly string[];
 
 const SKILL_FILE = "SKILL.md";
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+/** How much of a SKILL.md is read to find its frontmatter; one that runs longer is read whole. */
+const FRONTMATTER_BYTES = 8 * 1024;
 
 /**
  * Where the user keeps skills in Claude's layout: the workspace's own first, then the user's,
@@ -23,7 +26,7 @@ export function skillRoots(workspace: { workspaceRoot: string; projectless: bool
 
 /** The frontmatter and body of a SKILL.md; a file without frontmatter is all body. */
 export function parseSkillFile(text: string): { fields: Record<string, string>; body: string } {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text);
+  const match = FRONTMATTER.exec(text);
   if (!match) return { fields: {}, body: text };
   const fields: Record<string, string> = {};
   let key: string | undefined;
@@ -45,6 +48,32 @@ function unquote(value: string) {
   return /^(["']).*\1$/.test(value) ? value.slice(1, -1) : value;
 }
 
+/** The head of a file, enough to hold its frontmatter; the whole file when the frontmatter outruns the head. */
+async function readHead(file: string) {
+  const handle = await open(file, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(FRONTMATTER_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, FRONTMATTER_BYTES, 0);
+    const head = buffer.toString("utf8", 0, bytesRead);
+    return bytesRead < FRONTMATTER_BYTES || FRONTMATTER.test(head) ? head : await readFile(file, "utf8");
+  } finally {
+    await handle.close();
+  }
+}
+
+/** The skill filed in one directory, or nothing where no SKILL.md can be read. */
+async function skillIn(root: string, directory: string): Promise<Skill | undefined> {
+  const file = path.join(root, directory, SKILL_FILE);
+  let head: string;
+  try {
+    head = await readHead(file);
+  } catch {
+    return undefined;
+  }
+  const { fields } = parseSkillFile(head);
+  return { name: fields.name || directory, description: fields.description ?? "", path: file };
+}
+
 async function skillsIn(root: string): Promise<Skill[]> {
   let entries: string[];
   try {
@@ -52,17 +81,7 @@ async function skillsIn(root: string): Promise<Skill[]> {
   } catch {
     return [];
   }
-  const found = await Promise.all(entries.sort().map(async (entry): Promise<Skill | undefined> => {
-    const file = path.join(root, entry, SKILL_FILE);
-    let text: string;
-    try {
-      text = await readFile(file, "utf8");
-    } catch {
-      return undefined;
-    }
-    const { fields } = parseSkillFile(text);
-    return { name: fields.name || entry, description: fields.description ?? "", path: file };
-  }));
+  const found = await Promise.all(entries.sort().map((entry) => skillIn(root, entry)));
   return found.filter((skill): skill is Skill => skill !== undefined);
 }
 
@@ -73,6 +92,23 @@ export async function listSkills(roots: SkillRoots): Promise<Skill[]> {
     for (const skill of skills) if (!byName.has(skill.name)) byName.set(skill.name, skill);
   }
   return [...byName.values()];
+}
+
+/**
+ * One skill by name. The directory of that name is tried first, root by root, and the whole list
+ * read only when no directory answers; a name that is a path names nothing.
+ */
+export async function findSkill(roots: SkillRoots, name: string): Promise<Skill | undefined> {
+  if (path.basename(name) === name && name !== "." && name !== "..") {
+    for (const [index, root] of roots.entries()) {
+      const skill = await skillIn(root, name);
+      if (skill?.name !== name) continue;
+      /** An earlier root's skill of that name hides this one, whichever directory it sits in. */
+      const earlier = (await Promise.all(roots.slice(0, index).map(skillsIn))).flat().find((candidate) => candidate.name === name);
+      return earlier ?? skill;
+    }
+  }
+  return (await listSkills(roots)).find((skill) => skill.name === name);
 }
 
 function text(value: string) {
@@ -98,7 +134,7 @@ export const SKILL_TOOLS: readonly ToolDefinition<SkillRoots>[] = [
     input: { name: z.string().min(1).describe("The skill's name, as skills_list reports it.") },
     readOnly: true,
     run: async (roots, args) => {
-      const skill = (await listSkills(roots)).find((candidate) => candidate.name === args.name);
+      const skill = await findSkill(roots, args.name);
       if (!skill) return { ...text(`No skill is named "${args.name}". Call skills_list to see the names.`), isError: true };
       const { body } = parseSkillFile(await readFile(skill.path, "utf8"));
       return text(`Skill directory: ${path.dirname(skill.path)}\n\n${body.trim()}`);

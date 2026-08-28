@@ -58,6 +58,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),
     setModel: (engine: AgentEngine, model: AgentModel) => dispatch({ type: "task.set-model", engine, model }),
     setEffort: (engine: AgentEngine, effort: AgentEffort) => dispatch({ type: "task.set-effort", engine, effort }),
+    readEngineStatus: () => dispatch({ type: "engine.read" }),
     signInEngine: (engine: AgentEngine) => dispatch({ type: "engine.sign-in", engine }),
     setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
     setBranch: (branch: string | null, create?: boolean) => dispatch({ type: "task.set-branch", branch, ...(create ? { create } : {}) }),

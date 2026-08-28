@@ -81,20 +81,30 @@ export class McpHttpHost implements ToolHost {
     });
   }
 
-  private listen() {
+  private async listen() {
     const server = createServer((request, response) => void this.handle(request, response));
     this.server = server;
-    return new Promise<string>((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", () => {
-        const address = server.address();
-        if (!address || typeof address === "string") {
-          reject(new Error("The tool service has no port."));
-          return;
-        }
-        resolve(`http://127.0.0.1:${address.port}${PATH}`);
+    try {
+      return await new Promise<string>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", () => {
+          const address = server.address();
+          if (!address || typeof address === "string") {
+            reject(new Error("The tool service has no port."));
+            return;
+          }
+          resolve(`http://127.0.0.1:${address.port}${PATH}`);
+        });
       });
-    });
+    } catch (error) {
+      /** A listener that never opened is forgotten, so the next set served tries afresh. */
+      server.close();
+      if (this.server === server) {
+        this.server = null;
+        this.listening = null;
+      }
+      throw error;
+    }
   }
 
   private async handle(request: IncomingMessage, response: ServerResponse) {

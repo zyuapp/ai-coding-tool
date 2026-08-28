@@ -42,7 +42,6 @@ const NAMING: Record<AgentEngine, ToolNaming> = {
       file_change: "write",
       web_search: "web",
       mcp_tool_call: "other",
-      todo_list: "other",
     },
     namingKeys: ["command", "path", "query"],
   },

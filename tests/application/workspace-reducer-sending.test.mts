@@ -247,8 +247,19 @@ test("an engine's access comes from main, and only a signed-out engine can be si
 
   const missing = reduce(signedOut, { type: "engine.status", status: { codex: "unavailable" } }).state;
   assert.deepEqual(reduce(missing, { type: "engine.sign-in", engine: "codex" }).effects, [], "an engine that is not there cannot be signed in to");
-  assert.equal(deriveView(workspace({ draftEngine: "codex" })).claudeSettings, false, "Claude's own settings are only drawn while Claude is in front");
-  assert.equal(deriveView(state).claudeSettings, true);
+});
+
+test("engine access is asked of main once, and not again once main has answered", () => {
+  const state = workspace();
+  const asked = reduce(state, { type: "engine.read" });
+  assert.deepEqual(asked.effects, [{ type: "engine.read" }]);
+  assert.deepEqual(reduce(asked.state, { type: "engine.read" }).effects, [], "a second ask while the first is out asks nothing");
+  assert.deepEqual(deriveView(asked.state).engineAccess, { claude: "ready", codex: "ready" }, "every engine is ready until main answers");
+
+  const answered = reduce(asked.state, { type: "engine.status", status: { codex: "signed-out" } }).state;
+  assert.deepEqual(reduce(answered, { type: "engine.read" }).effects, []);
+  assert.deepEqual(deriveView(answered).engineAccess, { claude: "ready", codex: "signed-out" });
+  assert.deepEqual(reduce(reduce(state, { type: "engine.status", status: { codex: "ready" } }).state, { type: "engine.read" }).effects, [], "a status a sign-in brought back counts as an answer");
 });
 
 test("a model the engine does not offer changes neither the thread nor the draft", () => {
@@ -264,6 +275,16 @@ test("an effort the engine does not offer changes neither the thread nor the dra
 
   assert.equal(reduce(state, { type: "task.set-effort", engine: "claude", effort: "ultra" }).state, state);
   assert.equal(reduce(state, { type: "task.set-effort", taskId: "task-a", engine: "codex", effort: "ultra" }).state, state, "a Claude thread cannot borrow a Codex effort");
+
+  const draft = workspace();
+  assert.equal(draft.draftEngine, "claude");
+  assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state, draft, "a Claude draft cannot borrow a Codex effort either");
+  assert.equal(reduce(draft, { type: "task.set-effort", engine: "codex", effort: "low" }).state.draftEffort, "low", "an effort both engines offer lands on the draft");
+
+  const codexThread = workspace({ tasks: [task("task-c", { engine: "codex", model: "gpt-5.6-sol", effort: "high" })], currentId: "task-c" });
+  const raised = reduce(codexThread, { type: "task.set-effort", engine: "codex", effort: "ultra" }).state;
+  assert.equal(raised.tasks[0].effort, "ultra");
+  assert.equal(raised.draftEffort, codexThread.draftEffort, "the Claude draft keeps its own effort");
 });
 
 test("a command that names its task acts on that one, whichever task the user is looking at", () => {

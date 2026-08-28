@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { EngineAccessHost } from "../../../src/main/codex/codex-account.mts";
+import { EngineAccessHost } from "../../../src/main/agent/engine-services.mts";
+import { readCodexAccess, signInToCodex, type AccountConnect } from "../../../src/main/codex/codex-account.mts";
 import { FakeCodexClient, tick, type Script } from "../../support/codex-client.mjs";
 
 const signedIn: Script = { "account/read": () => ({ account: { type: "chatgpt", email: "dev@example.com", planType: "pro" }, requiresOpenaiAuth: true }) };
 const signedOut: Script = { "account/read": () => ({ account: null, requiresOpenaiAuth: true }) };
 
+/** The host over Claude, which is always ready, and a Codex whose app servers are scripted fakes. */
+function hostOver(connect: AccountConnect) {
+  return new EngineAccessHost({ claude: {}, codex: { access: () => readCodexAccess(connect), signIn: (openUrl) => signInToCodex(openUrl, connect) } });
+}
+
 function host(script: Script, handshake?: () => Promise<never>) {
   const clients: FakeCodexClient[] = [];
-  const access = new EngineAccessHost((command) => {
+  const access = hostOver((command) => {
     const client = new FakeCodexClient(command, script, handshake);
     clients.push(client);
     return client;
@@ -34,7 +40,7 @@ test("a Codex that will not start, or cannot be found, is unavailable rather tha
   assert.deepEqual(await stopped.access.read(), { codex: "unavailable" });
   assert.equal(stopped.clients[0].closed, true);
 
-  const missing = new EngineAccessHost(() => { throw new Error("Codex is not bundled for linux x64."); });
+  const missing = hostOver(() => { throw new Error("Codex is not bundled for linux x64."); });
   assert.deepEqual(await missing.read(), { codex: "unavailable" });
 });
 

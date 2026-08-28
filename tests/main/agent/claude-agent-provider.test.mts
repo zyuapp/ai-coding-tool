@@ -9,6 +9,7 @@ import type { BackgroundReport, WorkflowReport } from "../../../src/contracts/ip
 import type { AgentModel } from "../../../src/domain/agent-engine.ts";
 import type { ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";
 import type { AutomationBridge, ProviderEvent, ProviderRunInput, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
+import { SessionPool } from "../../../src/main/agent/session-pool.mts";
 import { input, liveQueryFactory, liveTurn, poolQueryFactory, poolTurn, queryFactory, tick, turn, type LiveQueryCapture, type PoolCapture, type QueryCapture } from "../../support/claude-session.mjs";
 
 function optionsOf(capture: QueryCapture): Options {
@@ -652,7 +653,7 @@ const running = (...ids: string[]) => ({
 
 test("a session with work still running outlives the idle deadline, and is let go once the work stops", async () => {
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), 5);
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
 
   const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
   await delay(60);
@@ -679,7 +680,7 @@ test("a session with work still running is passed over when the pool has to let 
 
 test("work outstanding when a run is cancelled holds the session no longer than the work does", async () => {
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), 5);
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
   const abortController = new AbortController();
 
   const cancelled = provider.execute(input({ abortController }));
@@ -701,7 +702,7 @@ test("work outstanding when a run is cancelled holds the session no longer than 
 
 test("a turn that fails gives its session up even with work outstanding", async () => {
   const capture = poolCapture();
-  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), 5);
+  const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
 
   const failing = provider.execute(input());
   await tick();

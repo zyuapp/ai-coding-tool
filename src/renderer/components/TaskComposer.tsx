@@ -9,14 +9,14 @@ import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
-
-const NO_SIGN_IN = () => {};
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
 import { ContextUsageMeter } from "./ContextUsageMeter";
 import { QueuedRow } from "./QueuedRow";
 import { useComposerCaret } from "./composer-caret";
 import { composerBlur, composerInput, composerKeyDown, composerPaste } from "./composer-input";
 import { useComposerRecall } from "./composer-recall";
+
+const NOTHING = () => {};
 
 export type { ComposerAction };
 
@@ -84,6 +84,8 @@ export type TaskComposerProps = {
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
+  /** Asked when the model menu opens on another engine. A surface that cannot ask leaves every engine ready. */
+  onEngineRead?: () => void;
   onSignIn?: (engine: AgentEngine) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onSteerQueued: (messageId: string) => void;
@@ -130,7 +132,8 @@ export function TaskComposer({
   onModeChange,
   onModelChange,
   onEffortChange,
-  onSignIn = NO_SIGN_IN,
+  onEngineRead = NOTHING,
+  onSignIn = NOTHING,
   onSend,
   onSteerQueued,
   onDropQueued,
@@ -182,7 +185,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onSignIn={onSignIn} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

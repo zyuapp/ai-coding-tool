@@ -11,7 +11,7 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu, type MenuEntry } from "./PopoverMenu";
 import { threadLink } from "../../domain/thread-handles";
 import { RenameInput, useRenaming } from "./SidebarRename";
-import { EngineGlyph } from "./EngineGlyph";
+import { EngineGlyph, hasEngineGlyph } from "./EngineGlyph";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -158,7 +158,7 @@ export function useTaskRows({
 
   /** What a thread is: the engine it runs on, the checkout it works in, the schedule it runs on, and what it is doing now. */
   const rowMarks = (task: Task): React.ReactNode[] => [
-    <EngineGlyph key="engine" engine={task.engine} className="task-engine" />,
+    hasEngineGlyph(task.engine) && <EngineGlyph key="engine" engine={task.engine} className="task-engine" />,
     worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
     schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
     blockedTaskIds.has(task.id)

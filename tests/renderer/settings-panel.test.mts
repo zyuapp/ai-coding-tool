@@ -39,7 +39,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    claudeSettings: true, plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, planUsage: true,
+    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, planUsage: true,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
@@ -582,19 +582,15 @@ test("each capability page carries a switch that turns the whole capability off"
   await view.unmount();
 });
 
-test("the settings only Claude reads are not drawn while another engine is in front", async () => {
+test("the settings only Claude reads are grouped under Claude's own name", async () => {
   window.desktop = fakeDesktop({});
-  const view = await mount(renderSettingsPanel({ claudeSettings: true }));
+  const view = await mount(renderSettingsPanel({}));
   await act(async () => {});
-  assert.ok(view.container.querySelector("[aria-labelledby='experimental-heading']"));
-  assert.match(view.container.textContent ?? "", /Claude in Chrome/);
-  assert.match(view.container.textContent ?? "", /Simplified Technical English/);
-
-  await view.render(renderSettingsPanel({ claudeSettings: false }));
-  assert.equal(view.container.querySelector("[aria-labelledby='experimental-heading']"), null);
-  assert.doesNotMatch(view.container.textContent ?? "", /Claude in Chrome/);
-  assert.doesNotMatch(view.container.textContent ?? "", /Simplified Technical English/);
-  assert.match(view.container.textContent ?? "", /Desktop notifications/, "the rest of the page stays");
+  const group = view.container.querySelector("[aria-labelledby='claude-heading']");
+  assert.ok(group);
+  assert.equal(group.querySelector("#claude-heading")?.textContent, "Claude");
+  assert.match(group.textContent ?? "", /Claude in Chrome/);
+  assert.match(group.textContent ?? "", /Simplified Technical English/);
   await view.unmount();
 });
 

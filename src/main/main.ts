@@ -14,7 +14,7 @@ import type { WorkspaceService } from "./workspace/workspace-service.mjs" with {
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
-import type { EngineAccessHost } from "./codex/codex-account.mjs" with { "resolution-mode": "import" };
+import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
 import { attachmentsDirectory, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
@@ -101,12 +101,8 @@ async function readCommands(workspaceId: string, engine: AgentEngine): Promise<A
   const resolution = await getWorkspaceService().resolve(workspaceId);
   if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
   const workspace = { workspaceRoot: resolution.workspace.root, projectless: resolution.workspace.kind === "projectless" };
-  if (engine === "codex") {
-    const { listSkills, skillRoots } = await import("./tools/skills.mjs");
-    return (await listSkills(skillRoots(workspace))).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" }));
-  }
-  const { discoverClaudeCommands } = await import("./agent/claude-agent-provider.mjs");
-  return discoverClaudeCommands(workspace.workspaceRoot, workspace.projectless);
+  const { engineServices } = await import("./agent/engine-services.mjs");
+  return engineServices[engine].commands(workspace);
 }
 
 /**
@@ -459,12 +455,8 @@ ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: u
     .filter((file): file is string => file !== null);
   if (!text.trim() && images.length === 0) return null;
   try {
-    if (engine === "codex") {
-      const { suggestCodexTitle } = await import("./codex/codex-title-writer.mjs");
-      return await suggestCodexTitle(text, images);
-    }
-    const { suggestTaskTitle } = await import("./agent/title-writer.mjs");
-    return await suggestTaskTitle(text, images);
+    const { engineServices } = await import("./agent/engine-services.mjs");
+    return await engineServices[engine].suggestTitle(text, images);
   } catch {
     return null;
   }
@@ -472,9 +464,9 @@ ipcMain.handle("task-title:suggest", async (event, text: unknown, attachments: u
 
 let engineAccess: Promise<EngineAccessHost> | null = null;
 
-/** Made on first ask, since the engine it asks is a process of its own. */
+/** Made on first ask, since an engine it asks is a process of its own. */
 function engineAccessHost() {
-  return engineAccess ??= import("./codex/codex-account.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
+  return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
 }
 
 ipcMain.handle("engine:status", async (event) => {

@@ -158,7 +158,8 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
       const taskId = targetId(state, input.taskId);
       const engine = state.tasks.find((task) => task.id === taskId)?.engine;
       if (!engineHasEffort(input.engine, input.effort) || engine && !engineHasEffort(engine, input.effort)) return settled(state);
-      const drafted = input.taskId === undefined ? { ...state, draftEffort: input.effort } : state;
+      /** The draft keeps its own engine, so it takes the effort only where that engine offers it. */
+      const drafted = input.taskId === undefined && engineHasEffort(state.draftEngine, input.effort) ? { ...state, draftEffort: input.effort } : state;
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, effort: input.effort, updatedAt: now() })) : drafted);
     }
   }

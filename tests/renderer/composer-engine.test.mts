@@ -45,25 +45,30 @@ test("a thread that has an engine offers only its models, and says a new thread 
   await view.unmount();
 });
 
-test("an engine that is signed out is greyed, and choosing it asks to sign in instead", async () => {
+test("an engine that is signed out is greyed and inert, and its one sign-in button is what signs in", async () => {
   window.desktop = composerDesktop();
   const chosen: string[] = [];
   const signIns: string[] = [];
+  let reads = 0;
   const view = await mount(React.createElement(TaskComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: "ready", codex: "signed-out" }, model: "opus", effort: "high", runActive: false,
-    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn: (engine) => signIns.push(engine),
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => {});
 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  assert.equal(reads, 0, "nothing is asked until the menu opens");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(reads, 1, "opening the menu asks which engines can be picked");
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
   assert.deepEqual([...codex.querySelectorAll(".setting-option")].map((option) => option.getAttribute("aria-disabled")), ["true", "true"]);
   assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
   await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
   assert.equal(chosen.length, 0, "a greyed model is not chosen");
+  assert.equal(signIns.length, 0, "a greyed model does nothing else either");
+  await act(async () => { query<HTMLButtonElement>(codex, "button.setting-hint").click(); });
   assert.deepEqual(signIns, ["codex"]);
 
   await view.render(React.createElement(TaskComposer, {
@@ -77,5 +82,21 @@ test("an engine that is signed out is greyed, and choosing it asks to sign in in
   assert.equal(query(missing, ".setting-hint").textContent, "Codex is not installed");
   await act(async () => { query<HTMLButtonElement>(missing, ".setting-option").click(); });
   assert.deepEqual(signIns, ["codex"], "an engine that is not there offers no sign-in");
+  await view.unmount();
+});
+
+test("a thread that has its engine asks nothing when its model menu opens", async () => {
+  window.desktop = composerDesktop();
+  let reads = 0;
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "claude", engineLabel: "Claude", engineLocked: true, model: "opus", effort: "high", runActive: false,
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead: () => { reads += 1; },
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => {});
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(reads, 0, "only a menu that offers another engine needs to know about it");
   await view.unmount();
 });

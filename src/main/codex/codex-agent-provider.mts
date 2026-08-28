@@ -1,12 +1,8 @@
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "../agent/agent-provider.mjs";
+import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
-import { AppServerClient } from "./app-server-client.mjs";
+import { connectAppServer } from "./app-server-client.mjs";
 import { CodexSession, type CodexConnect } from "./codex-session.mjs";
-
-/** How long a thread's session waits, with nothing left running under it, before giving its process back. */
-const IDLE_SESSION_MS = 15 * 60 * 1_000;
-/** How many threads keep a session warm. Beyond this the least recently used idle one is let go. */
-const MAX_LIVE_SESSIONS = 4;
 
 /**
  * Everything a session is built with. A run that disagrees with any of it needs a session of its
@@ -27,43 +23,29 @@ function sessionKey(input: ProviderRunInput) {
   ]);
 }
 
-function continuationOf(input: ProviderRunInput) {
-  return input.continuation?.provider === "codex" ? input.continuation.value : undefined;
-}
-
-type Held = {
-  session: CodexSession;
-  usedAt: number;
-  idle?: ReturnType<typeof setTimeout>;
-};
-
 export type CodexProviderOptions = {
   connect?: CodexConnect;
   /** Serves the app's tools to every session; shared across providers in one process. */
   host?: ToolHost;
+  /** The sessions this engine's threads keep warm; shared with the other engines of its channel. */
+  pool?: SessionPool;
   idleMs?: number;
 };
 
 export class CodexAgentProvider implements AgentProvider {
-  /** One warm session per thread: the process it holds is what makes a second turn cheap. */
-  private readonly sessions = new Map<string, Held>();
   private readonly connect: CodexConnect;
   private readonly host: ToolHost;
-  private readonly idleMs: number;
+  private readonly pool: SessionPool;
 
   constructor(options: CodexProviderOptions = {}) {
-    this.connect = options.connect ?? ((command) => new AppServerClient(command));
+    this.connect = options.connect ?? connectAppServer;
     this.host = options.host ?? new McpHttpHost();
-    this.idleMs = options.idleMs ?? IDLE_SESSION_MS;
+    this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
-  async execute(input: ProviderRunInput): Promise<ProviderResult> {
-    const held = this.sessionFor(input);
-    try {
-      return await held.session.run(input);
-    } finally {
-      this.rest(input.taskId, held);
-    }
+  execute(input: ProviderRunInput): Promise<ProviderResult> {
+    const key = sessionKey(input);
+    return this.pool.execute(input, key, { open: ({ ended }) => new CodexSession(key, this.connect, this.host, ended) });
   }
 
   /** Codex leaves nothing running behind a turn, so there is never a process of the thread's to stop. */
@@ -71,59 +53,7 @@ export class CodexAgentProvider implements AgentProvider {
     return false;
   }
 
-  /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
-    for (const held of [...this.sessions.values()]) {
-      clearTimeout(held.idle);
-      held.session.close();
-    }
-    this.sessions.clear();
-  }
-
-  private sessionFor(input: ProviderRunInput): Held {
-    const key = sessionKey(input);
-    const held = this.sessions.get(input.taskId);
-    const reusable = held?.session.live
-      && held.session.key === key
-      && !held.session.answering
-      && !input.forkContinuation
-      && held.session.continues(continuationOf(input));
-    if (held && reusable) {
-      clearTimeout(held.idle);
-      held.idle = undefined;
-      held.usedAt = Date.now();
-      return held;
-    }
-    if (held) this.release(input.taskId, held);
-    this.evict();
-    const session = new CodexSession(key, this.connect, this.host, () => {
-      if (this.sessions.get(input.taskId)?.session === session) this.sessions.delete(input.taskId);
-    });
-    const opened: Held = { session, usedAt: Date.now() };
-    this.sessions.set(input.taskId, opened);
-    return opened;
-  }
-
-  /** A session with nothing left to do is kept warm for a while, then handed back. */
-  private rest(taskId: string, held: Held) {
-    if (this.sessions.get(taskId) !== held || !held.session.live) return;
-    held.usedAt = Date.now();
-    clearTimeout(held.idle);
-    held.idle = setTimeout(() => (held.session.busy ? this.rest(taskId, held) : this.release(taskId, held)), this.idleMs);
-    held.idle.unref?.();
-  }
-
-  private release(taskId: string, held: Held) {
-    clearTimeout(held.idle);
-    if (this.sessions.get(taskId) === held) this.sessions.delete(taskId);
-    held.session.close();
-  }
-
-  private evict() {
-    const idle = [...this.sessions].filter(([, held]) => !held.session.busy).sort(([, left], [, right]) => left.usedAt - right.usedAt);
-    for (let over = this.sessions.size - MAX_LIVE_SESSIONS + 1; over > 0 && idle.length; over -= 1) {
-      const [taskId, held] = idle.shift()!;
-      this.release(taskId, held);
-    }
+    this.pool.closeAll();
   }
 }

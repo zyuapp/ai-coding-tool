@@ -236,8 +236,13 @@ export type RemoteCommand =
 
 /* ── End phone bridge ─────────────────────────────────────────────────────── */
 
-/** Signs the user in to an engine that asked for it. The engine's own status comes back as the answer. */
-export type EngineCommand = { type: "engine.sign-in"; engine: AgentEngine };
+/**
+ * Asks which engines can take a run, once, or signs the user in to one that asked for it. Either
+ * way the engines' status comes back as the answer.
+ */
+export type EngineCommand =
+  | { type: "engine.read" }
+  | { type: "engine.sign-in"; engine: AgentEngine };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =

@@ -13,8 +13,6 @@ function cliDescription(status: CliStatus | null) {
 }
 
 export type GeneralSettingsProps = {
-  /** Whether the settings only Claude reads are drawn, which is while Claude is the engine in front. */
-  claudeSettings: boolean;
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
   onSetPlainEnglish: (enabled: boolean) => void;
@@ -26,7 +24,7 @@ export type GeneralSettingsProps = {
   onSetNotifications: (enabled: boolean) => void;
 };
 
-export function GeneralSettings({ claudeSettings, plainEnglish, onSetPlainEnglish, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
+export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -100,11 +98,11 @@ export function GeneralSettings({ claudeSettings, plainEnglish, onSetPlainEnglis
         </div>
       </section>
 
-      {claudeSettings && <section className="settings-group" aria-labelledby="experimental-heading">
+      <section className="settings-group" aria-labelledby="claude-heading">
         <div className="settings-group-heading">
           <div>
-            <h3 id="experimental-heading">Experimental</h3>
-            <p>These settings can change or disappear.</p>
+            <h3 id="claude-heading">Claude</h3>
+            <p>Experimental settings that only Claude threads read. They can change or disappear.</p>
           </div>
         </div>
 
@@ -129,7 +127,7 @@ export function GeneralSettings({ claudeSettings, plainEnglish, onSetPlainEnglis
             <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
           </div>
         </div>
-      </section>}
+      </section>
     </>
   );
 }

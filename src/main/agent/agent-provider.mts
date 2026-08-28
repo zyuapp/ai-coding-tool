@@ -124,6 +124,11 @@ export type ProviderResult = {
   message?: string;
 };
 
+/** The engine's own handle on the thread; another engine's continuation means nothing to it. */
+export function continuationOf(input: ProviderRunInput) {
+  return input.continuation?.provider === input.engine ? input.continuation.value : undefined;
+}
+
 export interface AgentProvider {
   execute(input: ProviderRunInput): Promise<ProviderResult>;
   /** Kills one background process of the thread's session, whether or not a run is going. */

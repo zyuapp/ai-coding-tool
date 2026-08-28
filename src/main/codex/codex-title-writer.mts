@@ -1,16 +1,14 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { TITLE_INSTRUCTIONS, cleanTitle, titleQuestion } from "../agent/title-text.mjs";
+import { TITLE_INSTRUCTIONS, cleanTitle, readableImages, titleQuestion } from "../agent/title-text.mjs";
 import { codexExecutable } from "./codex-executable.mjs";
 
 /** Runs the Codex binary once with `args`, feeding `input` on stdin, and resolves when it has exited. */
 export type CodexExec = (args: readonly string[], input: string, cwd: string) => Promise<void>;
 
 const TITLE_MODEL = "gpt-5.6-terra";
-const IMAGE_LIMIT = 2;
-const IMAGE_BYTE_LIMIT = 1024 * 1024;
 const EXEC_TIMEOUT_MS = 60_000;
 
 const TITLE_SCHEMA = {
@@ -19,18 +17,6 @@ const TITLE_SCHEMA = {
   required: ["title"],
   additionalProperties: false,
 };
-
-async function readableImages(attachments: string[]) {
-  const checked = await Promise.all(attachments.slice(0, IMAGE_LIMIT).map(async (file) => {
-    try {
-      const metadata = await stat(file);
-      return metadata.isFile() && metadata.size > 0 && metadata.size <= IMAGE_BYTE_LIMIT ? file : null;
-    } catch {
-      return null;
-    }
-  }));
-  return checked.filter((file): file is string => file !== null);
-}
 
 /** One-shot, read-only, ephemeral, and blind to the user's own Codex config, so a title touches nothing. */
 export function codexTitleArgs(schemaFile: string, outputFile: string, images: string[]) {

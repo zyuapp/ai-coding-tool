@@ -33,11 +33,12 @@ const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(
 
 export const EVERY_ENGINE_READY = byEngine((): EngineAccess => "ready");
 
-function SettingMenu({ label, axis, heading, value, children }: {
+function SettingMenu({ label, axis, heading, value, onOpen, children }: {
   label: string;
   axis: string;
   heading: string;
   value: ReactNode;
+  onOpen?: () => void;
   /** The options, handed the menu's own close so a pick can shut it. */
   children: (close: () => void) => ReactNode;
 }) {
@@ -47,7 +48,7 @@ function SettingMenu({ label, axis, heading, value, children }: {
   const close = () => { if (details.current) details.current.open = false; };
   useDismissibleLayer(open, [details], close, summary);
 
-  return <details ref={details} className="setting-menu" onToggle={(event) => setOpen(event.currentTarget.open)}>
+  return <details ref={details} className="setting-menu" onToggle={(event) => { setOpen(event.currentTarget.open); if (event.currentTarget.open) onOpen?.(); }}>
     <summary ref={summary} aria-label={label}>
       <span className="setting-axis">{axis}</span>
       <span className="setting-value">{value}</span>
@@ -72,7 +73,7 @@ function Option<T extends string>({ item, selected, disabled = false, onSelect }
     aria-selected={selected}
     {...(disabled ? { "aria-disabled": true } : {})}
     autoFocus={selected}
-    className={`setting-option ${disabled && onSelect ? "sign-in" : ""}`.trim()}
+    className="setting-option"
     onClick={onSelect}
   >
     <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
@@ -95,29 +96,28 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   </SettingMenu>;
 }
 
-function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onSignIn }: {
+function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen, onSignIn }: {
   engine: AgentEngine;
   engineLocked: boolean;
   engineAccess: Record<AgentEngine, EngineAccess>;
   model: AgentModel;
   onChange: (engine: AgentEngine, model: AgentModel) => void;
+  onOpen: () => void;
   onSignIn: (engine: AgentEngine) => void;
 }) {
   const selected = modelsOf[engine].find((item) => item.value === model) ?? modelsOf[engine][0];
   const offered = modelGroups.filter((group) => !engineLocked || group.engine === engine);
   const locked = modelGroups.filter((group) => engineLocked && group.engine !== engine);
-  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={<><EngineGlyph engine={engine} />{selected.short}</>}>
+  /** Only a menu that offers another engine needs to know whether that engine can be picked. */
+  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={<><EngineGlyph engine={engine} />{selected.short}</>} {...(engineLocked ? {} : { onOpen })}>
     {(close) => <>
       {offered.map((group) => {
         const access = engineAccess[group.engine];
-        const signIn = () => { onSignIn(group.engine); close(); };
-        const select = access === "ready"
-          ? (value: AgentModel) => { onChange(group.engine, value); close(); }
-          : access === "signed-out" ? signIn : undefined;
+        const ready = access === "ready";
         return <div key={group.engine} className="setting-group" role="group" aria-label={group.label}>
           <div className="setting-group-heading">{group.label}</div>
-          {group.choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={access !== "ready"} {...(select ? { onSelect: () => select(item.value) } : {})} />)}
-          {access === "signed-out" && <button type="button" className="setting-hint" onClick={signIn}>Sign in to use {group.label}</button>}
+          {group.choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={!ready} {...(ready ? { onSelect: () => { onChange(group.engine, item.value); close(); } } : {})} />)}
+          {access === "signed-out" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
           {access === "unavailable" && <div className="setting-hint">{group.label} is not installed</div>}
         </div>;
       })}
@@ -127,7 +127,7 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onSign
   </SettingMenu>;
 }
 
-export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, onModelChange, onEffortChange, onSignIn }: {
+export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, onModelChange, onEffortChange, onEngineRead, onSignIn }: {
   mode: ExecutionPolicy;
   engine: AgentEngine;
   engineLabel: string;
@@ -139,12 +139,14 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
+  /** Asked when the model menu opens on another engine, so the menu can say whether it can be picked. */
+  onEngineRead: () => void;
   onSignIn: (engine: AgentEngine) => void;
 }) {
   return (
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
-      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onSignIn={onSignIn} />
+      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} />
       <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[engine]} value={effort} onChange={(choice) => onEffortChange(engine, choice)} />
     </div>
   );

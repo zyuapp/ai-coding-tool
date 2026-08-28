@@ -12,7 +12,7 @@ type TomlValue = string | boolean | readonly string[] | Readonly<Record<string, 
 const ESCAPED: Record<string, string> = { "\\": "\\\\", "\"": "\\\"", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
 
 function tomlString(value: string) {
-  return `"${value.replace(/[\\"\u0000-\u001f]/g, (char) => ESCAPED[char] ?? `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`)}"`;
+  return `"${value.replace(/[\\"\u0000-\u001f\u007f]/g, (char) => ESCAPED[char] ?? `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`)}"`;
 }
 
 /** One TOML value, as `-c key=value` takes it. */

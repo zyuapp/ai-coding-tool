@@ -111,8 +111,6 @@ export type SettingsPanelProps = {
   terminalSize: number;
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
-  /** Whether the settings only Claude reads are drawn, which is while Claude is the engine in front. */
-  claudeSettings: boolean;
   /** Whether runs answer in the Simplified Technical English style the app installs. */
   plainEnglish: boolean;
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
@@ -171,7 +169,6 @@ export function SettingsPanel({
   readingSize,
   terminalSize,
   allowedOrigins,
-  claudeSettings,
   plainEnglish,
   chromeBrowser,
   computerUse,
@@ -267,7 +264,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings claudeSettings={claudeSettings} plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} />
+        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} />
       </main>
       )}
 

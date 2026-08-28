@@ -18,11 +18,13 @@ export function isEngineInput(input: { type: string }): input is EngineInput {
 
 /** An engine main has said nothing about is taken as ready; only main can say otherwise. */
 export function engineAccessOf(state: Pick<WorkspaceState, "engineStatus">, engine: AgentEngine): EngineAccess {
-  return state.engineStatus[engine] ?? "ready";
+  return state.engineStatus?.[engine] ?? "ready";
 }
 
 export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineTransition {
   if (input.type === "engine.status") return { state: { ...state, engineStatus: { ...state.engineStatus, ...input.status } }, effects: [] };
+  /** Asked once: an engine is a process of its own, and the answer holds until a sign-in changes it. */
+  if (input.type === "engine.read") return state.engineStatus === null ? { state: { ...state, engineStatus: {} }, effects: [input] } : { state, effects: [] };
   /** Only an engine that asked to be signed in to is; a ready one has nothing to open. */
   if (engineAccessOf(state, input.engine) !== "signed-out") return { state, effects: [] };
   return { state: { ...state, actionError: null }, effects: [input] };

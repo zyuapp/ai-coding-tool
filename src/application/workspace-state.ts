@@ -202,7 +202,8 @@ export type WorkspaceState = {
   draftModel: AgentModel;
   draftEffort: AgentEffort;
   /** What main last said about which engines can take a run. Session-only, and never persisted. */
-  engineStatus: EngineStatus;
+  /** What main has said about the engines' access; null until it has been asked. */
+  engineStatus: EngineStatus | null;
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
   annotations: Record<string, Annotation[]>;
@@ -332,7 +333,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
-    engineStatus: {},
+    engineStatus: null,
     prompts: {},
     annotations: {},
     pastes: {},
@@ -691,8 +692,6 @@ function engineView(state: WorkspaceState, currentTask: Task | undefined) {
     engineLocked: currentTask !== undefined,
     /** Which engines a picker may hand a run to, and why the others cannot be picked. */
     engineAccess: byEngine((candidate): EngineAccess => engineAccessOf(state, candidate)),
-    /** Settings that only Claude reads are drawn only while Claude is the engine in front. */
-    claudeSettings: engine === "claude",
     /** What the engine can feed, so a panel it cannot is not offered for this thread. */
     capabilities,
     ...engineFeeds(capabilities, state, currentTask),

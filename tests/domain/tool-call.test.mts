@@ -46,7 +46,6 @@ test("Codex names a call by its item kind, and by the command, path, or query it
   assert.equal(toolFamily("codex", "file_change"), "write");
   assert.deepEqual(describeToolCall("codex", "web_search", JSON.stringify({ query: "codex app-server" })), { family: "web", argument: "codex app-server" });
   assert.equal(toolFamily("codex", "mcp_tool_call"), "other");
-  assert.equal(toolFamily("codex", "todo_list"), "other");
   assert.equal(toolFamily("codex", "browser_click"), "web");
 });
 

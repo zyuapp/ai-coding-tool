@@ -1,19 +1,15 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { packagedClaudeExecutable } from "./claude-agent-provider.mjs";
-import { TITLE_INSTRUCTIONS, cleanTitle, titleQuestion } from "./title-text.mjs";
+import { IMAGE_BYTE_LIMIT, TITLE_INSTRUCTIONS, cleanTitle, readableImages, titleQuestion } from "./title-text.mjs";
 
 type QueryFactory = typeof query;
 type ImageBlock = { type: "image"; source: { type: "base64"; media_type: "image/png"; data: string } };
 
-const IMAGE_LIMIT = 2;
-const IMAGE_BYTE_LIMIT = 1024 * 1024;
 async function imageBlocks(attachments: string[]): Promise<ImageBlock[]> {
-  const read = await Promise.all(attachments.slice(0, IMAGE_LIMIT).map(async (file) => {
+  const read = await Promise.all((await readableImages(attachments)).map(async (file) => {
     try {
-      const metadata = await stat(file);
-      if (!metadata.isFile() || metadata.size === 0 || metadata.size > IMAGE_BYTE_LIMIT) return null;
       const bytes = await readFile(file);
       if (bytes.byteLength === 0 || bytes.byteLength > IMAGE_BYTE_LIMIT) return null;
       return { type: "image", source: { type: "base64", media_type: "image/png", data: bytes.toString("base64") } } as const;

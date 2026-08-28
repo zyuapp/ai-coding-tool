@@ -2,15 +2,12 @@ import { query, type CanUseTool, type McpServerConfig, type SDKUserMessage, type
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { claudeEffort } from "../../domain/agent-engine.js";
-import type { AgentProvider, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
-import { automationTools, AUTOMATION_SERVER_NAME, findingTools } from "../tools/automation.mjs";
-import { browserTools, BROWSER_SERVER_NAME } from "../tools/browser.mjs";
-import { computerUseSetupTools, COMPUTER_USE_SETUP_SERVER_NAME } from "../tools/computer-use.mjs";
-import { terminalTools, TERMINAL_SERVER_NAME } from "../tools/terminal.mjs";
-import { threadTools, THREAD_SERVER_NAME } from "../tools/threads.mjs";
+import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
 import { withheldTools } from "./channel-tools.mjs";
 import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
+import { runTools } from "./run-tools.mjs";
+import { SessionPool } from "./session-pool.mjs";
 
 type QueryFactory = typeof query;
 const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
@@ -19,11 +16,6 @@ const chromeInstructions = `The user's own Chrome answers the mcp__claude-in-chr
 const threadInstructions = `AICodingTool holds the user's other threads, and the aicodingtool-threads tools are the only way to reach them: read them rather than answering about them from memory.`;
 const automationInstructions = `This task can schedule itself. When the user asks to repeat, babysit, poll, or watch something on a cadence, use the aicodingtool-automation tools instead of looping yourself or reaching for cron.`;
 const computerUseInstructions = `When a requested outcome lives in another application's interface, use the provided computer-use MCP tools. Never invoke a separately installed cua-driver through Bash. Observe the exact target before every action and verify the result afterward. Prefer accessibility targets, then screenshot coordinates, and use foreground delivery only after background delivery fails.`;
-
-/** How long a thread's session waits, with nothing left running under it, before giving its process back. */
-const IDLE_SESSION_MS = 15 * 60 * 1_000;
-/** How many threads keep a session warm. Beyond this the least recently used idle one is let go. */
-const MAX_LIVE_SESSIONS = 4;
 
 async function* idlePrompt() {
   await new Promise<void>(() => {});
@@ -69,105 +61,27 @@ function sessionKey(input: ProviderRunInput) {
   ]);
 }
 
-function continuationOf(input: ProviderRunInput) {
-  return input.continuation?.provider === input.engine ? input.continuation.value : undefined;
-}
-
-type Held = {
-  session: ClaudeSession;
-  usedAt: number;
-  idle?: ReturnType<typeof setTimeout>;
-};
-
 export class ClaudeAgentProvider implements AgentProvider {
-  /** One warm session per thread: the process it holds is what makes a second turn cheap. */
-  private readonly sessions = new Map<string, Held>();
+  constructor(private readonly queryFactory: QueryFactory = query, private readonly pool = new SessionPool()) {}
 
-  constructor(private readonly queryFactory: QueryFactory = query, private readonly idleMs: number = IDLE_SESSION_MS) {}
-
-  async execute(input: ProviderRunInput): Promise<ProviderResult> {
-    const held = this.sessionFor(input);
-    try {
-      return await held.session.run(input);
-    } finally {
-      this.rest(input.taskId, held);
-    }
+  execute(input: ProviderRunInput): Promise<ProviderResult> {
+    const key = sessionKey(input);
+    return this.pool.execute(input, key, {
+      open: ({ ended, rested }) => new ClaudeSession(key, ended, rested),
+      start: (session) => session.open((prompt, canUseTool) => this.queryFactory(this.options(input, prompt, canUseTool)), input),
+    });
   }
 
   /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
   stopProcess(taskId: string, processId: string) {
-    const held = this.sessions.get(taskId);
-    if (!held?.session.live) return false;
-    held.session.stopProcess(processId);
+    const session = this.pool.liveSession(taskId);
+    if (!(session instanceof ClaudeSession)) return false;
+    session.stopProcess(processId);
     return true;
   }
 
-  /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
-    for (const held of [...this.sessions.values()]) {
-      clearTimeout(held.idle);
-      held.session.close();
-    }
-    this.sessions.clear();
-  }
-
-  private sessionFor(input: ProviderRunInput): Held {
-    const key = sessionKey(input);
-    const held = this.sessions.get(input.taskId);
-    const reusable = held?.session.live
-      && held.session.key === key
-      && !held.session.answering
-      && !input.forkContinuation
-      && held.session.continues(continuationOf(input));
-    if (held && reusable) {
-      clearTimeout(held.idle);
-      held.idle = undefined;
-      held.usedAt = Date.now();
-      return held;
-    }
-    if (held) this.release(input.taskId, held);
-    this.evict();
-    const session = new ClaudeSession(
-      key,
-      () => {
-        if (this.sessions.get(input.taskId)?.session === session) this.sessions.delete(input.taskId);
-      },
-      () => {
-        const settled = this.sessions.get(input.taskId);
-        if (settled?.session === session) this.rest(input.taskId, settled);
-      },
-    );
-    const opened: Held = { session, usedAt: Date.now() };
-    this.sessions.set(input.taskId, opened);
-    session.open((prompt, canUseTool) => this.queryFactory(this.options(input, prompt, canUseTool)), input);
-    return opened;
-  }
-
-  /**
-   * A session with nothing left to do is kept warm for a while, then handed back. Work the agent left
-   * running is not nothing: the deadline finds the session busy and starts over, so a workflow that runs
-   * for hours is never on a clock, and the session it holds is still reclaimed once the work stops.
-   */
-  private rest(taskId: string, held: Held) {
-    if (this.sessions.get(taskId) !== held || !held.session.live) return;
-    held.usedAt = Date.now();
-    clearTimeout(held.idle);
-    held.idle = setTimeout(() => (held.session.busy ? this.rest(taskId, held) : this.release(taskId, held)), this.idleMs);
-    held.idle.unref?.();
-  }
-
-  private release(taskId: string, held: Held) {
-    clearTimeout(held.idle);
-    if (this.sessions.get(taskId) === held) this.sessions.delete(taskId);
-    held.session.close();
-  }
-
-  private evict() {
-    const idle = [...this.sessions].filter(([, held]) => !held.session.busy).sort(([, left], [, right]) => left.usedAt - right.usedAt);
-    for (let over = this.sessions.size - MAX_LIVE_SESSIONS + 1; over > 0 && idle.length; over -= 1) {
-      const [taskId, held] = idle.shift()!;
-      this.release(taskId, held);
-    }
+    this.pool.closeAll();
   }
 
   private options(input: ProviderRunInput, prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) {
@@ -175,15 +89,8 @@ export class ClaudeAgentProvider implements AgentProvider {
     const mcpServers: Record<string, McpServerConfig> = {};
     if (input.computerUse.status === "available") {
       mcpServers["cua-driver"] = { type: "stdio" as const, ...input.computerUse.mcp };
-    } else if (input.computerUse.status === "setup-required") {
-      mcpServers[COMPUTER_USE_SETUP_SERVER_NAME] = claudeMcpServer(COMPUTER_USE_SETUP_SERVER_NAME, computerUseSetupTools({ requestSetup: () => input.emit({ type: "computer-use.setup-required" }) }));
     }
-    if (input.automations) {
-      mcpServers[AUTOMATION_SERVER_NAME] = claudeMcpServer(AUTOMATION_SERVER_NAME, [...automationTools(input.automations), ...(input.findings ? findingTools(input.findings) : [])]);
-    }
-    if (input.threads) mcpServers[THREAD_SERVER_NAME] = claudeMcpServer(THREAD_SERVER_NAME, threadTools(input.threads));
-    if (input.browser) mcpServers[BROWSER_SERVER_NAME] = claudeMcpServer(BROWSER_SERVER_NAME, browserTools(input.browser));
-    if (input.terminal) mcpServers[TERMINAL_SERVER_NAME] = claudeMcpServer(TERMINAL_SERVER_NAME, terminalTools(input.terminal));
+    for (const { server, tools } of runTools(input)) mcpServers[server] = claudeMcpServer(server, tools);
     return {
       prompt,
       options: {

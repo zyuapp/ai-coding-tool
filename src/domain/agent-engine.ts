@@ -82,21 +82,16 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
 
 export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
 
-const ENGINE_IDS = Object.keys(ENGINES) as AgentEngine[];
 /** Every engine, in the order pickers list them. */
-export const AGENT_ENGINES: readonly AgentEngine[] = ENGINE_IDS;
+export const AGENT_ENGINES = Object.keys(ENGINES) as readonly AgentEngine[];
 
 /** Whether an engine can take a run right now, or what stands in the way. */
 export type EngineAccess = "ready" | "signed-out" | "unavailable";
 /** The access of the engines whose access can change. One not named is always ready. */
 export type EngineStatus = Partial<Record<AgentEngine, EngineAccess>>;
 
-export function isEngineAccess(value: unknown): value is EngineAccess {
-  return value === "ready" || value === "signed-out" || value === "unavailable";
-}
-
-const MODEL_IDS = new Set<string>(ENGINE_IDS.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));
-const EFFORT_IDS = new Set<string>(ENGINE_IDS.flatMap((engine) => ENGINES[engine].efforts.map((effort) => effort.id)));
+const MODEL_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));
+const EFFORT_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].efforts.map((effort) => effort.id)));
 
 export function isAgentEngine(value: unknown): value is AgentEngine {
   return typeof value === "string" && Object.hasOwn(ENGINES, value);
@@ -151,7 +146,7 @@ export function engineLabel(engine: AgentEngine): string {
 
 /** One value per engine, built now so a picker reads a stable list instead of building one per render. */
 export function byEngine<T>(build: (engine: AgentEngine) => T): Record<AgentEngine, T> {
-  return Object.fromEntries(ENGINE_IDS.map((engine) => [engine, build(engine)])) as Record<AgentEngine, T>;
+  return Object.fromEntries(AGENT_ENGINES.map((engine) => [engine, build(engine)])) as Record<AgentEngine, T>;
 }
 
 /** A model the engine does not offer is measured against the engine's default model. */
