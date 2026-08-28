@@ -799,7 +799,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
 .heading-separator { flex: none; color: var(--quiet-soft); font-weight: 400; }
 .heading-thread { flex: 0 1 auto; min-width: 6ch; }
-.heading-engine { flex: none; color: var(--muted); }
 .task-heading p {
   max-width: min(720px, 58vw);
   margin: 4px 0 0;

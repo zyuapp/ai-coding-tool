@@ -1,7 +1,6 @@
 import { LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
 import type { Task } from "../../domain/task";
 import { OpenInMenu } from "./OpenInMenu";
-import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
 export type WorkspaceHeaderProps = {
   currentTask?: Task;
@@ -42,7 +41,6 @@ export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen,
               <span className="heading-separator" aria-hidden="true">/</span>
             </>}
             <span className="heading-thread">{currentTask?.title ?? "New task"}</span>
-            {currentTask && <ThreadEngineIcon engine={currentTask.engine} className="heading-engine" size={15} />}
           </h1>
           {!folder && <p>Choose a project folder to begin</p>}
         </div>

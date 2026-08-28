@@ -532,7 +532,7 @@ test("workspace header keeps session summary and right panel controls separate",
 
   assert.equal(query(view.container, 'button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
   assert.equal(query(view.container, 'button[aria-label="Hide session summary"]').getAttribute("aria-pressed"), "true");
-  assert.ok(view.container.querySelector('.heading-engine[aria-label="Codex thread"]'));
+  assert.equal(view.container.querySelector(".heading-engine"), null, "the title says which thread it is, so the engine mark adds nothing");
   assert.match(view.container.textContent, /2/);
   await act(async () => {
     query<HTMLButtonElement>(view.container, 'button[aria-label="Show sidebar"]').click();
