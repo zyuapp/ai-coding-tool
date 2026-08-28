@@ -1,11 +1,11 @@
 import { contextWindowLimit } from "../../domain/agent-engine.js";
-import type { ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { runTools } from "../agent/run-tools.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { skillRoots, skillTools } from "../tools/skills.mjs";
-import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
+import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
@@ -185,6 +185,11 @@ export class CodexSession {
   private lastTokens = 0;
   private goalActive = false;
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
+  private reportBackground: ProviderRunInput["reportBackground"] = () => {};
+  /** The whole process set last read from this thread's app-server session. */
+  private backgroundProcesses: BackgroundProcess[] = [];
+  /** A newer read supersedes an older one that is still paging through the server. */
+  private backgroundRead = 0;
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
 
@@ -201,9 +206,9 @@ export class CodexSession {
     return this.turn !== null;
   }
 
-  /** Parent and child turns share one app-server process, so either kind keeps the session warm. */
+  /** Closing the app server would stop child turns and background terminals, so either keeps it warm. */
   get busy() {
-    return this.answering || Boolean(this.subagents?.busy);
+    return this.answering || Boolean(this.subagents?.busy) || this.backgroundProcesses.length > 0;
   }
 
   get live() {
@@ -251,6 +256,9 @@ export class CodexSession {
   close() {
     if (this.ended) return;
     this.ended = true;
+    this.backgroundRead += 1;
+    this.backgroundProcesses = [];
+    this.reportBackground({ type: "background.changed", processes: [] });
     this.reportGoal({ type: "goal.changed", goal: null });
     this.settle({ status: "cancelled" });
     this.subagents?.close();
@@ -260,6 +268,16 @@ export class CodexSession {
     this.served?.release();
     this.served = null;
     this.onEnded();
+  }
+
+  /** Stops one terminal owned by this thread, then republishes what the server still has. */
+  stopProcess(processId: string) {
+    const client = this.client;
+    const threadId = this.threadId;
+    if (!client || !threadId) return;
+    void client.request("thread/backgroundTerminals/terminate", { threadId, processId })
+      .then(() => this.refreshBackgroundProcesses())
+      .catch(() => this.refreshBackgroundProcesses());
   }
 
   private async begin(turn: Turn) {
@@ -394,6 +412,8 @@ export class CodexSession {
    * it. The app's tools are served first, since the process connects to them as the thread starts.
    */
   private async open(seed: ProviderRunInput) {
+    this.reportBackground = seed.reportBackground;
+    this.reportBackground({ type: "background.changed", processes: [] });
     this.reportGoal = seed.reportGoal;
     this.reportGoal({ type: "goal.changed", goal: null });
     const tools = [...runTools(seed).flatMap((set) => set.tools), ...skillTools(skillRoots(seed))];
@@ -435,6 +455,9 @@ export class CodexSession {
       const child = subagents.itemCompleted(params);
       this.receiveReviewItem(params.threadId, params.item);
       if (!child) this.receiveCompleted(params.item);
+      if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.backgroundProcesses.length) {
+        void this.refreshBackgroundProcesses();
+      }
     });
     client.on("thread/tokenUsage/updated", (params) => {
       if (!subagents.tokenUsageUpdated(params)) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
@@ -635,10 +658,52 @@ export class CodexSession {
   private receiveTurnCompleted(completed: NotificationParams<"turn/completed">["turn"]) {
     const turn = this.turn;
     if (!turn || (turn.turnId !== undefined && turn.turnId !== completed.id)) return;
+    void this.finishTurn(turn, completed);
+  }
+
+  /** Reads terminals before settling, so the session cannot be reclaimed while new work is running. */
+  private async finishTurn(turn: Turn, completed: NotificationParams<"turn/completed">["turn"]) {
+    await this.refreshBackgroundProcesses();
+    if (this.turn !== turn) return;
     if (completed.status === "completed" && this.goalActive) return;
     if (completed.status === "completed") this.settle({ status: "succeeded" });
     else if (completed.status === "interrupted") this.settle({ status: "cancelled" });
     else if (completed.status === "failed") this.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });
+  }
+
+  /** Reads every page because the Session Panel treats each provider report as the complete set. */
+  private async refreshBackgroundProcesses() {
+    const client = this.client;
+    const threadId = this.threadId;
+    if (!client || !threadId || this.ended) return;
+    const read = ++this.backgroundRead;
+    const found: BackgroundProcess[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | null = null;
+    try {
+      do {
+        const page: { data: BackgroundTerminal[]; nextCursor: string | null } = await client.request("thread/backgroundTerminals/list", { threadId, cursor, limit: 100 });
+        if (read !== this.backgroundRead || this.client !== client || this.threadId !== threadId || this.ended) return;
+        found.push(...page.data.map((terminal) => ({
+          id: terminal.processId,
+          kind: "shell" as const,
+          description: terminal.command || "Background shell",
+        })));
+        cursor = page.nextCursor;
+        if (cursor && cursors.has(cursor)) return;
+        if (cursor) cursors.add(cursor);
+      } while (cursor);
+    } catch {
+      return;
+    }
+    this.replaceBackgroundProcesses(found);
+  }
+
+  private replaceBackgroundProcesses(processes: BackgroundProcess[]) {
+    const hadProcesses = this.backgroundProcesses.length > 0;
+    this.backgroundProcesses = processes;
+    this.reportBackground({ type: "background.changed", processes });
+    if (hadProcesses && !processes.length && !this.answering && !this.subagents?.busy) this.onRested();
   }
 
   /** Whether the run allows what the server is asking. Nothing is allowed on a session with no run to ask. */

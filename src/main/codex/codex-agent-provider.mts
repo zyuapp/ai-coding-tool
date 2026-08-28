@@ -50,9 +50,12 @@ export class CodexAgentProvider implements AgentProvider {
     return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested) });
   }
 
-  /** Codex child agents are tracked separately; this API addresses shell and monitor processes only. */
-  stopProcess(_taskId: string, _processId: string) {
-    return false;
+  /** Reaches the thread's own session, so work that outlived the turn that started it can still be stopped. */
+  stopProcess(taskId: string, processId: string) {
+    const session = this.pool.liveSession(taskId);
+    if (!(session instanceof CodexSession)) return false;
+    session.stopProcess(processId);
+    return true;
   }
 
   closeAll() {

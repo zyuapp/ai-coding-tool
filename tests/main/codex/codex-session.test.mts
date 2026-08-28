@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
 import { codexPolicy, DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
 import type { ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
-import type { GoalReport } from "../../../src/contracts/ipc.ts";
+import type { BackgroundReport, GoalReport } from "../../../src/contracts/ipc.ts";
 import type { ToolIntent } from "../../../src/domain/run.ts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
 import { SteerChannel } from "../../../src/main/agent/steer-channel.mts";
@@ -21,7 +21,7 @@ function completed(item: ThreadItem) {
   return { item, threadId, turnId, completedAtMs: 2 };
 }
 
-const command = (id: string, command: string): ThreadItem => ({
+const command = (id: string, command: string): Extract<ThreadItem, { type: "commandExecution" }> => ({
   type: "commandExecution", id, pluginId: null, scriptPath: null, command, cwd: "/tmp/project", processId: null, source: "agent", status: "inProgress", commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
 });
 
@@ -54,7 +54,7 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.equal(client.command.cwd, "/tmp/project");
   assert.deepEqual(client.command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
   assert.match(client.command.executable, /codex$/);
-  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "account/read", "thread/start", "turn/start"]);
+  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "account/read", "thread/start", "turn/start", "thread/backgroundTerminals/list"]);
   assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,
@@ -617,10 +617,61 @@ test("an idle session is let go after the idle period", async () => {
   codex.provider.closeAll();
 });
 
-test("Codex has no background processes of its own to stop", async () => {
-  const codex = harness();
-  await turn(codex);
-  assert.equal(codex.provider.stopProcess("task-1", "anything"), false);
+test("Codex background terminals stay with their session, report to the panel, and stop there", async () => {
+  let running = true;
+  const codex = harness({
+    "thread/backgroundTerminals/list": () => ({
+      data: running ? [{ itemId: "item-1", processId: "process-1", command: "python3 -m http.server 8000", cwd: "/tmp/project", osPid: 101, cpuPercent: 0, rssKb: 1024n }] : [],
+      nextCursor: null,
+    }),
+    "thread/backgroundTerminals/terminate": (params: { processId: string }) => {
+      assert.equal(params.processId, "process-1");
+      running = false;
+      return { terminated: true };
+    },
+  }, { idleMs: 5 });
+  const reports: BackgroundReport[] = [];
+  const reportBackground = (report: BackgroundReport) => { reports.push(report); };
+
+  const first = await turn(codex, { reportBackground });
+  assert.deepEqual(reports.at(-1)?.processes, [{ id: "process-1", kind: "shell", description: "python3 -m http.server 8000" }]);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(first.client.closed, false, "a live terminal keeps its app-server session warm");
+
+  const second = await turn(codex, { continuation: { provider: "codex", value: threadId }, reportBackground });
+  assert.equal(second.client, first.client, "a later turn keeps the same terminal and session");
+  assert.equal(codex.provider.stopProcess("task-1", "process-1"), true);
+  await sentBy(first.client, "thread/backgroundTerminals/terminate");
+  for (let waited = 0; reports.at(-1)?.processes.length; waited += 1) {
+    if (waited > 100) throw new Error("the stopped process was never cleared");
+    await tick();
+  }
+  assert.deepEqual(reports.at(-1)?.processes, []);
+
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(first.client.closed, true, "the idle session can be reclaimed once its last terminal stops");
+  assert.equal(codex.provider.stopProcess("task-1", "process-1"), false);
+});
+
+test("Codex removes a background terminal from the panel when it exits by itself", async () => {
+  let running = true;
+  const reports: BackgroundReport[] = [];
+  const codex = harness({
+    "thread/backgroundTerminals/list": () => ({
+      data: running ? [{ itemId: "item-1", processId: "process-1", command: "npm run dev", cwd: "/tmp/project", osPid: 101, cpuPercent: 0, rssKb: 1024n }] : [],
+      nextCursor: null,
+    }),
+  });
+  const { client } = await turn(codex, { reportBackground: (report) => reports.push(report) });
+  assert.equal(reports.at(-1)?.processes.length, 1);
+
+  running = false;
+  client.notify("item/completed", completed({ ...command("item-1", "npm run dev"), processId: "process-1", status: "completed", exitCode: 0 }));
+  for (let waited = 0; reports.at(-1)?.processes.length; waited += 1) {
+    if (waited > 100) throw new Error("the exited process was never cleared");
+    await tick();
+  }
+  assert.deepEqual(reports.at(-1)?.processes, []);
   codex.provider.closeAll();
 });
 

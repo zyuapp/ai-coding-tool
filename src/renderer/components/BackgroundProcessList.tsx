@@ -60,7 +60,7 @@ type BackgroundProcessSectionProps = {
   onStop: (processId: string) => void;
 };
 
-/** The processes the live run left running, and the workflows it drove while they were going. */
+/** The processes the thread session keeps running, and the workflows it drove while they were going. */
 export function BackgroundProcessSection({ processes, workflows, onOpenWorkflow, onStop }: BackgroundProcessSectionProps) {
   const running = processes.length + workflows.filter((workflow) => workflow.status === "running").length;
 

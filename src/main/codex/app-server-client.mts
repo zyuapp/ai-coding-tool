@@ -26,8 +26,25 @@ import type { TurnInterruptResponse } from "./protocol/v2/TurnInterruptResponse.
 import type { TurnStartResponse } from "./protocol/v2/TurnStartResponse.js";
 import type { TurnSteerResponse } from "./protocol/v2/TurnSteerResponse.js";
 
-export type ClientMethod = ClientRequest["method"];
-export type ClientParams<M extends ClientMethod> = Extract<ClientRequest, { method: M }>["params"];
+/** Experimental requests enabled by this client but omitted from the generator's default output. */
+type BackgroundTerminalRequest =
+  | { method: "thread/backgroundTerminals/list"; id: RequestId; params: { threadId: string; cursor?: string | null; limit?: number | null } }
+  | { method: "thread/backgroundTerminals/terminate"; id: RequestId; params: { threadId: string; processId: string } };
+
+export type BackgroundTerminal = {
+  itemId: string;
+  processId: string;
+  command: string;
+  cwd: string;
+  osPid: number | null;
+  cpuPercent: number | null;
+  rssKb: bigint | null;
+};
+
+type AppClientRequest = ClientRequest | BackgroundTerminalRequest;
+
+export type ClientMethod = AppClientRequest["method"];
+export type ClientParams<M extends ClientMethod> = Extract<AppClientRequest, { method: M }>["params"];
 
 /** The generator pairs no response with its request; this table does, for the methods the app calls. */
 export interface ClientResponses {
@@ -41,6 +58,8 @@ export interface ClientResponses {
   "turn/start": TurnStartResponse;
   "turn/steer": TurnSteerResponse;
   "turn/interrupt": TurnInterruptResponse;
+  "thread/backgroundTerminals/list": { data: BackgroundTerminal[]; nextCursor: string | null };
+  "thread/backgroundTerminals/terminate": { terminated: boolean };
   "review/start": ReviewStartResponse;
   "account/read": GetAccountResponse;
   "account/rateLimits/read": GetAccountRateLimitsResponse;

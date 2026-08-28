@@ -26,6 +26,8 @@ export const defaultScript: Script = {
   "thread/goal/clear": () => ({ cleared: true }),
   "thread/inject_items": () => ({}),
   "thread/compact/start": () => ({}),
+  "thread/backgroundTerminals/list": () => ({ data: [], nextCursor: null }),
+  "thread/backgroundTerminals/terminate": () => ({ terminated: true }),
   "review/start": () => ({
     turn: { id: "turn-1", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null },
     reviewThreadId: "thread-review",

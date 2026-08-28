@@ -67,12 +67,12 @@ export type Subagent = {
   activity: SubagentActivity[];
 };
 
-/** What a background task is: a shell the run left running, or a watch feeding it events. */
+/** What a thread session keeps running between agent turns: a shell, or a watch feeding it events. */
 export type BackgroundProcessKind = "shell" | "monitor";
 
 /**
- * A process the run started and left running. The agent process owns the set and republishes it
- * whole on every change, so this record only lives as long as the run that reported it.
+ * A process owned by one thread session. The provider owns the set and republishes it whole on
+ * every change, so the process can outlive the turn that started it but not its session.
  */
 export type BackgroundProcess = {
   id: string;
