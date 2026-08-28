@@ -97,6 +97,8 @@ export type TaskComposerProps = {
   /** Asked when the model menu opens on another engine. A surface that cannot ask leaves every engine ready. */
   onEngineRead?: () => void;
   onSignIn?: (engine: AgentEngine) => void;
+  /** Opens the Engines page. A surface without settings of its own leaves it out. */
+  onOpenEngineSettings?: () => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
@@ -150,6 +152,7 @@ export function TaskComposer({
   onEffortChange,
   onEngineRead = NOTHING,
   onSignIn = NOTHING,
+  onOpenEngineSettings,
   onSend,
   onSteerQueued,
   onDropQueued,
@@ -213,7 +216,7 @@ export function TaskComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

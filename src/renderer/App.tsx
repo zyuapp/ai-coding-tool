@@ -24,6 +24,8 @@ export function App() {
   const inspector = useSubagentInspection(workspace);
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
+  /** The settings page that clears the error the banner is showing, when one does. */
+  const errorPage = workspace.actionErrorPage;
   const workingSubagents = workspace.subagents.filter((subagent) => subagent.status === "working").length;
   /** The tab counts what is still to read, so ticking files off empties it the way working down a list should. */
   const unreviewedFiles = unreviewedFileCount(workspace.diff);
@@ -150,6 +152,9 @@ export function App() {
         {(workspace.storageError || workspace.actionError) && (
           <div className="storage-error" role="alert">
             <span>{workspace.storageError || workspace.actionError}</span>
+            {!workspace.storageError && errorPage && (
+              <button className="storage-error-link" type="button" onClick={() => void workspace.actions.openSettingsSection(errorPage)}>Open settings</button>
+            )}
             {!workspace.storageError && (
               <button type="button" aria-label="Dismiss error" onClick={() => void workspace.dispatch({ type: "view.dismiss-action-error" })}>
                 <X size={15} aria-hidden="true" />

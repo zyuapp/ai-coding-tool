@@ -1,4 +1,4 @@
-import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
+import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuBot as Bot, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { ShortcutSetting } from "../../domain/shortcuts";
 import type { Task } from "../../domain/task";
@@ -7,7 +7,10 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
 import { BrowserSettings } from "./BrowserSettings";
 import { ComputerUseSettings, useComputerUsePermissions } from "./ComputerUseSettings";
+import { EngineSettings } from "./EngineSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
+import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
 import type { MobileServerState } from "../../domain/mobile";
 import { ShortcutSettings } from "./ShortcutSettings";
@@ -16,10 +19,8 @@ import { useFocusReturn } from "../focus";
 import type { WorktreeSettingsView } from "../../application/workspace-state";
 import { WorktreeSettings } from "./WorktreeSettings";
 
-export type SettingsSection = "appearance" | "general" | "computer-use" | "usage" | "worktrees" | "shortcuts" | "browser" | "phone" | "archive";
-
-/** The list of pages. Two of them ask for a fresh read as they are opened. */
-function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }: { section: SettingsSection; onSelect: (section: SettingsSection) => void; onRefreshWorktrees: () => void; onRefreshRemote: () => void }) {
+/** The list of pages. Three of them ask for a fresh read as they are opened. */
+function SettingsNav({ section, onSelect, onRefreshEngines, onRefreshWorktrees, onRefreshRemote }: { section: SettingsSection; onSelect: (section: SettingsSection) => void; onRefreshEngines: () => void; onRefreshWorktrees: () => void; onRefreshRemote: () => void }) {
   return (
     <nav aria-label="Settings sections">
       <button className={section === "general" ? "active" : ""} type="button" aria-current={section === "general" ? "page" : undefined} onClick={() => onSelect("general")}>
@@ -33,6 +34,13 @@ function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }:
       <button className={section === "usage" ? "active" : ""} type="button" aria-current={section === "usage" ? "page" : undefined} onClick={() => onSelect("usage")}>
         <Gauge size={17} aria-hidden="true" />
         <span>Usage</span>
+      </button>
+      <button className={section === "engines" ? "active" : ""} type="button" aria-current={section === "engines" ? "page" : undefined} onClick={() => {
+        onSelect("engines");
+        onRefreshEngines();
+      }}>
+        <Bot size={17} aria-hidden="true" />
+        <span>Engines</span>
       </button>
       <button className={section === "worktrees" ? "active" : ""} type="button" aria-current={section === "worktrees" ? "page" : undefined} onClick={() => {
         onSelect("worktrees");
@@ -69,11 +77,12 @@ function SettingsNav({ section, onSelect, onRefreshWorktrees, onRefreshRemote }:
 }
 
 /** The way out of settings, above the pages themselves. */
-function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshWorktrees, onRefreshRemote }: {
+function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshEngines, onRefreshWorktrees, onRefreshRemote }: {
   section: SettingsSection;
   backRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   onSelect: (section: SettingsSection) => void;
+  onRefreshEngines: () => void;
   onRefreshWorktrees: () => void;
   onRefreshRemote: () => void;
 }) {
@@ -85,14 +94,14 @@ function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshWorktre
         <span>Back to AI Coding Tool</span>
       </button>
       <h1>Settings</h1>
-      <SettingsNav section={section} onSelect={onSelect} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsNav section={section} onSelect={onSelect} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
     </aside>
   );
 }
 
 export type SettingsPanelProps = {
   onClose: () => void;
-  /** The page settings opens on, which computer-use setup asks for by name. */
+  /** The page settings opens on. Computer-use setup and the engine error each ask for their own. */
   initialSection?: SettingsSection;
   archivedTasks: Task[];
   managedWorktrees: WorktreeSettingsView[] | null;
@@ -119,6 +128,9 @@ export type SettingsPanelProps = {
   notifications: boolean;
   /** The phone bridge, as the main process last reported it. */
   remote: MobileServerState;
+  /** Where each engine stands on this machine, and whether the app is asking about them now. */
+  engineAccess: Record<AgentEngine, EngineReadiness>;
+  engineChecking: boolean;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
@@ -135,6 +147,8 @@ export type SettingsPanelProps = {
   onSetNotifications: (enabled: boolean) => void;
   onRestoreTask: (taskId: string) => void;
   onClearArchive: () => void;
+  onRefreshEngines: () => void;
+  onSignInEngine: (engine: AgentEngine) => void;
   onRefreshWorktrees: () => void;
   onRevealWorktree: (root: string) => void;
   onDeleteWorktree: (root: string) => void;
@@ -170,6 +184,8 @@ export function SettingsPanel({
   browserTools,
   notifications,
   remote,
+  engineAccess,
+  engineChecking,
   shortcuts,
   capturingShortcut,
   onSetThemeFamily,
@@ -185,6 +201,8 @@ export function SettingsPanel({
   onSetNotifications,
   onRestoreTask,
   onClearArchive,
+  onRefreshEngines,
+  onSignInEngine,
   onRefreshWorktrees,
   onRevealWorktree,
   onDeleteWorktree,
@@ -212,6 +230,9 @@ export function SettingsPanel({
     if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
   }, [confirmingClear, confirmingSignOut]);
 
+  /** Something outside settings named a page while the sheet was already open, so the sheet moves to it. */
+  useEffect(() => { setSection(initialSection); }, [initialSection]);
+
   function cancelConfirmation(browser: boolean) {
     if (browser) setConfirmingSignOut(false);
     else setConfirmingClear(false);
@@ -230,7 +251,7 @@ export function SettingsPanel({
         cancelConfirmation(confirmingSignOut);
       }}
     >
-      <SettingsSidebar section={section} backRef={back} onClose={onClose} onSelect={setSection} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsSidebar section={section} backRef={back} onClose={onClose} onSelect={setSection} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
       <main className="settings-main">
@@ -272,6 +293,8 @@ export function SettingsPanel({
         <UsageSettings />
       </main>
       )}
+
+      {section === "engines" && <EngineSettings engineAccess={engineAccess} checking={engineChecking} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} />}
 
       {section === "worktrees" && (
         <WorktreeSettings

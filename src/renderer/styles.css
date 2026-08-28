@@ -1985,6 +1985,7 @@ pre {
 .setting-row-action button:disabled { color: var(--quiet-strong); cursor: default; }
 .setting-row-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
 .setting-row-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.engine-setting-row .setting-readiness { margin-top: 6px; }
 .worktree-settings .settings-page-heading { margin-bottom: 24px; }
 .worktree-settings .settings-group-heading { padding-block: 16px; }
 .worktree-settings .settings-group-action > span { color: var(--quiet-strong); font-size: var(--text-meta); font-weight: 560; }
@@ -2148,6 +2149,8 @@ pre {
 }
 .storage-error span { flex: 1; min-width: 0; }
 .storage-error button { flex: none; display: grid; place-items: center; border: 0; padding: 2px; background: none; color: inherit; cursor: pointer; }
+.storage-error button.storage-error-link { border: 1px solid var(--danger-line); border-radius: 7px; padding: 3px 9px; font-size: var(--text-meta); font-weight: 560; white-space: nowrap; }
+.storage-error button.storage-error-link:hover { border-color: var(--danger-line-hover); }
 
 /**
  * The shadow belongs to the scrolling frame rather than the card inside it. A scroll container
@@ -3461,6 +3464,8 @@ button.setting-hint { cursor: pointer; }
 button.setting-hint:hover { color: var(--ink); }
 .setting-readiness { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .setting-readiness code { font-family: var(--font-mono); font-size: var(--text-meta); color: var(--ink-faint); }
+.setting-readiness-link { border: 0; padding: 0; background: none; color: var(--accent-soft); font: inherit; cursor: pointer; }
+.setting-readiness-link:hover { text-decoration: underline; }
 .setting-rule { margin: 8px 9px 4px; border: 0; border-top: 1px solid var(--line-soft); }
 .setting-locked { display: block; font-size: var(--text-control); }
 .setting-icon, .setting-check { display: grid; place-items: center; }

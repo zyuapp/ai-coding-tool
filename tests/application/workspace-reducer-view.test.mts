@@ -176,6 +176,22 @@ test("coming back to the window reads Git again", () => {
   assert.deepEqual(away.effects, [], "a window left alone asks nothing");
 });
 
+test("coming back to the window reads an engine the user went off to install, and only that engine", () => {
+  const state = workspace({ projects: [PROJECT], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", focused: false });
+  const environment = { type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a" };
+
+  const ready = reduce({ ...state, engineStatus: { claude: { access: "ready" } } }, { type: "view.set-focused", focused: true });
+  assert.deepEqual(ready.effects, [environment], "a machine with its engines in place pays nothing for switching windows");
+
+  const broken = { ...state, engineStatus: { claude: { access: "missing" as const, fix: "curl -fsSL https://claude.ai/install.sh | bash" } } };
+  const asked = reduce(broken, { type: "view.set-focused", focused: true });
+  assert.deepEqual(asked.effects, [environment, { type: "engine.read", refresh: true }]);
+  assert.equal(asked.state.engineChecking, true);
+
+  const again = reduce({ ...asked.state, focused: false }, { type: "view.set-focused", focused: true });
+  assert.deepEqual(again.effects, [environment], "an ask already out is not asked twice");
+});
+
 test("a thread's panels are fed only where its engine can fill them", () => {
   const workflow: Workflow = { id: "wf-1", name: "Release", description: "", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
   const subagent: Subagent = { id: "sub-1", description: "Inspect", status: "working", startedAt: 1, activity: [] };

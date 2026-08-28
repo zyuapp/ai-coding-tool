@@ -16,6 +16,8 @@ export {
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
+import { findView } from "./workspace-find.js";
+export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -24,6 +26,7 @@ import { emptyMobileServerState, type MobileServerState } from "../domain/mobile
 import type { BrowserApproval } from "../domain/browser.js";
 import { memoizedFindHits, searchesItself, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
+import type { SettingsSection } from "../domain/settings-section.js";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
@@ -225,6 +228,8 @@ export type WorkspaceState = {
   /** What main last said about which engines can take a run. Session-only, and never persisted. */
   /** What main has said about the engines' access; null until it has been asked. */
   engineStatus: EngineStatus | null;
+  /** True while main is running the engine commands, which the Engines page says out loud. */
+  engineChecking: boolean;
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
   annotations: Record<string, Annotation[]>;
@@ -268,6 +273,8 @@ export type WorkspaceState = {
   /** Whether a thread that needs the user is announced on the desktop. Off leaves it to the sidebar alone. */
   notifications: boolean;
   settingsOpen: boolean;
+  /** The page settings opens on, when something opened it on one. Null lets it open where it opens. */
+  settingsSection: SettingsSection | null;
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
   capturingShortcut: string | null;
@@ -316,6 +323,8 @@ export type WorkspaceState = {
 } & RunTransitionState & {
   storageError: string | null;
   actionError: string | null;
+  /** The settings page that clears the error above, when one does. */
+  actionErrorPage: SettingsSection | null;
   writable: boolean;
   /** Whether the stored threads have answered. Until they have, there is nothing to say is empty. */
   restored: boolean;
@@ -384,6 +393,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
     engineStatus: null,
+    engineChecking: false,
     prompts: {},
     annotations: {},
     pastes: {},
@@ -411,6 +421,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     browserTools: true,
     notifications: true,
     settingsOpen: false,
+    settingsSection: null,
     shortcuts: {},
     capturingShortcut: null,
     composerFocus: 0,
@@ -444,6 +455,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     workflows: {},
     storageError,
     actionError: null,
+    actionErrorPage: null,
     writable: storageError === null,
     restored: false,
   };
@@ -696,32 +708,6 @@ export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): 
   }
 }
 
-/** The find bar as it is drawn: counted here for a thread, reported by the view for everything else. */
-export type FindView = FindState & { matches: number; counting: boolean; hit: FindHit | null };
-
-function findView(state: WorkspaceState, currentTask: Task | undefined): FindView | null {
-  const find = state.find;
-  if (!find) return null;
-  const target = find.target;
-  if (target.kind === "thread") {
-    /** A side chat is a task like any other, so naming it is all the same search needs. */
-    const task = target.taskId === (currentTask?.id ?? null)
-      ? currentTask
-      : state.tasks.find((item) => item.id === target.taskId);
-    const hits = memoizedFindHits(task?.messages ?? [], find.query);
-    const index = hits.length ? Math.min(find.index, hits.length - 1) : 0;
-    return { ...find, index, matches: hits.length, counting: false, hit: hits[index] ?? null };
-  }
-  const reported = state.findResults;
-  const matches = reported?.matches ?? 0;
-  if (searchesItself(find.target)) {
-    return { ...find, matches, index: reported?.index ?? 0, counting: false, hit: null };
-  }
-  /** Nothing reported yet is a view still counting, not a view that found nothing. */
-  const counting = reported ? reported.counting ?? false : find.query.trim().length > 0;
-  return { ...find, matches, index: matches ? Math.min(find.index, matches - 1) : 0, counting, hit: null };
-}
-
 const NO_SUBAGENTS: Subagent[] = [];
 const NO_WORKFLOWS: Workflow[] = [];
 
@@ -839,6 +825,7 @@ export function deriveView(state: WorkspaceState) {
     environment,
     storageError: state.storageError,
     actionError: state.actionError,
+    actionErrorPage: state.actionErrorPage,
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
@@ -869,6 +856,8 @@ export function deriveView(state: WorkspaceState) {
     dockFocus: state.dockFocus?.owner === owner ? state.dockFocus : null,
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
+    settingsSection: state.computerUseSetup ? "computer-use" : state.settingsSection,
+    engineChecking: state.engineChecking,
     dockOpen: dock.open,
     dockExpanded: dock.expanded,
     dockPanels: dock.panels,

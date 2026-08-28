@@ -8,7 +8,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
   return (
     <SettingsPanel
       onClose={onClose}
-      initialSection={workspace.computerUseSetup ? "computer-use" : "general"}
+      initialSection={workspace.settingsSection ?? "general"}
       archivedTasks={workspace.archivedTasks}
       managedWorktrees={workspace.managedWorktrees} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
       theme={workspace.theme}
@@ -20,6 +20,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       allowedOrigins={workspace.browserOrigins}
       plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
       notifications={workspace.notifications} remote={workspace.remote}
+      engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}
       onSetThemeFamily={(family) => void workspace.actions.setThemeFamily(family)}
@@ -32,6 +33,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
       onRestoreTask={workspace.actions.restoreTask}
       onClearArchive={workspace.actions.clearArchive}
+      onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)}
       onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onRevealWorktree={(root) => void workspace.actions.revealWorktree(root)} onDeleteWorktree={(root) => void workspace.actions.deleteManagedWorktree(root)}
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}

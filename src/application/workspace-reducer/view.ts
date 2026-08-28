@@ -4,6 +4,7 @@ import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./typ
 import { reduceTasks } from "./tasks.js";
 import { busyTaskIds, dockHoldsTab, findTargetFor, projectFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
+import { refreshEngines } from "../engine-access.js";
 import { readAttention } from "../../domain/attention.js";
 import { memoizedFindHits, sameFindTarget, searchesItself, stepMatch, type FindResults } from "../../domain/find.js";
 
@@ -40,11 +41,15 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       }, taskId));
     }
 
-    /** Git moves while the window is away — in a terminal, an editor, another checkout — so coming back reads it. */
-    case "view.set-focused":
-      return input.focused
-        ? settled(readAttention({ ...state, focused: true }, state.currentId), refreshEnvironment(state))
-        : settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
+    /**
+     * Git moves while the window is away — in a terminal, an editor, another checkout — so coming back
+     * reads it. So does an engine the user has just gone off and installed.
+     */
+    case "view.set-focused": {
+      if (!input.focused) return settled({ ...state, focused: false, capturingShortcut: null }, stopCapture(state));
+      const asked = refreshEngines({ ...state, focused: true });
+      return settled(readAttention(asked.state, state.currentId), [...refreshEnvironment(state), ...asked.effects]);
+    }
 
     /** A tab the dock in front is not holding is nobody holding the keyboard, which the picker reports too. */
     case "view.dock-keys": {

@@ -108,17 +108,50 @@ export type EngineReadiness = {
 /** The readiness of the engines whose readiness can change. One not named is always ready. */
 export type EngineStatus = Partial<Record<AgentEngine, EngineReadiness>>;
 
+/** What is wrong with an engine's install, said once for the composer, the model menu, and Settings. */
+export type EngineNotice = {
+  /** True when this stops a run outright; false for an engine that runs but is behind. */
+  blocking: boolean;
+  /** What is wrong, without the command that fixes it. */
+  message: string;
+  /** The command that fixes it, when there is one. */
+  fix?: string;
+};
+
+/**
+ * What is wrong with this engine on this machine, or nothing when it is fine. A signed-out engine is
+ * left out: signing in is a button rather than a sentence.
+ */
+export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): EngineNotice | null {
+  const label = engineLabel(engine);
+  const fix = readiness.fix ? { fix: readiness.fix } : {};
+  const named = `${label} ${readiness.version ?? "on this machine"}`;
+  if (readiness.access === "missing") return { blocking: true, message: `${label} is not installed.`, ...fix };
+  if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. This app needs ${readiness.required}.`, ...fix };
+  if (readiness.access === "unavailable") return { blocking: true, message: `${label} is installed but would not start.` };
+  /** Ready, but behind: it runs, and the models it never heard of are simply missing from the menu. */
+  if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some of its models are missing.`, ...fix };
+  return null;
+}
+
 /**
  * Why this engine cannot take a run, in the words the user needs to clear it, or nothing when it
- * can. A signed-out engine is left out: signing in is a button rather than a sentence.
+ * can. An engine that runs but is behind is not a blocker, however old it is.
  */
 export function engineBlocker(engine: AgentEngine, readiness: EngineReadiness): string | null {
-  const label = engineLabel(engine);
-  const fix = readiness.fix ? ` Run \`${readiness.fix}\` to fix it.` : "";
-  if (readiness.access === "missing") return `${label} is not installed.${fix}`;
-  if (readiness.access === "outdated") return `${label} ${readiness.version ?? "on this machine"} is too old. This app needs ${readiness.required}.${fix}`;
-  if (readiness.access === "unavailable") return `${label} is installed but would not start.`;
-  return null;
+  const notice = engineNotice(engine, readiness);
+  if (!notice?.blocking) return null;
+  return notice.fix ? `${notice.message} Run \`${notice.fix}\` to fix it.` : notice.message;
+}
+
+/** True when this engine's state is one the user has to clear before any run can start on it. */
+export function engineIsBlocked(engine: AgentEngine, readiness: EngineReadiness): boolean {
+  return engineNotice(engine, readiness)?.blocking === true;
+}
+
+/** True when any engine has something wrong with it, whether it stops a run or only loses models. */
+export function engineNeedsAttention(status: EngineStatus | null): boolean {
+  return AGENT_ENGINES.some((engine) => status?.[engine] && engineNotice(engine, status[engine]) !== null);
 }
 
 const MODEL_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));

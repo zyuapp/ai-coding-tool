@@ -51,7 +51,7 @@ const api: DesktopAPI = {
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   describeFiles: (paths: string[]) => ipcRenderer.invoke("file:describe", paths),
   suggestTaskTitle: (text: string, attachments: string[], engine: AgentEngine) => ipcRenderer.invoke("task-title:suggest", text, attachments, engine),
-  engineStatus: () => ipcRenderer.invoke("engine:status"),
+  engineStatus: (refresh?: boolean) => ipcRenderer.invoke("engine:status", refresh === true),
   signInEngine: (engine: AgentEngine) => ipcRenderer.invoke("engine:sign-in", engine),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),

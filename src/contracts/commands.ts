@@ -4,6 +4,7 @@ import type { BrowserAction } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
+import type { SettingsSection } from "../domain/settings-section.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
@@ -248,11 +249,12 @@ export type RemoteCommand =
 /* ── End phone bridge ─────────────────────────────────────────────────────── */
 
 /**
- * Asks which engines can take a run, once, or signs the user in to one that asked for it. Either
- * way the engines' status comes back as the answer.
+ * Asks which engines can take a run, or signs the user in to one that asked for it. Either way the
+ * engines' status comes back as the answer.
  */
 export type EngineCommand =
-  | { type: "engine.read" }
+  /** `refresh` throws away what the app was told before, for a user who just installed or upgraded one. */
+  | { type: "engine.read"; refresh?: boolean }
   | { type: "engine.sign-in"; engine: AgentEngine };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
@@ -302,7 +304,8 @@ export type ViewCommand =
   | { type: "view.set-notifications"; enabled: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
-  | { type: "view.set-settings-open"; open: boolean }
+  /** `section` opens settings on one page; without it the sheet opens where it opens. */
+  | { type: "view.set-settings-open"; open: boolean; section?: SettingsSection }
   /**
    * Closes whatever is in front, the way ⌘W does everywhere else on the desktop: settings, then the
    * page the browser panel is showing, then the dock tab, then the dock. Only with nothing left in

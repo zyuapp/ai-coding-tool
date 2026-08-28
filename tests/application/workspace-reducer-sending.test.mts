@@ -242,7 +242,8 @@ test("a send is refused with the command that fixes it when the engine is missin
   });
   const refused = reduce(missing, { type: "task.send", attachments: [] });
   assert.equal(required(refused.state.actionError), "Claude is not installed. Run `curl -fsSL https://claude.ai/install.sh | bash` to fix it.");
-  assert.deepEqual(refused.effects, [], "nothing is started, so the engine never fails on its own");
+  assert.equal(refused.state.actionErrorPage, "engines", "the error carries the settings page that clears it");
+  assert.deepEqual(refused.effects, [{ type: "engine.read", refresh: true }], "nothing is started, and the engine is read again in case the user has just fixed it");
   assert.equal(refused.state.prompts["draft:"], "do the thing", "the draft is kept, so the message is not lost");
 
   const old = workspace({
@@ -270,17 +271,45 @@ test("an engine's access comes from main, and only a signed-out engine can be si
   assert.deepEqual(reduce(missing, { type: "engine.sign-in", engine: "codex" }).effects, [], "an engine that is not there cannot be signed in to");
 });
 
-test("engine access is asked of main once, and not again once main has answered", () => {
+test("engine access is asked of main once while every engine is fine, and again while one is not", () => {
   const state = workspace();
   const asked = reduce(state, { type: "engine.read" });
   assert.deepEqual(asked.effects, [{ type: "engine.read" }]);
+  assert.equal(asked.state.engineChecking, true);
   assert.deepEqual(reduce(asked.state, { type: "engine.read" }).effects, [], "a second ask while the first is out asks nothing");
   assert.deepEqual(deriveView(asked.state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" } }, "every engine is ready until main answers");
 
   const answered = reduce(asked.state, { type: "engine.status", status: { codex: { access: "signed-out" } } }).state;
-  assert.deepEqual(reduce(answered, { type: "engine.read" }).effects, []);
+  assert.equal(answered.engineChecking, false);
+  assert.deepEqual(reduce(answered, { type: "engine.read" }).effects, [], "an engine that only wants signing in to is not asked about again");
   assert.deepEqual(deriveView(answered).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" } });
-  assert.deepEqual(reduce(reduce(state, { type: "engine.status", status: { codex: { access: "ready" } } }).state, { type: "engine.read" }).effects, [], "a status a sign-in brought back counts as an answer");
+
+  const behind = reduce(asked.state, { type: "engine.status", status: { codex: { access: "missing", fix: "brew install --cask codex" } } }).state;
+  assert.deepEqual(reduce(behind, { type: "engine.read" }).effects, [{ type: "engine.read", refresh: true }], "an engine the user has to fix is read again on every ask");
+  assert.deepEqual(reduce(answered, { type: "engine.read", refresh: true }).effects, [{ type: "engine.read", refresh: true }], "and asking outright always asks");
+});
+
+test("an answer that clears the engine clears the error the refused send left behind", () => {
+  const missing = workspace({
+    prompts: { "draft:": "do the thing" },
+    engineStatus: { claude: { access: "missing", fix: "curl -fsSL https://claude.ai/install.sh | bash" } },
+  });
+  const refused = reduce(missing, { type: "task.send", attachments: [] }).state;
+
+  const stillMissing = reduce(refused, { type: "engine.status", status: { claude: { access: "missing" } } }).state;
+  assert.equal(stillMissing.actionError, refused.actionError, "an answer that changes nothing leaves the error where it is");
+
+  const installed = reduce(refused, { type: "engine.status", status: { claude: { access: "ready", version: "2.1.250" } } }).state;
+  assert.equal(installed.actionError, null);
+  assert.equal(installed.actionErrorPage, null);
+});
+
+test("an ask that main could not answer says so and leaves nothing waiting", () => {
+  const asked = reduce(workspace(), { type: "engine.read" }).state;
+  const failed = reduce(asked, { type: "engine.failed", message: "Engine check failed." }).state;
+  assert.equal(failed.engineChecking, false);
+  assert.equal(failed.actionError, "Engine check failed.");
+  assert.deepEqual(reduce(failed, { type: "engine.read", refresh: true }).effects, [{ type: "engine.read", refresh: true }], "and the next ask is free to go out");
 });
 
 test("a model the engine does not offer changes neither the thread nor the draft", () => {

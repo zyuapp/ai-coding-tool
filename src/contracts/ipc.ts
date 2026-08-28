@@ -275,8 +275,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   /** Names a thread from its first message and any screenshots it carries, off the agent's run path. Null when no name came back. */
   /** A title for a thread's first message, written by the engine the thread runs on. */
   suggestTaskTitle(text: string, attachments: string[], engine: AgentEngine): Promise<string | null>;
-  /** Which engines can take a run, read once and kept until a sign-in moves it. */
-  engineStatus(): Promise<EngineStatus>;
+  /** Which engines can take a run. The answer is kept; `refresh` throws it away and asks the machine again. */
+  engineStatus(refresh?: boolean): Promise<EngineStatus>;
   /** Signs in through the engine's own flow, in the browser, and answers with the status after it. */
   signInEngine(engine: AgentEngine): Promise<EngineStatus>;
   loadTaskStore(): Promise<TaskStoreData | null>;

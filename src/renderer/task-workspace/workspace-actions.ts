@@ -4,6 +4,7 @@ import type { DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
+import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment, TaskDropTarget } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
@@ -60,6 +61,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setModel: (engine: AgentEngine, model: AgentModel) => dispatch({ type: "task.set-model", engine, model }),
     setEffort: (engine: AgentEngine, effort: AgentEffort) => dispatch({ type: "task.set-effort", engine, effort }),
     readEngineStatus: () => dispatch({ type: "engine.read" }),
+    refreshEngineStatus: () => dispatch({ type: "engine.read", refresh: true }),
     signInEngine: (engine: AgentEngine) => dispatch({ type: "engine.sign-in", engine }),
     setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),
     moveWorktree: (worktree: boolean) => dispatch({ type: "view.move-worktree", worktree }),
@@ -90,6 +92,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setDockOpen: (open: boolean) => dispatch({ type: "view.set-dock-open", open }),
     setDockExpanded: (expanded: boolean) => dispatch({ type: "view.set-dock-expanded", expanded }),
     setSettingsOpen: (open: boolean) => dispatch({ type: "view.set-settings-open", open }),
+    openSettingsSection: (section: SettingsSection) => dispatch({ type: "view.set-settings-open", open: true, section }),
     closeTab: () => dispatch({ type: "view.close-tab" }),
     openDockPanel: (panel: string) => dispatch({ type: "view.open-dock-panel", panel }),
     closeDockPanel: (panel: string) => dispatch({ type: "view.close-dock-panel", panel }),

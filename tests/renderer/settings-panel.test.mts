@@ -41,6 +41,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     terminalSize: 13,
     allowedOrigins: [],
     plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
+    engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},
@@ -50,7 +51,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetReadingSize() {},
     onSetTerminalSize() {},
     onSetPlainEnglish() {}, onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
-    onRestoreTask() {}, onClearArchive() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
+    onRestoreTask() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
     onSetShortcut() {},
@@ -353,6 +354,51 @@ test("computer-use settings refresh permissions", async () => {
   assert.match(view.container.textContent, /Restart AI Coding Tool/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-restart button").click(); });
   assert.equal(restarted, true);
+  await view.unmount();
+});
+
+test("the engines page says what is wrong with each engine, and checks again on demand", async () => {
+  window.desktop = fakeDesktop({});
+  let checks = 0;
+  const view = await mount(renderSettingsPanel({
+    initialSection: "engines",
+    engineAccess: {
+      claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update" },
+      codex: { access: "missing", fix: "brew install --cask codex" },
+    },
+    onRefreshEngines: () => { checks += 1; },
+  }));
+  await act(async () => {});
+
+  const rows = view.container.querySelectorAll<HTMLElement>(".engine-setting-row");
+  assert.equal(rows.length, 2);
+  assert.match(item(rows[0]).textContent, /Claude 2.1.100 is behind 2.1.250, so some of its models are missing./);
+  assert.match(item(rows[0]).textContent, /claude update/);
+  assert.match(item(rows[0]).textContent, /Behind/);
+  assert.match(item(rows[1]).textContent, /Codex is not installed./);
+  assert.match(item(rows[1]).textContent, /brew install --cask codex/);
+  assert.match(item(rows[1]).textContent, /Not installed/);
+
+  await act(async () => { query<HTMLButtonElement>(view.container, ".settings-group-action button").click(); });
+  assert.equal(checks, 1, "the button asks the machine again rather than showing what was read at startup");
+  await view.unmount();
+});
+
+test("an engine that only wants signing in to offers the button rather than a command", async () => {
+  window.desktop = fakeDesktop({});
+  const signIns: AgentEngine[] = [];
+  const view = await mount(renderSettingsPanel({
+    initialSection: "engines",
+    engineAccess: { claude: { access: "ready", version: "2.1.250" }, codex: { access: "signed-out", version: "0.150.1" } },
+    onSignInEngine: (engine) => { signIns.push(engine); },
+  }));
+  await act(async () => {});
+
+  const rows = view.container.querySelectorAll<HTMLElement>(".engine-setting-row");
+  assert.match(item(rows[0]).textContent, /Version 2.1.250/);
+  assert.match(item(rows[0]).textContent, /Ready/);
+  await act(async () => { query<HTMLButtonElement>(item(rows[1]), ".setting-row-action button").click(); });
+  assert.deepEqual(signIns, ["codex"]);
   await view.unmount();
 });
 

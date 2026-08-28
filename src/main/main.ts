@@ -469,9 +469,9 @@ function engineAccessHost() {
   return engineAccess ??= import("./agent/engine-services.mjs").then(({ EngineAccessHost }) => new EngineAccessHost());
 }
 
-ipcMain.handle("engine:status", async (event) => {
+ipcMain.handle("engine:status", async (event, refresh: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  return (await engineAccessHost()).read();
+  return (await engineAccessHost()).read(refresh === true);
 });
 
 ipcMain.handle("engine:sign-in", async (event, engine: unknown) => {

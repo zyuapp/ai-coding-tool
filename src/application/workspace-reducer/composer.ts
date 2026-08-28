@@ -41,6 +41,6 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
     }
 
     case "view.dismiss-action-error":
-      return settled({ ...state, actionError: null });
+      return settled({ ...state, actionError: null, actionErrorPage: null });
   }
 }

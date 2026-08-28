@@ -1,7 +1,7 @@
 import type { IconType } from "react-icons";
 import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
-import { AGENT_ENGINES, byEngine, effortsFor, engineBlocker, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -35,21 +35,12 @@ const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(
 
 export const EVERY_ENGINE_READY = byEngine((): EngineReadiness => ({ access: "ready" }));
 
-/**
- * What stands between an engine and a run. The blocker itself carries the command, so the hint drops
- * that sentence and shows the command on its own with a button that copies it.
- */
-function readinessNote(engine: AgentEngine, readiness: EngineReadiness): string | null {
-  const blocked = engineBlocker(engine, readiness);
-  if (blocked) return blocked.replace(/ Run `.*` to fix it\.$/, "");
-  /** Ready, but behind: the models it never heard of are simply absent, so say why the list is short. */
-  return readiness.required ? `More models after upgrading ${engineLabel(engine)}` : null;
-}
-
-function ReadinessHint({ note, fix }: { note: string; fix?: string }) {
+/** What is wrong with an engine, said in the words Settings and the composer error use as well. */
+function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpenSettings?: () => void }) {
   return <div className="setting-hint setting-readiness">
-    <span>{note}</span>
-    {fix ? <><code>{fix}</code><CopyButton text={fix} label={`Copy ${fix}`} /></> : null}
+    <span>{notice.message}</span>
+    {notice.fix ? <><code>{notice.fix}</code><CopyButton text={notice.fix} label={`Copy ${notice.fix}`} /></> : null}
+    {onOpenSettings && <button className="setting-readiness-link" type="button" onClick={onOpenSettings}>Settings</button>}
   </div>;
 }
 
@@ -116,7 +107,7 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   </SettingMenu>;
 }
 
-function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen, onSignIn }: {
+function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen, onSignIn, onOpenEngineSettings }: {
   engine: AgentEngine;
   engineLocked: boolean;
   engineAccess: Record<AgentEngine, EngineReadiness>;
@@ -124,6 +115,8 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
   onChange: (engine: AgentEngine, model: AgentModel) => void;
   onOpen: () => void;
   onSignIn: (engine: AgentEngine) => void;
+  /** Absent on a surface with no settings of its own, which then shows the note without the way in. */
+  onOpenEngineSettings?: () => void;
 }) {
   const selected = modelsOf[engine].find((item) => item.value === model) ?? modelsOf[engine][0];
   const offered = modelGroups.filter((group) => !engineLocked || group.engine === engine);
@@ -134,14 +127,14 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
       {offered.map((group) => {
         const readiness = engineAccess[group.engine];
         const ready = readiness.access === "ready";
-        const note = readinessNote(group.engine, readiness);
+        const notice = engineNotice(group.engine, readiness);
         /** A command that names its models hides the ones it cannot run, so the list never offers a dead pick. */
         const choices = readiness.models ? group.choices.filter((item) => readiness.models?.includes(item.value)) : group.choices;
         return <div key={group.engine} className="setting-group" role="group" aria-label={group.label}>
           <div className="setting-group-heading">{group.label}</div>
           {choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={!ready} {...(ready ? { onSelect: () => { onChange(group.engine, item.value); close(); } } : {})} />)}
           {readiness.access === "signed-out" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
-          {note && <ReadinessHint note={note} {...(readiness.fix ? { fix: readiness.fix } : {})} />}
+          {notice && <ReadinessHint notice={notice} {...(onOpenEngineSettings ? { onOpenSettings: () => { onOpenEngineSettings(); close(); } } : {})} />}
         </div>;
       })}
       {locked.length > 0 && <hr className="setting-rule" />}
@@ -150,7 +143,7 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
   </SettingMenu>;
 }
 
-export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, onModelChange, onEffortChange, onEngineRead, onSignIn }: {
+export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
   mode: ExecutionPolicy;
   engine: AgentEngine;
   engineLabel: string;
@@ -165,11 +158,13 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
   /** Asked when the model menu opens on another engine, so the menu can say whether it can be picked. */
   onEngineRead: () => void;
   onSignIn: (engine: AgentEngine) => void;
+  /** Opens the Engines page, where the same trouble is shown with a button that checks again. */
+  onOpenEngineSettings?: () => void;
 }) {
   return (
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
-      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} />
+      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
       <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[engine]} value={effort} onChange={(choice) => onEffortChange(engine, choice)} />
     </div>
   );

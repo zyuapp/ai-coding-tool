@@ -7,6 +7,7 @@ import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
 import { isSubagentGroup } from "../../domain/run.js";
+import { isSettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
@@ -177,7 +178,8 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
 
     case "view.set-settings-open": {
       const owner = dockOwner(state);
-      const settings = { ...state, settingsOpen: input.open, ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }) };
+      const section = input.section && isSettingsSection(input.section) ? input.section : null;
+      const settings = { ...state, settingsOpen: input.open, settingsSection: input.open ? section : null, ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }) };
       /** Settings are drawn in the window, so a page that was in front cannot be left holding the keys. */
       return settled(input.open ? withDock(settings, owner, { open: false, expanded: false }) : settings, input.open ? TAKE_KEYS : stopCapture(state));
     }

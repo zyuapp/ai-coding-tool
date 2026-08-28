@@ -1,5 +1,5 @@
 import type { AvailableCommand } from "../../contracts/ipc.js";
-import { AGENT_ENGINES, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, engineNeedsAttention, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
 
 type Workspace = { workspaceRoot: string; projectless: boolean };
@@ -41,16 +41,32 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
   },
 };
 
-/** Which engines can take a run. Each is asked once per process; a sign-in asks it again. */
+/** Reads the user's shell again, so a command installed after the app started is on the search path. */
+async function readSearchPathAgain() {
+  await (await import("../login-path.js")).adoptLoginShellPath();
+}
+
+/**
+ * Which engines can take a run. An answer where every engine is fine is kept, since asking runs the
+ * engine commands; one with anything wrong is read again on every ask, because the user is the one
+ * who fixes it and the app has to notice when they have.
+ */
 export class EngineAccessHost {
-  private status: Promise<EngineStatus> | undefined;
+  private status: EngineStatus | undefined;
+  private reading: Promise<EngineStatus> | undefined;
   private signingIn: Promise<EngineStatus> | undefined;
 
-  constructor(private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn">> = engineServices) {}
+  constructor(
+    private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn">> = engineServices,
+    private readonly searchPathAgain: () => Promise<void> = readSearchPathAgain,
+  ) {}
 
-  read(): Promise<EngineStatus> {
-    this.status ??= this.readAll();
-    return this.status;
+  read(refresh = false): Promise<EngineStatus> {
+    /** An engine the user had to fix is read from scratch, since what fixed it can sit anywhere. */
+    const again = refresh || (this.status !== undefined && engineNeedsAttention(this.status));
+    if (this.status && !again) return Promise.resolve(this.status);
+    /** One read at a time: a second ask while the commands are answering joins the first. */
+    return this.reading ??= this.readAll(again).finally(() => { this.reading = undefined; });
   }
 
   /** One sign-in at a time: a second ask while the browser is out joins the first. */
@@ -62,18 +78,21 @@ export class EngineAccessHost {
         /** Only the access changed; the version and the models found earlier still hold. */
         const current = await this.read();
         const status: EngineStatus = { ...current, [engine]: { ...current[engine], access } };
-        this.status = Promise.resolve(status);
+        this.status = status;
         return status;
       })
       .finally(() => { this.signingIn = undefined; });
     return this.signingIn;
   }
 
-  private async readAll(): Promise<EngineStatus> {
+  private async readAll(refresh: boolean): Promise<EngineStatus> {
+    /** A fresh install can sit in a folder the app never had, so the path is read before the commands. */
+    if (refresh) await this.searchPathAgain().catch(() => {});
     const status: EngineStatus = {};
     await Promise.all(AGENT_ENGINES.map(async (engine) => {
       status[engine] = await this.engines[engine].readiness();
     }));
+    this.status = status;
     return status;
   }
 }

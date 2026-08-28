@@ -67,9 +67,9 @@ export async function runSystemEffect(effect: SystemEffect, host: EffectHost): P
     /** Where every engine stands: asked outright, or answered by an engine's own sign-in once it is over. */
     case "engine.read": case "engine.sign-in":
       try {
-        await dispatch({ type: "engine.status", status: await (effect.type === "engine.read" ? desktop.engineStatus() : desktop.signInEngine(effect.engine)) });
+        await dispatch({ type: "engine.status", status: await (effect.type === "engine.read" ? desktop.engineStatus(effect.refresh) : desktop.signInEngine(effect.engine)) });
       } catch (error) {
-        await dispatch({ type: "action.failed", message: errorMessage(error) });
+        await dispatch({ type: "engine.failed", message: errorMessage(error) });
       }
       return;
   }

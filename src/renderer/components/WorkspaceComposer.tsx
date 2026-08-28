@@ -68,6 +68,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onEffortChange={workspace.actions.setEffort}
       onEngineRead={workspace.actions.readEngineStatus}
       onSignIn={workspace.actions.signInEngine}
+      onOpenEngineSettings={() => void workspace.actions.openSettingsSection("engines")}
       onSend={(attachments, steer) => void workspace.actions.sendPrompt(attachments, steer)}
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}

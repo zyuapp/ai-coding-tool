@@ -129,8 +129,29 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const claude = query(modelMenu, "[role=group][aria-label=Claude]");
   assert.deepEqual([...claude.querySelectorAll(".setting-option strong")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
-  assert.equal(query(claude, ".setting-hint span").textContent, "More models after upgrading Claude");
+  assert.equal(query(claude, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some of its models are missing.");
   assert.equal(query(claude, ".setting-hint code").textContent, "claude update");
+  await view.unmount();
+});
+
+test("the hint about a broken engine opens the Engines page, which is where it is checked again", async () => {
+  window.desktop = composerDesktop();
+  let opened = 0;
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
+    engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSignIn() {},
+    onOpenEngineSettings: () => { opened += 1; },
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => {});
+
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const codex = query(modelMenu, "[role=group][aria-label=Codex]");
+  await act(async () => { query<HTMLButtonElement>(codex, ".setting-readiness-link").click(); });
+  assert.equal(opened, 1);
   await view.unmount();
 });
 

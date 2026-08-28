@@ -5,7 +5,7 @@ import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
 import { threadHandleOptions } from "../thread-projection.js";
 import { leavingTaskIds, promptKey, worktreeById, worktreeFor, type PendingRun, type QueuedMessage, type WorkspaceState } from "../workspace-state.js";
 import { engineBlocker } from "../../domain/agent-engine.js";
-import { engineReadinessOf } from "../engine-access.js";
+import { engineReadinessOf, refreshEngines } from "../engine-access.js";
 import { findProject } from "../../domain/task.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 
@@ -40,7 +40,11 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       /** The engine is a command on this machine, so a missing or too old one is said before a run starts. */
       const engine = task?.engine ?? state.draftEngine;
       const blocked = engineBlocker(engine, engineReadinessOf(state, engine));
-      if (blocked) return settled({ ...state, actionError: blocked });
+      if (blocked) {
+        /** The user may have fixed it since the app last looked, so the refusal also asks again. */
+        const asked = refreshEngines({ ...state, actionError: blocked, actionErrorPage: "engines" });
+        return settled(asked.state, asked.effects);
+      }
       if (task && state.activeRuns[task.id]) {
         const queued: QueuedMessage = {
           id: crypto.randomUUID(),
