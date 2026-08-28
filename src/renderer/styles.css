@@ -83,8 +83,8 @@
   --info-badge-soft: color-mix(in srgb, var(--p-info-strong) 78%, var(--p-bg-1));
   --info-ink: var(--p-info-ink); /* text on --info */
   --badge-ink: var(--p-on-hue); /* text on --info-badge */
-  --focus-ring: var(--p-info);
-  --focus-ring-soft: color-mix(in srgb, var(--p-info) 45%, var(--p-bg-5));
+  /** Keyboard focus is neutral chrome, not an info or selection state. */
+  --focus-ring: var(--p-fg-2);
   --link: var(--p-link);
   --link-hover: color-mix(in srgb, var(--p-link) 70%, var(--p-on-hue));
   --link-line: color-mix(in srgb, var(--p-link) 45%, var(--p-bg-5));
@@ -228,7 +228,7 @@ html, body, #root { height: 100%; margin: 0; }
 body { overflow: hidden; font-size: var(--text-content); }
 button, textarea, select { font: inherit; }
 button, select { color: inherit; }
-button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible, [role="button"]:focus-visible {
+:where(button, input, textarea, select, summary, a[href], [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -615,7 +615,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font: inherit;
   font-size: var(--text-control);
 }
-.task-rename:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
 .project-rename {
   width: 100%;
   min-width: 0;
@@ -629,7 +628,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   font: inherit;
   font-size: var(--text-control);
 }
-.project-rename:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
 .task-spinner {
   width: 14px;
   height: 14px;
@@ -656,7 +654,6 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
   box-shadow: var(--shadow-drag);
 }
 .task-list { min-height: 8px; }
-.activity-group .task-entry:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; border-radius: 10px; }
 .task-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -2392,7 +2389,6 @@ pre {
   resize: none;
 }
 .automation-field input { font-family: var(--mono); }
-.automation-field input:focus-visible, .automation-field textarea:focus-visible { outline: 1px solid var(--focus-ring-soft); outline-offset: 0; }
 .automation-meta {
   display: flex;
   align-items: center;
@@ -2865,7 +2861,6 @@ pre {
 .annotation-pill:hover,
 .annotation-pill:focus-visible,
 .annotation-pill:has(:focus-visible) { border-color: var(--info); background: var(--info-surface); }
-.annotation-pill:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .annotation-pill:not(:has(button)) { padding-right: 9px; }
 .annotation-pill-number {
   display: grid;
@@ -3662,14 +3657,13 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-file-renamed { flex: none; padding: 1px 6px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: var(--text-badge); letter-spacing: 0.02em; }
 .diff-file-editor { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px; background: none; color: var(--quiet-soft); opacity: 0; cursor: pointer; }
 .diff-file-row:hover .diff-file-editor, .diff-file-editor:focus-visible { opacity: 1; }
-.diff-file-editor:focus-visible { outline: 2px solid var(--focus-ring); }
 .diff-file-editor:hover { background: var(--surface-menu-hover); color: var(--ink-dim); }
 .diff-file-viewed { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; }
-.diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; }
+.diff-file-viewed input { position: absolute; opacity: 0; width: 0; height: 0; outline: none; }
 .diff-file-viewed svg { color: var(--quiet-soft); opacity: 0.7; }
 .diff-file-viewed:hover svg { opacity: 0.8; }
 .diff-file-viewed:has(input:checked) svg { color: var(--success); opacity: 1; }
-.diff-file-viewed:has(input:focus-visible) { outline: 2px solid var(--focus-ring); }
+.diff-file-viewed:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .diff-note { margin: 0; padding: 6px 12px 6px 30px; color: var(--quiet); font-size: var(--text-meta); font-family: inherit; }
 
 .diff-line { position: relative; display: flex; align-items: flex-start; min-height: 20px; }
@@ -3682,7 +3676,6 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-gutter span { display: block; width: 44px; padding-right: 8px; }
 .diff-gutter .diff-comment-affordance { position: absolute; z-index: 2; top: 2px; left: 2px; display: grid; width: 16px; height: 16px; padding: 0; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; background: var(--info-surface); color: var(--info-soft); opacity: 0; }
 .diff-line:hover .diff-comment-affordance, .diff-split-cell:hover .diff-comment-affordance, .diff-gutter:focus-visible .diff-comment-affordance { opacity: 1; }
-.diff-gutter:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .diff-gutter:hover { color: var(--ink-dim); }
 .diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
 .diff-line.delete .diff-gutter { background: var(--diff-del-gutter); }
@@ -3706,7 +3699,6 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-inline-comment-markers { position: absolute; z-index: 3; top: 2px; left: 2px; display: flex; gap: 2px; }
 .diff-inline-comment-markers button { display: grid; min-width: 16px; height: 16px; place-items: center; border: 1px solid var(--info-line); border-radius: 999px; padding: 0 4px; background: var(--info-surface); color: var(--info-soft); font: 600 var(--text-badge)/14px var(--ui-font); cursor: pointer; }
 .diff-inline-comment-markers button:hover, .diff-inline-comment-markers button:focus-visible { border-color: var(--info); color: var(--info); }
-.diff-inline-comment-markers button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
 /**
  * The gutter carries the selection. It comes after the add and delete fills because it has to beat
@@ -3767,7 +3759,6 @@ button.setting-hint:hover { color: var(--ink); }
   font: inherit;
   font-size: var(--text-control);
 }
-.project-edit-field input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
 .project-edit-path { display: flex; gap: 8px; }
 .project-edit-path button {
   flex: none;

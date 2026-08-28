@@ -36,7 +36,7 @@
   --success-surface: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
   --danger: var(--p-danger);
   --danger-surface: color-mix(in srgb, var(--p-danger) 14%, var(--p-bg-1));
-  --focus-ring: var(--p-info);
+  --focus-ring: var(--p-fg-2);
   --code-surface: var(--p-bg-4);
 
   --radius: 14px;
