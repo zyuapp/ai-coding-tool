@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Globe, RotateCw, ShieldAlert } from "lucide-react";
+import { LuArrowLeft as ArrowLeft, LuArrowRight as ArrowRight, LuGlobe as Globe, LuRotateCw as RotateCw, LuShieldAlert as ShieldAlert } from "react-icons/lu";
 import { browserTabTitle, type BrowserApproval, type BrowserTab } from "../../domain/browser";
 import { useDismissibleLayer } from "../focus";
 import { NativeSurface } from "./NativeSurface";

@@ -1,4 +1,4 @@
-import { Check, Plus, Search } from "lucide-react";
+import { LuCheck as Check, LuPlus as Plus, LuSearch as Search } from "react-icons/lu";
 import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";

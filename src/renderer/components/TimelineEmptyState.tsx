@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
 import type { ReactNode } from "react";
 
 function FolderIcon() {
@@ -15,7 +15,7 @@ type EmptyStateProps = {
   /** What the engine running this thread is called. */
   engineLabel: string;
   folder: string;
-  empty?: { icon: LucideIcon; title: string; description: string };
+  empty?: { icon: IconType; title: string; description: string };
   startOptions?: ReactNode;
 };
 

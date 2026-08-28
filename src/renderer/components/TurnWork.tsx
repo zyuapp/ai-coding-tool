@@ -1,4 +1,5 @@
-import { Bot, FileText, Globe, PenLine, Search, Terminal, Wrench, type LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
+import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -51,7 +52,7 @@ function Fold({ className, summary, holds, messageId, children }: { className: s
   );
 }
 
-const FAMILY_ICONS: Record<ToolFamily, LucideIcon> = {
+const FAMILY_ICONS: Record<ToolFamily, IconType> = {
   shell: Terminal,
   read: FileText,
   write: PenLine,

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronRight, FilePlus2, FileMinus2, FilePen, FileSymlink } from "lucide-react";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuChevronRight as ChevronRight, LuFilePlus2 as FilePlus2, LuFileMinus2 as FileMinus2, LuFilePen as FilePen, LuFileSymlink as FileSymlink } from "react-icons/lu";
 import type { DiffFileSummary } from "../../domain/diff";
 
 function StatusIcon({ status }: { status: DiffFileSummary["status"] }) {

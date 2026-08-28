@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { Maximize2, Minimize2, Plus, X } from "lucide-react";
+import { LuMaximize2 as Maximize2, LuMinimize2 as Minimize2, LuPlus as Plus, LuX as X } from "react-icons/lu";
 import { ADD_TAB_MENU, type DockLauncher, type DockTab } from "./dock-registry";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { moveListFocus } from "../focus";

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronRight, Ellipsis } from "lucide-react";
+import { LuCheck as Check, LuChevronRight as ChevronRight, LuEllipsis as Ellipsis } from "react-icons/lu";
 import { useDismissibleLayer } from "../focus";
 
 export type MenuItem = {

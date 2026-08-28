@@ -1,4 +1,4 @@
-import { File as FileMark, Folder, X } from "lucide-react";
+import { LuFile as FileMark, LuFolder as Folder, LuX as X } from "react-icons/lu";
 import type { AttachedFile } from "../../domain/task";
 import { useMessageLinks } from "./MarkdownMessage";
 

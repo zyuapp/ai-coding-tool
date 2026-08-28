@@ -1,4 +1,5 @@
-import { Bot, FileText, Globe, PenLine, Search, Terminal, Wrench, type LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
+import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as PenLine, LuSearch as Search, LuTerminal as Terminal, LuWrench as Wrench } from "react-icons/lu";
 import { useEffect, useRef } from "react";
 import type { MobileMessage, MobileThreadView } from "../../contracts/mobile";
 import type { AgentEngine } from "../../domain/agent-engine";
@@ -6,7 +7,7 @@ import type { ToolFamily } from "../../domain/tool-call";
 import { clockTime, runFamily, summariseTools, transcriptBlocks } from "../format";
 import { Markdown } from "./Markdown";
 
-const FAMILY_ICONS: Record<ToolFamily, LucideIcon> = {
+const FAMILY_ICONS: Record<ToolFamily, IconType> = {
   shell: Terminal,
   read: FileText,
   write: PenLine,

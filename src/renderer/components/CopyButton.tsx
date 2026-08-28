@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide-react";
+import { LuCheck as Check, LuCopy as Copy } from "react-icons/lu";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { copyText } from "../clipboard";
 

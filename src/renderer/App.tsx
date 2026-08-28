@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { X } from "lucide-react";
+import { LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";

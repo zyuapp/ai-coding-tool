@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Boxes, Radio, Square, Terminal } from "lucide-react";
+import { LuBoxes as Boxes, LuRadio as Radio, LuSquare as Square, LuTerminal as Terminal } from "react-icons/lu";
 import type { BackgroundProcess } from "../../domain/run";
 import { workflowAgentsDone, workflowStatusLabel, type Workflow } from "../../domain/workflow";
 

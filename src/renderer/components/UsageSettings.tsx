@@ -1,4 +1,4 @@
-import { RotateCw } from "lucide-react";
+import { LuRotateCw as RotateCw } from "react-icons/lu";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
 import { barShare, formatReset, formatShare, planLabel, type PlanUsage } from "../../domain/plan-usage";

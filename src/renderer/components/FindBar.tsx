@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { LuChevronDown as ChevronDown, LuChevronUp as ChevronUp, LuSearch as Search, LuX as X } from "react-icons/lu";
 import type { FindView } from "../../application/workspace-state";
 import { useFocusReturn } from "../focus";
 

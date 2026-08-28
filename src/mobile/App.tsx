@@ -1,4 +1,4 @@
-import { ChevronLeft, QrCode } from "lucide-react";
+import { LuChevronLeft as ChevronLeft, LuQrCode as QrCode } from "react-icons/lu";
 import { useCallback, useEffect, useState } from "react";
 import type { MobileCommand, MobileDraftView, MobileThreadSettings, MobileThreadView } from "../contracts/mobile";
 import type { MobileConnectionState } from "../domain/mobile";

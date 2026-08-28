@@ -1,4 +1,4 @@
-import { ClipboardPaste, X } from "lucide-react";
+import { LuClipboardPaste as ClipboardPaste, LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pasteSummary } from "../../application/pastes";

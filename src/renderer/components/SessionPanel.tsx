@@ -1,4 +1,4 @@
-import { AlarmClock, ChevronDown, FileDiff, FolderSymlink, GitBranch, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft, House } from "lucide-react";
+import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft, LuHouse as House } from "react-icons/lu";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
 import type { ThreadLocation } from "../../application/workspace-state";

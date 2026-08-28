@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { LuCheck as Check } from "react-icons/lu";
 import { AvailabilitySection } from "./AvailabilitySection";
 
 export type BrowserSettingsProps = {

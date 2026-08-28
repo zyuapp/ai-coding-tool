@@ -1,4 +1,4 @@
-import { Check, ChevronDown, FolderGit2, FolderSymlink, GitBranch, Search, X } from "lucide-react";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuSearch as Search, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import { BranchMenu, useBranches } from "./BranchMenu";

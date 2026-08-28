@@ -1,4 +1,4 @@
-import { FolderGit2, RefreshCw } from "lucide-react";
+import { LuFolderGit2 as FolderGit2, LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { WorktreeSettingsView } from "../../application/workspace-state";
 

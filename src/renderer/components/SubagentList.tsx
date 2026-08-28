@@ -1,6 +1,6 @@
 import { memo, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Bot, CheckCircle2, CircleDot, Search, XCircle } from "lucide-react";
+import { LuBot as Bot, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuSearch as Search } from "react-icons/lu";
 import { OPEN_SUBAGENT_GROUPS, type Subagent, type SubagentGroup, type SubagentGroups, type SubagentStatus } from "../../domain/run";
 
 /** Failures first, then the work still going: a session with a thousand subagents is read from the top. */

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Bot, Wrench, X } from "lucide-react";
+import { LuBot as Bot, LuWrench as Wrench, LuX as X } from "react-icons/lu";
 import type { Subagent, SubagentActivity } from "../../domain/run";
 import { statusLabel, StatusIcon } from "./SubagentList";
 

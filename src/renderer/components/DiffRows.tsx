@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { MessageSquarePlus } from "lucide-react";
+import { LuMessageSquarePlus as MessageSquarePlus } from "react-icons/lu";
 import type { DiffFileSummary, DiffLineKind, DiffRow, DiffSide } from "../../domain/diff";
 import type { DiffComment, DiffCommentIndex, DrawnFile, PanelRow } from "../diff/panel-rows";
 import type { ThemedToken } from "../diff/highlight";

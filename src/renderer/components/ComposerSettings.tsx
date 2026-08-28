@@ -1,10 +1,11 @@
-import { Brain, Check, Feather, FileCheck2, Flame, Gauge, Hand, Moon, Signal, SignalHigh, SignalLow, SignalMedium, Sparkles, Zap, type LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
+import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
 import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineAccess } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
-type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: LucideIcon };
+type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: IconType };
 
 // ExecutionPolicy still accepts "plan"; it is left out of the picker because nobody uses it.
 const modes: Choice<ExecutionPolicy>[] = [
@@ -13,9 +14,9 @@ const modes: Choice<ExecutionPolicy>[] = [
   { value: "confirm", label: "Let me decide", short: "Confirm", description: "Ask before using tools or changing files", icon: Hand },
 ];
 
-const modelIcons: Record<AgentModel, LucideIcon> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-5.6-luna": Moon };
+const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-5.6-luna": Moon };
 
-const effortStyles: Record<AgentEffort, { short: string; icon: LucideIcon }> = {
+const effortStyles: Record<AgentEffort, { short: string; icon: IconType }> = {
   ultra: { short: "Ultra", icon: Flame },
   max: { short: "Max", icon: Flame },
   xhigh: { short: "Extra high", icon: Signal },

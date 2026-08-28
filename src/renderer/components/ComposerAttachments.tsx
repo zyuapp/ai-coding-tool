@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { markPrefix } from "../../application/attachments";
 import { MAX_ATTACHMENTS, type RunAttachment, type StagedImage } from "../../domain/task";

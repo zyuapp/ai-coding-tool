@@ -1,4 +1,4 @@
-import { GitFork, X } from "lucide-react";
+import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlarmClock, Pause, Play, RotateCw, Trash2 } from "lucide-react";
+import { LuAlarmClock as AlarmClock, LuPause as Pause, LuPlay as Play, LuRotateCw as RotateCw, LuTrash2 as Trash2 } from "react-icons/lu";
 import type { AutomationPatch, AutomationView } from "../../domain/automation";
 
 export type AutomationPanelProps = {

@@ -1,4 +1,4 @@
-import { Archive, ArrowLeft, FolderGit2, Gauge, Globe, Keyboard, MonitorCog, Palette, SlidersHorizontal, Smartphone } from "lucide-react";
+import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { ShortcutSetting } from "../../domain/shortcuts";
 import type { Task } from "../../domain/task";

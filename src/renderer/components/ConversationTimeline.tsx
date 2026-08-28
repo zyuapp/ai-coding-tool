@@ -1,5 +1,6 @@
 import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, FolderSymlink, type LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
+import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
@@ -38,7 +39,7 @@ export type ConversationTimelineProps = {
   readingPoint?: ReadingPoint;
   /** Reports where this thread's reader has settled, which the workspace keeps for the return trip. */
   onReadingPointMove?: (point: ReadingPoint) => void;
-  empty?: { icon: LucideIcon; title: string; description: string };
+  empty?: { icon: IconType; title: string; description: string };
   /** False while the stored threads are still on their way, when an empty transcript means nothing. */
   restored?: boolean;
   /** Shown under the empty state, where a thread that does not exist yet is set up. */

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
+import { LuChevronLeft as ChevronLeft, LuChevronRight as ChevronRight, LuInbox as Inbox } from "react-icons/lu";
 import type { SidebarMode } from "../../domain/sidebar";
 
 export type SidebarHeaderProps = {

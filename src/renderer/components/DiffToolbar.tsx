@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ChevronDown, Columns2, Pilcrow, RefreshCw, Rows3 } from "lucide-react";
+import { LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
 import { UNCOMMITTED, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { useDismissibleLayer } from "../focus";

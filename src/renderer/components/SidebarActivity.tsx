@@ -1,4 +1,4 @@
-import { CheckCheck } from "lucide-react";
+import { LuCheckCheck as CheckCheck } from "react-icons/lu";
 import { dismissableTasks } from "../../domain/attention";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/task-order";

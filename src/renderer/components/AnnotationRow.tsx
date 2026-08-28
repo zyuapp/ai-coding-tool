@@ -1,4 +1,4 @@
-import { Pencil, X } from "lucide-react";
+import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Annotation } from "../../domain/task";
 

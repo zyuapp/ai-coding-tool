@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
-import { SquarePen } from "lucide-react";
+import { LuSquarePen as SquarePen } from "react-icons/lu";
 import { folderName, projectName, threadActivityAt } from "../../domain/task";
 import type { Project, Task } from "../../domain/task";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";

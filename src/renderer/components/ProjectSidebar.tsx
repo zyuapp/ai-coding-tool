@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { Settings } from "lucide-react";
+import { LuSettings as Settings } from "react-icons/lu";
 import { projectName } from "../../domain/task";
 import { hasUnreadAttention } from "../../domain/attention";
 import type { TaskDropTarget } from "../../domain/task";

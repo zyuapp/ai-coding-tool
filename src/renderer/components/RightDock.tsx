@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { GitFork, Globe, SquareTerminal } from "lucide-react";
+import { LuGitFork as GitFork, LuGlobe as Globe, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { DockContent } from "./DockContent";
 import { DockTabStrip } from "./DockTabStrip";
 import { ADD_TAB_MENU, type DockLauncher, type DockPanel, type DockTab } from "./dock-registry";

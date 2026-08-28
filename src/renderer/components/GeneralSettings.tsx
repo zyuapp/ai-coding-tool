@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { LuCheck as Check } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
 

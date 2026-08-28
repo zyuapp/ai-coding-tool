@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { ArrowUp, Check, MessageSquarePlus, Trash2, X } from "lucide-react";
+import { LuArrowUp as ArrowUp, LuCheck as Check, LuMessageSquarePlus as MessageSquarePlus, LuTrash2 as Trash2, LuX as X } from "react-icons/lu";
 
 export function DiffCommentEditor({ quote, note, editing, noteRef, onNote, onSubmit, onClear, onRemove }: {
   quote: string | null;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowLeft, Boxes, CheckCircle2, CircleDot, Clock, Square, XCircle } from "lucide-react";
+import { LuArrowLeft as ArrowLeft, LuBoxes as Boxes, LuCircleCheckBig as CheckCircle2, LuCircleDot as CircleDot, LuCircleX as XCircle, LuClock as Clock, LuSquare as Square, LuTriangleAlert as AlertTriangle } from "react-icons/lu";
 import {
   agentStateIn,
   formatElapsed,

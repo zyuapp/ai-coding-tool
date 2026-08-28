@@ -1,4 +1,4 @@
-import { ChevronLeft, GitBranch, GitCommit, ListChecks, MessageSquareText, Search } from "lucide-react";
+import { LuChevronLeft as ChevronLeft, LuGitBranch as GitBranch, LuGitCommitHorizontal as GitCommit, LuListChecks as ListChecks, LuMessageSquareText as MessageSquareText, LuSearch as Search } from "react-icons/lu";
 import { useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { ReviewTarget } from "../../domain/review";

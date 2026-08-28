@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Minus, Moon, Plus, Search, Sun, SunMoon } from "lucide-react";
+import { LuCheck as Check, LuChevronDown as ChevronDown, LuMinus as Minus, LuMoon as Moon, LuPlus as Plus, LuSearch as Search, LuSun as Sun, LuSunMoon as SunMoon } from "react-icons/lu";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { THEMES, themeFamilies, themeFor, themeOrDefault, type Theme, type ThemeMode } from "../../domain/theme";
 import {

@@ -1,4 +1,4 @@
-import { Code, ExternalLink, Folder, SquareTerminal } from "lucide-react";
+import { LuCode as Code, LuExternalLink as ExternalLink, LuFolder as Folder, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { InstalledApp } from "../../contracts/ipc";
 import type { ExternalAppKind } from "../../domain/external-apps";

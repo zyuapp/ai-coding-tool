@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
-import { AlarmClock, Archive, Check, FolderSymlink } from "lucide-react";
+import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { projectName, threadActivityAt } from "../../domain/task";
 import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
 import type { TaskDropTarget } from "../../domain/task";

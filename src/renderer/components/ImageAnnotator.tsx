@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, Pencil, SquarePen, X } from "lucide-react";
+import { LuArrowUpRight as ArrowUpRight, LuCheck as Check, LuPencil as Pencil, LuSquarePen as SquarePen, LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";

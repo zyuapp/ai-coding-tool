@@ -1,4 +1,4 @@
-import { ArrowUp, Square, SlidersHorizontal } from "lucide-react";
+import { LuArrowUp as ArrowUp, LuSquare as Square, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
 import { useLayoutEffect, useRef, useState } from "react";
 
 const MAX_ROWS_PX = 168;

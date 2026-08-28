@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FolderOpen } from "lucide-react";
+import { LuFolderOpen as FolderOpen } from "react-icons/lu";
 import type { ProjectEditorView } from "../../application/workspace-state";
 import { folderName } from "../../domain/task";
 import { useModalFocus } from "../focus";

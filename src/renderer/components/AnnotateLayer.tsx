@@ -1,4 +1,4 @@
-import { GitFork, MessageSquareQuote, X } from "lucide-react";
+import { LuGitFork as GitFork, LuMessageSquareQuote as MessageSquareQuote, LuX as X } from "react-icons/lu";
 import type { RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { Annotation } from "../../domain/task";

@@ -1,4 +1,4 @@
-import { Archive } from "lucide-react";
+import { LuArchive as Archive } from "react-icons/lu";
 import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
 
 export type ArchiveSettingsProps = {

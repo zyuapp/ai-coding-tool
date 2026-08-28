@@ -1,4 +1,4 @@
-import { Command, MessagesSquare, Sparkles } from "lucide-react";
+import { LuCommand as Command, LuMessagesSquare as MessagesSquare, LuSparkles as Sparkles } from "react-icons/lu";
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { AvailableCommand } from "../../contracts/ipc";
 import type { AgentEngine } from "../../domain/agent-engine";

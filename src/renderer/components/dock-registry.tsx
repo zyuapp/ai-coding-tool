@@ -1,4 +1,5 @@
-import { AlarmClock, Bot, Boxes, FileDiff, GitFork, Globe, SquareTerminal, type LucideIcon } from "lucide-react";
+import type { IconType } from "react-icons";
+import { LuAlarmClock as AlarmClock, LuBot as Bot, LuBoxes as Boxes, LuFileDiff as FileDiff, LuGitFork as GitFork, LuGlobe as Globe, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { AutomationPanel } from "./AutomationPanel";
 import { DiffPanel } from "./DiffPanel";
 import { AgentsPanel } from "./SubagentList";
@@ -22,15 +23,15 @@ export type DockPanel = {
   description: string;
   /** The name that opens this view from the composer, without its `/`. A panel with none is only ever opened by the thing it belongs to. */
   command?: string;
-  icon: LucideIcon;
+  icon: IconType;
   badge?: number;
   render: () => ReactNode;
 };
 
 /** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
-export type DockLauncher = { id: string; title: string; description: string; command: string; icon: LucideIcon; disabled?: boolean; open: () => void };
+export type DockLauncher = { id: string; title: string; description: string; command: string; icon: IconType; disabled?: boolean; open: () => void };
 
-export type DockTab = { id: string; title: string; icon: LucideIcon; badge?: number };
+export type DockTab = { id: string; title: string; icon: IconType; badge?: number };
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 export const ADD_TAB_MENU = "dock-add";

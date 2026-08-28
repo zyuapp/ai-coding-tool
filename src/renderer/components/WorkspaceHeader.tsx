@@ -1,4 +1,4 @@
-import { PanelLeft, PanelRight, SlidersHorizontal } from "lucide-react";
+import { LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
 import type { Task } from "../../domain/task";
 import { OpenInMenu } from "./OpenInMenu";
 

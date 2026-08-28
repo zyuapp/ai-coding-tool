@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useModalFocus } from "../focus";

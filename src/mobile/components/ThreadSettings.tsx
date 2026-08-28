@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { LuCheck as Check } from "react-icons/lu";
 import { Fragment } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";

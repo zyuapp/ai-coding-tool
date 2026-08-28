@@ -1,4 +1,4 @@
-import { Minus, Plus } from "lucide-react";
+import { LuMinus as Minus, LuPlus as Plus } from "react-icons/lu";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 /** How far past the fitted size a view can be pushed. Fit is never above 1:1, so 1:1 is always reachable. */

@@ -1,4 +1,4 @@
-import { CornerDownRight, X } from "lucide-react";
+import { LuCornerDownRight as CornerDownRight, LuX as X } from "react-icons/lu";
 import type { QueuedMessage } from "../../application/workspace-state";
 import { AnnotationRow } from "./AnnotationRow";
 

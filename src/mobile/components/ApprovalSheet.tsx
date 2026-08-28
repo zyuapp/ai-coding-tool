@@ -1,4 +1,4 @@
-import { Check, ShieldAlert, X } from "lucide-react";
+import { LuCheck as Check, LuShieldAlert as ShieldAlert, LuX as X } from "react-icons/lu";
 import type { MobileApproval } from "../../contracts/mobile";
 
 /**
