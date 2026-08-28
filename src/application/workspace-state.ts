@@ -42,6 +42,7 @@ export type PendingRun = {
   id: string;
   runId: string;
   origin: "composer" | "automation";
+  operation?: "compact";
   taskId?: string;
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */

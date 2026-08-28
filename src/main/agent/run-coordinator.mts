@@ -133,6 +133,7 @@ export class RunCoordinator {
         engine: command.engine,
         model: command.model,
         effort: command.effort,
+        operation: command.operation,
         claude: command.claude,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,

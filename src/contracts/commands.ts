@@ -138,6 +138,8 @@ export type WorktreeCommand =
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
+  /** Compacts an idle Codex thread without adding a user message to it. */
+  | { type: "run.compact"; taskId?: string }
   | { type: "run.decide"; allow: boolean; taskId?: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };

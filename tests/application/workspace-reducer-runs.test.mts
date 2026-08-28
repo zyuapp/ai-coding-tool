@@ -37,6 +37,48 @@ test("a scheduled run starts with its own framing and acknowledges the tick", ()
   assert.deepEqual(sentPrompts(started.state.tasks[0].messages), [], "a scheduled prompt is not one the composer offers back");
 });
 
+test("manual Sol compaction reuses the run lifecycle without becoming a task run", () => {
+  const state = workspace({
+    tasks: [task("task-a", {
+      engine: "codex",
+      model: "gpt-5.6-sol",
+      continuation: { provider: "codex", value: "thread-1" },
+      continuationStatus: "available",
+      contextUsage: { tokens: 125_000, limit: 272_000, model: "gpt-5.6-sol" },
+      outcome: "finished",
+      runEndedAt: 5,
+    })],
+    currentId: "task-a",
+  });
+  const pending = reduce(state, { type: "run.compact" });
+  const resolved = reduce(pending.state, {
+    type: "run.resolved",
+    pendingId: effectAt(pending, "resolve-run-workspace").pendingId,
+    workspace: { id: "projectless", kind: "projectless", root: "/tmp" },
+  });
+  const command = effectAt(resolved, "start-run").command;
+
+  assert.equal(command.prompt, "");
+  assert.deepEqual(command.operation, { type: "compact", preTokens: 125_000 });
+  assert.equal(resolved.state.activeRuns["task-a"].operation, "compact");
+  assert.deepEqual(resolved.state.tasks[0].messages, [], "compaction sends no user message");
+
+  const compacting = reduce(resolved.state, correlatedRunEvent("task-a", command.runId, 1, { type: "context.compaction-status", compacting: true }));
+  assert.equal(deriveView(compacting.state).compacting, true, "the existing Compacting messages status is used");
+  const compacted = reduce(compacting.state, correlatedRunEvent("task-a", command.runId, 2, { type: "context.compacted", trigger: "manual", preTokens: 125_000 }));
+  const idle = reduce(compacted.state, correlatedRunEvent("task-a", command.runId, 3, { type: "context.compaction-status", compacting: false }));
+  const finished = reduce(idle.state, correlatedRunEvent("task-a", command.runId, 4, { type: "run.status", status: "succeeded" }));
+
+  assert.equal(finished.state.tasks[0].messages[0].text, "Context manual-compacted at 125,000 tokens.");
+  assert.equal(finished.state.tasks[0].outcome, "finished", "the prior task verdict survives context maintenance");
+  assert.equal(finished.state.tasks[0].runEndedAt, 5);
+  assert.equal(finished.state.activeRuns["task-a"], undefined);
+  assert.deepEqual(finished.effects, [], "context maintenance neither announces a finished task nor refreshes its checkout");
+
+  const terra = { ...state, tasks: [{ ...state.tasks[0], model: "gpt-5.6-terra" as const }] };
+  assert.deepEqual(reduce(terra, { type: "run.compact" }).effects, [], "the command stays specific to Sol");
+});
+
 test("a run that settles off screen flags its thread and refreshes its project", () => {
   const state = workspace({
     tasks: [task("task-a", { projectId: "project-1" }), task("task-b")],

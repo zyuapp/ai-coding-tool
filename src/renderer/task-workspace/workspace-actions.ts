@@ -74,6 +74,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     updateAutomation: (patch: AutomationPatch) => dispatch({ type: "automation.update", patch }),
     deleteAutomation: () => dispatch({ type: "automation.delete" }),
     runAutomationNow: () => dispatch({ type: "automation.run-now" }),
+    compactContext: () => dispatch({ type: "run.compact" }),
     cancelRun: () => dispatch({ type: "run.cancel" }),
     stopBackgroundProcess: (processId: string) => dispatch({ type: "run.stop-process", processId }),
     decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),

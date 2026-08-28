@@ -1,4 +1,4 @@
-import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, WorkflowReport } from "../../contracts/ipc.js";
+import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine.js";
@@ -97,6 +97,7 @@ export type ProviderRunInput = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
+  operation?: RunOperation;
   /** Read by the Claude engine alone; any other engine leaves it unopened. */
   claude?: ClaudeRunSettings;
   continuation?: Continuation;

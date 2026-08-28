@@ -44,7 +44,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.edit-project": case "view.toggle-project": case "project.remove":
       return reduceProjectCommands(state, input);
 
-    case "run.resolved": case "run.unresolved": case "run.cancel":
+    case "run.resolved": case "run.unresolved": case "run.cancel": case "run.compact":
     case "run.stop-process": case "run.decide": case "run.event":
     case "thread.event":
       return reduceRuns(state, input);

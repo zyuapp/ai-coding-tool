@@ -109,6 +109,11 @@ export function engineHasModel(engine: AgentEngine, model: AgentModel) {
   return ENGINES[engine].models.some((spec) => spec.id === model);
 }
 
+/** Manual context compaction is currently a Sol protocol capability, not a general Codex command. */
+export function modelSupportsManualCompaction(engine: AgentEngine, model: AgentModel) {
+  return engine === "codex" && model === "gpt-5.6-sol";
+}
+
 /** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */
 export function claudeEffort(effort: AgentEffort): ClaudeEffort {
   return CLAUDE_EFFORTS.some((spec) => spec.id === effort) ? effort as ClaudeEffort : "high";

@@ -1,12 +1,21 @@
 import { TaskComposer, type ComposerAction } from "./TaskComposer";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
+import { modelSupportsManualCompaction } from "../../domain/agent-engine";
 import { sentPrompts } from "../../domain/task";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The composer for the thread on screen, with every command its controls dispatch. */
 export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace; actions: ComposerAction[] }) {
+  const task = workspace.currentTask;
+  const compact = task && modelSupportsManualCompaction(task.engine, workspace.model)
+    && task.continuation?.provider === "codex"
+    && task.contextUsage !== undefined
+    && !workspace.runActive
+    && workspace.waitingOn === null
+    ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
+    : [];
   return (
     <TaskComposer
       focusToken={workspace.composerFocus}
@@ -30,7 +39,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       pastes={workspace.pastes}
       files={workspace.files}
       history={sentPrompts(workspace.currentTask?.messages ?? [])}
-      actions={actions}
+      actions={[...compact, ...actions]}
       threads={workspace.threadHandles}
       onPromptChange={workspace.actions.setPrompt}
       onAnnotationRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", annotations })}

@@ -1,5 +1,5 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
-import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, settled, sideChannelFor, startRunCommand, targetId, withAttendedRun, withDeliveredMessage, withQueued, withSideChat, withUsedWorktree, withoutPending } from "./shared.js";
+import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, resolveWorkspaceEffect, settled, sideChannelFor, startRunCommand, targetId, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withUsedWorktree, withoutPending, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { taskTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
@@ -7,14 +7,15 @@ import { announced } from "../notices.js";
 import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "../run-testimony.js";
 import { nextSortIndex } from "../task-order.js";
-import { applyRunEvent, applyTask, applyThreadEvent, threadMark, withBackgroundProcesses, withWorkflows } from "../task-workspace.js";
-import { DRAFT_DOCK, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { applyRunEvent, applyTask, applyThreadEvent, ATTENDED_RUN, threadMark, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../task-workspace.js";
+import { DRAFT_DOCK, leavingTaskIds, projectFor, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
+import { defaultModelFor, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { createTaskMessage, type Task } from "../../domain/task.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
 type RunInput = Extract<WorkspaceInput, {
-  type: "run.resolved" | "run.unresolved" | "run.cancel" | "run.stop-process" | "run.decide"
+  type: "run.resolved" | "run.unresolved" | "run.cancel" | "run.compact" | "run.stop-process" | "run.decide"
     | "run.event" | "thread.event";
 }>;
 
@@ -33,6 +34,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (adopts) {
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id } : item) };
       }
+      if (pending.operation === "compact") return startCompaction(next, pending, input.workspace);
       return pending.origin === "automation"
         ? startAutomationRun(next, pending, input.workspace, input.worktree)
         : startComposerRun(next, pending, input.workspace, input.worktree);
@@ -48,6 +50,28 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })));
       }
       return settled({ ...next, actionError: input.message });
+    }
+
+    case "run.compact": {
+      const taskId = targetId(state, input.taskId);
+      const task = state.tasks.find((item) => item.id === taskId);
+      if (!task || !modelSupportsManualCompaction(task.engine, task.model ?? defaultModelFor(task.engine)) || task.continuation?.provider !== "codex" || !task.contextUsage || threadBusy(state, task.id)) return settled(state);
+      if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
+      if (leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
+      const project = projectFor(state, task);
+      const pending: PendingRun = {
+        id: crypto.randomUUID(),
+        runId: crypto.randomUUID(),
+        origin: "composer",
+        operation: "compact",
+        taskId: task.id,
+        ...(project ? { projectId: project.id } : {}),
+        text: "",
+        prompt: "",
+        attachments: [],
+      };
+      const resolving = resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false);
+      return settled(withPending(state, pending), [resolving]);
     }
 
     case "run.cancel": {
@@ -99,6 +123,12 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(opened, event);
+      const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
+      if (active.operation === "compact" && terminal) {
+        const restored = restoreCompactionTestimony(applied, event.taskId, active.before);
+        const drained = drainQueue(restored, event.taskId, event.status);
+        return settled(drained.state, drained.effects);
+      }
       const outcome = outcomeFor(event);
       /** Read before the run is applied: a terminal status takes the run, and its provenance, away. */
       const surfacing = whyRunSurfaces(active, event);
@@ -149,6 +179,26 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       return settled(applyThreadEvent(state, event));
     }
   }
+}
+
+/** Compaction updates the transcript, but it does not replace the verdict of the last task run. */
+function restoreCompactionTestimony(state: WorkspaceState, taskId: string, before: ThreadMark) {
+  return applyTask(state, taskId, ({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, ...task }) => ({
+    ...task,
+    ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
+    ...(before.outcomeUnread ? { outcomeUnread: true as const } : {}),
+    ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
+  }));
+}
+
+function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+  const task = pending.taskId ? state.tasks.find((item) => item.id === pending.taskId) : undefined;
+  if (!task || !modelSupportsManualCompaction(task.engine, task.model ?? defaultModelFor(task.engine)) || task.continuation?.provider !== "codex" || !task.contextUsage || state.activeRuns[task.id]) return settled(state);
+  const command = {
+    ...startRunCommand(state, task, pending.runId, "", workspace.id),
+    operation: { type: "compact" as const, preTokens: task.contextUsage.tokens },
+  };
+  return settled(beginRun(state, task.id, pending.runId, { ...ATTENDED_RUN, operation: "compact" }), [{ type: "start-run", command }]);
 }
 
 function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {

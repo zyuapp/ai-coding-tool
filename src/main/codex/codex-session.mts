@@ -135,6 +135,9 @@ type Turn = {
   items: Map<string, ThreadItem>;
   /** The last error the server said it would not retry, kept for the turn's failure. */
   failure?: string;
+  /** The context measured before this compaction began, before usage notifications can replace it. */
+  compactionPreTokens?: number;
+  compacting?: boolean;
 };
 
 /**
@@ -241,6 +244,10 @@ export class CodexSession {
       this.announced = true;
       turn.input.emit({ type: "continuation", continuation: { provider: "codex", value: threadId } });
     }
+    if (turn.input.operation?.type === "compact") {
+      await this.beginCompaction(turn, client, threadId);
+      return;
+    }
     const policy = codexPolicy(turn.input.policy);
     let started: { turn: { id: string } };
     try {
@@ -265,6 +272,18 @@ export class CodexSession {
       return;
     }
     await this.drainSteering(turn);
+  }
+
+  /** Manual compaction is a thread operation, not an empty model turn. */
+  private async beginCompaction(turn: Turn, client: CodexClient, threadId: string) {
+    this.setCompacting(turn, true);
+    try {
+      await client.request("thread/compact/start", { threadId });
+    } catch (error) {
+      if (this.turn !== turn) return;
+      this.setCompacting(turn, false, `Could not compact context: ${reasonOf(error)}`);
+      this.settle({ status: "failed" });
+    }
   }
 
   /**
@@ -357,7 +376,7 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     if (item.type === "contextCompaction") {
-      turn.input.emit({ type: "compaction-status", compacting: true });
+      this.setCompacting(turn, true);
       return;
     }
     const intent = intentOf(item);
@@ -389,11 +408,21 @@ export class CodexSession {
         turn.input.emit({ type: "assistant", messageId: item.id, text: item.text });
       }
     } else if (item.type === "contextCompaction") {
-      turn.input.emit({ type: "compaction", trigger: "auto", preTokens: this.lastTokens });
-      turn.input.emit({ type: "compaction-status", compacting: false });
+      const manual = turn.input.operation?.type === "compact";
+      turn.input.emit({ type: "compaction", trigger: manual ? "manual" : "auto", preTokens: turn.compactionPreTokens ?? this.lastTokens });
+      this.setCompacting(turn, false);
+      if (manual) this.settle({ status: "succeeded" });
     } else {
       turn.items.delete(item.id);
     }
+  }
+
+  private setCompacting(turn: Turn, compacting: boolean, error?: string) {
+    if (this.turn !== turn) return;
+    if (compacting && turn.compactionPreTokens === undefined) turn.compactionPreTokens = turn.input.operation?.preTokens ?? this.lastTokens;
+    if (turn.compacting === compacting && error === undefined) return;
+    turn.compacting = compacting;
+    turn.input.emit({ type: "compaction-status", compacting, ...(error ? { error } : {}) });
   }
 
   /** The window the server reports is the model's own; the catalogue's stands in while it reports none. */

@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
+import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
+import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
+import type { AgentModel } from "../../src/domain/agent-engine.ts";
+import type { Task } from "../../src/domain/task.ts";
+import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { item, mount, query } from "../support/renderer-dom.mts";
 
 const { TaskComposer } = await import("../../src/renderer/components/TaskComposer.tsx");
+const { WorkspaceComposer } = await import("../../src/renderer/components/WorkspaceComposer.tsx");
 
 /** Only what the composer itself reaches for: the command menu's list, and nothing about runs. */
 function composerDesktop(): DesktopAPI {
@@ -97,5 +103,38 @@ test("a thread that has its engine asks nothing when its model menu opens", asyn
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 0, "only a menu that offers another engine needs to know about it");
+  await view.unmount();
+});
+
+test("an idle Sol thread offers compact as an app slash command", async () => {
+  window.desktop = composerDesktop();
+  const dispatched: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
+  const render = (model: AgentModel) => {
+    const currentTask: Task = {
+      id: "task-1", title: "Sol thread", engine: "codex", model, executionPolicy: "confirm",
+      messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
+      contextUsage: { tokens: 125_000, limit: 272_000, model }, lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    };
+    const view = deriveView({ ...emptyWorkspaceState(), tasks: [currentTask], currentId: currentTask.id });
+    return React.createElement(WorkspaceComposer, {
+      workspace: { ...view, prompt: "/c", threadHandles: [], threadHandlesFor: () => [], dispatch, actions: workspaceActions(dispatch) } as never,
+      actions: [],
+    });
+  };
+  const view = await mount(render("gpt-5.6-sol"));
+  const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
+  await act(async () => {
+    textarea.focus();
+    textarea.setSelectionRange(2, 2);
+    textarea.dispatchEvent(new Event("select", { bubbles: true }));
+  });
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/compact"]);
+  assert.equal(query(view.container, ".command-source").textContent, "AI Coding Tool");
+  await act(async () => { query<HTMLButtonElement>(view.container, '[role="option"]').click(); });
+  assert.deepEqual(dispatched.slice(-2), [{ type: "view.set-prompt", prompt: "" }, { type: "run.compact" }]);
+
+  await view.render(render("gpt-5.6-terra"));
+  assert.equal(view.container.querySelector('[role="option"]'), null, "Terra does not inherit the Sol-specific command");
   await view.unmount();
 });

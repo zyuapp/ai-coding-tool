@@ -35,6 +35,23 @@ test("start commands carry the Claude engine's settings as one object", () => {
   assert.equal(isRunCommand({ ...command, claude: "Plain" }), false);
 });
 
+test("manual compaction is a validated Sol thread operation", () => {
+  const compact = {
+    ...command,
+    engine: "codex",
+    model: "gpt-5.6-sol",
+    prompt: "",
+    continuation: { provider: "codex", value: "thread-1" },
+    operation: { type: "compact", preTokens: 125_000 },
+  };
+  assert.equal(isRunCommand(compact), true);
+  assert.equal(isRunCommand({ ...compact, model: "gpt-5.6-terra" }), false);
+  assert.equal(isRunCommand({ ...compact, prompt: "also answer" }), false);
+  assert.equal(isRunCommand({ ...compact, continuation: { provider: "claude", value: "session-1" } }), false);
+  assert.equal(isRunCommand({ ...compact, operation: { type: "compact", preTokens: -1 } }), false);
+  assert.equal(isRunCommand({ ...compact, forkContinuation: true }), false);
+});
+
 test("internal worker commands require a resolved root and projectless flag", () => {
   assert.equal(isInternalRunCommand({ ...command, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), true);
   assert.equal(isInternalRunCommand(command), false);

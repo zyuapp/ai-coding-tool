@@ -74,6 +74,23 @@ test("successful provider run emits correlated, ordered events and one terminal 
   assert.equal(eventsFor(events, "run-a").filter((event) => event.type === "run.status" && ["succeeded", "failed", "cancelled"].includes(event.status)).length, 1);
 });
 
+test("the coordinator carries a manual compaction operation to Codex", async () => {
+  const provider = new FakeProvider();
+  const coordinator = new RunCoordinator(provider, () => {});
+  coordinator.start({
+    ...base("task-c", "run-c"),
+    prompt: "",
+    engine: "codex",
+    model: "gpt-5.6-sol",
+    continuation: { provider: "codex", value: "thread-1" },
+    operation: { type: "compact", preTokens: 125_000 },
+  });
+  await tick();
+
+  assert.deepEqual(provider.runs[0].input.operation, { type: "compact", preTokens: 125_000 });
+  provider.runs[0].resolve({ status: "succeeded" });
+});
+
 test("provider failure remains correlated and terminal", async () => {
   const provider = new FakeProvider();
   const events: AgentEvent[] = [];

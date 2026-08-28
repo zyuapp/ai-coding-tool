@@ -267,6 +267,32 @@ test("context usage reports the last request against the model's window, and a c
   codex.provider.closeAll();
 });
 
+test("manual compaction uses Sol's thread operation and the same visible progress state", async () => {
+  const emitted: ProviderEvent[] = [];
+  const codex = harness();
+  const running = codex.provider.execute(input({
+    prompt: "",
+    continuation: { provider: "codex", value: threadId },
+    operation: { type: "compact", preTokens: 125_000 },
+    emit: (event) => emitted.push(event),
+  }));
+  const client = await opened(codex);
+  await sentBy(client, "thread/compact/start");
+
+  assert.deepEqual(client.calls("thread/compact/start"), [{ threadId }]);
+  assert.equal(client.calls("turn/start").length, 0, "compaction is not an empty model turn");
+  client.notify("item/started", started({ type: "contextCompaction", id: "compact-1" }));
+  client.notify("item/completed", completed({ type: "contextCompaction", id: "compact-1" }));
+
+  assert.deepEqual(await running, { status: "succeeded" });
+  assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
+    { type: "compaction-status", compacting: true },
+    { type: "compaction", trigger: "manual", preTokens: 125_000 },
+    { type: "compaction-status", compacting: false },
+  ]);
+  codex.provider.closeAll();
+});
+
 async function asking(overrides: Partial<Parameters<typeof input>[0]> = {}) {
   const asked: ToolIntent[] = [];
   const codex = harness();
