@@ -58,7 +58,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   let reads = 0;
   const view = await mount(React.createElement(TaskComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
-    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: "ready", codex: "signed-out" }, model: "opus", effort: "high", runActive: false,
+    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
@@ -79,15 +79,58 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
 
   await view.render(React.createElement(TaskComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
-    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: "ready", codex: "unavailable" }, model: "opus", effort: "high", runActive: false,
+    engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const missing = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.equal(query(missing, ".setting-hint").textContent, "Codex is not installed");
+  assert.equal(query(missing, ".setting-hint span").textContent, "Codex is not installed");
+  assert.equal(query(missing, ".setting-hint code").textContent, "brew install --cask codex", "the hint carries the command that installs it");
   await act(async () => { query<HTMLButtonElement>(missing, ".setting-option").click(); });
   assert.deepEqual(signIns, ["codex"], "an engine that is not there offers no sign-in");
+  await view.unmount();
+});
+
+test("an engine too old to speak to is inert, and its hint names both versions and the upgrade", async () => {
+  window.desktop = composerDesktop();
+  const chosen: string[] = [];
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
+    engineAccess: { claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => {});
+
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const codex = query(modelMenu, "[role=group][aria-label=Codex]");
+  assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. This app needs 0.150.1.");
+  assert.equal(query(codex, ".setting-hint code").textContent, "brew update && brew upgrade --cask codex");
+  await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
+  assert.deepEqual(chosen, [], "a model an old engine cannot run is not chosen");
+  await view.unmount();
+});
+
+test("a Claude behind the app offers only the models it knows, and says an upgrade brings back more", async () => {
+  window.desktop = composerDesktop();
+  const view = await mount(React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
+    engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
+    engineAccess: { claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSignIn() {},
+    queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  }));
+  await act(async () => {});
+
+  const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
+  await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const claude = query(modelMenu, "[role=group][aria-label=Claude]");
+  assert.deepEqual([...claude.querySelectorAll(".setting-option strong")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
+  assert.equal(query(claude, ".setting-hint span").textContent, "More models after upgrading Claude");
+  assert.equal(query(claude, ".setting-hint code").textContent, "claude update");
   await view.unmount();
 });
 

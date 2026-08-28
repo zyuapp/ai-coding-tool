@@ -3459,6 +3459,8 @@ button.file-name { cursor: pointer; }
 .setting-hint { display: block; width: 100%; border: 0; padding: 2px 9px 8px; background: transparent; color: var(--quiet-strong); font-size: var(--text-meta); text-align: left; }
 button.setting-hint { cursor: pointer; }
 button.setting-hint:hover { color: var(--ink); }
+.setting-readiness { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.setting-readiness code { font-family: var(--font-mono); font-size: var(--text-meta); color: var(--ink-faint); }
 .setting-rule { margin: 8px 9px 4px; border: 0; border-top: 1px solid var(--line-soft); }
 .setting-locked { display: block; font-size: var(--text-control); }
 .setting-icon, .setting-check { display: grid; place-items: center; }

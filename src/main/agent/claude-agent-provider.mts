@@ -1,7 +1,6 @@
-import { query, type CanUseTool, type McpServerConfig, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { claudeEffort } from "../../domain/agent-engine.js";
+import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { claudeEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { engineBinaryPath } from "./engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
 import { withheldTools } from "./channel-tools.mjs";
 import { claudeMcpServer } from "./claude-mcp-host.mjs";
@@ -26,7 +25,7 @@ export async function discoverClaudeCommands(workspaceRoot: string, projectless:
     prompt: idlePrompt(),
     options: {
       cwd: workspaceRoot,
-      pathToClaudeCodeExecutable: packagedClaudeExecutable(),
+      pathToClaudeCodeExecutable: claudeExecutable(),
       settingSources: projectless ? ["user"] : ["user", "project", "local"],
       skills: "all",
     },
@@ -38,10 +37,40 @@ export async function discoverClaudeCommands(workspaceRoot: string, projectless:
   }
 }
 
-export function packagedClaudeExecutable(resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath) {
-  if (!resourcesPath) return undefined;
-  const executable = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude");
-  return existsSync(executable) ? executable : undefined;
+/**
+ * The Claude Code the user installed. The SDK ships a copy of its own, but the app does not carry it:
+ * without an explicit path the SDK looks for that copy and refuses to start when it is not there.
+ */
+export function claudeExecutable() {
+  return engineBinaryPath("claude");
+}
+
+/**
+ * Which catalogue models the installed Claude Code can actually run, asked of the command itself so
+ * no version number has to be written down per model. Nothing means it runs all of them, which is
+ * what an older command that cannot answer at all is given the benefit of.
+ */
+export async function discoverClaudeModels(queryFactory: QueryFactory = query): Promise<AgentModel[] | undefined> {
+  let session: Query | undefined;
+  try {
+    session = queryFactory({ prompt: idlePrompt(), options: { pathToClaudeCodeExecutable: claudeExecutable() } });
+    const offered = (await session.supportedModels()).flatMap(modelNames);
+    const supported = modelsFor("claude").map((spec) => spec.id).filter((id) => offered.some((name) => name === id || name.startsWith(`claude-${id}-`)));
+    return supported.length > 0 ? supported : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    session?.close();
+  }
+}
+
+/**
+ * What a row calls its model, as both the short name a run passes and the full one it resolves to.
+ * A row for a wider context window carries that as a `[1m]` suffix on either name, which names the
+ * same model.
+ */
+function modelNames(info: ModelInfo): string[] {
+  return [info.value, info.resolvedModel].filter((name) => name !== undefined).map((name) => name.replace(/\[[^\]]*\]$/, ""));
 }
 
 /** Everything a session is built with. A run that disagrees with any of it needs a session of its own. */
@@ -96,7 +125,7 @@ export class ClaudeAgentProvider implements AgentProvider {
       prompt,
       options: {
         cwd: input.workspaceRoot,
-        pathToClaudeCodeExecutable: packagedClaudeExecutable(),
+        pathToClaudeCodeExecutable: claudeExecutable(),
         disallowedTools: withheldTools(input.channel),
         resume: continuation,
         ...(input.forkContinuation && continuation ? { forkSession: true } : {}),

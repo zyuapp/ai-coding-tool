@@ -4,7 +4,7 @@ import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import type { AgentEngine, AgentModel, EngineAccess } from "../../domain/agent-engine";
+import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ContextUsage } from "../../domain/task";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
@@ -57,7 +57,7 @@ export type TaskComposerProps = {
   /** Set once the thread has an engine for good, which is from its first message on. */
   engineLocked?: boolean;
   /** Which engines a run may go to; one that cannot be picked says why. Every engine is ready unless told otherwise. */
-  engineAccess?: Record<AgentEngine, EngineAccess>;
+  engineAccess?: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   effort: AgentEffort;
   contextUsage?: ContextUsage;

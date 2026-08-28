@@ -237,15 +237,15 @@ test("choosing another engine's model moves the draft onto that engine, but neve
 
 test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {
   const state = workspace();
-  assert.deepEqual(deriveView(state).engineAccess, { claude: "ready", codex: "ready" }, "every engine is ready until main says otherwise");
+  assert.deepEqual(deriveView(state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" } }, "every engine is ready until main says otherwise");
   assert.deepEqual(reduce(state, { type: "engine.sign-in", engine: "codex" }).effects, [], "a ready engine has nothing to sign in to");
 
-  const signedOut = reduce(state, { type: "engine.status", status: { codex: "signed-out" } }).state;
-  assert.deepEqual(deriveView(signedOut).engineAccess, { claude: "ready", codex: "signed-out" });
+  const signedOut = reduce(state, { type: "engine.status", status: { codex: { access: "signed-out" } } }).state;
+  assert.deepEqual(deriveView(signedOut).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" } });
   assert.deepEqual(reduce(signedOut, { type: "engine.sign-in", engine: "codex" }).effects, [{ type: "engine.sign-in", engine: "codex" }]);
   assert.deepEqual(reduce(signedOut, { type: "engine.sign-in", engine: "claude" }).effects, []);
 
-  const missing = reduce(signedOut, { type: "engine.status", status: { codex: "unavailable" } }).state;
+  const missing = reduce(signedOut, { type: "engine.status", status: { codex: { access: "unavailable" } } }).state;
   assert.deepEqual(reduce(missing, { type: "engine.sign-in", engine: "codex" }).effects, [], "an engine that is not there cannot be signed in to");
 });
 
@@ -254,12 +254,12 @@ test("engine access is asked of main once, and not again once main has answered"
   const asked = reduce(state, { type: "engine.read" });
   assert.deepEqual(asked.effects, [{ type: "engine.read" }]);
   assert.deepEqual(reduce(asked.state, { type: "engine.read" }).effects, [], "a second ask while the first is out asks nothing");
-  assert.deepEqual(deriveView(asked.state).engineAccess, { claude: "ready", codex: "ready" }, "every engine is ready until main answers");
+  assert.deepEqual(deriveView(asked.state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" } }, "every engine is ready until main answers");
 
-  const answered = reduce(asked.state, { type: "engine.status", status: { codex: "signed-out" } }).state;
+  const answered = reduce(asked.state, { type: "engine.status", status: { codex: { access: "signed-out" } } }).state;
   assert.deepEqual(reduce(answered, { type: "engine.read" }).effects, []);
-  assert.deepEqual(deriveView(answered).engineAccess, { claude: "ready", codex: "signed-out" });
-  assert.deepEqual(reduce(reduce(state, { type: "engine.status", status: { codex: "ready" } }).state, { type: "engine.read" }).effects, [], "a status a sign-in brought back counts as an answer");
+  assert.deepEqual(deriveView(answered).engineAccess, { claude: { access: "ready" }, codex: { access: "signed-out" } });
+  assert.deepEqual(reduce(reduce(state, { type: "engine.status", status: { codex: { access: "ready" } } }).state, { type: "engine.read" }).effects, [], "a status a sign-in brought back counts as an answer");
 });
 
 test("a model the engine does not offer changes neither the thread nor the draft", () => {

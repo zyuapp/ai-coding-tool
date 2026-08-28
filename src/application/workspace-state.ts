@@ -28,8 +28,8 @@ import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from ".
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
-import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineAccess, type EngineCapabilities, type EngineStatus } from "../domain/agent-engine.js";
-import { engineAccessOf } from "./engine-access.js";
+import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffortFor, defaultModelFor, engineLabel, type AgentEngine, type AgentModel, type EngineCapabilities, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
+import { engineReadinessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
@@ -743,8 +743,8 @@ function engineView(state: WorkspaceState, currentTask: Task | undefined) {
     engineLabel: engineLabel(engine),
     /** A thread exists from its first message on, and keeps the engine that message went to. */
     engineLocked: currentTask !== undefined,
-    /** Which engines a picker may hand a run to, and why the others cannot be picked. */
-    engineAccess: byEngine((candidate): EngineAccess => engineAccessOf(state, candidate)),
+    /** Which engines a picker may hand a run to, why the others cannot be picked, and how to fix it. */
+    engineAccess: byEngine((candidate): EngineReadiness => engineReadinessOf(state, candidate)),
     /** What the engine can feed, so a panel it cannot is not offered for this thread. */
     capabilities,
     ...engineFeeds(capabilities, state, currentTask),

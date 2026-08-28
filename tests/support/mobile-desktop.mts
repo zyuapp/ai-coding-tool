@@ -25,8 +25,8 @@ export const mobileDesktopStub: MobileDesktopAPI = {
 
 /** Every engine ready, and a sign-in that changes nothing, for tests that are not about engines. */
 export const engineDesktopStub: Pick<DesktopAPI, "engineStatus" | "signInEngine"> = {
-  engineStatus: async () => ({ codex: "ready" }),
-  signInEngine: async () => ({ codex: "ready" }),
+  engineStatus: async () => ({ codex: { access: "ready" } }),
+  signInEngine: async () => ({ codex: { access: "ready" } }),
 };
 
 /** The same for the settings panel, whose phone page is not what any of these tests are about. */

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { query, type Options, type PermissionMode, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
-import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../../../src/main/agent/claude-agent-provider.mts";
+import { ClaudeAgentProvider, claudeExecutable, discoverClaudeCommands, discoverClaudeModels } from "../../../src/main/agent/claude-agent-provider.mts";
 import type { BackgroundReport, WorkflowReport } from "../../../src/contracts/ipc.ts";
 import type { GoalReport } from "../../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../../src/domain/agent-engine.ts";
@@ -35,13 +35,45 @@ async function useTool(canUseTool: NonNullable<Options["canUseTool"]>, name: str
   return result;
 }
 
-test("packaged builds use the unpacked Claude executable", async () => {
-  const resourcesPath = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-resources-"));
-  const executable = path.join(resourcesPath, "app.asar.unpacked", "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude");
-  await mkdir(path.dirname(executable), { recursive: true });
+test("the app runs the Claude Code the user installed, and finds none when it is not on the path", async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-path-"));
+  const executable = path.join(folder, "claude");
   await writeFile(executable, "");
-  assert.equal(packagedClaudeExecutable(resourcesPath), executable);
-  assert.equal(packagedClaudeExecutable(path.join(resourcesPath, "missing")), undefined);
+  await chmod(executable, 0o755);
+  const original = process.env.PATH;
+  try {
+    process.env.PATH = folder;
+    assert.equal(claudeExecutable(), executable);
+    process.env.PATH = path.join(folder, "empty");
+    assert.equal(claudeExecutable(), undefined);
+  } finally {
+    process.env.PATH = original;
+  }
+});
+
+/** Rows as Claude Code prints them: short names, full names, and the wider-context variants of both. */
+function modelSession(rows: { value: string; resolvedModel?: string }[], capture: { closed?: boolean } = {}) {
+  return () => ({
+    supportedModels: async () => rows,
+    close: () => { capture.closed = true; },
+  } as unknown as Query);
+}
+
+test("model discovery matches a catalogue model by its short name, its full name, or a wider-context variant", async () => {
+  const capture: { closed?: boolean } = {};
+  const models = await discoverClaudeModels(modelSession([
+    { value: "opus[1m]", resolvedModel: "claude-opus-5[1m]" },
+    { value: "claude-fable-5[1m]", resolvedModel: "claude-fable-5" },
+    { value: "sonnet", resolvedModel: "claude-sonnet-5" },
+  ], capture));
+
+  assert.deepEqual(models, ["fable", "opus", "sonnet"], "the catalogue order is kept, and Haiku is absent because no row offers it");
+  assert.equal(capture.closed, true, "the session only lives for the question");
+});
+
+test("a Claude that will not answer which models it runs is offered all of them rather than none", async () => {
+  assert.equal(await discoverClaudeModels(() => { throw new Error("spawn ENOENT"); }), undefined);
+  assert.equal(await discoverClaudeModels(modelSession([{ value: "some-other-model" }])), undefined, "a list that matches nothing is treated the same way");
 });
 
 test("command discovery initializes an idle workspace session and closes it", async () => {

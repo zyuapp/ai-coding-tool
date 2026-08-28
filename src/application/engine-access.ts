@@ -1,5 +1,5 @@
 import type { EngineCommand } from "../contracts/commands.js";
-import type { AgentEngine, EngineAccess, EngineStatus } from "../domain/agent-engine.js";
+import type { AgentEngine, EngineAccess, EngineReadiness, EngineStatus } from "../domain/agent-engine.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 /** What main found out about an engine's access, on asking or after a sign-in. */
@@ -17,8 +17,12 @@ export function isEngineInput(input: { type: string }): input is EngineInput {
 }
 
 /** An engine main has said nothing about is taken as ready; only main can say otherwise. */
+export function engineReadinessOf(state: Pick<WorkspaceState, "engineStatus">, engine: AgentEngine): EngineReadiness {
+  return state.engineStatus?.[engine] ?? { access: "ready" };
+}
+
 export function engineAccessOf(state: Pick<WorkspaceState, "engineStatus">, engine: AgentEngine): EngineAccess {
-  return state.engineStatus?.[engine] ?? "ready";
+  return engineReadinessOf(state, engine).access;
 }
 
 export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineTransition {

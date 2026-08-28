@@ -1,9 +1,10 @@
 import type { IconType } from "react-icons";
 import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
-import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineAccess } from "../../domain/agent-engine";
+import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
+import { CopyButton } from "./CopyButton";
 
 type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: IconType; danger?: true };
 
@@ -32,7 +33,24 @@ const effortsOf = byEngine((engine): Choice<AgentEffort>[] => effortsFor(engine)
 /** The model list is one list, headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
 
-export const EVERY_ENGINE_READY = byEngine((): EngineAccess => "ready");
+export const EVERY_ENGINE_READY = byEngine((): EngineReadiness => ({ access: "ready" }));
+
+/** What stands between an engine and a run, in the words the user needs to clear it. */
+function readinessNote(label: string, readiness: EngineReadiness): string | null {
+  if (readiness.access === "missing") return `${label} is not installed`;
+  if (readiness.access === "outdated") return `${label} ${readiness.version ?? ""} is too old. This app needs ${readiness.required}.`.replace("  ", " ");
+  if (readiness.access === "unavailable") return `${label} would not start`;
+  /** Ready, but behind: the models it never heard of are simply absent, so say why the list is short. */
+  if (readiness.required) return `More models after upgrading ${label}`;
+  return null;
+}
+
+function ReadinessHint({ note, fix }: { note: string; fix?: string }) {
+  return <div className="setting-hint setting-readiness">
+    <span>{note}</span>
+    {fix ? <><code>{fix}</code><CopyButton text={fix} label={`Copy ${fix}`} /></> : null}
+  </div>;
+}
 
 function SettingMenu({ label, axis, heading, value, onOpen, children }: {
   label: string;
@@ -100,7 +118,7 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
 function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen, onSignIn }: {
   engine: AgentEngine;
   engineLocked: boolean;
-  engineAccess: Record<AgentEngine, EngineAccess>;
+  engineAccess: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   onChange: (engine: AgentEngine, model: AgentModel) => void;
   onOpen: () => void;
@@ -113,13 +131,16 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
   return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.short} {...(engineLocked ? {} : { onOpen })}>
     {(close) => <>
       {offered.map((group) => {
-        const access = engineAccess[group.engine];
-        const ready = access === "ready";
+        const readiness = engineAccess[group.engine];
+        const ready = readiness.access === "ready";
+        const note = readinessNote(group.label, readiness);
+        /** A command that names its models hides the ones it cannot run, so the list never offers a dead pick. */
+        const choices = readiness.models ? group.choices.filter((item) => readiness.models?.includes(item.value)) : group.choices;
         return <div key={group.engine} className="setting-group" role="group" aria-label={group.label}>
           <div className="setting-group-heading">{group.label}</div>
-          {group.choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={!ready} {...(ready ? { onSelect: () => { onChange(group.engine, item.value); close(); } } : {})} />)}
-          {access === "signed-out" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
-          {access === "unavailable" && <div className="setting-hint">{group.label} is not installed</div>}
+          {choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={!ready} {...(ready ? { onSelect: () => { onChange(group.engine, item.value); close(); } } : {})} />)}
+          {readiness.access === "signed-out" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
+          {note && <ReadinessHint note={note} {...(readiness.fix ? { fix: readiness.fix } : {})} />}
         </div>;
       })}
       {locked.length > 0 && <hr className="setting-rule" />}
@@ -134,7 +155,7 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
   engineLabel: string;
   /** Set once the thread has an engine for good, which is from its first message on. */
   engineLocked: boolean;
-  engineAccess: Record<AgentEngine, EngineAccess>;
+  engineAccess: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   effort: AgentEffort;
   onModeChange: (mode: ExecutionPolicy) => void;

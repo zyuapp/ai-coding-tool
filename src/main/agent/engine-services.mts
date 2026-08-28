@@ -1,5 +1,5 @@
 import type { AvailableCommand } from "../../contracts/ipc.js";
-import { AGENT_ENGINES, type AgentEngine, type EngineAccess, type EngineStatus } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../../domain/agent-engine.js";
 import type { PlanUsage } from "../../domain/plan-usage.js";
 
 type Workspace = { workspaceRoot: string; projectless: boolean };
@@ -14,8 +14,8 @@ export type EngineServices = {
   suggestTitle(text: string, images: string[]): Promise<string | null>;
   /** Reads the plan behind this engine's account without starting a thread. */
   planUsage(): Promise<PlanUsage>;
-  /** Absent for an engine that is always ready. */
-  access?(): Promise<EngineAccess>;
+  /** Whether this engine can take a run on this machine, and what would fix it when it cannot. */
+  readiness(): Promise<EngineReadiness>;
   signIn?(openUrl: OpenUrl): Promise<EngineAccess>;
 };
 
@@ -24,6 +24,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
     commands: async ({ workspaceRoot, projectless }) => (await import("./claude-agent-provider.mjs")).discoverClaudeCommands(workspaceRoot, projectless),
     suggestTitle: async (text, images) => (await import("./title-writer.mjs")).suggestTaskTitle(text, images),
     planUsage: async () => (await import("./plan-usage.mjs")).readPlanUsage(),
+    readiness: async () => (await import("./engine-readiness.mjs")).readClaudeReadiness(),
   },
   codex: {
     commands: async (workspace) => {
@@ -35,7 +36,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
     },
     suggestTitle: async (text, images) => (await import("../codex/codex-title-writer.mjs")).suggestCodexTitle(text, images),
     planUsage: async () => (await import("../codex/codex-plan-usage.mjs")).readCodexPlanUsage(),
-    access: async () => (await import("../codex/codex-account.mjs")).readCodexAccess(),
+    readiness: async () => (await import("./engine-readiness.mjs")).readCodexReadiness(),
     signIn: async (openUrl) => (await import("../codex/codex-account.mjs")).signInToCodex(openUrl),
   },
 };
@@ -45,7 +46,7 @@ export class EngineAccessHost {
   private status: Promise<EngineStatus> | undefined;
   private signingIn: Promise<EngineStatus> | undefined;
 
-  constructor(private readonly engines: Record<AgentEngine, Pick<EngineServices, "access" | "signIn">> = engineServices) {}
+  constructor(private readonly engines: Record<AgentEngine, Pick<EngineServices, "readiness" | "signIn">> = engineServices) {}
 
   read(): Promise<EngineStatus> {
     this.status ??= this.readAll();
@@ -58,7 +59,9 @@ export class EngineAccessHost {
     if (!signIn) return this.read();
     this.signingIn ??= signIn(openUrl)
       .then(async (access) => {
-        const status: EngineStatus = { ...await this.read(), [engine]: access };
+        /** Only the access changed; the version and the models found earlier still hold. */
+        const current = await this.read();
+        const status: EngineStatus = { ...current, [engine]: { ...current[engine], access } };
         this.status = Promise.resolve(status);
         return status;
       })
@@ -69,8 +72,7 @@ export class EngineAccessHost {
   private async readAll(): Promise<EngineStatus> {
     const status: EngineStatus = {};
     await Promise.all(AGENT_ENGINES.map(async (engine) => {
-      const access = this.engines[engine].access;
-      if (access) status[engine] = await access();
+      status[engine] = await this.engines[engine].readiness();
     }));
     return status;
   }

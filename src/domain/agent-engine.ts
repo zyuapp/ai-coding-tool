@@ -85,10 +85,28 @@ export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
 /** Every engine, in the order pickers list them. */
 export const AGENT_ENGINES = Object.keys(ENGINES) as readonly AgentEngine[];
 
-/** Whether an engine can take a run right now, or what stands in the way. */
-export type EngineAccess = "ready" | "signed-out" | "unavailable";
-/** The access of the engines whose access can change. One not named is always ready. */
-export type EngineStatus = Partial<Record<AgentEngine, EngineAccess>>;
+/**
+ * Whether an engine can take a run right now, or what stands in the way. The app runs the engine
+ * command the user installed, so `missing` means no such command and `outdated` means one too old
+ * to speak to; `unavailable` is a command that is present but would not start.
+ */
+export type EngineAccess = "ready" | "signed-out" | "unavailable" | "missing" | "outdated";
+
+/** What the app found out about an engine on this machine. */
+export type EngineReadiness = {
+  access: EngineAccess;
+  /** What the installed command reported, when one was found. */
+  version?: string;
+  /** The version the app was built against, named only when the installed one is older. */
+  required?: string;
+  /** The command that installs or upgrades this engine the way the user already has it. */
+  fix?: string;
+  /** The catalogue models the installed command can run. Absent means it runs all of them. */
+  models?: readonly AgentModel[];
+};
+
+/** The readiness of the engines whose readiness can change. One not named is always ready. */
+export type EngineStatus = Partial<Record<AgentEngine, EngineReadiness>>;
 
 const MODEL_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));
 const EFFORT_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].efforts.map((effort) => effort.id)));

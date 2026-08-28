@@ -1,7 +1,7 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { packagedClaudeExecutable } from "./claude-agent-provider.mjs";
+import { claudeExecutable } from "./claude-agent-provider.mjs";
 import { IMAGE_BYTE_LIMIT, TITLE_INSTRUCTIONS, cleanTitle, readableImages, titleQuestion } from "./title-text.mjs";
 
 type QueryFactory = typeof query;
@@ -37,7 +37,7 @@ export async function suggestTaskTitle(text: string, attachments: string[] = [],
     options: {
       model: "haiku",
       cwd: tmpdir(),
-      pathToClaudeCodeExecutable: packagedClaudeExecutable(),
+      pathToClaudeCodeExecutable: claudeExecutable(),
       settingSources: [],
       systemPrompt: TITLE_INSTRUCTIONS,
       tools: [],

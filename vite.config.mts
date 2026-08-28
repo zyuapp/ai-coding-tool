@@ -1,9 +1,41 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, type Plugin } from "vitest/config";
 import react from "@vitejs/plugin-react";
+
+const FONT_FACE = /@font-face\s*\{[^}]*\}/g;
+const FONT_URL = /url\(\.\/([^)]+?\.woff2)\)/;
+
+/**
+ * Drops the Cyrillic, Greek, and Vietnamese cuts of every bundled family, and the files they name.
+ * The browser picks a cut by `unicode-range`, so those files only ever load for text the window
+ * rarely shows, yet the build emits all of them. Text outside the kept ranges falls back to the OS
+ * font. This runs on the finished bundle because the emitted rules are the only place the cut and
+ * its hashed file name appear together.
+ */
+function latinFontSubsets(): Plugin {
+  return {
+    name: "latin-font-subsets",
+    generateBundle(_options, bundle) {
+      const referenced = new Set<string>();
+      for (const output of Object.values(bundle)) {
+        if (output.type !== "asset" || !output.fileName.endsWith(".css")) continue;
+        output.source = String(output.source).replace(FONT_FACE, (block) => {
+          const file = FONT_URL.exec(block)?.[1];
+          if (!file) return block;
+          if (!file.includes("-latin")) return "";
+          referenced.add(file);
+          return block;
+        });
+      }
+      for (const [name, output] of Object.entries(bundle)) {
+        if (output.fileName.endsWith(".woff2") && !referenced.has(output.fileName.split("/").pop() ?? "")) delete bundle[name];
+      }
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => ({
   base: "./",
-  plugins: [react()],
+  plugins: [react(), latinFontSubsets()],
   /**
    * A test run serves no browser, so pre-bundling has nothing to serve. Discovery still ran, and
    * left a `node_modules/.vite/deps_temp_*` folder of its own behind on every run.
