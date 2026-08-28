@@ -3,7 +3,7 @@ import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
 import { shortcutAction, shortcutOverrides, shortcutProblem, type ShortcutOverrides } from "../domain/shortcuts.js";
 import { OPEN_SUBAGENT_GROUPS, SUBAGENT_GROUPS, type SubagentGroups } from "../domain/run.js";
-import { isSidebarMode } from "../domain/sidebar.js";
+import { OPEN_SIDEBAR_SECTIONS, SIDEBAR_SECTIONS, isSidebarMode, type SidebarSections } from "../domain/sidebar.js";
 import { isThemeMode, themeById, themeModeOrDefault, themeOrDefault } from "../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, monoFontOrDefault, sizeById, sizeOrDefault, uiFontById, uiFontOrDefault } from "../domain/typography.js";
 
@@ -39,6 +39,18 @@ function subagentGroups(value: unknown): SubagentGroups | undefined {
   return groups;
 }
 
+/** A list the app no longer draws is dropped, and one that is missing takes its default of unfolded. */
+function sidebarSections(value: unknown): SidebarSections | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const stored = value as Record<string, unknown>;
+  const sections = { ...OPEN_SIDEBAR_SECTIONS };
+  for (const section of SIDEBAR_SECTIONS) {
+    const open = stored[section];
+    if (typeof open === "boolean") sections[section] = open;
+  }
+  return sections;
+}
+
 /** A binding the app no longer knows, or one it would refuse to record, is dropped rather than kept. */
 function bindings(value: unknown): ShortcutOverrides | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
@@ -62,6 +74,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const browserOrigins = urlList(value.browserOrigins);
     const shortcuts = bindings(value.shortcuts);
     const groups = subagentGroups(value.subagentGroups);
+    const folds = sidebarSections(value.sections);
     const reading = sizeById(READING_SIZE, value.readingSize);
     const terminal = sizeById(TERMINAL_SIZE, value.terminalSize);
     return {
@@ -81,6 +94,7 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
       ...(typeof value.captureFocus === "boolean" ? { captureFocus: value.captureFocus } : {}),
       ...(typeof value.sidebarOpen === "boolean" ? { sidebarOpen: value.sidebarOpen } : {}),
       ...(isSidebarMode(value.sidebarMode) ? { sidebarMode: value.sidebarMode } : {}),
+      ...(folds ? { sections: folds } : {}),
       ...(groups ? { subagentGroups: groups } : {}),
       ...(shortcuts ? { shortcuts } : {}),
       ...(browserTabs ? { browserTabs } : {}),
@@ -126,6 +140,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     notifications: state.notifications,
     sidebarOpen: state.sidebarOpen,
     sidebarMode: state.sidebarMode,
+    sections: state.sections,
     subagentGroups: state.subagentGroups,
     shortcuts: state.shortcuts,
     browserTabs,
@@ -152,6 +167,7 @@ export function viewPreferenceState(preferences: ViewPreferences) {
     notifications: preferences.notifications ?? true,
     sidebarOpen: preferences.sidebarOpen,
     sidebarMode: preferences.sidebarMode,
+    sections: preferences.sections ?? OPEN_SIDEBAR_SECTIONS,
     subagentGroups: preferences.subagentGroups ?? OPEN_SUBAGENT_GROUPS,
     shortcuts: preferences.shortcuts ?? {},
     browserOrigins: preferences.browserOrigins ?? [],

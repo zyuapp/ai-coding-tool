@@ -7,6 +7,7 @@ import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
 import { isSubagentGroup } from "../../domain/run.js";
+import { isSidebarSection } from "../../domain/sidebar.js";
 import { isThemeMode, themeById, themeFor, themeOrDefault, variantFor } from "../../domain/theme.js";
 import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from "../../domain/typography.js";
 
@@ -16,7 +17,7 @@ type SettingsInput = Extract<WorkspaceInput, {
     | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured"
     | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-plain-english" | "view.set-chrome-browser"
     | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
-    | "view.set-subagent-group";
+    | "view.set-subagent-group" | "view.set-section-open";
 }>;
 
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
@@ -88,6 +89,12 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     case "view.set-sidebar-open": {
       if (state.sidebarOpen === input.open) return settled(state);
       const next = { ...state, sidebarOpen: input.open };
+      return settled(next, persistView(next));
+    }
+
+    case "view.set-section-open": {
+      if (!isSidebarSection(input.section) || state.sections[input.section] === input.open) return settled(state);
+      const next = { ...state, sections: { ...state.sections, [input.section]: input.open } };
       return settled(next, persistView(next));
     }
 

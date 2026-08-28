@@ -72,7 +72,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "paste.recall": case "image.add": case "image.remove":
     case "image.recall": case "file.attach": case "file.detach":
     case "file.recall": case "view.set-prompt": case "view.reading-point":
-    case "view.dismiss-action-error": case "view.set-section-open":
+    case "view.dismiss-action-error":
       return reduceComposer(state, input);
 
     case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
@@ -84,6 +84,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.set-plain-english": case "view.set-chrome-browser": case "view.set-computer-use":
     case "view.set-browser-tools": case "view.set-notifications": case "view.set-session-panel-open":
     case "view.set-settings-open": case "view.set-subagent-group":
+    case "view.set-section-open":
       return reduceSettings(state, input);
 
     case "view.close-tab": case "view.new-tab": case "view.select-dock-index":

@@ -23,7 +23,7 @@ import { emptyMobileServerState, type MobileServerState } from "../domain/mobile
 import type { BrowserApproval } from "../domain/browser.js";
 import { memoizedFindHits, searchesItself, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
-import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
+import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from "../domain/sidebar.js";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, type ThemeMode } from "../domain/theme.js";
 import { DEFAULT_MONO_FONT, DEFAULT_UI_FONT, READING_SIZE, TERMINAL_SIZE } from "../domain/typography.js";
 import type { Workflow } from "../domain/workflow.js";
@@ -354,7 +354,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     files: {},
     expandedProjects: new Set(),
     projectEdit: null,
-    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
+    sections: OPEN_SIDEBAR_SECTIONS,
     theme: DEFAULT_THEME,
     themeMode: DEFAULT_THEME_MODE,
     uiFont: DEFAULT_UI_FONT,

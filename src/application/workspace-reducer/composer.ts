@@ -8,7 +8,7 @@ type ComposerInput = Extract<WorkspaceInput, {
   type: "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall" | "paste.add"
     | "paste.remove" | "paste.recall" | "image.add" | "image.remove" | "image.recall"
     | "file.attach" | "file.detach" | "file.recall" | "view.set-prompt" | "view.reading-point"
-    | "view.dismiss-action-error" | "view.set-section-open";
+    | "view.dismiss-action-error";
 }>;
 
 export function reduceComposer(state: WorkspaceState, input: ComposerInput): WorkspaceTransition {
@@ -42,8 +42,5 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
 
     case "view.dismiss-action-error":
       return settled({ ...state, actionError: null });
-
-    case "view.set-section-open":
-      return settled({ ...state, sections: { ...state.sections, [input.section]: input.open } });
   }
 }

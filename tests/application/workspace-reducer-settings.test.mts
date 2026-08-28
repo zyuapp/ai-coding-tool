@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { workspace, preferences, effectAt, run, running } from "./workspace-reducer-fixtures.mts";
 import { OPEN_SUBAGENT_GROUPS, type SubagentGroup } from "../../src/domain/run.ts";
+import { OPEN_SIDEBAR_SECTIONS, type SidebarSection } from "../../src/domain/sidebar.ts";
 
 test("the panel and sidebar choices are persisted and survive the store loading", () => {
   const restored = run(workspace(), [{ type: "preferences.loaded", preferences: preferences({ sessionPanelOpen: true, sidebarOpen: false, sidebarMode: "projects" }) }]);
@@ -10,7 +11,7 @@ test("the panel and sidebar choices are persisted and survive the store loading"
   assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, sidebarOpen: false, sidebarMode: "projects", subagentGroups: OPEN_SUBAGENT_GROUPS, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, sidebarOpen: false, sidebarMode: "projects", sections: OPEN_SIDEBAR_SECTIONS, subagentGroups: OPEN_SUBAGENT_GROUPS, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
@@ -71,7 +72,7 @@ test("a size is px within the range it is for, and anything outside it is refuse
   assert.deepEqual(reduce(bigger.state, { type: "view.set-terminal-size", size: 2 }).effects, []);
 });
 
-test("the sidebar's shape outlives the window, and which of its lists are folded does not", () => {
+test("the sidebar's shape and its folded lists outlive the window", () => {
   const state = workspace();
   assert.equal(state.sidebarMode, "projects");
 
@@ -83,7 +84,12 @@ test("the sidebar's shape outlives the window, and which of its lists are folded
   const folded = reduce(ranked.state, { type: "view.set-section-open", section: "priority", open: false });
   assert.equal(folded.state.sections.priority, false);
   assert.equal(folded.state.sections.running, true, "folding one list leaves the others alone");
-  assert.deepEqual(folded.effects, [], "a fold is this session's only");
+  assert.equal(effectAt(folded, "persist-preferences").preferences.sections.priority, false);
+
+  assert.deepEqual(reduce(folded.state, { type: "view.set-section-open", section: "priority", open: false }).effects, [], "an unchanged list writes nothing");
+  const unknown = reduce(folded.state, { type: "view.set-section-open", section: "nowhere" as SidebarSection, open: false });
+  assert.deepEqual(unknown.state.sections, folded.state.sections);
+  assert.deepEqual(unknown.effects, []);
 });
 
 test("a folded subagent group is written down, and an unknown group is refused", () => {
