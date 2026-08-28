@@ -227,6 +227,20 @@ function renderTaskComposer(overrides: Partial<TaskComposerProps>) {
   });
 }
 
+test("an active native goal stays visible and can be cleared", async () => {
+  let cleared = 0;
+  const view = await mount(renderTaskComposer({
+    goal: { objective: "All checks pass", status: "active", iterations: 2 },
+    onGoalClear: () => { cleared += 1; },
+  }));
+
+  assert.match(query(view.container, ".goal-bar").textContent, /All checks pass/);
+  assert.match(query(view.container, ".goal-detail").textContent, /Pass 2/);
+  await act(async () => { query<HTMLButtonElement>(view.container, ".goal-clear").click(); });
+  assert.equal(cleared, 1);
+  await view.unmount();
+});
+
 test("context usage stays within 100% when the window shrinks below the used tokens", async () => {
   window.desktop = fakeDesktop();
   const view = await mount(renderTaskComposer({

@@ -40,6 +40,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       effort={workspace.effort}
       contextUsage={workspace.currentTask?.contextUsage}
       runActive={workspace.runActive}
+      goal={workspace.goal}
       waiting={workspace.waitingOn !== null}
       queuedMessages={workspace.queuedMessages}
       annotations={workspace.annotations}
@@ -71,6 +72,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}
       onCancel={workspace.actions.cancelRun}
+      onGoalClear={() => void workspace.actions.clearGoal()}
     />
   );
 }

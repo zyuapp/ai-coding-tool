@@ -1,7 +1,7 @@
 import { utilityProcess, type BrowserWindow, type IpcMainEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { isAutomationRequest, isBackgroundEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
+import { isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
@@ -203,6 +203,7 @@ function startAgent(host: RunHost) {
     else if (isWorkflowEvent(event)) sendToRenderer(host, event);
     else if (isBackgroundEvent(event)) publishBackgroundEvent(host, event);
     else if (isSubagentEvent(event)) publishSubagentEvent(host, event);
+    else if (isGoalEvent(event)) sendToRenderer(host, event);
     else if (isAutomationRequest(event)) void handleAutomationRequest(host, event);
     else if (isThreadRequest(event)) handleThreadRequest(host, event);
     /** A request no guard could read is answered rather than dropped: a dropped one hangs the tool call. */

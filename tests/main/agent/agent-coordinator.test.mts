@@ -313,6 +313,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
 
   let state: RunTransitionState = {
     tasks: [{ id: "task-v", title: "Vertical flow", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
+    goals: {},
     activeRuns: { "task-v": {
       taskId: "task-v",
       runId: "run-v",

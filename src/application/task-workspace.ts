@@ -1,6 +1,7 @@
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
+import type { ActiveGoal } from "../domain/goal.js";
 import { createFailureMessage, createTaskMessage, type Task, type TaskOutcome } from "../domain/task.js";
 
 export type ActiveRun = RunProvenance & {
@@ -95,6 +96,7 @@ export type StreamingTail = {
 /** Runs and their outcomes are keyed by task, so tasks progress independently. */
 export type RunTransitionState = {
   tasks: Task[];
+  goals: Record<string, ActiveGoal>;
   activeRuns: Record<string, ActiveRun>;
   runStatuses: Record<string, TaskRunStatus>;
   approvals: Record<string, ApprovalView>;
@@ -283,6 +285,12 @@ export function applyThreadEvent<T extends RunTransitionState>(state: T, event: 
       return applySubagentReport(state, event.taskId, event);
     case "background.changed":
       return applyBackgroundEvent(state, event);
+    case "goal.changed": {
+      const goals = { ...state.goals };
+      if (event.goal) goals[event.taskId] = event.goal;
+      else delete goals[event.taskId];
+      return { ...state, goals };
+    }
     default:
       return applyWorkflowEvent(state, event);
   }

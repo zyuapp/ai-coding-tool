@@ -69,6 +69,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     revealWorktree: (root: string) => dispatch({ type: "worktree.reveal", root }),
     deleteManagedWorktree: (root: string) => dispatch({ type: "worktree.delete", root }),
     sendPrompt: (attachments: RunAttachment[] = [], steer = false) => dispatch({ type: "task.send", attachments, ...(steer ? { steer } : {}) }),
+    clearGoal: () => dispatch({ type: "task.send", text: "/goal clear", steer: true }),
     steerQueued: (messageId: string) => dispatch({ type: "task.steer-queued", messageId }),
     dropQueued: (messageId: string) => dispatch({ type: "task.drop-queued", messageId }),
     saveAutomation: (draft: Omit<AutomationDraft, "taskId">) => dispatch({ type: "automation.save", draft }),

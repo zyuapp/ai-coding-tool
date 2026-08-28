@@ -41,6 +41,7 @@ function activeRun(taskId = "task-a", runId = "run-a"): ActiveRun {
 function state(): RunTransitionState {
   return {
     tasks: [task("task-a"), task("task-b")],
+    goals: {},
     activeRuns: { "task-a": activeRun() },
     runStatuses: { "task-a": "running" },
     approvals: {},
@@ -49,6 +50,13 @@ function state(): RunTransitionState {
     workflows: {},
   };
 }
+
+test("native goal updates replace and clear session-only thread state", () => {
+  const active = applyThreadEvent(state(), { type: "goal.changed", taskId: "task-a", goal: { objective: "Ship it", status: "active", iterations: 1 } });
+  assert.deepEqual(active.goals["task-a"], { objective: "Ship it", status: "active", iterations: 1 });
+  const cleared = applyThreadEvent(active, { type: "goal.changed", taskId: "task-a", goal: null });
+  assert.equal(cleared.goals["task-a"], undefined);
+});
 
 function subagentAt(subject: Task, index: number): NonNullable<Task["subagents"]>[number] {
   const subagent = subject.subagents?.[index];

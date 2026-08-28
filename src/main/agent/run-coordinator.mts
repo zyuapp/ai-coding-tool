@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AgentEvent, BackgroundReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
+import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import type { SubagentReport, ToolIntent } from "../../domain/run.js";
 import type { AgentProvider, AgentTurn, AutomationBridge, FindingBridge, ProviderEvent, BrowserBridge, TerminalBridge, ThreadBridge, ToolDecision } from "./agent-provider.mjs";
 import { SteerChannel } from "./steer-channel.mjs";
@@ -149,6 +149,7 @@ export class RunCoordinator {
         reportWorkflow: (report) => this.reportWorkflow(active.taskId, report),
         reportBackground: (report) => this.reportBackground(active.taskId, report),
         reportSubagent: (report) => this.reportSubagent(active.taskId, report),
+        reportGoal: (report) => this.reportGoal(active.taskId, report),
         beginAgentTurn: () => this.beginAgentTurn(active),
       });
       if (!this.isCurrent(active) || active.terminal) return;
@@ -193,6 +194,10 @@ export class RunCoordinator {
 
   /** A subagent answers to the thread even when the run that launched it is no longer current. */
   private reportSubagent(taskId: string, report: SubagentReport) {
+    this.emit({ ...report, taskId });
+  }
+
+  private reportGoal(taskId: string, report: GoalReport) {
     this.emit({ ...report, taskId });
   }
 

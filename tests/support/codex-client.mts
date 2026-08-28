@@ -21,6 +21,9 @@ export const defaultScript: Script = {
   "thread/start": (params: { model?: string | null }) => ({ thread: { id: "thread-1" }, model: params.model ?? "gpt-5.6-sol" }),
   "thread/resume": (params: { threadId: string }) => ({ thread: { id: params.threadId }, model: "gpt-5.6-sol" }),
   "thread/fork": () => ({ thread: { id: "thread-fork" }, model: "gpt-5.6-sol" }),
+  "thread/goal/set": (params: { threadId: string; objective: string }) => ({ goal: { threadId: params.threadId, objective: params.objective, status: "active", tokenBudget: null, tokensUsed: 0, timeUsedSeconds: 0, createdAt: 1, updatedAt: 1 } }),
+  "thread/goal/get": () => ({ goal: null }),
+  "thread/goal/clear": () => ({ cleared: true }),
   "thread/inject_items": () => ({}),
   "thread/compact/start": () => ({}),
   "review/start": () => ({
@@ -139,6 +142,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     reportWorkflow() {},
     reportBackground() {},
     reportSubagent() {},
+    reportGoal() {},
     beginAgentTurn: () => null,
   };
   return { ...base, ...overrides };

@@ -115,6 +115,8 @@ export type ProviderRunInput = {
   reportBackground: (report: BackgroundReport) => void;
   /** A child agent belongs to the thread and may keep reporting after the parent run settles. */
   reportSubagent: (report: SubagentReport) => void;
+  /** A native goal belongs to the thread and can change between model turns. */
+  reportGoal: (report: import("../../contracts/ipc.js").GoalReport) => void;
   /** Opens a run for a turn nobody asked for. Null when the thread already has a run of its own. */
   beginAgentTurn: () => AgentTurn | null;
 };

@@ -16,6 +16,9 @@ import type { McpServerElicitationRequestResponse } from "./protocol/v2/McpServe
 import type { PermissionsRequestApprovalResponse } from "./protocol/v2/PermissionsRequestApprovalResponse.js";
 import type { ReviewStartResponse } from "./protocol/v2/ReviewStartResponse.js";
 import type { ThreadForkResponse } from "./protocol/v2/ThreadForkResponse.js";
+import type { ThreadGoalClearResponse } from "./protocol/v2/ThreadGoalClearResponse.js";
+import type { ThreadGoalGetResponse } from "./protocol/v2/ThreadGoalGetResponse.js";
+import type { ThreadGoalSetResponse } from "./protocol/v2/ThreadGoalSetResponse.js";
 import type { ThreadResumeResponse } from "./protocol/v2/ThreadResumeResponse.js";
 import type { ThreadStartResponse } from "./protocol/v2/ThreadStartResponse.js";
 import type { ToolRequestUserInputResponse } from "./protocol/v2/ToolRequestUserInputResponse.js";
@@ -32,6 +35,9 @@ export interface ClientResponses {
   "thread/start": ThreadStartResponse;
   "thread/resume": ThreadResumeResponse;
   "thread/fork": ThreadForkResponse;
+  "thread/goal/set": ThreadGoalSetResponse;
+  "thread/goal/get": ThreadGoalGetResponse;
+  "thread/goal/clear": ThreadGoalClearResponse;
   "turn/start": TurnStartResponse;
   "turn/steer": TurnSteerResponse;
   "turn/interrupt": TurnInterruptResponse;

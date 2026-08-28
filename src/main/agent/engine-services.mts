@@ -28,7 +28,10 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
   codex: {
     commands: async (workspace) => {
       const { listSkills, skillRoots } = await import("../tools/skills.mjs");
-      return (await listSkills(skillRoots(workspace))).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" }));
+      return [
+        { name: "goal", description: "Set a goal — keep working until the condition is met", argumentHint: "condition" },
+        ...(await listSkills(skillRoots(workspace))).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" })),
+      ];
     },
     suggestTitle: async (text, images) => (await import("../codex/codex-title-writer.mjs")).suggestCodexTitle(text, images),
     planUsage: async () => (await import("../codex/codex-plan-usage.mjs")).readCodexPlanUsage(),

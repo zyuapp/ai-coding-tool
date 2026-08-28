@@ -1,4 +1,4 @@
-import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, type AgentModel } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
@@ -139,6 +139,8 @@ export class ClaudeSession {
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
   /** Where those tasks report. Taken when the session opens: a shell or a monitor belongs to the thread, not to a run. */
   private reportBackground: (report: BackgroundReport) => void = () => {};
+  private reportGoal: ProviderRunInput["reportGoal"] = () => {};
+  private hasGoal = false;
   /** Every background task the agent process last reported live, by id. Replaced whole, so it holds nothing that has stopped. */
   private readonly backgroundTaskIds = new Set<string>();
   /** What the agent process called this session. A later run resumes it by this id. */
@@ -167,9 +169,12 @@ export class ClaudeSession {
     this.effort = seed.effort;
     this.reportWorkflow = seed.reportWorkflow;
     this.reportBackground = seed.reportBackground;
+    this.reportGoal = seed.reportGoal;
     this.beginAgentTurn = seed.beginAgentTurn;
     /** The agent process reports nothing at startup, so a fresh one starts the thread's set empty. */
     this.reportBackground({ type: "background.changed", processes: [] });
+    this.reportGoal({ type: "goal.changed", goal: null });
+    this.hasGoal = false;
     this.query = opener(this.stream(), this.canUseTool);
     void this.pump();
   }
@@ -233,6 +238,8 @@ export class ClaudeSession {
     /** The session ending is the end of the tasks it holds: nothing is left to report them stopping. */
     this.backgroundTaskIds.clear();
     this.reportBackground({ type: "background.changed", processes: [] });
+    if (this.hasGoal) this.reportGoal({ type: "goal.changed", goal: null });
+    this.hasGoal = false;
     this.endAgentTurn({ status: "cancelled" });
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
@@ -357,7 +364,7 @@ export class ClaudeSession {
 
   private async pump() {
     try {
-      for await (const message of this.query as Query) this.receive(message);
+      for await (const message of this.query as Query) this.receive(message as SDKMessage | SDKActiveGoalMessage);
       this.finish({ status: "succeeded" });
     } catch (error) {
       this.finish({ status: "failed", message: error instanceof Error ? error.message : String(error) });
@@ -366,7 +373,20 @@ export class ClaudeSession {
     }
   }
 
-  private receive(message: SDKMessage) {
+  private receive(message: SDKMessage | SDKActiveGoalMessage) {
+    if (message.type === "active_goal") {
+      this.hasGoal = message.value !== null;
+      this.reportGoal({
+        type: "goal.changed",
+        goal: message.value ? {
+          objective: message.value.condition,
+          status: "active",
+          iterations: message.value.iterations,
+          ...(message.value.last_reason ? { lastReason: message.value.last_reason } : {}),
+        } : null,
+      });
+      return;
+    }
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
     /** Taken before the stream guard: what the agent leaves running outlives the turn that started it. */
     if (message.type === "system" && message.subtype === "background_tasks_changed") {

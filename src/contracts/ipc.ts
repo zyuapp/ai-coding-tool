@@ -6,6 +6,7 @@ import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { ExternalApp } from "../domain/external-apps.js";
 import type { FindResults } from "../domain/find.js";
+import type { ActiveGoal } from "../domain/goal.js";
 import type { TerminalUpdate } from "../domain/terminal.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE, type AttachedFileDraft } from "../domain/task.js";
 import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
@@ -509,8 +510,12 @@ export type BackgroundEvent = BackgroundReport & { taskId: string };
 /** A subagent belongs to its thread, so its updates remain valid after the parent run settles. */
 export type SubagentEvent = SubagentReport & { taskId: string };
 
+/** Native goal state is session-only and belongs to the thread, not the run that set it. */
+export type GoalReport = { type: "goal.changed"; goal: ActiveGoal | null };
+export type GoalEvent = GoalReport & { taskId: string };
+
 /** What the agent process reports about work that answers to the thread rather than to a run. */
-export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent;
+export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent | GoalEvent;
 
 /** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
 export type AgentEvent = RunEvent | ThreadEvent;
@@ -850,6 +855,19 @@ export function isSubagentEvent(value: unknown): value is SubagentEvent {
       && typeof event.summary === "string";
   }
   return false;
+}
+
+export function isGoalEvent(value: unknown): value is GoalEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Record<string, unknown>;
+  if (!isString(event.taskId) || event.type !== "goal.changed") return false;
+  if (event.goal === null) return true;
+  if (!event.goal || typeof event.goal !== "object") return false;
+  const goal = event.goal as Record<string, unknown>;
+  return isString(goal.objective, 100_000)
+    && (goal.status === "active" || goal.status === "blocked")
+    && (goal.iterations === undefined || isCount(goal.iterations))
+    && (goal.lastReason === undefined || isString(goal.lastReason, 100_000));
 }
 
 export function isWorkflowEvent(value: unknown): value is WorkflowEvent {

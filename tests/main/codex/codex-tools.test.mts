@@ -130,7 +130,7 @@ test("config values are written as TOML the app server parses", () => {
   assert.equal(toml([{ name: "a:b", enabled: false }]), "[{ \"name\" = \"a:b\", \"enabled\" = false }]");
   assert.deepEqual(
     codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, undefined),
-    ["--disable", "plugins"],
-    "Codex's own desktop-app plugins are switched off for every thread",
+    ["--disable", "plugins", "--enable", "goals"],
+    "Codex's desktop-app plugins stay off while its native goal feature is enabled",
   );
 });

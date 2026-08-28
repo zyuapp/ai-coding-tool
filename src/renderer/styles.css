@@ -2053,6 +2053,32 @@ pre {
   grid-row: 3;
 }
 
+.goal-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  max-width: 860px;
+  min-height: 38px;
+  margin: 0 auto 8px;
+  padding: 6px 8px 6px 11px;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent));
+  box-shadow: var(--shadow-float);
+}
+.goal-target { display: grid; width: 16px; height: 16px; place-items: center; border: 1.5px solid var(--accent); border-radius: 50%; }
+.goal-target span { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+.goal-copy { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.goal-label { flex: none; color: var(--accent); font-size: var(--text-meta); font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
+.goal-objective { overflow: hidden; color: var(--ink); font-size: var(--text-control); text-overflow: ellipsis; white-space: nowrap; }
+.goal-detail { color: var(--quiet); font-size: var(--text-meta); white-space: nowrap; }
+.goal-clear { padding: 4px 7px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: var(--text-meta); }
+.goal-clear:hover { background: var(--wash); color: var(--ink); }
+.goal-bar.blocked .goal-target { border-color: var(--danger); }
+.goal-bar.blocked .goal-target span { background: var(--danger); }
+.goal-bar.blocked .goal-label { color: var(--danger); }
+
 .queued-row {
   display: flex;
   max-width: 860px;
@@ -3501,6 +3527,8 @@ button.setting-hint:hover { color: var(--ink); }
 /** The values still read on their own, so the axis names go before any control does. */
 @container (max-width: 470px) {
   .setting-axis { display: none; }
+  .goal-detail { display: none; }
+  .goal-bar { grid-template-columns: auto minmax(0, 1fr) auto; }
 }
 @container (max-width: 300px) {
   .context-usage { display: none; }

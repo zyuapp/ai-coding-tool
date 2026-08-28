@@ -54,6 +54,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     reportWorkflow() {},
     reportBackground() {},
     reportSubagent() {},
+    reportGoal() {},
     beginAgentTurn: () => null,
   };
   return { ...base, ...overrides };

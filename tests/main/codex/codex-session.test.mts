@@ -3,6 +3,7 @@ import { test } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
 import { codexPolicy, DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
 import type { ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
+import type { GoalReport } from "../../../src/contracts/ipc.ts";
 import type { ToolIntent } from "../../../src/domain/run.ts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
 import { SteerChannel } from "../../../src/main/agent/steer-channel.mts";
@@ -89,6 +90,34 @@ test("every execution policy maps onto Codex approvals, sandbox, and reviewer", 
   assert.deepEqual(codexPolicy("plan"), codexPolicy("confirm"));
   assert.deepEqual(codexPolicy("allow-edits"), { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "user" });
   assert.deepEqual(codexPolicy("autonomous"), { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "auto_review" });
+});
+
+test("Codex sets a native goal and keeps the run through its follow-up turns", async () => {
+  const goals: GoalReport[] = [];
+  const codex = harness();
+  const running = codex.provider.execute(input({ prompt: "/goal All checks pass", reportGoal: (report) => goals.push(report) }));
+  const client = await opened(codex);
+  await sentBy(client, "turn/start");
+
+  assert.deepEqual(client.calls("thread/goal/set"), [{ threadId, objective: "All checks pass" }]);
+  assert.equal((client.calls("turn/start")[0] as { input: { text: string }[] }).input[0]?.text, "All checks pass");
+  completeTurn(client);
+  let settled = false;
+  void running.then(() => { settled = true; });
+  await tick();
+  assert.equal(settled, false, "an active goal owns the next native turn");
+
+  client.notify("turn/started", { threadId, turn: { id: "turn-2", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: 2, completedAt: null, durationMs: null } });
+  client.notify("thread/goal/cleared", { threadId });
+  client.notify("turn/completed", { threadId, turn: { id: "turn-2", items: [], itemsView: "summary", status: "completed", error: null, startedAt: 2, completedAt: 3, durationMs: 1000 } });
+
+  assert.deepEqual(await running, { status: "succeeded" });
+  assert.deepEqual(goals, [
+    { type: "goal.changed", goal: null },
+    { type: "goal.changed", goal: { objective: "All checks pass", status: "active" } },
+    { type: "goal.changed", goal: null },
+  ]);
+  codex.provider.closeAll();
 });
 
 test("a thread the run continues is resumed, and a side chat forks it instead", async () => {

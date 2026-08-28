@@ -17,6 +17,8 @@ import { composerBlur, composerInput, composerKeyDown, composerPaste } from "./c
 import { useComposerRecall } from "./composer-recall";
 import type { ReviewTarget } from "../../domain/review";
 import { ReviewPicker } from "./ReviewPicker";
+import { GoalBar } from "./GoalBar";
+import type { ActiveGoal } from "../../domain/goal";
 
 const NOTHING = () => {};
 
@@ -60,6 +62,7 @@ export type TaskComposerProps = {
   effort: AgentEffort;
   contextUsage?: ContextUsage;
   runActive: boolean;
+  goal?: ActiveGoal | null;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
   annotations?: TaskAnnotation[];
@@ -98,6 +101,7 @@ export type TaskComposerProps = {
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
   onCancel: () => void;
+  onGoalClear?: () => void;
 };
 
 export function TaskComposer({
@@ -119,6 +123,7 @@ export function TaskComposer({
   effort,
   contextUsage,
   runActive,
+  goal = null,
   queuedMessages,
   annotations = [],
   pastes = [],
@@ -149,6 +154,7 @@ export function TaskComposer({
   onSteerQueued,
   onDropQueued,
   onCancel,
+  onGoalClear = NOTHING,
 }: TaskComposerProps) {
   const caret = useComposerCaret(focusToken);
   const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange });
@@ -168,6 +174,7 @@ export function TaskComposer({
 
   return (
     <footer className={`composer-wrap ${surface}`}>
+      {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {reviewPicker && (

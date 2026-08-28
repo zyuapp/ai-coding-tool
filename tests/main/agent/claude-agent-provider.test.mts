@@ -6,6 +6,7 @@ import { query, type Options, type PermissionMode, type Query, type SDKMessage, 
 import { test } from "vitest";
 import { ClaudeAgentProvider, discoverClaudeCommands, packagedClaudeExecutable } from "../../../src/main/agent/claude-agent-provider.mts";
 import type { BackgroundReport, WorkflowReport } from "../../../src/contracts/ipc.ts";
+import type { GoalReport } from "../../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../../src/domain/agent-engine.ts";
 import type { ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";
 import type { AutomationBridge, ProviderEvent, ProviderRunInput, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
@@ -132,6 +133,22 @@ test("Claude streams only complete Markdown blocks and does not repeat final tex
     { type: "assistant", messageId, text: "```ts\nconst x = 1;\n\n```\n", append: true },
     { type: "assistant-tail", messageId, text: "" },
     { type: "usage", tokens: 1, limit: 1_000_000, model: "claude-sonnet" },
+  ]);
+});
+
+test("Claude reports its native goal as thread state", async () => {
+  const goals: GoalReport[] = [];
+  const provider = new ClaudeAgentProvider(queryFactory([
+    { type: "active_goal", uuid: "goal-1", session_id: "session-1", value: { condition: "All checks pass", iterations: 2, set_at: 1, tokens_at_start: 10, last_reason: "One check still fails" } },
+    { type: "active_goal", uuid: "goal-2", session_id: "session-1", value: null },
+  ]));
+
+  await provider.execute(input({ reportGoal: (report) => goals.push(report) }));
+
+  assert.deepEqual(goals, [
+    { type: "goal.changed", goal: null },
+    { type: "goal.changed", goal: { objective: "All checks pass", status: "active", iterations: 2, lastReason: "One check still fails" } },
+    { type: "goal.changed", goal: null },
   ]);
 });
 

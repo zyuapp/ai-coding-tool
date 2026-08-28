@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
+import { isAutomationAck, isAutomationRequest, isAutomationResponse, isBackgroundEvent, isExternalCommand, isGoalEvent, isInternalRunCommand, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isThreadResponse, isWorkflowEvent } from "../../src/contracts/ipc.ts";
 
 const command = {
   type: "start",
@@ -106,6 +106,13 @@ test("background event guard validates the process set, and takes no run", () =>
   assert.equal(isBackgroundEvent({ ...base, processes: {} }), false);
   assert.equal(isBackgroundEvent({ type: "workflow.finished", taskId: "task-1", id: "wf-1", status: "stopped", summary: "" }), false);
   assert.equal(isRunEvent({ ...base, runId: "run-1", sequence: 1, processes: [] }), false, "a run no longer carries the set");
+});
+
+test("goal event guard validates native state and clearing", () => {
+  assert.equal(isGoalEvent({ type: "goal.changed", taskId: "task-1", goal: { objective: "Ship it", status: "active", iterations: 2 } }), true);
+  assert.equal(isGoalEvent({ type: "goal.changed", taskId: "task-1", goal: null }), true);
+  assert.equal(isGoalEvent({ type: "goal.changed", taskId: "task-1", goal: { objective: "", status: "active" } }), false);
+  assert.equal(isGoalEvent({ type: "goal.changed", taskId: "task-1", goal: { objective: "Ship it", status: "paused" } }), false);
 });
 
 test("run event guard validates optional status messages", () => {

@@ -14,6 +14,7 @@ import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionPr
 import type { RequestPermissionProfile } from "./protocol/v2/RequestPermissionProfile.js";
 import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
+import type { ThreadGoal } from "./protocol/v2/ThreadGoal.js";
 import type { UserInput } from "./protocol/v2/UserInput.js";
 
 /** What the session asks of its connection. The real client fits; a scripted one can stand in for it. */
@@ -54,6 +55,13 @@ const sandboxPolicies: Record<CodexSandbox, SandboxPolicy> = {
 /** What a run says, as the app server takes it. */
 function text(prompt: string): UserInput {
   return { type: "text", text: prompt, text_elements: [] };
+}
+
+function goalCommand(prompt: string) {
+  const match = /^\/goal(?:\s+([\s\S]*))?$/.exec(prompt.trim());
+  if (!match) return null;
+  const argument = match[1]?.trim() ?? "";
+  return argument.toLowerCase() === "clear" ? { type: "clear" as const } : argument ? { type: "set" as const, objective: argument } : { type: "get" as const };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -175,6 +183,8 @@ export class CodexSession {
   private announced = false;
   /** The context the last request carried, which is what a compaction is measured from. */
   private lastTokens = 0;
+  private goalActive = false;
+  private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
 
@@ -241,6 +251,7 @@ export class CodexSession {
   close() {
     if (this.ended) return;
     this.ended = true;
+    this.reportGoal({ type: "goal.changed", goal: null });
     this.settle({ status: "cancelled" });
     this.subagents?.close();
     this.subagents = null;
@@ -277,12 +288,17 @@ export class CodexSession {
       await this.beginReview(turn, client, threadId);
       return;
     }
+    const goal = goalCommand(turn.input.prompt);
+    if (goal) {
+      const keepGoing = await this.beginGoal(turn, client, threadId, goal);
+      if (!keepGoing) return;
+    }
     const policy = codexPolicy(turn.input.policy);
     let started: { turn: { id: string } };
     try {
       started = await client.request("turn/start", {
         threadId,
-        input: [text(turn.input.prompt)],
+        input: [text(goal?.type === "set" ? goal.objective : turn.input.prompt)],
         model: turn.input.model,
         effort: turn.input.effort,
         approvalPolicy: policy.approvalPolicy,
@@ -301,6 +317,41 @@ export class CodexSession {
       return;
     }
     await this.drainSteering(turn);
+  }
+
+  private async beginGoal(turn: Turn, client: CodexClient, threadId: string, command: NonNullable<ReturnType<typeof goalCommand>>) {
+    try {
+      if (command.type === "clear") {
+        await client.request("thread/goal/clear", { threadId });
+        this.goalActive = false;
+        turn.input.reportGoal({ type: "goal.changed", goal: null });
+        this.settle({ status: "succeeded" });
+        return false;
+      }
+      if (command.type === "get") {
+        const result = await client.request("thread/goal/get", { threadId });
+        this.reportCodexGoal(result.goal);
+        this.settle({ status: "succeeded" });
+        return false;
+      }
+      const result = await client.request("thread/goal/set", { threadId, objective: command.objective });
+      this.reportCodexGoal(result.goal);
+      return true;
+    } catch (error) {
+      if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not update the goal: ${reasonOf(error)}` });
+      return false;
+    }
+  }
+
+  private reportCodexGoal(goal: ThreadGoal | null) {
+    this.goalActive = goal?.status === "active";
+    this.reportGoal({
+      type: "goal.changed",
+      goal: !goal || goal.status === "complete" ? null : {
+        objective: goal.objective,
+        status: goal.status === "active" ? "active" : "blocked",
+      },
+    });
   }
 
   /** Manual compaction is a thread operation, not an empty model turn. */
@@ -343,6 +394,8 @@ export class CodexSession {
    * it. The app's tools are served first, since the process connects to them as the thread starts.
    */
   private async open(seed: ProviderRunInput) {
+    this.reportGoal = seed.reportGoal;
+    this.reportGoal({ type: "goal.changed", goal: null });
     const tools = [...runTools(seed).flatMap((set) => set.tools), ...skillTools(skillRoots(seed))];
     if (tools.length) {
       const served = await this.host.serve(tools);
@@ -361,7 +414,17 @@ export class CodexSession {
     client.on("thread/started", (params) => { subagents.threadStarted(params); });
     client.on("thread/status/changed", (params) => { subagents.threadStatusChanged(params); });
     client.on("thread/closed", (params) => { subagents.threadClosed(params); });
-    client.on("turn/started", (params) => { subagents.turnStarted(params); });
+    client.on("turn/started", (params) => {
+      if (!subagents.turnStarted(params) && params.threadId === this.threadId && this.turn && this.goalActive) this.turn.turnId = params.turn.id;
+    });
+    client.on("thread/goal/updated", (params) => {
+      if (params.threadId === this.threadId) this.reportCodexGoal(params.goal);
+    });
+    client.on("thread/goal/cleared", (params) => {
+      if (params.threadId !== this.threadId) return;
+      this.goalActive = false;
+      this.reportGoal({ type: "goal.changed", goal: null });
+    });
     client.on("item/started", (params) => {
       if (!subagents.itemStarted(params)) this.receiveStarted(params.item);
     });
@@ -432,6 +495,13 @@ export class CodexSession {
       const client = this.client;
       if (this.turn !== turn || !client || !threadId || !turn.turnId) return;
       try {
+        if (goalCommand(steer.prompt)?.type === "clear") {
+          await client.request("thread/goal/clear", { threadId });
+          this.goalActive = false;
+          turn.input.reportGoal({ type: "goal.changed", goal: null });
+          turn.input.emit({ type: "steered", messageId: steer.messageId });
+          continue;
+        }
         await client.request("turn/steer", { threadId, input: [text(steer.prompt)], expectedTurnId: turn.turnId });
         turn.input.emit({ type: "steered", messageId: steer.messageId });
       } catch {
@@ -565,6 +635,7 @@ export class CodexSession {
   private receiveTurnCompleted(completed: NotificationParams<"turn/completed">["turn"]) {
     const turn = this.turn;
     if (!turn || (turn.turnId !== undefined && turn.turnId !== completed.id)) return;
+    if (completed.status === "completed" && this.goalActive) return;
     if (completed.status === "completed") this.settle({ status: "succeeded" });
     else if (completed.status === "interrupted") this.settle({ status: "cancelled" });
     else if (completed.status === "failed") this.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });

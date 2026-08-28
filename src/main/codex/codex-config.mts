@@ -14,7 +14,7 @@ type TomlValue = string | boolean | readonly string[] | readonly TomlTable[] | T
  * Codex plugins are built for its own desktop app: their skills answer "in-app browser", "automation",
  * and "computer use" with that app's surfaces. A thread here gets the app's tools instead.
  */
-const WITHOUT_PLUGINS = ["--disable", "plugins"];
+const WITHOUT_PLUGINS = ["--disable", "plugins", "--enable", "goals"];
 
 const ESCAPED: Record<string, string> = { "\\": "\\\\", "\"": "\\\"", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
 

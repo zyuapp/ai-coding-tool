@@ -4,6 +4,7 @@ import { activitySections, backfillSortIndex, orderTasks } from "./task-order.js
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
+import type { ActiveGoal } from "../domain/goal.js";
 
 export type { ReadingPoint };
 import { DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
@@ -178,6 +179,8 @@ export type ReviewPicker = {
 
 export type WorkspaceState = {
   tasks: Task[];
+  /** Native goals live only as long as this app session. */
+  goals: Record<string, ActiveGoal>;
   projects: Project[];
   /**
    * Every checkout the app has recorded. A checkout outlives the thread that asked for it and stays
@@ -322,6 +325,7 @@ export function withoutWorktreeRoot(state: Pick<WorkspaceState, "deletingWorktre
 export function emptyWorkspaceState(storageError: string | null = null): WorkspaceState {
   return {
     tasks: [],
+    goals: {},
     projects: [],
     worktrees: [],
     managedWorktrees: null,
@@ -744,6 +748,7 @@ export function deriveView(state: WorkspaceState) {
     /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
     recentTasks: visibleTasks.filter((task) => !task.projectId).sort((a, b) => threadActivityAt(b) - threadActivityAt(a)),
     currentTask,
+    goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
     folder: currentProject?.root ?? "",
     /** What that folder is called: the name the user gave the project, else the folder's own. */
