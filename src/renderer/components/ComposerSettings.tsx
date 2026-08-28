@@ -13,9 +13,10 @@ const modes: Choice<ExecutionPolicy>[] = [
   { value: "confirm", label: "Let me decide", short: "Confirm", description: "Ask before using tools or changing files", icon: Hand },
 ];
 
-const modelIcons: Record<AgentModel, LucideIcon> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather };
+const modelIcons: Record<AgentModel, LucideIcon> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge };
 
 const effortStyles: Record<AgentEffort, { short: string; icon: LucideIcon }> = {
+  ultra: { short: "Ultra", icon: Flame },
   max: { short: "Max", icon: Flame },
   xhigh: { short: "Extra high", icon: Signal },
   high: { short: "High", icon: SignalHigh },
@@ -79,13 +80,13 @@ export function ComposerSettings({ mode, engine, engineLabel, model, effort, onM
   effort: AgentEffort;
   onModeChange: (mode: ExecutionPolicy) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
-  onEffortChange: (effort: AgentEffort) => void;
+  onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
   return (
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
       <ChoiceMenu label="Model" axis="Model" heading="Choose a model" choices={modelsOf[engine]} value={model} onChange={(choice) => onModelChange(engine, choice)} />
-      <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[engine]} value={effort} onChange={onEffortChange} />
+      <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[engine]} value={effort} onChange={(choice) => onEffortChange(engine, choice)} />
     </div>
   );
 }

@@ -137,6 +137,8 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunCommand({ ...command, prompt: "x".repeat(1_000_001) }), false);
   assert.equal(isRunCommand({ ...command, model: "future-model" }), false);
   assert.equal(isRunCommand({ ...command, effort: "insane" }), false);
+  assert.equal(isRunCommand({ ...command, effort: "ultra" }), false, "ultra belongs to Codex");
+  assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-5.6-sol", effort: "ultra" }), true);
   assert.equal(isRunCommand({ ...command, effort: undefined }), false);
   assert.equal(isRunCommand({ ...command, continuation: { provider: "", value: "session" } }), false);
 

@@ -10,7 +10,7 @@ import { applyTask } from "../task-workspace.js";
 import { DRAFT_DOCK, blockedTaskIds, busyTaskIds, projectFor, sideChatIds, worktreeById, type WorkspaceState } from "../workspace-state.js";
 import { dismissableTasks, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle } from "../../domain/task.js";
-import { engineHasModel } from "../../domain/agent-engine.js";
+import { engineHasEffort, engineHasModel } from "../../domain/agent-engine.js";
 
 type TaskInput = Extract<WorkspaceInput, {
   type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive"
@@ -154,6 +154,8 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
 
     case "task.set-effort": {
       const taskId = targetId(state, input.taskId);
+      const engine = state.tasks.find((task) => task.id === taskId)?.engine;
+      if (!engineHasEffort(input.engine, input.effort) || engine && !engineHasEffort(engine, input.effort)) return settled(state);
       const drafted = input.taskId === undefined ? { ...state, draftEffort: input.effort } : state;
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, effort: input.effort, updatedAt: now() })) : drafted);
     }

@@ -55,7 +55,7 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
   const retuned = run(opened, [
     { type: "task.set-policy", taskId: "chat-1", policy: "autonomous" },
     { type: "task.set-model", taskId: "chat-1", engine: "claude", model: "haiku" },
-    { type: "task.set-effort", taskId: "chat-1", effort: "low" },
+    { type: "task.set-effort", taskId: "chat-1", engine: "claude", effort: "low" },
     { type: "task.set-policy", taskId: "main-task", policy: "allow-edits" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Fix the typo" },
   ]);

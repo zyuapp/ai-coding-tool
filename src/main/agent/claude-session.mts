@@ -1,6 +1,6 @@
 import type { CanUseTool, Query, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { emptyScan, scanBlocks, type BlockScan } from "../../domain/markdown-stream.js";
-import { contextWindowLimit, type AgentModel } from "../../domain/agent-engine.js";
+import { claudeEffort, contextWindowLimit, type AgentModel } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
@@ -274,7 +274,7 @@ export class ClaudeSession {
     await query.setPermissionMode?.(claudePermissionMode(input.policy))?.catch?.(() => {});
     if (this.effort !== input.effort) {
       this.effort = input.effort;
-      await query.applyFlagSettings?.({ effortLevel: input.effort })?.catch?.(() => {});
+      await query.applyFlagSettings?.({ effortLevel: claudeEffort(input.effort) })?.catch?.(() => {});
     }
   }
 

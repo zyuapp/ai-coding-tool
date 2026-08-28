@@ -34,7 +34,7 @@ export function ThreadSettings({ settings, onClose, onPolicy, onModel, onEffort 
   onClose: () => void;
   onPolicy: (policy: ExecutionPolicy) => void;
   onModel: (engine: AgentEngine, model: AgentModel) => void;
-  onEffort: (effort: AgentEffort) => void;
+  onEffort: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
   return (
     <div className="scrim" role="dialog" aria-modal="true" aria-label="Thread settings" onClick={onClose}>
@@ -43,7 +43,7 @@ export function ThreadSettings({ settings, onClose, onPolicy, onModel, onEffort 
         <div className="sheet-body">
           <Group heading="Permission" choices={MODES} value={settings.policy} onChange={onPolicy} />
           <Group heading="Model" choices={modelsOf[settings.engine]} value={settings.model} onChange={(model) => onModel(settings.engine, model)} />
-          <Group heading="Effort" choices={effortsOf[settings.engine]} value={settings.effort} onChange={onEffort} />
+          <Group heading="Effort" choices={effortsOf[settings.engine]} value={settings.effort} onChange={(effort) => onEffort(settings.engine, effort)} />
         </div>
         <button type="button" className="primary wide" onClick={onClose}>Done</button>
       </div>

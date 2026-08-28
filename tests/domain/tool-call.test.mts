@@ -40,6 +40,16 @@ test("a tool the list has never seen still lands in a family", () => {
   assert.equal(toolFamily("claude", "MultiEdit"), "write");
 });
 
+test("Codex names a call by its item kind, and by the command, path, or query it carried", () => {
+  assert.deepEqual(describeToolCall("codex", "command_execution", JSON.stringify({ command: "npm test" })), { family: "shell", sigil: "$", argument: "npm test" });
+  assert.equal(describeToolCall("codex", "file_change", JSON.stringify({ path: "/Users/x/repo/src/main/index.ts" })).argument, "…/main/index.ts");
+  assert.equal(toolFamily("codex", "file_change"), "write");
+  assert.deepEqual(describeToolCall("codex", "web_search", JSON.stringify({ query: "codex app-server" })), { family: "web", argument: "codex app-server" });
+  assert.equal(toolFamily("codex", "mcp_tool_call"), "other");
+  assert.equal(toolFamily("codex", "todo_list"), "other");
+  assert.equal(toolFamily("codex", "browser_click"), "web");
+});
+
 test("only an engine the catalogue knows can name a tool", () => {
   expectTypeOf(toolFamily).parameter(0).toEqualTypeOf<AgentEngine>();
   expectTypeOf(describeToolCall).parameter(0).toEqualTypeOf<AgentEngine>();

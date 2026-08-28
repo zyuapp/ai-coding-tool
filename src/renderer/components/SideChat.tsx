@@ -45,7 +45,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onDecide: (allow: boolean) => void;
   onPolicyChange: (policy: ExecutionPolicy) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
-  onEffortChange: (effort: AgentEffort) => void;
+  onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
   onClose: () => void;

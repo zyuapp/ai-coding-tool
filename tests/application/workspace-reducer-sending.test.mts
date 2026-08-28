@@ -25,7 +25,7 @@ test("a composer send waits for its workspace, then starts the run and clears th
 
 test("the chosen effort sticks to the task and rides along with its runs", () => {
   const drafted = run(workspace(), [
-    { type: "task.set-effort", effort: "max" },
+    { type: "task.set-effort", engine: "claude", effort: "max" },
     { type: "view.set-prompt", prompt: "Inspect the app" },
   ]);
   assert.equal(drafted.draftEffort, "max");
@@ -35,7 +35,7 @@ test("the chosen effort sticks to the task and rides along with its runs", () =>
   assert.equal(effectAt(started, "start-run").command.effort, "max");
   assert.equal(started.state.tasks[0].effort, "max");
 
-  const lowered = reduce(started.state, { type: "task.set-effort", effort: "low" });
+  const lowered = reduce(started.state, { type: "task.set-effort", engine: "claude", effort: "low" });
   assert.equal(lowered.state.tasks[0].effort, "low");
 });
 
@@ -224,6 +224,13 @@ test("a model the engine does not offer changes neither the thread nor the draft
 
   assert.equal(reduce(state, { type: "task.set-model", engine: "claude", model: foreign }).state, state);
   assert.equal(reduce(state, { type: "task.set-model", taskId: "task-a", engine: "claude", model: foreign }).state, state);
+});
+
+test("an effort the engine does not offer changes neither the thread nor the draft", () => {
+  const state = workspace({ tasks: [task("task-a", { effort: "high" })], currentId: "task-a" });
+
+  assert.equal(reduce(state, { type: "task.set-effort", engine: "claude", effort: "ultra" }).state, state);
+  assert.equal(reduce(state, { type: "task.set-effort", taskId: "task-a", engine: "codex", effort: "ultra" }).state, state, "a Claude thread cannot borrow a Codex effort");
 });
 
 test("a command that names its task acts on that one, whichever task the user is looking at", () => {

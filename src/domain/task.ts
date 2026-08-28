@@ -1,4 +1,4 @@
-import { engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "./agent-engine.js";
+import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "./agent-engine.js";
 import type { AgentEffort, Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import { isWorktree, type Worktree } from "./worktree.js";
 
@@ -689,7 +689,7 @@ function isTaskBase(value: unknown): value is Task {
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
     (value.model === undefined || isAgentModel(value.model) && engineHasModel(value.engine, value.model)) &&
-    (value.effort === undefined || isAgentEffort(value.effort)) &&
+    (value.effort === undefined || isAgentEffort(value.effort) && engineHasEffort(value.engine, value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&
     value.messages.every(isTaskMessage) &&

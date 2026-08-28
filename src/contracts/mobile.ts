@@ -1,6 +1,6 @@
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
-import { engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
+import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText, TaskMessageKind } from "../domain/task.js";
 
@@ -249,7 +249,7 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "task.set-model":
       return named && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model);
     case "task.set-effort":
-      return named && isAgentEffort(command.effort);
+      return named && isAgentEngine(command.engine) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort);
     case "task.steer-queued":
     case "task.drop-queued":
       return named && isString(command.messageId);

@@ -41,7 +41,8 @@ test("a phone may drive the conversation and nothing outside it", () => {
     { type: "task.fork", taskId: "task-1", worktree: true },
     { type: "task.set-policy", policy: "autonomous" },
     { type: "task.set-model", taskId: "task-1", engine: "claude", model: "opus" },
-    { type: "task.set-effort", effort: "max" },
+    { type: "task.set-effort", engine: "claude", effort: "max" },
+    { type: "task.set-effort", taskId: "task-1", engine: "codex", effort: "ultra" },
     { type: "task.steer-queued", messageId: "queued-1" },
     { type: "task.drop-queued", taskId: "task-1", messageId: "queued-1" },
     { type: "run.cancel" },
@@ -90,7 +91,8 @@ test("mobile command guard rejects wrong shapes and oversized text", () => {
   assert.equal(isMobileCommand({ type: "task.send", attachments: [] }), false, "a phone carries no files");
   assert.equal(isMobileCommand({ type: "task.set-policy", policy: "yolo" }), false);
   assert.equal(isMobileCommand({ type: "task.set-model", engine: "claude", model: "gpt" }), false);
-  assert.equal(isMobileCommand({ type: "task.set-effort", effort: "ultra" }), false);
+  assert.equal(isMobileCommand({ type: "task.set-effort", engine: "claude", effort: "ultra" }), false, "ultra is Codex's alone");
+  assert.equal(isMobileCommand({ type: "task.set-effort", effort: "high" }), false, "an effort names its engine");
   assert.equal(isMobileCommand({ type: "run.decide" }), false);
   assert.equal(isMobileCommand({ type: "run.decide", allow: "yes" }), false);
   assert.equal(isMobileCommand({ type: "view.set-prompt", prompt: 0 }), false);

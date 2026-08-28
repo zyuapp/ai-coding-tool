@@ -1,6 +1,7 @@
 import { createSdkMcpServer, query, tool, type CanUseTool, type McpServerConfig, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { claudeEffort } from "../../domain/agent-engine.js";
 import type { AgentProvider, ProviderResult, ProviderRunInput } from "./agent-provider.mjs";
 import { automationTools, AUTOMATION_SERVER_NAME, findingTools } from "../tools/automation.mjs";
 import { browserTools, BROWSER_SERVER_NAME } from "../tools/browser.mjs";
@@ -200,7 +201,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
         permissionMode: claudePermissionMode(input.policy),
         model: input.model,
-        effort: input.effort,
+        effort: claudeEffort(input.effort),
         ...(input.claude?.outputStyle ? { settings: { outputStyle: input.claude.outputStyle } } : {}),
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),

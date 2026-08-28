@@ -1,7 +1,7 @@
 import type { AgentEffort } from "./run.js";
 
 /** The backends that can run a task. Each offers its own models, efforts, and context windows. */
-export type AgentEngine = "claude";
+export type AgentEngine = "claude" | "codex";
 export const DEFAULT_ENGINE: AgentEngine = "claude";
 
 const CLAUDE_MODELS = [
@@ -11,15 +11,34 @@ const CLAUDE_MODELS = [
   { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000 },
 ] as const;
 
-const CLAUDE_EFFORTS: readonly EffortSpec[] = [
+const CLAUDE_EFFORTS = [
   { id: "max", label: "Max effort", description: "Everything the model has, slowest" },
   { id: "xhigh", label: "Extra high effort", description: "Deeper than high, where the model offers it" },
   { id: "high", label: "High effort", description: "Deep reasoning" },
   { id: "medium", label: "Medium effort", description: "Moderate thinking" },
   { id: "low", label: "Low effort", description: "Minimal thinking, fastest replies" },
+] as const satisfies readonly EffortSpec[];
+
+/** The efforts the Claude SDK accepts, which its `EffortLevel` type must keep matching. */
+export type ClaudeEffort = (typeof CLAUDE_EFFORTS)[number]["id"];
+
+/** Codex's model catalogue exposes no context window; 272k is what its GPT-5 line documents. */
+const CODEX_CONTEXT_WINDOW = 272_000;
+
+const CODEX_MODELS = [
+  { id: "gpt-5.6-sol", label: "Sol", description: "Latest frontier agentic coding model", contextWindow: CODEX_CONTEXT_WINDOW },
+  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW },
+] as const;
+
+const CODEX_EFFORTS: readonly EffortSpec[] = [
+  { id: "ultra", label: "Ultra effort", description: "Deepest reasoning Codex offers, slowest" },
+  { id: "xhigh", label: "Extra high effort", description: "Deeper than high" },
+  { id: "high", label: "High effort", description: "Deep reasoning" },
+  { id: "medium", label: "Medium effort", description: "Moderate thinking" },
+  { id: "low", label: "Low effort", description: "Minimal thinking, fastest replies" },
 ];
 
-export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"];
+export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MODELS)[number]["id"];
 
 /** Runs always request the widest context a model offers, so `contextWindow` is that ceiling. */
 export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number };
@@ -51,6 +70,14 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     defaultEffort: "high",
     capabilities: { planUsage: true, workflows: true, subagents: true },
   },
+  codex: {
+    label: "Codex",
+    models: CODEX_MODELS,
+    defaultModel: "gpt-5.6-sol",
+    efforts: CODEX_EFFORTS,
+    defaultEffort: "high",
+    capabilities: { planUsage: false, workflows: false, subagents: false },
+  },
 };
 
 export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
@@ -74,6 +101,15 @@ export function isAgentEffort(value: unknown): value is AgentEffort {
 
 export function engineHasModel(engine: AgentEngine, model: AgentModel) {
   return ENGINES[engine].models.some((spec) => spec.id === model);
+}
+
+/** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */
+export function claudeEffort(effort: AgentEffort): ClaudeEffort {
+  return CLAUDE_EFFORTS.some((spec) => spec.id === effort) ? effort as ClaudeEffort : "high";
+}
+
+export function engineHasEffort(engine: AgentEngine, effort: AgentEffort) {
+  return ENGINES[engine].efforts.some((spec) => spec.id === effort);
 }
 
 export function modelsFor(engine: AgentEngine): readonly ModelSpec[] {

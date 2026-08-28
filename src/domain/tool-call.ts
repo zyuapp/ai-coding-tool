@@ -35,6 +35,17 @@ const NAMING: Record<AgentEngine, ToolNaming> = {
     },
     namingKeys: ["command", "file_path", "notebook_path", "pattern", "query", "url", "path", "description", "prompt", "skill", "name"],
   },
+  /** Codex reports item kinds rather than tool names; its session emits them in snake case. */
+  codex: {
+    families: {
+      command_execution: "shell",
+      file_change: "write",
+      web_search: "web",
+      mcp_tool_call: "other",
+      todo_list: "other",
+    },
+    namingKeys: ["command", "path", "query"],
+  },
 };
 
 /** Longer than any row can show, and short enough that a heredoc cannot bloat the transcript. */
