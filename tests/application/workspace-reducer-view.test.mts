@@ -195,7 +195,7 @@ test("coming back to the window reads an engine the user went off to install, an
 test("a thread's panels are fed only where its engine can fill them", () => {
   const workflow: Workflow = { id: "wf-1", name: "Release", description: "", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
   const subagent: Subagent = { id: "sub-1", description: "Inspect", status: "working", startedAt: 1, activity: [] };
-  const state = workspace({ tasks: [task("task-a", { subagents: [subagent] })], currentId: "task-a", workflows: { "task-a": [workflow] } });
+  const state = workspace({ tasks: [task("task-a")], currentId: "task-a", workflows: { "task-a": [workflow] }, subagents: { "task-a": [subagent] } });
   const claude = deriveView(state);
   assert.deepEqual(claude.capabilities, capabilitiesFor("claude"));
   assert.equal(claude.engineLabel, "Claude");

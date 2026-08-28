@@ -11,6 +11,9 @@ import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
 import { answerThreadRequest, type ThreadWaiterList } from "./thread-requests";
 import { hasPersistenceDelta, persistenceDelta, persistenceState, storeBackfill, type PersistenceQueue } from "./workspace-persistence";
 
+/** How long a report waits for a frame that may never come, in a window nothing is drawing. */
+const FLUSH_FALLBACK_MS = 32;
+
 /** The window's state, its door into the reducer, and the two holders a first load writes. */
 export type SubscriptionHost = {
   state: () => WorkspaceState;
@@ -19,11 +22,6 @@ export type SubscriptionHost = {
   persistence: { current: PersistenceQueue };
   persistenceReady: { current: boolean };
 };
-
-/** Which channel the event arrived on: a run's own, or the thread's, which outlives every run. */
-function agentEventInput(event: AgentEvent): WorkspaceInput {
-  return "runId" in event ? { type: "run.event", event } : { type: "thread.event", event };
-}
 
 /** The store the window loads once, and everything main says about runs, threads and phones. */
 function useDesktopSubscriptions(host: SubscriptionHost) {
@@ -70,9 +68,38 @@ function useDesktopSubscriptions(host: SubscriptionHost) {
     void host.dispatch({ type: "engine.read" });
   }, []);
 
+  /**
+   * A run reports on every tool call and every helper agent it starts, which is faster than the
+   * window can usefully redraw. A frame's reports are folded into one change, so a busy thread costs
+   * one redraw a frame rather than one per report. The timer is what keeps that true when the window
+   * is behind another and the display never asks for a frame.
+   */
   useEffect(() => {
     if (!("desktop" in window)) return;
-    return window.desktop.onAgentEvent((event) => void host.dispatch(agentEventInput(event)));
+    let waiting: AgentEvent[] = [];
+    let scheduled = false;
+    let frame = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function flush() {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      scheduled = false;
+      if (!waiting.length) return;
+      const events = waiting;
+      waiting = [];
+      void host.dispatch({ type: "agent.events", events });
+    }
+    const stopListening = window.desktop.onAgentEvent((event) => {
+      waiting.push(event);
+      if (scheduled) return;
+      scheduled = true;
+      frame = requestAnimationFrame(flush);
+      timer = setTimeout(flush, FLUSH_FALLBACK_MS);
+    });
+    return () => {
+      stopListening();
+      flush();
+    };
   }, []);
 
   useEffect(() => {

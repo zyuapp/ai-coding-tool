@@ -332,12 +332,13 @@ test("Claude subagent events reach correlated renderer state", async () => {
     streamingTails: {},
     backgroundProcesses: {},
     workflows: {},
+    subagents: {},
   };
   for (const event of events) state = "runId" in event ? applyRunEvent(state, event) : applyThreadEvent(state, event);
 
   const task = state.tasks[0];
   assert.ok(task);
-  const subagent = task.subagents?.[0];
+  const subagent = state.subagents["task-v"]?.[0];
   assert.ok(subagent);
   assert.equal(closed, true);
   assert.deepEqual(runEvents(events).map((event) => event.sequence), runEvents(events).map((_, index) => index + 1));

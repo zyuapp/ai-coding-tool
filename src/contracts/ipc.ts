@@ -38,7 +38,7 @@ export type InstalledApp = ExternalApp & {
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
 
-export type PersistedTask = Omit<Task, "messages" | "subagents">;
+export type PersistedTask = Omit<Task, "messages">;
 export type PersistedSubagent = Omit<Subagent, "activity">;
 
 export type TaskStoreDelta = {

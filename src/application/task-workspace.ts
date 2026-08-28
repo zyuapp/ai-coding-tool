@@ -108,6 +108,11 @@ export type RunTransitionState = {
   backgroundProcesses: Record<string, BackgroundProcess[]>;
   /** What each task has driven as a dynamic workflow. A workflow left running outlives the run that started it. */
   workflows: Record<string, Workflow[]>;
+  /**
+   * The helper agents each task has delegated to. A live feed rather than thread content, so a report
+   * arriving every few milliseconds never rewrites the thread it belongs to.
+   */
+  subagents: Record<string, Subagent[]>;
 };
 
 function now() {
@@ -179,14 +184,20 @@ export function applyTask<T extends RunTransitionState>(state: T, taskId: string
   return { ...state, tasks: state.tasks.map((task) => task.id === taskId ? update(task) : task) } as T;
 }
 
+export function withSubagents<T extends RunTransitionState>(state: T, taskId: string, subagents: Subagent[]): T {
+  if (subagents.length) return { ...state, subagents: { ...state.subagents, [taskId]: subagents } } as T;
+  if (!(taskId in state.subagents)) return state;
+  const { [taskId]: _cleared, ...rest } = state.subagents;
+  return { ...state, subagents: rest } as T;
+}
+
 function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
-  return applyTask(state, taskId, (task) => {
-    const subagents = [...(task.subagents ?? [])];
-    const index = subagents.findIndex((subagent) => subagent.id === subagentId);
-    if (index === -1) subagents.push(update());
-    else subagents[index] = update(subagents[index]);
-    return { ...task, subagents, updatedAt: now() };
-  });
+  const held = state.subagents[taskId] ?? [];
+  const index = held.findIndex((subagent) => subagent.id === subagentId);
+  if (index === -1) return withSubagents(state, taskId, [...held, update()]);
+  const replaced = update(held[index]);
+  if (replaced === held[index]) return state;
+  return withSubagents(state, taskId, held.map((subagent, position) => position === index ? replaced : subagent));
 }
 
 /** Shared subagent state changes, whether a run carries them or a session reports them later. */
@@ -341,14 +352,12 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   const { [event.runId]: _expired, ...approvals } = next.approvals;
   next = { ...next, approvals } as T;
   next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
-  const subagents = next.tasks.find((task) => task.id === event.taskId)?.subagents;
+  const subagents = next.subagents[event.taskId];
   if (subagents?.some((subagent) => subagent.status === "working" && !subagent.sessionScoped)) {
     const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
-    next = applyTask(next, event.taskId, (task) => ({
-      ...task,
-      subagents: task.subagents?.map((subagent) => subagent.status === "working" && !subagent.sessionScoped ? { ...subagent, status, finishedAt: now() } : subagent),
-      updatedAt: now(),
-    }));
+    next = withSubagents(next, event.taskId, subagents.map((subagent) => subagent.status === "working" && !subagent.sessionScoped
+      ? { ...subagent, status, finishedAt: now() }
+      : subagent));
   }
   /** A run cut short took its workflows with it; a run that answered leaves them running in the background. */
   const workflows = next.workflows[event.taskId];

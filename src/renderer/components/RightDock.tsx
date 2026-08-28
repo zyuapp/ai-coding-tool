@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 import { LuGitFork as GitFork, LuGlobe as Globe, LuSquareTerminal as SquareTerminal } from "react-icons/lu";
 import { DockContent } from "./DockContent";
 import { DockTabStrip } from "./DockTabStrip";
@@ -38,7 +38,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
 
   /** Which dock tab was last asked to take the keyboard, as the count the view watches. */
   const dockFocus = workspace.dockFocus;
-  const focusTokenFor = (tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0;
+  const focusTokenFor = useCallback((tab: string) => dockFocus?.tab === tab ? dockFocus.count : 0, [dockFocus]);
 
   const tabs: DockTab[] = [
     ...panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
@@ -48,15 +48,19 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
   ];
 
   /** The strip keeps the keyboard when a tab goes, so closing several in a row never needs the mouse. */
-  async function closeTab(id: string) {
-    if (workspace.dockPanels.includes(id)) await workspace.actions.closeDockPanel(id);
-    else if (workspace.browserTabs.some((tab) => tab.id === id)) await workspace.actions.closeBrowserTab(id);
-    else if (workspace.terminals.some((terminal) => terminal.id === id)) await workspace.actions.closeTerminal(id);
-    else await workspace.dispatch({ type: "side-chat.close", chatId: id });
+  const held = useRef({ workspace });
+  held.current.workspace = workspace;
+  const closeTab = useCallback(async (id: string) => {
+    const { dockPanels, browserTabs, terminals, actions, dispatch } = held.current.workspace;
+    if (dockPanels.includes(id)) await actions.closeDockPanel(id);
+    else if (browserTabs.some((tab) => tab.id === id)) await actions.closeBrowserTab(id);
+    else if (terminals.some((terminal) => terminal.id === id)) await actions.closeTerminal(id);
+    else await dispatch({ type: "side-chat.close", chatId: id });
     requestAnimationFrame(() => {
       (document.querySelector<HTMLElement>('.right-dock-tab.active [role="tab"]') ?? addMenuTrigger.current)?.focus();
     });
-  }
+  }, []);
+  const onCloseTab = useCallback((id: string) => void closeTab(id), [closeTab]);
 
   return (
     <aside className="right-dock" aria-label="Right panel" hidden={!open}>
@@ -86,7 +90,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
         addMenuOpen={addMenuOpen}
         addMenu={addMenu}
         addMenuTrigger={addMenuTrigger}
-        onCloseTab={(id) => void closeTab(id)}
+        onCloseTab={onCloseTab}
       />
       <DockContent
         workspace={workspace}
@@ -98,7 +102,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
         dockOpen={open}
         settingsVisible={settingsVisible}
         focusTokenFor={focusTokenFor}
-        onCloseTab={(id) => void closeTab(id)}
+        onCloseTab={onCloseTab}
       />
     </aside>
   );

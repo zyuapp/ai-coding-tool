@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deriveView, emptyWorkspaceState, promptKey, stateFromData, type WorkspaceState } from "../../application/workspace-state";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { threadHandleOptions } from "../../application/thread-projection";
@@ -101,17 +101,31 @@ export function useTaskWorkspace() {
 
   const view = useMemo(() => deriveView(state), [state]);
 
-  /** The `@` menu's threads, per draft, since which threads are in scope depends on the draft. */
-  const threadHandlesFor = useMemo(() => {
-    const cached = new Map<string, ThreadHandleOption[]>();
-    return (draftKey: string) => {
-      const known = cached.get(draftKey);
-      if (known) return known;
-      const options = threadHandleOptions(state, draftKey);
-      cached.set(draftKey, options);
-      return options;
-    };
-  }, [state]);
+  /** Held still across renders, so a memoized view is not redrawn by a handler that only looks new. */
+  const dispatchCommand = useCallback((command: AppCommand) => dispatchRef.current(command), []);
+  const dispatchInput = useCallback((input: WorkspaceInput) => dispatchRef.current(input), []);
+  const actions = useMemo(() => workspaceActions(dispatchInput), [dispatchInput]);
+
+  /**
+   * The `@` menu's threads, per draft, since which threads are in scope depends on the draft. The
+   * cache outlives one state so a menu whose threads did not move is handed back the same list, and
+   * a surface holding that list is not redrawn by a change it never reads.
+   */
+  const handleCache = useRef<{ inputs: readonly unknown[]; byDraft: Map<string, ThreadHandleOption[]> }>({ inputs: [], byDraft: new Map() });
+  const threadHandlesFor = useCallback((draftKey: string) => {
+    const current = stateRef.current;
+    const inputs = [current.tasks, current.projects, current.sideChats, current.activeRuns, current.pendingRuns, current.queuedMessages, current.draftProjectId] as const;
+    const cache = handleCache.current;
+    if (inputs.some((value, index) => cache.inputs[index] !== value)) {
+      cache.inputs = inputs;
+      cache.byDraft = new Map();
+    }
+    const known = cache.byDraft.get(draftKey);
+    if (known) return known;
+    const options = threadHandleOptions(current, draftKey);
+    cache.byDraft.set(draftKey, options);
+    return options;
+  }, []);
 
   useEffect(() => { applyTheme(view.theme, view.themeMode === "auto"); }, [view.theme, view.themeMode]);
 
@@ -160,7 +174,7 @@ export function useTaskWorkspace() {
     threadHandles: threadHandlesFor(promptKey(state)),
     threadHandlesFor,
     /** The one door into the application. The named actions below are shorthand for the same commands. */
-    dispatch: (command: AppCommand) => dispatchRef.current(command),
-    actions: workspaceActions(dispatch),
+    dispatch: dispatchCommand,
+    actions,
   };
 }

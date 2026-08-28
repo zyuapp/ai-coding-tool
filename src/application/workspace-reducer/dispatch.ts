@@ -18,8 +18,8 @@ import { isRemoteInput, reduceRemote } from "../remote-commands.js";
 import { isEngineInput, reduceEngine } from "../engine-access.js";
 import type { WorkspaceState } from "../workspace-state.js";
 
-/** Every input but the keystroke, which {@link reduce} has already turned into the commands it means. */
-export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" }>): WorkspaceTransition {
+/** Every input {@link reduce} has not already unpacked into the several inputs it stands for. */
+export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { type: "view.shortcut" | "view.escape" | "agent.events" }>): WorkspaceTransition {
   if (isRemoteInput(input)) return reduceRemote(state, input);
   if (isEngineInput(input)) return reduceEngine(state, input);
   switch (input.type) {

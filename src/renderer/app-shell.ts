@@ -35,22 +35,18 @@ export function useSubagentInspection(workspace: Workspace) {
   return { inspected, inspect, close, clear: () => setSelected(null) };
 }
 
-/** Esc serves whatever is nearest: an overlay claims it first, then a menu, the find bar, and last the run. */
-export function useEscapeLayers(workspace: Workspace) {
+/** Esc reaches the reducer, which is the only thing that knows which layer is open and where the caret is. */
+export function useEscapeLayers(dispatchRef: RefObject<Dispatch>) {
   useEffect(() => {
     function handleKeys(event: KeyboardEvent) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      if (workspace.jump) void workspace.actions.closeJump();
-      else if (workspace.openMenu !== null) workspace.actions.setOpenMenu(null);
-      else if (workspace.settingsOpen) void workspace.actions.setSettingsOpen(false);
-      else if (workspace.find) workspace.actions.closeFind();
-      else void workspace.actions.cancelRun();
+      void dispatchRef.current({ type: "view.escape" });
     }
     window.addEventListener("keydown", handleKeys);
     return () => {
       window.removeEventListener("keydown", handleKeys);
     };
-  }, [workspace.actions, workspace.jump, workspace.openMenu, workspace.settingsOpen, workspace.find]);
+  }, []);
 }
 
 /** Held still, so a link in a settled message is not a fresh handler on every render of the shell. */

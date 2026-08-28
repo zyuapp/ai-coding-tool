@@ -10,6 +10,7 @@ import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectS
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
+import { settleFrame } from "../support/settle.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");
@@ -202,6 +203,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
       browserCalls.push(["read", tabId, textLimit, timeoutMs]);
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
+    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
@@ -675,6 +677,7 @@ test("a run settling on the thread on screen ranks it without marking it, even b
   await act(async () => {
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 1, status: "succeeded" });
   });
+  await settleFrame();
   assert.equal(item(workspace.get().currentTask).outcome, "finished");
   assert.equal(item(workspace.get().currentTask).outcomeUnread, undefined);
 

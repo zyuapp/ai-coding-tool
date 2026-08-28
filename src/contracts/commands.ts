@@ -340,6 +340,8 @@ export type ViewCommand =
    * state knows whether ⌘[ means the thread you came from or the page before this one.
    */
   | { type: "view.shortcut"; action: string; surface: ShortcutSurface }
+  /** Esc. What it dismisses depends on which layer is open and which surface holds the caret. */
+  | { type: "view.escape" }
   /** Binds an action, or unbinds it with a null. Whoever else held the keystroke loses it. */
   | { type: "view.set-shortcut"; action: string; binding: string | null }
   | { type: "view.reset-shortcuts" }

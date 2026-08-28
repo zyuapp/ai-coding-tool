@@ -8,6 +8,7 @@ import type { Task } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
+import { settleFrame } from "../support/settle.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { AutomationPanel, automationStatusLabel, formatCountdown } = await import("../../src/renderer/components/AutomationPanel.tsx");
@@ -139,6 +140,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
       browserCalls.push(["read", tabId, textLimit, timeoutMs]);
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
+    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
@@ -330,6 +332,7 @@ test("a scheduled tick runs in the original thread and reports back to the sched
     desktop.listener({ type: "continuation.updated", taskId: first.taskId, runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "session-1" } });
     desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 2, status: "succeeded" });
   });
+  await settleFrame();
 
   await act(async () => {
     await desktop.fireAutomation({ automationId: "automation-1", taskId: first.taskId, runId: "run-scheduled", prompt: "Check PR 42", runNumber: 3, policy: "autonomous" });

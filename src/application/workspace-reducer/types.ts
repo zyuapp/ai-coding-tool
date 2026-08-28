@@ -3,7 +3,7 @@ import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import type { ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
+import type { AgentEvent, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
@@ -30,6 +30,11 @@ export type WorkspaceEvent =
   | { type: "run.event"; event: RunEvent }
   /** Work that reports to its thread rather than to a run, which may be long over by then. */
   | { type: "thread.event"; event: ThreadEvent }
+  /**
+   * A frame's worth of the two above, folded in the order they arrived. A run reporting on every tool
+   * call would otherwise rewrite the window between each one, redrawing views the reports never touch.
+   */
+  | { type: "agent.events"; events: AgentEvent[] }
   | { type: "run.resolved"; pendingId: string; workspace: WorkspaceRecord; worktree?: CreatedWorktree }
   | { type: "run.unresolved"; pendingId: string; message: string }
   | { type: "automation.fired"; fire: AutomationFire }

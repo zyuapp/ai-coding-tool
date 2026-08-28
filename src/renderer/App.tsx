@@ -21,6 +21,8 @@ import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessag
 
 export function App() {
   const workspace = useTaskWorkspace();
+  const dispatchRef = useLatestDispatch(workspace.dispatch);
+  useEscapeLayers(dispatchRef);
   const inspector = useSubagentInspection(workspace);
   const sidebarOpen = workspace.sidebarOpen;
   const settingsVisible = workspace.settingsOpen;
@@ -66,8 +68,6 @@ export function App() {
     void workspace.actions.setSettingsOpen(false);
   }
 
-  useEscapeLayers(workspace);
-
   const openWorkflow = useCallback((id: string) => {
     void workspace.actions.openWorkflow(id);
   }, [workspace.actions]);
@@ -103,8 +103,6 @@ export function App() {
 
   /** A page the app handed the keyboard to is holding it on purpose, and must not have it taken back. */
   const pageTookKeys = dockFocus !== null && dockFocus.tab === activeRightTab && workspace.browserTabs.some((tab) => tab.id === dockFocus.tab && tab.url);
-
-  const dispatchRef = useLatestDispatch(workspace.dispatch);
 
   useComposerFocusRecovery(dispatchRef, { dockOpen: rightDockOpen, sidebarOpen, settingsVisible, pageTookKeys, dockFocus, dockTab: activeRightTab });
 

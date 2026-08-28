@@ -4,7 +4,7 @@ import type { Subagent, SubagentActivity } from "../../domain/run.js";
 import type { Task, TaskStoreData } from "../../domain/task.js";
 
 function persistedTask(task: Task): PersistedTask {
-  const { messages: _messages, subagents: _subagents, ...record } = task;
+  const { messages: _messages, ...record } = task;
   return record;
 }
 
@@ -14,11 +14,11 @@ function persistedSubagent(subagent: Subagent): PersistedSubagent {
 }
 
 /** Only the subagents and activity items the last write did not already hold. */
-function subagentDelta(before: Task | undefined, task: Task) {
-  const previous = new Map((before?.subagents ?? []).map((subagent) => [subagent.id, subagent]));
+function subagentDelta(before: Subagent[] | undefined, held: Subagent[] | undefined) {
+  const previous = new Map((before ?? []).map((subagent) => [subagent.id, subagent]));
   const subagents: Array<{ index: number; subagent: PersistedSubagent }> = [];
   const activity: Array<{ subagentId: string; index: number; item: SubagentActivity }> = [];
-  (task.subagents ?? []).forEach((subagent, index) => {
+  (held ?? []).forEach((subagent, index) => {
     const stored = previous.get(subagent.id);
     if (stored === subagent) return;
     subagents.push({ index, subagent: persistedSubagent(subagent) });
@@ -38,7 +38,7 @@ function persistedTasks(state: Pick<WorkspaceState, "tasks" | "sideChats"> | nul
   return state.tasks.filter((task) => !forked.has(task.id));
 }
 
-export type PersistenceState = Pick<WorkspaceState, "tasks" | "sideChats" | "projects" | "worktrees" | "lastFolder">;
+export type PersistenceState = Pick<WorkspaceState, "tasks" | "subagents" | "sideChats" | "projects" | "worktrees" | "lastFolder">;
 
 export type PersistenceQueue = {
   persisted: PersistenceState | null;
@@ -47,8 +47,8 @@ export type PersistenceQueue = {
 };
 
 export function persistenceState(state: WorkspaceState): PersistenceState {
-  const { tasks, sideChats, projects, worktrees, lastFolder } = state;
-  return { tasks, sideChats, projects, worktrees, lastFolder };
+  const { tasks, subagents, sideChats, projects, worktrees, lastFolder } = state;
+  return { tasks, subagents, sideChats, projects, worktrees, lastFolder };
 }
 
 export function persistenceDelta(previous: PersistenceState | null, next: PersistenceState): TaskStoreDelta {
@@ -60,13 +60,16 @@ export function persistenceDelta(previous: PersistenceState | null, next: Persis
     ...(removedTasks.length ? { removedTasks } : {}),
     tasks: nextTasks.flatMap((task) => {
       const before = previousTasks.get(task.id);
-      if (before === task) return [];
+      const heldBefore = previous?.subagents[task.id];
+      const held = next.subagents[task.id];
+      if (before === task && heldBefore === held) return [];
       const messages: Array<{ index: number; message: Task["messages"][number] }> = [];
       for (let index = 0; index < task.messages.length; index += 1) {
         const message = task.messages[index]!;
         if (before?.messages[index] !== message) messages.push({ index, message });
       }
-      const { subagents, activity } = subagentDelta(before, task);
+      const { subagents, activity } = subagentDelta(heldBefore, held);
+      if (before === task && !subagents.length && !activity.length) return [];
       return [{
         task: persistedTask(task),
         messages,
@@ -82,8 +85,11 @@ export function persistenceDelta(previous: PersistenceState | null, next: Persis
 
 /** Writes anything created before the durable store finished loading, including worktree records. */
 export function storeBackfill(stored: TaskStoreData, current: PersistenceState) {
+  const subagents: Record<string, Subagent[]> = {};
+  for (const task of stored.tasks) if (task.subagents?.length) subagents[task.id] = task.subagents;
   return persistenceDelta({
     tasks: stored.tasks,
+    subagents,
     sideChats: [],
     projects: stored.projects,
     worktrees: stored.worktrees,

@@ -20,7 +20,7 @@ function snapshot(text: string): PersistenceState {
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     updatedAt: 1,
   };
-  return { tasks: [task], sideChats: [], projects: [], worktrees: [], lastFolder: null };
+  return { tasks: [task], subagents: {}, sideChats: [], projects: [], worktrees: [], lastFolder: null };
 }
 
 test("slow persistence keeps only the latest workspace snapshot queued", async () => {

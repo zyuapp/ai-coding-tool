@@ -168,7 +168,7 @@ export class TaskDatabase {
   load(): TaskStoreData | null {
     const taskRecords = Array.from(
       this.database.prepare("SELECT data FROM tasks").iterate() as Iterable<{ data: string }>,
-      ({ data }) => JSON.parse(data) as Omit<Task, "messages" | "subagents">,
+      ({ data }) => JSON.parse(data) as Omit<Task, "messages">,
     );
     const projects = Array.from(
       this.database.prepare("SELECT data FROM projects ORDER BY position").iterate() as Iterable<{ data: string }>,

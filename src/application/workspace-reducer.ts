@@ -3,6 +3,7 @@ import { prunedFind, prunedWorkflowPanels, settled, shownPageEffects, TAKE_KEYS 
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
+import type { AgentEvent } from "../contracts/ipc.js";
 import { dockTabShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
 
 export type { WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
@@ -14,9 +15,12 @@ export { DIFF_PANEL, WORKFLOW_PANEL, WORKSPACE_ERRORS } from "./workspace-reduce
  */
 export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceTransition {
   /** A keystroke is whatever the user could have clicked, so it re-enters here as those commands. */
-  if (input.type === "view.shortcut") {
-    return shortcutCommands(state, input.action, input.surface).reduce<WorkspaceTransition>((transition, command) => {
-      const next = reduce(transition.state, command);
+  if (input.type === "view.shortcut") return runCommands(state, shortcutCommands(state, input.action, input.surface));
+  if (input.type === "view.escape") return runCommands(state, escapeCommands(state));
+  /** A frame's reports, folded in arrival order so no report overtakes the one before it. */
+  if (input.type === "agent.events") {
+    return input.events.reduce<WorkspaceTransition>((transition, event) => {
+      const next = reduce(transition.state, agentEventInput(event));
       return { state: next.state, effects: [...transition.effects, ...next.effects] };
     }, settled(state));
   }
@@ -31,6 +35,32 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
    * keys come back to the window too, since the page they were on belongs to the thread just left.
    */
   return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
+}
+
+/** Which channel a report arrived on: a run's own, or the thread's, which outlives every run. */
+function agentEventInput(event: AgentEvent): WorkspaceInput {
+  return "runId" in event ? { type: "run.event", event } : { type: "thread.event", event };
+}
+
+function runCommands(state: WorkspaceState, commands: AppCommand[]): WorkspaceTransition {
+  return commands.reduce<WorkspaceTransition>((transition, command) => {
+    const next = reduce(transition.state, command);
+    return { state: next.state, effects: [...transition.effects, ...next.effects] };
+  }, settled(state));
+}
+
+/**
+ * What Esc means: the nearest layer claims it first — an overlay, then a menu, the settings sheet,
+ * the find bar — and only when none is open does it reach a run. The run it reaches is the one in
+ * the surface holding the caret, so Esc in a side chat stops that chat and never the main thread.
+ */
+export function escapeCommands(state: WorkspaceState): AppCommand[] {
+  if (state.jump) return [{ type: "view.jump-close" }];
+  if (state.openMenu !== null) return [{ type: "view.set-menu", menu: null }];
+  if (state.settingsOpen || state.computerUseSetup) return [{ type: "view.set-settings-open", open: false }];
+  if (state.find) return [{ type: "view.find-close" }];
+  const chat = state.sideChats.find((item) => item.id === state.keyboardTab);
+  return [chat ? { type: "run.cancel", taskId: chat.id } : { type: "run.cancel" }];
 }
 
 /** The project a new thread starts in: the one the current thread is in, else the one being drafted. */

@@ -3,7 +3,7 @@ import { test, vi } from "vitest";
 import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
-import { settleUntil } from "../support/settle.mts";
+import { settleFrame, settleUntil } from "../support/settle.mts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
 import type { Task } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
@@ -166,6 +166,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
       browserCalls.push(["read", tabId, textLimit, timeoutMs]);
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
+    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
@@ -280,6 +281,7 @@ test("workspace hook runs a projectless task and scopes events, approvals, and c
     desktop.listener({ type: "approval.requested", taskId: start.taskId, runId: start.runId, sequence: 2, approvalId: "approval-1", title: "Approve", description: "Review", intent: { toolId: "tool-1", name: "Read", input: {} } });
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 3, status: "awaiting-approval" });
   });
+  await settleFrame();
   assert.equal(item(workspace.get().currentTask).messages.length, 2);
   assert.equal(item(workspace.get().approval).approvalId, "approval-1");
   await act(async () => { workspace.get().actions.decideApproval(true); workspace.get().actions.cancelRun(); });
@@ -461,6 +463,7 @@ test("workspace hook ignores a changed-files response from a replaced run", asyn
   const first = startCommand(desktop.sent.at(-1));
   phase = "old";
   await act(async () => { desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 1, status: "succeeded" }); });
+  await settleFrame();
   await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
   resolveOld({ status: "available", files: ["stale"], branch: "old", baseline: null, additions: 99, deletions: 99 });
   await act(async () => {});
@@ -533,6 +536,7 @@ test("workspace hook keeps subagents when the task continues", async () => {
     desktop.listener({ type: "subagent.started", taskId: first.taskId, id: "agent-1", description: "Inspect", agentType: "Explore" });
     desktop.listener({ type: "run.status", taskId: first.taskId, runId: first.runId, sequence: 2, status: "succeeded" });
   });
+  await settleFrame();
   await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
 
   assert.equal(workspace.get().subagents[0].description, "Inspect");
@@ -567,6 +571,7 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
     desktop.listener({ type: "assistant.delta", taskId: first.taskId, runId: first.runId, sequence: 1, messageId: "message-1", text: "one" });
     desktop.listener({ type: "assistant.delta", taskId: second.taskId, runId: second.runId, sequence: 1, messageId: "message-2", text: "two" });
   });
+  await settleFrame();
   assert.equal(item(item(workspace.get().currentTask).messages.at(-1)).text, "two");
   assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [second.taskId, first.taskId]);
 
@@ -574,6 +579,7 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
   assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [first.taskId, second.taskId]);
 
   await act(async () => { desktop.listener({ type: "run.status", taskId: second.taskId, runId: second.runId, sequence: 2, status: "succeeded" }); });
+  await settleFrame();
   assert.equal(workspace.get().runActive, false);
   assert.deepEqual([...workspace.get().runningTaskIds], [first.taskId]);
 

@@ -2,7 +2,7 @@
 import { TAKE_KEYS, persistView, settled, stopCapture, targetId } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
-import { applyTask } from "../task-workspace.js";
+import { withSubagents } from "../task-workspace.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
@@ -137,23 +137,19 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
 
     case "view.inspect-subagent": {
       const taskId = targetId(state, input.taskId);
-      const task = state.tasks.find((candidate) => candidate.id === taskId);
-      const subagent = task?.subagents?.find((candidate) => candidate.id === input.subagentId);
+      const subagent = taskId ? state.subagents[taskId]?.find((candidate) => candidate.id === input.subagentId) : undefined;
       return subagent && !subagent.activity.length
-        ? settled(state, [{ type: "load-subagent-activity", taskId: task!.id, subagentId: subagent.id }])
+        ? settled(state, [{ type: "load-subagent-activity", taskId: taskId!, subagentId: subagent.id }])
         : settled(state);
     }
 
     case "subagent.activity.loaded": {
-      const task = state.tasks.find((candidate) => candidate.id === input.taskId);
-      if (!task?.subagents?.some((subagent) => subagent.id === input.subagentId)) return settled(state);
+      const held = state.subagents[input.taskId];
+      if (!held?.some((subagent) => subagent.id === input.subagentId)) return settled(state);
       const stored = new Set(input.activity.map((item) => item.id));
-      return settled(applyTask(state, input.taskId, (target) => ({
-        ...target,
-        subagents: target.subagents?.map((subagent) => subagent.id === input.subagentId
-          ? { ...subagent, activity: [...input.activity, ...subagent.activity.filter((item) => !stored.has(item.id))] }
-          : subagent),
-      })));
+      return settled(withSubagents(state, input.taskId, held.map((subagent) => subagent.id === input.subagentId
+        ? { ...subagent, activity: [...input.activity, ...subagent.activity.filter((item) => !stored.has(item.id))] }
+        : subagent)));
     }
 
     case "view.set-capture-options": {

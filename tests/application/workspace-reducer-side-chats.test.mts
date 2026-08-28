@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { threadSummaries } from "../../src/application/thread-projection.ts";
-import { dock, task, workspace, automation, effectAt, required, run, running, send } from "./workspace-reducer-fixtures.mts";
+import { activeRun, dock, task, workspace, automation, effectAt, required, run, running, send } from "./workspace-reducer-fixtures.mts";
 
 test("a side chat forks the source thread once, then continues on its own branch", () => {
   const source = task("main-task", { executionPolicy: "autonomous", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
@@ -175,4 +175,71 @@ test("closing a side chat cancels its run, and leaving the thread leaves the cha
   assert.equal(required(switched.state.activeRuns["chat-1"]).runId, runId, "so its run carries on while the user is elsewhere");
   assert.deepEqual(deriveView(switched.state).sideChats, [], "the thread the user landed on draws its own dock, which has no fork in it");
   assert.deepEqual(deriveView(reduce(switched.state, { type: "task.select", taskId: "main-task" }).state).sideChats.map((chat) => chat.id), ["chat-1"]);
+});
+
+test("Esc stops the run in the surface holding the caret, so a side chat never stops the main thread", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({
+    tasks: [source],
+    currentId: "main-task",
+    activeRuns: { "main-task": activeRun("main-task", "run-main") },
+    runStatuses: { "main-task": "running" },
+  }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1", text: "Ask" });
+  const chatting = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
+  const chatRun = required(chatting.activeRuns["chat-1"]).runId;
+
+  const inChat = reduce(chatting, { type: "view.dock-keys", tab: "chat-1" }).state;
+  assert.deepEqual(reduce(inChat, { type: "view.escape" }).effects, [
+    { type: "send-run-command", command: { type: "cancel", taskId: "chat-1", runId: chatRun } },
+  ]);
+
+  const inThread = reduce(inChat, { type: "view.dock-keys", tab: null }).state;
+  assert.deepEqual(reduce(inThread, { type: "view.escape" }).effects, [
+    { type: "send-run-command", command: { type: "cancel", taskId: "main-task", runId: "run-main" } },
+  ]);
+});
+
+test("Esc gives the nearest layer its turn before it reaches any run", () => {
+  const state = run(workspace({
+    tasks: [task("main-task")],
+    currentId: "main-task",
+    activeRuns: { "main-task": activeRun("main-task", "run-main") },
+    runStatuses: { "main-task": "running" },
+  }), [{ type: "view.set-menu", menu: "folder" }]);
+
+  const menuClosed = reduce(state, { type: "view.escape" });
+  assert.deepEqual(menuClosed.effects, []);
+  assert.equal(menuClosed.state.openMenu, null);
+
+  const searching = reduce(menuClosed.state, { type: "view.find-open", target: { kind: "thread", taskId: "main-task" } }).state;
+  const findClosed = reduce(searching, { type: "view.escape" });
+  assert.deepEqual(findClosed.effects, []);
+  assert.equal(findClosed.state.find, null);
+
+  assert.deepEqual(reduce(findClosed.state, { type: "view.escape" }).effects, [
+    { type: "send-run-command", command: { type: "cancel", taskId: "main-task", runId: "run-main" } },
+  ]);
+});
+
+test("a side chat's view is held still while another thread's helper agents report", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({
+    tasks: [source],
+    currentId: "main-task",
+    activeRuns: { "main-task": activeRun("main-task", "run-main") },
+    runStatuses: { "main-task": "running" },
+  }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const before = required(deriveView(opened).sideChats[0]);
+
+  const reported = run(opened, [
+    { type: "thread.event", event: { type: "subagent.started", taskId: "main-task", id: "agent-1", description: "Inspect" } },
+    { type: "thread.event", event: { type: "subagent.activity", taskId: "main-task", id: "agent-1", activityId: "a1", kind: "text", text: "Reading" } },
+  ]);
+  assert.equal(deriveView(reported).sideChats[0], before, "the chat reads none of it, so it is handed back unchanged");
+  assert.deepEqual(deriveView(reported).subagents.map((subagent) => subagent.id), ["agent-1"]);
+
+  const typed = reduce(reported, { type: "view.set-prompt", taskId: "chat-1", prompt: "Ask" }).state;
+  assert.notEqual(deriveView(typed).sideChats[0], before, "and redrawn as soon as it reads something new");
 });

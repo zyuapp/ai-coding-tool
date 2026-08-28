@@ -38,6 +38,7 @@ import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-draft
 import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
 import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
 import { worktreeSettingsViews } from "./worktree-settings.js";
+import { heldViews } from "./view-reuse.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
 
 /**
@@ -453,6 +454,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     streamingTails: {},
     backgroundProcesses: {},
     workflows: {},
+    subagents: {},
     storageError,
     actionError: null,
     actionErrorPage: null,
@@ -465,12 +467,18 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
     : data.projects;
-  const tasks = retainedTasks(data.tasks, Date.now());
+  const stored = retainedTasks(data.tasks, Date.now());
+  const subagents: Record<string, Subagent[]> = {};
+  const tasks = stored.map(({ subagents: delegated, ...task }) => {
+    if (delegated?.length) subagents[task.id] = delegated;
+    return task;
+  });
   const firstTask = tasks[0];
   const firstProject = firstTask?.projectId ?? (firstTask ? null : projects.find((project) => project.root === data.lastFolder)?.id ?? null);
   return {
     ...emptyWorkspaceState(storageError),
     tasks: backfillSortIndex(tasks),
+    subagents,
     projects: backfillProjectSortIndex(projects),
     /** A store answering from an older build has no checkouts to hand over. */
     worktrees: data.worktrees ?? [],
@@ -507,6 +515,8 @@ export function withStoreData(state: WorkspaceState, data: TaskStoreData): Works
   const arrived: WorkspaceState = {
     ...state,
     tasks,
+    /** A thread the session is already following keeps its live feed; the rest take the stored one. */
+    subagents: { ...landing.subagents, ...state.subagents },
     worktrees: [
       ...landing.worktrees,
       ...state.worktrees.filter((worktree) => !landingWorktreeIds.has(worktree.id) && claimedWorktreeIds.has(worktree.id)),
@@ -708,13 +718,17 @@ export function findTargetFor(state: WorkspaceState, surface: ShortcutSurface): 
   }
 }
 
+/** Each chat's view outlives the derive that built it, so a report elsewhere never redraws one. */
+const reusedSideChats = heldViews<SideChatView>();
+
 const NO_SUBAGENTS: Subagent[] = [];
+const NO_QUEUED: QueuedMessage[] = [];
 const NO_WORKFLOWS: Workflow[] = [];
 
 /** What the thread's engine reports about its run; a feed the engine cannot fill stays empty. */
 export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceState, currentTask: Task | undefined) {
   return {
-    subagents: capabilities.subagents ? currentTask?.subagents ?? NO_SUBAGENTS : NO_SUBAGENTS,
+    subagents: capabilities.subagents && currentTask ? state.subagents[currentTask.id] ?? NO_SUBAGENTS : NO_SUBAGENTS,
     workflows: capabilities.workflows ? (state.currentId ? state.workflows[state.currentId] : undefined) ?? NO_WORKFLOWS : NO_WORKFLOWS,
   };
 }
@@ -789,7 +803,7 @@ export function deriveView(state: WorkspaceState) {
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
-    queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? [],
+    queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
     runningTaskIds: busy,
     blockedTaskIds: blocked,
     approval: currentRun?.status === "awaiting-approval" ? state.approvals[currentRun.runId] as ApprovalView | undefined : undefined,
@@ -876,7 +890,7 @@ export function deriveView(state: WorkspaceState) {
     remote: state.remote,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
-    sideChats: dockSideChats(state, owner).flatMap((chat): SideChatView[] => {
+    sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat): SideChatView[] => {
       const task = state.tasks.find((item) => item.id === chat.id);
       if (!task) return [];
       const active = state.activeRuns[chat.id];
@@ -894,10 +908,10 @@ export function deriveView(state: WorkspaceState) {
         compacting: active?.status === "compacting",
         status: active ? "running" : runStatusFor(state, chat.id),
         streamingTail: state.streamingTails[chat.id] ?? null,
-        queuedMessages: state.queuedMessages[chat.id] ?? [],
+        queuedMessages: state.queuedMessages[chat.id] ?? NO_QUEUED,
         readingPoint: state.readingPoints[chat.id] ?? null,
         ...(approval ? { approval } : {}),
       }];
-    }),
+    })),
   };
 }

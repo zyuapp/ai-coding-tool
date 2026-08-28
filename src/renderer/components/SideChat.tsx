@@ -2,7 +2,7 @@ import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { ReadingPoint } from "../../contracts/commands";
-import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment, type Project, type Task } from "../../domain/task";
+import { sentPrompts, type Annotation, type AnnotationAnchor, type AttachedFile, type PastedText, type RunAttachment, type Project } from "../../domain/task";
 import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
@@ -11,7 +11,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { TaskComposer } from "./TaskComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, source, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -20,7 +20,9 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   /** The bar, and the match it is showing, when it is this chat's own thread being searched. */
   find?: FindView | null;
   findBar?: ReactNode;
-  source: Task;
+  /** What the thread this chat forks is called, and whether it has a session for the chat to fork. */
+  sourceTitle: string;
+  sourceContinued: boolean;
   project?: Project;
   /** Threads this chat's `@` menu offers. */
   threads?: ThreadHandleOption[];
@@ -51,7 +53,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onClose: () => void;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const available = Boolean(source.continuation || chat.task.continuation);
+  const available = sourceContinued || Boolean(chat.task.continuation);
   const drop = useFileDrop(onFilesAdd);
 
   return (
@@ -59,7 +61,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
       <header className="side-chat-header">
         <div className="side-chat-title">
           <span className="side-chat-fork"><GitFork size={17} /></span>
-          <div><h2>{chat.title}</h2><p>Temporary · forked from {source.title}</p></div>
+          <div><h2>{chat.title}</h2><p>Temporary · forked from {sourceTitle}</p></div>
         </div>
         <button type="button" aria-label="Close side chat" onClick={onClose}><X size={18} /></button>
       </header>

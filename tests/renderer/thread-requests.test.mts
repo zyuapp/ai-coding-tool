@@ -8,6 +8,7 @@ import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { item, mount } from "../support/renderer-dom.mts";
+import { settleFrame } from "../support/settle.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 
@@ -152,6 +153,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
       browserCalls.push(["read", tabId, textLimit, timeoutMs]);
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
+    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
@@ -402,6 +404,7 @@ test("a wait is held open until the thread it names stops working", async () => 
     desktop.listener({ type: "assistant.delta", taskId: running.id, runId, sequence: 1, messageId: "reply-1", text: "Header fixed." });
     desktop.listener({ type: "run.status", taskId: running.id, runId, sequence: 2, status: "succeeded" });
   });
+  await settleFrame();
   await act(async () => {});
 
   const waited = threadWaitResult(desktop.threadAnswers.at(-1));
@@ -421,6 +424,7 @@ test("a wait on a thread that is already idle answers at once, and an unknown th
   const started = item(workspace.get().currentTask);
   const runId = startCommand(desktop.sent.at(-1)).runId;
   await act(async () => { desktop.listener({ type: "run.status", taskId: started.id, runId, sequence: 1, status: "succeeded" }); });
+  await settleFrame();
 
   await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: started.id, op: "wait", threadId: started.id, timeoutMs: 60_000 }); });
   assert.equal(threadWaitResult(desktop.threadAnswers.at(-1)).timedOut, false);

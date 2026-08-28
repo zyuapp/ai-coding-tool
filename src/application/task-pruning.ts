@@ -75,6 +75,7 @@ export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): 
     streamingTails: withoutTaskKeys(state.streamingTails, removed),
     backgroundProcesses: withoutTaskKeys(state.backgroundProcesses, removed),
     workflows: withoutTaskKeys(state.workflows, removed),
+    subagents: withoutTaskKeys(state.subagents, removed),
     automations: withoutMatching(state.automations, (automation) => removed.has(automation.taskId)),
     dockFocus: state.dockFocus && (removed.has(state.dockFocus.owner) || removed.has(state.dockFocus.tab)) ? null : state.dockFocus,
     keyboardTab: state.keyboardTab && dockKeeps(docks, sideChats, state.keyboardTab) ? state.keyboardTab : null,

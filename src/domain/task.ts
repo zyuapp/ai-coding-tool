@@ -247,8 +247,8 @@ function lastAudibleAt(task: Task): number {
 export const ARCHIVE_RETENTION_MS = 5 * 24 * 60 * 60 * 1000;
 
 /** Archiving keeps a task recoverable for {@link ARCHIVE_RETENTION_MS}; the next launch drops what outlived that. */
-export function retainedTasks(tasks: Task[], at: number): Task[] {
-  let retained: Task[] | null = null;
+export function retainedTasks<T extends Task>(tasks: T[], at: number): T[] {
+  let retained: T[] | null = null;
   for (let index = 0; index < tasks.length; index += 1) {
     const task = tasks[index]!;
     if (task.archivedAt !== undefined && at - task.archivedAt >= ARCHIVE_RETENTION_MS) {
@@ -280,7 +280,6 @@ export type Task = {
   effort?: AgentEffort;
   contextUsage?: ContextUsage;
   messages: TaskMessage[];
-  subagents?: Subagent[];
   continuation?: Continuation;
   continuationStatus: ContinuationStatus;
   lastChangeSnapshot: ChangeSnapshot;
@@ -325,9 +324,15 @@ export type Task = {
   archivedAt?: number;
 };
 
+/**
+ * A thread as the store holds it. The helper agents it delegated to are saved beside it and travel
+ * with it on the way in; the workspace lifts them into a feed of their own once it has them.
+ */
+export type StoredTask = Task & { subagents?: Subagent[] };
+
 export type TaskStoreData = {
   version: typeof TASK_STORE_VERSION;
-  tasks: Task[];
+  tasks: StoredTask[];
   projects: Project[];
   worktrees: Worktree[];
   lastFolder: string | null;
@@ -587,7 +592,7 @@ export function validateTaskStoreData(values: DecodedTaskStore): TaskStoreValida
   const stored = Array.isArray(values.worktrees) ? values.worktrees.filter(isWorktree) : [];
   if (Array.isArray(values.worktrees) && stored.length !== values.worktrees.length) errors.push("v2 worktrees contains an invalid value");
   const lifted: Worktree[] = [];
-  const tasks = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, errors, lifted)).filter((task): task is Task => task !== null) : [];
+  const tasks = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, errors, lifted)).filter((task): task is StoredTask => task !== null) : [];
   if (Array.isArray(values.projects) && projects.length !== values.projects.length) errors.push("v2 projects contains an invalid value");
   const projectIds = new Set(projects.map((project) => project.id));
   for (const task of tasks) {
@@ -680,7 +685,7 @@ export function isProject(value: unknown): value is Project {
   return isRecord(value) && nonEmptyString(value.id) && nonEmptyString(value.root) && (value.name === undefined || nonEmptyString(value.name)) && (value.workspaceId === undefined || nonEmptyString(value.workspaceId)) && (value.sortIndex === undefined || finiteNumber(value.sortIndex));
 }
 
-function isTaskBase(value: unknown): value is Task {
+function isTaskBase(value: unknown): value is StoredTask {
   return isRecord(value) &&
     nonEmptyString(value.id) &&
     nonEmptyString(value.title) &&
@@ -777,7 +782,7 @@ function recordedEngine(value: unknown) {
   return { ...value, engine: UNRECORDED_ENGINE };
 }
 
-function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Task | null {
+function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): StoredTask | null {
   const retired = renamedFields(dropRetiredSettings(recordedEngine(raw)));
   const value = isRecord(retired) ? liftEmbeddedWorktree(retired, lifted) : retired;
   if (!isTaskBase(value)) {
@@ -802,7 +807,7 @@ function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): Tas
 }
 
 /** No provider session survives an app restart, so work saved mid-turn cannot still be working. */
-function settleStoredSubagents(task: Task): Task {
+function settleStoredSubagents(task: StoredTask): StoredTask {
   if (!task.subagents?.some((subagent) => subagent.status === "working")) return task;
   return {
     ...task,
