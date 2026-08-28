@@ -38,6 +38,8 @@ export type SessionPanelProps = {
   onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSetSubagentGroup: (group: SubagentGroup, open: boolean) => void;
+  /** Starts an empty thread in the checkout named by the location row. */
+  onNewThread: () => void;
   onSetWorktree: (worktree: boolean) => void;
   /** `create` names a branch the repository does not have yet, made at the checkout's HEAD first. */
   onCheckoutBranch: (branch: string, create: boolean) => void;
@@ -61,7 +63,7 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
 }
 
 type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
-  & Pick<SessionPanelProps, "runActive" | "openMenu" | "onSetOpenMenu" | "onSetWorktree">;
+  & Pick<SessionPanelProps, "runActive" | "openMenu" | "onSetOpenMenu" | "onNewThread" | "onSetWorktree">;
 
 /** What the row says, and what its menu offers, for each place a thread can be. */
 function locationLabel(location: ThreadLocation) {
@@ -80,7 +82,7 @@ function leaveLabel(threads: number) {
 }
 
 /** One entry: it says where the thread works, and its menu carries the only move it has. */
-function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktree }: LocationRowProps) {
+function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onNewThread, onSetWorktree }: LocationRowProps) {
   const inWorktree = location.kind === "worktree";
   const working = location.kind === "creating" || location.kind === "releasing";
   const { text, title } = locationLabel(location);
@@ -97,11 +99,15 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
         className="session-row session-location-row"
         popoverClassName="session-menu-popover"
         anchored
-        items={[{
-          label: location.kind === "worktree" ? leaveLabel(location.threads) : "Hand off to worktree",
-          disabled: runActive || working,
-          onSelect: () => onSetWorktree(!inWorktree),
-        }]}
+        items={[
+          { label: "New thread here", disabled: working, onSelect: onNewThread },
+          "separator",
+          {
+            label: location.kind === "worktree" ? leaveLabel(location.threads) : "Hand off to worktree",
+            disabled: runActive || working,
+            onSelect: () => onSetWorktree(!inWorktree),
+          },
+        ]}
       >
         <span className="session-row-icon">{inWorktree || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
         <span className="session-location-name" title={title}>
@@ -267,7 +273,7 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onNewThread, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
@@ -279,7 +285,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, taskId, loc
       <div className="session-card">
         <h2 className="session-title">Session</h2>
             <div className="session-environment">
-              {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onSetWorktree={onSetWorktree} />}
+              {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onNewThread={onNewThread} onSetWorktree={onSetWorktree} />}
               <button
                 className="session-row session-row-action"
                 type="button"

@@ -82,6 +82,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onStopProcess() {},
     onSetOpenMenu() {},
     onSetSubagentGroup() {},
+    onNewThread() {},
     onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,

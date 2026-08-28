@@ -39,6 +39,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onStopProcess() {},
     onSetOpenMenu() {},
     onSetSubagentGroup() {},
+    onNewThread() {},
     onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,
@@ -589,8 +590,8 @@ test("the open-in button waits for a folder to hand over", async () => {
   await view.unmount();
 });
 
-test("the session panel's thread menu offers the hand-off its location allows, and nothing else", async () => {
-  const calls: { worktree: boolean[]; menu: Array<string | null> } = { worktree: [], menu: [] };
+test("the session panel's thread menu starts another thread here and offers the hand-off its location allows", async () => {
+  const calls: { threads: number; worktree: boolean[]; menu: Array<string | null> } = { threads: 0, worktree: [], menu: [] };
   const panel = (location: ThreadLocation, openMenu: string | null, runActive = false) => renderSessionPanel({
     environment: { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 },
     hasProject: true,
@@ -603,6 +604,7 @@ test("the session panel's thread menu offers the hand-off its location allows, a
     onSelect() {},
     onOpenAutomations() {},
     onSetOpenMenu: (menu) => { calls.menu.push(menu); },
+    onNewThread: () => { calls.threads++; },
     onSetWorktree: (worktree) => { calls.worktree.push(worktree); },
   });
   const items = () => [...document.querySelectorAll<HTMLElement>('.session-menu-popover [role="menuitem"]')].map((element) => element.textContent);
@@ -613,34 +615,44 @@ test("the session panel's thread menu offers the hand-off its location allows, a
   assert.deepEqual(calls.menu, ["session:location"]);
 
   await view.render(panel({ kind: "local" }, "session:location"));
-  assert.deepEqual(items(), ["Hand off to worktree"], "where a thread works is the only thing this menu decides");
+  assert.deepEqual(items(), ["New thread here", "Hand off to worktree"]);
   assert.ok(!view.container.contains(query(document, ".session-menu-popover")), "the list hangs outside the scrolling panel, which would crop it");
   await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
+  assert.equal(calls.threads, 1);
+
+  await view.render(panel({ kind: "local" }, "session:location"));
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[1]).click(); });
   assert.deepEqual(calls.worktree, [true]);
 
   const checkout = { id: "wt1", root: "/worktrees/repo-wt1", projectId: "p", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 };
   const worktree: ThreadLocation = { kind: "worktree", worktree: checkout, threads: 1 };
   await view.render(panel(worktree, "session:location"));
-  assert.deepEqual(items(), ["Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
+  assert.deepEqual(items(), ["New thread here", "Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
   assert.match(query(view.container, ".session-location-name").textContent, /Worktree/);
   await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
+  assert.equal(calls.threads, 2, "the same action is available in a shared checkout");
+
+  await view.render(panel(worktree, "session:location"));
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[1]).click(); });
   assert.deepEqual(calls.worktree, [true, false]);
 
   await view.render(panel({ kind: "worktree", worktree: checkout, threads: 3 }, "session:location"));
-  assert.deepEqual(items(), ["Return to local and leave the worktree"], "a checkout others are still in stays where it is");
+  assert.deepEqual(items(), ["New thread here", "Return to local and leave the worktree"], "a checkout others are still in stays where it is");
   assert.match(query(view.container, ".session-location-name").textContent, /3 threads/, "the row counts them before the user acts");
 
   await view.render(panel(worktree, "session:location", true));
-  assert.equal(query<HTMLButtonElement>(document, '.session-menu-popover [role="menuitem"]').disabled, true, "a running thread cannot change where it works");
+  const runningItems = document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]');
+  assert.equal(item(runningItems[0]).disabled, false, "a running thread does not prevent starting another one beside it");
+  assert.equal(item(runningItems[1]).disabled, true, "a running thread cannot change where it works");
 
   await view.render(panel({ kind: "creating" }, "session:location"));
   assert.match(query(view.container, ".session-location-name").textContent, /Creating worktree/);
-  assert.equal(query<HTMLButtonElement>(document, '.session-menu-popover [role="menuitem"]').disabled, true, "a checkout being made cannot be asked for twice");
+  assert.ok([...document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')].every((entry) => entry.disabled), "a checkout being made is not yet a stable place for another thread");
 
   await view.render(panel({ kind: "releasing" }, "session:location"));
   assert.match(query(view.container, ".session-location-name").textContent, /Removing worktree/);
   assert.equal(query(view.container, ".session-location-name .text-sweep").textContent, "Removing worktree…", "the wait reads as the same motion the app uses elsewhere");
-  assert.equal(query<HTMLButtonElement>(document, '.session-menu-popover [role="menuitem"]').disabled, true, "a checkout being removed cannot be asked for twice");
+  assert.ok([...document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')].every((entry) => entry.disabled), "a checkout being removed is not a stable place for another thread");
   await view.unmount();
 });
 

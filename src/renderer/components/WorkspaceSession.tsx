@@ -35,6 +35,10 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       onOpenWorkflow={onOpenWorkflow}
       onStopProcess={workspace.actions.stopBackgroundProcess}
       onCheckoutBranch={(branch, create) => void workspace.actions.checkoutBranch(branch, create)}
+      onNewThread={() => {
+        const task = workspace.currentTask;
+        if (task) void workspace.actions.newTask(task.projectId, task.worktreeId);
+      }}
       onSetWorktree={(worktree) => {
         /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */
         const holding = workspace.environment?.status === "available" ? workspace.environment.files.length : 0;
