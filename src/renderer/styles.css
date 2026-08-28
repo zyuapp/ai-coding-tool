@@ -194,7 +194,7 @@
   --text-badge: 10px;
   --terminal-text: 12px;
   --row-slot: 22px;
-  --row-slots: 3;
+  --row-slots: 4;
   --system-ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   --system-mono-font: ui-monospace, "SFMono-Regular", Menlo, monospace;
   --ui-font: var(--system-ui-font);
@@ -799,6 +799,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible, summary:focu
 .heading-project { flex: 0 1 auto; min-width: 4ch; color: var(--muted-soft); font-weight: 500; }
 .heading-separator { flex: none; color: var(--quiet-soft); font-weight: 400; }
 .heading-thread { flex: 0 1 auto; min-width: 6ch; }
+.heading-engine { flex: none; color: var(--muted); }
 .task-heading p {
   max-width: min(720px, 58vw);
   margin: 4px 0 0;
@@ -2412,6 +2413,7 @@ pre {
 .automation-actions .automation-remove:hover { border-color: var(--danger-line); color: var(--danger); }
 .task-automation { flex: none; color: var(--quiet-strong); }
 .task-worktree { flex: none; color: var(--info-soft); }
+.task-engine { flex: none; color: var(--muted); }
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 12px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }
 .subagent-heading .section-toggle { flex: 1; height: 26px; color: inherit; font-weight: inherit; }

@@ -5,6 +5,7 @@ import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
+import type { Task } from "../../src/domain/task.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
@@ -510,6 +511,10 @@ test("workspace header keeps session summary and right panel controls separate",
   let summaryToggles = 0;
   let rightPanelToggles = 0;
   const view = await mount(React.createElement(WorkspaceHeader, {
+    currentTask: {
+      id: "codex-thread", title: "Codex thread", engine: "codex", executionPolicy: "confirm", messages: [],
+      continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+    } satisfies Task,
     folder: "/project",
     folderLabel: "project",
     sidebarOpen: false,
@@ -527,6 +532,7 @@ test("workspace header keeps session summary and right panel controls separate",
 
   assert.equal(query(view.container, 'button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
   assert.equal(query(view.container, 'button[aria-label="Hide session summary"]').getAttribute("aria-pressed"), "true");
+  assert.ok(view.container.querySelector('.heading-engine[aria-label="Codex thread"]'));
   assert.match(view.container.textContent, /2/);
   await act(async () => {
     query<HTMLButtonElement>(view.container, 'button[aria-label="Show sidebar"]').click();

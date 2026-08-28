@@ -11,6 +11,7 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu, type MenuEntry } from "./PopoverMenu";
 import { threadLink } from "../../domain/thread-handles";
 import { RenameInput, useRenaming } from "./SidebarRename";
+import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
@@ -155,8 +156,9 @@ export function useTaskRows({
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
   const worktreeLabel = (taskId: string) => `Works in ${checkoutNames.get(taskId) ?? "a worktree"}`;
 
-  /** What a thread is: the checkout it works in, the schedule it runs on, and what it is doing now. */
+  /** What a thread is: its engine, checkout, schedule, and what it is doing now. */
   const rowMarks = (task: Task): React.ReactNode[] => [
+    <ThreadEngineIcon key="engine" engine={task.engine} className="task-engine" size={13} />,
     worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
     schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
     blockedTaskIds.has(task.id)

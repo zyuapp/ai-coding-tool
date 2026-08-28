@@ -544,16 +544,16 @@ test("the sidebar lists a project's threads as one list, and its menu starts ano
   await view.unmount();
 });
 
-test("the sidebar marks the threads that run on a schedule and the ones with their own checkout", async () => {
-  const task = (id: string, projectId?: string): Task => ({
-    id, title: id, ...(projectId ? { projectId } : {}), engine: "claude", executionPolicy: "confirm", messages: [],
+test("the sidebar marks each thread's engine, schedule, and checkout", async () => {
+  const task = (id: string, projectId?: string, engine: Task["engine"] = "claude"): Task => ({
+    id, title: id, ...(projectId ? { projectId } : {}), engine, executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
   });
   const view = await mount(renderProjectSidebar({
     inactive: false,
     projects: [{ id: "project-1", root: "/project" }],
-    orderedTasks: [task("scheduled-task", "project-1"), task("plain-task", "project-1")],
-    recentTasks: [task("scheduled-chat"), task("plain-chat")],
+    orderedTasks: [task("scheduled-task", "project-1"), task("plain-task", "project-1", "codex")],
+    recentTasks: [task("scheduled-chat"), task("plain-chat", undefined, "codex")],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
@@ -578,6 +578,8 @@ test("the sidebar marks the threads that run on a schedule and the ones with the
 
   assert.deepEqual(marks("Runs on a schedule"), ["scheduled-chat", "scheduled-task"]);
   assert.deepEqual(marks("Works in a worktree"), ["plain-task"], "a thread with its own checkout is marked wherever it is listed");
+  assert.deepEqual(marks("Claude thread"), ["scheduled-chat", "scheduled-task"]);
+  assert.deepEqual(marks("Codex thread"), ["plain-chat", "plain-task"]);
   await view.unmount();
 });
 
