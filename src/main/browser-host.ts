@@ -1,6 +1,10 @@
+import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { BaseWindow, BrowserWindow, session, WebContentsView, type Rectangle } from "electron";
 import type { BrowserPageEvent } from "../contracts/ipc.js";
-import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { BrowserAction, BrowserBounds, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { FindResults } from "../domain/find.js";
 import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
 
@@ -17,6 +21,10 @@ const DEFAULT_TEXT_LIMIT = 4_000;
 const MAX_SNAPSHOT_ELEMENTS = 1_000;
 /** A page nobody is looking at still lays itself out, so it is given a window's worth of room. */
 const PARKED_VIEWPORT: Rectangle = { x: 0, y: 0, width: 1_200, height: 800 };
+/** Chromium will not draw a picture larger than this, and a long page is cut off rather than refused. */
+const MAX_SHOT_PIXELS = 8_000;
+/** How many pictures the folder keeps. A new one past this deletes the oldest, so a long run is bounded. */
+const MAX_SHOTS = 20;
 
 type Tab = {
   id: string;
@@ -122,6 +130,15 @@ export function stopBrowserHost() {
   /** A window left behind is one the app still counts, and the app quits by counting its windows. */
   if (parking && !parking.isDestroyed()) parking.destroy();
   parking = null;
+  discardShots();
+}
+
+/** Pictures only serve the run that asked for them, so none outlives the window they were taken in. */
+function discardShots() {
+  const home = shotHome;
+  shotHome = null;
+  shots.length = 0;
+  if (home) void home.then((directory) => rm(directory, { recursive: true, force: true })).catch(() => undefined);
 }
 
 function report(tabId: string, event: Omit<BrowserPageEvent, "tabId">) {
@@ -325,6 +342,82 @@ export async function readPage(tabId: string, textLimit: number, timeoutMs: numb
     text: page.truncated ? `${page.text}\n… (page text truncated)` : page.text,
     elements: page.elements,
   };
+}
+
+/** Where pictures of pages are kept, made on the first capture and removed with the host. */
+let shotHome: Promise<string> | null = null;
+const shots: string[] = [];
+
+function shotDirectory() {
+  return shotHome ??= mkdtemp(path.join(tmpdir(), "aicodingtool-shots-"));
+}
+
+/** Keeps the folder bounded. A caller that has yet to open its file still has the newest ones. */
+async function writeShot(bytes: Buffer) {
+  const file = path.join(await shotDirectory(), `${randomUUID()}.png`);
+  await writeFile(file, bytes);
+  shots.push(file);
+  while (shots.length > MAX_SHOTS) {
+    const oldest = shots.shift();
+    if (oldest) await unlink(oldest).catch(() => undefined);
+  }
+  return file;
+}
+
+type LayoutMetrics = {
+  cssContentSize: { width: number; height: number };
+  cssLayoutViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number };
+};
+
+function pixels(value: number) {
+  return Math.max(1, Math.min(Math.round(value), MAX_SHOT_PIXELS));
+}
+
+/** What the picture covers: the page as far as it goes, or only the part a window would show. */
+function shotClip(metrics: LayoutMetrics, fullPage: boolean) {
+  const viewport = metrics.cssLayoutViewport;
+  const box = fullPage
+    ? { x: 0, y: 0, width: metrics.cssContentSize.width, height: metrics.cssContentSize.height }
+    : { x: viewport.pageX, y: viewport.pageY, width: viewport.clientWidth, height: viewport.clientHeight };
+  return { x: Math.round(box.x), y: Math.round(box.y), width: pixels(box.width), height: pixels(box.height), scale: 1 };
+}
+
+/** What the file really measures, which on a dense screen is a multiple of the page's own size. */
+function pngSize(bytes: Buffer) {
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+/**
+ * Draws the page through Chromium's own capture command rather than reading what is on screen. A
+ * page the window is not drawing measures zero by zero, so it is made visible where it is parked for
+ * the length of the capture. The parking window is never shown, so this puts nothing on screen.
+ */
+async function drawPage(tab: Tab, fullPage: boolean) {
+  const debug = tab.view.webContents.debugger;
+  /** The debugger takes one client at a time, so one already attached is left as it was found. */
+  const borrowed = !debug.isAttached();
+  if (borrowed) debug.attach("1.3");
+  const woken = !tab.shown;
+  if (woken) tab.view.setVisible(true);
+  try {
+    const clip = shotClip(await debug.sendCommand("Page.getLayoutMetrics") as LayoutMetrics, fullPage);
+    const drawn = await debug.sendCommand("Page.captureScreenshot", { format: "png", clip, captureBeyondViewport: true, fromSurface: true }) as { data: string };
+    const bytes = Buffer.from(drawn.data, "base64");
+    return { bytes, ...pngSize(bytes) };
+  } finally {
+    /** Laying the tab out again puts it back the way the window has it, whatever changed meanwhile. */
+    if (woken) layout(tab);
+    if (borrowed && debug.isAttached()) debug.detach();
+  }
+}
+
+/** Waits for the page to settle, then writes a picture of it. Null when that tab is gone by then. */
+export async function capturePage(tabId: string, fullPage: boolean, timeoutMs: number): Promise<BrowserShot | null> {
+  const tab = await settled(tabId, timeoutMs);
+  if (!tab) return null;
+  const contents = tab.view.webContents;
+  const drawn = await drawPage(tab, fullPage);
+  return { tabId, url: contents.getURL(), title: contents.getTitle(), path: await writeShot(drawn.bytes), width: drawn.width, height: drawn.height };
 }
 
 export async function act(tabId: string, action: BrowserAction): Promise<string> {

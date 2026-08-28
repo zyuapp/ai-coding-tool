@@ -47,7 +47,7 @@ test("a token reaches the tools it was served, and nothing reaches the host with
   assert.match(served.url, /^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
 
   const client = await connect(served.url, served.token);
-  assert.deepEqual(await names(client), ["browser_back", "browser_click", "browser_close_tab", "browser_open", "browser_read", "browser_search", "browser_tabs", "browser_type"]);
+  assert.deepEqual(await names(client), ["browser_back", "browser_click", "browser_close_tab", "browser_open", "browser_read", "browser_screenshot", "browser_search", "browser_tabs", "browser_type"]);
   const result = await client.callTool({ name: "browser_tabs", arguments: {} });
   assert.deepEqual(result.content, [{ type: "text", text: "The browser panel has no tab open." }]);
 

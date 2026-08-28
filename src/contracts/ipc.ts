@@ -1,6 +1,6 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
-import type { BrowserAction, BrowserBounds, BrowserSnapshot } from "../domain/browser.js";
+import type { BrowserAction, BrowserBounds, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
@@ -307,6 +307,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   actInBrowser(tabId: string, action: BrowserAction): Promise<string>;
   /** Waits for the tab to stop loading, then reads the page. Null when that tab is gone. */
   readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
+  /** Waits the same way, then writes a picture of the page to a file. Null when that tab is gone. */
+  captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number): Promise<BrowserShot | null>;
   clearBrowserData(): Promise<void>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
   /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
@@ -708,10 +710,11 @@ export function isBrowserRead(value: unknown): value is BrowserRead {
   if (!value || typeof value !== "object") return false;
   const read = value as Record<string, unknown>;
   if (read.op === "tabs") return true;
-  if (read.op !== "snapshot") return false;
-  return (read.tabId === undefined || isString(read.tabId))
-    && (read.textLimit === undefined || isCount(read.textLimit))
+  if (read.op !== "snapshot" && read.op !== "screenshot") return false;
+  const waited = (read.tabId === undefined || isString(read.tabId))
     && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
+  if (read.op === "screenshot") return waited && (read.fullPage === undefined || typeof read.fullPage === "boolean");
+  return waited && (read.textLimit === undefined || isCount(read.textLimit));
 }
 
 export function isTerminalRead(value: unknown): value is TerminalRead {

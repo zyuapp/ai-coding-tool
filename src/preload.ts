@@ -106,6 +106,7 @@ const api: DesktopAPI = {
   setBrowserBounds: (bounds: BrowserBounds | null) => ipcRenderer.invoke("browser:bounds", bounds),
   actInBrowser: (tabId: string, action: BrowserAction) => ipcRenderer.invoke("browser:act", tabId, action),
   readBrowserPage: (tabId: string, textLimit: number, timeoutMs: number) => ipcRenderer.invoke("browser:read", tabId, textLimit, timeoutMs),
+  captureBrowserPage: (tabId: string, fullPage: boolean, timeoutMs: number) => ipcRenderer.invoke("browser:capture", tabId, fullPage, timeoutMs),
   clearBrowserData: () => ipcRenderer.invoke("browser:clear"),
   onBrowserEvent: (listener: (event: BrowserPageEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: BrowserPageEvent) => listener(payload);

@@ -27,6 +27,20 @@ export type BrowserSnapshot = {
   elements: BrowserElement[];
 };
 
+/**
+ * A picture of a tab, already written to disk. The caller opens the file to see it; nothing carries
+ * the image itself, so a picture costs the same to report however large the page is.
+ */
+export type BrowserShot = {
+  tabId: string;
+  url: string;
+  title: string;
+  /** The PNG file. It lives in a temporary folder the app removes when it closes. */
+  path: string;
+  width: number;
+  height: number;
+};
+
 /** What a caller does to the page. Every target is a `ref` from that tab's latest snapshot. */
 export type BrowserAction =
   | { kind: "click"; ref: string }

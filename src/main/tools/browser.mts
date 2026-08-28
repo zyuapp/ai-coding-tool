@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_BROWSER_WAIT_MS } from "../../contracts/ipc.js";
 import type { BrowserReadResult } from "../../contracts/threads.js";
-import { browserSearchUrl, describeTab, type BrowserSnapshot } from "../../domain/browser.js";
+import { browserSearchUrl, describeTab, type BrowserShot, type BrowserSnapshot } from "../../domain/browser.js";
 import type { BrowserBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -31,9 +31,17 @@ function snapshotText(snapshot: BrowserSnapshot) {
   ].join("\n");
 }
 
+function shotText(shot: BrowserShot) {
+  return [
+    `${shot.title || "Untitled"} — ${shot.url}`,
+    `Picture saved to ${shot.path} (${shot.width}x${shot.height}). Open that file to see the page.`,
+  ].join("\n");
+}
+
 /** Every read answers the same way, so a page nobody has allowed yet reads as the ask it is. */
 function readText(result: BrowserReadResult) {
   if (result.kind === "snapshot") return snapshotText(result.snapshot);
+  if (result.kind === "shot") return shotText(result.shot);
   if (result.kind === "tabs") return result.tabs.length ? result.tabs.map(describeTab).join("\n") : "The browser panel has no tab open.";
   if (result.kind === "awaiting-approval") {
     return `AICodingTool is asking the user to allow ${result.url}. Nothing loads until they answer, so tell them what you need it for and wait, or ask them to open it themselves.`;
@@ -99,6 +107,22 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
       ...(args.tabId ? { tabId: args.tabId } : {}),
       timeoutMs: waitMs(args.waitSeconds),
       textLimit: args.textLimit ?? DEFAULT_TEXT_LIMIT,
+    }))),
+  }),
+  defineTool({
+    name: "browser_screenshot",
+    description: "Take a picture of a tab and read back where it was saved. Use it to check how a page looks, which the page text cannot tell you. The picture is a PNG file on this machine, so open that file to see it. The tab does not have to be the one on screen: a page the panel is not showing is captured just the same, and the user sees nothing move.",
+    input: {
+      tabId: tabField,
+      fullPage: z.boolean().optional().describe("Capture the whole page instead of only the part that fits the window."),
+      waitSeconds: z.number().optional().describe("How long to wait for the page to settle first. Defaults to 20."),
+    },
+    readOnly: true,
+    run: (bridge, args) => report(async () => readText(await bridge.read({
+      op: "screenshot",
+      ...(args.tabId ? { tabId: args.tabId } : {}),
+      ...(args.fullPage ? { fullPage: true } : {}),
+      timeoutMs: waitMs(args.waitSeconds),
     }))),
   }),
   defineTool({

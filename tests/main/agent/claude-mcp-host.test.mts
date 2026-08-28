@@ -15,6 +15,7 @@ test("the tools Claude may use without asking are the ones the definitions call 
   ]);
   assert.deepEqual([...readOnlyToolNames(BROWSER_SERVER_NAME, BROWSER_TOOLS)], [
     "mcp__aicodingtool-browser__browser_read",
+    "mcp__aicodingtool-browser__browser_screenshot",
     "mcp__aicodingtool-browser__browser_tabs",
   ]);
   const readOnly = (definitions: readonly { name: string; readOnly: boolean }[]) => definitions.flatMap((definition) => definition.readOnly ? [definition.name] : []);

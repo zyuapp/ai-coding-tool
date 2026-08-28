@@ -4,7 +4,7 @@ import { browserTools } from "../../../src/main/tools/browser.mts";
 import { ThreadChannel } from "../../../src/main/agent/thread-channel.mts";
 import type { BrowserBridge } from "../../../src/main/agent/agent-provider.mts";
 import type { BrowserRead, BrowserWrite, ThreadRequest } from "../../../src/contracts/threads.js";
-import type { BrowserSnapshot } from "../../../src/domain/browser.js";
+import type { BrowserShot, BrowserSnapshot } from "../../../src/domain/browser.js";
 
 const snapshot = (overrides: Partial<BrowserSnapshot> = {}): BrowserSnapshot => ({
   tabId: "tab-1",
@@ -114,6 +114,36 @@ test("listing tabs says so when the panel holds nothing", async () => {
     read: async () => ({ kind: "tabs", tabs: [{ id: "tab-1", url: "https://example.com", title: "Example", loading: true, canGoBack: false, canGoForward: false }] }),
   }), "browser_tabs").handler({}, {});
   assert.match(textOf(held), /Example \[tab-1\] · https:\/\/example\.com · loading/);
+});
+
+function capturingBridge(shot: Partial<BrowserShot> = {}): FakeBrowserBridge {
+  const bridge = fakeBridge();
+  return {
+    ...bridge,
+    read: async (read) => {
+      bridge.calls.push(["read", read]);
+      return { kind: "shot", shot: { tabId: "tab-1", url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 800, height: 600, ...shot } };
+    },
+  };
+}
+
+test("capturing a tab asks for a picture and reports the file it went to", async () => {
+  const bridge = capturingBridge({ url: "https://example.com/pulls", title: "Pull requests", path: "/tmp/aicodingtool-shots-a1/b2.png", width: 1_200, height: 2_400 });
+
+  const captured = await toolNamed(bridge, "browser_screenshot").handler({ tabId: "tab-1", fullPage: true, waitSeconds: 5 }, {});
+
+  assert.deepEqual(bridge.calls, [["read", { op: "screenshot", tabId: "tab-1", fullPage: true, timeoutMs: 5_000 }]]);
+  const text = textOf(captured);
+  assert.match(text, /Pull requests — https:\/\/example\.com\/pulls/);
+  assert.match(text, /Picture saved to \/tmp\/aicodingtool-shots-a1\/b2\.png \(1200x2400\)/);
+});
+
+test("a capture of the tab on screen names no tab and asks for no full page", async () => {
+  const bridge = capturingBridge();
+
+  await toolNamed(bridge, "browser_screenshot").handler({}, {});
+
+  assert.deepEqual(last(bridge.calls), ["read", { op: "screenshot", timeoutMs: 20_000 }]);
 });
 
 test("a browser tool reports what went wrong instead of throwing at the run", async () => {

@@ -189,6 +189,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
       browserCalls.push(["read", tabId, textLimit, timeoutMs]);
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
+    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },

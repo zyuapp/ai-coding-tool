@@ -127,6 +127,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
       browserCalls.push(["read", tabId, textLimit, timeoutMs]);
       return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
     },
+    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
     clearBrowserData: async () => { browserCalls.push(["clear"]); },
     findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
     stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
@@ -270,7 +271,7 @@ function responseRecord(response: ThreadResponse | undefined): Record<string, un
 
 function browserReadResult(response: ThreadResponse | undefined): BrowserReadResult {
   const result = responseRecord(response);
-  assert.ok(["tabs", "snapshot", "awaiting-approval", "no-tab"].includes(String(result.kind)));
+  assert.ok(["tabs", "snapshot", "shot", "awaiting-approval", "no-tab"].includes(String(result.kind)));
   return result as BrowserReadResult;
 }
 
@@ -414,6 +415,29 @@ test("a run reads the page through the window and is told when a site is waiting
     await desktop.askThreads({ type: "thread.request", requestId: "read-4", taskId, op: "browser", read: { op: "snapshot", timeoutMs: 1_000 } });
   });
   assert.deepEqual(browserReadResult(desktop.threadAnswers.at(-1)), { kind: "awaiting-approval", url: "https://dash.example.com/" });
+
+  await harness.view.unmount();
+});
+
+test("a run captures a tab and is answered with the file the picture went to", async () => {
+  const desktop = fakeDesktop();
+  const harness = await mountWorkspace(desktop);
+
+  await act(async () => { await harness.get().dispatch({ type: "view.set-prompt", prompt: "check the header" }); });
+  await act(async () => { await harness.get().dispatch({ type: "task.send" }); });
+  const taskId = item(harness.get().currentTask).id;
+  await act(async () => { await harness.get().dispatch({ type: "browser.open", url: "https://example.com" }); });
+  const tabId = item(harness.get().browserTabs[0]).id;
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "shot-1", taskId, op: "browser", read: { op: "screenshot", fullPage: true, timeoutMs: 5_000 } });
+  });
+
+  assert.deepEqual(desktop.browserCalls.at(-1), ["capture", tabId, true, 5_000]);
+  const shot = browserReadResult(desktop.threadAnswers.at(-1));
+  if (shot.kind !== "shot") assert.fail("Expected a browser picture");
+  assert.equal(shot.shot.path, "/tmp/shot.png");
+  assert.equal(shot.shot.tabId, tabId);
 
   await harness.view.unmount();
 });

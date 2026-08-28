@@ -1,5 +1,5 @@
 import type { AppCommand } from "./commands.js";
-import type { BrowserSnapshot, BrowserTab } from "../domain/browser.js";
+import type { BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
 import type { TaskMessageKind } from "../domain/task.js";
 
@@ -80,12 +80,14 @@ export type BrowserWrite = WithoutTask<Extract<ExternalCommand, { type: `browser
 /** What a caller may read about the browser panel. A snapshot waits for the tab to settle first. */
 export type BrowserRead =
   | { op: "tabs" }
-  | { op: "snapshot"; tabId?: string; textLimit?: number; timeoutMs: number };
+  | { op: "snapshot"; tabId?: string; textLimit?: number; timeoutMs: number }
+  | { op: "screenshot"; tabId?: string; fullPage?: boolean; timeoutMs: number };
 
 /** A snapshot of the tab, or the navigation the user has yet to answer instead. */
 export type BrowserReadResult =
   | { kind: "tabs"; tabs: BrowserTab[] }
   | { kind: "snapshot"; snapshot: BrowserSnapshot }
+  | { kind: "shot"; shot: BrowserShot }
   | { kind: "awaiting-approval"; url: string }
   | { kind: "no-tab" };
 

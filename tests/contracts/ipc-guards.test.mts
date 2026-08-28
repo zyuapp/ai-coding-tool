@@ -305,10 +305,14 @@ test("a page read is bounded, and anything else on the browser channel is refuse
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "tabs" } }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot", timeoutMs: 5_000 } }), true);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot", tabId: "tab-1", textLimit: 500, timeoutMs: 0 } }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot", timeoutMs: 5_000 } }), true);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot", tabId: "tab-1", fullPage: true, timeoutMs: 0 } }), true);
 
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot" } }), false);
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "snapshot", timeoutMs: 10 * 60 * 1_000 } }), false, "a read cannot hold a tool call open for ever");
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot" } }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot", fullPage: "yes", timeoutMs: 100 } }), false);
+  assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser", read: { op: "screenshot", timeoutMs: 10 * 60 * 1_000 } }), false, "a capture cannot hold a tool call open for ever");
   assert.equal(isThreadRequest({ type: "thread.request", requestId: "r1", taskId: "task-1", op: "browser" }), false);
 });
 

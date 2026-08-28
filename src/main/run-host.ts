@@ -171,7 +171,7 @@ function handleThreadRequest(host: RunHost, request: ThreadRequest) {
   }
   const patience = request.op === "wait"
     ? request.timeoutMs + THREAD_WAIT_SLACK
-    : request.op === "browser" && request.read.op === "snapshot"
+    : request.op === "browser" && request.read.op !== "tabs"
       ? request.read.timeoutMs + THREAD_WAIT_SLACK
       : THREAD_REQUEST_TIMEOUT;
   const timer = setTimeout(() => {

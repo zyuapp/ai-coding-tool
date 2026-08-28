@@ -68,6 +68,12 @@ export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boole
     return browser.readPage(browserTabId(tabId), textLimit, timeoutMs);
   });
 
+  ipcMain.handle("browser:capture", (event, tabId: unknown, fullPage: unknown, timeoutMs: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (typeof fullPage !== "boolean" || typeof timeoutMs !== "number") throw new Error("Invalid page capture.");
+    return browser.capturePage(browserTabId(tabId), fullPage, timeoutMs);
+  });
+
   ipcMain.handle("browser:find", (event, tabId: unknown, query: unknown, forward: unknown, findNext: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (typeof query !== "string" || !query || query.length > MAX_FIND_QUERY) throw new Error("Invalid search.");
