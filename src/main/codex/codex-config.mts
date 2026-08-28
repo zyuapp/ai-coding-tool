@@ -11,10 +11,10 @@ type TomlTable = Readonly<Record<string, string | boolean>>;
 type TomlValue = string | boolean | readonly string[] | readonly TomlTable[] | TomlTable;
 
 /**
- * Skills Codex bundles for its own desktop app. They answer "in-app browser" and "computer use"
- * with that app's surfaces, which this app does not have, so its threads never see them.
+ * Codex plugins are built for its own desktop app: their skills answer "in-app browser", "automation",
+ * and "computer use" with that app's surfaces. A thread here gets the app's tools instead.
  */
-const FOREIGN_SKILLS = ["browser:control-in-app-browser", "computer-use:computer-use"];
+const WITHOUT_PLUGINS = ["--disable", "plugins"];
 
 const ESCAPED: Record<string, string> = { "\\": "\\\\", "\"": "\\\"", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
 
@@ -39,7 +39,7 @@ export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "compu
  * like any other MCP server, except where Claude would also grant it unasked.
  */
 export function codexConfig(input: ConfigSources, served: ServedTools | undefined): string[] {
-  const config: Record<string, TomlValue> = { "skills.config": FOREIGN_SKILLS.map((name) => ({ name, enabled: false })) };
+  const config: Record<string, TomlValue> = {};
   if (served) {
     config[`mcp_servers.${APP_SERVER_NAME}.url`] = served.url;
     config[`mcp_servers.${APP_SERVER_NAME}.bearer_token_env_var`] = TOOL_TOKEN_ENV;
@@ -52,5 +52,5 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.env`] = env;
     if (input.channel === "main" && input.policy === "autonomous") config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
   }
-  return Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`]);
+  return [...WITHOUT_PLUGINS, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
 }

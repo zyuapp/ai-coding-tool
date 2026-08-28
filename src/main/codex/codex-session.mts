@@ -26,7 +26,7 @@ const INTERRUPT_GRACE_MS = 10_000;
 const SIGN_IN = "Sign in to Codex to run this thread.";
 
 /** What the thread is told beyond its prompt. Codex has no skill tool of its own, so the app's stand in. */
-export const DEVELOPER_INSTRUCTIONS = "The user keeps skills: reusable instructions for particular kinds of task. Call skills_list to see them by name and description. Before a task one covers, call skill_read with its name and follow what it says. A message that starts with /name asks for that skill. The app's browser panel, terminal, threads, and automations are reached only through the aicodingtool tools; Codex's own Browser and Computer Use plugins belong to another app.";
+export const DEVELOPER_INSTRUCTIONS = "The user keeps skills: reusable instructions for particular kinds of task. Call skills_list to see them by name and description. Before a task one covers, call skill_read with its name and follow what it says. A message that starts with /name asks for that skill. This app's own surfaces are reached only through the aicodingtool tools: its browser panel with browser_open and browser_read, its terminal with terminal_read, its other threads with list_threads and read_thread, and repeating or scheduled work with schedule.";
 
 type CodexSandbox = "read-only" | "workspace-write";
 
