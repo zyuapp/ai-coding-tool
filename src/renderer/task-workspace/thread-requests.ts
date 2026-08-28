@@ -6,6 +6,7 @@ import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import { terminalLineLimit } from "../../domain/terminal";
 import { errorMessage } from "./errors";
+import { defaultEffortFor, defaultModelFor, engineForModel, engineHasEffort } from "../../domain/agent-engine";
 
 /** How much page text a read returns when the caller does not say. */
 const DEFAULT_PAGE_TEXT = 4_000;
@@ -123,11 +124,27 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     if (command.taskId !== undefined && !before.tasks.some((task) => task.id === command.taskId)) {
       return failed(`No thread has the ID ${command.taskId}.`);
     }
+    const caller = before.tasks.find((task) => task.id === request.taskId);
+    if (command.type === "task.send" && command.taskId === undefined && !caller) {
+      return failed(`No thread has the ID ${request.taskId}.`);
+    }
+    const selected: { command: typeof command } | { error: string } = command.type === "task.send" && command.taskId === undefined && caller
+      ? (() => {
+          const model = command.model ?? caller.model ?? defaultModelFor(caller.engine);
+          const engine = engineForModel(model);
+          const inheritedEffort = caller.effort ?? defaultEffortFor(caller.engine);
+          const effort = command.effort ?? (engineHasEffort(engine, inheritedEffort) ? inheritedEffort : defaultEffortFor(engine));
+          return engineHasEffort(engine, effort)
+            ? { command: { ...command, model, effort } }
+            : { error: `The ${model} model does not support ${effort} effort.` };
+        })()
+      : { command };
+    if ("error" in selected) return failed(selected.error);
     /** A new thread with no project named belongs where the thread that asked for it lives. */
-    const callerProjectId = before.tasks.find((task) => task.id === request.taskId)?.projectId;
-    const targeted = command.type === "task.send" && command.taskId === undefined && command.project === undefined && callerProjectId
-      ? { ...command, project: callerProjectId }
-      : command;
+    const callerProjectId = caller?.projectId;
+    const targeted = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
+      ? { ...selected.command, project: callerProjectId }
+      : selected.command;
     const known = command.taskId === undefined ? new Set(before.tasks.map((task) => task.id)) : null;
     await host.dispatch(targeted);
     const after = host.state();

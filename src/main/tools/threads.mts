@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
+import { AGENT_ENGINES, effortsFor, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import type { AgentEffort } from "../../domain/run.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -16,6 +18,15 @@ const threadIdField = z.string().describe("The thread, named by the ID list_thre
 
 const projectField = z.string().optional().describe(
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
+);
+
+const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(engine).map((model) => model.id));
+const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => effortsFor(engine).map((effort) => effort.id)))];
+const modelField = z.enum(modelIds as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
+  "Model for the new thread. Omit to inherit the calling thread's model.",
+);
+const effortField = z.enum(effortIds as [AgentEffort, ...AgentEffort[]]).refine(isAgentEffort).optional().describe(
+  "Effort for the new thread. Omit to inherit the calling thread's effort when the selected model supports it, otherwise use that engine's default.",
 );
 
 function elapsed(ms: number) {
@@ -116,10 +127,19 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
       project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project."),
       worktree: z.boolean().optional().describe("Run the new thread in its own git worktree, detached at whatever the project has checked out, so its edits never touch the project checkout."),
       worktreeId: z.string().optional().describe("Start the thread in a worktree that already exists, as list_threads reports it, so it works alongside the threads already in there. Takes precedence over worktree."),
+      model: modelField,
+      effort: effortField,
     },
     readOnly: false,
     run: ({ bridge, now }, args) => report(async () => {
-      const { thread } = await bridge.command({ type: "task.send", text: args.prompt, ...(args.project ? { project: args.project } : {}), ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}) });
+      const { thread } = await bridge.command({
+        type: "task.send",
+        text: args.prompt,
+        ...(args.project ? { project: args.project } : {}),
+        ...(args.worktreeId ? { worktreeId: args.worktreeId } : args.worktree ? { worktree: true } : {}),
+        ...(args.model ? { model: args.model } : {}),
+        ...(args.effort ? { effort: args.effort } : {}),
+      });
       return thread ? `Started ${describe(thread, now())}` : "The thread did not start.";
     }),
   }),

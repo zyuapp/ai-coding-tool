@@ -672,7 +672,11 @@ export function isExternalCommand(value: unknown): value is ExternalCommand {
       && (command.steer === undefined || typeof command.steer === "boolean")
       && (command.worktree === undefined || typeof command.worktree === "boolean")
       /** An id, never a path: the reducer resolves it against the checkouts the app itself made. */
-      && (command.worktreeId === undefined || isString(command.worktreeId));
+      && (command.worktreeId === undefined || isString(command.worktreeId))
+      && (command.model === undefined || isAgentModel(command.model))
+      && (command.effort === undefined || isAgentEffort(command.effort))
+      /** Agent selection belongs to a thread being created, never one that already exists. */
+      && (command.taskId === undefined || command.model === undefined && command.effort === undefined);
   }
   if (command.type === "task.archive") return isString(command.taskId);
   if (command.type === "run.cancel") return named;

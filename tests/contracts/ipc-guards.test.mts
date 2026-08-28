@@ -244,6 +244,10 @@ test("the external command surface covers reading and writing threads, and nothi
   assert.equal(isExternalCommand({ type: "run.cancel", taskId: "task-1" }), true);
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "wt1" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", model: "sonnet", effort: "max" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Use mystery", model: "unknown" }), false);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", effort: "impossible" }), false);
+  assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", model: "sonnet" }), false, "a tool cannot change an existing thread's model while messaging it");
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Look", attachments: [{ path: "/etc/passwd", labels: [] }] }), false);
   assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "/worktrees/repo-wt1" }), true, "a path is only ever a string here; the reducer is what resolves it to a checkout the app made");

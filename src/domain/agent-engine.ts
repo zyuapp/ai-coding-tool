@@ -110,6 +110,13 @@ export function engineHasModel(engine: AgentEngine, model: AgentModel) {
   return ENGINES[engine].models.some((spec) => spec.id === model);
 }
 
+/** The engine that owns a model. Model ids are unique across the app catalogue. */
+export function engineForModel(model: AgentModel): AgentEngine {
+  const engine = AGENT_ENGINES.find((candidate) => engineHasModel(candidate, model));
+  if (!engine) throw new Error(`No engine offers the ${model} model.`);
+  return engine;
+}
+
 /** Manual context compaction is currently a Sol protocol capability, not a general Codex command. */
 export function modelSupportsManualCompaction(engine: AgentEngine, model: AgentModel) {
   return engine === "codex" && model === "gpt-5.6-sol";

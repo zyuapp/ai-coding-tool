@@ -324,6 +324,47 @@ test("a thread command reaches the reducer and reports the thread it acted on", 
   await workspace.view.unmount();
 });
 
+test("a new thread inherits agent settings and can select any registered model", async () => {
+  const desktop = fakeDesktop();
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => {
+    workspace.get().actions.setModel("claude", "sonnet");
+    workspace.get().actions.setEffort("claude", "max");
+    workspace.get().actions.setPrompt("Coordinate the work");
+  });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const caller = item(workspace.get().currentTask);
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "inherit", taskId: caller.id, op: "command", command: { type: "task.send", text: "Inherit my settings" } });
+  });
+  const inherited = startCommand(desktop.sent.at(-1));
+  assert.equal(inherited.engine, "claude");
+  assert.equal(inherited.model, "sonnet");
+  assert.equal(inherited.effort, "max");
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "switch", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna", model: "gpt-5.6-luna" } });
+  });
+  const switched = startCommand(desktop.sent.at(-1));
+  assert.equal(switched.engine, "codex");
+  assert.equal(switched.model, "gpt-5.6-luna");
+  assert.equal(switched.effort, "high", "an unsupported inherited effort falls back to the selected engine's default");
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "override", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna lightly", model: "gpt-5.6-luna", effort: "low" } });
+  });
+  assert.equal(startCommand(desktop.sent.at(-1)).effort, "low");
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "invalid", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna", model: "gpt-5.6-luna", effort: "max" } });
+  });
+  assert.match(failedThreadResponse(desktop.threadAnswers.at(-1)).message, /does not support max effort/);
+
+  await workspace.view.unmount();
+});
+
 test("a wait is held open until the thread it names stops working", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);

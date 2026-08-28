@@ -10,7 +10,7 @@ import { nextSortIndex } from "../task-order.js";
 import { applyRunEvent, applyTask, applyThreadEvent, ATTENDED_RUN, threadMark, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../task-workspace.js";
 import { DRAFT_DOCK, leavingTaskIds, projectFor, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
-import { defaultModelFor, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelFor, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createTaskMessage, type Task } from "../../domain/task.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -269,14 +269,16 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const arriving = created ?? worktreeFor(state, existing) ?? worktreeById(state, pending.worktreeId);
   /** This thread's own first run inside a checkout forks its session rather than resuming it there. */
   const entering = Boolean(arriving) && existing?.worktreeEnteredAt === undefined;
+  const engine = pending.model ? engineForModel(pending.model) : state.draftEngine;
+  const effort = pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine));
   const task: Task = existing ?? {
     id: crypto.randomUUID(),
     title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
-    engine: state.draftEngine,
-    model: state.draftModel,
-    effort: state.draftEffort,
+    engine,
+    model: pending.model ?? state.draftModel,
+    effort,
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },

@@ -82,9 +82,10 @@ export type TaskCommand =
    * always starts a new task, in `project` — its folder name, its path, or its id. `worktree` starts
    * that new task in a checkout of its own; `worktreeId` starts it in one the project already has,
    * and names the project itself, so a `project` that disagrees with it is refused. Naming one takes
-   * precedence over asking for a new one.
+   * precedence over asking for a new one. `model` and `effort` apply only to a new task and leave
+   * the shared draft settings alone.
    */
-  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string }
+  | { type: "task.send"; taskId?: string; project?: string; text?: string; attachments?: RunAttachment[]; steer?: boolean; worktree?: boolean; worktreeId?: string; model?: AgentModel; effort?: AgentEffort }
   /** Moves to the thread `delta` away in the sidebar, which is where the keyboard walks the list. */
   | { type: "task.steer-queued"; taskId?: string; messageId: string }
   | { type: "task.drop-queued"; taskId?: string; messageId: string };

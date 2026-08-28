@@ -72,6 +72,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         ...(task ? { taskId: task.id } : {}),
         ...(project ? { projectId: project.id } : {}),
         ...(namedWorktree ? { worktreeId: namedWorktree.id } : {}),
+        ...(task || input.model === undefined ? {} : { model: input.model }),
+        ...(task || input.effort === undefined ? {} : { effort: input.effort }),
         ...(draftKey === undefined ? {} : { draftKey }),
         text,
         prompt: sentPrompt(text, pastes, annotations, attachments, files),

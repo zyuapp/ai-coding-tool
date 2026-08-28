@@ -50,6 +50,9 @@ export type PendingRun = {
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
   worktreeId?: string;
+  /** Agent choices carried atomically by a new thread request instead of changing the shared draft. */
+  model?: AgentModel;
+  effort?: AgentEffort;
   /** Composer only: which draft to clear once the run starts. */
   draftKey?: string;
   /** What the user typed, before attachments are appended. Titles a brand new task. */
