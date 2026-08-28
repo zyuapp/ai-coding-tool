@@ -3,9 +3,9 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 
-const version = "0.22.1";
+const version = "0.22.2";
 const archiveName = `cua-driver-rs-${version}-darwin-arm64.tar.gz`;
-const expectedArchiveHash = "1ef80b48b0b4ccd3b2eadd72c3c66735a65e15306db92816fb04f963d202155d";
+const expectedArchiveHash = "ac05a34ff2416830ec56f44d9986cf04ffb1f6a15a5df6f4dd9bec13ac198d63";
 const marker = `${version}-darwin-arm64-v3`;
 const targetDir = path.resolve("vendor/cua-driver");
 const binaryPath = path.join(targetDir, "cua-driver");
