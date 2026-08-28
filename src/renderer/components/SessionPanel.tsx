@@ -96,6 +96,7 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onSetWorktr
         label="Thread options"
         className="session-row session-location-row"
         popoverClassName="session-menu-popover"
+        anchored
         items={[{
           label: location.kind === "worktree" ? leaveLabel(location.threads) : "Hand off to worktree",
           disabled: runActive || working,

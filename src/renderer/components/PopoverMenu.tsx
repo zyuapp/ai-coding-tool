@@ -22,6 +22,9 @@ export type MenuEntry = MenuItem | "separator";
 /** How close to the window's edge a menu may be drawn. */
 const EDGE = 8;
 
+/** The small gap between a row and a menu drawn outside the row's clipping container. */
+const ANCHOR_GAP = 4;
+
 function usableIndexes(entries: MenuEntry[]): number[] {
   return entries.flatMap((entry, index) => entry !== "separator" && !entry.disabled ? [index] : []);
 }
@@ -157,6 +160,52 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
   );
 }
 
+/**
+ * Draws a top-level list against the window instead of inside an ancestor that can crop it. The
+ * list follows its row while the window or any scrolling container moves.
+ */
+function AnchoredMenuList({ entries, onClose, className, anchor, menuRef }: Pick<MenuListProps, "entries" | "onClose" | "className"> & {
+  anchor: HTMLElement;
+  menuRef: RefObject<HTMLDivElement | null>;
+}) {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const box = menuRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const row = anchor.getBoundingClientRect();
+      const below = innerHeight - row.bottom - ANCHOR_GAP;
+      const above = row.top - ANCHOR_GAP;
+      const top = below >= box.height || below >= above
+        ? row.bottom + ANCHOR_GAP
+        : row.top - box.height - ANCHOR_GAP;
+      setStyle({
+        left: Math.max(EDGE, Math.min(row.right - box.width, innerWidth - box.width - EDGE)),
+        top: Math.max(EDGE, Math.min(top, innerHeight - box.height - EDGE)),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchor, menuRef]);
+
+  return createPortal(
+    <MenuList
+      entries={entries}
+      onClose={onClose}
+      className={`anchored-menu-popover ${className ?? ""}`.trimEnd()}
+      menuRef={menuRef}
+      style={{ left: style?.left ?? 0, top: style?.top ?? 0, ...(style ? {} : { visibility: "hidden" }) }}
+    />,
+    document.body,
+  );
+}
+
 export type PopoverMenuProps = {
   /** The value `openMenu` carries while this menu is the open one. */
   id: string;
@@ -167,6 +216,8 @@ export type PopoverMenuProps = {
   label: string;
   className: string;
   popoverClassName?: string;
+  /** Draws the list against the window when a scrolling or rounded ancestor would crop it. */
+  anchored?: boolean;
   /** Sits ahead of the trigger, for a row that is also a menu. */
   children?: ReactNode;
 };
@@ -176,18 +227,19 @@ export type PopoverMenuProps = {
  * state here is the comparison; the shared dismissible layer handles outside presses and Escape,
  * and focus leaving closes it here.
  */
-export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, className, popoverClassName, children }: PopoverMenuProps) {
+export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, className, popoverClassName, anchored, children }: PopoverMenuProps) {
   const open = openMenu === id;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  useDismissibleLayer(open, [root], () => onSetOpenMenu(null), trigger);
+  const menu = useRef<HTMLDivElement>(null);
+  useDismissibleLayer(open, anchored ? [root, menu] : [root], () => onSetOpenMenu(null), trigger);
   return (
     <div
       ref={root}
       className={`${className} ${open ? "open" : ""}`.trimEnd()}
       data-popover-menu
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) onSetOpenMenu(null);
+        if (!event.currentTarget.contains(event.relatedTarget) && !menu.current?.contains(event.relatedTarget)) onSetOpenMenu(null);
       }}
     >
       {children}
@@ -202,7 +254,9 @@ export function PopoverMenu({ id, openMenu, onSetOpenMenu, items, label, classNa
       >
         <Ellipsis size={16} />
       </button>
-      {open && <MenuList entries={items} onClose={() => onSetOpenMenu(null)} className={popoverClassName} />}
+      {open && anchored && root.current
+        ? <AnchoredMenuList entries={items} onClose={() => onSetOpenMenu(null)} className={popoverClassName} anchor={root.current} menuRef={menu} />
+        : open && <MenuList entries={items} onClose={() => onSetOpenMenu(null)} className={popoverClassName} />}
     </div>
   );
 }

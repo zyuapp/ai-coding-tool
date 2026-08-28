@@ -543,6 +543,7 @@ button, select { color: inherit; }
 .empty-tasks { margin: 0; line-height: 24px; cursor: default; }
 .task-entry { position: relative; min-width: 0; }
 .context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
+.anchored-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /**
  * A row's trailing rail: one set of slots with two layers of icons over them, the marks a row carries
  * at rest and the actions it offers hovered. Both fill the rail from its right edge, so an action

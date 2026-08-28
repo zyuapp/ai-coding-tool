@@ -605,7 +605,7 @@ test("the session panel's thread menu offers the hand-off its location allows, a
     onSetOpenMenu: (menu) => { calls.menu.push(menu); },
     onSetWorktree: (worktree) => { calls.worktree.push(worktree); },
   });
-  const items = (mounted: MountView) => [...mounted.container.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((element) => element.textContent);
+  const items = () => [...document.querySelectorAll<HTMLElement>('.session-menu-popover [role="menuitem"]')].map((element) => element.textContent);
 
   const view = await mount(panel({ kind: "local" }, null));
   assert.equal(view.container.querySelector('[role="menu"]'), null, "the menu stays shut until asked for");
@@ -613,33 +613,34 @@ test("the session panel's thread menu offers the hand-off its location allows, a
   assert.deepEqual(calls.menu, ["session:location"]);
 
   await view.render(panel({ kind: "local" }, "session:location"));
-  assert.deepEqual(items(view), ["Hand off to worktree"], "where a thread works is the only thing this menu decides");
-  await act(async () => { item(view.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')[0]).click(); });
+  assert.deepEqual(items(), ["Hand off to worktree"], "where a thread works is the only thing this menu decides");
+  assert.ok(!view.container.contains(query(document, ".session-menu-popover")), "the list hangs outside the scrolling panel, which would crop it");
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
   assert.deepEqual(calls.worktree, [true]);
 
   const checkout = { id: "wt1", root: "/worktrees/repo-wt1", projectId: "p", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 };
   const worktree: ThreadLocation = { kind: "worktree", worktree: checkout, threads: 1 };
   await view.render(panel(worktree, "session:location"));
-  assert.deepEqual(items(view), ["Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
+  assert.deepEqual(items(), ["Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
   assert.match(query(view.container, ".session-location-name").textContent, /Worktree/);
-  await act(async () => { item(view.container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')[0]).click(); });
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
   assert.deepEqual(calls.worktree, [true, false]);
 
   await view.render(panel({ kind: "worktree", worktree: checkout, threads: 3 }, "session:location"));
-  assert.deepEqual(items(view), ["Return to local and leave the worktree"], "a checkout others are still in stays where it is");
+  assert.deepEqual(items(), ["Return to local and leave the worktree"], "a checkout others are still in stays where it is");
   assert.match(query(view.container, ".session-location-name").textContent, /3 threads/, "the row counts them before the user acts");
 
   await view.render(panel(worktree, "session:location", true));
-  assert.equal(query<HTMLButtonElement>(view.container, '[role="menuitem"]').disabled, true, "a running thread cannot change where it works");
+  assert.equal(query<HTMLButtonElement>(document, '.session-menu-popover [role="menuitem"]').disabled, true, "a running thread cannot change where it works");
 
   await view.render(panel({ kind: "creating" }, "session:location"));
   assert.match(query(view.container, ".session-location-name").textContent, /Creating worktree/);
-  assert.equal(query<HTMLButtonElement>(view.container, '[role="menuitem"]').disabled, true, "a checkout being made cannot be asked for twice");
+  assert.equal(query<HTMLButtonElement>(document, '.session-menu-popover [role="menuitem"]').disabled, true, "a checkout being made cannot be asked for twice");
 
   await view.render(panel({ kind: "releasing" }, "session:location"));
   assert.match(query(view.container, ".session-location-name").textContent, /Removing worktree/);
   assert.equal(query(view.container, ".session-location-name .text-sweep").textContent, "Removing worktree…", "the wait reads as the same motion the app uses elsewhere");
-  assert.equal(query<HTMLButtonElement>(view.container, '[role="menuitem"]').disabled, true, "a checkout being removed cannot be asked for twice");
+  assert.equal(query<HTMLButtonElement>(document, '.session-menu-popover [role="menuitem"]').disabled, true, "a checkout being removed cannot be asked for twice");
   await view.unmount();
 });
 
