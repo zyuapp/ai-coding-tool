@@ -243,3 +243,44 @@ test("a side chat's view is held still while another thread's helper agents repo
   const typed = reduce(reported, { type: "view.set-prompt", taskId: "chat-1", prompt: "Ask" }).state;
   assert.notEqual(deriveView(typed).sideChats[0], before, "and redrawn as soon as it reads something new");
 });
+
+test("a settled side chat announces itself under its source thread, and the notice opens its tab", () => {
+  const source = task("main-task", { title: "Ship the release", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1", text: "Ask" });
+  const chatting = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
+  const runId = required(chatting.activeRuns["chat-1"]).runId;
+
+  /** The user leaves the chat for the picker, so the run settles with nobody looking at it. */
+  const away = reduce(chatting, { type: "view.select-dock-tab", tab: "home" }).state;
+  const settled = reduce(away, { type: "run.event", event: { type: "run.status", taskId: "chat-1", runId, sequence: 1, status: "succeeded" } });
+  assert.deepEqual(effectAt(settled, "announce-thread", settled.effects.length - 1).notice, {
+    taskId: "chat-1",
+    title: "Ship the release · Chat 1",
+    headline: "The run finished.",
+  });
+  assert.equal(required(settled.state.tasks.find((item) => item.id === "chat-1")).outcomeUnread, true);
+  assert.equal(deriveView(settled.state).sideChatAttention.has("main-task"), true);
+  assert.equal(deriveView(settled.state).unreadCount, 1, "the chat is counted under the thread that holds it, not on its own");
+
+  /** What the click does: land on the source thread, with the chat's own tab in front. */
+  const elsewhere = reduce(settled.state, { type: "task.select", taskId: "other" }).state;
+  const clicked = reduce(elsewhere, { type: "task.select", taskId: "chat-1" }).state;
+  assert.equal(clicked.currentId, "main-task");
+  assert.equal(dock(clicked, "main-task").open, true);
+  assert.equal(dock(clicked, "main-task").tab, "chat-1");
+  assert.equal(required(clicked.tasks.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
+  assert.equal(deriveView(clicked).sideChatAttention.has("main-task"), false);
+});
+
+test("a side chat the user is watching is never marked unseen", () => {
+  const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
+  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const sending = reduce(opened, { type: "task.send", taskId: "chat-1", text: "Ask" });
+  const chatting = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
+  const runId = required(chatting.activeRuns["chat-1"]).runId;
+
+  const settled = reduce(chatting, { type: "run.event", event: { type: "run.status", taskId: "chat-1", runId, sequence: 1, status: "succeeded" } }).state;
+  assert.equal(required(settled.tasks.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
+  assert.equal(deriveView(settled).sideChatAttention.size, 0);
+});

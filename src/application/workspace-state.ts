@@ -16,6 +16,7 @@ export {
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
+import { unreadView } from "./thread-attention.js";
 import { findView } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
@@ -771,13 +772,13 @@ export function deriveView(state: WorkspaceState) {
     ? taskWorkspaceId(state, currentTask)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
   const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
-  const owner = dockOwner(state);
-  const dock = dockFor(state, owner);
+  const owner = dockOwner(state), dock = dockFor(state, owner);
   const waitingOn = waitFor(state, currentTask);
   const busy = busyTaskIds(state);
   const blocked = blockedTaskIds(state);
   return {
     ...engineView(state, currentTask),
+    ...unreadView(state, listedTasks),
     tasks: listedTasks,
     projects: orderProjects(state.projects),
     orderedTasks,

@@ -8,6 +8,7 @@ import { pasteTitle } from "../pastes.js";
 import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "../run-testimony.js";
 import { nextSortIndex } from "../task-order.js";
 import { applyRunEvent, applyTask, applyThreadEvent, ATTENDED_RUN, threadMark, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../task-workspace.js";
+import { threadOnScreen } from "../thread-attention.js";
 import { DRAFT_DOCK, leavingTaskIds, projectFor, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { defaultEffortFor, defaultModelFor, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
@@ -141,7 +142,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const unseen = surfacing === null;
       /**
        * Every settled run leaves its verdict, which is what ranks the thread. Only a thread the
-       * user was not already on is marked unread by it; the one on screen they cannot have missed.
+       * user was not already looking at is marked unread by it; the one on screen they cannot have missed.
        * A tick that looked and found nothing leaves neither, and leaves the thread where it was.
        * A thread already filed away is past ranking, so a run ending under it leaves no verdict.
        */
@@ -149,7 +150,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         ? applyTask(applied, event.taskId, (task) => task.archivedAt !== undefined ? task : ({
             ...task,
             outcome,
-            ...(state.currentId === event.taskId ? {} : { outcomeUnread: true as const }),
+            ...(threadOnScreen(state, event.taskId) ? {} : { outcomeUnread: true as const }),
           }))
         : applied;
       if (outcome) next = withSettledTick(next, event.taskId, active, surfacing);
@@ -162,7 +163,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         ? `Waiting for your permission to use ${event.intent.name}`
         : settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
       const noticed = headline ? next.tasks.find((task) => task.id === event.taskId) : undefined;
-      const said = noticed && headline ? announced(next.notifications, noticed, headline) : [];
+      const said = noticed && headline ? announced(next, noticed, headline) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
       const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));

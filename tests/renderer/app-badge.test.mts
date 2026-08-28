@@ -1,23 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { showUnreadCount } from "../../src/renderer/task-workspace/app-badge.ts";
+import { deriveView } from "../../src/application/workspace-state.ts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { Task } from "../../src/domain/task.ts";
-
-function task(id: string, overrides: Partial<Task> = {}): Task {
-  return {
-    id,
-    title: id,
-    messages: [],
-    createdAt: 1,
-    updatedAt: 1,
-    engine: "claude",
-    executionPolicy: "confirm",
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 0 },
-    ...overrides,
-  };
-}
+import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const finding = { id: "finding-1", headline: "5xx on checkout", at: 2 };
 
@@ -38,22 +25,41 @@ function withWindow(run: (counts: number[]) => void) {
   }
 }
 
+function countOf(tasks: Task[], sideChats: { id: string; sourceTaskId: string; error: null }[] = []) {
+  return deriveView(workspace({ tasks, sideChats })).unreadCount;
+}
+
 test("the count is one for every thread carrying an unseen mark", () => {
-  withWindow((counts) => {
-    showUnreadCount([
-      task("open"),
-      task("failed", { outcome: "failed", outcomeUnread: true }),
-      task("found", { findings: [finding] }),
-      task("read", { outcome: "finished" }),
-      task("filed", { findings: [{ ...finding, read: true }] }),
-    ]);
-    assert.deepEqual(counts, [2]);
-  });
+  assert.equal(countOf([
+    task("open"),
+    task("failed", { outcome: "failed", outcomeUnread: true }),
+    task("found", { findings: [finding] }),
+    task("read", { outcome: "finished" }),
+    task("filed", { findings: [{ ...finding, read: true }] }),
+  ]), 2);
 });
 
 test("threads the user has seen leave the icon with no count at all", () => {
+  assert.equal(countOf([task("open"), task("read", { outcome: "finished" })]), 0);
+});
+
+test("a side chat counts once, under the thread whose dock holds it", () => {
+  const tasks = [
+    task("main-task"),
+    task("chat-1", { outcome: "finished", outcomeUnread: true }),
+    task("chat-2", { outcome: "failed", outcomeUnread: true }),
+  ];
+  const chats = [
+    { id: "chat-1", sourceTaskId: "main-task", error: null },
+    { id: "chat-2", sourceTaskId: "main-task", error: null },
+  ];
+  assert.equal(countOf(tasks, chats), 1);
+});
+
+test("the icon carries whatever count it is handed", () => {
   withWindow((counts) => {
-    showUnreadCount([task("open"), task("read", { outcome: "finished" })]);
-    assert.deepEqual(counts, [0]);
+    showUnreadCount(3);
+    showUnreadCount(0);
+    assert.deepEqual(counts, [3, 0]);
   });
 });

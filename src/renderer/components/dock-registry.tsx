@@ -31,7 +31,7 @@ export type DockPanel = {
 /** An entry in the picker and the add menu: a panel to open, or an action that creates one. */
 export type DockLauncher = { id: string; title: string; description: string; command: string; icon: IconType; disabled?: boolean; open: () => void };
 
-export type DockTab = { id: string; title: string; icon: IconType; badge?: number };
+export type DockTab = { id: string; title: string; icon: IconType; badge?: number; unread?: boolean };
 
 /** The add menu is an `openMenu` value like any other, so the dock can tell when it is over a page. */
 export const ADD_TAB_MENU = "dock-add";

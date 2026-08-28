@@ -6,6 +6,7 @@ import { ADD_TAB_MENU, type DockLauncher, type DockPanel, type DockTab } from ".
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { useDismissibleLayer } from "../focus";
 import { browserTabTitle } from "../../domain/browser";
+import { hasUnreadAttention } from "../../domain/attention";
 import type { FindView } from "../../application/workspace-state";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -44,7 +45,7 @@ export function RightDock({ workspace, panels, launchers, open, expanded, sideba
     ...panels.filter((panel) => workspace.dockPanels.includes(panel.id)).map(({ id, title, icon, badge }) => ({ id, title, icon, badge })),
     ...workspace.browserTabs.map((tab) => ({ id: tab.id, title: browserTabTitle(tab), icon: Globe })),
     ...workspace.terminals.map((terminal) => ({ id: terminal.id, title: terminal.title, icon: SquareTerminal })),
-    ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork })),
+    ...workspace.sideChats.map((chat) => ({ id: chat.id, title: chat.title, icon: GitFork, unread: hasUnreadAttention(chat.task) })),
   ];
 
   /** The strip keeps the keyboard when a tab goes, so closing several in a row never needs the mouse. */

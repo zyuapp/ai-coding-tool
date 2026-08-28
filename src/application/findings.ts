@@ -56,7 +56,7 @@ export function raisedFinding(state: WorkspaceState, report: FindingReport & { t
   /** A thread the user is watching cannot have missed it. */
   const seen = state.focused && state.currentId === report.taskId;
   const next = withNotifiedRun(state, report.taskId, report, Date.now(), seen);
-  return { state: next, effects: raised ? announced(state.notifications, task, report.headline) : [] };
+  return { state: next, effects: raised ? announced(state, task, report.headline) : [] };
 }
 
 /**
@@ -83,6 +83,6 @@ export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: 
   const seen = state.focused && state.currentId === task.id;
   return {
     state: applyTask(state, task.id, (item) => withFinding(item, report, Date.now(), seen)),
-    effects: [...acked, ...announced(state.notifications, task, headline)],
+    effects: [...acked, ...announced(state, task, headline)],
   };
 }

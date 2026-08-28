@@ -1,6 +1,6 @@
 /** Threads themselves: making one, choosing it, and what the list can do to it. */
 import { reduceWorktrees } from "./worktrees.js";
-import { TAKE_KEYS, closeSideChats, disposeDocks, now, retireAutomations, settled, targetId } from "./shared.js";
+import { TAKE_KEYS, closeSideChats, disposeDocks, focusDockTab, now, retireAutomations, settled, showDockTab, targetId } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { forkedTasks } from "../task-fork.js";
@@ -42,16 +42,22 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
       }), TAKE_KEYS);
     }
 
+    /** A side chat is a tab within its source thread, so landing on one lands on that thread first. */
     case "task.select": {
-      const task = state.tasks.find((item) => item.id === input.taskId);
+      const chat = state.sideChats.find((item) => item.id === input.taskId);
+      const taskId = chat?.sourceTaskId ?? input.taskId;
+      const task = state.tasks.find((item) => item.id === taskId);
       const project = projectFor(state, task);
-      return settled(readAttention({
+      const landed = readAttention({
         ...state,
-        currentId: input.taskId,
+        currentId: taskId,
         draftProjectId: task?.projectId ?? null,
         lastFolder: project?.root ?? state.lastFolder,
         actionError: null,
-      }, input.taskId));
+      }, taskId);
+      if (!chat) return settled(landed);
+      const shown = showDockTab(readAttention(landed, chat.id), taskId, chat.id);
+      return focusDockTab(shown, taskId, chat.id);
     }
 
     case "task.dismiss": {

@@ -47,6 +47,7 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     expandedProjects: new Set<string>(),
     runningTaskIds: new Set<string>(),
     blockedTaskIds: new Set<string>(),
+    sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
     worktreeGroups: [],
     worktreeTaskIds: new Set<string>(),

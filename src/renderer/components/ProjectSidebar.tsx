@@ -26,6 +26,8 @@ export type ProjectSidebarProps = {
   runningTaskIds: Set<string>;
   /** Threads stopped on an approval only the user can answer. A subset of {@link runningTaskIds}. */
   blockedTaskIds: Set<string>;
+  /** Threads holding a side chat with something unseen, which have no row of their own. */
+  sideChatAttention: Set<string>;
   schedules: Map<string, AutomationView>;
   worktreeTaskIds: Set<string>;
   /** The checkouts each project has, with the threads in each. A project offers starting one more there. */
@@ -84,6 +86,7 @@ export function ProjectSidebar({
   expandedProjects,
   runningTaskIds,
   blockedTaskIds,
+  sideChatAttention,
   schedules,
   worktreeTaskIds,
   worktreeGroups,
@@ -133,6 +136,7 @@ export function ProjectSidebar({
     currentId,
     runningTaskIds,
     blockedTaskIds,
+    sideChatAttention,
     schedules,
     worktreeTaskIds,
     worktreeGroups,
@@ -156,7 +160,7 @@ export function ProjectSidebar({
 
   /** Every thread carries its engine mark, which also covers the one slot an action needs. */
   function markCount(task: Task) {
-    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || hasUnreadAttention(task);
+    const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || hasUnreadAttention(task) || sideChatAttention.has(task.id);
     return 1 + Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
   }
 

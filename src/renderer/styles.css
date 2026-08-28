@@ -885,6 +885,7 @@ button, select { color: inherit; }
 .right-dock-tabs [role="tab"].active, .right-dock-tab.active { border-color: var(--line); background: var(--surface-active); color: var(--ink-soft); }
 .right-dock-tabs [role="tab"] > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-control); }
 .right-dock-tabs [role="tab"] > em { min-width: 17px; height: 17px; display: grid; place-items: center; margin-left: auto; border-radius: 9px; background: var(--info-badge-soft); color: var(--badge-ink); font-size: var(--text-badge); font-style: normal; }
+.right-dock-tabs [role="tab"] > .right-dock-tab-attention { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--info); }
 .right-dock-tab { flex: 0 1 150px; padding: 0 4px 0 0; }
 .right-dock-tab > [role="tab"] { flex: 1; border: 0; padding-right: 2px; background: transparent; color: inherit; }
 .right-dock-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--quiet); cursor: pointer; }

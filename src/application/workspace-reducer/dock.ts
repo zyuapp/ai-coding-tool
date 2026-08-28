@@ -4,6 +4,7 @@ import { reduceDesktop } from "./desktop.js";
 import { reduceSideChats } from "./side-chats.js";
 import { DIFF_PANEL, TAKE_KEYS, WORKFLOW_PANEL, browserEffectsForTab, focusDockTab, initialRange, readDiff, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { readAttention } from "../../domain/attention.js";
 import { diffFor, dockOwner, dockTabAfterClosing, dockTabIds, dockTabKind, frontDock, withDock, type WorkspaceState } from "../workspace-state.js";
 
 type DockInput = Extract<WorkspaceInput, {
@@ -98,7 +99,9 @@ export function reduceDock(state: WorkspaceState, input: DockInput): WorkspaceTr
     case "view.select-dock-tab": {
       const owner = dockOwner(state);
       const kind = dockTabKind(state, owner, input.tab);
-      const shown = withDock(state, owner, {
+      /** A side chat is a thread, so bringing its tab to the front is landing on it. */
+      const read = kind === "side-chat" ? readAttention(state, input.tab) : state;
+      const shown = withDock(read, owner, {
         tab: input.tab,
         open: true,
         ...(kind === "browser" ? { browserTabId: input.tab } : {}),

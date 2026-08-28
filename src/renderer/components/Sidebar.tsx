@@ -20,6 +20,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       expandedProjects={workspace.expandedProjects}
       runningTaskIds={workspace.runningTaskIds}
       blockedTaskIds={workspace.blockedTaskIds}
+      sideChatAttention={workspace.sideChatAttention}
       schedules={workspace.schedules}
       worktreeTaskIds={workspace.worktreeTaskIds}
       worktreeGroups={workspace.worktreeGroups}

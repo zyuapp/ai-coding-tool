@@ -151,7 +151,7 @@ export function useTaskWorkspace() {
   }, [view.uiFont, view.monoFont, view.readingSize, view.terminalSize]);
 
   /** The app icon carries the same count the rows' dots do, so a switch away still shows it. */
-  useEffect(() => { showUnreadCount(state.tasks); }, [state.tasks]);
+  useEffect(() => { showUnreadCount(view.unreadCount); }, [view.unreadCount]);
 
   const currentRunId = state.currentId ? state.activeRuns[state.currentId]?.runId : undefined;
 

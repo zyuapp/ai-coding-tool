@@ -24,6 +24,8 @@ const OUTCOME_LABELS: Record<TaskOutcome, string> = {
 
 const BLOCKED_LABEL = "Needs approval";
 
+const SIDE_CHAT_LABEL = "A side chat is waiting";
+
 /** The mark says the thread runs on a schedule; whether that schedule is well is the part worth hearing. */
 function scheduleLabel(automation: AutomationView) {
   if (automation.paused) return "Schedule paused";
@@ -34,11 +36,13 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(task: Task) {
+function attentionMark(task: Task, sideChatWaiting: boolean) {
   const finding = newestUnreadFinding(task);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
-  if (!hasUnreadAttention(task)) return false;
-  return <span key="status" className={`task-attention ${task.outcome!}`} aria-label={OUTCOME_LABELS[task.outcome!]} />;
+  if (hasUnreadAttention(task)) return <span key="status" className={`task-attention ${task.outcome!}`} aria-label={OUTCOME_LABELS[task.outcome!]} />;
+  /** A side chat has no row, so the thread holding it says one of its chats is waiting. */
+  if (sideChatWaiting) return <span key="status" className="task-attention" aria-label={SIDE_CHAT_LABEL} />;
+  return false;
 }
 
 /**
@@ -112,6 +116,8 @@ export type TaskRowsOptions = {
   runningTaskIds: Set<string>;
   /** Threads stopped on an approval only the user can answer. A subset of `runningTaskIds`. */
   blockedTaskIds: Set<string>;
+  /** Threads holding a side chat with something unseen, which have no row of their own. */
+  sideChatAttention: Set<string>;
   schedules: Map<string, AutomationView>;
   worktreeTaskIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
@@ -134,6 +140,7 @@ export function useTaskRows({
   currentId,
   runningTaskIds,
   blockedTaskIds,
+  sideChatAttention,
   schedules,
   worktreeTaskIds,
   worktreeGroups,
@@ -165,7 +172,7 @@ export function useTaskRows({
       ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
       : runningTaskIds.has(task.id)
         ? <TaskSpinner key="status" />
-        : attentionMark(task),
+        : attentionMark(task, sideChatAttention.has(task.id)),
   ].filter(Boolean);
 
   /**
