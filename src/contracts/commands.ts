@@ -349,4 +349,15 @@ export type ViewCommand =
   | { type: "view.find-query"; query: string }
   /** The match after this one, or the one before it, wrapping at both ends. */
   | { type: "view.find-step"; delta: -1 | 1 }
-  | { type: "view.find-close" };
+  | { type: "view.find-close" }
+  /**
+   * The jump panel: the threads a name matches, and the one the user lands on. It opens empty, so
+   * nothing of the last search survives being closed.
+   */
+  | { type: "view.jump-open" }
+  | { type: "view.jump-query"; query: string }
+  /** The row after this one, or the one before it, wrapping at both ends. */
+  | { type: "view.jump-step"; delta: -1 | 1 }
+  /** Opens the thread the row names and closes the panel. */
+  | { type: "view.jump-choose"; taskId: string }
+  | { type: "view.jump-close" };

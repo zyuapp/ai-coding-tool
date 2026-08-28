@@ -3800,6 +3800,64 @@ button.setting-hint:hover { color: var(--ink); }
 .project-edit-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .project-edit-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 
+/* The jump panel, which sits above every sheet because it moves the user out of whatever is open.
+   Top padding clears the traffic lights; no-drag opts out of the topbar drag region it covers. */
+.thread-jump {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  -webkit-app-region: no-drag;
+  display: grid;
+  place-items: start center;
+  padding: 96px 28px 28px;
+  background: var(--scrim);
+}
+.thread-jump-panel {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--sunken);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+.thread-jump-search { display: flex; align-items: center; gap: 9px; border-bottom: 1px solid var(--line); padding: 0 13px; color: var(--quiet); }
+.thread-jump-search input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  border: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-control);
+}
+.thread-jump-search input:focus { outline: none; }
+.thread-jump-list { max-height: 336px; overflow-y: auto; padding: 6px; display: grid; gap: 2px; }
+.thread-jump-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  border: none;
+  border-radius: 9px;
+  padding: 7px 9px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--text-control);
+  text-align: left;
+  cursor: pointer;
+}
+.thread-jump-row.picked { background: var(--control); color: var(--ink); }
+.thread-jump-engine { flex: none; color: var(--quiet); }
+.thread-jump-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-jump-row .task-spinner { flex: none; width: 12px; height: 12px; }
+.thread-jump-project { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
+.thread-jump-empty { margin: 0; padding: 16px 14px; color: var(--quiet); font-size: var(--text-meta); }
+
 /* The one tooltip, drawn wherever the pointer is resting. It is a small menu: same surface, same
    line, same ink, so every theme carries it without a rule of its own. Never in the way: no clicks. */
 .tooltip {

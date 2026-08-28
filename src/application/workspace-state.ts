@@ -15,6 +15,7 @@ export {
 } from "./workspace-dock.js";
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
+import { jumpView } from "./workspace-jump.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -151,6 +152,12 @@ export type FindState = {
   focus: number;
 };
 
+/**
+ * The jump panel: the name being searched for, and the row the user moved to. Which threads that
+ * name matches is derived, so a thread renamed while the panel is open moves with the query.
+ */
+export type JumpState = { query: string; index: number };
+
 /** Whether two reading points name the same place, which decides whether a report is worth making. */
 export function sameReadingPoint(a: ReadingPoint, b: ReadingPoint) {
   if (a === null || b === null) return a === b;
@@ -275,6 +282,8 @@ export type WorkspaceState = {
   /** The find bar, and what a page or a shell reported after searching itself. */
   find: FindState | null;
   findResults: FindResults | null;
+  /** The jump panel, open on the name the user is searching for. */
+  jump: JumpState | null;
   /** Which dock tab the keyboard is in, so ⌘F knows whether it means that view or the thread. */
   keyboardTab: string | null;
   /** The origins a run may reach without asking. Visiting a site adds it. */
@@ -382,6 +391,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     readingPoints: {},
     find: null,
     findResults: null,
+    jump: null,
     keyboardTab: null,
     browserOrigins: [],
     browserApproval: null,
@@ -843,6 +853,7 @@ export function deriveView(state: WorkspaceState) {
     openMenu: state.openMenu,
     reviewPicker: currentTask && state.reviewPicker?.taskId === currentTask.id && !busy.has(currentTask.id) ? state.reviewPicker : null,
     find: findView(state, currentTask),
+    jump: jumpView(state, busy),
     remote: state.remote,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,

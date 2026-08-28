@@ -40,7 +40,8 @@ export function useEscapeLayers(workspace: Workspace) {
   useEffect(() => {
     function handleKeys(event: KeyboardEvent) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
-      if (workspace.openMenu !== null) workspace.actions.setOpenMenu(null);
+      if (workspace.jump) void workspace.actions.closeJump();
+      else if (workspace.openMenu !== null) workspace.actions.setOpenMenu(null);
       else if (workspace.settingsOpen) void workspace.actions.setSettingsOpen(false);
       else if (workspace.find) workspace.actions.closeFind();
       else void workspace.actions.cancelRun();
@@ -49,7 +50,7 @@ export function useEscapeLayers(workspace: Workspace) {
     return () => {
       window.removeEventListener("keydown", handleKeys);
     };
-  }, [workspace.actions, workspace.openMenu, workspace.settingsOpen, workspace.find]);
+  }, [workspace.actions, workspace.jump, workspace.openMenu, workspace.settingsOpen, workspace.find]);
 }
 
 /** Held still, so a link in a settled message is not a fresh handler on every render of the shell. */

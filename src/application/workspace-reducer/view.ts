@@ -1,7 +1,9 @@
 /** Where the user is looking: history, focus, and the find bar. */
-import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects } from "./shared.js";
+import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects, TAKE_KEYS } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { dockHoldsTab, findTargetFor, projectFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { reduceTasks } from "./tasks.js";
+import { busyTaskIds, dockHoldsTab, findTargetFor, projectFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { jumpView } from "../workspace-jump.js";
 import { readAttention } from "../../domain/attention.js";
 import { memoizedFindHits, sameFindTarget, searchesItself, stepMatch, type FindResults } from "../../domain/find.js";
 
@@ -13,6 +15,7 @@ function sameFindResults(held: FindResults | null, reported: FindResults): boole
 type ViewInput = Extract<WorkspaceInput, {
   type: "view.set-menu" | "view.go-back" | "view.go-forward" | "view.set-focused" | "view.dock-keys"
     | "view.find-open" | "view.find-query" | "view.find-step" | "view.find-close" | "find.results"
+    | "view.jump-open" | "view.jump-query" | "view.jump-step" | "view.jump-choose" | "view.jump-close"
     | "view.dismiss-computer-use-setup";
 }>;
 
@@ -106,6 +109,28 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       if (moved === null && sameFindResults(state.findResults, input.results)) return settled(state);
       return settled({ ...state, findResults: input.results, ...(moved === null ? {} : { find: { ...find, index: moved } }) });
     }
+
+    /**
+     * The panel opens on an empty box and the most recent threads, never on the last search. A page
+     * in the panel may be holding the keyboard, and the box is no use without it.
+     */
+    case "view.jump-open":
+      return settled({ ...state, jump: { query: "", index: 0 }, openMenu: null }, TAKE_KEYS);
+
+    case "view.jump-query":
+      return settled(state.jump ? { ...state, jump: { query: input.query, index: 0 } } : state);
+
+    case "view.jump-step": {
+      const jump = jumpView(state, busyTaskIds(state));
+      if (!jump) return settled(state);
+      return settled({ ...state, jump: { query: jump.query, index: stepMatch(jump.index, input.delta, jump.options.length) } });
+    }
+
+    case "view.jump-choose":
+      return reduceTasks({ ...state, jump: null }, { type: "task.select", taskId: input.taskId });
+
+    case "view.jump-close":
+      return settled({ ...state, jump: null });
 
     case "view.dismiss-computer-use-setup":
       return settled({ ...state, computerUseSetup: false });

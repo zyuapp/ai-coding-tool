@@ -57,6 +57,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "run.allow": return [{ type: "run.decide", allow: true }];
     case "run.deny": return [{ type: "run.decide", allow: false }];
     case "composer.focus": return [{ type: "view.focus-composer" }];
+    /** The panel is a place the keystroke takes you to and back from, so the same keys close it. */
+    case "thread.jump": return state.jump ? [{ type: "view.jump-close" }] : [...leaving, { type: "view.jump-open" }];
     /** A bar that is already open is the one being asked for again, so it keeps what it was searching. */
     case "find.open": return [state.find ? { type: "view.find-open" } : { type: "view.find-open", target: findTargetFor(state, surface) }];
     case "find.next":

@@ -196,3 +196,63 @@ test("a thread's panels are fed only where its engine can fill them", () => {
   assert.deepEqual(codex.subagents, [subagent], "Codex feeds the shared subagent panel");
   assert.deepEqual(codex.workflows, []);
 });
+
+test("the jump panel opens on the most recent threads, then a name narrows them", () => {
+  const state = workspace({
+    tasks: [
+      task("task-a", { title: "Dock the browser panel", updatedAt: 3 }),
+      task("task-b", { title: "Panel find", updatedAt: 2 }),
+      task("task-c", { title: "Ship the review", updatedAt: 1 }),
+    ],
+  });
+
+  const opened = reduce(state, { type: "view.shortcut", action: "thread.jump", surface: "any" }).state;
+  assert.deepEqual(required(deriveView(opened).jump).options.map((option) => option.title), ["Dock the browser panel", "Panel find", "Ship the review"]);
+
+  const typed = reduce(opened, { type: "view.jump-query", query: "panel" }).state;
+  const jump = required(deriveView(typed).jump);
+  assert.deepEqual(jump.options.map((option) => option.title), ["Panel find", "Dock the browser panel"]);
+  assert.equal(jump.index, 0);
+});
+
+test("the arrow keys walk the rows and wrap, and a name that moves them starts at the top again", () => {
+  const state = run(workspace({ tasks: [task("task-a", { updatedAt: 2 }), task("task-b", { updatedAt: 1 })] }), [
+    { type: "view.jump-open" },
+    { type: "view.jump-step", delta: 1 },
+  ]);
+  assert.equal(required(deriveView(state).jump).index, 1);
+
+  const wrapped = reduce(state, { type: "view.jump-step", delta: 1 }).state;
+  assert.equal(required(deriveView(wrapped).jump).index, 0);
+  assert.equal(required(deriveView(reduce(wrapped, { type: "view.jump-step", delta: -1 }).state).jump).index, 1);
+
+  const typed = reduce(state, { type: "view.jump-query", query: "task" }).state;
+  assert.equal(required(deriveView(typed).jump).index, 0);
+});
+
+test("choosing a row opens that thread and closes the panel", () => {
+  const state = run(workspace({ tasks: [task("task-a"), task("task-b")] }), [
+    { type: "view.jump-open" },
+    { type: "view.jump-choose", taskId: "task-b" },
+  ]);
+  assert.equal(state.currentId, "task-b");
+  assert.equal(deriveView(state).jump, null);
+  assert.deepEqual(state.history, ["task-b"], "the thread jumped to is a place the trail records");
+});
+
+test("the jump keystroke closes the panel it opened, and settings give way to it", () => {
+  const state = workspace({ tasks: [task("task-a")], settingsOpen: true });
+  const opened = reduce(state, { type: "view.shortcut", action: "thread.jump", surface: "any" }).state;
+  assert.ok(opened.jump);
+  assert.ok(!opened.settingsOpen);
+
+  const closed = reduce(opened, { type: "view.shortcut", action: "thread.jump", surface: "any" }).state;
+  assert.equal(closed.jump, null);
+});
+
+test("the jump keystroke is one the user can rebind", () => {
+  const state = reduce(workspace(), { type: "view.set-shortcut", action: "thread.jump", binding: "Mod+P" }).state;
+  const setting = required(deriveView(state).shortcuts.find((row) => row.id === "thread.jump"));
+  assert.equal(setting.binding, "Mod+P");
+  assert.ok(setting.changed);
+});

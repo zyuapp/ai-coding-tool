@@ -7,6 +7,7 @@ import { TooltipLayer } from "./components/TooltipLayer";
 import { ProjectEditDialog } from "./components/ProjectEditDialog";
 import { RightDock } from "./components/RightDock";
 import { Sidebar } from "./components/Sidebar";
+import { ThreadJump } from "./components/ThreadJump";
 import { WorkspaceComposer } from "./components/WorkspaceComposer";
 import { WorkspaceConversation } from "./components/WorkspaceConversation";
 import { WorkspaceSession } from "./components/WorkspaceSession";
@@ -191,6 +192,7 @@ export function App() {
         />
       )}
       {settingsVisible && <WorkspaceSettings workspace={workspace} onClose={closeSettings} />}
+      {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
       <TooltipLayer />
     </main>
     </DiagramViewerHost>

@@ -46,20 +46,25 @@ export function threadHandles(threads: Omit<ThreadHandleOption, "handle">[]): Th
   });
 }
 
-/** Matches on the handle and on each word of the title, so `@mode` finds "Sink the mode choices". */
-export function threadHandleMatches(option: ThreadHandleOption, query: string): boolean {
-  if (query === "") return true;
+/** Whether a query starts a word of a title, so `mode` answers "Sink the mode choices". */
+export function startsTitleWord(title: string, query: string): boolean {
   const wanted = query.toLowerCase();
-  if (option.handle.includes(wanted)) return true;
   if (!ASCII_WORD.test(wanted)) return false;
-  const title = option.title.toLowerCase();
-  for (let index = 0, atWordStart = true; index < title.length; index += 1) {
-    const code = title.charCodeAt(index);
+  const lower = title.toLowerCase();
+  for (let index = 0, atWordStart = true; index < lower.length; index += 1) {
+    const code = lower.charCodeAt(index);
     const inWord = code >= 48 && code <= 57 || code >= 97 && code <= 122;
-    if (inWord && atWordStart && title.startsWith(wanted, index)) return true;
+    if (inWord && atWordStart && lower.startsWith(wanted, index)) return true;
     atWordStart = !inWord;
   }
   return false;
+}
+
+/** Matches on the handle and on each word of the title, so `@mode` finds "Sink the mode choices". */
+export function threadHandleMatches(option: ThreadHandleOption, query: string): boolean {
+  if (query === "") return true;
+  if (option.handle.includes(query.toLowerCase())) return true;
+  return startsTitleWord(option.title, query);
 }
 
 /** In-project threads first, then the rest, each group newest first. */
