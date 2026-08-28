@@ -324,6 +324,27 @@ test("a thread command reaches the reducer and reports the thread it acted on", 
   await workspace.view.unmount();
 });
 
+test("a send answers before the title it asked for, and takes the title once it arrives", async () => {
+  let name: ((title: string | null) => void) | undefined;
+  const desktop = fakeDesktop({ suggestTaskTitle: () => new Promise((resolve) => { name = resolve; }) });
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
+  await act(async () => { await workspace.get().actions.sendPrompt(); });
+  const caller = item(workspace.get().currentTask);
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: caller.id, op: "command", command: { type: "task.send", text: "Implement item 2" } });
+  });
+  const answered = item(threadCommandResult(desktop.threadAnswers.at(-1)).thread);
+  assert.equal(desktop.sent.filter((command) => command.type === "start").length, 2, "both runs started while the titles were still pending");
+
+  await act(async () => { item(name)("Header repair"); });
+  assert.equal(workspace.get().tasks.find((task) => task.id === answered.id)?.title, "Header repair");
+
+  await workspace.view.unmount();
+});
+
 test("a new thread inherits agent settings and can select any registered model", async () => {
   const desktop = fakeDesktop();
   const workspace = await mountWorkspace(desktop);

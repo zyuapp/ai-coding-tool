@@ -34,10 +34,12 @@ export async function runRunEffect(effect: RunEffect, host: EffectHost): Promise
       desktop.send(effect.command);
       return;
 
-    case "suggest-title": {
-      const title = await desktop.suggestTaskTitle(effect.text, effect.attachments, effect.engine).catch(() => null);
-      if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
+    /** A title costs a model turn, so it lands on its own rather than holding back the send that asked for it. */
+    case "suggest-title":
+      void (async () => {
+        const title = await desktop.suggestTaskTitle(effect.text, effect.attachments, effect.engine).catch(() => null);
+        if (title) await dispatch({ type: "title.suggested", taskId: effect.taskId, title });
+      })();
       return;
-    }
   }
 }
