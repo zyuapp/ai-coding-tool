@@ -226,7 +226,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   installCli(): Promise<CliStatus>;
   uninstallCli(): Promise<CliStatus>;
   projectlessWorkspace(): Promise<WorkspaceRecord>;
-  commands(workspaceId: WorkspaceId): Promise<CommandDiscoveryResult>;
+  /** What the "/" menu offers a thread on the engine: Claude's slash commands, or the user's skills for Codex. */
+  commands(workspaceId: WorkspaceId, engine: AgentEngine): Promise<CommandDiscoveryResult>;
   computerUsePermissions(): Promise<ComputerUsePermissions>;
   enableComputerUse(permission: ComputerUsePermission): Promise<ComputerUsePermissions>;
   /** The plan's rate-limit windows. Never rejects: a provider that cannot answer says why instead. */

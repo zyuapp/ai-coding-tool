@@ -137,7 +137,7 @@ export function TaskComposer({
   onCancel,
 }: TaskComposerProps) {
   const caret = useComposerCaret(focusToken);
-  const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, onPromptChange });
+  const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange });
   const stepRecall = useComposerRecall({
     prompt, annotations, pastes, files, images, history, queuedMessages, caret,
     onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall,

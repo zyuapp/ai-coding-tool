@@ -4,6 +4,7 @@ import type { ProviderResult, ProviderRunInput } from "../agent/agent-provider.m
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { runTools } from "../agent/run-tools.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
+import { skillRoots, skillTools } from "../tools/skills.mjs";
 import { AppServerError, AppServerExited, codexAppServer, type AppServerClient, type AppServerCommand, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import type { ClientInfo } from "./protocol/ClientInfo.js";
@@ -26,6 +27,9 @@ const CLIENT_INFO: ClientInfo = { name: "aicodingtool", title: "AICodingTool", v
 const INTERRUPT_GRACE_MS = 10_000;
 
 const SIGN_IN = "Sign in to Codex to run this thread.";
+
+/** What the thread is told beyond its prompt. Codex has no skill tool of its own, so the app's stand in. */
+export const DEVELOPER_INSTRUCTIONS = "The user keeps skills: reusable instructions for particular kinds of task. Call skills_list to see them by name and description. Before a task one covers, call skill_read with its name and follow what it says. A message that starts with /name asks for that skill.";
 
 type CodexSandbox = "read-only" | "workspace-write";
 
@@ -274,7 +278,7 @@ export class CodexSession {
    * it. The app's tools are served first, since the process connects to them as the thread starts.
    */
   private async open(seed: ProviderRunInput) {
-    const tools = runTools(seed).flatMap((set) => set.tools);
+    const tools = [...runTools(seed).flatMap((set) => set.tools), ...skillTools(skillRoots(seed))];
     if (tools.length) {
       const served = await this.host.serve(tools);
       if (this.ended) {
@@ -300,7 +304,7 @@ export class CodexSession {
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
     const policy = codexPolicy(seed.policy);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer };
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, developerInstructions: DEVELOPER_INSTRUCTIONS };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)

@@ -1,6 +1,7 @@
 import { Command, MessagesSquare, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import type { AvailableCommand } from "../../contracts/ipc";
+import type { AgentEngine } from "../../domain/agent-engine";
 import { handleTokenAt, rankThreadHandles, type ThreadHandleOption } from "../../domain/thread-handles";
 import { useDismissibleLayer } from "../focus";
 import type { ComposerCaret } from "./composer-caret";
@@ -57,12 +58,13 @@ export type ComposerMenus = {
 };
 
 /** The `/` and `@` menus the prompt opens: what they hold, what is selected, and what choosing does. */
-export function useComposerMenus({ prompt, caret, actions, threads, workspaceId, onPromptChange }: {
+export function useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange }: {
   prompt: string;
   caret: ComposerCaret;
   actions: ComposerAction[];
   threads: ThreadHandleOption[];
   workspaceId: string | undefined;
+  engine: AgentEngine;
   onPromptChange: (prompt: string) => void;
 }): ComposerMenus {
   const { textareaRef, inputFocused, setInputFocused, dismissedPrompt, setDismissedPrompt, setCaret, moveCaret } = caret;
@@ -126,7 +128,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
     void (async () => {
       try {
         const id = workspaceId ?? (await window.desktop.projectlessWorkspace()).id;
-        const result = await window.desktop.commands(id);
+        const result = await window.desktop.commands(id, engine);
         if (!cancelled) setCommands(result.status === "available" ? result.commands : []);
       } catch {
         if (!cancelled) setCommands([]);
@@ -135,7 +137,7 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
       }
     })();
     return () => { cancelled = true; };
-  }, [workspaceId, commandsToken]);
+  }, [workspaceId, engine, commandsToken]);
 
   useEffect(() => {
     const reload = () => setCommandsToken((token) => token + 1);

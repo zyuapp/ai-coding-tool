@@ -3,6 +3,7 @@ import { test } from "vitest";
 import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import { codexConfig, toml } from "../../../src/main/codex/codex-config.mts";
+import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
 import { harness, input, turn } from "../../support/codex-client.mjs";
 
 const automations = { list: async () => [], read: async () => null, save: async () => ({}), update: async () => ({}), remove: async () => true } as unknown as AutomationBridge;
@@ -40,9 +41,11 @@ test("a session serves the run's tools under one token and points the app server
   assert.equal(codex.host.served.length, 1);
   assert.deepEqual(
     codex.host.served[0]!.tools.map((tool) => tool.name).sort(),
-    runTools(input(bridges)).flatMap((set) => set.tools.map((tool) => tool.name)).sort(),
+    [...runTools(input(bridges)).flatMap((set) => set.tools.map((tool) => tool.name)), "skills_list", "skill_read"].sort(),
   );
   assert.ok(codex.host.served[0]!.tools.some((tool) => tool.name === "schedule"));
+  assert.equal((client.calls("thread/start")[0] as { developerInstructions?: string }).developerInstructions, DEVELOPER_INSTRUCTIONS);
+  assert.ok(DEVELOPER_INSTRUCTIONS.split(/\s+/).length < 60, "the skills paragraph stays short");
 
   await turn(codex, { ...bridges, prompt: "again", continuation: { provider: "codex", value: "thread-1" } });
   assert.equal(codex.host.served.length, 1, "a warm session keeps its token");
@@ -62,16 +65,15 @@ test("a side chat is served the tools its channel allows, and a run with no brid
 
   const bare = harness();
   const { client: plain } = await turn(bare);
-  assert.deepEqual(plain.command.args, ["app-server", "--listen", "stdio://"]);
-  assert.equal(plain.command.env, undefined);
-  assert.equal(bare.host.served.length, 0);
+  assert.deepEqual(overrides(plain.command.args)["mcp_servers.cua-driver.command"], undefined);
+  assert.deepEqual(bare.host.served[0]!.tools.map((tool) => tool.name), ["skills_list", "skill_read"], "the user's skills are served on every run");
   bare.provider.closeAll();
 });
 
 test("bundled computer use is configured as its own server, approved unasked only for an autonomous main thread", async () => {
   const prompting = harness();
   const { client: asked } = await turn(prompting, { computerUse: available, policy: "autonomous", channel: "side" });
-  assert.deepEqual(overrides(asked.command.args), {
+  assert.deepEqual(Object.fromEntries(Object.entries(overrides(asked.command.args)).filter(([key]) => key.startsWith("mcp_servers.cua-driver."))), {
     "mcp_servers.cua-driver.command": "\"/app/cua-driver\"",
     "mcp_servers.cua-driver.args": "[\"mcp\", \"--embedded\"]",
     "mcp_servers.cua-driver.env": "{ \"CUA_DRIVER_EMBEDDED\" = \"1\" }",
@@ -100,7 +102,7 @@ test("while computer use still needs setup, the served setup tool asks the app t
   const codex = harness();
   await turn(codex, { computerUse: { status: "setup-required" }, emit: (event) => emitted.push(event) });
   const served = codex.host.served[0]!;
-  assert.deepEqual(served.tools.map((tool) => tool.name), ["request_setup"]);
+  assert.deepEqual(served.tools.map((tool) => tool.name), ["request_setup", "skills_list", "skill_read"]);
   const result = await served.call("request_setup", {});
   assert.deepEqual(emitted.filter((event) => event.type === "computer-use.setup-required"), [{ type: "computer-use.setup-required" }]);
   assert.match(result.content[0]!.text, /Settings → Computer use/);

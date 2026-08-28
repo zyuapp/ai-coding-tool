@@ -5,9 +5,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
-import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
+import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
-import { isAgentEngine } from "../domain/agent-engine.js";
+import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
 import { isCaptureOptions } from "../domain/capture.js";
 import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../domain/cli.js";
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
@@ -97,11 +97,16 @@ const runs = startRunHost({
 
 const keyboard = startKeyboardHost({ window: () => window, reveal: revealWindow });
 
-async function readCommands(workspaceId: string) {
+async function readCommands(workspaceId: string, engine: AgentEngine): Promise<AvailableCommand[]> {
   const resolution = await getWorkspaceService().resolve(workspaceId);
   if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+  const workspace = { workspaceRoot: resolution.workspace.root, projectless: resolution.workspace.kind === "projectless" };
+  if (engine === "codex") {
+    const { listSkills, skillRoots } = await import("./tools/skills.mjs");
+    return (await listSkills(skillRoots(workspace))).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" }));
+  }
   const { discoverClaudeCommands } = await import("./agent/claude-agent-provider.mjs");
-  return discoverClaudeCommands(resolution.workspace.root, resolution.workspace.kind === "projectless");
+  return discoverClaudeCommands(workspace.workspaceRoot, workspace.projectless);
 }
 
 /**
@@ -435,11 +440,12 @@ ipcMain.handle("cli:uninstall", async (event) => {
   return uninstallCli();
 });
 
-ipcMain.handle("workspace:commands", async (event, workspaceId: unknown) => {
+ipcMain.handle("workspace:commands", async (event, workspaceId: unknown, engine: unknown) => {
   if (!trustedSender(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
   if (typeof workspaceId !== "string" || workspaceId.length === 0 || workspaceId.length > 256) return { status: "error", message: "Invalid workspace ID." } as const;
+  if (!isAgentEngine(engine)) return { status: "error", message: "Invalid engine." } as const;
   try {
-    return { status: "available", commands: await readCommands(workspaceId) } as const;
+    return { status: "available", commands: await readCommands(workspaceId, engine) } as const;
   } catch (error) {
     return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
   }

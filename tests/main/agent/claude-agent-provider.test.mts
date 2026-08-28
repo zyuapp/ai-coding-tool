@@ -258,6 +258,11 @@ test("the channel tool table is the only thing a side chat is short of", async (
     "every other server a run gets, a side chat gets",
   );
   assert.equal(optionsOf(side).tools, undefined, "no tool allowlist narrows a side chat");
+  assert.deepEqual(
+    Object.keys(optionsOf(main).mcpServers ?? {}).sort(),
+    ["aicodingtool-automation", "aicodingtool-threads"],
+    "Claude reads skills through its own Skill tool, so the app serves it none",
+  );
 });
 
 test("side chat forks the main continuation and keeps the tools of its own policy", async () => {
