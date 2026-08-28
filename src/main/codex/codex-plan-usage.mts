@@ -58,9 +58,17 @@ function limitName(id: string, snapshot: RateLimitSnapshot) {
   return name.toLowerCase() === "codex" ? "Codex" : name;
 }
 
+function compareLimits([leftId, left]: [string, RateLimitSnapshot], [rightId, right]: [string, RateLimitSnapshot]) {
+  const leftName = limitName(leftId, left);
+  const rightName = limitName(rightId, right);
+  if (leftName === "Codex" && rightName !== "Codex") return -1;
+  if (rightName === "Codex" && leftName !== "Codex") return 1;
+  return leftName.localeCompare(rightName) || leftId.localeCompare(rightId);
+}
+
 /** Translates Codex's account windows into the same report the Claude reader returns. */
 export function toCodexPlanUsage(response: GetAccountRateLimitsResponse, accountPlan: string | null = null): PlanUsage {
-  const limits = snapshots(response);
+  const limits = snapshots(response).sort(compareLimits);
   const windows: UsageWindow[] = [];
   for (const [id, snapshot] of limits) {
     const name = limits.length > 1 ? `${limitName(id, snapshot)} · ` : "";

@@ -40,12 +40,12 @@ test("Codex rate limits become the same session and week windows as Claude usage
   ]);
 });
 
-test("multiple Codex limit buckets keep their names, and an empty answer has no plan limits", () => {
+test("multiple Codex limit buckets keep their names and stable order, and an empty answer has no plan limits", () => {
   const usage = toCodexPlanUsage({
     ...response,
     rateLimitsByLimitId: {
-      codex: snapshot({ primary: { usedPercent: 10, windowDurationMins: 60, resetsAt: null } }),
       review: snapshot({ limitId: "review", limitName: "Code review", planType: null, primary: { usedPercent: 20, windowDurationMins: 1_440, resetsAt: null } }),
+      codex: snapshot({ primary: { usedPercent: 10, windowDurationMins: 60, resetsAt: null } }),
     },
   });
   assert.equal(usage.status, "available");
