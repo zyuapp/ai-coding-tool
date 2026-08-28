@@ -108,6 +108,19 @@ export type EngineReadiness = {
 /** The readiness of the engines whose readiness can change. One not named is always ready. */
 export type EngineStatus = Partial<Record<AgentEngine, EngineReadiness>>;
 
+/**
+ * Why this engine cannot take a run, in the words the user needs to clear it, or nothing when it
+ * can. A signed-out engine is left out: signing in is a button rather than a sentence.
+ */
+export function engineBlocker(engine: AgentEngine, readiness: EngineReadiness): string | null {
+  const label = engineLabel(engine);
+  const fix = readiness.fix ? ` Run \`${readiness.fix}\` to fix it.` : "";
+  if (readiness.access === "missing") return `${label} is not installed.${fix}`;
+  if (readiness.access === "outdated") return `${label} ${readiness.version ?? "on this machine"} is too old. This app needs ${readiness.required}.${fix}`;
+  if (readiness.access === "unavailable") return `${label} is installed but would not start.`;
+  return null;
+}
+
 const MODEL_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));
 const EFFORT_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].efforts.map((effort) => effort.id)));
 

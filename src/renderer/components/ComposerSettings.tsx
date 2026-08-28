@@ -1,7 +1,7 @@
 import type { IconType } from "react-icons";
 import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
-import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, byEngine, effortsFor, engineBlocker, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -35,14 +35,15 @@ const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(
 
 export const EVERY_ENGINE_READY = byEngine((): EngineReadiness => ({ access: "ready" }));
 
-/** What stands between an engine and a run, in the words the user needs to clear it. */
-function readinessNote(label: string, readiness: EngineReadiness): string | null {
-  if (readiness.access === "missing") return `${label} is not installed`;
-  if (readiness.access === "outdated") return `${label} ${readiness.version ?? ""} is too old. This app needs ${readiness.required}.`.replace("  ", " ");
-  if (readiness.access === "unavailable") return `${label} would not start`;
+/**
+ * What stands between an engine and a run. The blocker itself carries the command, so the hint drops
+ * that sentence and shows the command on its own with a button that copies it.
+ */
+function readinessNote(engine: AgentEngine, readiness: EngineReadiness): string | null {
+  const blocked = engineBlocker(engine, readiness);
+  if (blocked) return blocked.replace(/ Run `.*` to fix it\.$/, "");
   /** Ready, but behind: the models it never heard of are simply absent, so say why the list is short. */
-  if (readiness.required) return `More models after upgrading ${label}`;
-  return null;
+  return readiness.required ? `More models after upgrading ${engineLabel(engine)}` : null;
 }
 
 function ReadinessHint({ note, fix }: { note: string; fix?: string }) {
@@ -133,7 +134,7 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
       {offered.map((group) => {
         const readiness = engineAccess[group.engine];
         const ready = readiness.access === "ready";
-        const note = readinessNote(group.label, readiness);
+        const note = readinessNote(group.engine, readiness);
         /** A command that names its models hides the ones it cannot run, so the list never offers a dead pick. */
         const choices = readiness.models ? group.choices.filter((item) => readiness.models?.includes(item.value)) : group.choices;
         return <div key={group.engine} className="setting-group" role="group" aria-label={group.label}>

@@ -85,7 +85,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   }));
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const missing = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.equal(query(missing, ".setting-hint span").textContent, "Codex is not installed");
+  assert.equal(query(missing, ".setting-hint span").textContent, "Codex is not installed.");
   assert.equal(query(missing, ".setting-hint code").textContent, "brew install --cask codex", "the hint carries the command that installs it");
   await act(async () => { query<HTMLButtonElement>(missing, ".setting-option").click(); });
   assert.deepEqual(signIns, ["codex"], "an engine that is not there offers no sign-in");

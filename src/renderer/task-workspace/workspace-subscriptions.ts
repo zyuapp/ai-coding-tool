@@ -61,6 +61,15 @@ function useDesktopSubscriptions(host: SubscriptionHost) {
     return () => { cancelled = true; };
   }, []);
 
+  /**
+   * The engines are commands on this machine, so the window asks about them on the way up rather
+   * than waiting for a model menu to open. A first send then knows whether it can start at all.
+   */
+  useEffect(() => {
+    if (!("desktop" in window)) return;
+    void host.dispatch({ type: "engine.read" });
+  }, []);
+
   useEffect(() => {
     if (!("desktop" in window)) return;
     return window.desktop.onAgentEvent((event) => void host.dispatch(agentEventInput(event)));

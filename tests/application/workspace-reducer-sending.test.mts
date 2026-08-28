@@ -235,6 +235,27 @@ test("choosing another engine's model moves the draft onto that engine, but neve
   assert.equal(held.draftEngine, "claude", "nor does the draft move behind the thread's back");
 });
 
+test("a send is refused with the command that fixes it when the engine is missing or too old", () => {
+  const missing = workspace({
+    prompts: { "draft:": "do the thing" },
+    engineStatus: { claude: { access: "missing", fix: "curl -fsSL https://claude.ai/install.sh | bash" } },
+  });
+  const refused = reduce(missing, { type: "task.send", attachments: [] });
+  assert.equal(required(refused.state.actionError), "Claude is not installed. Run `curl -fsSL https://claude.ai/install.sh | bash` to fix it.");
+  assert.deepEqual(refused.effects, [], "nothing is started, so the engine never fails on its own");
+  assert.equal(refused.state.prompts["draft:"], "do the thing", "the draft is kept, so the message is not lost");
+
+  const old = workspace({
+    prompts: { "draft:": "do the thing" },
+    draftEngine: "codex",
+    engineStatus: { codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
+  });
+  assert.equal(
+    required(reduce(old, { type: "task.send", attachments: [] }).state.actionError),
+    "Codex 0.147.0 is too old. This app needs 0.150.1. Run `brew update && brew upgrade --cask codex` to fix it.",
+  );
+});
+
 test("an engine's access comes from main, and only a signed-out engine can be signed in to", () => {
   const state = workspace();
   assert.deepEqual(deriveView(state).engineAccess, { claude: { access: "ready" }, codex: { access: "ready" } }, "every engine is ready until main says otherwise");
