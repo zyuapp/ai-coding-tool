@@ -3,6 +3,7 @@ import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
 import { activitySections, backfillSortIndex, orderTasks } from "./task-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ReadingPoint } from "../contracts/commands.js";
+import type { ReviewTarget } from "../domain/review.js";
 
 export type { ReadingPoint };
 import { DIFF_PANEL, dockFor, dockOwner, dockSideChats, dockTabKind, frontDock, type ThreadDock } from "./workspace-dock.js";
@@ -42,7 +43,7 @@ export type PendingRun = {
   id: string;
   runId: string;
   origin: "composer" | "automation";
-  operation?: "compact";
+  operation?: { type: "compact" } | { type: "review"; target: ReviewTarget };
   taskId?: string;
   projectId?: string;
   /** The checkout the run was told to happen in, for a thread that does not exist yet to claim. */
@@ -169,6 +170,12 @@ export type ProjectEdit = {
   error: string | null;
 };
 
+/** The native review picker follows the thread it was opened from and never persists. */
+export type ReviewPicker = {
+  taskId: string;
+  step: "targets" | "base" | "commit" | "custom";
+};
+
 export type WorkspaceState = {
   tasks: Task[];
   projects: Project[];
@@ -271,6 +278,7 @@ export type WorkspaceState = {
   browserOrigins: string[];
   browserApproval: BrowserApproval | null;
   openMenu: string | null;
+  reviewPicker: ReviewPicker | null;
   /**
    * What Git last said about each checkout, keyed by checkout. A checkout is what a branch and a set
    * of changes belong to, so a scan of one never overwrites another, and a thread returned to shows
@@ -374,6 +382,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     browserOrigins: [],
     browserApproval: null,
     openMenu: null,
+    reviewPicker: null,
     environments: {},
     computerUseSetup: false,
     automations: [],
@@ -827,6 +836,7 @@ export function deriveView(state: WorkspaceState) {
     terminals: dock.terminals,
     currentFolder: currentFolder(state),
     openMenu: state.openMenu,
+    reviewPicker: state.reviewPicker?.taskId === currentTask?.id ? state.reviewPicker : null,
     find: findView(state, currentTask),
     remote: state.remote,
     canGoBack: reachableVisit(state, -1) !== null,

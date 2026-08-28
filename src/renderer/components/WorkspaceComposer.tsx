@@ -16,6 +16,13 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
     && workspace.waitingOn === null
     ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
     : [];
+  const review = task?.engine === "codex"
+    && task.continuation?.provider === "codex"
+    && workspace.workspaceId
+    && !workspace.runActive
+    && workspace.waitingOn === null
+    ? [{ name: "review", description: "Review changes in the current project.", run: workspace.actions.openReview }]
+    : [];
   return (
     <TaskComposer
       focusToken={workspace.composerFocus}
@@ -39,9 +46,13 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       pastes={workspace.pastes}
       files={workspace.files}
       history={sentPrompts(workspace.currentTask?.messages ?? [])}
-      actions={[...compact, ...actions]}
+      actions={[...compact, ...review, ...actions]}
+      reviewPicker={workspace.reviewPicker}
       threads={workspace.threadHandles}
       onPromptChange={workspace.actions.setPrompt}
+      onReviewStep={workspace.actions.setReviewStep}
+      onReview={workspace.actions.startReview}
+      onReviewClose={workspace.actions.closeReview}
       onAnnotationRecall={(annotations) => void workspace.dispatch({ type: "annotation.recall", annotations })}
       onAnnotationRemove={(annotationId) => void workspace.dispatch({ type: "annotation.remove", annotationId })}
       onPasteAdd={(text) => void workspace.dispatch({ type: "paste.add", text })}

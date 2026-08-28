@@ -9,6 +9,7 @@ import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
+import type { ReviewTarget } from "../domain/review.js";
 
 /**
  * Where a thread was left reading: the message held at the top of the view and how far into it the
@@ -22,7 +23,7 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
@@ -143,6 +144,13 @@ export type RunControlCommand =
   | { type: "run.decide"; allow: boolean; taskId?: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };
+
+/** The native Codex review picker and the review turn it starts. */
+export type ReviewCommand =
+  | { type: "review.open"; taskId?: string }
+  | { type: "review.close" }
+  | { type: "review.set-step"; step: "targets" | "base" | "commit" | "custom" }
+  | { type: "review.start"; taskId?: string; target: ReviewTarget };
 
 /**
  * A side chat forks the current thread and is discarded when it closes. Its thread is an ordinary

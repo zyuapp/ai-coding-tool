@@ -7,6 +7,7 @@ import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/r
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
 import type { RunAttachment, TaskDropTarget } from "../../domain/task";
 import type { ThemeMode } from "../../domain/theme";
+import type { ReviewTarget } from "../../domain/review";
 import { systemPrefersDark } from "../theme";
 
 /** The named shorthands the UI reaches for, each one a single command through the same door. */
@@ -75,6 +76,10 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     deleteAutomation: () => dispatch({ type: "automation.delete" }),
     runAutomationNow: () => dispatch({ type: "automation.run-now" }),
     compactContext: () => dispatch({ type: "run.compact" }),
+    openReview: () => dispatch({ type: "review.open" }),
+    setReviewStep: (step: "targets" | "base" | "commit" | "custom") => dispatch({ type: "review.set-step", step }),
+    closeReview: () => dispatch({ type: "review.close" }),
+    startReview: (target: ReviewTarget) => dispatch({ type: "review.start", target }),
     cancelRun: () => dispatch({ type: "run.cancel" }),
     stopBackgroundProcess: (processId: string) => dispatch({ type: "run.stop-process", processId }),
     decideApproval: (allow: boolean) => dispatch({ type: "run.decide", allow }),

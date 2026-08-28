@@ -293,6 +293,28 @@ test("manual compaction uses Sol's thread operation and the same visible progres
   codex.provider.closeAll();
 });
 
+test("native review starts inline on the current thread instead of sending an empty turn", async () => {
+  const emitted: ProviderEvent[] = [];
+  const codex = harness();
+  const running = codex.provider.execute(input({
+    prompt: "",
+    continuation: { provider: "codex", value: threadId },
+    operation: { type: "review", target: { type: "baseBranch", branch: "main" } },
+    emit: (event) => emitted.push(event),
+  }));
+  const client = await opened(codex);
+  await sentBy(client, "review/start");
+
+  assert.deepEqual(client.calls("review/start"), [{ threadId, target: { type: "baseBranch", branch: "main" }, delivery: "inline" }]);
+  assert.equal(client.calls("turn/start").length, 0);
+  client.notify("item/completed", completed(agentMessage("review-1", "No findings.")));
+  completeTurn(client);
+
+  assert.deepEqual(await running, { status: "succeeded" });
+  assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [{ type: "assistant", messageId: "review-1", text: "No findings." }]);
+  codex.provider.closeAll();
+});
+
 async function asking(overrides: Partial<Parameters<typeof input>[0]> = {}) {
   const asked: ToolIntent[] = [];
   const codex = harness();

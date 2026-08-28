@@ -17,6 +17,7 @@ import type { WorkflowAgent, WorkflowAgentState, WorkflowPhase, WorkflowStatus }
 import type { Project, Task, TaskMessage, TaskStoreData } from "../domain/task.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
+import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
@@ -62,7 +63,9 @@ export type ClaudeRunSettings = {
 };
 
 /** Work a run performs without sending its prompt as a model turn. */
-export type RunOperation = { type: "compact"; preTokens: number };
+export type RunOperation =
+  | { type: "compact"; preTokens: number }
+  | { type: "review"; target: ReviewTarget };
 
 export type StartRunCommand = {
   type: "start";
@@ -629,7 +632,13 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && command.engine === "codex" && command.prompt === "" && isAgentModel(command.model) && modelSupportsManualCompaction(command.engine, command.model)
     && isContinuation(command.continuation) && command.continuation.provider === "codex"
     && command.forkContinuation === undefined;
-  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (compact ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || compact) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
+  const review = operation?.type === "review"
+    && isReviewTarget(operation.target)
+    && command.channel === "main" && command.engine === "codex" && command.prompt === ""
+    && isContinuation(command.continuation) && command.continuation.provider === "codex"
+    && command.forkContinuation === undefined;
+  const operationOnly = compact || review;
+  const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
   if (!base) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);

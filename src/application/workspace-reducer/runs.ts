@@ -11,15 +11,20 @@ import { applyRunEvent, applyTask, applyThreadEvent, ATTENDED_RUN, threadMark, w
 import { DRAFT_DOCK, leavingTaskIds, projectFor, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { defaultModelFor, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
+import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createTaskMessage, type Task } from "../../domain/task.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
 type RunInput = Extract<WorkspaceInput, {
   type: "run.resolved" | "run.unresolved" | "run.cancel" | "run.compact" | "run.stop-process" | "run.decide"
-    | "run.event" | "thread.event";
+    | "run.event" | "thread.event" | "review.open" | "review.close" | "review.set-step" | "review.start";
 }>;
+type ReviewInput = Extract<RunInput, { type: "review.open" | "review.close" | "review.set-step" | "review.start" }>;
 
 export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTransition {
+  if (input.type === "review.open" || input.type === "review.close" || input.type === "review.set-step" || input.type === "review.start") {
+    return reduceReview(state, input);
+  }
   switch (input.type) {
     case "run.resolved": {
       const pending = state.pendingRuns[input.pendingId];
@@ -34,7 +39,8 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (adopts) {
         next = { ...next, projects: next.projects.map((item) => item.id === project.id ? { ...item, workspaceId: input.workspace.id } : item) };
       }
-      if (pending.operation === "compact") return startCompaction(next, pending, input.workspace);
+      if (pending.operation?.type === "compact") return startCompaction(next, pending, input.workspace);
+      if (pending.operation?.type === "review") return startReview(next, pending, input.workspace);
       return pending.origin === "automation"
         ? startAutomationRun(next, pending, input.workspace, input.worktree)
         : startComposerRun(next, pending, input.workspace, input.worktree);
@@ -63,7 +69,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
         id: crypto.randomUUID(),
         runId: crypto.randomUUID(),
         origin: "composer",
-        operation: "compact",
+        operation: { type: "compact" },
         taskId: task.id,
         ...(project ? { projectId: project.id } : {}),
         text: "",
@@ -181,6 +187,36 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
   }
 }
 
+function reduceReview(state: WorkspaceState, input: ReviewInput): WorkspaceTransition {
+  if (input.type === "review.close") return state.reviewPicker ? settled({ ...state, reviewPicker: null }) : settled(state);
+  if (input.type === "review.set-step") {
+    const picker = state.reviewPicker;
+    if (!picker || picker.taskId !== state.currentId || !reviewableTask(state, picker.taskId)) return settled(state);
+    return settled({ ...state, reviewPicker: { ...picker, step: input.step } });
+  }
+  const taskId = targetId(state, input.taskId);
+  const task = reviewableTask(state, taskId);
+  if (!task) return settled(state);
+  if (input.type === "review.open") {
+    return settled({ ...state, actionError: null, reviewPicker: { taskId: task.id, step: "targets" } });
+  }
+  if (!isReviewTarget(input.target)) return settled(state);
+  const project = projectFor(state, task);
+  const pending: PendingRun = {
+    id: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
+    origin: "composer",
+    operation: { type: "review", target: input.target },
+    taskId: task.id,
+    ...(project ? { projectId: project.id } : {}),
+    text: "",
+    prompt: "",
+    attachments: [],
+  };
+  const resolving = resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false);
+  return settled(withPending({ ...state, reviewPicker: null }, pending), [resolving]);
+}
+
 /** Compaction updates the transcript, but it does not replace the verdict of the last task run. */
 function restoreCompactionTestimony(state: WorkspaceState, taskId: string, before: ThreadMark) {
   return applyTask(state, taskId, ({ outcome: _outcome, outcomeUnread: _unread, runEndedAt: _ended, ...task }) => ({
@@ -199,6 +235,27 @@ function startCompaction(state: WorkspaceState, pending: PendingRun, workspace: 
     operation: { type: "compact" as const, preTokens: task.contextUsage.tokens },
   };
   return settled(beginRun(state, task.id, pending.runId, { ...ATTENDED_RUN, operation: "compact" }), [{ type: "start-run", command }]);
+}
+
+function reviewableTask(state: WorkspaceState, taskId: string | null) {
+  const task = state.tasks.find((item) => item.id === taskId);
+  return task?.engine === "codex"
+    && task.continuation?.provider === "codex"
+    && taskWorkspaceId(state, task)
+    && !threadBusy(state, task.id)
+    ? task
+    : undefined;
+}
+
+function startReview(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord): WorkspaceTransition {
+  const task = pending.taskId ? reviewableTask(state, pending.taskId) : undefined;
+  const target: ReviewTarget | undefined = pending.operation?.type === "review" ? pending.operation.target : undefined;
+  if (!task || !target) return settled(state);
+  const command = {
+    ...startRunCommand(state, task, pending.runId, "", workspace.id),
+    operation: { type: "review" as const, target },
+  };
+  return settled(beginRun(state, task.id, pending.runId, { ...ATTENDED_RUN, operation: "review" }), [{ type: "start-run", command }]);
 }
 
 function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {

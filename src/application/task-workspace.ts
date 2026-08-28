@@ -65,8 +65,8 @@ export function withdrawRun(task: Task, from: number, before: ThreadMark): Task 
 export type RunProvenance = {
   origin: "composer" | "automation";
   quiet: boolean;
-  /** A lifecycle that changes context without counting as a task run. */
-  operation?: "compact";
+  /** A native thread operation that starts without adding a user message. */
+  operation?: "compact" | "review";
 };
 
 export const ATTENDED_RUN: RunProvenance = { origin: "composer", quiet: false };

@@ -1,4 +1,4 @@
-import type { QueuedMessage } from "../../application/workspace-state";
+import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { Annotation as TaskAnnotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/task";
 import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
@@ -15,6 +15,8 @@ import { QueuedRow } from "./QueuedRow";
 import { useComposerCaret } from "./composer-caret";
 import { composerBlur, composerInput, composerKeyDown, composerPaste } from "./composer-input";
 import { useComposerRecall } from "./composer-recall";
+import type { ReviewTarget } from "../../domain/review";
+import { ReviewPicker } from "./ReviewPicker";
 
 const NOTHING = () => {};
 
@@ -38,6 +40,8 @@ export type TaskComposerProps = {
   surface?: "main" | "side";
   /** Runnable `/` entries. A surface that performs none, as a side chat does, passes none. */
   actions?: ComposerAction[];
+  /** The app-owned `/review` flow, when this composer opened it. */
+  reviewPicker?: ReviewPickerState | null;
   /** Threads the `@` menu offers, newest first. A surface that names none passes none. */
   threads?: ThreadHandleOption[];
   /** Set while the thread cannot take a message at all, as a side chat cannot before its fork exists. */
@@ -71,6 +75,9 @@ export type TaskComposerProps = {
   /** Previously sent messages, oldest first, offered back on ↑ from the first line. */
   history?: RecalledMessage[];
   onPromptChange: (prompt: string) => void;
+  onReviewStep?: (step: ReviewPickerState["step"]) => void;
+  onReview?: (target: ReviewTarget) => void;
+  onReviewClose?: () => void;
   onAnnotationRecall?: (annotations: TaskAnnotation[]) => void;
   onAnnotationRemove?: (annotationId: string) => void;
   onPasteAdd?: (text: string) => void;
@@ -99,6 +106,7 @@ export function TaskComposer({
   workspaceId,
   surface = "main",
   actions = [],
+  reviewPicker = null,
   threads = [],
   disabled = false,
   waiting = false,
@@ -119,6 +127,9 @@ export function TaskComposer({
   images = [],
   history = [],
   onPromptChange,
+  onReviewStep = NOTHING,
+  onReview = NOTHING,
+  onReviewClose = NOTHING,
   onAnnotationRecall,
   onAnnotationRemove,
   onPasteAdd,
@@ -159,6 +170,16 @@ export function TaskComposer({
     <footer className={`composer-wrap ${surface}`}>
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
+        {reviewPicker && (
+          <ReviewPicker
+            picker={reviewPicker}
+            {...(workspaceId ? { workspaceId } : {})}
+            returnFocus={caret.textareaRef}
+            onStep={onReviewStep}
+            onReview={onReview}
+            onClose={onReviewClose}
+          />
+        )}
         {menus.commandMenuOpen && <CommandMenu menus={menus} />}
         {menus.threadMenuOpen && <ThreadMenu menus={menus} />}
         {onAnnotationRemove && <AnnotationRow annotations={annotations} onRemove={onAnnotationRemove} />}
@@ -179,8 +200,8 @@ export function TaskComposer({
           placeholder={composerPlaceholder(surface, folder, disabled, engineLabel)}
           aria-label={surface === "side" ? "Side chat prompt" : "Task prompt"}
           aria-autocomplete="list"
-          aria-controls={menuControls(menus)}
-          aria-expanded={menus.commandMenuOpen || menus.threadMenuOpen}
+          aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
+          aria-expanded={Boolean(reviewPicker) || menus.commandMenuOpen || menus.threadMenuOpen}
           aria-activedescendant={menuActiveDescendant(menus)}
           rows={2}
         />

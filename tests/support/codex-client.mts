@@ -22,6 +22,10 @@ export const defaultScript: Script = {
   "thread/resume": (params: { threadId: string }) => ({ thread: { id: params.threadId }, model: "gpt-5.6-sol" }),
   "thread/fork": () => ({ thread: { id: "thread-fork" }, model: "gpt-5.6-sol" }),
   "thread/compact/start": () => ({}),
+  "review/start": () => ({
+    turn: { id: "turn-1", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null },
+    reviewThreadId: "thread-1",
+  }),
   "turn/start": () => ({ turn: { id: "turn-1", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null } }),
   "turn/steer": () => ({ turnId: "turn-1" }),
   "turn/interrupt": () => ({}),

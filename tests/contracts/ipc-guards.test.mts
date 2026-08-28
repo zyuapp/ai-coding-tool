@@ -52,6 +52,28 @@ test("manual compaction is a validated Sol thread operation", () => {
   assert.equal(isRunCommand({ ...compact, forkContinuation: true }), false);
 });
 
+test("native Codex reviews accept only valid inline review targets", () => {
+  const review = {
+    ...command,
+    engine: "codex",
+    model: "gpt-5.6-terra",
+    prompt: "",
+    continuation: { provider: "codex", value: "thread-1" },
+    operation: { type: "review", target: { type: "uncommittedChanges" } },
+  };
+  assert.equal(isRunCommand(review), true);
+  assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "baseBranch", branch: "main" } } }), true);
+  assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "commit", sha: "abc123", title: null } } }), true);
+  assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "custom", instructions: "Check concurrency." } } }), true);
+  assert.equal(isRunCommand({ ...review, prompt: "also answer" }), false);
+  assert.equal(isRunCommand({ ...review, channel: "side" }), false);
+  assert.equal(isRunCommand({ ...review, continuation: { provider: "claude", value: "session-1" } }), false);
+  assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "baseBranch", branch: " " } } }), false);
+  assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "commit", sha: "", title: null } } }), false);
+  assert.equal(isRunCommand({ ...review, operation: { type: "review", target: { type: "custom", instructions: "" } } }), false);
+  assert.equal(isRunCommand({ ...review, forkContinuation: true }), false);
+});
+
 test("internal worker commands require a resolved root and projectless flag", () => {
   assert.equal(isInternalRunCommand({ ...command, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), true);
   assert.equal(isInternalRunCommand(command), false);

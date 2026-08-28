@@ -14,6 +14,7 @@ import type { GetAccountResponse } from "./protocol/v2/GetAccountResponse.js";
 import type { LoginAccountResponse } from "./protocol/v2/LoginAccountResponse.js";
 import type { McpServerElicitationRequestResponse } from "./protocol/v2/McpServerElicitationRequestResponse.js";
 import type { PermissionsRequestApprovalResponse } from "./protocol/v2/PermissionsRequestApprovalResponse.js";
+import type { ReviewStartResponse } from "./protocol/v2/ReviewStartResponse.js";
 import type { ThreadForkResponse } from "./protocol/v2/ThreadForkResponse.js";
 import type { ThreadResumeResponse } from "./protocol/v2/ThreadResumeResponse.js";
 import type { ThreadStartResponse } from "./protocol/v2/ThreadStartResponse.js";
@@ -34,6 +35,7 @@ export interface ClientResponses {
   "turn/start": TurnStartResponse;
   "turn/steer": TurnSteerResponse;
   "turn/interrupt": TurnInterruptResponse;
+  "review/start": ReviewStartResponse;
   "account/read": GetAccountResponse;
   "account/rateLimits/read": GetAccountRateLimitsResponse;
   "account/login/start": LoginAccountResponse;

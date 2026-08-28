@@ -46,7 +46,8 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "run.resolved": case "run.unresolved": case "run.cancel": case "run.compact":
     case "run.stop-process": case "run.decide": case "run.event":
-    case "thread.event":
+    case "thread.event": case "review.open": case "review.close":
+    case "review.set-step": case "review.start":
       return reduceRuns(state, input);
 
     case "automation.fired": case "automation.notify": case "automation.nothing-to-report":

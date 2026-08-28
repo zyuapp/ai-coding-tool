@@ -79,6 +79,42 @@ test("manual Sol compaction reuses the run lifecycle without becoming a task run
   assert.deepEqual(reduce(terra, { type: "run.compact" }).effects, [], "the command stays specific to Sol");
 });
 
+test("a Codex review picker starts a native review without adding a user message", () => {
+  const state = workspace({
+    projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }],
+    tasks: [task("task-a", {
+      projectId: "project-1",
+      engine: "codex",
+      model: "gpt-5.6-terra",
+      continuation: { provider: "codex", value: "thread-1" },
+      continuationStatus: "available",
+    })],
+    currentId: "task-a",
+  });
+  const opened = reduce(state, { type: "review.open" });
+  assert.deepEqual(deriveView(opened.state).reviewPicker, { taskId: "task-a", step: "targets" });
+
+  const detailed = reduce(opened.state, { type: "review.set-step", step: "base" });
+  assert.equal(deriveView(detailed.state).reviewPicker?.step, "base");
+  const pending = reduce(detailed.state, { type: "review.start", target: { type: "baseBranch", branch: "main" } });
+  assert.equal(pending.state.reviewPicker, null);
+
+  const resolved = reduce(pending.state, {
+    type: "run.resolved",
+    pendingId: effectAt(pending, "resolve-run-workspace").pendingId,
+    workspace: { id: "workspace-1", kind: "project", root: "/project" },
+  });
+  const command = effectAt(resolved, "start-run").command;
+  assert.equal(command.prompt, "");
+  assert.deepEqual(command.operation, { type: "review", target: { type: "baseBranch", branch: "main" } });
+  assert.equal(resolved.state.activeRuns["task-a"].operation, "review");
+  assert.deepEqual(resolved.state.tasks[0].messages, []);
+
+  const claude = { ...state, tasks: [{ ...state.tasks[0], engine: "claude" as const, continuation: { provider: "claude" as const, value: "session-1" } }] };
+  assert.deepEqual(reduce(claude, { type: "review.open" }).effects, []);
+  assert.equal(reduce(claude, { type: "review.open" }).state.reviewPicker, null);
+});
+
 test("a run that settles off screen flags its thread and refreshes its project", () => {
   const state = workspace({
     tasks: [task("task-a", { projectId: "project-1" }), task("task-b")],

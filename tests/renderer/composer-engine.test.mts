@@ -13,6 +13,7 @@ import { item, mount, query } from "../support/renderer-dom.mts";
 
 const { TaskComposer } = await import("../../src/renderer/components/TaskComposer.tsx");
 const { WorkspaceComposer } = await import("../../src/renderer/components/WorkspaceComposer.tsx");
+const { ReviewPicker } = await import("../../src/renderer/components/ReviewPicker.tsx");
 
 /** Only what the composer itself reaches for: the command menu's list, and nothing about runs. */
 function composerDesktop(): DesktopAPI {
@@ -128,6 +129,7 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
     textarea.focus();
     textarea.setSelectionRange(2, 2);
     textarea.dispatchEvent(new Event("select", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
   assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/compact"]);
   assert.equal(query(view.container, ".command-source").textContent, "AI Coding Tool");
@@ -136,5 +138,62 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
 
   await view.render(render("gpt-5.6-terra"));
   assert.equal(view.container.querySelector('[role="option"]'), null, "Terra does not inherit the Sol-specific command");
+  await view.unmount();
+});
+
+test("an idle Codex project thread opens review options from the slash menu", async () => {
+  window.desktop = composerDesktop();
+  const dispatched: WorkspaceInput[] = [];
+  const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
+  const currentTask: Task = {
+    id: "task-1", title: "Codex thread", projectId: "project-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
+    messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
+    lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const derived = deriveView({
+    ...emptyWorkspaceState(),
+    projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }],
+    tasks: [currentTask], currentId: currentTask.id,
+  });
+  assert.equal(derived.workspaceId, "workspace-1");
+  const view = await mount(React.createElement(WorkspaceComposer, {
+    workspace: { ...derived, prompt: "/r", threadHandles: [], threadHandlesFor: () => [], dispatch, actions: workspaceActions(dispatch) } as never,
+    actions: [],
+  }));
+  const textarea = query<HTMLTextAreaElement>(view.container, "textarea");
+  await act(async () => {
+    textarea.focus();
+    textarea.setSelectionRange(2, 2);
+    textarea.dispatchEvent(new Event("select", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"] strong')].map((node) => node.textContent), ["/review"]);
+  await act(async () => { query<HTMLButtonElement>(view.container, '[role="option"]').click(); });
+  assert.deepEqual(dispatched.slice(-2), [{ type: "view.set-prompt", prompt: "" }, { type: "review.open" }]);
+  await view.unmount();
+});
+
+test("the review picker mirrors Codex's four target choices", async () => {
+  const steps: string[] = [];
+  const targets: unknown[] = [];
+  const view = await mount(React.createElement(ReviewPicker, {
+    picker: { taskId: "task-1", step: "targets" },
+    workspaceId: "workspace-1",
+    returnFocus: { current: null },
+    onStep: (step: string) => steps.push(step),
+    onReview: (target: unknown) => targets.push(target),
+    onClose() {},
+  }));
+  const options = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  assert.deepEqual(options.map((option) => query(option, "strong").textContent), [
+    "Review against a base branch",
+    "Review uncommitted changes",
+    "Review a commit",
+    "Custom review instructions",
+  ]);
+  await act(async () => { options[0].click(); });
+  assert.deepEqual(steps, ["base"]);
+  await act(async () => { options[1].click(); });
+  assert.deepEqual(targets, [{ type: "uncommittedChanges" }]);
   await view.unmount();
 });

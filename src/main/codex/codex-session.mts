@@ -258,6 +258,10 @@ export class CodexSession {
       await this.beginCompaction(turn, client, threadId);
       return;
     }
+    if (turn.input.operation?.type === "review") {
+      await this.beginReview(turn, client, threadId);
+      return;
+    }
     const policy = codexPolicy(turn.input.policy);
     let started: { turn: { id: string } };
     try {
@@ -294,6 +298,26 @@ export class CodexSession {
       this.setCompacting(turn, false, `Could not compact context: ${reasonOf(error)}`);
       this.settle({ status: "failed" });
     }
+  }
+
+  /** A review is a specialized inline turn on the current thread, not a prompt sent to the model. */
+  private async beginReview(turn: Turn, client: CodexClient, threadId: string) {
+    const operation = turn.input.operation;
+    if (operation?.type !== "review") return;
+    let started: { turn: { id: string }; reviewThreadId: string };
+    try {
+      started = await client.request("review/start", { threadId, target: operation.target, delivery: "inline" });
+    } catch (error) {
+      if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not start the review: ${reasonOf(error)}` });
+      return;
+    }
+    turn.turnId = started.turn.id;
+    if (this.turn !== turn) return;
+    if (turn.interruptWanted) {
+      this.interrupt(turn);
+      return;
+    }
+    await this.drainSteering(turn);
   }
 
   /**
@@ -450,7 +474,9 @@ export class CodexSession {
 
   private setCompacting(turn: Turn, compacting: boolean, error?: string) {
     if (this.turn !== turn) return;
-    if (compacting && turn.compactionPreTokens === undefined) turn.compactionPreTokens = turn.input.operation?.preTokens ?? this.lastTokens;
+    if (compacting && turn.compactionPreTokens === undefined) {
+      turn.compactionPreTokens = turn.input.operation?.type === "compact" ? turn.input.operation.preTokens : this.lastTokens;
+    }
     if (turn.compacting === compacting && error === undefined) return;
     turn.compacting = compacting;
     turn.input.emit({ type: "compaction-status", compacting, ...(error ? { error } : {}) });
