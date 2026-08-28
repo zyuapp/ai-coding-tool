@@ -3453,6 +3453,7 @@ button.file-name { cursor: pointer; }
 .setting-option[aria-disabled="true"] { color: var(--quiet); cursor: default; }
 .setting-option[aria-disabled="true"]:hover { background: transparent; }
 .setting-option[aria-disabled="true"] .setting-icon, .setting-option[aria-disabled="true"] small { color: var(--quiet-soft); }
+.setting-option.danger[aria-selected="true"] .setting-icon, .setting-option.danger[aria-selected="true"] .setting-check { color: var(--danger-soft); }
 .setting-group + .setting-group { margin-top: 4px; }
 .setting-group-heading { padding: 8px 9px 4px; color: var(--quiet); font-size: var(--text-meta); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
 .setting-hint { display: block; width: 100%; border: 0; padding: 2px 9px 8px; background: transparent; color: var(--quiet-strong); font-size: var(--text-meta); text-align: left; }

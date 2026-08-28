@@ -1,16 +1,17 @@
 import type { IconType } from "react-icons";
-import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
 import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel, type EngineAccess } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
-type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: IconType };
+type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: IconType; danger?: true };
 
 // ExecutionPolicy still accepts "plan"; it is left out of the picker because nobody uses it.
 const modes: Choice<ExecutionPolicy>[] = [
   { value: "autonomous", label: "Auto mode", short: "Auto", description: "Only ask for potentially unsafe actions", icon: Zap },
-  { value: "allow-edits", label: "Allow all edit", short: "Edits", description: "Apply file edits without asking", icon: FileCheck2 },
+  { value: "bypass", label: "Bypass permissions", short: "Bypass", description: "Use tools and change files without asking", icon: ShieldOff, danger: true },
+  { value: "allow-edits", label: "Allow edits", short: "Edits", description: "Apply file edits without asking", icon: FileCheck2 },
   { value: "confirm", label: "Let me decide", short: "Confirm", description: "Ask before using tools or changing files", icon: Hand },
 ];
 
@@ -73,7 +74,7 @@ function Option<T extends string>({ item, selected, disabled = false, onSelect }
     aria-selected={selected}
     {...(disabled ? { "aria-disabled": true } : {})}
     autoFocus={selected}
-    className="setting-option"
+    className={`setting-option${item.danger ? " danger" : ""}`}
     onClick={onSelect}
   >
     <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>

@@ -845,7 +845,7 @@ function isContinuation(value: unknown): value is Continuation {
 }
 
 function isExecutionPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
+  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
 }
 
 function isContextUsage(value: unknown): value is ContextUsage {

@@ -50,7 +50,7 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.command`] = command;
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.args`] = args;
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.env`] = env;
-    if (input.channel === "main" && input.policy === "autonomous") config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
+    if (input.policy === "bypass" || (input.channel === "main" && input.policy === "autonomous")) config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
   }
   return [...WITHOUT_PLUGINS, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
 }

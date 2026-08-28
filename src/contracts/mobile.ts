@@ -172,7 +172,7 @@ function isCount(value: unknown): value is number {
 }
 
 function isPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
+  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

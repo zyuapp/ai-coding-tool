@@ -9,7 +9,8 @@ type Choice<T extends string> = { value: T; label: string; description: string }
 /** The same wording the desktop composer uses, so a setting means one thing across both screens. */
 const MODES: Choice<ExecutionPolicy>[] = [
   { value: "autonomous", label: "Auto mode", description: "Only ask for potentially unsafe actions" },
-  { value: "allow-edits", label: "Allow all edit", description: "Apply file edits without asking" },
+  { value: "bypass", label: "Bypass permissions", description: "Use tools and change files without asking" },
+  { value: "allow-edits", label: "Allow edits", description: "Apply file edits without asking" },
   { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files" },
 ];
 

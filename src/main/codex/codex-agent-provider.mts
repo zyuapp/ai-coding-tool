@@ -14,7 +14,7 @@ function sessionKey(input: ProviderRunInput) {
     input.channel,
     input.workspaceRoot,
     input.projectless,
-    input.computerUse.status === "available" ? [input.computerUse.mcp, input.channel === "main" && input.policy === "autonomous"] : input.computerUse.status,
+    input.computerUse.status === "available" ? [input.computerUse.mcp, input.policy === "bypass" || (input.channel === "main" && input.policy === "autonomous")] : input.computerUse.status,
     Boolean(input.automations),
     Boolean(input.findings),
     Boolean(input.threads),

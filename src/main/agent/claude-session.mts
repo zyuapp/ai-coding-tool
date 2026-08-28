@@ -44,7 +44,8 @@ export function claudePermissionMode(policy: ExecutionPolicy) {
     plan: "plan",
     "allow-edits": "acceptEdits",
     autonomous: "auto",
-  }[policy] as "default" | "plan" | "acceptEdits" | "auto";
+    bypass: "bypassPermissions",
+  }[policy] as "default" | "plan" | "acceptEdits" | "auto" | "bypassPermissions";
 }
 
 /**
@@ -560,6 +561,7 @@ export class ClaudeSession {
       : { behavior: "deny" as const, message: typeof decision === "object" ? decision.deny : "The user denied this action.", toolUseID: options.toolUseID };
     if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return allow;
     if (turn) {
+      if (turn.input.policy === "bypass") return allow;
       if (turn.input.channel === "main" && turn.input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return allow;
       return answered(await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)));
     }

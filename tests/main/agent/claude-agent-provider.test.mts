@@ -65,16 +65,18 @@ test("command discovery initializes an idle workspace session and closes it", as
 
 test("Claude query options follow run policy and workspace settings", async () => {
   const cases = [
-    { policy: "confirm", permissionMode: "default" },
-    { policy: "plan", permissionMode: "plan" },
-    { policy: "allow-edits", permissionMode: "acceptEdits" },
-    { policy: "autonomous", permissionMode: "auto" },
-  ] satisfies { policy: ExecutionPolicy; permissionMode: PermissionMode }[];
-  for (const { policy, permissionMode } of cases) {
+    { policy: "confirm", permissionMode: "default", bypass: false },
+    { policy: "plan", permissionMode: "plan", bypass: false },
+    { policy: "allow-edits", permissionMode: "acceptEdits", bypass: false },
+    { policy: "autonomous", permissionMode: "auto", bypass: false },
+    { policy: "bypass", permissionMode: "bypassPermissions", bypass: true },
+  ] satisfies { policy: ExecutionPolicy; permissionMode: PermissionMode; bypass: boolean }[];
+  for (const { policy, permissionMode, bypass } of cases) {
     const capture: QueryCapture = {};
     const provider = new ClaudeAgentProvider(queryFactory([], capture));
     assert.deepEqual(await provider.execute(input({ policy })), { status: "succeeded" });
     assert.equal(optionsOf(capture).permissionMode, permissionMode);
+    assert.equal(optionsOf(capture).allowDangerouslySkipPermissions, bypass ? true : undefined);
     assert.equal(capture.closed, true);
   }
 
@@ -331,6 +333,18 @@ test("autonomous runs allow bundled computer use without bypassing other tool ap
   assert.deepEqual(authorized, []);
   assert.equal((await useTool(live.canUseTool, "Bash", {}, "bash-1")).behavior, "allow");
   assert.deepEqual(authorized, ["Bash"]);
+  await live.end();
+});
+
+test("bypass runs allow every tool without consulting the approval gate", async () => {
+  const authorized: string[] = [];
+  const live = await liveTurn({
+    policy: "bypass",
+    authorize: async (intent) => { authorized.push(intent.name); return "deny"; },
+  });
+
+  assert.equal((await useTool(live.canUseTool, "Bash", {}, "bash-1")).behavior, "allow");
+  assert.deepEqual(authorized, []);
   await live.end();
 });
 

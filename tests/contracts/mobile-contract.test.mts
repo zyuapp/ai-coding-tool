@@ -39,7 +39,7 @@ test("a phone may drive the conversation and nothing outside it", () => {
     { type: "task.dismiss", taskId: "task-1" },
     { type: "task.dismiss-all" },
     { type: "task.fork", taskId: "task-1", worktree: true },
-    { type: "task.set-policy", policy: "autonomous" },
+    { type: "task.set-policy", policy: "bypass" },
     { type: "task.set-model", taskId: "task-1", engine: "claude", model: "opus" },
     { type: "task.set-effort", engine: "claude", effort: "max" },
     { type: "task.set-effort", taskId: "task-1", engine: "codex", effort: "ultra" },

@@ -10,7 +10,7 @@ const scheduleField = z.string().describe(
   "A five-field cron expression in local time (\"0 8 * * *\" = 8AM daily, \"* * * * *\" = every minute), or an ISO 8601 timestamp for a single run. Seconds are not supported.",
 );
 
-const policyField = z.enum(["confirm", "plan", "allow-edits", "autonomous"]).optional().describe(
+const policyField = z.enum(["confirm", "plan", "allow-edits", "autonomous", "bypass"]).optional().describe(
   "Permission policy for scheduled runs. Nobody is watching when these fire, so anything that needs to act without a prompt should use \"autonomous\". Defaults to the task's own policy.",
 );
 

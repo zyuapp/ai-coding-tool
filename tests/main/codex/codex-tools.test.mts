@@ -81,7 +81,7 @@ test("a side chat is served the tools its channel allows, and a run with no brid
   bare.provider.closeAll();
 });
 
-test("bundled computer use is configured as its own server, approved unasked only for an autonomous main thread", async () => {
+test("bundled computer use is configured as its own server and pre-approved only when the policy allows it", async () => {
   const prompting = harness();
   const { client: asked } = await turn(prompting, { computerUse: available, policy: "autonomous", channel: "side" });
   assert.deepEqual(Object.fromEntries(Object.entries(overrides(asked.command.args)).filter(([key]) => key.startsWith("mcp_servers.cua-driver."))), {
@@ -100,6 +100,11 @@ test("bundled computer use is configured as its own server, approved unasked onl
   assert.equal(overrides(granted.command.args)["mcp_servers.cua-driver.default_tools_approval_mode"], "\"approve\"");
   assert.equal(confirmed.closed, true);
   confirming.provider.closeAll();
+
+  const bypassing = harness();
+  const { client: bypassed } = await turn(bypassing, { computerUse: available, policy: "bypass", channel: "side" });
+  assert.equal(overrides(bypassed.command.args)["mcp_servers.cua-driver.default_tools_approval_mode"], "\"approve\"");
+  bypassing.provider.closeAll();
 
   const plain = harness();
   const { client: first } = await turn(plain, { policy: "confirm" });

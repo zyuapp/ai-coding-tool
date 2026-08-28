@@ -61,7 +61,7 @@ export type AutomationPatch = {
 };
 
 function isPolicy(value: unknown): value is ExecutionPolicy {
-  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous";
+  return value === "confirm" || value === "plan" || value === "allow-edits" || value === "autonomous" || value === "bypass";
 }
 
 function isText(value: unknown, maxLength: number) {

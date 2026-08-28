@@ -90,6 +90,24 @@ test("every execution policy maps onto Codex approvals, sandbox, and reviewer", 
   assert.deepEqual(codexPolicy("plan"), codexPolicy("confirm"));
   assert.deepEqual(codexPolicy("allow-edits"), { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "user" });
   assert.deepEqual(codexPolicy("autonomous"), { approvalPolicy: "on-request", sandbox: "workspace-write", approvalsReviewer: "auto_review" });
+  assert.deepEqual(codexPolicy("bypass"), { approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user" });
+});
+
+test("a bypass turn disables approvals and the sandbox", async () => {
+  const codex = harness();
+  const { client } = await turn(codex, { policy: "bypass" });
+
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("turn/start")[0], {
+    threadId,
+    input: [{ type: "text", text: "inspect the app", text_elements: [] }],
+    model: "gpt-5.6-sol",
+    effort: "high",
+    approvalPolicy: "never",
+    approvalsReviewer: "user",
+    sandboxPolicy: { type: "dangerFullAccess" },
+  });
+  codex.provider.closeAll();
 });
 
 test("Codex sets a native goal and keeps the run through its follow-up turns", async () => {
@@ -408,6 +426,15 @@ test("a command approval asks the run's user and accepts or declines on their wo
   assert.deepEqual(declined, { result: { decision: "decline" } });
   assert.deepEqual(denied.asked.map((intent) => intent.input), [{ command: "rm -rf build", cwd: "/tmp/project" }]);
   await denied.end();
+});
+
+test("a bypass run accepts an unexpected approval request without asking the user", async () => {
+  const session = await asking({ policy: "bypass", authorize: async () => "deny" });
+  const accepted = await session.client.ask("item/commandExecution/requestApproval", { kind: "command", ...at, itemId: "cmd-bypass", startedAtMs: 1, environmentId: null, command: "npm test", cwd: "/tmp/project" });
+
+  assert.deepEqual(accepted, { result: { decision: "accept" } });
+  assert.deepEqual(session.asked, []);
+  await session.end();
 });
 
 test("a file change approval is described by the patch the agent already started, and read as a write to its first path", async () => {

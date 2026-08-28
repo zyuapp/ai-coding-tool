@@ -361,6 +361,10 @@ test("a side chat composes with everything the main composer has", async () => {
   assert.equal(settings.length, 3, "permission mode, model, and effort");
   assert.equal(query(item(settings[0]), ".setting-value").textContent, "Edits", "the chat's own policy is selected, not the first one on offer");
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.deepEqual(
+    [...item(settings[0]).querySelectorAll(".setting-option")].map((option) => [query(option, "strong").textContent, query(option, "small").textContent]),
+    [["Auto mode", "Only ask for potentially unsafe actions"], ["Bypass permissions", "Use tools and change files without asking"], ["Allow edits", "Apply file edits without asking"], ["Let me decide", "Ask before using tools or changing files"]],
+  );
   await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>(".setting-option")].find((option) => option.textContent.includes("Auto mode"))).click(); });
   assert.deepEqual(policies, ["autonomous"]);
 
