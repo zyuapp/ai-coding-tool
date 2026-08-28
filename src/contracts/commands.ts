@@ -268,6 +268,11 @@ export type ViewCommand =
   | { type: "view.toggle-project"; projectId: string }
   /** Opens the folder editor on one project, or closes whichever it was on with a null. */
   | { type: "view.edit-project"; projectId: string | null }
+  /**
+   * Asks the current thread to move, which opens the confirmation. A null closes it. The move only
+   * happens when `task.set-worktree` follows, which the confirmation sends.
+   */
+  | { type: "view.move-worktree"; worktree: boolean | null }
   /** Folds one of the sidebar's lists, whichever mode draws it. */
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */

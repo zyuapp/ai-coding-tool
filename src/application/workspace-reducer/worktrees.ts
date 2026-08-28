@@ -8,13 +8,34 @@ import { createTaskMessage } from "../../domain/task.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 type WorktreeInput = Extract<WorkspaceInput, {
-  type: "task.set-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
+  type: "view.move-worktree" | "task.set-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
     | "worktree.delete" | "worktree.created" | "worktree.failed" | "worktrees.loaded" | "worktrees.failed"
     | "worktree.released" | "worktree.release-failed" | "worktree.deleted";
 }>;
 
 export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): WorkspaceTransition {
+  /** A move that goes ahead answers the confirmation, so the question never outlives its answer. */
+  if (input.type === "task.set-worktree" && state.worktreeMove) return reduceWorktrees({ ...state, worktreeMove: null }, input);
+
   switch (input.type) {
+    /**
+     * Asks before moving, but only where the answer could cost something. A thread with no checkout
+     * yet, and a clean one walking back to the project, have nothing to lose, so they just go.
+     */
+    case "view.move-worktree": {
+      if (input.worktree === null) return settled({ ...state, worktreeMove: null });
+      const taskId = targetId(state, undefined);
+      const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
+      const move = { type: "task.set-worktree", worktree: input.worktree } as const;
+      if (!task) return reduceWorktrees(state, move);
+      if (input.worktree === Boolean(task.worktreeId)) return settled(state);
+      const workspaceId = taskWorkspaceId(state, task);
+      const environment = workspaceId ? state.environments[workspaceId] : undefined;
+      const holding = environment?.status === "available" ? environment.files.length : 0;
+      if (!input.worktree && !holding) return reduceWorktrees(state, move);
+      return settled({ ...state, worktreeMove: { taskId: task.id, worktree: input.worktree } });
+    }
+
     /**
      * Moves the thread there and then, so it is never left saying it will move later. Turning it off
      * takes this thread's claim off the checkout; the last claim to go takes the directory with it,

@@ -237,6 +237,8 @@ export type WorkspaceState = {
   expandedProjects: Set<string>;
   /** The folder the editor is open on, if any, and what came back the last time it tried to save. */
   projectEdit: ProjectEdit | null;
+  /** The move the confirmation is open on: the thread asked to move, and where it would go. */
+  worktreeMove: { taskId: string; worktree: boolean } | null;
   /** Which of the sidebar's lists are unfolded, across both of its modes. */
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
@@ -330,6 +332,29 @@ function projectEditorView(state: WorkspaceState): ProjectEditorView | null {
   return { project, checkouts, saving: edit.saving, error: edit.error };
 }
 
+/** The pending move as the confirmation draws it: where it goes, and what the thread is holding. */
+export type WorktreeMoveView = {
+  worktree: boolean;
+  /** Uncommitted files in the checkout the thread is leaving, which the move commits first. */
+  changes: number;
+  /** Threads left in the worktree once this one goes, so the text can say whether it stays. */
+  others: number;
+};
+
+function worktreeMoveView(state: WorkspaceState): WorktreeMoveView | null {
+  const move = state.worktreeMove;
+  const task = move && state.tasks.find((item) => item.id === move.taskId);
+  if (!move || !task) return null;
+  const workspaceId = taskWorkspaceId(state, task);
+  const environment = workspaceId ? state.environments[workspaceId] : undefined;
+  const worktree = worktreeFor(state, task);
+  return {
+    worktree: move.worktree,
+    changes: environment?.status === "available" ? environment.files.length : 0,
+    others: worktree ? Math.max(worktreeClaimants(state, worktree.id).length - 1, 0) : 0,
+  };
+}
+
 export function withoutWorktreeRoot(state: Pick<WorkspaceState, "deletingWorktrees">, root: string) {
   return state.deletingWorktrees.filter((item) => item !== root);
 }
@@ -366,6 +391,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     files: {},
     expandedProjects: new Set(),
     projectEdit: null,
+    worktreeMove: null,
     sections: OPEN_SIDEBAR_SECTIONS,
     theme: DEFAULT_THEME,
     themeMode: DEFAULT_THEME_MODE,
@@ -817,6 +843,7 @@ export function deriveView(state: WorkspaceState) {
     computerUseSetup: state.computerUseSetup,
     expandedProjects: state.expandedProjects,
     projectEditor: projectEditorView(state),
+    worktreeMove: worktreeMoveView(state),
     sections: state.sections,
     subagentGroups: state.subagentGroups,
     theme: state.theme,

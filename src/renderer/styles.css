@@ -3724,8 +3724,9 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-comment header button:hover { background: var(--surface-hover); color: var(--ink-dim); }
 .diff-comment .send-button { display: grid; place-items: center; flex: none; width: 28px; height: 28px; }
 
-/* The folder editor: one modal over everything, the way the annotator sits over the composer. */
-.project-edit {
+/* One modal over everything, the way the annotator sits over the composer. Every dialog the app
+   raises is this scrim and this panel, so they arrive the same way wherever they are asked for. */
+.modal-scrim {
   position: fixed;
   inset: 0;
   z-index: 90;
@@ -3734,17 +3735,28 @@ button.setting-hint:hover { color: var(--ink); }
   place-items: center;
   padding: 56px 28px 28px;
   background: var(--scrim);
+  animation: modal-scrim-in 140ms ease-out;
 }
-.project-edit-panel {
-  width: min(460px, 100%);
+.modal-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 20px;
   background: var(--sunken);
   box-shadow: var(--shadow-overlay);
+  animation: modal-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes modal-scrim-in { from { opacity: 0; } }
+@keyframes modal-panel-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+@media (prefers-reduced-motion: reduce) {
+  .modal-scrim, .modal-panel { animation: none; }
+}
+
+/* The folder editor. */
+.project-edit-panel {
+  width: min(460px, 100%);
+  gap: 14px;
+  padding: 20px;
 }
 .project-edit-panel h2 { margin: 0; color: var(--ink); font-size: var(--text-control); font-weight: 600; }
 .project-edit-field { display: flex; flex-direction: column; gap: 6px; }
@@ -3792,6 +3804,53 @@ button.setting-hint:hover { color: var(--ink); }
 .project-edit-actions button:disabled { opacity: 0.42; cursor: not-allowed; }
 .project-edit-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .project-edit-actions button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+/* The move confirmation: where the thread goes, drawn once, because words say it slower. */
+.worktree-move { width: min(438px, 100%); overflow: hidden; }
+.worktree-move-places {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px 20px 18px;
+  background: radial-gradient(120% 140% at 50% -30%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 62%);
+}
+.worktree-move-place { display: flex; flex-direction: column; align-items: center; gap: 7px; width: 96px; text-align: center; }
+.worktree-move-place em { font-style: normal; font-size: var(--text-meta); color: var(--quiet); }
+.worktree-move-place.target em { color: var(--ink); font-weight: 600; }
+.worktree-move-disc {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line-mid);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--quiet);
+}
+.worktree-move-place.target .worktree-move-disc {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+}
+/** Lifted by what a label adds under each disc, so the arrow points between the discs themselves. */
+.worktree-move-arrow { display: grid; place-items: center; margin-bottom: 22px; color: var(--quiet); }
+.worktree-move-copy { padding: 4px 26px 2px; text-align: center; }
+.worktree-move-copy h2 { margin: 0 0 8px; color: var(--ink); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.worktree-move-copy p { margin: 0 auto; max-width: 33ch; color: var(--quiet); font-size: var(--text-control); line-height: 1.55; text-wrap: balance; }
+.worktree-move-actions { display: flex; justify-content: center; gap: 8px; padding: 18px 20px 20px; }
+.worktree-move-actions button {
+  border: 1px solid var(--line-mid);
+  border-radius: 9px;
+  padding: 7px 14px;
+  background: var(--control);
+  color: var(--ink-soft);
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+.worktree-move-actions button:hover { border-color: var(--line-bright); color: var(--ink); }
+.worktree-move-actions button.primary { border-color: transparent; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.worktree-move-actions button.primary:hover { background: var(--accent-hover); }
 
 /* The jump panel, which sits above every sheet because it moves the user out of whatever is open.
    Top padding clears the traffic lights; no-drag opts out of the topbar drag region it covers. */

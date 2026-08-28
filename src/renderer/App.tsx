@@ -4,7 +4,7 @@ import { MessageLinkProvider } from "./components/MarkdownMessage";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
 import { TooltipLayer } from "./components/TooltipLayer";
-import { ProjectEditDialog } from "./components/ProjectEditDialog";
+import { WorkspaceDialogs } from "./components/WorkspaceDialogs";
 import { RightDock } from "./components/RightDock";
 import { Sidebar } from "./components/Sidebar";
 import { ThreadJump } from "./components/ThreadJump";
@@ -184,13 +184,7 @@ export function App() {
         <WorkspaceComposer workspace={workspace} actions={composerActions} />
         {workspaceDrop.over && <p className="drop-hint" role="status">Drop to attach</p>}
       </section>
-      {workspace.projectEditor && (
-        <ProjectEditDialog
-          editor={workspace.projectEditor}
-          onSave={(edit) => void workspace.actions.editProject(workspace.projectEditor!.project.id, edit)}
-          onClose={() => void workspace.actions.editProjectClose()}
-        />
-      )}
+      <WorkspaceDialogs workspace={workspace} />
       {settingsVisible && <WorkspaceSettings workspace={workspace} onClose={closeSettings} />}
       {workspace.jump && <ThreadJump jump={workspace.jump} actions={workspace.actions} />}
       <TooltipLayer />

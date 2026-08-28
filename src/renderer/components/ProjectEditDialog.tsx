@@ -39,7 +39,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
 
   return createPortal(
     <div
-      className="project-edit"
+      className="modal-scrim"
       role="dialog"
       aria-modal="true"
       aria-label={`Edit ${project.name ?? folderName(project.root)}`}
@@ -48,7 +48,7 @@ export function ProjectEditDialog({ editor, onSave, onClose }: ProjectEditDialog
       onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <form
-        className="project-edit-panel"
+        className="modal-panel project-edit-panel"
         onSubmit={(event) => {
           event.preventDefault();
           save();

@@ -39,16 +39,7 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
         const task = workspace.currentTask;
         if (task) void workspace.actions.newTask(task.projectId, task.worktreeId);
       }}
-      onSetWorktree={(worktree) => {
-        /** Only work that would otherwise be lost is worth stopping for; a clean worktree just goes. */
-        const holding = workspace.environment?.status === "available" ? workspace.environment.files.length : 0;
-        const question = worktree
-          ? "Give this thread a worktree? It moves into a checkout of its own and works there from now on."
-          : holding
-            ? `Return this thread to your project checkout? Its ${holding} uncommitted ${holding === 1 ? "change is" : "changes are"} committed first so nothing is lost, then the worktree is removed.`
-            : null;
-        if (question === null || window.confirm(question)) void workspace.actions.setWorktree(worktree);
-      }}
+      onSetWorktree={workspace.actions.moveWorktree}
     />
   );
 }

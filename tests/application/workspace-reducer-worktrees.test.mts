@@ -22,6 +22,37 @@ test("asking for a worktree from the panel moves the thread there and then", () 
   assert.match(required(made.state.tasks[0]?.messages.at(-1)).text, /Moved into a worktree at \/worktrees\/repo-wt1/);
 });
 
+test("the move confirmation opens on what the move would cost, and only where it costs something", () => {
+  const held = heldWorktree();
+  const local = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+
+  const asked = reduce(local, { type: "view.move-worktree", worktree: true });
+  assert.deepEqual(asked.effects, [], "nothing moves until the question is answered");
+  assert.deepEqual(deriveView(asked.state).worktreeMove, { worktree: true, changes: 0, others: 0 });
+
+  const cancelled = reduce(asked.state, { type: "view.move-worktree", worktree: null });
+  assert.equal(deriveView(cancelled.state).worktreeMove, null);
+  assert.deepEqual(cancelled.effects, []);
+
+  const confirmed = reduce(asked.state, { type: "task.set-worktree", worktree: true });
+  assert.equal(deriveView(confirmed.state).worktreeMove, null, "the question closes with the move it asked about");
+  assert.deepEqual(confirmed.effects, [{ type: "create-worktree", taskId: "task-a", projectRoot: "/repo" }]);
+
+  const clean = projected({ ...inside(held, [task("task-a", { projectId: PROJECT.id })]), currentId: "task-a" });
+  const straight = reduce(clean, { type: "view.move-worktree", worktree: false });
+  assert.equal(deriveView(straight.state).worktreeMove, null, "a clean thread walking back has nothing to lose, so it just goes");
+  assert.deepEqual(straight.effects.map((effect) => effect.type), ["release-worktree"], "it goes straight to handing the checkout back");
+
+  const holding = projected({
+    ...inside(held, [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })]),
+    currentId: "task-a",
+    environments: { [held.workspaceId]: { status: "available", files: ["src/app.ts"], branch: "main", baseline: null, additions: 1, deletions: 0 } },
+  });
+  const returning = reduce(holding, { type: "view.move-worktree", worktree: false });
+  assert.deepEqual(deriveView(returning.state).worktreeMove, { worktree: false, changes: 1, others: 1 }, "the dialog is told what it commits and who stays behind");
+  assert.equal(returning.state.tasks[0].worktreeId, held.id, "the thread stays put while the question is up");
+});
+
 test("a thread already in a worktree is not given a second one", () => {
   const state = projected({ ...inside(heldWorktree(), [task("task-a", { projectId: PROJECT.id })]), currentId: "task-a" });
 

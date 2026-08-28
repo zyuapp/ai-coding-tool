@@ -30,7 +30,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.set-model": case "task.set-effort":
       return reduceTasks(state, input);
 
-    case "task.set-worktree": case "task.set-branch": case "task.checkout-branch":
+    case "view.move-worktree": case "task.set-worktree": case "task.set-branch": case "task.checkout-branch":
     case "worktree.refresh": case "worktree.reveal": case "worktree.delete":
     case "worktree.created": case "worktree.failed": case "worktrees.loaded":
     case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
