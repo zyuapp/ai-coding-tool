@@ -2365,15 +2365,7 @@ pre {
   cursor: pointer;
 }
 .agent-activity-earlier:hover { background: var(--surface-hover); color: var(--ink-soft); }
-.session-title {
-  margin: 0;
-  padding: 14px 14px 7px;
-  color: var(--quiet-strong);
-  font-size: var(--text-heading);
-  font-weight: 560;
-  letter-spacing: -0.015em;
-}
-.session-environment { padding: 0 8px 8px; }
+.session-environment { padding: 8px; }
 .session-row {
   min-width: 0;
   min-height: 36px;
@@ -2411,7 +2403,7 @@ pre {
 .session-location-row .menu-trigger:hover, .session-location-row.open .menu-trigger { color: var(--ink-dim); }
 .session-menu-popover { top: 30px; right: 0; min-width: 176px; }
 .session-menu-popover button:disabled { cursor: default; }
-.session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font: inherit; text-align: left; cursor: pointer; }
+.session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font-family: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: var(--surface-hover); }
 .session-branch { position: relative; }
 /** The chevron follows the label so the branch name lines up with the other rows' values. */

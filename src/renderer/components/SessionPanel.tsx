@@ -285,40 +285,39 @@ export function SessionPanel({ environment, hasProject, workspaceId, taskId, loc
   return (
     <aside className="session-panel" aria-label="Session panel">
       <div className="session-card">
-        <h2 className="session-title">Session</h2>
-            <div className="session-environment">
-              {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onNewThread={onNewThread} onSetWorktree={onSetWorktree} />}
-              <button
-                className="session-row session-row-action"
-                type="button"
-                aria-label="Review changes"
-                disabled={!hasProject}
-                onClick={onToggleChanges}
-              >
-                <span className="session-row-icon"><FileDiff size={18} /></span>
-                <span>Changes</span>
-                {available && (
-                  <span className="change-counts" title={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
-                    <strong>+{available.additions}</strong><em>−{available.deletions}</em>
-                  </span>
-                )}
-              </button>
-              <BranchRow
-                branch={available?.branch ?? null}
-                {...(workspaceId ? { workspaceId } : {})}
-                openMenu={openMenu}
-                onSetOpenMenu={onSetOpenMenu}
-                onCheckoutBranch={onCheckoutBranch}
-              />
-              {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
-              {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
-              {message && <p className="session-note">{message}</p>}
-              <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
-                <span className="session-row-icon"><AlarmClock size={18} /></span>
-                <span>Automations</span>
-                <span className="session-count">{automationCount}</span>
-              </button>
-            </div>
+        <div className="session-environment">
+          {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onNewThread={onNewThread} onSetWorktree={onSetWorktree} />}
+          <button
+            className="session-row session-row-action"
+            type="button"
+            aria-label="Review changes"
+            disabled={!hasProject}
+            onClick={onToggleChanges}
+          >
+            <span className="session-row-icon"><FileDiff size={18} /></span>
+            <span>Changes</span>
+            {available && (
+              <span className="change-counts" title={available.baseline ? `Since ${available.baseline}` : "Uncommitted work"}>
+                <strong>+{available.additions}</strong><em>−{available.deletions}</em>
+              </span>
+            )}
+          </button>
+          <BranchRow
+            branch={available?.branch ?? null}
+            {...(workspaceId ? { workspaceId } : {})}
+            openMenu={openMenu}
+            onSetOpenMenu={onSetOpenMenu}
+            onCheckoutBranch={onCheckoutBranch}
+          />
+          {pullRequest.status === "found" && <PullRequestRow pullRequest={pullRequest.pullRequest} />}
+          {pullRequest.status === "gh-missing" && <InstallGitHubCliRow />}
+          {message && <p className="session-note">{message}</p>}
+          <button className="session-row session-row-action" type="button" onClick={onOpenAutomations} aria-label="Open Automation panel">
+            <span className="session-row-icon"><AlarmClock size={18} /></span>
+            <span>Automations</span>
+            <span className="session-count">{automationCount}</span>
+          </button>
+        </div>
 
             {subagents.length > 0 && (
               <div className="subagent-section">
