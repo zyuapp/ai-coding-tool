@@ -1,5 +1,6 @@
-import type { MobileMessage, MobileRunStatus } from "../contracts/mobile";
-import type { AgentEngine } from "../domain/agent-engine";
+import type { MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
+import { effortForModel, modelsFor, type AgentEngine } from "../domain/agent-engine";
+import type { AgentEffort, ExecutionPolicy } from "../domain/run";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
 
 /**
@@ -8,14 +9,17 @@ import { toolFamily, type ToolFamily } from "../domain/tool-call";
  * fifteen identical rows is worse than a count.
  */
 export type TranscriptBlock =
-  | { kind: "message"; key: string; message: MobileMessage }
+  | { kind: "message"; key: string; message: MobileMessage; answer: boolean }
   | { kind: "tools"; key: string; calls: MobileMessage[]; at: number };
 
+/** `answer` marks the assistant text that closes a turn: the one the clock hangs under. */
 export function transcriptBlocks(messages: MobileMessage[]): TranscriptBlock[] {
   const blocks: TranscriptBlock[] = [];
   messages.forEach((message, index) => {
     if (message.kind !== "tool") {
-      blocks.push({ kind: "message", key: `${index}-${message.at}`, message });
+      const next = messages.slice(index + 1).find((later) => later.kind !== "tool");
+      const answer = message.kind === "assistant" && next?.kind !== "assistant";
+      blocks.push({ kind: "message", key: `${index}-${message.at}`, message, answer });
       return;
     }
     const open = blocks.at(-1);
@@ -40,15 +44,29 @@ export function runFamily(engine: AgentEngine, calls: MobileMessage[]): ToolFami
   return toolFamily(engine, calls[0]?.text ?? "");
 }
 
-const STATUS_LABELS: Record<MobileRunStatus, string> = {
-  idle: "Idle",
+const STATUS_LABELS: Record<Exclude<MobileRunStatus, "idle">, string> = {
   running: "Working",
   stopped: "Stopped",
   "awaiting-approval": "Needs you",
 };
 
-export function statusLabel(status: MobileRunStatus): string {
-  return STATUS_LABELS[status];
+/** A row's second line: what the thread is doing and when it last moved. An idle thread only has a when. */
+export function threadMeta(entry: Pick<MobileThreadEntry, "status" | "lastActivityAt">, now: number): string {
+  const when = relativeTime(entry.lastActivityAt, now);
+  return entry.status === "idle" ? when : `${STATUS_LABELS[entry.status]} · ${when}`;
+}
+
+/** What a folded group still owes the eye: a thread waiting on the user, else one with news. */
+export function groupMark(threads: Pick<MobileThreadEntry, "status" | "unread">[]): "needs-you" | "unread" | null {
+  if (threads.some((thread) => thread.status === "awaiting-approval")) return "needs-you";
+  if (threads.some((thread) => thread.unread)) return "unread";
+  return null;
+}
+
+let clockFormatter: Intl.DateTimeFormat | undefined;
+
+export function clockTime(at: number): string {
+  return (clockFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(at);
 }
 
 const MINUTE = 60_000;
@@ -65,6 +83,29 @@ export function relativeTime(at: number, now: number): string {
   return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function clockTime(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const MODE_LABELS: Record<ExecutionPolicy, string> = {
+  autonomous: "Auto",
+  bypass: "Bypass",
+  "allow-edits": "Edits",
+  confirm: "Confirm",
+  plan: "Plan",
+};
+
+const EFFORT_LABELS: Record<AgentEffort, string> = {
+  ultra: "Ultra",
+  max: "Max",
+  xhigh: "Extra high",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+/** A thread's settings as the composer's bottom edge reads them. Effort is null for a model that takes none. */
+export function settingsSummary(settings: MobileThreadSettings): { mode: string; model: string; effort: string | null } {
+  const spec = modelsFor(settings.engine).find((candidate) => candidate.id === settings.model);
+  return {
+    mode: MODE_LABELS[settings.policy],
+    model: spec?.label ?? settings.model,
+    effort: spec && spec.efforts.length > 0 ? EFFORT_LABELS[effortForModel(settings.model, settings.effort)] : null,
+  };
 }

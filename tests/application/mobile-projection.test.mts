@@ -92,6 +92,13 @@ test("a project with nothing in it is still a group, because a group is how a ph
     "a thread outside every project can still be started when every thread has one");
 });
 
+test("a thread with no title yet is named by the view, so the list and the bar agree", () => {
+  const state = workspace([task("blank", { title: "", projectId: "project-app" })], { currentId: "blank" });
+  const view = projectMobileView(state, NOW);
+  assert.equal(view.groups[0]?.threads[0]?.title, "Untitled thread");
+  assert.equal(view.thread?.title, "Untitled thread");
+});
+
 test("what went wrong after the phone was acknowledged travels as part of the view", () => {
   const state = workspace([task("thread-1")], { currentId: "thread-1", actionError: "That worktree is busy." });
   const failed = projectMobileView(state, NOW);
@@ -264,4 +271,47 @@ test("a patch for a thread the phone no longer holds leaves it alone", () => {
   const patch = { thread: { kind: "changed" as const, id: "somebody-else", delta: { prompt: "stray" } } };
   assert.deepEqual(applyMobilePatch(projectMobileView(open, NOW), patch), projectMobileView(open, NOW));
   assert.deepEqual(applyMobilePatch(emptyMobileView(), patch), emptyMobileView());
+});
+
+test("running threads hold the sidebar's order however often they speak, and a blocked one leads", () => {
+  const running = (updatedAt: number, lastAt: number) => ({
+    activeRuns: { a: activeRun("a", "run-a", "running"), b: activeRun("b", "run-b", "running") },
+    runStatuses: { a: "running" as const, b: "running" as const },
+    tasks: [
+      task("a", { projectId: "project-app", sortIndex: 0, updatedAt: NOW - 5_000, messages: [message("first", NOW - 5_000)] }),
+      task("b", { projectId: "project-app", sortIndex: 1, updatedAt, messages: [message("later", lastAt)] }),
+    ],
+  });
+  const quiet = projectMobileView(workspace([], running(NOW - 10_000, NOW - 10_000)), NOW);
+  assert.deepEqual(quiet.groups[0]!.threads.map((thread) => thread.id), ["a", "b"]);
+
+  const spoke = projectMobileView(workspace([], running(NOW, NOW)), NOW);
+  assert.deepEqual(spoke.groups[0]!.threads.map((thread) => thread.id), ["a", "b"], "b's newer activity does not move it above a");
+
+  const blocked = projectMobileView(workspace([
+    task("a", { projectId: "project-app", sortIndex: 0, updatedAt: NOW }),
+    task("b", { projectId: "project-app", sortIndex: 1, updatedAt: NOW - 1_000 }),
+    task("idle", { projectId: "project-app", updatedAt: NOW - 500 }),
+  ], {
+    activeRuns: { a: activeRun("a", "run-a", "running"), b: activeRun("b", "run-b", "awaiting-approval") },
+    runStatuses: { a: "running", b: "running" },
+  }), NOW);
+  assert.deepEqual(blocked.groups[0]!.threads.map((thread) => thread.id), ["b", "a", "idle"], "waiting on the user, then the sidebar's order");
+});
+
+test("a thread that starts or finishes holds its row", () => {
+  const tasks = [
+    task("a", { projectId: "project-app", sortIndex: 0, updatedAt: NOW - 3_000 }),
+    task("b", { projectId: "project-app", sortIndex: 1, updatedAt: NOW - 2_000 }),
+    task("c", { projectId: "project-app", sortIndex: 2, updatedAt: NOW - 1_000 }),
+  ];
+  const asleep = projectMobileView(workspace(tasks), NOW);
+  assert.deepEqual(asleep.groups[0]!.threads.map((thread) => thread.id), ["a", "b", "c"]);
+
+  const awake = projectMobileView(workspace(
+    tasks.map((each) => each.id === "c" ? { ...each, updatedAt: NOW, messages: [message("go", NOW)] } : each),
+    { activeRuns: { c: activeRun("c", "run-c", "running") }, runStatuses: { c: "running" } },
+  ), NOW);
+  assert.deepEqual(awake.groups[0]!.threads.map((thread) => thread.id), ["a", "b", "c"], "waking does not lift c");
+  assert.equal(awake.groups[0]!.threads[2]!.status, "running");
 });

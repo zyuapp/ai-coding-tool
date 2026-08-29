@@ -1,5 +1,8 @@
-import { LuArrowUp as ArrowUp, LuSquare as Square, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
+import { LuArrowUp as ArrowUp } from "react-icons/lu";
 import { useLayoutEffect, useRef, useState } from "react";
+import type { MobileThreadSettings } from "../../contracts/mobile";
+import { engineLabel } from "../../domain/agent-engine";
+import { settingsSummary } from "../format";
 
 const MAX_ROWS_PX = 168;
 
@@ -8,11 +11,11 @@ const MAX_ROWS_PX = 168;
  * newline the way every other phone keyboard does; sending is the button, which is where a thumb
  * already is.
  */
-export function Composer({ running, waiting, settingsLabel, onSend, onStop, onOpenSettings }: {
+export function Composer({ running, waiting, settings, onSend, onStop, onOpenSettings }: {
   running: boolean;
   /** Commands the phone is holding until the line comes back. */
   waiting: number;
-  settingsLabel: string;
+  settings: MobileThreadSettings;
   onSend: (text: string) => void;
   /** Only a thread that exists can be running, so a thread yet to be started passes nothing. */
   onStop?: () => void;
@@ -20,6 +23,7 @@ export function Composer({ running, waiting, settingsLabel, onSend, onStop, onOp
 }) {
   const [draft, setDraft] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
+  const { mode, model, effort } = settingsSummary(settings);
 
   useLayoutEffect(() => {
     const node = field.current;
@@ -38,24 +42,27 @@ export function Composer({ running, waiting, settingsLabel, onSend, onStop, onOp
   return (
     <div className="composer">
       {waiting > 0 && <p className="composer-waiting">{waiting} {waiting === 1 ? "message is" : "messages are"} waiting for the line to come back.</p>}
-      <div className="composer-field">
+      <div className="composer-card">
         <textarea
           ref={field}
           rows={1}
           value={draft}
-          placeholder="Message"
+          placeholder={`Ask ${engineLabel(settings.engine)} to work on anything`}
           enterKeyHint="enter"
           autoCapitalize="sentences"
           onInput={(event) => setDraft(event.currentTarget.value)}
         />
-        {running
-          ? <button type="button" className="round stop" onClick={onStop} aria-label="Stop this run"><Square size={16} strokeWidth={2.4} /></button>
-          : <button type="button" className="round send" onClick={send} disabled={!draft.trim()} aria-label="Send"><ArrowUp size={20} strokeWidth={2.4} /></button>}
+        <div className="composer-bar">
+          <button type="button" className="composer-settings" aria-label="Thread settings" onClick={onOpenSettings}>
+            <span className="setting-axis">Mode</span><span className="setting-value">{mode}</span>
+            <span className="setting-axis">Model</span><span className="setting-value">{model}</span>
+            {effort && <><span className="setting-axis">Effort</span><span className="setting-value">{effort}</span></>}
+          </button>
+          {running
+            ? <button type="button" className="send-button running" onClick={onStop} aria-label="Stop this run"><span className="stop-glyph" /></button>
+            : <button type="button" className="send-button" onClick={send} disabled={!draft.trim()} aria-label="Send"><ArrowUp size={18} strokeWidth={2.4} /></button>}
+        </div>
       </div>
-      <button type="button" className="composer-settings" onClick={onOpenSettings}>
-        <SlidersHorizontal size={14} strokeWidth={1.9} />
-        <span>{settingsLabel}</span>
-      </button>
     </div>
   );
 }

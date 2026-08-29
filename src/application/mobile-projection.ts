@@ -1,6 +1,7 @@
 import { deriveView, type WorkspaceState } from "./workspace-state.js";
 import { threadSummaries, threadTranscript } from "./thread-projection.js";
-import { projectName } from "../domain/task.js";
+import { projectName, type Task } from "../domain/task.js";
+import { orderTasks } from "./task-order.js";
 import type { MobileDraftView, MobileMessage, MobilePatch, MobileProjectGroup, MobileThreadDelta, MobileThreadEntry, MobileThreadView, MobileView } from "../contracts/mobile.js";
 
 /**
@@ -32,20 +33,35 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
     const key = summary.projectId ?? null;
     const entry: MobileThreadEntry = {
       id: summary.id,
-      title: summary.title,
+      title: summary.title || "Untitled thread",
       status: view.blockedTaskIds.has(summary.id) ? "awaiting-approval" : summary.status,
       lastActivityAt: summary.lastActivityAt,
       unread: unread.has(summary.id),
     };
     entries.get(key)?.push(entry) ?? entries.set(key, [entry]);
   }
+  const tasksById = new Map(state.tasks.map((task) => [task.id, task]));
   /** Every open project is a group even with nothing in it, because a group is how a phone starts one. */
   const groups: MobileProjectGroup[] = view.projects.map((project) =>
-    ({ projectId: project.id, name: projectName(project), threads: entries.get(project.id) ?? [] }));
+    ({ projectId: project.id, name: projectName(project), threads: rankGroup(entries.get(project.id) ?? [], tasksById) }));
   /** Always last, and always there, because it is the only way to start a thread in no project. */
-  groups.push({ projectId: null, name: "Recents", threads: entries.get(null) ?? [] });
+  groups.push({ projectId: null, name: "Recents", threads: rankGroup(entries.get(null) ?? [], tasksById) });
   const thread = projectMobileThread(state, view);
   return { groups, thread, draft: thread ? null : projectMobileDraft(view), error: state.actionError };
+}
+
+/**
+ * One group's rows: threads waiting on the user first, then the rest in the sidebar's own order.
+ * A thread holds its slot when it starts, speaks or finishes, so the list never reshuffles under
+ * a thumb; only waiting on the user lifts a row. `entries` arrive newest first already.
+ */
+export function rankGroup(entries: MobileThreadEntry[], tasksById: Map<string, Task>): MobileThreadEntry[] {
+  const blocked: MobileThreadEntry[] = [];
+  const rest: MobileThreadEntry[] = [];
+  for (const entry of entries) (entry.status === "awaiting-approval" ? blocked : rest).push(entry);
+  const byTask = new Map(rest.map((entry) => [entry.id, entry]));
+  const tasks = rest.flatMap((entry) => tasksById.get(entry.id) ?? []);
+  return [...blocked, ...orderTasks(tasks).flatMap((task) => byTask.get(task.id) ?? [])];
 }
 
 /** What the desktop's empty composer is pointed at, which is all a thread yet to exist amounts to. */
@@ -65,7 +81,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
   const approval = view.approval;
   return {
     id: task.id,
-    title: task.title,
+    title: task.title || "Untitled thread",
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     messages: transcript.messages,
     omitted: transcript.omitted,

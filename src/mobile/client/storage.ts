@@ -75,3 +75,21 @@ export function deviceName(agent: string): string {
   if (/\bMacintosh\b/.test(agent)) return "Mac";
   return "Phone";
 }
+
+/** Which list groups the phone has folded shut, by project id or "recents". */
+export const MOBILE_FOLDED_KEY = "aicodingtool.mobile.folded";
+
+export function readFolded(store: CredentialStore): Set<string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(store.getItem(MOBILE_FOLDED_KEY) ?? "[]");
+  } catch {
+    return new Set();
+  }
+  if (!Array.isArray(parsed)) return new Set();
+  return new Set(parsed.filter((key): key is string => typeof key === "string"));
+}
+
+export function writeFolded(store: CredentialStore, folded: Set<string>): void {
+  store.setItem(MOBILE_FOLDED_KEY, JSON.stringify([...folded]));
+}

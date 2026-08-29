@@ -53,6 +53,8 @@ export type MobileClientState = {
   attempt: number;
   /** One plain sentence for the user. Never a code, never a stack. */
   notice: string | null;
+  /** The view's error the user has already put away. It stays away until the view's error changes. */
+  dismissedError: string | null;
 };
 
 export type MobileClientEvent =
@@ -123,6 +125,7 @@ export function initialMobileClient(input: { credential: MobileCredential | null
     outbox: [],
     attempt: 0,
     notice: entry === "blocked" ? SCAN_AGAIN : null,
+    dismissedError: null,
   };
 }
 
@@ -159,7 +162,7 @@ export function reduceMobileClient(state: MobileClientState, event: MobileClient
       return { state: { ...state, attempt: 0, connection }, effects: [{ kind: "disconnect" }, { kind: "connect", delayMs: 0 }] };
     }
     case "dismiss-notice":
-      return { state: { ...state, notice: null }, effects: [] };
+      return { state: { ...state, notice: null, dismissedError: state.view.error }, effects: [] };
   }
 }
 
@@ -234,11 +237,10 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
      */
     case "snapshot": {
       if (seen.build !== null && seen.build !== message.build) return { state: seen, effects: [{ kind: "reload" }] };
-      const fresh = { ...seen, build: message.build, sessionId: message.sessionId, view: message.view, notice: null };
-      return live(fresh);
+      return live(shown({ ...seen, build: message.build, sessionId: message.sessionId, notice: null }, message.view));
     }
     case "patch":
-      return settled({ ...seen, view: applyMobilePatch(seen.view, message.patch) });
+      return settled(shown(seen, applyMobilePatch(seen.view, message.patch)));
     case "ack": {
       const outbox = seen.outbox.filter((item) => item.requestId !== message.requestId);
       return settled({ ...seen, outbox, notice: message.ok ? seen.notice : message.message });
@@ -246,6 +248,11 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
     case "ping":
       return withEffect(settled(seen), { kind: "send", message: { kind: "pong", at: message.at } });
   }
+}
+
+/** Takes the next view; an error the user put away comes back only once the view's error has been something else. */
+function shown(state: MobileClientState, view: MobileView): MobileClientState {
+  return { ...state, view, dismissedError: view.error === state.view.error ? state.dismissedError : null };
 }
 
 /** A gap in the numbering means a frame was lost, and a patch onto a view with a hole in it lies. */

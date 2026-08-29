@@ -1,6 +1,6 @@
-import { LuChevronLeft as ChevronLeft, LuQrCode as QrCode } from "react-icons/lu";
-import { useCallback, useEffect, useState } from "react";
-import type { MobileCommand, MobileDraftView, MobileThreadSettings, MobileThreadView } from "../contracts/mobile";
+import { LuChevronLeft as ChevronLeft, LuQrCode as QrCode, LuX as X } from "react-icons/lu";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MobileCommand, MobileDraftView, MobileThreadView } from "../contracts/mobile";
 import type { MobileConnectionState } from "../domain/mobile";
 import { useMobileClient } from "./client/useMobileClient";
 import { ApprovalSheet } from "./components/ApprovalSheet";
@@ -8,7 +8,6 @@ import { Composer } from "./components/Composer";
 import { Conversation } from "./components/Conversation";
 import { ThreadList } from "./components/ThreadList";
 import { ThreadSettings } from "./components/ThreadSettings";
-import { statusLabel } from "./format";
 
 const CONNECTION_LABELS: Record<MobileConnectionState, string> = {
   offline: "Offline",
@@ -34,10 +33,6 @@ function Gate({ notice }: { notice: string | null }) {
   );
 }
 
-function settingsLabel(settings: MobileThreadSettings): string {
-  return `${settings.model} · ${settings.effort} · ${settings.policy}`;
-}
-
 function ThreadScreen({ thread, connection, waiting, send }: {
   thread: MobileThreadView;
   connection: MobileConnectionState;
@@ -53,7 +48,7 @@ function ThreadScreen({ thread, connection, waiting, send }: {
       <Composer
         running={running}
         waiting={waiting}
-        settingsLabel={settingsLabel(thread.settings)}
+        settings={thread.settings}
         onSend={(text) => send({ type: "task.send", taskId: thread.id, text })}
         onStop={() => send({ type: "run.cancel", taskId: thread.id })}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -84,11 +79,11 @@ function DraftScreen({ draft, waiting, send }: {
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <>
-      <div className="empty"><p>Say what this thread is for.</p></div>
+      <div className="empty" />
       <Composer
         running={false}
         waiting={waiting}
-        settingsLabel={settingsLabel(draft.settings)}
+        settings={draft.settings}
         onSend={(text) => {
           send({ type: "view.set-prompt", prompt: text });
           send({ type: "task.send" });
@@ -118,6 +113,8 @@ function useNow(): number {
 }
 
 /**
+ * A notice takes the bar's title slot until it is tapped away, so it covers no row and moves none.
+ *
  * The conversation is the one the desktop has open, because the desktop's selection is the only one
  * there is. So the phone asks for a thread and then shows whichever one arrives rather than waiting
  * for the one it named: the Mac's own user, or a second phone, may have moved it, and a screen that
@@ -126,45 +123,81 @@ function useNow(): number {
 export function App() {
   const { state, send, dismissNotice } = useMobileClient();
   const [reading, setReading] = useState(false);
+  /**
+   * The thread a tap asked for, held until the Mac opens it or anything else. Until then the screen
+   * shows its title over a blank body rather than the thread the Mac still has open from before.
+   */
+  const [opening, setOpening] = useState<{ title: string; project: string | null; want: string; was: string } | null>(null);
+  const listScroll = useRef(0);
   const now = useNow();
   const thread = state.view.thread;
   const draft = state.view.draft;
   const waiting = state.outbox.length;
-  const notice = state.notice ?? state.view.error;
+  const notice = state.notice ?? (state.view.error !== state.dismissedError ? state.view.error : null);
+  const current = thread ? thread.id : draft ? "draft" : "none";
 
-  const openThread = useCallback((taskId: string) => {
+  useEffect(() => {
+    if (!opening) return;
+    if (current !== opening.was || current === opening.want) {
+      setOpening(null);
+      return;
+    }
+    const timer = setTimeout(() => setOpening(null), 3000);
+    return () => clearTimeout(timer);
+  }, [opening, current]);
+
+  const openThread = useCallback((taskId: string, title: string, project: string | null) => {
+    setOpening({ title, project, want: taskId, was: current });
     setReading(true);
     send({ type: "task.select", taskId });
-  }, [send]);
+  }, [send, current]);
 
-  const newThread = useCallback((projectId: string | null) => {
+  const newThread = useCallback((projectId: string | null, project: string | null) => {
+    setOpening({ title: "New thread", project, want: "draft", was: current });
     setReading(true);
     send({ type: "task.new", ...(projectId ? { projectId } : {}) });
-  }, [send]);
+  }, [send, current]);
+
+  const back = useCallback(() => {
+    setOpening(null);
+    setReading(false);
+  }, []);
 
   if (state.entry === "blocked" && !state.credential) return <Gate notice={state.notice} />;
+
+  const pending = opening !== null && current === opening.was && current !== opening.want;
+  const title = !reading ? "Threads" : pending ? opening.title : thread ? thread.title : draft ? "New thread" : "Opening";
+  const project = pending ? opening.project : thread ? thread.projectName : draft ? draft.projectName : undefined;
+  const subtitle = reading && project !== undefined ? project ?? "No project" : null;
 
   return (
     <div className="app">
       <header className="bar">
         {reading
-          ? <button type="button" className="ghost icon" onClick={() => setReading(false)} aria-label="Back to threads"><ChevronLeft size={22} /></button>
+          ? <button type="button" className="ghost icon" onClick={back} aria-label="Back to threads"><ChevronLeft size={22} /></button>
           : <span className="bar-spacer" />}
-        <div className="bar-title">
-          <h1>{!reading ? "Threads" : thread ? thread.title : draft ? "New thread" : "Opening"}</h1>
-          {reading && thread && <p>{thread.projectName ?? "No project"} · {statusLabel(thread.status)}</p>}
-          {reading && !thread && draft && <p>{draft.projectName ?? "No project"}</p>}
-        </div>
+        {notice
+          ? <button type="button" className="banner" role="status" onClick={dismissNotice}><span>{notice}</span><X size={15} aria-hidden="true" /></button>
+          : <div className="bar-title">
+            <h1>{title}</h1>
+            {subtitle && <p>{subtitle}</p>}
+          </div>}
         <ConnectionMark connection={state.connection} />
       </header>
-      {notice && <button type="button" className="banner" onClick={dismissNotice}>{notice}</button>}
       {reading
-        ? thread
+        ? thread && !pending
           ? <ThreadScreen thread={thread} connection={state.connection} waiting={waiting} send={send} />
-          : draft
+          : draft && !pending
             ? <DraftScreen draft={draft} waiting={waiting} send={send} />
             : <div className="empty"><p>Opening the thread…</p></div>
-        : <ThreadList groups={state.view.groups} now={now} onOpen={openThread} onNew={newThread} />}
+        : <ThreadList
+          groups={state.view.groups}
+          now={now}
+          initialScrollTop={listScroll.current}
+          onScroll={(top) => { listScroll.current = top; }}
+          onOpen={openThread}
+          onNew={newThread}
+        />}
     </div>
   );
 }

@@ -13,7 +13,8 @@ import {
   type MobileClientEvent,
   type MobileClientState,
 } from "../../src/mobile/client/protocol.ts";
-import { deviceName, readCredential, readPairingCode, socketUrl, withoutPairingCode, writeCredential, type CredentialStore } from "../../src/mobile/client/storage.ts";
+import { settingsSummary } from "../../src/mobile/format.ts";
+import { deviceName, readCredential, readFolded, readPairingCode, socketUrl, withoutPairingCode, writeCredential, writeFolded, type CredentialStore } from "../../src/mobile/client/storage.ts";
 
 const CODE = "K7M2P9QX";
 const TOKEN = "a".repeat(64);
@@ -301,4 +302,43 @@ test("a stored credential is only believed when it is whole", () => {
   assert.equal(readCredential(store), null);
   assert.equal(deviceName("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"), "iPhone");
   assert.equal(deviceName("Mozilla/5.0 (Linux; Android 14)"), "Android phone");
+});
+
+test("folded groups survive a visit, and a store holding garbage folds nothing", () => {
+  const items = new Map<string, string>();
+  const store: CredentialStore = {
+    getItem: (key) => items.get(key) ?? null,
+    setItem: (key, value) => void items.set(key, value),
+    removeItem: (key) => void items.delete(key),
+  };
+  assert.deepEqual([...readFolded(store)], []);
+  writeFolded(store, new Set(["p1", "recents"]));
+  assert.deepEqual([...readFolded(store)], ["p1", "recents"]);
+  items.set("aicodingtool.mobile.folded", "{not json");
+  assert.deepEqual([...readFolded(store)], []);
+  items.set("aicodingtool.mobile.folded", JSON.stringify([1, "p2", null]));
+  assert.deepEqual([...readFolded(store)], ["p2"], "only names are kept");
+});
+
+test("the composer reads settings as labels, and says no effort for a model that takes none", () => {
+  assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-5.6-sol", effort: "xhigh", policy: "allow-edits" }), { mode: "Edits", model: "Sol", effort: "Extra high" });
+  assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "autonomous" }), { mode: "Auto", model: "Opus", effort: "High" });
+  assert.deepEqual(settingsSummary({ engine: "claude", model: "haiku", effort: "high", policy: "confirm" }), { mode: "Confirm", model: "Haiku", effort: null });
+});
+
+test("a dismissed error stays away until the Mac says something else", () => {
+  const start = paired();
+  const shown = run(start, [{ kind: "received", message: snapshot(2, "s1", { ...view("Thread"), error: "x" }) }]).state;
+  assert.equal(shown.view.error, "x");
+  assert.equal(shown.dismissedError, null);
+
+  const dismissed = reduceMobileClient(shown, { kind: "dismiss-notice" }).state;
+  assert.equal(dismissed.dismissedError, "x", "the same sentence is not shown again");
+
+  const again = run(dismissed, [{ kind: "received", message: { kind: "patch", sequence: 3, patch: { error: "y" } } }]).state;
+  assert.equal(again.view.error, "y");
+  assert.notEqual(again.view.error, again.dismissedError, "a different error is shown");
+  const cleared = run(reduceMobileClient(again, { kind: "dismiss-notice" }).state, [{ kind: "received", message: { kind: "patch", sequence: 4, patch: { error: null } } }]).state;
+  const back = run(cleared, [{ kind: "received", message: { kind: "patch", sequence: 5, patch: { error: "y" } } }]).state;
+  assert.equal(back.dismissedError, null, "the same sentence, said again after it was cleared, is shown");
 });
