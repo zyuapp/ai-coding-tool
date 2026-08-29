@@ -13,6 +13,7 @@ import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
 import { MobileSettings } from "./MobileSettings";
 import type { MobileServerState } from "../../domain/mobile";
+import { SettingFocus } from "./SettingRow";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
@@ -99,10 +100,22 @@ function SettingsSidebar({ section, backRef, onClose, onSelect, onRefreshEngines
   );
 }
 
+/** The page the sheet shows and the control it marks, both re-aimed whenever something outside names one. */
+function useSettingsPlace(initialSection: SettingsSection, initialSetting: string | null) {
+  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [found, setFound] = useState<string | null>(initialSetting);
+  useEffect(() => { setSection(initialSection); }, [initialSection]);
+  useEffect(() => { setFound(initialSetting); }, [initialSetting]);
+  /** Leaving the page spends the mark, so coming back to it does not light the row again. */
+  return { section, found, choosePage: (next: SettingsSection) => { setSection(next); setFound(null); } };
+}
+
 export type SettingsPanelProps = {
   onClose: () => void;
   /** The page settings opens on. Computer-use setup and the engine error each ask for their own. */
   initialSection?: SettingsSection;
+  /** The control on that page to scroll to and mark, when something named one. */
+  initialSetting?: string | null;
   archivedTasks: Task[];
   managedWorktrees: WorktreeSettingsView[] | null;
   worktreeManagementError: string | null;
@@ -165,6 +178,7 @@ export type SettingsPanelProps = {
 export function SettingsPanel({
   onClose,
   initialSection = "general",
+  initialSetting = null,
   archivedTasks,
   managedWorktrees,
   worktreeManagementError,
@@ -213,7 +227,7 @@ export function SettingsPanel({
   onSetTailscaleServe,
   onRefreshRemote,
 }: SettingsPanelProps) {
-  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const { section, found, choosePage } = useSettingsPlace(initialSection, initialSetting);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const back = useRef<HTMLButtonElement>(null);
@@ -226,9 +240,6 @@ export function SettingsPanel({
     if (confirmingClear || confirmingSignOut) confirmation.current?.focus();
   }, [confirmingClear, confirmingSignOut]);
 
-  /** Something outside settings named a page while the sheet was already open, so the sheet moves to it. */
-  useEffect(() => { setSection(initialSection); }, [initialSection]);
-
   function cancelConfirmation(browser: boolean) {
     if (browser) setConfirmingSignOut(false);
     else setConfirmingClear(false);
@@ -237,6 +248,7 @@ export function SettingsPanel({
 
   const computerUsePermissions = useComputerUsePermissions();
   return (
+    <SettingFocus value={found}>
     <section
       className="settings-view"
       aria-label="Settings"
@@ -247,7 +259,7 @@ export function SettingsPanel({
         cancelConfirmation(confirmingSignOut);
       }}
     >
-      <SettingsSidebar section={section} backRef={back} onClose={onClose} onSelect={setSection} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
+      <SettingsSidebar section={section} backRef={back} onClose={onClose} onSelect={choosePage} onRefreshEngines={onRefreshEngines} onRefreshWorktrees={onRefreshWorktrees} onRefreshRemote={onRefreshRemote} />
 
       {section === "appearance" && (
       <main className="settings-main">
@@ -325,5 +337,6 @@ export function SettingsPanel({
 
       {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} {...computerUsePermissions} />}
     </section>
+    </SettingFocus>
   );
 }

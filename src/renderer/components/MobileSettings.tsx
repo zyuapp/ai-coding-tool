@@ -1,6 +1,7 @@
 import { LuCheck as Check, LuRefreshCw as RefreshCw, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { addressOrigin, type MobileAddress, type MobileConnectionState, type MobilePairingOffer, type MobileServerState, type MobileSessionView, type PairedDeviceView, type TailscaleState } from "../../domain/mobile";
+import { SettingRow } from "./SettingRow";
 
 function statusLabel(remote: MobileServerState): string {
   if (!remote.enabled) return "Off";
@@ -292,16 +293,9 @@ export function MobileSettings({
           <span className={listening ? "ready" : ""}>{statusLabel(remote)}</span>
         </div>
 
-        <div className="setting-row">
-          <span className={`setting-status ${listening ? "granted" : ""}`}>{listening && <Check size={13} />}</span>
-          <div>
-            <strong>Phone access</strong>
-            <p>Runs a small server that a paired phone talks to. Turning it off drops every phone.</p>
-          </div>
-          <div className="setting-row-action">
-            <button type="button" role="switch" aria-checked={remote.enabled} onClick={() => onSetEnabled(!remote.enabled)}>{remote.enabled ? "Turn off" : "Turn on"}</button>
-          </div>
-        </div>
+        <SettingRow id="phone.availability" status={listening} description="Runs a small server that a paired phone talks to. Turning it off drops every phone.">
+          <button type="button" role="switch" aria-checked={remote.enabled} aria-label="Phone access" onClick={() => onSetEnabled(!remote.enabled)}>{remote.enabled ? "Turn off" : "Turn on"}</button>
+        </SettingRow>
 
         {listening && addressOf(remote, "loopback") && (
           <p className="phone-local">

@@ -275,6 +275,8 @@ export type WorkspaceState = {
   settingsOpen: boolean;
   /** The page settings opens on, when something opened it on one. Null lets it open where it opens. */
   settingsSection: SettingsSection | null;
+  /** The control on that page to scroll to and mark, when something named one. */
+  settingsFocus: string | null;
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
   capturingShortcut: string | null;
@@ -421,6 +423,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     notifications: true,
     settingsOpen: false,
     settingsSection: null,
+    settingsFocus: null,
     shortcuts: {},
     capturingShortcut: null,
     composerFocus: 0,
@@ -868,6 +871,7 @@ export function deriveView(state: WorkspaceState) {
     /** Asking for computer use opens settings whether or not the user did. */
     settingsOpen: state.settingsOpen || state.computerUseSetup,
     settingsSection: state.computerUseSetup ? "computer-use" : state.settingsSection,
+    settingsFocus: state.computerUseSetup ? null : state.settingsFocus,
     engineChecking: state.engineChecking,
     dockOpen: dock.open,
     dockExpanded: dock.expanded,

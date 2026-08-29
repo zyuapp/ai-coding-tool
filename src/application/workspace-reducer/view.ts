@@ -1,6 +1,7 @@
 /** Where the user is looking: history, focus, and the find bar. */
 import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects, TAKE_KEYS } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { reduceSettings } from "./settings.js";
 import { reduceTasks } from "./tasks.js";
 import { busyTaskIds, dockHoldsTab, findTargetFor, projectFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
@@ -16,7 +17,8 @@ function sameFindResults(held: FindResults | null, reported: FindResults): boole
 type ViewInput = Extract<WorkspaceInput, {
   type: "view.set-menu" | "view.go-back" | "view.go-forward" | "view.set-focused" | "view.dock-keys"
     | "view.find-open" | "view.find-query" | "view.find-step" | "view.find-close" | "find.results"
-    | "view.jump-open" | "view.jump-query" | "view.jump-step" | "view.jump-choose" | "view.jump-close"
+    | "view.jump-open" | "view.jump-query" | "view.jump-step" | "view.jump-choose"
+    | "view.jump-choose-setting" | "view.jump-close"
     | "view.dismiss-computer-use-setup";
 }>;
 
@@ -133,6 +135,9 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
 
     case "view.jump-choose":
       return reduceTasks({ ...state, jump: null }, { type: "task.select", taskId: input.taskId });
+
+    case "view.jump-choose-setting":
+      return reduceSettings({ ...state, jump: null }, { type: "view.set-settings-open", open: true, section: input.section, ...(input.settingId ? { settingId: input.settingId } : {}) });
 
     case "view.jump-close":
       return settled({ ...state, jump: null });

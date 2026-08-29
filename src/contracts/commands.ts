@@ -303,8 +303,11 @@ export type ViewCommand =
   | { type: "view.set-notifications"; enabled: boolean }
   /** Opening a subagent's detail, which is when its activity is read out of the store. */
   | { type: "view.inspect-subagent"; taskId?: string; subagentId: string }
-  /** `section` opens settings on one page; without it the sheet opens where it opens. */
-  | { type: "view.set-settings-open"; open: boolean; section?: SettingsSection }
+  /**
+   * `section` opens settings on one page; without it the sheet opens where it opens. `settingId`
+   * names a control on that page for the sheet to scroll to and mark.
+   */
+  | { type: "view.set-settings-open"; open: boolean; section?: SettingsSection; settingId?: string }
   /**
    * Closes whatever is in front, the way ⌘W does everywhere else on the desktop: settings, then the
    * page the browser panel is showing, then the dock tab, then the dock. Only with nothing left in
@@ -361,8 +364,8 @@ export type ViewCommand =
   | { type: "view.find-step"; delta: -1 | 1 }
   | { type: "view.find-close" }
   /**
-   * The jump panel: the threads a name matches, and the one the user lands on. It opens empty, so
-   * nothing of the last search survives being closed.
+   * The jump panel: the threads and settings a name matches, and the one the user lands on. It opens
+   * empty, so nothing of the last search survives being closed.
    */
   | { type: "view.jump-open" }
   | { type: "view.jump-query"; query: string }
@@ -370,4 +373,6 @@ export type ViewCommand =
   | { type: "view.jump-step"; delta: -1 | 1 }
   /** Opens the thread the row names and closes the panel. */
   | { type: "view.jump-choose"; taskId: string }
+  /** Opens the settings page the row names, on the control it names, and closes the panel. */
+  | { type: "view.jump-choose-setting"; section: SettingsSection; settingId?: string }
   | { type: "view.jump-close" };

@@ -3936,6 +3936,14 @@ button.setting-hint:hover { color: var(--ink); }
 .thread-jump-row .task-spinner { flex: none; width: 12px; height: 12px; }
 .thread-jump-project { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--quiet); font-size: var(--text-meta); }
 .thread-jump-empty { margin: 0; padding: 16px 14px; color: var(--quiet); font-size: var(--text-meta); }
+.thread-jump-heading { margin: 6px 0 2px; padding: 0 9px; color: var(--quiet); font-size: var(--text-meta); }
+
+/* The control the jump panel sent the user to, marked once so the eye lands on it and then let go. */
+.setting-row.found { animation: setting-found 2.2s ease-out; }
+@keyframes setting-found {
+  0%, 60% { background: var(--control); }
+  100% { background: none; }
+}
 
 /* The one tooltip, drawn wherever the pointer is resting. It is a small menu: same surface, same
    line, same ink, so every theme carries it without a rule of its own. Never in the way: no clicks. */

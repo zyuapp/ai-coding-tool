@@ -175,7 +175,13 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     case "view.set-settings-open": {
       const owner = dockOwner(state);
       const section = input.section && isSettingsSection(input.section) ? input.section : null;
-      const settings = { ...state, settingsOpen: input.open, settingsSection: input.open ? section : null, ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }) };
+      const settings = {
+        ...state,
+        settingsOpen: input.open,
+        settingsSection: input.open ? section : null,
+        settingsFocus: input.open && section ? input.settingId ?? null : null,
+        ...(input.open ? {} : { computerUseSetup: false, capturingShortcut: null }),
+      };
       /** Settings are drawn in the window, so a page that was in front cannot be left holding the keys. */
       return settled(input.open ? withDock(settings, owner, { open: false, expanded: false }) : settings, input.open ? TAKE_KEYS : stopCapture(state));
     }

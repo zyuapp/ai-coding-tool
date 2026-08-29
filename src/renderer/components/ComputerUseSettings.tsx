@@ -2,6 +2,7 @@ import { LuCheck as Check } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { AvailabilitySection } from "./AvailabilitySection";
+import { SettingRow } from "./SettingRow";
 
 /** What macOS has granted, watched while settings is open because it is granted in another app. */
 export function useComputerUsePermissions() {
@@ -66,7 +67,7 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, permissions
         <p>Let AI Coding Tool see and control other applications when you ask it to.</p>
       </div>
 
-      <AvailabilitySection id="computer-use" label="Computer use" enabled={computerUse} onChange={onSetComputerUse}
+      <AvailabilitySection id="computer-use.availability" enabled={computerUse} onChange={onSetComputerUse}
         description="The agent can see and operate other applications. Off leaves it no way to reach them, whatever the permissions below say." />
 
       <section className="settings-group" aria-labelledby="permissions-heading" aria-live="polite">
@@ -78,29 +79,15 @@ export function ComputerUseSettings({ computerUse, onSetComputerUse, permissions
           <span className={ready ? "ready" : ""}>{ready ? "Setup complete" : "Setup required"}</span>
         </div>
 
-        <div className="setting-row">
-          <span className={`setting-status ${permissions?.accessibility ? "granted" : ""}`}>{permissions?.accessibility && <Check size={13} />}</span>
-          <div>
-            <strong>Accessibility</strong>
-            <p>Allows AI Coding Tool to click, type, and navigate apps.</p>
-          </div>
-          <div className="setting-row-action">
-            {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
-            {permissions && !permissions.accessibility && <button type="button" disabled={busy !== null} onClick={() => void enable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</button>}
-          </div>
-        </div>
+        <SettingRow id="computer-use.accessibility" status={Boolean(permissions?.accessibility)} description="Allows AI Coding Tool to click, type, and navigate apps.">
+          {permissions?.accessibility ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
+          {permissions && !permissions.accessibility && <button type="button" disabled={busy !== null} onClick={() => void enable("accessibility")}>{busy === "accessibility" ? "Opening…" : "Enable Accessibility"}</button>}
+        </SettingRow>
 
-        <div className="setting-row">
-          <span className={`setting-status ${permissions?.screenRecording ? "granted" : ""}`}>{permissions?.screenRecording && <Check size={13} />}</span>
-          <div>
-            <strong>Screen &amp; System Audio Recording</strong>
-            <p>Allows AI Coding Tool to see app windows. System audio is not recorded.</p>
-          </div>
-          <div className="setting-row-action">
-            {permissions?.screenRecording ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
-            {permissions && !permissions.screenRecording && <button type="button" disabled={busy !== null} onClick={() => void enable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</button>}
-          </div>
-        </div>
+        <SettingRow id="computer-use.screen-recording" status={Boolean(permissions?.screenRecording)} description="Allows AI Coding Tool to see app windows. System audio is not recorded.">
+          {permissions?.screenRecording ? <em className="granted">Done</em> : !permissions && <em>Checking…</em>}
+          {permissions && !permissions.screenRecording && <button type="button" disabled={busy !== null} onClick={() => void enable("screenRecording")}>{busy === "screenRecording" ? "Opening…" : "Enable Screen Recording"}</button>}
+        </SettingRow>
 
         {error && <p className="settings-error" role="alert">{error}</p>}
         {restartRequired && <div className="settings-restart"><p>Restart AI Coding Tool to finish enabling computer use.</p><button type="button" onClick={() => window.desktop.restartForComputerUse()}>Restart AI Coding Tool</button></div>}

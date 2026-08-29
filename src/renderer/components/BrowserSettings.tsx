@@ -34,7 +34,7 @@ export function BrowserSettings({
         <p>The browser panel keeps one session for the whole app, so a site you sign into stays signed in everywhere AI Coding Tool works.</p>
       </div>
 
-      <AvailabilitySection id="browser-tools" label="Browser use" enabled={browserTools} onChange={onSetBrowserTools}
+      <AvailabilitySection id="browser.availability" enabled={browserTools} onChange={onSetBrowserTools}
         description="The agent can open and read pages in the browser panel. Off leaves the panel to you alone." />
 
       <section className="settings-group" aria-labelledby="browser-session-heading">

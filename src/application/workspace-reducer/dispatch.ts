@@ -107,7 +107,8 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "view.set-focused": case "view.find-open": case "view.find-query":
     case "view.find-step": case "view.find-close": case "find.results":
     case "view.dock-keys": case "view.jump-open": case "view.jump-query":
-    case "view.jump-step": case "view.jump-choose": case "view.jump-close":
+    case "view.jump-step": case "view.jump-choose": case "view.jump-choose-setting":
+    case "view.jump-close":
     case "view.dismiss-computer-use-setup":
       return reduceView(state, input);
   }

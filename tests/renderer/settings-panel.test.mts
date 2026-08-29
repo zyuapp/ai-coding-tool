@@ -631,13 +631,13 @@ test("each capability page carries a switch that turns the whole capability off"
   }));
   await act(async () => {});
 
-  assert.equal(capabilitySwitch(view.container, "computer-use").getAttribute("aria-checked"), "true");
-  await act(async () => { capabilitySwitch(view.container, "computer-use").click(); });
+  assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-checked"), "true");
+  await act(async () => { capabilitySwitch(view.container, "computer-use-availability").click(); });
 
   const browserTab = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Browser"));
   await act(async () => { browserTab.click(); });
-  assert.equal(capabilitySwitch(view.container, "browser-tools").getAttribute("aria-checked"), "true");
-  await act(async () => { capabilitySwitch(view.container, "browser-tools").click(); });
+  assert.equal(capabilitySwitch(view.container, "browser-availability").getAttribute("aria-checked"), "true");
+  await act(async () => { capabilitySwitch(view.container, "browser-availability").click(); });
 
   assert.deepEqual(changed, [["computer-use", false], ["browser-tools", false]]);
   await view.unmount();
@@ -654,11 +654,26 @@ test("the settings only Claude reads are grouped under Claude's own name", async
   await view.unmount();
 });
 
+test("a control the jump panel named is marked, until the user opens another page", async () => {
+  window.desktop = fakeDesktop({});
+  const view = await mount(renderSettingsPanel({ initialSection: "appearance", initialSetting: "appearance.mono-font" }));
+  await act(async () => {});
+  const marked = () => [...view.container.querySelectorAll<HTMLElement>(".setting-row.found")].map((row) => row.dataset.setting);
+  assert.deepEqual(marked(), ["appearance.mono-font"]);
+
+  const generalTab = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "General"));
+  await act(async () => { generalTab.click(); });
+  const appearanceTab = item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Appearance"));
+  await act(async () => { appearanceTab.click(); });
+  assert.deepEqual(marked(), [], "the mark is spent once the user has moved on");
+  await view.unmount();
+});
+
 test("a switch that is off says so and offers to turn it back on", async () => {
   window.desktop = fakeDesktop({});
   const view = await mount(renderSettingsPanel({ initialSection: "computer-use", computerUse: false }));
   await act(async () => {});
-  assert.equal(capabilitySwitch(view.container, "computer-use").getAttribute("aria-checked"), "false");
-  assert.equal(capabilitySwitch(view.container, "computer-use").textContent, "Turn on");
+  assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-checked"), "false");
+  assert.equal(capabilitySwitch(view.container, "computer-use-availability").textContent, "Turn on");
   await view.unmount();
 });

@@ -121,6 +121,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setJumpQuery: (query: string) => dispatch({ type: "view.jump-query", query }),
     stepJump: (delta: -1 | 1) => dispatch({ type: "view.jump-step", delta }),
     chooseJump: (taskId: string) => dispatch({ type: "view.jump-choose", taskId }),
+    chooseJumpSetting: (section: SettingsSection, settingId: string | null) => dispatch({ type: "view.jump-choose-setting", section, ...(settingId ? { settingId } : {}) }),
     closeJump: () => dispatch({ type: "view.jump-close" }),
     openFind: () => dispatch({ type: "view.find-open" }),
     setFindQuery: (query: string) => dispatch({ type: "view.find-query", query }),

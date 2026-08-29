@@ -1,6 +1,6 @@
-import { LuCheck as Check } from "react-icons/lu";
 import { useEffect, useState } from "react";
 import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
+import { SettingRow } from "./SettingRow";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
@@ -56,22 +56,15 @@ export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, notificatio
           </div>
         </div>
 
-        <div className="setting-row">
-          <span className={`setting-status ${cli?.state === "installed" ? "granted" : ""}`}>{cli?.state === "installed" && <Check size={13} />}</span>
-          <div>
-            <strong>{CLI_COMMAND}</strong>
-            <p>{cliDescription(cli)}</p>
-          </div>
-          <div className="setting-row-action">
-            {!cli && !cliError && <em>Checking…</em>}
-            {cli?.state === "installed" && <button type="button" disabled={cliBusy} onClick={() => void changeCli(false)}>{cliBusy ? "Removing…" : "Uninstall"}</button>}
-            {(cli?.state === "missing" || cli?.state === "conflict") && (
-              <button type="button" disabled={cliBusy} onClick={() => void changeCli(true)}>
-                {cliBusy ? "Installing…" : cli.state === "conflict" ? "Replace it" : "Install"}
-              </button>
-            )}
-          </div>
-        </div>
+        <SettingRow id="general.cli" status={cli?.state === "installed"} description={cliDescription(cli)}>
+          {!cli && !cliError && <em>Checking…</em>}
+          {cli?.state === "installed" && <button type="button" disabled={cliBusy} onClick={() => void changeCli(false)}>{cliBusy ? "Removing…" : "Uninstall"}</button>}
+          {(cli?.state === "missing" || cli?.state === "conflict") && (
+            <button type="button" disabled={cliBusy} onClick={() => void changeCli(true)}>
+              {cliBusy ? "Installing…" : cli.state === "conflict" ? "Replace it" : "Install"}
+            </button>
+          )}
+        </SettingRow>
 
         {cliError && <p className="settings-error" role="alert">{cliError}</p>}
       </section>
@@ -83,16 +76,9 @@ export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, notificatio
           </div>
         </div>
 
-        <div className="setting-row">
-          <span className={`setting-status ${notifications ? "granted" : ""}`}>{notifications && <Check size={13} />}</span>
-          <div>
-            <strong>Desktop notifications</strong>
-            <p>When a run finishes, fails, or needs permission in a thread you are away from.</p>
-          </div>
-          <div className="setting-row-action">
-            <button type="button" role="switch" aria-checked={notifications} onClick={() => onSetNotifications(!notifications)}>{notifications ? "Turn off" : "Turn on"}</button>
-          </div>
-        </div>
+        <SettingRow id="general.notifications" status={notifications} description="When a run finishes, fails, or needs permission in a thread you are away from.">
+          <button type="button" role="switch" aria-checked={notifications} onClick={() => onSetNotifications(!notifications)}>{notifications ? "Turn off" : "Turn on"}</button>
+        </SettingRow>
       </section>
 
       <section className="settings-group" aria-labelledby="claude-heading">
@@ -103,16 +89,9 @@ export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, notificatio
           </div>
         </div>
 
-        <div className="setting-row">
-          <span className={`setting-status ${chromeBrowser ? "granted" : ""}`}>{chromeBrowser && <Check size={13} />}</span>
-          <div>
-            <strong>Claude in Chrome</strong>
-            <p>Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.</p>
-          </div>
-          <div className="setting-row-action">
-            <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
-          </div>
-        </div>
+        <SettingRow id="general.chrome-browser" status={chromeBrowser} description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
+          <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
+        </SettingRow>
       </section>
     </>
   );

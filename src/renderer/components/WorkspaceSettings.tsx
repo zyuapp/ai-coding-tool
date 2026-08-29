@@ -9,6 +9,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
     <SettingsPanel
       onClose={onClose}
       initialSection={workspace.settingsSection ?? "general"}
+      initialSetting={workspace.settingsFocus}
       archivedTasks={workspace.archivedTasks}
       managedWorktrees={workspace.managedWorktrees} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
       theme={workspace.theme}

@@ -227,7 +227,8 @@ test("the jump panel opens on the most recent threads, then a name narrows them"
 
   const typed = reduce(opened, { type: "view.jump-query", query: "panel" }).state;
   const jump = required(deriveView(typed).jump);
-  assert.deepEqual(jump.options.map((option) => option.title), ["Panel find", "Dock the browser panel"]);
+  assert.deepEqual(jump.options.map((option) => option.title), ["Panel find", "Dock the browser panel", "Browser use"],
+    "threads first, then the settings the same name reaches");
   assert.equal(jump.index, 0);
 });
 
@@ -254,6 +255,24 @@ test("choosing a row opens that thread and closes the panel", () => {
   assert.equal(state.currentId, "task-b");
   assert.equal(deriveView(state).jump, null);
   assert.deepEqual(state.history, ["task-b"], "the thread jumped to is a place the trail records");
+});
+
+test("a settings row opens its page on the control it names, and closes the panel", () => {
+  const state = run(workspace({ tasks: [task("task-a")] }), [
+    { type: "view.jump-open" },
+    { type: "view.jump-choose-setting", section: "appearance", settingId: "appearance.ui-font" },
+  ]);
+  assert.equal(deriveView(state).jump, null);
+  assert.ok(state.settingsOpen);
+  assert.equal(state.settingsSection, "appearance");
+  assert.equal(state.settingsFocus, "appearance.ui-font");
+
+  const page = reduce(state, { type: "view.jump-choose-setting", section: "browser" }).state;
+  assert.equal(page.settingsSection, "browser");
+  assert.equal(page.settingsFocus, null, "a page's own row names no control to land on");
+
+  const shut = reduce(page, { type: "view.set-settings-open", open: false }).state;
+  assert.equal(shut.settingsFocus, null);
 });
 
 test("the jump keystroke closes the panel it opened, and settings give way to it", () => {

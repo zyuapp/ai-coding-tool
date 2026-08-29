@@ -15,6 +15,7 @@ import {
   type SizeRange,
 } from "../../domain/typography";
 import { canReadInstalledFonts, readInstalledFonts } from "../system-fonts";
+import { SettingRow } from "./SettingRow";
 
 export type AppearanceSettingsProps = {
   /** The theme in effect, by id, whose ground is the one the theme tiles are drawn on. */
@@ -375,16 +376,9 @@ export function AppearanceSettings({
             </div>
           </div>
         </div>
-        <div className="setting-row">
-          <span className="setting-status blank" aria-hidden="true" />
-          <div>
-            <strong>Colours</strong>
-            <p>{THEMES.length} themes, each drawn in its own colours.</p>
-          </div>
-          <div className="setting-row-action">
-            <ThemeSelect current={current} onChoose={onSetThemeFamily} />
-          </div>
-        </div>
+        <SettingRow id="appearance.theme" description={`${THEMES.length} themes, each drawn in its own colours.`}>
+          <ThemeSelect current={current} onChoose={onSetThemeFamily} />
+        </SettingRow>
       </section>
 
       <section className="settings-group" aria-labelledby="fonts-heading">
@@ -395,27 +389,13 @@ export function AppearanceSettings({
           </div>
         </div>
 
-        <div className="setting-row">
-          <span className="setting-status blank" aria-hidden="true" />
-          <div>
-            <strong>Interface</strong>
-            <p>The window itself: its threads, its menus, and what the agent writes back.</p>
-          </div>
-          <div className="setting-row-action">
-            <FontSelect axis="uiFont" label="Interface font" chosen={uiFont} onChoose={onSetUiFont} />
-          </div>
-        </div>
+        <SettingRow id="appearance.ui-font" description="The window itself: its threads, its menus, and what the agent writes back.">
+          <FontSelect axis="uiFont" label="Interface font" chosen={uiFont} onChoose={onSetUiFont} />
+        </SettingRow>
 
-        <div className="setting-row">
-          <span className="setting-status blank" aria-hidden="true" />
-          <div>
-            <strong>Code and terminal</strong>
-            <p>Code, diffs, and every shell.</p>
-          </div>
-          <div className="setting-row-action">
-            <FontSelect axis="monoFont" label="Code and terminal font" chosen={monoFont} onChoose={onSetMonoFont} />
-          </div>
-        </div>
+        <SettingRow id="appearance.mono-font" description="Code, diffs, and every shell.">
+          <FontSelect axis="monoFont" label="Code and terminal font" chosen={monoFont} onChoose={onSetMonoFont} />
+        </SettingRow>
       </section>
 
       <section className="settings-group" aria-labelledby="text-size-heading">
@@ -426,27 +406,13 @@ export function AppearanceSettings({
           </div>
         </div>
 
-        <div className="setting-row">
-          <span className="setting-status blank" aria-hidden="true" />
-          <div>
-            <strong>Conversation text</strong>
-            <p className="size-sample">Ran the tests — three failed in the parser.</p>
-          </div>
-          <div className="setting-row-action">
-            <SizeField label="Conversation text size" range={READING_SIZE} value={readingSize} onChoose={onSetReadingSize} />
-          </div>
-        </div>
+        <SettingRow id="appearance.reading-size" description={<p className="size-sample">Ran the tests — three failed in the parser.</p>}>
+          <SizeField label="Conversation text size" range={READING_SIZE} value={readingSize} onChoose={onSetReadingSize} />
+        </SettingRow>
 
-        <div className="setting-row">
-          <span className="setting-status blank" aria-hidden="true" />
-          <div>
-            <strong>Terminal text</strong>
-            <p className="size-sample terminal">$ git status</p>
-          </div>
-          <div className="setting-row-action">
-            <SizeField label="Terminal text size" range={TERMINAL_SIZE} value={terminalSize} onChoose={onSetTerminalSize} />
-          </div>
-        </div>
+        <SettingRow id="appearance.terminal-size" description={<p className="size-sample terminal">$ git status</p>}>
+          <SizeField label="Terminal text size" range={TERMINAL_SIZE} value={terminalSize} onChoose={onSetTerminalSize} />
+        </SettingRow>
       </section>
     </>
   );

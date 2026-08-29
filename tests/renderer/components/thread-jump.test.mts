@@ -20,15 +20,17 @@ const JUMP: JumpView = {
   query: "pa",
   index: 1,
   options: [
-    { id: "task-a", title: "Panel find", project: "api", engine: "claude", lastActivityAt: 2, running: true },
-    { id: "task-b", title: "Dock the browser panel", project: null, engine: "codex", lastActivityAt: 1, running: false },
+    { kind: "thread", id: "task-a", title: "Panel find", project: "api", engine: "claude", lastActivityAt: 2, running: true },
+    { kind: "thread", id: "task-b", title: "Dock the browser panel", project: null, engine: "codex", lastActivityAt: 1, running: false },
+    { kind: "setting", id: "settings:appearance", section: "appearance", settingId: null, title: "Appearance", page: null, keywords: "" },
+    { kind: "setting", id: "settings:appearance.ui-font", section: "appearance", settingId: "appearance.ui-font", title: "Interface", page: "Appearance", keywords: "" },
   ],
 };
 
-type Calls = { queries: string[]; steps: number[]; chosen: string[]; closed: number };
+type Calls = { queries: string[]; steps: number[]; chosen: string[]; settings: string[]; closed: number };
 
 async function mount(jump: JumpView) {
-  const calls: Calls = { queries: [], steps: [], chosen: [], closed: 0 };
+  const calls: Calls = { queries: [], steps: [], chosen: [], settings: [], closed: 0 };
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -39,6 +41,7 @@ async function mount(jump: JumpView) {
         setJumpQuery: (query: string) => calls.queries.push(query),
         stepJump: (delta: -1 | 1) => calls.steps.push(delta),
         chooseJump: (taskId: string) => calls.chosen.push(taskId),
+        chooseJumpSetting: (section: string, settingId: string | null) => calls.settings.push(`${section}/${settingId ?? ""}`),
         closeJump: () => { calls.closed += 1; },
       },
     }));
@@ -52,11 +55,12 @@ function rows() {
 
 test("a row names its thread, the folder it lives in, and whether it is working", async () => {
   const view = await mount(JUMP);
-  assert.deepEqual(rows().map((row) => row.textContent), ["Panel findapi", "Dock the browser panel"]);
+  assert.deepEqual(rows().map((row) => row.textContent), ["Panel findapi", "Dock the browser panel", "Appearance", "InterfaceAppearance"]);
   assert.equal(rows()[0]!.querySelector(".task-spinner")?.getAttribute("aria-label"), "Working");
   assert.equal(rows()[1]!.querySelector(".task-spinner"), null);
-  assert.deepEqual(rows().map((row) => row.querySelector("svg")?.getAttribute("aria-label")), ["Claude thread", "Codex thread"]);
-  assert.deepEqual(rows().map((row) => row.getAttribute("aria-selected")), ["false", "true"]);
+  assert.deepEqual(rows().map((row) => row.querySelector("svg")?.getAttribute("aria-label")), ["Claude thread", "Codex thread", "Setting", "Setting"]);
+  assert.deepEqual(rows().map((row) => row.getAttribute("aria-selected")), ["false", "true", "false", "false"]);
+  assert.equal(document.querySelector(".thread-jump-heading")?.textContent, "Settings");
   assert.equal(document.activeElement, document.querySelector(".thread-jump-search input"));
   await view.unmount();
 });
@@ -85,9 +89,18 @@ test("clicking a row opens that thread", async () => {
   await view.unmount();
 });
 
+test("a settings row opens its page, and a control row names the control too", async () => {
+  const view = await mount(JUMP);
+  await act(async () => { rows()[2]!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })); });
+  await act(async () => { rows()[3]!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })); });
+  assert.deepEqual(view.calls.settings, ["appearance/", "appearance/appearance.ui-font"]);
+  assert.deepEqual(view.calls.chosen, []);
+  await view.unmount();
+});
+
 test("a name nothing answers says so instead of drawing an empty list", async () => {
   const view = await mount({ query: "nothing", index: 0, options: [] });
   assert.equal(document.querySelector(".thread-jump-list"), null);
-  assert.equal(document.querySelector(".thread-jump-empty")?.textContent, "No thread by that name");
+  assert.equal(document.querySelector(".thread-jump-empty")?.textContent, "Nothing here is called that");
   await view.unmount();
 });
