@@ -12,7 +12,7 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownTasks } from "./SidebarProjects";
-import { useTaskRows, type MenuFolder } from "./SidebarTaskRow";
+import { useTaskRows } from "./SidebarTaskRow";
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -124,11 +124,6 @@ export function ProjectSidebar({
   const formatTime = (value: number) => (timeFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(value);
 
   const tasksByProject = useMemo(() => groupedBy(orderedTasks, (task) => task.projectId), [orderedTasks]);
-  /** Every list a thread can be moved into, with the length of each, which is where a move lands. */
-  const folders = useMemo((): MenuFolder[] => [
-    { id: null, label: "No folder", count: recentTasks.length },
-    ...projects.map((project) => ({ id: project.id, label: projectName(project), count: tasksByProject.get(project.id)?.length ?? 0 })),
-  ], [projects, recentTasks.length, tasksByProject]);
   const checkoutsByProject = useMemo(() => groupedBy(worktreeGroups, (group) => group.worktree.projectId), [worktreeGroups]);
 
   const { taskRow, activityRow } = useTaskRows({
@@ -140,7 +135,6 @@ export function ProjectSidebar({
     schedules,
     worktreeTaskIds,
     worktreeGroups,
-    folders,
     openMenu,
     formatTime,
     onSetOpenMenu,
@@ -148,7 +142,6 @@ export function ProjectSidebar({
     onArchiveTask,
     onDismissTask,
     onRenameTask,
-    onMoveTask,
     onForkTask,
   });
 

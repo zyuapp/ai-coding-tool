@@ -3,9 +3,8 @@ import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { projectName, threadActivityAt } from "../../domain/task";
 import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
-import type { TaskDropTarget } from "../../domain/task";
 import type { Project, Task, TaskOutcome } from "../../domain/task";
-import { worktreeName } from "../../domain/worktree";
+import { worktreeHue, worktreeName } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu, type MenuEntry } from "./PopoverMenu";
@@ -73,33 +72,17 @@ function TaskSpinner() {
   return <span ref={ref} className="task-spinner" aria-label="Working" />;
 }
 
-/** One list a thread can be moved into: the project it belongs to, or none, and how long that list is. */
-export type MenuFolder = { id: string | null; label: string; count: number };
-
 /**
  * What a thread offers on a right-click, grouped the way a menu on this platform is: naming it,
- * taking a reference to it, copying it, then putting it away. A thread working in a checkout is
- * only ever moved within the project that checkout was cut from.
+ * taking a reference to it, copying it, then putting it away.
  */
-function threadMenuEntries(task: Task, folders: MenuFolder[], actions: {
+function threadMenuEntries(task: Task, actions: {
   onRename: () => void;
-  onMove: (target: TaskDropTarget) => void;
   onFork: (worktree: boolean) => void;
   onArchive: () => void;
 }): MenuEntry[] {
-  const inFolder = task.projectId ?? null;
   return [
     { label: "Rename", onSelect: actions.onRename },
-    {
-      label: "Move to folder",
-      /** The list it is already in is ticked, not an offer to send it to the bottom of that list. */
-      items: folders.map((folder) => ({
-        label: folder.label,
-        checked: folder.id === inFolder,
-        disabled: Boolean(task.worktreeId) && folder.id !== inFolder,
-        ...(folder.id === inFolder ? {} : { onSelect: () => actions.onMove({ projectId: folder.id, index: folder.count }) }),
-      })),
-    },
     "separator",
     { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
     "separator",
@@ -121,8 +104,6 @@ export type TaskRowsOptions = {
   schedules: Map<string, AutomationView>;
   worktreeTaskIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
-  /** Every list a thread can be moved into, which its menu offers. */
-  folders: MenuFolder[];
   openMenu: string | null;
   formatTime: (value: number) => string;
   onSetOpenMenu: (menu: string | null) => void;
@@ -130,7 +111,6 @@ export type TaskRowsOptions = {
   onArchiveTask: (taskId: string) => void;
   onDismissTask: (taskId: string) => void;
   onRenameTask: (taskId: string, title: string) => void;
-  onMoveTask: (taskId: string, target: TaskDropTarget) => void;
   onForkTask: (taskId: string, worktree: boolean) => void;
 };
 
@@ -144,7 +124,6 @@ export function useTaskRows({
   schedules,
   worktreeTaskIds,
   worktreeGroups,
-  folders,
   openMenu,
   formatTime,
   onSetOpenMenu,
@@ -152,21 +131,28 @@ export function useTaskRows({
   onArchiveTask,
   onDismissTask,
   onRenameTask,
-  onMoveTask,
   onForkTask,
 }: TaskRowsOptions) {
   const [taskMenuPosition, setTaskMenuPosition] = useState({ x: 0, y: 0 });
   const taskNames = useRenaming((taskId, value) => { if (value.trim()) onRenameTask(taskId, value); });
 
-  const checkoutNames = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
-    tasks.map((task) => [task.id, worktreeName(worktree)] as const)));
+  const checkouts = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
+    tasks.map((task) => [task.id, worktree] as const)));
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
-  const worktreeLabel = (taskId: string) => `Works in ${checkoutNames.get(taskId) ?? "a worktree"}`;
+  const worktreeLabel = (taskId: string) => {
+    const worktree = checkouts.get(taskId);
+    return `Works in ${worktree ? worktreeName(worktree) : "a worktree"}`;
+  };
+  /** Threads sharing a checkout share its colour, so a list ranked by attention still groups by eye. */
+  const worktreeMark = (taskId: string) => {
+    const worktree = checkouts.get(taskId);
+    return `task-worktree${worktree ? ` hue-${worktreeHue(worktree.id)}` : ""}`;
+  };
 
   /** What a thread is: its engine, checkout, schedule, and what it is doing now. */
   const rowMarks = (task: Task): React.ReactNode[] => [
     <ThreadEngineIcon key="engine" engine={task.engine} className="task-engine" size={13} />,
-    worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className="task-worktree" size={13} aria-label={worktreeLabel(task.id)} />,
+    worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className={worktreeMark(task.id)} size={13} aria-label={worktreeLabel(task.id)} />,
     schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
     blockedTaskIds.has(task.id)
       ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
@@ -253,9 +239,8 @@ export function useTaskRows({
       at={taskMenuPosition}
       returnFocus={taskNames.row}
       onClose={() => onSetOpenMenu(null)}
-      entries={threadMenuEntries(task, folders, {
+      entries={threadMenuEntries(task, {
         onRename: () => taskNames.start(task.id),
-        onMove: (target) => onMoveTask(task.id, target),
         onFork: (worktree) => onForkTask(task.id, worktree),
         onArchive: () => onArchiveTask(task.id),
       })}
