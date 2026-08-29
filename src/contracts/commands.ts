@@ -297,7 +297,6 @@ export type ViewCommand =
   | { type: "view.set-sidebar-open"; open: boolean }
   | { type: "view.set-session-panel-open"; open: boolean }
   | { type: "view.set-capture-options"; options: CaptureOptions }
-  | { type: "view.set-plain-english"; enabled: boolean }
   | { type: "view.set-chrome-browser"; enabled: boolean }
   | { type: "view.set-computer-use"; enabled: boolean }
   | { type: "view.set-browser-tools"; enabled: boolean }

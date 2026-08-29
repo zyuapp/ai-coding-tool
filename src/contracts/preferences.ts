@@ -28,8 +28,6 @@ export type ViewPreferences = {
   sections: SidebarSections;
   /** Which subagent groups are unfolded: the sidebar's list, and each status heading in the panel. */
   subagentGroups: SubagentGroups;
-  /** Whether runs answer in the Simplified Technical English output style the app installs. */
-  plainEnglish: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   /** Whether a run may see and operate other applications. On when absent. */

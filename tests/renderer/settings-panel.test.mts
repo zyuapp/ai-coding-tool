@@ -40,7 +40,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     readingSize: 15,
     terminalSize: 13,
     allowedOrigins: [],
-    plainEnglish: false, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
+    chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
     engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false,
     shortcuts: [],
     capturingShortcut: null,
@@ -50,7 +50,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetMonoFont() {},
     onSetReadingSize() {},
     onSetTerminalSize() {},
-    onSetPlainEnglish() {}, onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
+    onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
     onRestoreTask() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
@@ -651,7 +651,6 @@ test("the settings only Claude reads are grouped under Claude's own name", async
   assert.ok(group);
   assert.equal(group.querySelector("#claude-heading")?.textContent, "Claude");
   assert.match(group.textContent ?? "", /Claude in Chrome/);
-  assert.match(group.textContent ?? "", /Simplified Technical English/);
   await view.unmount();
 });
 

@@ -118,7 +118,6 @@ export type SettingsPanelProps = {
   /** How many sites a run may open without asking, which clearing the session takes back. */
   allowedOrigins: string[];
   /** Whether runs answer in the Simplified Technical English style the app installs. */
-  plainEnglish: boolean;
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   /** Whether a run may see and operate other applications. */
@@ -140,7 +139,6 @@ export type SettingsPanelProps = {
   onSetMonoFont: (font: string) => void;
   onSetReadingSize: (size: number) => void;
   onSetTerminalSize: (size: number) => void;
-  onSetPlainEnglish: (enabled: boolean) => void;
   onSetChromeBrowser: (enabled: boolean) => void;
   onSetComputerUse: (enabled: boolean) => void;
   onSetBrowserTools: (enabled: boolean) => void;
@@ -178,7 +176,6 @@ export function SettingsPanel({
   readingSize,
   terminalSize,
   allowedOrigins,
-  plainEnglish,
   chromeBrowser,
   computerUse,
   browserTools,
@@ -194,7 +191,6 @@ export function SettingsPanel({
   onSetMonoFont,
   onSetReadingSize,
   onSetTerminalSize,
-  onSetPlainEnglish,
   onSetChromeBrowser,
   onSetComputerUse,
   onSetBrowserTools,
@@ -279,7 +275,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings plainEnglish={plainEnglish} onSetPlainEnglish={onSetPlainEnglish} chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} />
+        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} notifications={notifications} onSetNotifications={onSetNotifications} />
       </main>
       )}
 

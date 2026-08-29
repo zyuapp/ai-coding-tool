@@ -29,9 +29,8 @@ test("external start commands carry only a workspace ID", () => {
 
 test("start commands carry the Claude engine's settings as one object", () => {
   assert.equal(isRunCommand({ ...command, claude: {} }), true);
-  assert.equal(isRunCommand({ ...command, claude: { outputStyle: "Plain", chromeBrowser: true } }), true);
+  assert.equal(isRunCommand({ ...command, claude: { chromeBrowser: true } }), true);
   assert.equal(isRunCommand({ ...command, claude: { chromeBrowser: false } }), false);
-  assert.equal(isRunCommand({ ...command, claude: { outputStyle: 3 } }), false);
   assert.equal(isRunCommand({ ...command, claude: "Plain" }), false);
 });
 

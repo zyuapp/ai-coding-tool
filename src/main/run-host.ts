@@ -229,13 +229,10 @@ function startAgent(host: RunHost) {
 }
 
 async function resolveStart(host: RunHost, command: StartRunCommand) {
-  const { installPlainEnglishStyle } = await import("./agent/output-style-install.mjs");
   const [resolution, computerUse] = await Promise.all([
     host.workspaces().resolve(command.workspaceId),
     /** Off in settings never reaches the driver, so no permission is asked for and no host is started. */
     command.computerUseTools === false ? Promise.resolve({ status: "unavailable" as const, message: "Computer use is turned off in Settings." }) : host.computerUseForRun(),
-    /** The style has to be on disk before the run names it, or the CLI resolves the name to nothing. */
-    installPlainEnglishStyle(command.claude?.outputStyle),
   ]);
   if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
   return {

@@ -14,7 +14,6 @@ import { withoutOutcome } from "../../domain/attention.js";
 import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
 import type { DiffRange } from "../../domain/diff.js";
 import { searchesItself, type FindTarget } from "../../domain/find.js";
-import { PLAIN_ENGLISH_STYLE } from "../../domain/output-style.js";
 import { defaultEffortFor, defaultModelFor } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
 import { createTaskMessage, type Annotation, type AttachedFile, type PastedText, type Project, type RunAttachment, type Task } from "../../domain/task.js";
@@ -326,8 +325,8 @@ export function clearedDraft(state: WorkspaceState, draftKey: string): Workspace
 }
 
 function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined {
-  if (!state.plainEnglish && !state.chromeBrowser) return undefined;
-  return { ...(state.plainEnglish ? { outputStyle: PLAIN_ENGLISH_STYLE } : {}), ...(state.chromeBrowser ? { chromeBrowser: true as const } : {}) };
+  if (!state.chromeBrowser) return undefined;
+  return { chromeBrowser: true as const };
 }
 
 export function startRunCommand(state: WorkspaceState, task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {

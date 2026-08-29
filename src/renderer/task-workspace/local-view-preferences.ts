@@ -18,7 +18,6 @@ export function loadViewPreferences(): ViewPreferences {
     sessionPanelOpen: stored.sessionPanelOpen ?? window.innerWidth >= 1400,
     captureSound: stored.captureSound ?? true,
     captureFocus: stored.captureFocus ?? true,
-    plainEnglish: stored.plainEnglish ?? false,
     chromeBrowser: stored.chromeBrowser ?? false,
     computerUse: stored.computerUse ?? true,
     browserTools: stored.browserTools ?? true,

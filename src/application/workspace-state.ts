@@ -264,8 +264,6 @@ export type WorkspaceState = {
   /** Whether grabbing a window plays the shutter, and whether it brings the window forward. */
   captureSound: boolean;
   captureFocus: boolean;
-  /** Whether a run selects the app's Simplified Technical English output style. */
-  plainEnglish: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   /** Whether a run may see and operate other applications. */
@@ -417,7 +415,6 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     sessionPanelOpen: false,
     captureSound: true,
     captureFocus: true,
-    plainEnglish: false,
     chromeBrowser: false,
     computerUse: true,
     browserTools: true,
@@ -859,7 +856,6 @@ export function deriveView(state: WorkspaceState) {
     sessionPanelOpen: state.sessionPanelOpen,
     captureSound: state.captureSound,
     captureFocus: state.captureFocus,
-    plainEnglish: state.plainEnglish,
     chromeBrowser: state.chromeBrowser,
     computerUse: state.computerUse,
     browserTools: state.browserTools,

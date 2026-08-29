@@ -57,8 +57,6 @@ export type TaskStoreDelta = {
 
 /** What only the Claude engine can be told. Another engine ignores the whole object. */
 export type ClaudeRunSettings = {
-  /** The Claude Code output style the run answers in. The user's own setting decides when absent. */
-  outputStyle?: string;
   /** Set when the user turned Claude in Chrome on: the run also reaches their own Chrome. */
   chromeBrowser?: true;
 };
@@ -528,7 +526,6 @@ export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 /** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
 const MAX_PROMPT_LENGTH = 1_000_000;
-const MAX_OUTPUT_STYLE = 128;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
@@ -629,7 +626,7 @@ export function isInternalRunCommand(value: unknown): value is InternalStartRunC
 function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
   if (!value || typeof value !== "object") return false;
   const settings = value as Record<string, unknown>;
-  return (settings.outputStyle === undefined || isString(settings.outputStyle, MAX_OUTPUT_STYLE)) && (settings.chromeBrowser === undefined || settings.chromeBrowser === true);
+  return settings.chromeBrowser === undefined || settings.chromeBrowser === true;
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {

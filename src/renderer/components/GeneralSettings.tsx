@@ -13,9 +13,6 @@ function cliDescription(status: CliStatus | null) {
 }
 
 export type GeneralSettingsProps = {
-  /** Whether runs answer in the Simplified Technical English style the app installs. */
-  plainEnglish: boolean;
-  onSetPlainEnglish: (enabled: boolean) => void;
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   onSetChromeBrowser: (enabled: boolean) => void;
@@ -24,7 +21,7 @@ export type GeneralSettingsProps = {
   onSetNotifications: (enabled: boolean) => void;
 };
 
-export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
+export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -103,17 +100,6 @@ export function GeneralSettings({ plainEnglish, onSetPlainEnglish, chromeBrowser
           <div>
             <h3 id="claude-heading">Claude</h3>
             <p>Experimental settings that only Claude threads read. They can change or disappear.</p>
-          </div>
-        </div>
-
-        <div className="setting-row">
-          <span className={`setting-status ${plainEnglish ? "granted" : ""}`}>{plainEnglish && <Check size={13} />}</span>
-          <div>
-            <strong>Simplified Technical English</strong>
-            <p>Claude answers in shorter sentences and a concise format.</p>
-          </div>
-          <div className="setting-row-action">
-            <button type="button" role="switch" aria-checked={plainEnglish} onClick={() => onSetPlainEnglish(!plainEnglish)}>{plainEnglish ? "Turn off" : "Turn on"}</button>
           </div>
         </div>
 

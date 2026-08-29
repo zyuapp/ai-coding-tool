@@ -18,7 +18,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       readingSize={workspace.readingSize}
       terminalSize={workspace.terminalSize}
       allowedOrigins={workspace.browserOrigins}
-      plainEnglish={workspace.plainEnglish} chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
+      chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
       notifications={workspace.notifications} remote={workspace.remote}
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking}
       shortcuts={workspace.shortcuts}
@@ -29,7 +29,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onSetMonoFont={(font) => void workspace.actions.setMonoFont(font)}
       onSetReadingSize={(size) => void workspace.actions.setReadingSize(size)}
       onSetTerminalSize={(size) => void workspace.actions.setTerminalSize(size)}
-      onSetPlainEnglish={(enabled) => void workspace.actions.setPlainEnglish(enabled)} onSetChromeBrowser={(enabled) => void workspace.actions.setChromeBrowser(enabled)} onSetComputerUse={(enabled) => void workspace.actions.setComputerUse(enabled)} onSetBrowserTools={(enabled) => void workspace.actions.setBrowserTools(enabled)}
+      onSetChromeBrowser={(enabled) => void workspace.actions.setChromeBrowser(enabled)} onSetComputerUse={(enabled) => void workspace.actions.setComputerUse(enabled)} onSetBrowserTools={(enabled) => void workspace.actions.setBrowserTools(enabled)}
       onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
       onRestoreTask={workspace.actions.restoreTask}
       onClearArchive={workspace.actions.clearArchive}

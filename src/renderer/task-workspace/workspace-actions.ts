@@ -43,7 +43,6 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setTerminalSize: (size: number) => dispatch({ type: "view.set-terminal-size", size }),
     setSidebarMode: (mode: SidebarMode) => dispatch({ type: "view.set-sidebar-mode", mode }),
     setSessionPanelOpen: (open: boolean) => dispatch({ type: "view.set-session-panel-open", open }),
-    setPlainEnglish: (enabled: boolean) => dispatch({ type: "view.set-plain-english", enabled }),
     setChromeBrowser: (enabled: boolean) => dispatch({ type: "view.set-chrome-browser", enabled }),
     setComputerUse: (enabled: boolean) => dispatch({ type: "view.set-computer-use", enabled }),
     setBrowserTools: (enabled: boolean) => dispatch({ type: "view.set-browser-tools", enabled }),
