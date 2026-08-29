@@ -87,6 +87,18 @@
   --focus-ring: var(--p-fg-2);
   --link: var(--p-link);
   --link-hover: color-mix(in srgb, var(--p-link) 70%, var(--p-on-hue));
+
+  /**
+   * The six colours a checkout's mark takes, mixed to the same weight as --info-soft so none of them
+   * shouts louder than the marks beside it. Red is left out: on a row it reads as a failure.
+   */
+  --worktree-0: color-mix(in srgb, var(--p-ansi-blue) 70%, var(--p-fg-2));
+  --worktree-1: color-mix(in srgb, var(--p-ansi-green) 70%, var(--p-fg-2));
+  --worktree-2: color-mix(in srgb, var(--p-ansi-magenta) 70%, var(--p-fg-2));
+  --worktree-3: color-mix(in srgb, var(--p-ansi-yellow) 70%, var(--p-fg-2));
+  --worktree-4: color-mix(in srgb, var(--p-ansi-cyan) 70%, var(--p-fg-2));
+  --worktree-5: color-mix(in srgb, var(--p-ansi-bright-blue) 70%, var(--p-fg-2));
+
   --link-line: color-mix(in srgb, var(--p-link) 45%, var(--p-bg-5));
 
   /* Success */
@@ -2439,6 +2451,13 @@ pre {
 .automation-actions .automation-remove:hover { border-color: var(--danger-line); color: var(--danger); }
 .task-automation { flex: none; color: var(--quiet-strong); }
 .task-worktree { flex: none; color: var(--info-soft); }
+/** Two classes, so the hue beats whatever colour the row or the panel gives its own icons. */
+.worktree-mark.hue-0 { color: var(--worktree-0); }
+.worktree-mark.hue-1 { color: var(--worktree-1); }
+.worktree-mark.hue-2 { color: var(--worktree-2); }
+.worktree-mark.hue-3 { color: var(--worktree-3); }
+.worktree-mark.hue-4 { color: var(--worktree-4); }
+.worktree-mark.hue-5 { color: var(--worktree-5); }
 .task-engine { flex: none; color: var(--muted); }
 .subagent-section { border-top: 1px solid var(--line-soft); padding: 7px 12px 8px; }
 .subagent-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet-strong); font-size: var(--text-control); font-weight: 580; }

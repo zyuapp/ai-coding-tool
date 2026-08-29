@@ -99,3 +99,16 @@ function nonEmptyString(value: unknown): value is string {
 function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
+
+/** How many colours the marks cycle through. One per `--worktree-N` token in styles.css. */
+export const WORKTREE_HUES = 6;
+
+/**
+ * The colour a checkout's mark carries, so two threads working in one are the same colour wherever
+ * they land in the sidebar. Taken from the id, which outlives a restart and a rename.
+ */
+export function worktreeHue(worktreeId: string) {
+  let hash = 0;
+  for (let index = 0; index < worktreeId.length; index += 1) hash = Math.imul(hash, 31) + worktreeId.charCodeAt(index) | 0;
+  return Math.abs(hash) % WORKTREE_HUES;
+}

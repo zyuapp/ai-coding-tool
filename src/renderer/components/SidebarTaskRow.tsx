@@ -146,7 +146,7 @@ export function useTaskRows({
   /** Threads sharing a checkout share its colour, so a list ranked by attention still groups by eye. */
   const worktreeMark = (taskId: string) => {
     const worktree = checkouts.get(taskId);
-    return `task-worktree${worktree ? ` hue-${worktreeHue(worktree.id)}` : ""}`;
+    return `task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`;
   };
 
   /** What a thread is: its engine, checkout, schedule, and what it is doing now. */

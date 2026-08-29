@@ -5,6 +5,7 @@ import type { ThreadLocation } from "../../application/workspace-state";
 import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
+import { worktreeHue } from "../../domain/worktree";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
@@ -110,7 +111,7 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onNewThread
           },
         ]}
       >
-        <span className="session-row-icon">{inWorktree || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
+        <span className={`session-row-icon${location.kind === "worktree" ? ` worktree-mark hue-${worktreeHue(location.worktree.id)}` : ""}`}>{inWorktree || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
         <span className="session-location-name" title={title}>
           <em className={working ? "text-sweep" : undefined}>{text}</em>
           {shared > 0 && <small title={`${shared} threads work in this worktree`}>{shared} threads</small>}
