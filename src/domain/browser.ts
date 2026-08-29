@@ -41,6 +41,70 @@ export type BrowserShot = {
   height: number;
 };
 
+export type BrowserConsoleLevel = "debug" | "info" | "warning" | "error";
+
+export type BrowserConsoleEntry = {
+  sequence: number;
+  at: number;
+  level: BrowserConsoleLevel;
+  message: string;
+  source?: string;
+  line?: number;
+};
+
+export type BrowserConsoleSnapshot = {
+  kind: "console";
+  tabId: string;
+  url: string;
+  title: string;
+  entries: BrowserConsoleEntry[];
+  latestSequence: number;
+  omitted: number;
+};
+
+export type BrowserNetworkEntry = {
+  sequence: number;
+  startedAt: number;
+  method: string;
+  url: string;
+  resourceType: string;
+  durationMs: number;
+  status?: number;
+  error?: string;
+  fromCache?: boolean;
+};
+
+export type BrowserNetworkSnapshot = {
+  kind: "network";
+  tabId: string;
+  url: string;
+  title: string;
+  entries: BrowserNetworkEntry[];
+  latestSequence: number;
+  omitted: number;
+};
+
+export type BrowserWaitCondition = "text" | "text-gone" | "element" | "element-gone" | "url" | "network-idle";
+
+export type BrowserWaitResult = {
+  kind: "wait";
+  tabId: string;
+  url: string;
+  title: string;
+  condition: BrowserWaitCondition;
+  value?: string;
+  matched: boolean;
+  elapsedMs: number;
+};
+
+/** Extra page state an agent may inspect without changing the page or workspace. */
+export type BrowserInspection =
+  | { op: "console"; since?: number; limit?: number; minimumLevel?: BrowserConsoleLevel }
+  | { op: "network"; since?: number; limit?: number; failuresOnly?: boolean }
+  | { op: "wait"; condition: BrowserWaitCondition; value?: string; timeoutMs: number };
+
+export type BrowserInspectionResult = BrowserConsoleSnapshot | BrowserNetworkSnapshot | BrowserWaitResult;
+
 /** What a caller does to the page. Every target is a `ref` from that tab's latest snapshot. */
 export type BrowserAction =
   | { kind: "click"; ref: string }

@@ -2,9 +2,20 @@ import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { BaseWindow, BrowserWindow, session, WebContentsView, type Rectangle } from "electron";
+import { BaseWindow, BrowserWindow, session, WebContentsView, type Rectangle, type Session } from "electron";
 import type { BrowserPageEvent } from "../contracts/ipc.js";
-import type { BrowserAction, BrowserBounds, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
+import type {
+  BrowserAction,
+  BrowserBounds,
+  BrowserConsoleEntry,
+  BrowserConsoleLevel,
+  BrowserInspection,
+  BrowserInspectionResult,
+  BrowserNetworkEntry,
+  BrowserShot,
+  BrowserSnapshot,
+  BrowserWaitCondition,
+} from "../domain/browser.js";
 import type { FindResults } from "../domain/find.js";
 import { chromeHeaders, chromeIdentity } from "./browser-headers.js";
 
@@ -25,12 +36,22 @@ const PARKED_VIEWPORT: Rectangle = { x: 0, y: 0, width: 1_200, height: 800 };
 const MAX_SHOT_PIXELS = 8_000;
 /** How many pictures the folder keeps. A new one past this deletes the oldest, so a long run is bounded. */
 const MAX_SHOTS = 20;
+/** Developer diagnostics stay useful without letting a noisy page retain memory without limit. */
+const MAX_DIAGNOSTIC_ENTRIES = 200;
+const MAX_DIAGNOSTIC_TEXT = 4_000;
+const NETWORK_IDLE_MS = 500;
 
 type Tab = {
   id: string;
   view: WebContentsView;
   /** Whether the window is drawing this page. Only the page on screen is ever a child of it. */
   shown: boolean;
+  consoleEntries: BrowserConsoleEntry[];
+  networkEntries: BrowserNetworkEntry[];
+  consoleSequence: number;
+  networkSequence: number;
+  pendingRequests: Set<number>;
+  lastNetworkAt: number;
 };
 
 const tabs = new Map<string, Tab>();
@@ -42,6 +63,9 @@ let activeId: string | null = null;
 let bounds: BrowserBounds | null = null;
 let parked: Rectangle = PARKED_VIEWPORT;
 let parking: BaseWindow | null = null;
+let browserSession: Session | null = null;
+const tabByContents = new Map<number, string>();
+const pendingRequests = new Map<number, { tabId: string; startedAt: number; method: string; url: string; resourceType: string }>();
 
 /** Reads what a caller can act on, keeping the refs it hands out on the elements themselves. */
 const SNAPSHOT_SCRIPT = `(() => {
@@ -113,11 +137,30 @@ export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (eve
   publishFind = handlers.onFind;
   keyPressed = handlers.onKey;
   const partition = session.fromPartition(PARTITION);
+  browserSession = partition;
   partition.setUserAgent(IDENTITY.userAgent);
   /** The user agent is one of several things a request says about the browser; these are the rest. */
   partition.webRequest.onBeforeSendHeaders((details, callback) => {
     callback({ requestHeaders: chromeHeaders(details.url, details.requestHeaders, IDENTITY) });
   });
+  partition.webRequest.onBeforeRequest((details, callback) => {
+    const tabId = details.webContentsId === undefined ? undefined : tabByContents.get(details.webContentsId);
+    const tab = tabId ? tabs.get(tabId) : undefined;
+    if (tab) {
+      const startedAt = Date.now();
+      pendingRequests.set(details.id, { tabId: tab.id, startedAt, method: details.method, url: details.url, resourceType: details.resourceType });
+      /** A live socket may stay open for hours and does not mean the page is still settling. */
+      if (details.resourceType !== "webSocket") tab.pendingRequests.add(details.id);
+      tab.lastNetworkAt = startedAt;
+    }
+    callback({});
+  });
+  partition.webRequest.onCompleted((details) => finishRequest(details.id, {
+    url: details.url,
+    status: details.statusCode,
+    fromCache: details.fromCache,
+  }));
+  partition.webRequest.onErrorOccurred((details) => finishRequest(details.id, { url: details.url, error: details.error }));
 }
 
 /** Every view is dropped when the window goes, so a closed window leaves no page running. */
@@ -130,7 +173,42 @@ export function stopBrowserHost() {
   /** A window left behind is one the app still counts, and the app quits by counting its windows. */
   if (parking && !parking.isDestroyed()) parking.destroy();
   parking = null;
+  if (browserSession) {
+    browserSession.webRequest.onBeforeSendHeaders(null);
+    browserSession.webRequest.onBeforeRequest(null);
+    browserSession.webRequest.onCompleted(null);
+    browserSession.webRequest.onErrorOccurred(null);
+  }
+  browserSession = null;
+  tabByContents.clear();
+  pendingRequests.clear();
   discardShots();
+}
+
+function boundedPush<T>(entries: T[], entry: T) {
+  entries.push(entry);
+  if (entries.length > MAX_DIAGNOSTIC_ENTRIES) entries.splice(0, entries.length - MAX_DIAGNOSTIC_ENTRIES);
+}
+
+function finishRequest(id: number, result: { url: string; status?: number; error?: string; fromCache?: boolean }) {
+  const started = pendingRequests.get(id);
+  if (!started) return;
+  pendingRequests.delete(id);
+  const tab = tabs.get(started.tabId);
+  if (!tab) return;
+  tab.pendingRequests.delete(id);
+  tab.lastNetworkAt = Date.now();
+  boundedPush(tab.networkEntries, {
+    sequence: ++tab.networkSequence,
+    startedAt: started.startedAt,
+    method: started.method,
+    url: result.url || started.url,
+    resourceType: started.resourceType,
+    durationMs: Math.max(0, Date.now() - started.startedAt),
+    ...(result.status === undefined ? {} : { status: result.status }),
+    ...(result.error ? { error: result.error.slice(0, MAX_DIAGNOSTIC_TEXT) } : {}),
+    ...(result.fromCache === undefined ? {} : { fromCache: result.fromCache }),
+  });
 }
 
 /** Pictures only serve the run that asked for them, so none outlives the window they were taken in. */
@@ -196,8 +274,19 @@ export function openTab(tabId: string, url?: string) {
   const view = new WebContentsView({
     webPreferences: { partition: PARTITION, contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false },
   });
-  const tab: Tab = { id: tabId, view, shown: false };
+  const tab: Tab = {
+    id: tabId,
+    view,
+    shown: false,
+    consoleEntries: [],
+    networkEntries: [],
+    consoleSequence: 0,
+    networkSequence: 0,
+    pendingRequests: new Set(),
+    lastNetworkAt: Date.now(),
+  };
   tabs.set(tabId, tab);
+  tabByContents.set(view.webContents.id, tabId);
   parkingWindow()?.contentView.addChildView(view);
   watch(tab);
   if (url) void load(tab, url);
@@ -216,6 +305,19 @@ function watch({ id, view }: Tab) {
     if (isMainFrame && code !== -3) report(id, { loading: false, error: `${description} (${validatedURL})` });
   });
   contents.on("render-process-gone", () => report(id, { loading: false, error: "The page stopped responding." }));
+  contents.on("console-message", (details) => {
+    const tab = tabs.get(id);
+    if (!tab) return;
+    const level: BrowserConsoleLevel = details.level;
+    boundedPush(tab.consoleEntries, {
+      sequence: ++tab.consoleSequence,
+      at: Date.now(),
+      level,
+      message: details.message.slice(0, MAX_DIAGNOSTIC_TEXT),
+      ...(details.sourceId ? { source: details.sourceId.slice(0, MAX_DIAGNOSTIC_TEXT) } : {}),
+      ...(details.lineNumber > 0 ? { line: details.lineNumber } : {}),
+    });
+  });
   /** Chromium counts a page's matches itself, and numbers the one it is on from one. */
   contents.on("found-in-page", (_event, result) => publishFind(id, { matches: result.matches, index: Math.max(0, (result.activeMatchOrdinal ?? 1) - 1) }));
   /** A shortcut belongs to the app while a page has the keys, so the page never sees that keystroke. */
@@ -285,6 +387,10 @@ export function closeTab(tabId: string) {
   const tab = tabs.get(tabId);
   if (!tab) return;
   tabs.delete(tabId);
+  tabByContents.delete(tab.view.webContents.id);
+  for (const [requestId, request] of pendingRequests) {
+    if (request.tabId === tabId) pendingRequests.delete(requestId);
+  }
   const home = tab.shown ? host : parking;
   if (home && !home.isDestroyed()) home.contentView.removeChildView(tab.view);
   tab.view.webContents.close();
@@ -341,6 +447,75 @@ export async function readPage(tabId: string, textLimit: number, timeoutMs: numb
     loading: tab.view.webContents.isLoading(),
     text: page.truncated ? `${page.text}\n… (page text truncated)` : page.text,
     elements: page.elements,
+  };
+}
+
+function newest<T extends { sequence: number }>(entries: T[], since: number, limit: number, keep: (entry: T) => boolean) {
+  const matching = entries.filter((entry) => entry.sequence > since && keep(entry));
+  const selected = matching.slice(-limit);
+  return { entries: selected, omitted: matching.length - selected.length };
+}
+
+const consoleRanks: Record<BrowserConsoleLevel, number> = { debug: 0, info: 1, warning: 2, error: 3 };
+
+/** Reads bounded diagnostic history or waits for a condition in one tab. */
+export async function inspectPage(tabId: string, inspection: BrowserInspection): Promise<BrowserInspectionResult | null> {
+  const tab = tabs.get(tabId);
+  if (!tab) return null;
+  const contents = tab.view.webContents;
+  if (inspection.op === "console") {
+    const minimum = consoleRanks[inspection.minimumLevel ?? "debug"];
+    const read = newest(tab.consoleEntries, inspection.since ?? 0, Math.max(1, Math.min(inspection.limit ?? 50, MAX_DIAGNOSTIC_ENTRIES)), (entry) => consoleRanks[entry.level] >= minimum);
+    return { kind: "console", tabId, url: contents.getURL(), title: contents.getTitle(), ...read, latestSequence: tab.consoleSequence };
+  }
+  if (inspection.op === "network") {
+    const read = newest(tab.networkEntries, inspection.since ?? 0, Math.max(1, Math.min(inspection.limit ?? 50, MAX_DIAGNOSTIC_ENTRIES)), (entry) => !inspection.failuresOnly || entry.error !== undefined || (entry.status ?? 0) >= 400);
+    return { kind: "network", tabId, url: contents.getURL(), title: contents.getTitle(), ...read, latestSequence: tab.networkSequence };
+  }
+  return waitForPage(tab, inspection);
+}
+
+function pageConditionScript(condition: BrowserWaitCondition, value: string) {
+  const sought = JSON.stringify(value.toLocaleLowerCase());
+  const selector = JSON.stringify('a[href],button,input,select,textarea,summary,[role=button],[role=link],[role=tab],[role=menuitem],[role=textbox],[contenteditable=""],[contenteditable=true]');
+  const found = `Array.from(document.querySelectorAll(${selector})).some((node) => {
+    const label = node.getAttribute('aria-label') || node.getAttribute('placeholder') || node.getAttribute('title')
+      || node.getAttribute('alt') || node.innerText || node.value || node.getAttribute('name') || '';
+    return String(label).toLocaleLowerCase().includes(${sought});
+  })`;
+  if (condition === "text" || condition === "text-gone") {
+    const present = `(document.body?.innerText || '').toLocaleLowerCase().includes(${sought})`;
+    return condition === "text" ? present : `!${present}`;
+  }
+  return condition === "element" ? found : `!(${found})`;
+}
+
+async function waitMatches(tab: Tab, condition: BrowserWaitCondition, value: string) {
+  if (condition === "url") return tab.view.webContents.getURL().toLocaleLowerCase().includes(value.toLocaleLowerCase());
+  if (condition === "network-idle") return tab.pendingRequests.size === 0 && Date.now() - tab.lastNetworkAt >= NETWORK_IDLE_MS;
+  return await tab.view.webContents.executeJavaScript(pageConditionScript(condition, value), true) as boolean;
+}
+
+async function waitForPage(tab: Tab, inspection: Extract<BrowserInspection, { op: "wait" }>): Promise<BrowserInspectionResult | null> {
+  const startedAt = Date.now();
+  const deadline = startedAt + inspection.timeoutMs;
+  let matched = false;
+  do {
+    if (!tabs.has(tab.id)) return null;
+    matched = await waitMatches(tab, inspection.condition, inspection.value ?? "");
+    if (matched || Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(100, Math.max(1, deadline - Date.now()))));
+  } while (true);
+  const contents = tab.view.webContents;
+  return {
+    kind: "wait",
+    tabId: tab.id,
+    url: contents.getURL(),
+    title: contents.getTitle(),
+    condition: inspection.condition,
+    ...(inspection.value === undefined ? {} : { value: inspection.value }),
+    matched,
+    elapsedMs: Date.now() - startedAt,
   };
 }
 

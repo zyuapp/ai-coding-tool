@@ -146,6 +146,62 @@ test("a capture of the tab on screen names no tab and asks for no full page", as
   assert.deepEqual(last(bridge.calls), ["read", { op: "screenshot", timeoutMs: 20_000 }]);
 });
 
+test("console and network reads pass cursors and format diagnostics", async () => {
+  const reads: BrowserRead[] = [];
+  const bridge = fakeBridge({
+    read: async (read) => {
+      reads.push(read);
+      if (read.op === "console") return {
+        kind: "console", tabId: "tab-1", url: "https://example.com/app", title: "App", latestSequence: 9, omitted: 0,
+        entries: [{ sequence: 9, at: 1, level: "error", message: "render failed", source: "app.js", line: 42 }],
+      };
+      return {
+        kind: "network", tabId: "tab-1", url: "https://example.com/app", title: "App", latestSequence: 5, omitted: 0,
+        entries: [{ sequence: 5, startedAt: 1, method: "GET", url: "https://example.com/api", resourceType: "xhr", durationMs: 83, status: 503 }],
+      };
+    },
+  });
+
+  const consoleResult = await toolNamed(bridge, "browser_console").handler({ tabId: "tab-1", since: 4, minimumLevel: "warning" }, {});
+  const networkResult = await toolNamed(bridge, "browser_network").handler({ tabId: "tab-1", since: 2, failuresOnly: true }, {});
+
+  assert.deepEqual(reads, [
+    { op: "console", tabId: "tab-1", since: 4, minimumLevel: "warning" },
+    { op: "network", tabId: "tab-1", since: 2, failuresOnly: true },
+  ]);
+  assert.match(textOf(consoleResult), /Console cursor: 9[\s\S]*ERROR render failed \(app\.js:42\)/);
+  assert.match(textOf(networkResult), /Network cursor: 5[\s\S]*GET 503 83ms xhr https:\/\/example\.com\/api/);
+});
+
+test("waiting for a page condition reads the actionable page after it matches", async () => {
+  const bridge = fakeBridge({
+    read: async (read) => {
+      bridge.calls.push(["read", read]);
+      return read.op === "wait"
+        ? { kind: "wait", tabId: "tab-1", url: "https://example.com/app", title: "App", condition: "text", value: "Ready", matched: true, elapsedMs: 120 }
+        : { kind: "snapshot", snapshot: snapshot({ text: "Ready" }) };
+    },
+  });
+
+  const result = await toolNamed(bridge, "browser_wait").handler({ condition: "text", value: " Ready ", tabId: "tab-1", timeoutSeconds: 5 }, {});
+
+  assert.deepEqual(bridge.calls, [
+    ["read", { op: "wait", condition: "text", value: "Ready", tabId: "tab-1", timeoutMs: 5_000 }],
+    ["read", { op: "snapshot", tabId: "tab-1", timeoutMs: 0, textLimit: 4_000 }],
+  ]);
+  assert.match(textOf(result), /Finished waiting for text "Ready"[\s\S]*Ready/);
+});
+
+test("a wait rejects a missing target before reaching the browser", async () => {
+  const bridge = fakeBridge();
+
+  const result = await toolNamed(bridge, "browser_wait").handler({ condition: "element" }, {});
+
+  assert.equal(result.isError, true);
+  assert.match(textOf(result), /element needs a value/);
+  assert.deepEqual(bridge.calls, []);
+});
+
 test("a browser tool reports what went wrong instead of throwing at the run", async () => {
   const bridge = fakeBridge({ command: async () => { throw new Error("The AICodingTool window is not open."); } });
 

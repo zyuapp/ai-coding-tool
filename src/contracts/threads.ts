@@ -1,5 +1,5 @@
 import type { AppCommand } from "./commands.js";
-import type { BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
+import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
 import type { TaskMessageKind } from "../domain/task.js";
 
@@ -81,13 +81,15 @@ export type BrowserWrite = WithoutTask<Extract<ExternalCommand, { type: `browser
 export type BrowserRead =
   | { op: "tabs" }
   | { op: "snapshot"; tabId?: string; textLimit?: number; timeoutMs: number }
-  | { op: "screenshot"; tabId?: string; fullPage?: boolean; timeoutMs: number };
+  | { op: "screenshot"; tabId?: string; fullPage?: boolean; timeoutMs: number }
+  | (BrowserInspection & { tabId?: string });
 
 /** A snapshot of the tab, or the navigation the user has yet to answer instead. */
 export type BrowserReadResult =
   | { kind: "tabs"; tabs: BrowserTab[] }
   | { kind: "snapshot"; snapshot: BrowserSnapshot }
   | { kind: "shot"; shot: BrowserShot }
+  | BrowserInspectionResult
   | { kind: "awaiting-approval"; url: string }
   | { kind: "no-tab" };
 

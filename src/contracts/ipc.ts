@@ -1,6 +1,6 @@
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
-import type { BrowserAction, BrowserBounds, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
+import type { BrowserAction, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
@@ -305,6 +305,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   actInBrowser(tabId: string, action: BrowserAction): Promise<string>;
   /** Waits for the tab to stop loading, then reads the page. Null when that tab is gone. */
   readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
+  /** Reads recent diagnostics or waits for a condition in one page. */
+  inspectBrowserPage(tabId: string, inspection: BrowserInspection): Promise<BrowserInspectionResult | null>;
   /** Waits the same way, then writes a picture of the page to a file. Null when that tab is gone. */
   captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number): Promise<BrowserShot | null>;
   clearBrowserData(): Promise<void>;
@@ -707,9 +709,28 @@ export function isBrowserRead(value: unknown): value is BrowserRead {
   if (!value || typeof value !== "object") return false;
   const read = value as Record<string, unknown>;
   if (read.op === "tabs") return true;
+  const tabbed = read.tabId === undefined || isString(read.tabId);
+  if (read.op === "console") {
+    return tabbed
+      && (read.since === undefined || isCount(read.since))
+      && (read.limit === undefined || isCount(read.limit) && read.limit <= 200)
+      && (read.minimumLevel === undefined || ["debug", "info", "warning", "error"].includes(String(read.minimumLevel)));
+  }
+  if (read.op === "network") {
+    return tabbed
+      && (read.since === undefined || isCount(read.since))
+      && (read.limit === undefined || isCount(read.limit) && read.limit <= 200)
+      && (read.failuresOnly === undefined || typeof read.failuresOnly === "boolean");
+  }
+  if (read.op === "wait") {
+    const condition = String(read.condition), needsValue = condition !== "network-idle";
+    return tabbed
+      && ["text", "text-gone", "element", "element-gone", "url", "network-idle"].includes(condition)
+      && (!needsValue && read.value === undefined || needsValue && isString(read.value, 1_000))
+      && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
+  }
   if (read.op !== "snapshot" && read.op !== "screenshot") return false;
-  const waited = (read.tabId === undefined || isString(read.tabId))
-    && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
+  const waited = tabbed && isCount(read.timeoutMs) && read.timeoutMs <= MAX_BROWSER_WAIT_MS;
   if (read.op === "screenshot") return waited && (read.fullPage === undefined || typeof read.fullPage === "boolean");
   return waited && (read.textLimit === undefined || isCount(read.textLimit));
 }

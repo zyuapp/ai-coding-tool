@@ -7,7 +7,7 @@ import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 import type { AgentEvent, ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.js";
-import type { BrowserBounds, BrowserSnapshot } from "../../src/domain/browser.js";
+import type { BrowserBounds, BrowserInspectionResult, BrowserSnapshot } from "../../src/domain/browser.js";
 import type { CliStatus } from "../../src/domain/cli.js";
 import type { KeyInput } from "../../src/domain/shortcuts.js";
 import type { WorkspaceRecord } from "../../src/domain/workspace.js";
@@ -311,6 +311,48 @@ test("a page the panel is not showing belongs to a window of its own", async () 
 
   await closeBrowser(trusted, "tab-parked");
   assert.equal(windows.flatMap((each) => each.children).length, 0);
+});
+
+test("a page keeps bounded developer diagnostics and waits for page conditions", async () => {
+  const { trusted, untrusted, windows, webRequestListeners } = main;
+  const openBrowser = handler<(event: IpcEvent, tabId: unknown, url: unknown) => MaybePromise<void>>("browser:open");
+  const closeBrowser = handler<(event: IpcEvent, tabId: unknown) => MaybePromise<void>>("browser:close");
+  const inspectBrowser = handler<(event: IpcEvent, tabId: unknown, inspection: unknown) => MaybePromise<BrowserInspectionResult | null>>("browser:inspect");
+
+  await openBrowser(trusted, "tab-diagnostics", "https://example.com/app");
+  const page = windows.flatMap((window) => window.children).find((view) => view.webContents.getURL() === "")!;
+  page.webContents.getURL = () => "https://example.com/app";
+  page.webContents.getTitle = () => "Example app";
+  for (let index = 0; index < 205; index += 1) {
+    page.webContents.emit("console-message", { level: "info", message: `render ${index}`, sourceId: "app.js", lineNumber: index + 1 });
+  }
+  page.webContents.emit("console-message", { level: "error", message: "render failed", sourceId: "app.js", lineNumber: 42 });
+
+  const beforeRequest = registered<(details: Record<string, unknown>, callback: (answer: object) => void) => void>(webRequestListeners, "before-request");
+  const completed = registered<(details: Record<string, unknown>) => void>(webRequestListeners, "completed");
+  beforeRequest({ id: 7, webContentsId: page.webContents.id, method: "GET", url: "https://example.com/api/items", resourceType: "xhr" }, () => {});
+  completed({ id: 7, url: "https://example.com/api/items", statusCode: 503, fromCache: false });
+
+  const consoleResult = await inspectBrowser(trusted, "tab-diagnostics", { op: "console", minimumLevel: "warning" });
+  assert.equal(consoleResult?.kind, "console");
+  if (consoleResult?.kind === "console") {
+    assert.equal(consoleResult.latestSequence, 206);
+    assert.deepEqual(consoleResult.entries.map((entry) => [entry.level, entry.message, entry.line]), [["error", "render failed", 42]]);
+  }
+  const retainedConsole = await inspectBrowser(trusted, "tab-diagnostics", { op: "console", limit: 200 });
+  if (retainedConsole?.kind === "console") assert.equal(retainedConsole.entries.length, 200, "a noisy page cannot grow console history without limit");
+
+  const networkResult = await inspectBrowser(trusted, "tab-diagnostics", { op: "network", failuresOnly: true });
+  assert.equal(networkResult?.kind, "network");
+  if (networkResult?.kind === "network") assert.deepEqual(networkResult.entries.map((entry) => [entry.method, entry.status, entry.resourceType]), [["GET", 503, "xhr"]]);
+
+  page.webContents.executeJavaScript = async (script) => runInNewContext(script, { document: { body: { innerText: "Ready" } } });
+  const waited = await inspectBrowser(trusted, "tab-diagnostics", { op: "wait", condition: "text", value: "Ready", timeoutMs: 100 });
+  assert.equal(waited?.kind, "wait");
+  if (waited?.kind === "wait") assert.equal(waited.matched, true);
+
+  await assert.rejects(async () => await inspectBrowser(untrusted, "tab-diagnostics", { op: "console" }));
+  await closeBrowser(trusted, "tab-diagnostics");
 });
 
 type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };

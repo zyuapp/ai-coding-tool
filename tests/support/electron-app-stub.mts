@@ -72,12 +72,24 @@ export function fakeElectron(userData: string) {
   const externalUrls: string[] = [];
   const relaunches: Array<{ args?: string[] }> = [];
   const badgeCounts: number[] = [];
+  const webRequestListeners = new Map<string, Callback>();
   let quitAttempts = 0;
   let completedQuits = 0;
   const { FakeWindow, windows } = fakeWindows();
   const Notification = fakeNotifications();
   const { dialog, messageBoxes } = fakeDialog();
   const { Menu, applicationMenu } = fakeMenu();
+  const browserPartition = {
+    setUserAgent() {},
+    webRequest: {
+      onBeforeSendHeaders: (listener: Callback | null) => listener ? webRequestListeners.set("before-send-headers", listener) : webRequestListeners.delete("before-send-headers"),
+      onBeforeRequest: (listener: Callback | null) => listener ? webRequestListeners.set("before-request", listener) : webRequestListeners.delete("before-request"),
+      onCompleted: (listener: Callback | null) => listener ? webRequestListeners.set("completed", listener) : webRequestListeners.delete("completed"),
+      onErrorOccurred: (listener: Callback | null) => listener ? webRequestListeners.set("error", listener) : webRequestListeners.delete("error"),
+    },
+    async clearStorageData() {},
+    async clearCache() {},
+  };
 
   const electron = {
     app: {
@@ -130,12 +142,7 @@ export function fakeElectron(userData: string) {
     },
     session: {
       defaultSession: { setPermissionRequestHandler() {} },
-      fromPartition: () => ({
-        setUserAgent() {},
-        webRequest: { onBeforeSendHeaders() {} },
-        async clearStorageData() {},
-        async clearCache() {},
-      }),
+      fromPartition: () => browserPartition,
     },
     WebContentsView: FakeWebContentsView,
   };
@@ -157,6 +164,7 @@ export function fakeElectron(userData: string) {
     globalShortcuts,
     notifications: Notification.raised,
     badgeCounts,
+    webRequestListeners,
   };
   return { electron, windows, appListeners, records };
 }

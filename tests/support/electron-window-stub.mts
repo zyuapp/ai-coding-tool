@@ -5,14 +5,21 @@ export type SentMessage = { channel: string; event: unknown };
 export type WindowOpenHandler = (details: { url: string }) => { action: string };
 export type ElectronOptions = { show?: boolean };
 
+let nextWebContentsId = 1;
+
 export class FakeWebContentsView {
   declare options: unknown;
   declare bounds: BrowserBounds;
   declare visible: boolean;
   webContents = {
-    on(_name: string, _listener: Callback) {},
-    once(_name: string, _listener: Callback) {},
-    off(_name: string, _listener: Callback) {},
+    id: nextWebContentsId++,
+    listeners: new Map<string, Callback>(),
+    on: (name: string, listener: Callback) => { this.webContents.listeners.set(name, listener); },
+    once: (name: string, listener: Callback) => { this.webContents.listeners.set(name, listener); },
+    off: (name: string, listener: Callback) => {
+      if (this.webContents.listeners.get(name) === listener) this.webContents.listeners.delete(name);
+    },
+    emit: (name: string, ...args: unknown[]) => this.webContents.listeners.get(name)?.(...args),
     setWindowOpenHandler(_handler: WindowOpenHandler) {},
     close() {},
     reload() {},

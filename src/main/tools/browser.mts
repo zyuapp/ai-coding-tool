@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { MAX_BROWSER_WAIT_MS } from "../../contracts/ipc.js";
 import type { BrowserReadResult } from "../../contracts/threads.js";
-import { browserSearchUrl, describeTab, type BrowserShot, type BrowserSnapshot } from "../../domain/browser.js";
+import {
+  browserSearchUrl,
+  describeTab,
+  type BrowserConsoleSnapshot,
+  type BrowserNetworkSnapshot,
+  type BrowserShot,
+  type BrowserSnapshot,
+  type BrowserWaitResult,
+} from "../../domain/browser.js";
 import type { BrowserBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
@@ -38,10 +46,47 @@ function shotText(shot: BrowserShot) {
   ].join("\n");
 }
 
+function consoleText(snapshot: BrowserConsoleSnapshot) {
+  const entries = snapshot.entries.map((entry) => {
+    const source = entry.source ? ` (${entry.source}${entry.line ? `:${entry.line}` : ""})` : "";
+    return `[${entry.sequence}] ${entry.level.toUpperCase()} ${entry.message}${source}`;
+  });
+  return [
+    `${snapshot.title || "Untitled"} — ${snapshot.url}`,
+    `Console cursor: ${snapshot.latestSequence}`,
+    ...(snapshot.omitted ? [`${snapshot.omitted} older matching entries omitted.`] : []),
+    entries.length ? entries.join("\n") : "No matching console messages.",
+  ].join("\n");
+}
+
+function networkText(snapshot: BrowserNetworkSnapshot) {
+  const entries = snapshot.entries.map((entry) => {
+    const result = entry.error ?? (entry.status === undefined ? "unknown" : String(entry.status));
+    const cached = entry.fromCache ? " cached" : "";
+    return `[${entry.sequence}] ${entry.method} ${result} ${entry.durationMs}ms ${entry.resourceType}${cached} ${entry.url}`;
+  });
+  return [
+    `${snapshot.title || "Untitled"} — ${snapshot.url}`,
+    `Network cursor: ${snapshot.latestSequence}`,
+    ...(snapshot.omitted ? [`${snapshot.omitted} older matching entries omitted.`] : []),
+    entries.length ? entries.join("\n") : "No matching completed requests.",
+  ].join("\n");
+}
+
+function waitText(result: BrowserWaitResult) {
+  const target = result.value === undefined ? result.condition : `${result.condition} ${JSON.stringify(result.value)}`;
+  return result.matched
+    ? `Finished waiting for ${target} after ${result.elapsedMs}ms.`
+    : `Timed out waiting for ${target} after ${result.elapsedMs}ms. The page is ${result.url}.`;
+}
+
 /** Every read answers the same way, so a page nobody has allowed yet reads as the ask it is. */
 function readText(result: BrowserReadResult) {
   if (result.kind === "snapshot") return snapshotText(result.snapshot);
   if (result.kind === "shot") return shotText(result.shot);
+  if (result.kind === "console") return consoleText(result);
+  if (result.kind === "network") return networkText(result);
+  if (result.kind === "wait") return waitText(result);
   if (result.kind === "tabs") return result.tabs.length ? result.tabs.map(describeTab).join("\n") : "The browser panel has no tab open.";
   if (result.kind === "awaiting-approval") {
     return `AICodingTool is asking the user to allow ${result.url}. Nothing loads until they answer, so tell them what you need it for and wait, or ask them to open it themselves.`;
@@ -124,6 +169,67 @@ export const BROWSER_TOOLS: readonly ToolDefinition<BrowserBridge>[] = [
       ...(args.fullPage ? { fullPage: true } : {}),
       timeoutMs: waitMs(args.waitSeconds),
     }))),
+  }),
+  defineTool({
+    name: "browser_console",
+    description: "Read recent console messages from a tab, including runtime errors and rejected promises Chromium reports there. Each answer includes a cursor; pass it as since next time to read only newer messages.",
+    input: {
+      tabId: tabField,
+      since: z.number().int().nonnegative().optional().describe("Return messages after this console cursor."),
+      limit: z.number().int().min(1).max(200).optional().describe("Maximum messages to return. Defaults to 50."),
+      minimumLevel: z.enum(["debug", "info", "warning", "error"]).optional().describe("Lowest severity to return. Defaults to debug."),
+    },
+    readOnly: true,
+    run: (bridge, args) => report(async () => readText(await bridge.read({
+      op: "console",
+      ...(args.tabId ? { tabId: args.tabId } : {}),
+      ...(args.since === undefined ? {} : { since: args.since }),
+      ...(args.limit === undefined ? {} : { limit: args.limit }),
+      ...(args.minimumLevel === undefined ? {} : { minimumLevel: args.minimumLevel }),
+    }))),
+  }),
+  defineTool({
+    name: "browser_network",
+    description: "Read recent completed requests from a tab with method, status or error, resource type, cache use, and duration. Each answer includes a cursor; pass it as since next time to read only newer requests.",
+    input: {
+      tabId: tabField,
+      since: z.number().int().nonnegative().optional().describe("Return requests after this network cursor."),
+      limit: z.number().int().min(1).max(200).optional().describe("Maximum requests to return. Defaults to 50."),
+      failuresOnly: z.boolean().optional().describe("Return only errors and responses with status 400 or higher."),
+    },
+    readOnly: true,
+    run: (bridge, args) => report(async () => readText(await bridge.read({
+      op: "network",
+      ...(args.tabId ? { tabId: args.tabId } : {}),
+      ...(args.since === undefined ? {} : { since: args.since }),
+      ...(args.limit === undefined ? {} : { limit: args.limit }),
+      ...(args.failuresOnly ? { failuresOnly: true } : {}),
+    }))),
+  }),
+  defineTool({
+    name: "browser_wait",
+    description: "Wait until page text, an element name, or the URL contains a value; until text or an element disappears; or until network activity has stopped for 500ms. Reads the page after a successful wait.",
+    input: {
+      condition: z.enum(["text", "text-gone", "element", "element-gone", "url", "network-idle"]),
+      value: z.string().optional().describe("Text to find. Omit only for network-idle."),
+      tabId: tabField,
+      timeoutSeconds: z.number().optional().describe("How long to wait. Defaults to 20."),
+    },
+    readOnly: true,
+    run: (bridge, args) => report(async () => {
+      const value = args.value?.trim();
+      if (args.condition === "network-idle" && value !== undefined) throw new Error("network-idle takes no value.");
+      if (args.condition !== "network-idle" && !value) throw new Error(`${args.condition} needs a value.`);
+      const waited = await bridge.read({
+        op: "wait",
+        condition: args.condition,
+        ...(value === undefined ? {} : { value }),
+        ...(args.tabId ? { tabId: args.tabId } : {}),
+        timeoutMs: waitMs(args.timeoutSeconds),
+      });
+      if (waited.kind !== "wait" || !waited.matched) return readText(waited);
+      return `${waitText(waited)}\n\n${await settledPage(bridge, args.tabId, 0)}`;
+    }),
   }),
   defineTool({
     name: "browser_click",

@@ -271,7 +271,7 @@ function responseRecord(response: ThreadResponse | undefined): Record<string, un
 
 function browserReadResult(response: ThreadResponse | undefined): BrowserReadResult {
   const result = responseRecord(response);
-  assert.ok(["tabs", "snapshot", "shot", "awaiting-approval", "no-tab"].includes(String(result.kind)));
+  assert.ok(["tabs", "snapshot", "shot", "console", "network", "wait", "awaiting-approval", "no-tab"].includes(String(result.kind)));
   return result as BrowserReadResult;
 }
 
@@ -381,7 +381,11 @@ test("⌘W closes the page in front, then the dock, and only then the window", a
 });
 
 test("a run reads the page through the window and is told when a site is waiting on the user", async () => {
-  const desktop = fakeDesktop();
+  const inspections: unknown[][] = [];
+  const desktop = fakeDesktop({ inspectBrowserPage: async (tabId, inspection) => {
+    inspections.push([tabId, inspection]);
+    return inspection.op === "console" ? { kind: "console", tabId, url: "https://example.com/", title: "Example", entries: [], latestSequence: 0, omitted: 0 } : null;
+  } });
   const harness = await mountWorkspace(desktop);
 
   await act(async () => { await harness.get().dispatch({ type: "view.set-prompt", prompt: "look at the dashboard" }); });
@@ -408,6 +412,12 @@ test("a run reads the page through the window and is told when a site is waiting
   const snapshot = browserReadResult(desktop.threadAnswers.at(-1));
   if (snapshot.kind !== "snapshot") assert.fail("Expected a browser snapshot");
   assert.equal(snapshot.snapshot.title, "Example");
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "console-1", taskId, op: "browser", read: { op: "console", since: 3 } });
+  });
+  assert.deepEqual(inspections.at(-1), [tabId, { op: "console", since: 3 }]);
+  assert.equal(browserReadResult(desktop.threadAnswers.at(-1)).kind, "console");
 
   /** A run asking for a site nobody has allowed is answered with the ask, not with a page. */
   await act(async () => { await harness.get().dispatch({ type: "browser.open", taskId, url: "https://dash.example.com" }); });

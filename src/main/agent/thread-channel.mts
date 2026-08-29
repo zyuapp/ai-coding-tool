@@ -53,7 +53,7 @@ export class ThreadChannel {
       },
       read: (read: BrowserRead) => this.request(
         { taskId, op: "browser", read },
-        read.op === "tabs" ? this.timeout : read.timeoutMs + WAIT_SLACK,
+        read.op === "snapshot" || read.op === "screenshot" || read.op === "wait" ? read.timeoutMs + WAIT_SLACK : this.timeout,
       ) as Promise<BrowserReadResult>,
     };
   }

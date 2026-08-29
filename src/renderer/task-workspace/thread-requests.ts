@@ -98,6 +98,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
         const shot = await window.desktop.captureBrowserPage(tab.id, request.read.fullPage === true, request.read.timeoutMs);
         return shot ? ok({ kind: "shot", shot }) : ok({ kind: "no-tab" });
       }
+      if (request.read.op === "console" || request.read.op === "network" || request.read.op === "wait") {
+        const { tabId: _tabId, ...inspection } = request.read;
+        const inspected = await window.desktop.inspectBrowserPage(tab.id, inspection);
+        return inspected ? ok(inspected) : ok({ kind: "no-tab" });
+      }
       const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs);
       return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
     }

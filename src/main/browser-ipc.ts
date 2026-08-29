@@ -1,5 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import { isBrowserAction, isBrowserBounds } from "../contracts/ipc.js";
+import { isBrowserAction, isBrowserBounds, isBrowserRead } from "../contracts/ipc.js";
+import type { BrowserInspection } from "../domain/browser.js";
 import * as browser from "./browser-host.js";
 
 const MAX_URL_LENGTH = 8_192;
@@ -66,6 +67,14 @@ export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boole
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (typeof textLimit !== "number" || typeof timeoutMs !== "number") throw new Error("Invalid page read.");
     return browser.readPage(browserTabId(tabId), textLimit, timeoutMs);
+  });
+
+  ipcMain.handle("browser:inspect", (event, tabId: unknown, inspection: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    if (!isBrowserRead(inspection) || !["console", "network", "wait"].includes(inspection.op) || "tabId" in inspection) {
+      throw new Error("Invalid browser inspection.");
+    }
+    return browser.inspectPage(browserTabId(tabId), inspection as BrowserInspection);
   });
 
   ipcMain.handle("browser:capture", (event, tabId: unknown, fullPage: unknown, timeoutMs: unknown) => {
