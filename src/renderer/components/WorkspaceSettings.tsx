@@ -20,7 +20,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       terminalSize={workspace.terminalSize}
       allowedOrigins={workspace.browserOrigins}
       chromeBrowser={workspace.chromeBrowser} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
-      notifications={workspace.notifications} remote={workspace.remote}
+      notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}

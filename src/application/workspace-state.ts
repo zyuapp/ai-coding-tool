@@ -339,6 +339,8 @@ export type WorkspaceState = {
   lastRunIds: Record<string, string>;
   /** The bridge a phone reaches this Mac through, as the main process last reported it. */
   remote: MobileServerState;
+  /** True while main is reading Tailscale, which the Phone page says out loud. */
+  remoteChecking: boolean;
   focused: boolean;
 } & RunTransitionState & {
   /** `hiddenTasks` counts the threads on disk this build cannot read, which stay there untouched. */
@@ -467,6 +469,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     sideChatSequence: 0,
     lastRunIds: {},
     remote: emptyMobileServerState(),
+    remoteChecking: false,
     focused: true,
     activeRuns: {},
     runStatuses: {},
@@ -844,6 +847,7 @@ export function deriveView(state: WorkspaceState) {
     find: findView(state, currentTask),
     jump: jumpView(state, busy),
     remote: state.remote,
+    remoteChecking: state.remoteChecking,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
     sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat): SideChatView[] => {

@@ -140,6 +140,7 @@ export type SettingsPanelProps = {
   notifications: boolean;
   /** The phone bridge, as the main process last reported it. */
   remote: MobileServerState;
+  remoteChecking: boolean;
   /** Where each engine stands on this machine, and whether the app is asking about them now. */
   engineAccess: Record<AgentEngine, EngineReadiness>;
   engineChecking: boolean;
@@ -193,6 +194,7 @@ export function SettingsPanel({
   browserTools,
   notifications,
   remote,
+  remoteChecking,
   engineAccess,
   engineChecking,
   shortcuts,
@@ -319,6 +321,7 @@ export function SettingsPanel({
       {section === "phone" && (
         <MobileSettings
           remote={remote}
+          remoteChecking={remoteChecking}
           onSetEnabled={onSetRemoteEnabled}
           onCreatePairingCode={onCreateRemotePairingCode}
           onRevokeDevice={onRevokeRemoteDevice}

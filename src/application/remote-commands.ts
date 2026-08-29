@@ -22,8 +22,8 @@ export function isRemoteInput(input: { type: string }): input is RemoteInput {
 }
 
 export function reduceRemote(state: WorkspaceState, input: RemoteInput): RemoteTransition {
-  if (input.type === "remote.changed") return { state: { ...state, remote: input.remote }, effects: [] };
-  /** A read changes nothing, so it leaves whatever the window last said on screen. */
-  if (input.type === "remote.refresh") return { state, effects: [input] };
+  if (input.type === "remote.changed") return { state: { ...state, remote: input.remote, remoteChecking: false }, effects: [] };
+  /** A read only waits on Tailscale, so it leaves whatever the window last said on screen. */
+  if (input.type === "remote.refresh") return { state: { ...state, remoteChecking: true }, effects: [input] };
   return { state: { ...state, actionError: null }, effects: [input] };
 }

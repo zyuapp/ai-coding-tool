@@ -44,7 +44,7 @@ export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn }: 
           </div>
           <div className="settings-group-action">
             <button type="button" disabled={checking} onClick={onRefresh}>
-              <RefreshCw size={13} aria-hidden="true" />{checking ? "Checking…" : "Check again"}
+              <RefreshCw size={13} aria-hidden="true" className={checking ? "spinning" : ""} />{checking ? "Checking…" : "Check again"}
             </button>
           </div>
         </div>

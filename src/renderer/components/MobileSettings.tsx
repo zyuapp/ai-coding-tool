@@ -93,7 +93,7 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
   return steps;
 }
 
-function TailscaleSection({ remote, onRefresh }: { remote: MobileServerState; onRefresh: () => void }) {
+function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServerState; checking: boolean; onRefresh: () => void }) {
   const on = remote.enabled && remote.status === "listening";
   const address = addressOf(remote, "tailscale-https");
   const steps = tailscaleSteps(remote.tailscale, on);
@@ -107,7 +107,7 @@ function TailscaleSection({ remote, onRefresh }: { remote: MobileServerState; on
           <p>The phone reaches this Mac over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
-          <button type="button" onClick={onRefresh}><RefreshCw size={13} aria-hidden="true" /> Check again</button>
+          <button type="button" disabled={checking} onClick={onRefresh}><RefreshCw size={13} aria-hidden="true" className={checking ? "spinning" : ""} />{checking ? "Checking…" : "Check again"}</button>
         </div>
       </div>
       {steps.map((step) => (
@@ -230,13 +230,14 @@ function DeviceSection({ devices, sessions, onRevokeDevice }: { devices: PairedD
 
 export type MobileSettingsProps = {
   remote: MobileServerState;
+  remoteChecking: boolean;
   onSetEnabled: (enabled: boolean) => void;
   onCreatePairingCode: () => void;
   onRevokeDevice: (deviceId: string) => void;
   onRefreshTailscale: () => void;
 };
 
-export function MobileSettings({ remote, onSetEnabled, onCreatePairingCode, onRevokeDevice, onRefreshTailscale }: MobileSettingsProps) {
+export function MobileSettings({ remote, remoteChecking, onSetEnabled, onCreatePairingCode, onRevokeDevice, onRefreshTailscale }: MobileSettingsProps) {
   const listening = remote.enabled && remote.status === "listening";
   const ready = listening && reachable(remote);
 
@@ -260,7 +261,7 @@ export function MobileSettings({ remote, onSetEnabled, onCreatePairingCode, onRe
         {remote.error && <p className="settings-error" role="alert">{remote.error}</p>}
       </section>
 
-      <TailscaleSection remote={remote} onRefresh={onRefreshTailscale} />
+      <TailscaleSection remote={remote} checking={remoteChecking} onRefresh={onRefreshTailscale} />
 
       <PairingSection pairing={remote.pairing} ready={ready} onCreatePairingCode={onCreatePairingCode} />
 

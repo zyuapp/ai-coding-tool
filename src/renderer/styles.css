@@ -2060,10 +2060,13 @@ pre {
 .worktree-setting-copy code { display: block; width: fit-content; max-width: 100%; overflow: hidden; margin-top: 5px; color: var(--quiet-strong); font: var(--text-meta)/1.4 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 .worktree-setting-copy small { display: block; margin-top: 8px; color: var(--danger); font-size: var(--text-meta); line-height: 1.45; }
 .settings-group-action { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
-.settings-group-action button { border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 9px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
+.settings-group-action button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 9px; background: var(--control); color: var(--ink-dim); font-size: var(--text-meta); font-weight: 560; cursor: pointer; }
 .settings-group-action button:hover { border-color: var(--line-bright); background: var(--control-hover); }
 .settings-group-action button.danger { border-color: var(--danger-line); color: var(--danger-soft); }
 .settings-group-action button.danger:hover { border-color: var(--danger-line-hover); background: var(--danger-surface); }
+.settings-group-action button:disabled { cursor: default; }
+.settings-group-action button > svg { flex: 0 0 auto; }
+.settings-group-action button > svg.spinning { animation: spin 0.9s linear infinite; }
 .phone-check { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 13px; border-top: 1px solid var(--line); padding: 13px 0; }
 .phone-check strong { color: var(--ink-dim); font-size: var(--text-control); font-weight: 570; }
 .phone-check p { margin: 3px 0 0; color: var(--quiet-strong); font-size: var(--text-meta); line-height: 1.45; }
@@ -2081,7 +2084,6 @@ pre {
 .phone-pairing-copy code { display: block; overflow: hidden; margin-top: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .phone-device-state { color: var(--quiet-strong); font-size: var(--text-meta); }
 .phone-device-state.live { color: var(--success-soft); }
-.settings-group-action button > svg { vertical-align: -2px; margin-right: 5px; }
 .settings-empty { margin: 0; border-top: 1px solid var(--line); padding: 19px 0; color: var(--quiet-strong); font-size: var(--text-control); }
 .settings-error { margin: 0; border-top: 1px solid var(--accent-line-soft); padding: 13px 0; color: var(--accent-soft); font-size: var(--text-control); }
 .settings-notice { margin: 0; border-top: 1px solid var(--line); padding: 13px 0; color: var(--success-soft); font-size: var(--text-control); }
@@ -2089,7 +2091,6 @@ pre {
 .settings-restart p { margin: 0; color: var(--info-soft); font-size: var(--text-control); }
 .settings-privacy { margin-top: 18px; color: var(--quiet); font-size: var(--text-meta); }
 .usage-plan { border-radius: 999px; padding: 5px 9px; background: var(--info-surface-soft); color: var(--info-soft); font-size: var(--text-meta); font-weight: 600; }
-.settings-group-action button svg { margin-right: 6px; vertical-align: -2px; }
 .usage-providers { border-top: 1px solid var(--line); }
 .usage-provider { padding: 20px 0 0; }
 .usage-provider + .usage-provider { margin-top: 20px; border-top: 1px solid var(--line); }

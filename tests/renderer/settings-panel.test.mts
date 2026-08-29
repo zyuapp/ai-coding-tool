@@ -42,6 +42,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     allowedOrigins: [],
     chromeBrowser: false, computerUse: true, browserTools: true, notifications: true,
     engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false,
+    remoteChecking: false,
     shortcuts: [],
     capturingShortcut: null,
     onSetThemeFamily() {},

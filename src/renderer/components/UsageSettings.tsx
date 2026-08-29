@@ -1,4 +1,4 @@
-import { LuRotateCw as RotateCw } from "react-icons/lu";
+import { LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AGENT_ENGINES, engineLabel, type AgentEngine } from "../../domain/agent-engine";
 import { barShare, formatReset, formatShare, planLabel, type PlanUsage } from "../../domain/plan-usage";
@@ -51,7 +51,7 @@ export function UsageSettings({ timeZone = Intl.DateTimeFormat().resolvedOptions
         </div>
         <div className="settings-group-action">
           <button type="button" disabled={reading.length > 0} onClick={refresh}>
-            <RotateCw size={13} aria-hidden="true" />
+            <RefreshCw size={13} aria-hidden="true" className={reading.length > 0 ? "spinning" : ""} />
             <span>{reading.length > 0 ? "Reading…" : "Refresh"}</span>
           </button>
         </div>

@@ -24,6 +24,7 @@ function draw(remote: MobileServerState) {
   const calls: Calls = { enabled: [], revoked: [], codes: 0, refreshes: 0 };
   act(() => void createRoot(host).render(React.createElement(MobileSettings, {
     remote,
+    remoteChecking: false,
     onSetEnabled: (value: boolean) => calls.enabled.push(value),
     onCreatePairingCode: () => { calls.codes += 1; },
     onRevokeDevice: (id: string) => calls.revoked.push(id),

@@ -49,7 +49,7 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
           </div>
           <div className="settings-group-action">
             {worktrees && <span>{worktrees.length} {worktrees.length === 1 ? "worktree" : "worktrees"}</span>}
-            <button type="button" onClick={onRefresh}><RefreshCw size={13} aria-hidden="true" />Refresh</button>
+            <button type="button" disabled={worktrees === null} onClick={onRefresh}><RefreshCw size={13} aria-hidden="true" className={worktrees === null ? "spinning" : ""} />{worktrees === null ? "Reading…" : "Refresh"}</button>
           </div>
         </div>
 
