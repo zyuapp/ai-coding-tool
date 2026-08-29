@@ -341,7 +341,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
     return options;
   };
 
-  assert.deepEqual(await efforts("codex", "gpt-5.6-sol"), ["Ultra effort", "Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"]);
-  assert.deepEqual(await efforts("codex", "gpt-5.6-luna"), ["Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"], "Luna does not delegate, so it has no ultra");
+  assert.deepEqual(await efforts("codex", "gpt-5.6-sol"), ["Ultra", "Max", "Extra high", "High", "Medium", "Low"]);
+  assert.deepEqual(await efforts("codex", "gpt-5.6-luna"), ["Max", "Extra high", "High", "Medium", "Low"], "Luna does not delegate, so it has no ultra");
   assert.equal(await efforts("claude", "haiku"), null, "Haiku reasons at one depth, so it is drawn without an effort menu");
 });

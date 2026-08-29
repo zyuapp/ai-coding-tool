@@ -710,7 +710,7 @@ test("the composer offers model and effort choices, ordered most to least capabl
   await act(async () => { query<HTMLElement>(effortMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
     [...effortMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
-    ["Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"],
+    ["Max", "Extra high", "High", "Medium", "Low"],
   );
   assert.equal(query(effortMenu, ".setting-value").textContent, "High");
   await view.unmount();

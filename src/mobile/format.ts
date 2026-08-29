@@ -1,6 +1,6 @@
 import type { MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
 import { effortForModel, modelsFor, type AgentEngine } from "../domain/agent-engine";
-import type { AgentEffort, ExecutionPolicy } from "../domain/run";
+import type { ExecutionPolicy } from "../domain/run";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
 
 /**
@@ -91,21 +91,13 @@ const MODE_LABELS: Record<ExecutionPolicy, string> = {
   plan: "Plan",
 };
 
-const EFFORT_LABELS: Record<AgentEffort, string> = {
-  ultra: "Ultra",
-  max: "Max",
-  xhigh: "Extra high",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-};
-
 /** A thread's settings as the composer's bottom edge reads them. Effort is null for a model that takes none. */
 export function settingsSummary(settings: MobileThreadSettings): { mode: string; model: string; effort: string | null } {
   const spec = modelsFor(settings.engine).find((candidate) => candidate.id === settings.model);
   return {
     mode: MODE_LABELS[settings.policy],
     model: spec?.label ?? settings.model,
-    effort: spec && spec.efforts.length > 0 ? EFFORT_LABELS[effortForModel(settings.model, settings.effort)] : null,
+    effort:
+      spec?.efforts.find((candidate) => candidate.id === effortForModel(settings.model, settings.effort))?.label ?? null,
   };
 }
