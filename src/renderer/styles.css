@@ -80,7 +80,6 @@
   --info-surface-soft: color-mix(in srgb, var(--p-info) 12%, var(--p-bg-1));
   --info-line: color-mix(in srgb, var(--p-info) 28%, var(--p-bg-5));
   --info-badge: var(--p-info-strong);
-  --info-badge-soft: color-mix(in srgb, var(--p-info-strong) 78%, var(--p-bg-1));
   --info-ink: var(--p-info-ink); /* text on --info */
   --badge-ink: var(--p-on-hue); /* text on --info-badge */
   /** Keyboard focus is neutral chrome, not an info or selection state. */
@@ -925,20 +924,31 @@ button, select { color: inherit; }
   display: flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 8px 8px 0 0;
   padding: 0 9px;
   background: transparent;
   color: var(--quiet-strong);
 }
 .right-dock-tabs [role="tab"] { cursor: pointer; }
-.right-dock-tabs [role="tab"]:hover, .right-dock-tab:hover { background: var(--surface-hover); color: var(--ink-faint); }
-.right-dock-tabs [role="tab"].active, .right-dock-tab.active { border-color: var(--line); background: var(--surface-active); color: var(--ink-soft); }
+.right-dock-tabs [role="tab"]:hover, .right-dock-tab:hover { background: color-mix(in srgb, var(--surface-hover) 60%, transparent); color: var(--ink-faint); }
+.right-dock-tab.active { color: var(--ink); }
+/** Drawn over the strip's own bottom border, so the tab reads as the head of the panel under it. */
+.right-dock-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ink);
+}
 .right-dock-tabs [role="tab"] > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-control); }
-.right-dock-tabs [role="tab"] > em { min-width: 17px; height: 17px; display: grid; place-items: center; margin-left: auto; border-radius: 9px; background: var(--info-badge-soft); color: var(--badge-ink); font-size: var(--text-badge); font-style: normal; }
+.right-dock-tabs [role="tab"] > em { margin-left: auto; padding-right: 2px; color: var(--quiet); font-size: var(--text-meta); font-style: normal; font-variant-numeric: tabular-nums; }
+.right-dock-tab.active [role="tab"] > em { color: var(--ink-faint); }
 .right-dock-tabs [role="tab"] > .right-dock-tab-attention { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--info); }
-.right-dock-tab { flex: 0 1 150px; padding: 0 4px 0 0; }
-.right-dock-tab > [role="tab"] { flex: 1; border: 0; padding-right: 2px; background: transparent; color: inherit; }
+.right-dock-tab { position: relative; flex: 0 1 150px; padding: 0 4px 0 0; }
+.right-dock-tab > [role="tab"] { flex: 1; border: 0; border-radius: 8px 8px 0 0; padding-right: 2px; background: transparent; color: inherit; }
 .right-dock-tab > button:last-child { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--quiet); cursor: pointer; }
 .right-dock-tab > button:last-child:hover { background: var(--surface-active); color: var(--ink-soft); }
 .right-dock-add { position: relative; flex: 0 0 auto; }
