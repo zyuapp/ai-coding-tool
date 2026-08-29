@@ -3,7 +3,7 @@ import type { Thread } from "../../domain/thread";
 import { OpenInMenu } from "./OpenInMenu";
 
 export type WorkspaceHeaderProps = {
-  currentTask?: Thread;
+  currentThread?: Thread;
   folder: string;
   /** What the folder is called, which is the project's name rather than the directory's. */
   folderLabel: string;
@@ -21,7 +21,7 @@ export type WorkspaceHeaderProps = {
   onToggleRightDock: () => void;
 };
 
-export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, onSetOpenMenu, onOpenInApp, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
+export function WorkspaceHeader({ currentThread, folder, folderLabel, sidebarOpen, sessionPanelOpen, rightDockOpen, workingSubagents, openMenu, canOpenFolder, onSetOpenMenu, onOpenInApp, onToggleSidebar, onToggleSessionPanel, onToggleRightDock }: WorkspaceHeaderProps) {
   return (
     <header className={`topbar ${sidebarOpen ? "" : "traffic-inset"}`.trimEnd()}>
       <div className="task-heading">
@@ -40,7 +40,7 @@ export function WorkspaceHeader({ currentTask, folder, folderLabel, sidebarOpen,
               <span className="heading-project">{folderLabel}</span>
               <span className="heading-separator" aria-hidden="true">/</span>
             </>}
-            <span className="heading-thread">{currentTask?.title ?? "New task"}</span>
+            <span className="heading-thread">{currentThread?.title ?? "New task"}</span>
           </h1>
           {!folder && <p>Choose a project folder to begin</p>}
         </div>

@@ -10,7 +10,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onClose={onClose}
       initialSection={workspace.settingsSection ?? "general"}
       initialSetting={workspace.settingsFocus}
-      archivedTasks={workspace.archivedTasks}
+      archivedThreads={workspace.archivedThreads}
       managedWorktrees={workspace.managedWorktrees} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
       theme={workspace.theme}
       themeMode={workspace.themeMode}
@@ -32,7 +32,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onSetTerminalSize={(size) => void workspace.actions.setTerminalSize(size)}
       onSetChromeBrowser={(enabled) => void workspace.actions.setChromeBrowser(enabled)} onSetComputerUse={(enabled) => void workspace.actions.setComputerUse(enabled)} onSetBrowserTools={(enabled) => void workspace.actions.setBrowserTools(enabled)}
       onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
-      onRestoreTask={workspace.actions.restoreTask}
+      onRestoreThread={workspace.actions.restoreThread}
       onClearArchive={workspace.actions.clearArchive}
       onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)}
       onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onRevealWorktree={(root) => void workspace.actions.revealWorktree(root)} onDeleteWorktree={(root) => void workspace.actions.deleteManagedWorktree(root)}

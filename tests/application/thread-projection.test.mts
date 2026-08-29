@@ -3,16 +3,17 @@ import { test } from "vitest";
 import { findThread, resolveScope, threadBusy, threadHandleOptions, threadSummaries, threadTranscript, threadWaitResult } from "../../src/application/thread-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ThreadFilter } from "../../src/contracts/threads.ts";
-import type { Task, TaskMessage } from "../../src/domain/task.ts";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
 const HOUR = 60 * 60 * 1000;
 const NOW = 1_800_000_000_000;
 
-function message(text: string, at: number, kind: TaskMessage["kind"] = "user"): TaskMessage {
+function message(text: string, at: number, kind: ConversationMessage["kind"] = "user"): ConversationMessage {
   return { id: `${text}-${at}`, kind, text, at };
 }
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -27,10 +28,10 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
   };
 }
 
-function workspace(tasks: Task[], overrides: Partial<WorkspaceState> = {}): WorkspaceState {
+function workspace(threads: Thread[], overrides: Partial<WorkspaceState> = {}): WorkspaceState {
   return {
     ...emptyWorkspaceState(),
-    tasks,
+    threads,
     projects: [{ id: "project-app", root: "/code/app" }, { id: "project-site", root: "/code/site" }],
     ...overrides,
   };
@@ -156,8 +157,8 @@ test("a long message is cut short rather than shipped whole", () => {
 });
 
 test("a thread counts as working while a run is going, resolving, or still queued", () => {
-  const tasks = [task("running"), task("resolving"), task("queued"), task("done")];
-  const state = workspace(tasks, {
+  const threads = [task("running"), task("resolving"), task("queued"), task("done")];
+  const state = workspace(threads, {
     activeRuns: { running: {
       taskId: "running",
       runId: "run-1",
@@ -175,7 +176,7 @@ test("a thread counts as working while a run is going, resolving, or still queue
     queuedMessages: { queued: [{ id: "message-1", text: "next", prompt: "next", attachments: [] }] },
   });
 
-  assert.deepEqual(tasks.map((item) => threadBusy(state, item.id)), [true, true, true, false]);
+  assert.deepEqual(threads.map((item) => threadBusy(state, item.id)), [true, true, true, false]);
   assert.deepEqual(threadSummaries(state, { scope: { kind: "all" } }, NOW).filter((thread) => thread.status === "running").map((thread) => thread.id).sort(), ["queued", "resolving", "running"]);
 });
 

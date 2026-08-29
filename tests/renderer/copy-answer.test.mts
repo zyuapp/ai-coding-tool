@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
 const { MarkdownMessage } = await import("../../src/renderer/components/MarkdownMessage.tsx");
@@ -96,16 +96,16 @@ test("a finished answer copies whole, without the tool work that led to it", asy
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
-  const task: Task = {
+  const task: Thread = {
     id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     messages: [
-      { id: "m0", at: 1000, kind: "tool", text: "Read", detail: "src/domain/task.ts" },
+      { id: "m0", at: 1000, kind: "tool", text: "Read", detail: "src/domain/thread.ts" },
       { id: "m1", at: 2000, kind: "assistant", text: ANSWER },
     ],
   };
   const view = await mount(React.createElement(ConversationTimeline, {
-    currentTask: task, engine: "claude", engineLabel: "Claude", folder: "/p", status: "idle" as const, compacting: false,
+    currentThread: task, engine: "claude", engineLabel: "Claude", folder: "/p", status: "idle" as const, compacting: false,
     waitingOn: null, scrollContainerRef: { current: scroller },
   }));
 

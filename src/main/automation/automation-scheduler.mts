@@ -64,12 +64,12 @@ export class AutomationScheduler {
       .sort((left, right) => right.updatedAt - left.updatedAt);
   }
 
-  forTask(taskId: string): AutomationView | null {
+  forThread(taskId: string): AutomationView | null {
     const automation = this.find(taskId);
     return automation ? this.view(automation) : null;
   }
 
-  /** One automation per task: creating a second one replaces the first. */
+  /** One automation per thread: creating a second one replaces the first. */
   save(draft: AutomationDraft): AutomationView {
     assertSchedule(draft.schedule, draft.timezone);
     const existing = this.find(draft.taskId);

@@ -18,7 +18,7 @@ import { workspaceActions } from "./workspace-actions";
 import { useWorkspaceSubscriptions } from "./workspace-subscriptions";
 import { drainLatestPersistence, hasPersistenceDelta, persistenceDelta, persistenceState, type PersistenceQueue } from "./workspace-persistence";
 
-export type { ApprovalView } from "../../application/task-workspace";
+export type { ApprovalView } from "../../application/thread-run-state";
 
 function initialState(store: ReturnType<typeof createLocalTaskStore>): WorkspaceState {
   const loaded = store.load();
@@ -114,7 +114,7 @@ export function useTaskWorkspace() {
   const handleCache = useRef<{ inputs: readonly unknown[]; byDraft: Map<string, ThreadHandleOption[]> }>({ inputs: [], byDraft: new Map() });
   const threadHandlesFor = useCallback((draftKey: string) => {
     const current = stateRef.current;
-    const inputs = [current.tasks, current.projects, current.sideChats, current.activeRuns, current.pendingRuns, current.queuedMessages, current.draftProjectId] as const;
+    const inputs = [current.threads, current.projects, current.sideChats, current.activeRuns, current.pendingRuns, current.queuedMessages, current.draftProjectId] as const;
     const cache = handleCache.current;
     if (inputs.some((value, index) => cache.inputs[index] !== value)) {
       cache.inputs = inputs;
@@ -167,7 +167,7 @@ export function useTaskWorkspace() {
       if (document.visibilityState !== "hidden") void dispatchRef.current({ type: "view.refresh-environment" });
     }, every);
     return () => window.clearInterval(timer);
-  }, [view.currentProject?.workspaceId, view.workspaceId, view.currentTask?.id, currentRunId]);
+  }, [view.currentProject?.workspaceId, view.workspaceId, view.currentThread?.id, currentRunId]);
 
   return {
     ...view,

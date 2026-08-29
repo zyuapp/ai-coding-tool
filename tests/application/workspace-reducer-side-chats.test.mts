@@ -7,7 +7,7 @@ import { activeRun, dock, task, workspace, automation, effectAt, required, run, 
 
 test("a side chat forks the source thread once, then continues on its own branch", () => {
   const source = task("main-task", { executionPolicy: "autonomous", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+  const opened = run(workspace({ threads: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "What does this do?" },
   ]);
@@ -21,7 +21,7 @@ test("a side chat forks the source thread once, then continues on its own branch
   assert.equal(first.forkContinuation, true);
   assert.deepEqual(first.continuation, { provider: "claude", value: "main-session" });
   assert.equal(required(deriveView(forked.state).sideChats[0]).prompt, "");
-  assert.equal(required(required(deriveView(forked.state).sideChats[0]).task.messages[0]).text, "What does this do?");
+  assert.equal(required(required(deriveView(forked.state).sideChats[0]).thread.messages[0]).text, "What does this do?");
 
   const branched = run(forked.state, [
     { type: "run.event", event: { type: "continuation.updated", taskId: "chat-1", runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "side-session" } } },
@@ -34,7 +34,7 @@ test("a side chat forks the source thread once, then continues on its own branch
 
   assert.deepEqual(second.continuation, { provider: "claude", value: "side-session" });
   assert.equal("forkContinuation" in second, false);
-  assert.deepEqual(required(branched.tasks.find((task) => task.id === "main-task")).continuation, { provider: "claude", value: "main-session" }, "the main thread never moves");
+  assert.deepEqual(required(branched.threads.find((task) => task.id === "main-task")).continuation, { provider: "claude", value: "main-session" }, "the main thread never moves");
 });
 
 test("a side chat snapshots the source settings at creation, then owns them", () => {
@@ -46,11 +46,11 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
     continuation: { provider: "claude", value: "main-session" },
     continuationStatus: "available",
   });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const opened = run(workspace({ threads: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
   const sideChat = required(deriveView(opened).sideChats[0]);
-  assert.equal(sideChat.task.executionPolicy, "confirm");
-  assert.equal(sideChat.task.model, "opus");
-  assert.equal(sideChat.task.effort, "high");
+  assert.equal(sideChat.thread.executionPolicy, "confirm");
+  assert.equal(sideChat.thread.model, "opus");
+  assert.equal(sideChat.thread.effort, "high");
 
   const retuned = run(opened, [
     { type: "task.set-policy", taskId: "chat-1", policy: "autonomous" },
@@ -59,7 +59,7 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
     { type: "task.set-policy", taskId: "main-task", policy: "allow-edits" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Fix the typo" },
   ]);
-  assert.equal(required(retuned.tasks.find((task) => task.id === "main-task")).executionPolicy, "allow-edits", "the main thread keeps its own policy");
+  assert.equal(required(retuned.threads.find((task) => task.id === "main-task")).executionPolicy, "allow-edits", "the main thread keeps its own policy");
 
   const sending = reduce(retuned, { type: "task.send", taskId: "chat-1" });
   const resolved = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
@@ -71,7 +71,7 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
 
 test("a side chat is a thread in every way but being saved or listed", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+  const opened = run(workspace({ threads: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Read the reducer" },
   ]);
@@ -88,12 +88,12 @@ test("a side chat is a thread in every way but being saved or listed", () => {
   assert.equal(effectAt(steered, "send-run-command").command.type, "steer");
 
   const view = deriveView(steered.state);
-  assert.deepEqual(view.tasks.map((item) => item.id), ["main-task"], "the chat is never listed beside real threads");
-  assert.deepEqual(view.orderedTasks.map((item) => item.id), ["main-task"]);
+  assert.deepEqual(view.threads.map((item) => item.id), ["main-task"], "the chat is never listed beside real threads");
+  assert.deepEqual(view.orderedThreads.map((item) => item.id), ["main-task"]);
   assert.deepEqual(threadSummaries(steered.state, { scope: { kind: "all" } }, 2).map((thread) => thread.id), ["main-task"], "and an agent never sees it");
 
   const closed = reduce(steered.state, { type: "side-chat.close", chatId: "chat-1" }).state;
-  assert.deepEqual(closed.tasks.map((item) => item.id), ["main-task"], "closing takes the thread with it");
+  assert.deepEqual(closed.threads.map((item) => item.id), ["main-task"], "closing takes the thread with it");
   assert.equal(closed.queuedMessages["chat-1"], undefined);
   assert.equal(closed.prompts["chat-1"], undefined);
   assert.equal(deriveView(closed).sideChats.length, 0);
@@ -101,7 +101,7 @@ test("a side chat is a thread in every way but being saved or listed", () => {
 
 test("closing a side chat retires anything scheduled against it", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [
+  const opened = run(workspace({ threads: [source], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
     { type: "automations.changed", automations: [
       { id: "automation-1", taskId: "chat-1", schedule: "0 8 * * *", prompt: "Check the deploy", paused: false, createdAt: 1, updatedAt: 1, runCount: 0, nextRunAt: 2 },
@@ -115,7 +115,7 @@ test("closing a side chat retires anything scheduled against it", () => {
 });
 
 test("a side chat cannot run without a source thread to fork", () => {
-  const opened = run(workspace({ tasks: [task("main-task")], currentId: "main-task" }), [
+  const opened = run(workspace({ threads: [task("main-task")], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Ask" },
   ]);
@@ -123,7 +123,7 @@ test("a side chat cannot run without a source thread to fork", () => {
 });
 
 test("a reading place is kept for its thread, and reporting it again changes nothing", () => {
-  const state = workspace({ tasks: [task("task-a")], currentId: "task-a" });
+  const state = workspace({ threads: [task("task-a")], currentId: "task-a" });
   const placed = reduce(state, { type: "view.reading-point", taskId: "task-a", point: { anchor: "m3", depth: 72 } });
   assert.deepEqual(placed.state.readingPoints["task-a"], { anchor: "m3", depth: 72 });
   assert.equal(deriveView(placed.state).readingPoint, placed.state.readingPoints["task-a"], "the view hands the thread its own place back");
@@ -139,7 +139,7 @@ test("a reading place is kept for its thread, and reporting it again changes not
 });
 
 test("a reading place that is malformed or names no thread is refused", () => {
-  const state = workspace({ tasks: [task("task-a")], currentId: "task-a" });
+  const state = workspace({ threads: [task("task-a")], currentId: "task-a" });
   for (const point of [{ anchor: "", depth: 0 }, { anchor: "m1", depth: Number.NaN }, { anchor: "m1", depth: Number.POSITIVE_INFINITY }]) {
     assert.equal(reduce(state, { type: "view.reading-point", taskId: "task-a", point }).state, state, `${point.anchor || "(empty)"} with ${point.depth} is not a place`);
   }
@@ -148,7 +148,7 @@ test("a reading place that is malformed or names no thread is refused", () => {
 
 test("closing a side chat takes its reading place with it", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task", readingPoints: { "chat-1": { anchor: "m2", depth: 10 }, "main-task": { anchor: "m4", depth: 30 } } }), [
+  const opened = run(workspace({ threads: [source], currentId: "main-task", readingPoints: { "chat-1": { anchor: "m2", depth: 10 }, "main-task": { anchor: "m4", depth: 30 } } }), [
     { type: "side-chat.open", chatId: "chat-1" },
   ]);
   const closed = reduce(opened, { type: "side-chat.close", chatId: "chat-1" });
@@ -157,7 +157,7 @@ test("closing a side chat takes its reading place with it", () => {
 
 test("closing a side chat cancels its run, and leaving the thread leaves the chat in its dock", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source, task("other")], currentId: "main-task" }), [
+  const opened = run(workspace({ threads: [source, task("other")], currentId: "main-task" }), [
     { type: "side-chat.open", chatId: "chat-1" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Ask" },
   ]);
@@ -180,7 +180,7 @@ test("closing a side chat cancels its run, and leaving the thread leaves the cha
 test("Esc stops the run in the surface holding the caret, so a side chat never stops the main thread", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({
-    tasks: [source],
+    threads: [source],
     currentId: "main-task",
     activeRuns: { "main-task": activeRun("main-task", "run-main") },
     runStatuses: { "main-task": "running" },
@@ -203,7 +203,7 @@ test("Esc stops the run in the surface holding the caret, so a side chat never s
 
 test("Esc gives the nearest layer its turn before it reaches any run", () => {
   const state = run(workspace({
-    tasks: [task("main-task")],
+    threads: [task("main-task")],
     currentId: "main-task",
     activeRuns: { "main-task": activeRun("main-task", "run-main") },
     runStatuses: { "main-task": "running" },
@@ -226,7 +226,7 @@ test("Esc gives the nearest layer its turn before it reaches any run", () => {
 test("a side chat's view is held still while another thread's helper agents report", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({
-    tasks: [source],
+    threads: [source],
     currentId: "main-task",
     activeRuns: { "main-task": activeRun("main-task", "run-main") },
     runStatuses: { "main-task": "running" },
@@ -246,7 +246,7 @@ test("a side chat's view is held still while another thread's helper agents repo
 
 test("a settled side chat announces itself under its source thread, and the notice opens its tab", () => {
   const source = task("main-task", { title: "Ship the release", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const opened = run(workspace({ threads: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
   const sending = reduce(opened, { type: "task.send", taskId: "chat-1", text: "Ask" });
   const chatting = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
   const runId = required(chatting.activeRuns["chat-1"]).runId;
@@ -259,7 +259,7 @@ test("a settled side chat announces itself under its source thread, and the noti
     title: "Ship the release · Chat 1",
     headline: "The run finished.",
   });
-  assert.equal(required(settled.state.tasks.find((item) => item.id === "chat-1")).outcomeUnread, true);
+  assert.equal(required(settled.state.threads.find((item) => item.id === "chat-1")).outcomeUnread, true);
   assert.equal(deriveView(settled.state).sideChatAttention.has("main-task"), true);
   assert.equal(deriveView(settled.state).unreadCount, 1, "the chat is counted under the thread that holds it, not on its own");
 
@@ -269,18 +269,18 @@ test("a settled side chat announces itself under its source thread, and the noti
   assert.equal(clicked.currentId, "main-task");
   assert.equal(dock(clicked, "main-task").open, true);
   assert.equal(dock(clicked, "main-task").tab, "chat-1");
-  assert.equal(required(clicked.tasks.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
+  assert.equal(required(clicked.threads.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
   assert.equal(deriveView(clicked).sideChatAttention.has("main-task"), false);
 });
 
 test("a side chat the user is watching is never marked unseen", () => {
   const source = task("main-task", { continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
-  const opened = run(workspace({ tasks: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+  const opened = run(workspace({ threads: [source], currentId: "main-task" }), [{ type: "side-chat.open", chatId: "chat-1" }]);
   const sending = reduce(opened, { type: "task.send", taskId: "chat-1", text: "Ask" });
   const chatting = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } }).state;
   const runId = required(chatting.activeRuns["chat-1"]).runId;
 
   const settled = reduce(chatting, { type: "run.event", event: { type: "run.status", taskId: "chat-1", runId, sequence: 1, status: "succeeded" } }).state;
-  assert.equal(required(settled.tasks.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
+  assert.equal(required(settled.threads.find((item) => item.id === "chat-1")).outcomeUnread, undefined);
   assert.equal(deriveView(settled).sideChatAttention.size, 0);
 });

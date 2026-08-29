@@ -34,7 +34,7 @@ function sendLabel(surface: "main" | "side", runActive: boolean) {
   return runActive ? "Stop task" : "Send task";
 }
 
-export type TaskComposerProps = {
+export type ConversationComposerProps = {
   prompt: string;
   folder: string;
   workspaceId?: string;
@@ -106,7 +106,7 @@ export type TaskComposerProps = {
   onGoalClear?: () => void;
 };
 
-export function TaskComposer({
+export function ConversationComposer({
   prompt,
   folder,
   workspaceId,
@@ -158,7 +158,7 @@ export function TaskComposer({
   onDropQueued,
   onCancel,
   onGoalClear = NOTHING,
-}: TaskComposerProps) {
+}: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
   const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange });
   const stepRecall = useComposerRecall({

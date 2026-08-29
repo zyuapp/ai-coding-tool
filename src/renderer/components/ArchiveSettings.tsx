@@ -3,12 +3,12 @@ import { ARCHIVE_RETENTION_MS } from "../../domain/thread-retention";
 import type { Thread } from "../../domain/thread";
 
 export type ArchiveSettingsProps = {
-  archivedTasks: Thread[];
+  archivedThreads: Thread[];
   /** Whether deleting every archived thread is one press away from happening. */
   confirming: boolean;
   confirmationRef: React.RefObject<HTMLButtonElement | null>;
   clearRef: React.RefObject<HTMLButtonElement | null>;
-  onRestoreTask: (taskId: string) => void;
+  onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
   onStartConfirm: () => void;
   onCancelConfirm: () => void;
@@ -21,11 +21,11 @@ function daysLeft(archivedAt: number) {
 }
 
 export function ArchiveSettings({
-  archivedTasks,
+  archivedThreads,
   confirming,
   confirmationRef,
   clearRef,
-  onRestoreTask,
+  onRestoreThread,
   onClearArchive,
   onStartConfirm,
   onCancelConfirm,
@@ -44,8 +44,8 @@ export function ArchiveSettings({
             <p>Restore a thread to put it back in the sidebar. Its automation stays off.</p>
           </div>
           <div className="settings-group-action">
-            <span>{archivedTasks.length} archived</span>
-            {archivedTasks.length > 0 && (confirming
+            <span>{archivedThreads.length} archived</span>
+            {archivedThreads.length > 0 && (confirming
               ? <>
                   <button ref={confirmationRef} className="danger" type="button" onClick={() => {
                     onClearArchive();
@@ -57,17 +57,17 @@ export function ArchiveSettings({
           </div>
         </div>
 
-        {archivedTasks.length === 0
+        {archivedThreads.length === 0
           ? <p className="settings-empty">Nothing archived.</p>
-          : archivedTasks.map((task) => (
-            <div className="setting-row" key={task.id}>
+          : archivedThreads.map((thread) => (
+            <div className="setting-row" key={thread.id}>
               <span className="setting-status archived"><Archive size={13} /></span>
               <div>
-                <strong>{task.title}</strong>
-                <p>{daysLeft(task.archivedAt!)}</p>
+                <strong>{thread.title}</strong>
+                <p>{daysLeft(thread.archivedAt!)}</p>
               </div>
               <div className="setting-row-action">
-                <button type="button" onClick={() => onRestoreTask(task.id)}>Restore</button>
+                <button type="button" onClick={() => onRestoreThread(thread.id)}>Restore</button>
               </div>
             </div>
           ))}

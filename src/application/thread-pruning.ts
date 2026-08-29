@@ -1,11 +1,11 @@
 import type { SideChat, ThreadDock, WorkspaceState } from "./workspace-state.js";
 
-function withoutTaskKeys<T>(record: Record<string, T>, removed: Set<string>): Record<string, T> {
+function withoutThreadKeys<T>(record: Record<string, T>, removed: Set<string>): Record<string, T> {
   let cleaned: Record<string, T> | null = null;
-  for (const taskId of removed) {
-    if (!Object.hasOwn(record, taskId)) continue;
+  for (const threadId of removed) {
+    if (!Object.hasOwn(record, threadId)) continue;
     cleaned ??= { ...record };
-    delete cleaned[taskId];
+    delete cleaned[threadId];
   }
   return cleaned ?? record;
 }
@@ -43,39 +43,39 @@ function dockKeeps(docks: Record<string, ThreadDock>, sideChats: SideChat[], tab
 }
 
 /** A permanently deleted thread leaves no session-only record holding its data or making it reachable. */
-export function pruneDeletedTasks(state: WorkspaceState, removed: Set<string>): WorkspaceState {
+export function pruneDeletedThreads(state: WorkspaceState, removed: Set<string>): WorkspaceState {
   if (!removed.size) return state;
-  const history = withoutMatching(state.history, (taskId) => removed.has(taskId));
+  const history = withoutMatching(state.history, (threadId) => removed.has(threadId));
   let historyIndex = -1;
   for (let index = 0; index <= state.historyIndex && index < state.history.length; index += 1) {
     if (!removed.has(state.history[index]!)) historyIndex += 1;
   }
-  const docks = withoutTaskKeys(state.docks, removed);
-  const sideChats = withoutMatching(state.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceTaskId));
+  const docks = withoutThreadKeys(state.docks, removed);
+  const sideChats = withoutMatching(state.sideChats, (chat) => removed.has(chat.id) || removed.has(chat.sourceThreadId));
   return {
     ...state,
-    creatingWorktrees: withoutMatching(state.creatingWorktrees, (taskId) => removed.has(taskId)),
-    releasingWorktrees: withoutMatching(state.releasingWorktrees, (taskId) => removed.has(taskId)),
+    creatingWorktrees: withoutMatching(state.creatingWorktrees, (threadId) => removed.has(threadId)),
+    releasingWorktrees: withoutMatching(state.releasingWorktrees, (threadId) => removed.has(threadId)),
     history,
     historyIndex: Math.min(historyIndex, history.length - 1),
-    prompts: withoutTaskKeys(state.prompts, removed),
-    annotations: withoutTaskKeys(state.annotations, removed),
-    pastes: withoutTaskKeys(state.pastes, removed),
-    images: withoutTaskKeys(state.images, removed),
+    prompts: withoutThreadKeys(state.prompts, removed),
+    annotations: withoutThreadKeys(state.annotations, removed),
+    pastes: withoutThreadKeys(state.pastes, removed),
+    images: withoutThreadKeys(state.images, removed),
     docks,
-    diffs: withoutTaskKeys(state.diffs, removed),
-    readingPoints: withoutTaskKeys(state.readingPoints, removed),
+    diffs: withoutThreadKeys(state.diffs, removed),
+    readingPoints: withoutThreadKeys(state.readingPoints, removed),
     pendingRuns: withoutMatchingValues(state.pendingRuns, (pending) => Boolean(pending.taskId && removed.has(pending.taskId))),
-    queuedMessages: withoutTaskKeys(state.queuedMessages, removed),
+    queuedMessages: withoutThreadKeys(state.queuedMessages, removed),
     sideChats,
-    lastRunIds: withoutTaskKeys(state.lastRunIds, removed),
-    activeRuns: withoutTaskKeys(state.activeRuns, removed),
-    runStatuses: withoutTaskKeys(state.runStatuses, removed),
+    lastRunIds: withoutThreadKeys(state.lastRunIds, removed),
+    activeRuns: withoutThreadKeys(state.activeRuns, removed),
+    runStatuses: withoutThreadKeys(state.runStatuses, removed),
     approvals: withoutMatchingValues(state.approvals, (approval) => removed.has(approval.taskId)),
-    streamingTails: withoutTaskKeys(state.streamingTails, removed),
-    backgroundProcesses: withoutTaskKeys(state.backgroundProcesses, removed),
-    workflows: withoutTaskKeys(state.workflows, removed),
-    subagents: withoutTaskKeys(state.subagents, removed),
+    streamingTails: withoutThreadKeys(state.streamingTails, removed),
+    backgroundProcesses: withoutThreadKeys(state.backgroundProcesses, removed),
+    workflows: withoutThreadKeys(state.workflows, removed),
+    subagents: withoutThreadKeys(state.subagents, removed),
     automations: withoutMatching(state.automations, (automation) => removed.has(automation.taskId)),
     dockFocus: state.dockFocus && (removed.has(state.dockFocus.owner) || removed.has(state.dockFocus.tab)) ? null : state.dockFocus,
     keyboardTab: state.keyboardTab && dockKeeps(docks, sideChats, state.keyboardTab) ? state.keyboardTab : null,

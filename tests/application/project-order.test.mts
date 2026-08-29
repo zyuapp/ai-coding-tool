@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { backfillProjectSortIndex, moveProject, nextProjectSortIndex, orderProjects } from "../../src/application/project-order.ts";
-import type { Project } from "../../src/domain/task.ts";
+import type { Project } from "../../src/domain/project.ts";
 
 function project(id: string, overrides: Partial<Project> = {}): Project {
   return { id, root: `/${id}`, ...overrides };

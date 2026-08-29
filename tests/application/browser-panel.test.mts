@@ -9,14 +9,14 @@ import {
   type ThreadDock,
   type WorkspaceState,
 } from "../../src/application/workspace-state.ts";
-import type { Task } from "../../src/domain/task.js";
+import type { Thread } from "../../src/domain/thread.js";
 
 /** The dock a thread was left in: the one on screen unless a thread is named. */
 function dock(state: WorkspaceState, owner?: string): ThreadDock {
   return dockFor(state, owner ?? dockOwner(state));
 }
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -35,7 +35,7 @@ function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
 }
 
 test("a run drives its own thread's dock, whichever thread the user is looking at", () => {
-  const state = { ...workspace(), tasks: [task("task-1"), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
+  const state = { ...workspace(), threads: [task("task-1"), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
 
   const opened = reduce(state, { type: "browser.open", taskId: "task-2", url: "https://two.example" });
   assert.deepEqual(dock(opened.state).browserTabs, [], "the dock on screen belongs to the thread the user is reading");
@@ -56,7 +56,7 @@ test("a run drives its own thread's dock, whichever thread the user is looking a
 });
 
 test("a run's page never takes the panel from the page the user is reading", () => {
-  const state = { ...workspace(), tasks: [task("task-1", { executionPolicy: "autonomous" })], currentId: "task-1" };
+  const state = { ...workspace(), threads: [task("task-1", { executionPolicy: "autonomous" })], currentId: "task-1" };
 
   const mine = reduce(state, { type: "browser.open", url: "https://mine.example" });
   const myPage = dock(mine.state).browserTabs[0].id;

@@ -2,16 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { applyMobilePatch, diffMobileView, emptyMobileView, MOBILE_TRANSCRIPT_MESSAGES, projectMobileView } from "../../src/application/mobile-projection.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { ActiveRun, ApprovalView } from "../../src/application/task-workspace.ts";
-import type { Task, TaskMessage } from "../../src/domain/task.ts";
+import type { ActiveRun, ApprovalView } from "../../src/application/thread-run-state.ts";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
 const NOW = 1_800_000_000_000;
 
-function message(text: string, at: number, kind: TaskMessage["kind"] = "user"): TaskMessage {
+function message(text: string, at: number, kind: ConversationMessage["kind"] = "user"): ConversationMessage {
   return { id: `${text}-${at}`, kind, text, at };
 }
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -26,10 +27,10 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
   };
 }
 
-function workspace(tasks: Task[], overrides: Partial<WorkspaceState> = {}): WorkspaceState {
+function workspace(threads: Thread[], overrides: Partial<WorkspaceState> = {}): WorkspaceState {
   return {
     ...emptyWorkspaceState(),
-    tasks,
+    threads,
     projects: [{ id: "project-app", root: "/code/app", name: "App" }, { id: "project-site", root: "/code/site" }],
     ...overrides,
   };
@@ -286,7 +287,7 @@ test("running threads hold the sidebar's order however often they speak, and a b
   const running = (updatedAt: number, lastAt: number) => ({
     activeRuns: { a: activeRun("a", "run-a", "running"), b: activeRun("b", "run-b", "running") },
     runStatuses: { a: "running" as const, b: "running" as const },
-    tasks: [
+    threads: [
       task("a", { projectId: "project-app", sortIndex: 0, updatedAt: NOW - 5_000, messages: [message("first", NOW - 5_000)] }),
       task("b", { projectId: "project-app", sortIndex: 1, updatedAt, messages: [message("later", lastAt)] }),
     ],
@@ -309,16 +310,16 @@ test("running threads hold the sidebar's order however often they speak, and a b
 });
 
 test("a thread that starts or finishes holds its row", () => {
-  const tasks = [
+  const threads = [
     task("a", { projectId: "project-app", sortIndex: 0, updatedAt: NOW - 3_000 }),
     task("b", { projectId: "project-app", sortIndex: 1, updatedAt: NOW - 2_000 }),
     task("c", { projectId: "project-app", sortIndex: 2, updatedAt: NOW - 1_000 }),
   ];
-  const asleep = projectMobileView(workspace(tasks), NOW);
+  const asleep = projectMobileView(workspace(threads), NOW);
   assert.deepEqual(asleep.groups[0]!.threads.map((thread) => thread.id), ["a", "b", "c"]);
 
   const awake = projectMobileView(workspace(
-    tasks.map((each) => each.id === "c" ? { ...each, updatedAt: NOW, messages: [message("go", NOW)] } : each),
+    threads.map((each) => each.id === "c" ? { ...each, updatedAt: NOW, messages: [message("go", NOW)] } : each),
     { activeRuns: { c: activeRun("c", "run-c", "running") }, runStatuses: { c: "running" } },
   ), NOW);
   assert.deepEqual(awake.groups[0]!.threads.map((thread) => thread.id), ["a", "b", "c"], "waking does not lift c");

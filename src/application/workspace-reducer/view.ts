@@ -2,9 +2,9 @@
 import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects, TAKE_KEYS } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceSettings } from "./settings.js";
-import { reduceTasks } from "./tasks.js";
+import { reduceThreadCommands } from "./thread-commands.js";
 import { projectFor } from "../thread-location.js";
-import { busyTaskIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { busyThreadIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
 import { refreshEngines } from "../engine-access.js";
 import { readAttention } from "../../domain/attention.js";
@@ -33,13 +33,13 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       const index = reachableVisit(state, input.type === "view.go-back" ? -1 : 1);
       if (index === null) return settled(state);
       const taskId = state.history[index];
-      const task = state.tasks.find((item) => item.id === taskId);
+      const thread = state.threads.find((item) => item.id === taskId);
       return settled(readAttention({
         ...state,
         historyIndex: index,
         currentId: taskId,
-        draftProjectId: task?.projectId ?? null,
-        lastFolder: projectFor(state, task)?.root ?? state.lastFolder,
+        draftProjectId: thread?.projectId ?? null,
+        lastFolder: projectFor(state, thread)?.root ?? state.lastFolder,
         actionError: null,
       }, taskId));
     }
@@ -94,7 +94,7 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       if (searchesItself(find.target)) return settled(state, searchEffects(find, { findNext: true, forward: input.delta === 1 }));
       const target = find.target;
       const matches = target.kind === "thread"
-        ? memoizedFindHits(state.tasks.find((item) => item.id === target.taskId)?.messages ?? [], find.query).length
+        ? memoizedFindHits(state.threads.find((item) => item.id === target.taskId)?.messages ?? [], find.query).length
         : state.findResults?.matches ?? 0;
       return settled({ ...state, find: { ...find, index: stepMatch(find.index, input.delta, matches) } });
     }
@@ -129,13 +129,13 @@ export function reduceView(state: WorkspaceState, input: ViewInput): WorkspaceTr
       return settled(state.jump ? { ...state, jump: { query: input.query, index: 0 } } : state);
 
     case "view.jump-step": {
-      const jump = jumpView(state, busyTaskIds(state));
+      const jump = jumpView(state, busyThreadIds(state));
       if (!jump) return settled(state);
       return settled({ ...state, jump: { query: jump.query, index: stepMatch(jump.index, input.delta, jump.options.length) } });
     }
 
     case "view.jump-choose":
-      return reduceTasks({ ...state, jump: null }, { type: "task.select", taskId: input.taskId });
+      return reduceThreadCommands({ ...state, jump: null }, { type: "task.select", taskId: input.taskId });
 
     case "view.jump-choose-setting":
       return reduceSettings({ ...state, jump: null }, { type: "view.set-settings-open", open: true, section: input.section, ...(input.settingId ? { settingId: input.settingId } : {}) });

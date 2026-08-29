@@ -20,14 +20,14 @@ import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
 
 /** Threads a newer build wrote, which this one left on disk. The count returns on the next launch. */
-function HiddenTasksNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
-  const hidden = workspace.hiddenTasks;
+function HiddenThreadsNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
+  const hidden = workspace.hiddenThreads;
   if (hidden < 1) return null;
   return (
     <div className="storage-notice" role="status">
       <span>{hidden} {hidden === 1 ? "thread needs" : "threads need"} a newer version</span>
       <button className="storage-notice-link" type="button" onClick={() => void workspace.actions.checkForUpdates()}>Update</button>
-      <button type="button" aria-label="Dismiss" onClick={() => void workspace.actions.dismissHiddenTasks()}>
+      <button type="button" aria-label="Dismiss" onClick={() => void workspace.actions.dismissHiddenThreads()}>
         <X size={15} aria-hidden="true" />
       </button>
     </div>
@@ -141,7 +141,7 @@ export function App() {
         {...workspaceDrop.props}
       >
         <WorkspaceHeader
-          currentTask={workspace.currentTask}
+          currentThread={workspace.currentThread}
           folder={workspace.folder}
           folderLabel={workspace.folderLabel}
           sidebarOpen={sidebarOpen}
@@ -176,7 +176,7 @@ export function App() {
           </div>
         )}
 
-        {!workspace.storageError && <HiddenTasksNotice workspace={workspace} />}
+        {!workspace.storageError && <HiddenThreadsNotice workspace={workspace} />}
 
         <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
 

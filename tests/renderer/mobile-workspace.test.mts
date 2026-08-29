@@ -5,15 +5,16 @@ import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/
 import { answerMobileRequest, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/renderer/task-workspace/mobile-bridge.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
-import type { Task, TaskMessage } from "../../src/domain/task.ts";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
 const NOW = 1_800_000_000_000;
 
-function message(text: string, at: number, kind: TaskMessage["kind"] = "user"): TaskMessage {
+function message(text: string, at: number, kind: ConversationMessage["kind"] = "user"): ConversationMessage {
   return { id: `${text}-${at}`, kind, text, at };
 }
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -60,7 +61,7 @@ function request(op: MobileRequest): MobileRequest {
 
 test("a phone is answered as soon as the reducer has decided, not when the run ends", async () => {
   const inputs: WorkspaceInput[] = [];
-  let state = workspace({ tasks: [task("task-1")], currentId: "task-1" });
+  let state = workspace({ threads: [task("task-1")], currentId: "task-1" });
   let finishRun = () => undefined as void;
   const bridge: MobileBridgeHost = {
     state: () => state,
@@ -117,7 +118,7 @@ test("what main reports about the bridge is the only thing that writes it", () =
 
 test("a phone's snapshot request is answered from the window's own state", async () => {
   const driver = host(workspace({
-    tasks: [task("thread-1", { title: "Rework the sidebar", messages: [message("start", NOW)] })],
+    threads: [task("thread-1", { title: "Rework the sidebar", messages: [message("start", NOW)] })],
     currentId: "thread-1",
   }));
 
@@ -130,7 +131,7 @@ test("a phone's snapshot request is answered from the window's own state", async
 });
 
 test("a phone's command goes through the same reducer and answers with what the phone now sees", async () => {
-  const driver = host(workspace({ tasks: [task("thread-1"), task("thread-2")], currentId: "thread-1" }));
+  const driver = host(workspace({ threads: [task("thread-1"), task("thread-2")], currentId: "thread-1" }));
 
   const response = await answerMobileRequest(driver.bridge, request({
     type: "mobile.request",
@@ -146,7 +147,7 @@ test("a phone's command goes through the same reducer and answers with what the 
 });
 
 test("a command the phone is not allowed to send never reaches the reducer", async () => {
-  const driver = host(workspace({ tasks: [task("thread-1")], currentId: "thread-1" }));
+  const driver = host(workspace({ threads: [task("thread-1")], currentId: "thread-1" }));
   const refused = [
     { type: "terminal.open" },
     { type: "project.remove", projectId: "project-app" },
@@ -173,7 +174,7 @@ test("a command the phone is not allowed to send never reaches the reducer", asy
 });
 
 test("a command the reducer refuses answers with what the window said about it", async () => {
-  const driver = host(workspace({ tasks: [task("thread-1")], currentId: "thread-1", projects: [{ id: "project-app", root: "/code/app" }] }));
+  const driver = host(workspace({ threads: [task("thread-1")], currentId: "thread-1", projects: [{ id: "project-app", root: "/code/app" }] }));
 
   const response = await answerMobileRequest(driver.bridge, request({
     type: "mobile.request",
@@ -188,7 +189,7 @@ test("a command the reducer refuses answers with what the window said about it",
 
 test("nothing is published while no phone holds a session, and the first change after one does is whole", () => {
   const held = noMobileView();
-  const alone = workspace({ tasks: [task("thread-1")], currentId: "thread-1" });
+  const alone = workspace({ threads: [task("thread-1")], currentId: "thread-1" });
   assert.equal(nextMobileUpdate(held, alone, NOW), null);
 
   const watched = { ...alone, remote: remoteState({ sessions: [session("session-1")] }) };
@@ -196,7 +197,7 @@ test("nothing is published while no phone holds a session, and the first change 
   assert.equal(first?.kind, "snapshot");
   assert.equal(nextMobileUpdate(held, watched, NOW), null);
 
-  const renamed = { ...watched, tasks: [task("thread-1", { title: "Renamed" })] };
+  const renamed = { ...watched, threads: [task("thread-1", { title: "Renamed" })] };
   const second = nextMobileUpdate(held, renamed, NOW);
   assert.equal(second?.kind, "patch");
   assert.deepEqual(second?.kind === "patch" ? second.patch.thread : null, { kind: "changed", id: "thread-1", delta: { title: "Renamed" } });

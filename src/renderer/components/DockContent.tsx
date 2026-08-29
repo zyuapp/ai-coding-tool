@@ -130,10 +130,10 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
           />
         </div>
       )}
-      {workspace.currentTask && (
+      {workspace.currentThread && (
         <DockSideChats
           workspace={workspace}
-          source={workspace.currentTask}
+          source={workspace.currentThread}
           activeTab={activeTab}
           find={find}
           findBar={findBar}

@@ -5,8 +5,8 @@ import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerDraft, filesFor, focusedTab, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
 import { promptWithFiles } from "../files.js";
 import { promptWithPastes } from "../pastes.js";
-import { pruneDeletedTasks } from "../task-pruning.js";
-import { ATTENDED_RUN, applyTask, threadMark, withActiveRun, withBackgroundProcesses, withRunStatus, type RunProvenance, type ThreadMark } from "../task-workspace.js";
+import { pruneDeletedThreads } from "../thread-pruning.js";
+import { ATTENDED_RUN, threadMark, updateThread, withActiveRun, withBackgroundProcesses, withRunStatus, type RunProvenance, type ThreadMark } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { projectFor, threadWorkspaceId, worktreeClaimants, worktreeFor } from "../thread-location.js";
 import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, diffFor, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, withDiff, withDock, withPrompt, workflowById, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
@@ -88,13 +88,13 @@ export function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []):
   return { state, effects };
 }
 
-/** A named task has to exist; an unnamed command falls back to the one the user is looking at. */
+/** A named thread has to exist; an unnamed command falls back to the one the user is looking at. */
 export function targetId(state: WorkspaceState, taskId: string | undefined): string | null {
   if (taskId === undefined) return state.currentId;
-  return state.tasks.some((task) => task.id === taskId) ? taskId : null;
+  return state.threads.some((thread) => thread.id === taskId) ? taskId : null;
 }
 
-/** An archived task is unreachable, so its automation would tick forever with nowhere to run. */
+/** An archived thread is unreachable, so its automation would tick forever with nowhere to run. */
 export function retireAutomations(state: WorkspaceState, taskIds: Iterable<string>): WorkspaceEffect[] {
   const scheduled = new Set(state.automations.map((automation) => automation.taskId));
   return [...taskIds].filter((taskId) => scheduled.has(taskId)).map((taskId) => ({ type: "automation.delete" as const, taskId }));
@@ -220,7 +220,7 @@ export function closeBrowserTab(state: WorkspaceState, owner: string, tabId: str
 export function browserAllowed(state: WorkspaceState, taskId: string, url: string) {
   const origin = browserOrigin(url);
   if (origin && state.browserOrigins.includes(origin)) return true;
-  return state.tasks.find((task) => task.id === taskId)?.executionPolicy === "autonomous";
+  return state.threads.find((thread) => thread.id === taskId)?.executionPolicy === "autonomous";
 }
 
 /** Bringing a page to the front is what gives a restored one its view, and only then. */
@@ -332,30 +332,30 @@ function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined
   return { chromeBrowser: true as const };
 }
 
-export function startRunCommand(state: WorkspaceState, task: Thread, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
+export function startRunCommand(state: WorkspaceState, thread: Thread, runId: string, prompt: string, workspaceId: string, policy = thread.executionPolicy): StartRunCommand {
   const claude = claudeRunSettings(state);
   return {
     type: "start",
     channel: "main",
-    taskId: task.id,
+    taskId: thread.id,
     runId,
     prompt,
     workspaceId,
     policy,
-    engine: task.engine,
-    model: task.model ?? defaultModelFor(task.engine),
-    effort: effortForModel(task.model ?? defaultModelFor(task.engine), task.effort ?? defaultEffortFor(task.engine)),
+    engine: thread.engine,
+    model: thread.model ?? defaultModelFor(thread.engine),
+    effort: effortForModel(thread.model ?? defaultModelFor(thread.engine), thread.effort ?? defaultEffortFor(thread.engine)),
     ...(claude ? { claude } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
-    ...(task.continuation ? { continuation: task.continuation } : {}),
+    ...(thread.continuation ? { continuation: thread.continuation } : {}),
   };
 }
 
 /** A side chat's first turn forks the source thread; every turn after resumes its own branch. */
-export function sideChannelFor(state: WorkspaceState, task: Thread): Partial<StartRunCommand> {
-  if (!state.sideChats.some((chat) => chat.id === task.id)) return {};
-  if (task.continuation) return { channel: "side" };
-  const continuation = forkableContinuation(state, task.id);
+export function sideChannelFor(state: WorkspaceState, thread: Thread): Partial<StartRunCommand> {
+  if (!state.sideChats.some((chat) => chat.id === thread.id)) return {};
+  if (thread.continuation) return { channel: "side" };
+  const continuation = forkableContinuation(state, thread.id);
   return continuation ? { channel: "side", continuation, forkContinuation: true } : { channel: "side" };
 }
 
@@ -363,21 +363,21 @@ export function sideChannelFor(state: WorkspaceState, task: Thread): Partial<Sta
 export function forkableContinuation(state: WorkspaceState, taskId: string) {
   const chat = state.sideChats.find((item) => item.id === taskId);
   if (!chat) return undefined;
-  const task = state.tasks.find((item) => item.id === taskId);
-  return task?.continuation ?? state.tasks.find((item) => item.id === chat.sourceTaskId)?.continuation;
+  const thread = state.threads.find((item) => item.id === taskId);
+  return thread?.continuation ?? state.threads.find((item) => item.id === chat.sourceThreadId)?.continuation;
 }
 
 /**
- * Records the run against the task and marks it the task's latest, so stale replies can be dropped.
+ * Records the run against the thread and marks it the thread's latest, so stale replies can be dropped.
  * The new run supersedes whatever the last one concluded, so its verdict never outlives it, and it
  * keeps where the thread stood, which is what a run that settles unseen puts back.
  */
 export function beginRun(state: WorkspaceState, taskId: string, runId: string, provenance: RunProvenance = ATTENDED_RUN, before?: ThreadMark): WorkspaceState {
-  const tasks = withoutOutcome(state.tasks, new Set([taskId]));
-  const messagesBefore = tasks.find((task) => task.id === taskId)?.messages.length ?? 0;
-  const mark = before ?? threadMark(state.tasks.find((task) => task.id === taskId));
+  const threads = withoutOutcome(state.threads, new Set([taskId]));
+  const messagesBefore = threads.find((thread) => thread.id === taskId)?.messages.length ?? 0;
+  const mark = before ?? threadMark(state.threads.find((thread) => thread.id === taskId));
   return withRunStatus(
-    withActiveRun({ ...state, tasks, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark }),
+    withActiveRun({ ...state, threads, actionError: null, lastRunIds: { ...state.lastRunIds, [taskId]: runId } }, taskId, { taskId, runId, sequence: 0, status: "running", ...provenance, notified: false, acknowledged: false, reportedIssues: [], messagesBefore, before: mark }),
     taskId,
     "running",
   );
@@ -395,9 +395,9 @@ export function withDeliveredMessage(state: WorkspaceState, taskId: string, mess
   const queued = queuedFor(state, taskId);
   const delivered = queued.find((message) => message.id === messageId);
   if (!delivered) return state;
-  return applyTask(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (task) => ({
-    ...task,
-    messages: [...task.messages, createConversationMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
+  return updateThread(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (thread) => ({
+    ...thread,
+    messages: [...thread.messages, createConversationMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
     updatedAt: now(),
   }));
 }
@@ -419,10 +419,10 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     const handed = withFiles(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes), taskId, files);
     return settled(images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : handed);
   }
-  const task = state.tasks.find((item) => item.id === taskId);
-  if (!task) return settled(withQueued(state, taskId, []));
+  const thread = state.threads.find((item) => item.id === taskId);
+  if (!thread) return settled(withQueued(state, taskId, []));
   const [next] = queued;
-  const project = projectFor(state, task);
+  const project = projectFor(state, thread);
   const pending: PendingRun = {
     id: crypto.randomUUID(),
     runId: crypto.randomUUID(),
@@ -437,7 +437,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     ...(next.files ? { files: next.files } : {}),
     queuedIds: [next.id],
   };
-  return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false)]);
+  return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);
 }
 
 /**
@@ -446,7 +446,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
  * its uncommitted work with it; a thread starting in a worktree begins from that checkout as it
  * stands, which is also why a branch to start from has nothing left to say once one is named.
  */
-export function resolveWorkspaceEffect(pendingId: string, task: Thread | undefined, project: Project | undefined, worktree: Worktree | undefined, wantsWorktree: boolean, branch?: DraftBranch | null): Extract<WorkspaceEffect, { type: "resolve-run-workspace" }> {
+export function resolveWorkspaceEffect(pendingId: string, thread: Thread | undefined, project: Project | undefined, worktree: Worktree | undefined, wantsWorktree: boolean, branch?: DraftBranch | null): Extract<WorkspaceEffect, { type: "resolve-run-workspace" }> {
   if (worktree) {
     return { type: "resolve-run-workspace", pendingId, picker: false, workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root } };
   }
@@ -461,7 +461,7 @@ export function resolveWorkspaceEffect(pendingId: string, task: Thread | undefin
       picker: false,
       root: project.root,
       ...making,
-      createWorktree: { projectRoot: project.root, carryChanges: Boolean(task), ...(branch ? { branch: branch.name } : {}) },
+      createWorktree: { projectRoot: project.root, carryChanges: Boolean(thread), ...(branch ? { branch: branch.name } : {}) },
     };
   }
   return {
@@ -488,8 +488,8 @@ export function threadBusy(state: WorkspaceState, taskId: string) {
 export function runsInWorkspace(state: WorkspaceState, workspaceId: string | undefined) {
   if (!workspaceId) return false;
   return Object.keys(state.activeRuns).some((taskId) => {
-    const task = state.tasks.find((item) => item.id === taskId);
-    return task ? threadWorkspaceId(state, task) === workspaceId : false;
+    const thread = state.threads.find((item) => item.id === taskId);
+    return thread ? threadWorkspaceId(state, thread) === workspaceId : false;
   });
 }
 
@@ -498,9 +498,9 @@ export function runsInWorkspace(state: WorkspaceState, workspaceId: string | und
  * timeline; the directory and every other claim on it are untouched.
  */
 export function leaveWorktree(state: WorkspaceState, taskId: string, note: ReturnType<typeof createConversationMessage>): WorkspaceState {
-  return applyTask(state, taskId, ({ worktreeId: _left, worktreeEnteredAt: _forked, ...task }) => ({
-    ...task,
-    messages: [...task.messages, note],
+  return updateThread(state, taskId, ({ worktreeId: _left, worktreeEnteredAt: _forked, ...thread }) => ({
+    ...thread,
+    messages: [...thread.messages, note],
     updatedAt: now(),
   }));
 }
@@ -512,31 +512,31 @@ export function leaveWorktree(state: WorkspaceState, taskId: string, note: Retur
  */
 export function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => ReturnType<typeof createConversationMessage>): WorkspaceState {
   const gone = state.worktrees.find((worktree) => worktree.id === worktreeId);
-  const claimants = new Set(worktreeClaimants(state, worktreeId).map((task) => task.id));
+  const claimants = new Set(worktreeClaimants(state, worktreeId).map((thread) => thread.id));
   return {
     ...state,
     releasingWorktrees: state.releasingWorktrees.filter((taskId) => !claimants.has(taskId)),
     worktrees: state.worktrees.filter((worktree) => worktree.id !== worktreeId),
     ...(gone ? { environments: withoutEnvironment(state.environments, gone.workspaceId) } : {}),
     ...(state.draftWorktreeId === worktreeId ? { draftWorktreeId: null } : {}),
-    tasks: state.tasks.map((task) => {
-      if (task.worktreeId !== worktreeId) return task;
-      const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = task;
-      return { ...local, messages: [...task.messages, note()], updatedAt: now() };
+    threads: state.threads.map((thread) => {
+      if (thread.worktreeId !== worktreeId) return thread;
+      const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = thread;
+      return { ...local, messages: [...thread.messages, note()], updatedAt: now() };
     }),
   };
 }
 
 /** Hands back a checkout only when every linked thread explicitly leaves it. */
 export function releaseWorktrees(state: WorkspaceState, leaving: Thread[]): Extract<WorkspaceEffect, { type: "release-worktree" }>[] {
-  const going = new Set(leaving.map((task) => task.id));
+  const going = new Set(leaving.map((thread) => thread.id));
   const released = new Set<string>();
-  return leaving.flatMap((task) => {
-    const worktree = worktreeFor(state, task);
+  return leaving.flatMap((thread) => {
+    const worktree = worktreeFor(state, thread);
     if (!worktree || released.has(worktree.id)) return [];
     if (worktreeClaimants(state, worktree.id).some((claimant) => !going.has(claimant.id))) return [];
     released.add(worktree.id);
-    return [{ type: "release-worktree" as const, taskId: task.id, worktreeId: worktree.id, root: worktree.root, title: task.title }];
+    return [{ type: "release-worktree" as const, taskId: thread.id, worktreeId: worktree.id, root: worktree.root, title: thread.title }];
   });
 }
 
@@ -572,10 +572,10 @@ export function closeSideChats(state: WorkspaceState, closing: SideChat[]): Work
   /** Nothing a side chat can reach schedules one today; this keeps that true if the tool table changes. */
   effects.push(...retireAutomations(next, closed));
   return {
-    state: pruneDeletedTasks({
+    state: pruneDeletedThreads({
       ...next,
       automations: next.automations.filter((automation) => !closed.has(automation.taskId)),
-      tasks: next.tasks.filter((task) => !closed.has(task.id)),
+      threads: next.threads.filter((thread) => !closed.has(thread.id)),
       sideChats: next.sideChats.filter((chat) => !closed.has(chat.id)),
       docks: Object.fromEntries(Object.entries(next.docks).map(([owner, dock]): [string, ThreadDock] => [
         owner,
@@ -647,8 +647,8 @@ export { DIFF_PANEL, WORKFLOW_PANEL };
 
 /** The checkout the thread in front works in: what Git is read from, for its diff as for its status. */
 export function currentWorkspaceId(state: WorkspaceState) {
-  const currentTask = state.tasks.find((task) => task.id === state.currentId);
-  if (currentTask) return threadWorkspaceId(state, currentTask);
+  const currentThread = state.threads.find((thread) => thread.id === state.currentId);
+  if (currentThread) return threadWorkspaceId(state, currentThread);
   return state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined;
 }
 
@@ -659,7 +659,7 @@ export function currentWorkspaceId(state: WorkspaceState) {
 export function refreshEnvironment(state: WorkspaceState): WorkspaceEffect[] {
   const workspaceId = currentWorkspaceId(state);
   if (!workspaceId) return [];
-  const taskId = state.tasks.find((task) => task.id === state.currentId)?.id;
+  const taskId = state.threads.find((thread) => thread.id === state.currentId)?.id;
   const runId = taskId ? state.lastRunIds[taskId] : undefined;
   return [{ type: "refresh-environment", workspaceId, ...(taskId ? { taskId } : {}), ...(runId ? { runId } : {}) }];
 }
@@ -730,7 +730,7 @@ export function readDiff(state: WorkspaceState, owner: string, range: DiffRange,
 export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const diff = state.diffs[taskId];
   if (!diff) return settled(state);
-  const workspaceId = threadWorkspaceId(state, state.tasks.find((task) => task.id === taskId));
+  const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === taskId));
   return diff.workspaceId === workspaceId ? settled(state) : readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
 }
 

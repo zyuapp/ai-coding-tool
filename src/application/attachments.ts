@@ -28,7 +28,7 @@ export function promptWithAttachments(text: string, attachments: RunAttachment[]
   return [text, `${ATTACHMENT_HEADING}\n${blocks.join("\n")}`].filter((part) => part.length > 0).join("\n\n");
 }
 
-export function taskTitleFor(text: string, attachments: RunAttachment[]) {
+export function threadTitleFor(text: string, attachments: RunAttachment[]) {
   return clampTitle(text || (attachments.length === 1 ? "Screenshot" : `${attachments.length} screenshots`));
 }
 

@@ -12,7 +12,7 @@ import type { Thread } from "../domain/thread.js";
 import { announced } from "./notices.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
 import { threadBusy } from "./thread-projection.js";
-import { applyTask } from "./task-workspace.js";
+import { updateThread } from "./thread-run-state.js";
 import type { WorkspaceEffect, WorkspaceTransition } from "./workspace-reducer.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
@@ -39,35 +39,35 @@ function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-a
  * from one an agent is busy in, and answered first: the two would otherwise both read as busy, and
  * only the second is a schedule failing to get a turn.
  */
-export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, task?: Thread, project?: Project): TickRefusal | null {
-  if (!task) return "no-thread";
+export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, thread?: Thread, project?: Project): TickRefusal | null {
+  if (!thread) return "no-thread";
   const busy = whoIsBusy(state, fire.taskId);
   if (busy) return busy;
-  if (task.archivedAt !== undefined) return "archived";
+  if (thread.archivedAt !== undefined) return "archived";
   /** A thread in a project runs in that project's checkout, so it waits until there is one. */
-  if (task.projectId && !project?.workspaceId) return "no-workspace";
+  if (thread.projectId && !project?.workspaceId) return "no-workspace";
   return null;
 }
 
 /** Only a scheduled run may raise one: a turn the user is present for answers them directly. */
 export function raisedFinding(state: WorkspaceState, report: FindingReport & { taskId: string }): WorkspaceTransition {
-  const task = scheduledRun(state, report.taskId) ? state.tasks.find((item) => item.id === report.taskId) : undefined;
-  if (!task) return { state, effects: [] };
-  const raised = isNews(task, report.key);
+  const thread = scheduledRun(state, report.taskId) ? state.threads.find((item) => item.id === report.taskId) : undefined;
+  if (!thread) return { state, effects: [] };
+  const raised = isNews(thread, report.key);
   /** A thread the user is watching cannot have missed it. */
   const seen = state.focused && state.currentId === report.taskId;
   const next = withNotifiedRun(state, report.taskId, report, Date.now(), seen);
-  return { state: next, effects: raised ? announced(state, task, report.headline) : [] };
+  return { state: next, effects: raised ? announced(state, thread, report.headline) : [] };
 }
 
 /**
  * A tick with nowhere to run is acknowledged and dropped, which the scheduler counts. A schedule
  * turned away over and over is a silence of its own, so the thread says so out loud, once.
  */
-export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: Thread | undefined, refusal: TickRefusal): WorkspaceTransition {
+export function declinedTick(state: WorkspaceState, fire: AutomationFire, thread: Thread | undefined, refusal: TickRefusal): WorkspaceTransition {
   const acked: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
   const automation = state.automations.find((item) => item.id === fire.automationId);
-  if (!task || !automation || declineCount(automation) + 1 < DECLINES_BEFORE_SURFACING) return { state, effects: acked };
+  if (!thread || !automation || declineCount(automation) + 1 < DECLINES_BEFORE_SURFACING) return { state, effects: acked };
   /** A thread its own user is working in is not a broken schedule: they are here, and the ticks resume when they stop. */
   if (refusal === "busy-user") return { state, effects: acked };
   const key = `declined:${automation.id}`;
@@ -77,13 +77,13 @@ export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: 
    * stretch was about a schedule that has run since, so it does not stand in for this one.
    */
   const since = automation.lastRunAt ?? 0;
-  const said = !isNews(task, key) || (task.findings ?? []).some((finding) => finding.key === key && finding.at >= since);
+  const said = !isNews(thread, key) || (thread.findings ?? []).some((finding) => finding.key === key && finding.at >= since);
   if (said) return { state, effects: acked };
   const headline = `This automation has not been able to run since ${new Date(automation.lastRunAt ?? automation.createdAt).toLocaleString()}`;
   const report = { headline, key };
-  const seen = state.focused && state.currentId === task.id;
+  const seen = state.focused && state.currentId === thread.id;
   return {
-    state: applyTask(state, task.id, (item) => withFinding(item, report, Date.now(), seen)),
-    effects: [...acked, ...announced(state, task, headline)],
+    state: updateThread(state, thread.id, (item) => withFinding(item, report, Date.now(), seen)),
+    effects: [...acked, ...announced(state, thread, headline)],
   };
 }

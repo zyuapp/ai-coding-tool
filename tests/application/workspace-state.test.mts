@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, withStoreData, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { Task, TaskMessage } from "../../src/domain/task.ts";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { Worktree } from "../../src/domain/worktree.ts";
 
-function task(id: string, worktreeId?: string): Task {
+function task(id: string, worktreeId?: string): Thread {
   return {
     id,
     title: id,
@@ -27,7 +28,7 @@ function checkout(id: string, root: string): Worktree {
 test("a load keeps only claimed session checkouts and lets stored records win duplicate ids", () => {
   const state: WorkspaceState = {
     ...emptyWorkspaceState(),
-    tasks: [task("held", "live"), task("stale", "unclaimed")],
+    threads: [task("held", "live"), task("stale", "unclaimed")],
     worktrees: [checkout("stored", "/session-stored"), checkout("live", "/session-live"), checkout("unclaimed", "/session-unclaimed")],
     currentId: "held",
     activeRuns: { held: {
@@ -53,29 +54,29 @@ test("a load keeps only claimed session checkouts and lets stored records win du
     lastFolder: null,
   });
 
-  assert.deepEqual(loaded.tasks.map((item) => item.id), ["from-store", "held"]);
+  assert.deepEqual(loaded.threads.map((item) => item.id), ["from-store", "held"]);
   assert.deepEqual(loaded.worktrees, [stored, checkout("live", "/session-live")]);
 });
 
 test("transcript find invalidates when a thread receives a new messages array", () => {
-  const first: TaskMessage = { id: "first", kind: "assistant", text: "needle", at: 1 };
-  const found: Task = { ...task("found"), messages: [first] };
+  const first: ConversationMessage = { id: "first", kind: "assistant", text: "needle", at: 1 };
+  const found: Thread = { ...task("found"), messages: [first] };
   const state: WorkspaceState = {
     ...emptyWorkspaceState(),
-    tasks: [found],
+    threads: [found],
     currentId: found.id,
     find: { target: { kind: "thread", taskId: found.id }, query: "needle", index: 0, focus: 0 },
   };
   assert.equal(deriveView(state).find!.matches, 1);
-  const second: TaskMessage = { id: "second", kind: "user", text: "another needle", at: 2 };
-  assert.equal(deriveView({ ...state, tasks: [{ ...found, messages: [first, second] }] }).find!.matches, 2);
+  const second: ConversationMessage = { id: "second", kind: "user", text: "another needle", at: 2 };
+  assert.equal(deriveView({ ...state, threads: [{ ...found, messages: [first, second] }] }).find!.matches, 2);
 });
 
 test("a worktree being deleted shows the wait, refuses a repeat, and clears on failure", () => {
   const worktree = checkout("wt1", "/worktrees/repo-wt1");
   const state: WorkspaceState = {
     ...emptyWorkspaceState(),
-    tasks: [task("task-a", worktree.id)],
+    threads: [task("task-a", worktree.id)],
     worktrees: [worktree],
     managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: "/repo", branch: null }],
   };

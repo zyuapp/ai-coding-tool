@@ -1,5 +1,5 @@
 import { attachmentUrl } from "../../application/attachments";
-import type { StreamingTail } from "../../application/task-workspace";
+import type { StreamingTail } from "../../application/thread-run-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { ConversationMessage } from "../../domain/conversation";
 import { timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";

@@ -6,7 +6,7 @@ import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.
 import { settleUntil } from "../support/settle.mts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
 import type { ExecutionPolicy, Subagent } from "../../src/domain/run.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
@@ -297,7 +297,7 @@ test("a side chat composes with everything the main composer has", async () => {
   });
   const decisions: boolean[] = [];
   const policies: ExecutionPolicy[] = [];
-  const chatTask: Task = {
+  const chatThread: Thread = {
     id: "chat-1",
     title: "Side chat",
     engine: "claude",
@@ -313,9 +313,9 @@ test("a side chat composes with everything the main composer has", async () => {
     chat: {
       id: "chat-1",
       title: "Chat 1",
-      sourceTaskId: "main-task",
+      sourceThreadId: "main-task",
       error: null,
-      task: chatTask,
+      thread: chatThread,
       compacting: false,
       status: "running",
       streamingTail: null,

@@ -391,7 +391,7 @@ test("a run reads the page through the window and is told when a site is waiting
 
   await act(async () => { await harness.get().dispatch({ type: "view.set-prompt", prompt: "look at the dashboard" }); });
   await act(async () => { await harness.get().dispatch({ type: "task.send" }); });
-  const taskId = item(harness.get().currentTask).id;
+  const taskId = item(harness.get().currentThread).id;
   await act(async () => { await harness.get().dispatch({ type: "browser.open", url: "https://example.com" }); });
   const tabId = item(harness.get().browserTabs[0]).id;
 
@@ -436,7 +436,7 @@ test("a run captures a tab and is answered with the file the picture went to", a
 
   await act(async () => { await harness.get().dispatch({ type: "view.set-prompt", prompt: "check the header" }); });
   await act(async () => { await harness.get().dispatch({ type: "task.send" }); });
-  const taskId = item(harness.get().currentTask).id;
+  const taskId = item(harness.get().currentThread).id;
   await act(async () => { await harness.get().dispatch({ type: "browser.open", url: "https://example.com" }); });
   const tabId = item(harness.get().browserTabs[0]).id;
 

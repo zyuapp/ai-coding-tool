@@ -25,21 +25,21 @@ const jumpCache = new WeakMap<Thread[], { projects: Project[]; options: ThreadJu
 
 /** Every thread the panel can offer, newest first. Rebuilt only when the threads or the folders change. */
 function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {
-  const cached = jumpCache.get(state.tasks);
+  const cached = jumpCache.get(state.threads);
   if (cached && cached.projects === state.projects) return cached.options;
   const forked = new Set(state.sideChats.map((chat) => chat.id));
   const names = new Map(state.projects.map((project) => [project.id, projectName(project)]));
-  const options = state.tasks
-    .filter((task) => task.archivedAt === undefined && !forked.has(task.id))
-    .map((task): ThreadJumpOption => ({
-      id: task.id,
-      title: task.title,
-      project: task.projectId ? names.get(task.projectId) ?? null : null,
-      engine: task.engine,
-      lastActivityAt: threadActivityAt(task),
+  const options = state.threads
+    .filter((thread) => thread.archivedAt === undefined && !forked.has(thread.id))
+    .map((thread): ThreadJumpOption => ({
+      id: thread.id,
+      title: thread.title,
+      project: thread.projectId ? names.get(thread.projectId) ?? null : null,
+      engine: thread.engine,
+      lastActivityAt: threadActivityAt(thread),
     }))
     .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
-  jumpCache.set(state.tasks, { projects: state.projects, options });
+  jumpCache.set(state.threads, { projects: state.projects, options });
   return options;
 }
 

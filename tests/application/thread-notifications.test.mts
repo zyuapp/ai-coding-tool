@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { ActiveRun } from "../../src/application/task-workspace.ts";
+import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import type { RunEvent } from "../../src/contracts/ipc.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
-function task(id: string): Task {
+function task(id: string): Thread {
   return { id, title: id, messages: [], createdAt: 1, updatedAt: 1, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 0 } };
 }
 
@@ -31,7 +31,7 @@ function activeRun(taskId: string, overrides: Partial<ActiveRun> = {}): ActiveRu
 function workspace(overrides: Partial<WorkspaceState> = {}, run: Partial<ActiveRun> = {}): WorkspaceState {
   return {
     ...emptyWorkspaceState(),
-    tasks: [task("task-a")],
+    threads: [task("task-a")],
     activeRuns: { "task-a": activeRun("task-a", run) },
     currentId: null,
     focused: false,
@@ -91,8 +91,8 @@ test("turning notifications off keeps every notice back, and the thread is still
   const settled = fire(silent, { type: "run.status", status: "succeeded" });
 
   assert.deepEqual(headlines(settled.effects), []);
-  assert.equal(settled.state.tasks[0].outcome, "finished");
-  assert.equal(settled.state.tasks[0].outcomeUnread, true, "the sidebar still says so");
+  assert.equal(settled.state.threads[0].outcome, "finished");
+  assert.equal(settled.state.threads[0].outcomeUnread, true, "the sidebar still says so");
   assert.deepEqual(headlines(fire(silent, APPROVAL).effects), []);
 });
 

@@ -27,9 +27,9 @@ export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>):
   ];
   return directories.map((directory): WorktreeSettingsView => {
     const record = state.worktrees.find((worktree) => worktree.root === directory.root || worktree.id === directory.id);
-    const threads = state.tasks
-      .filter((task) => task.worktreeId === (record?.id ?? directory.id))
-      .map((task) => ({ id: task.id, title: task.title, archived: task.archivedAt !== undefined }));
+    const threads = state.threads
+      .filter((thread) => thread.worktreeId === (record?.id ?? directory.id))
+      .map((thread) => ({ id: thread.id, title: thread.title, archived: thread.archivedAt !== undefined }));
     const project = record
       ? state.projects.find((item) => item.id === record.projectId)
       : state.projects.find((item) => item.root === directory.repository);
@@ -40,9 +40,9 @@ export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>):
       available: onDisk.has(directory.root),
       recorded: Boolean(record),
       threads,
-      busy: threads.some((task) => busy.has(task.id)),
+      busy: threads.some((thread) => busy.has(thread.id)),
       deleting: state.deletingWorktrees.includes(directory.root)
-        || threads.some((task) => state.releasingWorktrees.includes(task.id)),
+        || threads.some((thread) => state.releasingWorktrees.includes(thread.id)),
     };
   }).sort((left, right) => left.name.localeCompare(right.name));
 }

@@ -4,7 +4,7 @@ import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
@@ -349,7 +349,7 @@ test("a scheduled tick runs in the original thread and reports back to the sched
   assert.match(scheduled.prompt, /stop tool/);
   assert.deepEqual(desktop.acknowledged, [{ automationId: "automation-1", runId: "run-scheduled", started: true }]);
 
-  const messages = item(workspace.get().currentTask).messages;
+  const messages = item(workspace.get().currentThread).messages;
   assert.equal(item(messages.at(-1)).text, "Check PR 42", "the transcript shows the prompt, not the scheduler's framing");
   assert.equal(item(messages.at(-1)).detail, "Automation run #3");
   await workspace.view.unmount();
@@ -377,7 +377,7 @@ test("a tick that lands on a busy or archived task is declined instead of queued
 
 test("removing a project retires the automations of every task it takes with it", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
-  const task = (id: string): Task => ({
+  const task = (id: string): Thread => ({
     id, title: id, projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   });
@@ -412,7 +412,7 @@ test("archiving a task retires its automation", async () => {
   await act(async () => { desktop.automationsChanged([automationView({ taskId: first.taskId })]); });
   assert.equal(item(workspace.get().automation).taskId, first.taskId);
 
-  await act(async () => { workspace.get().actions.archiveTask(first.taskId); });
+  await act(async () => { workspace.get().actions.archiveThread(first.taskId); });
 
   assert.deepEqual(desktop.automationChanges, [{ taskId: first.taskId, deleted: true }]);
   await workspace.view.unmount();

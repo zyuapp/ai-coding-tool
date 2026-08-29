@@ -34,7 +34,7 @@ export type SubagentLiveStatus = "working" | "idle";
 export type SubagentTerminalStatus = "completed" | "failed" | "stopped";
 export type SubagentStatus = SubagentLiveStatus | SubagentTerminalStatus;
 
-/** Provider-neutral updates for one delegated agent, before the owning task is attached for transport. */
+/** Provider-neutral updates for one delegated agent, before the owning thread is attached for transport. */
 export type SubagentReport =
   | { type: "subagent.started"; id: string; description: string; agentType?: string; sessionScoped?: true }
   | { type: "subagent.status"; id: string; status: SubagentLiveStatus; summary?: string }

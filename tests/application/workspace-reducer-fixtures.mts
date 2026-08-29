@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { reduce, type WorkspaceEffect, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { viewPreferences } from "../../src/application/view-preferences.ts";
-import type { ActiveRun } from "../../src/application/task-workspace.ts";
+import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import type { AutomationView } from "../../src/domain/automation.ts";
 import type { CreatedWorktree, RunEvent } from "../../src/contracts/ipc.ts";
 import type { ViewPreferences } from "../../src/contracts/preferences.ts";
-import type { Project, Task } from "../../src/domain/task.ts";
+import type { Project } from "../../src/domain/project.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { Worktree } from "../../src/domain/worktree.ts";
 
@@ -15,7 +16,7 @@ export function dock(state: WorkspaceState, owner?: string) {
   return dockFor(state, owner ?? dockOwner(state));
 }
 
-export function task(id: string, overrides: Partial<Task> = {}): Task {
+export function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -108,7 +109,7 @@ export function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceS
 /** A task mid-run, which is the only state in which a message can be queued or steered. */
 export function running(taskId = "task-a", runId = "run-a", overrides: Partial<WorkspaceState> = {}): WorkspaceState {
   return workspace({
-    tasks: [task(taskId)],
+    threads: [task(taskId)],
     currentId: taskId,
     activeRuns: { [taskId]: activeRun(taskId, runId) },
     runStatuses: { [taskId]: "running" },
@@ -136,9 +137,9 @@ export function heldWorktree(id = "wt1"): Worktree {
   return { ...madeWorktree(id), projectId: PROJECT.id };
 }
 
-/** Puts `tasks` in `worktree` the way state does: a record on one side, a claim on the other. */
-export function inside(worktree: Worktree, tasks: Task[]): Pick<WorkspaceState, "worktrees" | "tasks"> {
-  return { worktrees: [worktree], tasks: tasks.map((item) => ({ ...item, worktreeId: worktree.id })) };
+/** Puts `threads` in `worktree` the way state does: a record on one side, a claim on the other. */
+export function inside(worktree: Worktree, threads: Thread[]): Pick<WorkspaceState, "worktrees" | "threads"> {
+  return { worktrees: [worktree], threads: threads.map((item) => ({ ...item, worktreeId: worktree.id })) };
 }
 
 /** Sends the composer draft and answers the workspace resolution with `resolution`. */

@@ -74,7 +74,7 @@ export function useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnota
 type CaptureOptions = {
   timelineRef: RefObject<HTMLDivElement | null>;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
-  taskId?: string;
+  threadId?: string;
   onAnnotateAdd?: AnnotateHandlers["onAnnotateAdd"];
   setSelection: Dispatch<SetStateAction<Selected | null>>;
   /** Puts an open note away, keeping whatever the user had already typed into it. */
@@ -96,7 +96,7 @@ function clippedTo(message: Element, range: Range) {
 }
 
 /** Selected assistant text grows an annotate popover; anything else puts it away. */
-export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, onAnnotateAdd, setSelection, dismissNote }: CaptureOptions) {
+export function useSelectionCapture({ timelineRef, scrollContainerRef, threadId, onAnnotateAdd, setSelection, dismissNote }: CaptureOptions) {
   useEffect(() => {
     if (!onAnnotateAdd) return;
     let frame = 0;
@@ -162,7 +162,7 @@ export function useSelectionCapture({ timelineRef, scrollContainerRef, taskId, o
     };
     scroller.addEventListener("scroll", dismiss, { passive: true });
     return () => scroller.removeEventListener("scroll", dismiss);
-  }, [onAnnotateAdd, scrollContainerRef, taskId]);
+  }, [onAnnotateAdd, scrollContainerRef, threadId]);
 }
 
 type MarkerOptions = {

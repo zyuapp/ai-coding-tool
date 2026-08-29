@@ -35,7 +35,7 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
     case "view.reading-point": {
       const { point } = input;
       const wellFormed = point === null || (point.anchor.length > 0 && Number.isFinite(point.depth));
-      if (!wellFormed || !state.tasks.some((task) => task.id === input.taskId)) return settled(state);
+      if (!wellFormed || !state.threads.some((thread) => thread.id === input.taskId)) return settled(state);
       if (sameReadingPoint(state.readingPoints[input.taskId] ?? null, point)) return settled(state);
       return settled({ ...state, readingPoints: { ...state.readingPoints, [input.taskId]: point } });
     }
@@ -44,6 +44,6 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
       return settled({ ...state, actionError: null, actionErrorPage: null });
 
     case "view.dismiss-hidden-tasks":
-      return settled({ ...state, hiddenTasks: 0 });
+      return settled({ ...state, hiddenThreads: 0 });
   }
 }

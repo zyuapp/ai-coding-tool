@@ -4,8 +4,8 @@ import type { Subagent, SubagentActivity } from "../../domain/run.js";
 import type { Thread } from "../../domain/thread.js";
 import type { ThreadStoreData } from "../../domain/thread-storage.js";
 
-function persistedTask(task: Thread): PersistedTask {
-  const { messages: _messages, ...record } = task;
+function persistedTask(thread: Thread): PersistedTask {
+  const { messages: _messages, ...record } = thread;
   return record;
 }
 
@@ -32,14 +32,14 @@ function subagentDelta(before: Subagent[] | undefined, held: Subagent[] | undefi
 }
 
 /** A side chat's thread never reaches the store, so it is filtered out on both sides of the delta. */
-function persistedTasks(state: Pick<WorkspaceState, "tasks" | "sideChats"> | null) {
+function persistedThreads(state: Pick<WorkspaceState, "threads" | "sideChats"> | null) {
   if (!state) return [];
-  if (state.sideChats.length === 0) return state.tasks;
+  if (state.sideChats.length === 0) return state.threads;
   const forked = sideChatIds(state);
-  return state.tasks.filter((task) => !forked.has(task.id));
+  return state.threads.filter((thread) => !forked.has(thread.id));
 }
 
-export type PersistenceState = Pick<WorkspaceState, "tasks" | "subagents" | "sideChats" | "projects" | "worktrees" | "lastFolder">;
+export type PersistenceState = Pick<WorkspaceState, "threads" | "subagents" | "sideChats" | "projects" | "worktrees" | "lastFolder">;
 
 export type PersistenceQueue = {
   persisted: PersistenceState | null;
@@ -48,31 +48,31 @@ export type PersistenceQueue = {
 };
 
 export function persistenceState(state: WorkspaceState): PersistenceState {
-  const { tasks, subagents, sideChats, projects, worktrees, lastFolder } = state;
-  return { tasks, subagents, sideChats, projects, worktrees, lastFolder };
+  const { threads, subagents, sideChats, projects, worktrees, lastFolder } = state;
+  return { threads, subagents, sideChats, projects, worktrees, lastFolder };
 }
 
 export function persistenceDelta(previous: PersistenceState | null, next: PersistenceState): TaskStoreDelta {
-  const previousTasks = new Map(persistedTasks(previous).map((task) => [task.id, task]));
-  const nextTasks = persistedTasks(next);
-  const nextIds = new Set(nextTasks.map((task) => task.id));
-  const removedTasks = [...previousTasks.keys()].filter((id) => !nextIds.has(id));
+  const previousThreads = new Map(persistedThreads(previous).map((thread) => [thread.id, thread]));
+  const nextThreads = persistedThreads(next);
+  const nextIds = new Set(nextThreads.map((thread) => thread.id));
+  const removedTasks = [...previousThreads.keys()].filter((id) => !nextIds.has(id));
   return {
     ...(removedTasks.length ? { removedTasks } : {}),
-    tasks: nextTasks.flatMap((task) => {
-      const before = previousTasks.get(task.id);
-      const heldBefore = previous?.subagents[task.id];
-      const held = next.subagents[task.id];
-      if (before === task && heldBefore === held) return [];
+    tasks: nextThreads.flatMap((thread) => {
+      const before = previousThreads.get(thread.id);
+      const heldBefore = previous?.subagents[thread.id];
+      const held = next.subagents[thread.id];
+      if (before === thread && heldBefore === held) return [];
       const messages: Array<{ index: number; message: Thread["messages"][number] }> = [];
-      for (let index = 0; index < task.messages.length; index += 1) {
-        const message = task.messages[index]!;
+      for (let index = 0; index < thread.messages.length; index += 1) {
+        const message = thread.messages[index]!;
         if (before?.messages[index] !== message) messages.push({ index, message });
       }
       const { subagents, activity } = subagentDelta(heldBefore, held);
-      if (before === task && !subagents.length && !activity.length) return [];
+      if (before === thread && !subagents.length && !activity.length) return [];
       return [{
-        task: persistedTask(task),
+        task: persistedTask(thread),
         messages,
         ...(subagents.length ? { subagents } : {}),
         ...(activity.length ? { activity } : {}),
@@ -89,7 +89,7 @@ export function storeBackfill(stored: ThreadStoreData, current: PersistenceState
   const subagents: Record<string, Subagent[]> = {};
   for (const task of stored.tasks) if (task.subagents?.length) subagents[task.id] = task.subagents;
   return persistenceDelta({
-    tasks: stored.tasks,
+    threads: stored.tasks,
     subagents,
     sideChats: [],
     projects: stored.projects,

@@ -2,7 +2,7 @@ import { elementScroll, useVirtualizer } from "@tanstack/react-virtual";
 import type { IconType } from "react-icons";
 import { LuChevronDown as ChevronDown, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import type { StreamingTail } from "../../application/task-workspace";
+import type { StreamingTail } from "../../application/thread-run-state";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
 import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
@@ -25,7 +25,7 @@ export { READING_SETTLE_MS } from "../timeline/use-reading-view";
 const EMPTY_ANNOTATIONS: Annotation[] = [];
 
 export type ConversationTimelineProps = {
-  currentTask?: Thread;
+  currentThread?: Thread;
   engine: AgentEngine;
   /** What the engine running this thread is called. */
   engineLabel: string;
@@ -64,8 +64,8 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
   run: "Starting…",
 };
 
-export function ConversationTimeline({ currentTask, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
-  const messages = currentTask?.messages ?? [];
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+  const messages = currentThread?.messages ?? [];
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
@@ -76,8 +76,8 @@ export function ConversationTimeline({ currentTask, engine, engineLabel, folder,
   /** The gap above the timeline, which puts the virtualizer's offsets in the scroller's own terms. */
   const [scrollMargin, setScrollMargin] = useState(0);
   const groups = useMemo(
-    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentTask?.runEndedAt }),
-    [messages, status, streamingTail?.messageId, currentTask?.runEndedAt],
+    () => groupTimeline(messages, { running: status === "running", tailMessageId: streamingTail?.messageId, runEndedAt: currentThread?.runEndedAt }),
+    [messages, status, streamingTail?.messageId, currentThread?.runEndedAt],
   );
   /** Every scroll the virtualizer makes for itself passes through here, which is how the reading view knows it is not the reader's. */
   const virtualizerScrolledAt = useRef(-Infinity);
@@ -114,13 +114,13 @@ export function ConversationTimeline({ currentTask, engine, engineLabel, folder,
   useEffect(() => () => paintMatches(painter, [], null), [painter]);
 
   const { atBottom, scrollToFoot } = useReadingView({
-    scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, taskId: currentTask?.id, rowOfMessage,
+    scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, threadId: currentThread?.id, rowOfMessage,
     hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin,
   });
-  useSelectionCapture({ timelineRef, scrollContainerRef, taskId: currentTask?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
+  useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
 
-  if (!currentTask?.messages.length && !streamingTail) {
+  if (!currentThread?.messages.length && !streamingTail) {
     return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
   }
 

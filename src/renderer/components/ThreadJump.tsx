@@ -10,7 +10,7 @@ import { ThreadEngineIcon } from "./ThreadEngineIcon";
 export type ThreadJumpActions = {
   setJumpQuery: (query: string) => unknown;
   stepJump: (delta: -1 | 1) => unknown;
-  chooseJump: (taskId: string) => unknown;
+  chooseJump: (threadId: string) => unknown;
   chooseJumpSetting: (section: SettingsSection, settingId: string | null) => unknown;
   closeJump: () => unknown;
 };

@@ -6,7 +6,7 @@ import type { Workflow } from "../../src/domain/workflow.ts";
 import { dock, task, workspace, preferences, required, run, running } from "./workspace-reducer-fixtures.mts";
 
 test("every thread keeps a dock of its own, panels, pages and shells alike", () => {
-  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
+  const state = { ...workspace(), lastFolder: "/repo", threads: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };
 
   const opened = run(state, [
     { type: "view.open-dock-panel", panel: "agents" },
@@ -46,7 +46,7 @@ test("every thread keeps a dock of its own, panels, pages and shells alike", () 
 
 test("the workflow a thread's panel is following survives a move to another thread and back", () => {
   const state = workspace({
-    tasks: [task("task-1"), task("task-2")],
+    threads: [task("task-1"), task("task-2")],
     currentId: "task-1",
     history: ["task-1"],
     historyIndex: 0,
@@ -72,7 +72,7 @@ test("the workflow a thread's panel is following survives a move to another thre
 test("a workflow panel closes once the record it was following is gone", () => {
   const workflow: Workflow = { id: "wf-1", name: "review-changes", description: "Review changed files", status: "completed", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
   const state = workspace({
-    tasks: [task("task-1"), task("task-2")],
+    threads: [task("task-1"), task("task-2")],
     currentId: "task-1",
     workflows: { "task-1": [workflow], "task-2": [{ ...workflow, id: "wf-2" }] },
   });
@@ -94,7 +94,7 @@ test("a workflow panel closes once the record it was following is gone", () => {
 });
 
 test("a view the user opens in the dock is handed the keyboard, and a run's own page is not", () => {
-  const state = { ...workspace(), tasks: [task("task-1", { continuation: { provider: "claude", value: "main-session" } }), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1" };
+  const state = { ...workspace(), threads: [task("task-1", { continuation: { provider: "claude", value: "main-session" } }), task("task-2", { executionPolicy: "autonomous" })], currentId: "task-1" };
 
   const shell = reduce(state, { type: "terminal.open", cwd: "/tmp" });
   const terminalId = dock(shell.state).terminals[0].id;
@@ -116,7 +116,7 @@ test("a view the user opens in the dock is handed the keyboard, and a run's own 
 });
 
 test("only a page holds the keys itself; everything else in the dock needs the window to take them back", () => {
-  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1")], currentId: "task-1" };
+  const state = { ...workspace(), lastFolder: "/repo", threads: [task("task-1")], currentId: "task-1" };
 
   const shell = reduce(state, { type: "terminal.open" });
   assert.deepEqual(shell.effects.at(-1), { type: "focus-window" }, "a shell is drawn in the window");
@@ -139,7 +139,7 @@ test("only a page holds the keys itself; everything else in the dock needs the w
 });
 
 test("expanding the dock shows it, and the dock gives up the whole workspace before it gives up a tab", () => {
-  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1")], currentId: "task-1" };
+  const state = { ...workspace(), lastFolder: "/repo", threads: [task("task-1")], currentId: "task-1" };
 
   const full = reduce(state, { type: "view.set-dock-expanded", expanded: true });
   assert.equal(dockFor(full.state, dockOwner(full.state)).open, true, "asking for the whole workspace is a way of asking for the dock");
@@ -155,7 +155,7 @@ test("expanding the dock shows it, and the dock gives up the whole workspace bef
 });
 
 test("a hidden dock does not come back expanded, and each thread keeps its own posture", () => {
-  const state = { ...workspace(), lastFolder: "/repo", tasks: [task("task-1"), task("task-2")], currentId: "task-1" };
+  const state = { ...workspace(), lastFolder: "/repo", threads: [task("task-1"), task("task-2")], currentId: "task-1" };
 
   const full = run(state, [{ type: "view.set-dock-expanded", expanded: true }]);
   const hidden = reduce(full, { type: "view.set-dock-open", open: false });
@@ -204,7 +204,7 @@ test("a restored page waits for the panel to show it before it loads", () => {
 });
 
 test("a side chat is the dock tab it opens, and closing it gives the dock back its last panel", () => {
-  const state = { ...workspace(), tasks: [task("task-1")], currentId: "task-1" };
+  const state = { ...workspace(), threads: [task("task-1")], currentId: "task-1" };
 
   const opened = run(state, [
     { type: "view.open-dock-panel", panel: "browser" },
@@ -218,7 +218,7 @@ test("a side chat is the dock tab it opens, and closing it gives the dock back i
 });
 
 test("closing a tab takes what is in front, and only then the window", () => {
-  const base = { ...workspace(), tasks: [task("task-1")], currentId: "task-1" };
+  const base = { ...workspace(), threads: [task("task-1")], currentId: "task-1" };
 
   assert.deepEqual(reduce(base, { type: "view.close-tab" }).effects, [{ type: "close-window" }], "nothing is in front of a bare window");
 
@@ -259,7 +259,7 @@ test("closing a tab takes what is in front, and only then the window", () => {
 });
 
 test("a side chat in front closes on ⌘W without taking the thread with it", () => {
-  const state = run({ ...workspace(), tasks: [task("task-1")], currentId: "task-1" }, [
+  const state = run({ ...workspace(), threads: [task("task-1")], currentId: "task-1" }, [
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "side-chat.open", chatId: "chat-1" },
   ]);
@@ -267,12 +267,12 @@ test("a side chat in front closes on ⌘W without taking the thread with it", ()
 
   const closed = reduce(state, { type: "view.close-tab" });
   assert.deepEqual(closed.state.sideChats, []);
-  assert.equal(closed.state.tasks.some((item) => item.id === "chat-1"), false, "a side chat's thread goes with it");
+  assert.equal(closed.state.threads.some((item) => item.id === "chat-1"), false, "a side chat's thread goes with it");
   assert.equal(dock(closed.state).tab, "agents");
 });
 
 test("opening settings puts the dock away, and closing them forgets the computer use ask", () => {
-  const opened = run({ ...workspace(), tasks: [task("task-1")], currentId: "task-1", computerUseSetup: true }, [
+  const opened = run({ ...workspace(), threads: [task("task-1")], currentId: "task-1", computerUseSetup: true }, [
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "view.set-settings-open", open: true },
   ]);

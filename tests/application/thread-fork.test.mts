@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { orderTasks } from "../../src/application/task-order.ts";
-import { forkTitle, type Task } from "../../src/domain/task.ts";
+import { orderThreads } from "../../src/application/thread-order.ts";
+import { forkTitle, type Thread } from "../../src/domain/thread.ts";
 import { activeRun } from "./workspace-reducer-fixtures.mts";
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -36,9 +36,9 @@ function effectOf<Type extends WorkspaceEffect["type"]>(transition: WorkspaceTra
 
 /** The thread the fork was made from, and the copy it produced, which is the one that is new. */
 function forked(before: WorkspaceState, after: WorkspaceState, sourceId: string) {
-  const known = new Set(before.tasks.map((item) => item.id));
-  const source = after.tasks.find((item) => item.id === sourceId);
-  const fork = after.tasks.find((item) => !known.has(item.id));
+  const known = new Set(before.threads.map((item) => item.id));
+  const source = after.threads.find((item) => item.id === sourceId);
+  const fork = after.threads.find((item) => !known.has(item.id));
   assert.ok(source && fork, "expected the source thread and one copy of it");
   return { source, fork };
 }
@@ -60,7 +60,7 @@ test("a fork carries the conversation and sits under the thread it was copied fr
     findings: [{ id: "f1", headline: "Something", at: 6 }],
   });
   const other = task("second", { projectId: "project-1", sortIndex: 1 });
-  const before = workspace({ tasks: [source, other], currentId: "first" });
+  const before = workspace({ threads: [source, other], currentId: "first" });
   const state = reduce(before, { type: "task.fork" }).state;
   const { fork } = forked(before, state, "first");
 
@@ -76,16 +76,16 @@ test("a fork carries the conversation and sits under the thread it was copied fr
   assert.equal(fork.findings, undefined, "what the source thread's runs found stays with it");
   assert.equal(fork.worktreeId, undefined);
   assert.equal(state.currentId, fork.id, "the copy is opened");
-  assert.deepEqual(orderTasks(state.tasks).map((item) => item.id), ["first", fork.id, "second"]);
+  assert.deepEqual(orderThreads(state.threads).map((item) => item.id), ["first", fork.id, "second"]);
 });
 
 test("a fork of a fork is numbered rather than suffixed twice", () => {
-  const before = workspace({ tasks: [task("first", { title: "Fix the login" })], currentId: "first" });
+  const before = workspace({ threads: [task("first", { title: "Fix the login" })], currentId: "first" });
   const once = reduce(before, { type: "task.fork" }).state;
   const { fork } = forked(before, once, "first");
   const twice = reduce(once, { type: "task.fork", taskId: fork.id }).state;
 
-  assert.deepEqual(twice.tasks.map((item) => item.title), ["Fix the login", "Fix the login (fork)", "Fix the login (fork 2)"]);
+  assert.deepEqual(twice.threads.map((item) => item.title), ["Fix the login", "Fix the login (fork)", "Fix the login (fork 2)"]);
 });
 
 test("forkTitle numbers past the names already taken and never stacks its suffix", () => {
@@ -97,7 +97,7 @@ test("forkTitle numbers past the names already taken and never stacks its suffix
 });
 
 test("a fork's first run forks the session it inherited, and its next run continues its own", () => {
-  const before = workspace({ tasks: [task("first", { continuation: { provider: "claude", value: "session-1" }, continuationStatus: "available" })], currentId: "first" });
+  const before = workspace({ threads: [task("first", { continuation: { provider: "claude", value: "session-1" }, continuationStatus: "available" })], currentId: "first" });
   const state = reduce(before, { type: "task.fork" }).state;
   const { fork } = forked(before, state, "first");
 
@@ -107,7 +107,7 @@ test("a fork's first run forks the session it inherited, and its next run contin
 
   assert.equal(first.forkContinuation, true);
   assert.deepEqual(first.continuation, { provider: "claude", value: "session-1" });
-  assert.equal(resolved.state.tasks.find((item) => item.id === fork.id)?.inheritedContinuation, true, "a run that has yet to name a session spends nothing");
+  assert.equal(resolved.state.threads.find((item) => item.id === fork.id)?.inheritedContinuation, true, "a run that has yet to name a session spends nothing");
 
   const settled = run(resolved.state, [
     { type: "run.event", event: { type: "continuation.updated", taskId: fork.id, runId: first.runId, sequence: 1, continuation: { provider: "claude", value: "session-2" } } },
@@ -119,11 +119,11 @@ test("a fork's first run forks the session it inherited, and its next run contin
 
   assert.equal("forkContinuation" in second, false);
   assert.deepEqual(second.continuation, { provider: "claude", value: "session-2" });
-  assert.equal(settled.tasks.find((item) => item.id === fork.id)?.inheritedContinuation, undefined, "the session it made of its own spends the inheritance");
+  assert.equal(settled.threads.find((item) => item.id === fork.id)?.inheritedContinuation, undefined, "the session it made of its own spends the inheritance");
 });
 
 test("a fork whose run dies before it names a session forks the inherited one again", () => {
-  const before = workspace({ tasks: [task("first", { continuation: { provider: "claude", value: "session-1" }, continuationStatus: "available" })], currentId: "first" });
+  const before = workspace({ threads: [task("first", { continuation: { provider: "claude", value: "session-1" }, continuationStatus: "available" })], currentId: "first" });
   const state = reduce(before, { type: "task.fork" }).state;
   const { fork } = forked(before, state, "first");
 
@@ -144,7 +144,7 @@ test("a fork whose run dies before it names a session forks the inherited one ag
 
 test("a fork of a thread whose session was lost carries the conversation and starts a fresh one", () => {
   const before = workspace({
-    tasks: [task("first", {
+    threads: [task("first", {
       engine: "codex", model: "gpt-5.6-sol",
       messages: [{ id: "m1", kind: "user", text: "Have a look", at: 5 }],
       continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
@@ -156,8 +156,8 @@ test("a fork of a thread whose session was lost carries the conversation and sta
     { type: "run.event", event: { type: "continuation.lost", taskId: "first", runId: "run-1", sequence: 1 } },
     { type: "run.event", event: { type: "run.status", taskId: "first", runId: "run-1", sequence: 2, status: "failed" } },
   ]);
-  assert.equal(lost.tasks[0].continuation, undefined);
-  assert.equal(lost.tasks[0].continuationStatus, "invalid");
+  assert.equal(lost.threads[0].continuation, undefined);
+  assert.equal(lost.threads[0].continuationStatus, "invalid");
 
   const state = reduce(lost, { type: "task.fork" }).state;
   const { fork } = forked(lost, state, "first");
@@ -176,7 +176,7 @@ test("a fork of a thread whose session was lost carries the conversation and sta
 
 test("forking into a worktree asks for a checkout of the copy's own", () => {
   const state = workspace({
-    tasks: [task("first", { projectId: "project-1" })],
+    threads: [task("first", { projectId: "project-1" })],
     projects: [{ id: "project-1", root: "/work/api", workspaceId: "workspace-1" }],
     currentId: "first",
   });

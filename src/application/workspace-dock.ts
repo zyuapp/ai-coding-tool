@@ -57,10 +57,10 @@ export const EMPTY_DOCK: ThreadDock = {
  * Whose dock a command belongs in: the thread it names, else the one the user is looking at. A side
  * chat is a tab within its source thread's dock, so its own commands land in that same dock.
  */
-export function dockOwner(state: Pick<DockState, "currentId" | "sideChats">, taskId?: string | null): string {
-  const id = taskId ?? state.currentId;
+export function dockOwner(state: Pick<DockState, "currentId" | "sideChats">, threadId?: string | null): string {
+  const id = threadId ?? state.currentId;
   if (!id) return DRAFT_DOCK;
-  return state.sideChats.find((chat) => chat.id === id)?.sourceTaskId ?? id;
+  return state.sideChats.find((chat) => chat.id === id)?.sourceThreadId ?? id;
 }
 
 export function dockFor(state: Pick<DockState, "docks">, owner: string): ThreadDock {
@@ -94,7 +94,7 @@ export function ownerOfTerminal(state: Pick<DockState, "docks">, terminalId: str
 
 /** The forks a dock draws as tabs: the ones taken from the thread that owns it. */
 export function dockSideChats(state: Pick<DockState, "sideChats">, owner: string) {
-  return state.sideChats.filter((chat) => chat.sourceTaskId === owner);
+  return state.sideChats.filter((chat) => chat.sourceThreadId === owner);
 }
 
 /**
@@ -166,8 +166,8 @@ export function activeTerminal(dock: ThreadDock) {
  * Which terminal a read acts on: the one it names, else the one the asking thread opened, else the
  * one its dock is showing. A thread with a shell of its own never reads somebody else's by accident.
  */
-export function terminalTarget(dock: ThreadDock, terminalId: string | undefined, taskId?: string) {
+export function terminalTarget(dock: ThreadDock, terminalId: string | undefined, threadId?: string) {
   if (terminalId !== undefined) return dock.terminals.find((terminal) => terminal.id === terminalId);
-  const own = taskId === undefined ? undefined : dock.terminals.reduceRight<TerminalSession | undefined>((found, terminal) => found ?? (terminal.taskId === taskId ? terminal : undefined), undefined);
+  const own = threadId === undefined ? undefined : dock.terminals.reduceRight<TerminalSession | undefined>((found, terminal) => found ?? (terminal.taskId === threadId ? terminal : undefined), undefined);
   return own ?? activeTerminal(dock);
 }

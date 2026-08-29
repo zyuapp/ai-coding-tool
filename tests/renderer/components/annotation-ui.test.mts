@@ -3,9 +3,9 @@ import { test, afterAll } from "vitest";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { TaskComposerProps } from "../../../src/renderer/components/TaskComposer.tsx";
+import type { ConversationComposerProps } from "../../../src/renderer/components/ConversationComposer.tsx";
 import type { QueuedMessage } from "../../../src/application/workspace-state.ts";
-import type { Annotation, PastedText } from "../../../src/domain/task.ts";
+import type { Annotation, PastedText } from "../../../src/domain/conversation.ts";
 import type { DesktopAPI } from "../../../src/contracts/ipc.ts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
@@ -28,7 +28,7 @@ Object.defineProperty(window, "desktop", { value: {
 } satisfies Pick<DesktopAPI, "commands" | "projectlessWorkspace"> });
 
 const { AnnotationRow } = await import("../../../src/renderer/components/AnnotationRow.tsx");
-const { TaskComposer } = await import("../../../src/renderer/components/TaskComposer.tsx");
+const { ConversationComposer } = await import("../../../src/renderer/components/ConversationComposer.tsx");
 
 afterAll(async () => {
   dom.window.close();
@@ -101,8 +101,8 @@ test("a sent annotation keeps its card and loses its remove button", async () =>
   await view.unmount();
 });
 
-function composer(props: Partial<TaskComposerProps>) {
-  return React.createElement(TaskComposer, {
+function composer(props: Partial<ConversationComposerProps>) {
+  return React.createElement(ConversationComposer, {
     prompt: "",
     folder: "/project",
     workspaceId: "workspace-1",

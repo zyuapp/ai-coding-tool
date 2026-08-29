@@ -4,7 +4,7 @@ import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
@@ -19,18 +19,18 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     open: true,
     inactive: false,
     projects: [],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set<string>(),
-    runningTaskIds: new Set<string>(),
-    blockedTaskIds: new Set<string>(),
+    runningThreadIds: new Set<string>(),
+    blockedThreadIds: new Set<string>(),
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set<string>(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set<string>(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -39,7 +39,7 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     canGoForward: false,
     onGoBack() {},
     onGoForward() {},
-    onNewTask() {},
+    onNewThread() {},
     onOpenFolder() {},
     onToggleProject() {},
     onRenameProject() {},
@@ -48,12 +48,12 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     onSetMode() {},
     onSetSectionOpen() {},
     onSetOpenMenu() {},
-    onSelectTask() {},
-    onArchiveTask() {},
-    onDismissTask() {},
+    onSelectThread() {},
+    onArchiveThread() {},
+    onDismissThread() {},
     onDismissAll() {},
-    onRenameTask() {},
-    onMoveTask() {}, onForkTask() {},
+    onRenameThread() {},
+    onMoveThread() {}, onForkThread() {},
     onMoveProject() {},
     onOpenSettings() {},
     ...overrides,
@@ -254,9 +254,9 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   return desktop;
 }
 
-type SeedProjectTask = Pick<Task, "id" | "title" | "updatedAt"> & Partial<Task>;
+type SeedProjectThread = Pick<Thread, "id" | "title" | "updatedAt"> & Partial<Thread>;
 
-function seedProjectTasks(tasks: SeedProjectTask[]) {
+function seedProjectTasks(tasks: SeedProjectThread[]) {
   localStorage.clear();
   localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
@@ -310,26 +310,26 @@ test("a folder's menu opens on its trigger and every choice closes it", async ()
   const sidebar = (openMenu: string | null) => renderProjectSidebar({
     inactive: false,
     projects: [{ id: "project-1", root: "/project" }],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu,
     settingsOpen: false,
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {},
     onRemoveProject: (id) => { removed.push(id); },
     onSetMode() {}, onSetSectionOpen() {},
     onSetOpenMenu: (menu) => { opened.push(menu); },
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onDismissThread() {}, onDismissAll() {}, onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
   const view = await mount(sidebar(null));
@@ -358,24 +358,24 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
   const view = await mount(renderProjectSidebar({
     inactive: false,
     projects,
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {},
+    onSelectThread() {}, onArchiveThread() {}, onMoveThread() {},
     onMoveProject: (projectId, index) => { moves.push([projectId, index]); },
     onOpenSettings() {},
   }));
@@ -398,7 +398,7 @@ test("a folder is lifted by its own row, and lifting one leaves every folded fol
 
 
 test("a thread drag leaves a folded folder folded, and opens no gap where it sits", async () => {
-  const task = (id: string, projectId: string): Task => ({
+  const task = (id: string, projectId: string): Thread => ({
     id, title: id, ...(projectId ? { projectId } : {}), engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
   });
@@ -407,24 +407,24 @@ test("a thread drag leaves a folded folder folded, and opens no gap where it sit
   const view = await mount(renderProjectSidebar({
     inactive: false,
     projects,
-    orderedTasks: tasks,
-    recentTasks: [],
+    orderedThreads: tasks,
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(["open-project"]),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: false, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onDismissThread() {}, onDismissAll() {}, onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const folded = () => [...view.container.querySelectorAll('[data-rfd-droppable-id="shut-project"], .task-list')];
@@ -499,25 +499,25 @@ test("a folder lifts from a press on its name, which is a button", async () => {
   const view = await mount(renderProjectSidebar({
     inactive: false,
     projects,
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
-    onNewTask() {}, onOpenFolder() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onRemoveProject() {},
     onToggleProject: (projectId) => { folded.push(projectId); },
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onMoveTask() {},
+    onSelectThread() {}, onArchiveThread() {}, onMoveThread() {},
     onMoveProject: (projectId, index) => { moves.push([projectId, index]); },
     onOpenSettings() {},
   }));

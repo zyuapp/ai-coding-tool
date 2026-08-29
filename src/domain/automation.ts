@@ -8,7 +8,7 @@ export const MAX_SURFACE_WHEN = 500;
 /** `missed` is not a run: it marks a one-shot whose moment passed without one. */
 export type AutomationRunStatus = "succeeded" | "failed" | "cancelled" | "skipped" | "missed";
 
-/** A task's recurring prompt. One per task: re-creating replaces the previous one. */
+/** A thread's recurring prompt. One per thread: re-creating replaces the previous one. */
 export type Automation = {
   id: string;
   taskId: string;
@@ -16,7 +16,7 @@ export type Automation = {
   /** A five-field cron expression, or an ISO 8601 timestamp for a single run. */
   schedule: string;
   timezone?: string;
-  /** Overrides the task's policy for scheduled runs; unattended runs usually need `autonomous`. */
+  /** Overrides the thread's policy for scheduled runs; unattended runs usually need `autonomous`. */
   policy?: ExecutionPolicy;
   /**
    * When a scheduled tick is worth the user's attention, in the automation's own words. Present makes

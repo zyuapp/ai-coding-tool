@@ -32,7 +32,7 @@ type SettingsTestOverrides = Partial<SettingsPanelProps> & {
 function renderSettingsPanel(overrides: SettingsTestOverrides) {
   return React.createElement(SettingsPanel, {
     onClose() {},
-    archivedTasks: [], managedWorktrees: [], worktreeManagementError: null, worktreeManagementNotice: null,
+    archivedThreads: [], managedWorktrees: [], worktreeManagementError: null, worktreeManagementNotice: null,
     theme: "aicodingtool-dark",
     themeMode: "auto",
     uiFont: "system",
@@ -52,7 +52,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetReadingSize() {},
     onSetTerminalSize() {},
     onSetChromeBrowser() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
-    onRestoreTask() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
+    onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
     onSetShortcut() {},
@@ -297,7 +297,7 @@ test("the general section installs the aic command and takes it back", async () 
     installCli: async () => { calls.push("install"); status = { state: "installed", path: "/usr/local/bin/aic" }; return status; },
     uninstallCli: async () => { calls.push("uninstall"); status = { state: "missing", path: "/usr/local/bin/aic" }; return status; },
   });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   const button = () => query<HTMLButtonElement>(view.container, ".setting-row-action button");
   assert.match(view.container.textContent, /Terminal command/);
@@ -315,7 +315,7 @@ test("the general section installs the aic command and takes it back", async () 
 
 test("an install the password prompt refuses is reported, not swallowed", async () => {
   window.desktop = fakeDesktop({ installCli: async () => { throw new Error("Cancelled."); } });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   await act(async () => { query<HTMLButtonElement>(view.container, ".setting-row-action button").click(); });
 
@@ -339,7 +339,7 @@ test("computer-use settings refresh permissions", async () => {
     ][checks++]),
     restartForComputerUse: () => { restarted = true; },
   });
-  const view = await mount(renderSettingsPanel({ onClose() {}, initialSection: "computer-use", archivedTasks: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(renderSettingsPanel({ onClose() {}, initialSection: "computer-use", archivedThreads: [], allowedOrigins: [], shortcuts: [], capturingShortcut: null, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => {});
   assert.match(view.container.textContent, /Accessibility/);
   assert.match(view.container.textContent, /Setup required/);
@@ -422,7 +422,7 @@ test("the usage section draws every provider and reports one that cannot answer"
     },
   };
   window.desktop = fakeDesktop({ planUsage: async (engine) => answer[engine] });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Usage")).click(); });
 
   assert.match(view.container.textContent, /Max plan/);
@@ -451,7 +451,7 @@ test("the usage section draws every provider and reports one that cannot answer"
 
 test("a usage read that rejects reports instead of breaking the panel", async () => {
   window.desktop = fakeDesktop({ planUsage: async () => { throw new Error("Untrusted IPC sender."); } });
-  const view = await mount(renderSettingsPanel({ onClose() {}, archivedTasks: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreTask() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
+  const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === "Usage")).click(); });
 
   assert.match(query(view.container, ".settings-error").textContent, /Untrusted IPC sender/);

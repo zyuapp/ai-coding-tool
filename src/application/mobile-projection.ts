@@ -2,7 +2,7 @@ import { deriveView, type WorkspaceState } from "./workspace-state.js";
 import { threadSummaries, threadTranscript } from "./thread-projection.js";
 import { projectName } from "../domain/project.js";
 import type { Thread } from "../domain/thread.js";
-import { orderTasks } from "./task-order.js";
+import { orderThreads } from "./thread-order.js";
 import type { MobileDraftView, MobileMessage, MobilePatch, MobileProjectGroup, MobileThreadDelta, MobileThreadEntry, MobileThreadView, MobileView } from "../contracts/mobile.js";
 
 /**
@@ -28,25 +28,25 @@ export function emptyMobileView(): MobileView {
 export function projectMobileView(state: WorkspaceState, at: number): MobileView {
   const view = deriveView(state);
   const summaries = threadSummaries(state, { scope: { kind: "all" }, limit: MOBILE_THREAD_LIMIT }, at);
-  const unread = new Set(state.tasks.filter((task) => task.outcomeUnread).map((task) => task.id));
+  const unread = new Set(state.threads.filter((thread) => thread.outcomeUnread).map((thread) => thread.id));
   const entries = new Map<string | null, MobileThreadEntry[]>();
   for (const summary of summaries) {
     const key = summary.projectId ?? null;
     const entry: MobileThreadEntry = {
       id: summary.id,
       title: summary.title || "Untitled thread",
-      status: view.blockedTaskIds.has(summary.id) ? "awaiting-approval" : summary.status,
+      status: view.blockedThreadIds.has(summary.id) ? "awaiting-approval" : summary.status,
       lastActivityAt: summary.lastActivityAt,
       unread: unread.has(summary.id),
     };
     entries.get(key)?.push(entry) ?? entries.set(key, [entry]);
   }
-  const tasksById = new Map(state.tasks.map((task) => [task.id, task]));
+  const threadsById = new Map(state.threads.map((thread) => [thread.id, thread]));
   /** Every open project is a group even with nothing in it, because a group is how a phone starts one. */
   const groups: MobileProjectGroup[] = view.projects.map((project) =>
-    ({ projectId: project.id, name: projectName(project), threads: rankGroup(entries.get(project.id) ?? [], tasksById) }));
+    ({ projectId: project.id, name: projectName(project), threads: rankGroup(entries.get(project.id) ?? [], threadsById) }));
   /** Always last, and always there, because it is the only way to start a thread in no project. */
-  groups.push({ projectId: null, name: "Recents", threads: rankGroup(entries.get(null) ?? [], tasksById) });
+  groups.push({ projectId: null, name: "Recents", threads: rankGroup(entries.get(null) ?? [], threadsById) });
   const thread = projectMobileThread(state, view);
   return { groups, thread, draft: thread ? null : projectMobileDraft(view), error: state.actionError };
 }
@@ -56,13 +56,13 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
  * A thread holds its slot when it starts, speaks or finishes, so the list never reshuffles under
  * a thumb; only waiting on the user lifts a row. `entries` arrive newest first already.
  */
-export function rankGroup(entries: MobileThreadEntry[], tasksById: Map<string, Thread>): MobileThreadEntry[] {
+export function rankGroup(entries: MobileThreadEntry[], threadsById: Map<string, Thread>): MobileThreadEntry[] {
   const blocked: MobileThreadEntry[] = [];
   const rest: MobileThreadEntry[] = [];
   for (const entry of entries) (entry.status === "awaiting-approval" ? blocked : rest).push(entry);
-  const byTask = new Map(rest.map((entry) => [entry.id, entry]));
-  const tasks = rest.flatMap((entry) => tasksById.get(entry.id) ?? []);
-  return [...blocked, ...orderTasks(tasks).flatMap((task) => byTask.get(task.id) ?? [])];
+  const byThread = new Map(rest.map((entry) => [entry.id, entry]));
+  const threads = rest.flatMap((entry) => threadsById.get(entry.id) ?? []);
+  return [...blocked, ...orderThreads(threads).flatMap((thread) => byThread.get(thread.id) ?? [])];
 }
 
 /** What the desktop's empty composer is pointed at, which is all a thread yet to exist amounts to. */
@@ -75,19 +75,19 @@ function projectMobileDraft(view: ReturnType<typeof deriveView>): MobileDraftVie
 }
 
 function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deriveView>): MobileThreadView | null {
-  const task = view.currentTask;
-  if (!task) return null;
-  const transcript = threadTranscript(state, task.id, MOBILE_TRANSCRIPT_MESSAGES);
+  const thread = view.currentThread;
+  if (!thread) return null;
+  const transcript = threadTranscript(state, thread.id, MOBILE_TRANSCRIPT_MESSAGES);
   if (!transcript) return null;
   const approval = view.approval;
   return {
-    id: task.id,
-    title: task.title || "Untitled thread",
+    id: thread.id,
+    title: thread.title || "Untitled thread",
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     messages: transcript.messages,
     omitted: transcript.omitted,
     streamingTail: view.streamingTail?.text ?? null,
-    status: view.blockedTaskIds.has(task.id) ? "awaiting-approval" : view.status,
+    status: view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.status,
     approval: approval
       ? {
         approvalId: approval.approvalId,

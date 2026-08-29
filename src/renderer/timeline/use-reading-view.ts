@@ -57,7 +57,7 @@ type ReadingViewOptions = {
   virtualizer: Virtualizer<HTMLDivElement, Element>;
   /** When the virtualizer last scrolled this scroller to correct its own estimates. */
   virtualizerScrolledAt: RefObject<number>;
-  taskId?: string;
+  threadId?: string;
   rowOfMessage: Map<string, number>;
   /** The match being read, if this transcript is the one being searched. */
   hit: FindHit | null;
@@ -75,7 +75,7 @@ type ReadingViewOptions = {
  * Every scroll of this transcript: where a reopened thread lands, where a match or a fresh answer
  * takes the view, and where the reader is reported to have settled.
  */
-export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, taskId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
+export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, virtualizerScrolledAt, threadId, rowOfMessage, hit, answerId, toolId, readingPoint, onReadingPointMove, setScrollMargin }: ReadingViewOptions) {
   const refs = useViewRefs();
   const { view, restoreScroll, placeAt, observed, placedFrom } = refs;
   const [atBottom, setAtBottom] = useState(true);
@@ -90,7 +90,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
    * thread's. Reading one against the other files a row of theirs as a place of ours.
    */
   const rendering = useRef<string | undefined>(undefined);
-  rendering.current = taskId;
+  rendering.current = threadId;
 
   /** Reading a match takes the view over, the way scrolling by hand does. */
   useEffect(() => {
@@ -113,7 +113,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
 
     /** The reader's place right now, counted the way a reading point is kept. */
     const observe = (): ReadingPoint => {
-      if (!taskId) return null;
+      if (!threadId) return null;
       const top = virtualizer.getVirtualItemForOffset(scroller.scrollTop);
       return top ? { anchor: String(top.key), depth: scroller.scrollTop - top.start } : null;
     };
@@ -126,7 +126,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
     const report = () => {
       clearTimeout(commitTimer);
       commitTimer = undefined;
-      if (taskId && !sameReadingPoint(observed.current, placedFrom.current)) {
+      if (threadId && !sameReadingPoint(observed.current, placedFrom.current)) {
         placedFrom.current = observed.current;
         onReadingPointMove?.(observed.current);
       }
@@ -160,12 +160,12 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
     };
     const readerMoving = () => dragging || performance.now() - touchedAt < READER_GRIP_MS;
     const onScroll = () => {
-      if (rendering.current !== taskId) return;
+      if (rendering.current !== threadId) return;
       const bottom = atFoot();
       setAtBottom(bottom);
       /** The reader taking the view is the one thing that stops it being placed for them. */
       if (readerMoving()) view.current = bottom ? FOOT : { at: "rest" };
-      if (!taskId) return;
+      if (!threadId) return;
       /** Where the view means to sit is what the workspace hears, so a scroll on the way there is never mistaken for the reader. */
       const held = view.current;
       if (held.at === "foot") observed.current = null;
@@ -205,7 +205,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
     measure();
 
     /** A thread reopens where its reader left it wherever that row still exists; one whose row is gone opens at its foot. */
-    const left = taskId ? incoming.current : null;
+    const left = threadId ? incoming.current : null;
     const row = left ? rows.current.get(left.anchor) : undefined;
     view.current = !left || row === undefined ? FOOT : { at: "row", id: left.anchor, depth: left.depth };
     observed.current = left;
@@ -226,7 +226,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
       window.removeEventListener("pointercancel", onRelease);
       observer.disconnect();
     };
-  }, [taskId, scrollContainerRef, virtualizer]);
+  }, [threadId, scrollContainerRef, virtualizer]);
 
   /**
    * A report made while another thread was opening can arrive here after it. The freshest point is
@@ -242,7 +242,7 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
     restoreScroll.current();
   }, [readingPoint]);
 
-  useFollowNewest(refs, taskId, answerId, toolId);
+  useFollowNewest(refs, threadId, answerId, toolId);
 
   return {
     atBottom,
@@ -257,24 +257,24 @@ export function useReadingView({ scrollContainerRef, timelineRef, virtualizer, v
 }
 
 /** What arrives while this thread is the one on screen moves the view; a switch places itself. */
-function useFollowNewest({ view, restoreScroll }: ViewRefs, taskId?: string, answerId?: string, toolId?: string) {
+function useFollowNewest({ view, restoreScroll }: ViewRefs, threadId?: string, answerId?: string, toolId?: string) {
   /** An answer is read from its first line, so the view holds its top instead of chasing the last. */
   const answerThread = useRef<string | undefined>(undefined);
   useEffect(() => {
-    const within = answerThread.current === taskId;
-    answerThread.current = taskId;
+    const within = answerThread.current === threadId;
+    answerThread.current = threadId;
     if (!answerId || !within || view.current.at === "rest") return;
     view.current = { at: "row", id: answerId, depth: ANSWER_DEPTH };
     restoreScroll.current();
-  }, [answerId, taskId]);
+  }, [answerId, threadId]);
 
   /** Work in progress is worth following, so a tool call hands the view back to the newest line. */
   const toolThread = useRef<string | undefined>(undefined);
   useEffect(() => {
-    const within = toolThread.current === taskId;
-    toolThread.current = taskId;
+    const within = toolThread.current === threadId;
+    toolThread.current = threadId;
     if (!toolId || !within || view.current.at === "rest") return;
     view.current = FOOT;
     restoreScroll.current();
-  }, [toolId, taskId]);
+  }, [toolId, threadId]);
 }

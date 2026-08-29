@@ -3,9 +3,10 @@ import { test } from "vitest";
 import { fileTitle, promptWithFiles } from "../../src/application/files.ts";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { MAX_ATTACHED_FILES, type Task } from "../../src/domain/task.ts";
+import { MAX_ATTACHED_FILES } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
-function task(id: string): Task {
+function task(id: string): Thread {
   return {
     id,
     title: id,
@@ -23,7 +24,7 @@ function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
 }
 
 function workspaceWithTasks(): WorkspaceState {
-  return { ...emptyWorkspaceState(), tasks: [task("task-1"), task("task-2")], currentId: "task-1" };
+  return { ...emptyWorkspaceState(), threads: [task("task-1"), task("task-2")], currentId: "task-1" };
 }
 
 /** Sends the current draft and takes the run all the way to the message it writes. */
@@ -110,7 +111,7 @@ test("a send carries the files, clears them, and keeps them on the message", () 
     { type: "file.attach", files: [{ path: "/tmp/one.md", name: "one.md" }] },
   ]);
   const started = sent(drafted);
-  const message = started.state.tasks[0].messages.at(-1)!;
+  const message = started.state.threads[0].messages.at(-1)!;
   assert.deepEqual(message.files!.map((file) => file.path), ["/tmp/one.md"]);
   assert.deepEqual(started.state.files, {}, "the composer is empty again");
   const run_ = started.effects.find((effect) => effect.type === "start-run");
@@ -122,8 +123,8 @@ test("a send carries the files, clears them, and keeps them on the message", () 
 test("a drop alone is worth sending, and titles the thread it starts", () => {
   const drafted = run({ ...emptyWorkspaceState() }, [{ type: "file.attach", files: [{ path: "/tmp/report.pdf", name: "report.pdf" }] }]);
   const started = sent(drafted);
-  assert.equal(started.state.tasks[0].title, "report.pdf");
-  assert.deepEqual(started.state.tasks[0].messages.at(-1)!.files!.map((file) => file.name), ["report.pdf"]);
+  assert.equal(started.state.threads[0].title, "report.pdf");
+  assert.deepEqual(started.state.threads[0].messages.at(-1)!.files!.map((file) => file.name), ["report.pdf"]);
 });
 
 test("files queued behind a run come back to the composer when the run is stopped", () => {

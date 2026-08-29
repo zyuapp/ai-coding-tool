@@ -5,7 +5,7 @@ import { deriveView } from "../../src/application/workspace-state.ts";
 import { task, workspace, activeRun, automation, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
 
 test("a project with no workspace of its own adopts the one the picker opened for it", () => {
-  const state = projected({ projects: [{ ...PROJECT, workspaceId: undefined }], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+  const state = projected({ projects: [{ ...PROJECT, workspaceId: undefined }], threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
 
   const reopened = send(state, { id: "workspace-b", kind: "project", root: "/repo" });
 
@@ -61,7 +61,7 @@ test("a branch the repository does not have yet is made before the thread starts
 });
 
 test("switching a thread's branch moves the checkout it works in", () => {
-  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+  const state = projected({ threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
 
   const moved = reduce(state, { type: "task.checkout-branch", branch: "feature-x" });
   assert.deepEqual(moved.effects, [{ type: "checkout-branch", workspaceId: "workspace-a", branch: "feature-x" }]);
@@ -80,7 +80,7 @@ test("switching a thread's branch moves the checkout it works in", () => {
 
 test("a checkout with a run going is not moved onto another branch", () => {
   const state = projected({
-    tasks: [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })],
+    threads: [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })],
     currentId: "task-a",
     activeRuns: { "task-b": activeRun("task-b", "run-b") },
   });
@@ -129,7 +129,7 @@ test("the draft answers belong to the thread being started, and reset once it ex
 
   /** A message to the thread that now exists uses where it already is, not a stale draft. */
   const start = effectAt(started, "start-run");
-  const taskId = required(started.state.tasks[0]).id;
+  const taskId = required(started.state.threads[0]).id;
   const settledRun = run(started.state, [
     { type: "run.event", event: { type: "run.status", taskId, runId: start.command.runId, sequence: 1, status: "succeeded" } },
     { type: "view.set-prompt", taskId, prompt: "More" },
@@ -165,7 +165,7 @@ test("a thread's second run in its worktree leaves the project row exactly where
 });
 
 test("a project that already has a workspace is never moved by a run that resolves elsewhere", () => {
-  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+  const state = projected({ threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
 
   const elsewhere = send(state, { id: "workspace-b", kind: "project", root: "/somewhere-else" });
 
@@ -174,7 +174,7 @@ test("a project that already has a workspace is never moved by a run that resolv
 
 test("a thread starting on another branch waits for the runs in that checkout to stop", () => {
   const state = projected({
-    tasks: [task("task-a", { projectId: PROJECT.id })],
+    threads: [task("task-a", { projectId: PROJECT.id })],
     activeRuns: { "task-a": activeRun("task-a", "run-a", { sequence: 1 }) },
     draftBranch: { name: "feature-x", create: false },
     prompts: { "draft:project-a": "Start here" },
@@ -184,12 +184,12 @@ test("a thread starting on another branch waits for the runs in that checkout to
 
   assert.deepEqual(refused.effects, [], "nothing moves the checkout under a thread that is working in it");
   assert.equal(refused.state.actionError, WORKSPACE_ERRORS.checkoutRunning);
-  assert.equal(refused.state.tasks.length, 1, "and no thread is created for a send that never started");
+  assert.equal(refused.state.threads.length, 1, "and no thread is created for a send that never started");
 });
 
 test("a thread starting on another branch in a worktree ignores the runs in the project checkout", () => {
   const state = projected({
-    tasks: [task("task-a", { projectId: PROJECT.id })],
+    threads: [task("task-a", { projectId: PROJECT.id })],
     activeRuns: { "task-a": activeRun("task-a", "run-a", { sequence: 1 }) },
     draftBranch: { name: "feature-x", create: false },
     draftWorktree: true,
@@ -212,11 +212,11 @@ test("a thread cannot change where it works while a send is still finding its ch
 
   assert.deepEqual(changedMind.effects, [], "the checkout is not handed back from under a run about to start");
   assert.equal(changedMind.state.actionError, WORKSPACE_ERRORS.worktreeRunning);
-  assert.ok(changedMind.state.tasks[0].worktreeId);
+  assert.ok(changedMind.state.threads[0].worktreeId);
 });
 
 test("an automation waits for a send that is still finding its checkout", () => {
-  const state = projected({ tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
+  const state = projected({ threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });
 
   const sending = reduce(state, { type: "task.send", attachments: [] });
   const fired = reduce(sending.state, {
@@ -230,12 +230,12 @@ test("an automation waits for a send that is still finding its checkout", () => 
 test("a dropped thread moves without unfolding the sidebar the user folded", () => {
   const state = workspace({
     projects: [{ id: "project-1", root: "/project" }],
-    tasks: [task("task-a"), task("task-b", { projectId: "project-1" })],
+    threads: [task("task-a"), task("task-b", { projectId: "project-1" })],
     expandedProjects: new Set(),
   });
 
   const moved = reduce(state, { type: "task.move", taskId: "task-a", target: { projectId: "project-1", index: 0 } });
-  assert.equal(required(moved.state.tasks.find((item) => item.id === "task-a")).projectId, "project-1");
+  assert.equal(required(moved.state.threads.find((item) => item.id === "task-a")).projectId, "project-1");
   assert.deepEqual([...moved.state.expandedProjects], []);
 });
 

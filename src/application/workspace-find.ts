@@ -8,16 +8,16 @@ import type { FindState, WorkspaceState } from "./workspace-state.js";
 
 export type FindView = FindState & { matches: number; counting: boolean; hit: FindHit | null };
 
-export function findView(state: WorkspaceState, currentTask: Thread | undefined): FindView | null {
+export function findView(state: WorkspaceState, currentThread: Thread | undefined): FindView | null {
   const find = state.find;
   if (!find) return null;
   const target = find.target;
   if (target.kind === "thread") {
-    /** A side chat is a task like any other, so naming it is all the same search needs. */
-    const task = target.taskId === (currentTask?.id ?? null)
-      ? currentTask
-      : state.tasks.find((item) => item.id === target.taskId);
-    const hits = memoizedFindHits(task?.messages ?? [], find.query);
+    /** A side chat is a thread like any other, so naming it is all the same search needs. */
+    const thread = target.taskId === (currentThread?.id ?? null)
+      ? currentThread
+      : state.threads.find((item) => item.id === target.taskId);
+    const hits = memoizedFindHits(thread?.messages ?? [], find.query);
     const index = hits.length ? Math.min(find.index, hits.length - 1) : 0;
     return { ...find, index, matches: hits.length, counting: false, hit: hits[index] ?? null };
   }

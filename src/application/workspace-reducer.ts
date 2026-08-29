@@ -65,8 +65,8 @@ export function escapeCommands(state: WorkspaceState): AppCommand[] {
 
 /** The project a new thread starts in: the one the current thread is in, else the one being drafted. */
 function currentProjectId(state: WorkspaceState): string | undefined {
-  const task = state.tasks.find((item) => item.id === state.currentId);
-  return (state.currentId ? task?.projectId : state.draftProjectId) ?? undefined;
+  const thread = state.threads.find((item) => item.id === state.currentId);
+  return (state.currentId ? thread?.projectId : state.draftProjectId) ?? undefined;
 }
 
 /**

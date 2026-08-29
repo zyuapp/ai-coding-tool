@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { TaskStoreDelta } from "../../src/contracts/ipc.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import {
   drainLatestPersistence,
   storeBackfill,
@@ -10,7 +10,7 @@ import {
 } from "../../src/renderer/task-workspace/workspace-persistence.ts";
 
 function snapshot(text: string): PersistenceState {
-  const task: Task = {
+  const task: Thread = {
     id: "task-1",
     title: "Task",
     engine: "claude",
@@ -20,7 +20,7 @@ function snapshot(text: string): PersistenceState {
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     updatedAt: 1,
   };
-  return { tasks: [task], subagents: {}, sideChats: [], projects: [], worktrees: [], lastFolder: null };
+  return { threads: [task], subagents: {}, sideChats: [], projects: [], worktrees: [], lastFolder: null };
 }
 
 test("slow persistence keeps only the latest workspace snapshot queued", async () => {

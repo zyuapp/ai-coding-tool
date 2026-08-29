@@ -9,8 +9,11 @@ import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
 import type { ThemeMode } from "../domain/theme.js";
 import type { AgentEngine, AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment, TaskDropTarget } from "../domain/task.js";
+import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
+import type { ThreadDropTarget } from "../domain/project.js";
 import type { ReviewTarget } from "../domain/review.js";
+
+export type TaskDropTarget = ThreadDropTarget;
 
 /**
  * Where a thread was left reading: the message held at the top of the view and how far into it the

@@ -19,7 +19,7 @@ export type SessionPanelProps = {
   /** The checkout the thread works in, which is the one the branch menu reads and moves. */
   workspaceId?: string;
   /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
-  taskId?: string;
+  threadId?: string;
   /** Absent until a thread exists; a draft has nowhere to move yet. */
   location?: ThreadLocation;
   runActive: boolean;
@@ -195,7 +195,7 @@ const GITHUB_CLI_URL = "https://cli.github.com";
  * Only the panel on screen has a row to draw, so only it asks: the poll lives and dies with the mount
  * rather than in the main process, and a hidden window asks nothing at all.
  */
-function usePullRequest(workspaceId: string | undefined, branch: string | null, taskId: string | undefined) {
+function usePullRequest(workspaceId: string | undefined, branch: string | null, threadId: string | undefined) {
   const [answer, setAnswer] = useState<PullRequestAnswer>(NONE);
   const asked = useRef(0);
   const settled = answer.status === "found" && SETTLED.includes(answer.pullRequest.state);
@@ -224,14 +224,14 @@ function usePullRequest(workspaceId: string | undefined, branch: string | null, 
       window.removeEventListener("focus", back);
       document.removeEventListener("visibilitychange", back);
     };
-  }, [refresh, branch, taskId]);
+  }, [refresh, branch, threadId]);
 
   /** A hidden window has nothing to show for an answer, and gets one on the way back instead. */
   useEffect(() => {
     if (settled) return;
     const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") refresh(); }, PULL_REQUEST_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [refresh, branch, taskId, settled]);
+  }, [refresh, branch, threadId, settled]);
 
   return answer;
 }
@@ -275,12 +275,12 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, taskId, location, runActive, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onNewThread, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, threadId, location, runActive, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onNewThread, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
   const shown = orderSubagents(subagents).slice(0, SIDEBAR_LIMIT);
-  const pullRequest = usePullRequest(workspaceId, available?.branch ?? null, taskId);
+  const pullRequest = usePullRequest(workspaceId, available?.branch ?? null, threadId);
 
   return (
     <aside className="session-panel" aria-label="Session panel">

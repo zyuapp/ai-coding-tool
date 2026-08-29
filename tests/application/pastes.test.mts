@@ -3,11 +3,11 @@ import { test } from "vitest";
 import { pasteRidesAsPill, pasteSummary, pasteTitle, promptWithPastes } from "../../src/application/pastes.ts";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
 const LONG = Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\n");
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -26,7 +26,7 @@ function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
 }
 
 function currentWorkspace(): WorkspaceState {
-  return { ...emptyWorkspaceState(), tasks: [task("task-1")], currentId: "task-1" };
+  return { ...emptyWorkspaceState(), threads: [task("task-1")], currentId: "task-1" };
 }
 
 test("only a paste big enough to bury the prompt rides as a pill", () => {
@@ -84,7 +84,7 @@ test("a send flattens pastes into the prompt, keeps them on the message, and cle
   assert.ok(effect.command.prompt.startsWith("Fix this stack trace\n\n"));
   assert.ok(effect.command.prompt.includes(`Pasted text #1:\n${LONG}`));
 
-  const message = started.state.tasks[0].messages.at(-1);
+  const message = started.state.threads[0].messages.at(-1);
   assert.ok(message);
   assert.equal(message.text, "Fix this stack trace", "the transcript keeps the typed words, not the blob");
   assert.deepEqual(message.pastes!.map((item) => item.text), [LONG]);
@@ -98,7 +98,7 @@ test("a paste alone is enough to send, and titles the thread from its first line
   const resolveEffect = sending.effects[0];
   if (resolveEffect.type !== "resolve-run-workspace") assert.fail("expected workspace resolution");
   const started = reduce(sending.state, { type: "run.resolved", pendingId: resolveEffect.pendingId, workspace: { id: "w", kind: "projectless", root: "/tmp" } });
-  assert.equal(started.state.tasks[0].title, "line 0");
+  assert.equal(started.state.threads[0].title, "line 0");
   assert.equal(pasteTitle([{ id: "a", text: "\n\n  the first words  \nmore" }]), "the first words");
 });
 

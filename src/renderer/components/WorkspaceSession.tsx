@@ -15,7 +15,7 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       environment={workspace.environment}
       hasProject={Boolean(workspace.folder)}
       {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
-      {...(workspace.currentTask ? { taskId: workspace.currentTask.id, location: workspace.location } : {})}
+      {...(workspace.currentThread ? { threadId: workspace.currentThread.id, location: workspace.location } : {})}
       runActive={workspace.runActive}
       openMenu={workspace.openMenu}
       onSetOpenMenu={workspace.actions.setOpenMenu}
@@ -36,8 +36,8 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       onStopProcess={workspace.actions.stopBackgroundProcess}
       onCheckoutBranch={(branch, create) => void workspace.actions.checkoutBranch(branch, create)}
       onNewThread={() => {
-        const task = workspace.currentTask;
-        if (task) void workspace.actions.newTask(task.projectId, task.worktreeId);
+        const thread = workspace.currentThread;
+        if (thread) void workspace.actions.newThread(thread.projectId, thread.worktreeId);
       }}
       onSetWorktree={workspace.actions.moveWorktree}
     />

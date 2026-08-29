@@ -1,4 +1,4 @@
-import { runStatusFor } from "./task-workspace.js";
+import { runStatusFor } from "./thread-run-state.js";
 import { projectFor, worktreeFor } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
@@ -11,10 +11,10 @@ import type { Worktree } from "../domain/worktree.js";
 const MESSAGE_TEXT_LIMIT = 2_000;
 const DEFAULT_TRANSCRIPT_MESSAGES = 30;
 
-export function resolveScope(state: WorkspaceState, callerTaskId: string, project?: string): ProjectScope | { error: string } {
+export function resolveScope(state: WorkspaceState, callerThreadId: string, project?: string): ProjectScope | { error: string } {
   if (project === "all") return { kind: "all" };
   if (project === undefined || project === "current") {
-    const projectId = state.tasks.find((task) => task.id === callerTaskId)?.projectId;
+    const projectId = state.threads.find((thread) => thread.id === callerThreadId)?.projectId;
     return projectId ? { kind: "project", projectId } : { kind: "projectless" };
   }
   const match = findProject(state.projects, project);
@@ -29,16 +29,16 @@ export function threadBusy(state: WorkspaceState, threadId: string): boolean {
 }
 
 export function threadWaitResult(state: WorkspaceState, threadId: string, timedOut: boolean): ThreadWaitResult | null {
-  const task = findThread(state, threadId);
-  if (!task) return null;
+  const thread = findThread(state, threadId);
+  if (!thread) return null;
   let reply: string | null = null;
-  for (let index = task.messages.length - 1; index >= 0; index -= 1) {
-    const message = task.messages[index]!;
+  for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
+    const message = thread.messages[index]!;
     if (message.kind !== "assistant") continue;
     reply = message.text;
     break;
   }
-  return { thread: threadSummary(state, task), timedOut, reply };
+  return { thread: threadSummary(state, thread), timedOut, reply };
 }
 
 type ProjectionIndex = {
@@ -55,30 +55,30 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   for (const worktree of state.worktrees) if (!worktrees.has(worktree.id)) worktrees.set(worktree.id, worktree);
   const busy = new Set(Object.keys(state.activeRuns));
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
-  for (const [taskId, queued] of Object.entries(state.queuedMessages)) if (queued.length) busy.add(taskId);
+  for (const [threadId, queued] of Object.entries(state.queuedMessages)) if (queued.length) busy.add(threadId);
   return { projects, worktrees, busy };
 }
 
-function projectThreadSummary(state: WorkspaceState, task: Thread, activity: number, index?: ProjectionIndex, attachments?: number): ThreadSummary {
-  const project = index ? (task.projectId ? index.projects.get(task.projectId) : undefined) : projectFor(state, task);
-  const worktree = index ? (task.worktreeId ? index.worktrees.get(task.worktreeId) : undefined) : worktreeFor(state, task);
+function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: number, index?: ProjectionIndex, attachments?: number): ThreadSummary {
+  const project = index ? (thread.projectId ? index.projects.get(thread.projectId) : undefined) : projectFor(state, thread);
+  const worktree = index ? (thread.worktreeId ? index.worktrees.get(thread.worktreeId) : undefined) : worktreeFor(state, thread);
   return {
-    id: task.id,
-    title: task.title,
-    ...(task.projectId ? { projectId: task.projectId } : {}),
+    id: thread.id,
+    title: thread.title,
+    ...(thread.projectId ? { projectId: thread.projectId } : {}),
     ...(project ? { projectRoot: project.root } : {}),
     ...(worktree ? { worktreeId: worktree.id, worktreeRoot: worktree.root } : {}),
-    status: (index ? index.busy.has(task.id) : threadBusy(state, task.id)) ? "running" : runStatusFor(state, task.id),
-    archived: task.archivedAt !== undefined,
-    createdAt: threadCreatedAt(task),
+    status: (index ? index.busy.has(thread.id) : threadBusy(state, thread.id)) ? "running" : runStatusFor(state, thread.id),
+    archived: thread.archivedAt !== undefined,
+    createdAt: threadCreatedAt(thread),
     lastActivityAt: activity,
-    messageCount: task.messages.length,
-    attachmentCount: attachments ?? countAttachments(task),
+    messageCount: thread.messages.length,
+    attachmentCount: attachments ?? countAttachments(thread),
   };
 }
 
-export function threadSummary(state: WorkspaceState, task: Thread, index?: ProjectionIndex): ThreadSummary {
-  return projectThreadSummary(state, task, threadActivityAt(task), index);
+export function threadSummary(state: WorkspaceState, thread: Thread, index?: ProjectionIndex): ThreadSummary {
+  return projectThreadSummary(state, thread, threadActivityAt(thread), index);
 }
 
 /** Newest activity first, so a limit keeps the threads worth looking at. */
@@ -86,43 +86,43 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
   const search = filter.search?.trim().toLowerCase();
   const forked = sideChatIds(state);
   if (filter.limit === undefined) {
-    const matching: Array<{ task: Thread; attachments?: number }> = [];
-    for (const task of state.tasks) {
-      if (forked.has(task.id)) continue;
-      if (!inScope(task, filter.scope)) continue;
-      if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
-      if (filter.idleForMs !== undefined && at - threadActivityAt(task) < filter.idleForMs) continue;
-      if (search && !matches(task, search)) continue;
-      const attachments = filter.attachments ? countAttachments(task) : undefined;
+    const matching: Array<{ thread: Thread; attachments?: number }> = [];
+    for (const thread of state.threads) {
+      if (forked.has(thread.id)) continue;
+      if (!inScope(thread, filter.scope)) continue;
+      if ((thread.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
+      if (filter.idleForMs !== undefined && at - threadActivityAt(thread) < filter.idleForMs) continue;
+      if (search && !matches(thread, search)) continue;
+      const attachments = filter.attachments ? countAttachments(thread) : undefined;
       if (filter.attachments && !attachments) continue;
-      matching.push({ task, ...(attachments === undefined ? {} : { attachments }) });
+      matching.push({ thread, ...(attachments === undefined ? {} : { attachments }) });
     }
     if (!matching.length) return [];
     const index = projectionIndex(state);
     return matching
-      .map(({ task, attachments }) => projectThreadSummary(state, task, threadActivityAt(task), index, attachments))
+      .map(({ thread, attachments }) => projectThreadSummary(state, thread, threadActivityAt(thread), index, attachments))
       .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
   }
-  const matching: Array<{ task: Thread; activity: number; attachments?: number }> = [];
-  for (const task of state.tasks) {
-    if (forked.has(task.id)) continue;
-    if (!inScope(task, filter.scope)) continue;
-    if ((task.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
+  const matching: Array<{ thread: Thread; activity: number; attachments?: number }> = [];
+  for (const thread of state.threads) {
+    if (forked.has(thread.id)) continue;
+    if (!inScope(thread, filter.scope)) continue;
+    if ((thread.archivedAt !== undefined) !== Boolean(filter.archived)) continue;
     let activity: number | undefined;
     if (filter.idleForMs !== undefined) {
-      activity = threadActivityAt(task);
+      activity = threadActivityAt(thread);
       if (at - activity < filter.idleForMs) continue;
     }
-    if (search && !matches(task, search)) continue;
-    const attachments = filter.attachments ? countAttachments(task) : undefined;
+    if (search && !matches(thread, search)) continue;
+    const attachments = filter.attachments ? countAttachments(thread) : undefined;
     if (filter.attachments && !attachments) continue;
-    matching.push({ task, activity: activity ?? threadActivityAt(task), ...(attachments === undefined ? {} : { attachments }) });
+    matching.push({ thread, activity: activity ?? threadActivityAt(thread), ...(attachments === undefined ? {} : { attachments }) });
   }
   if (!matching.length || Math.max(0, filter.limit) === 0) return [];
   matching.sort((left, right) => right.activity - left.activity);
   const retained = matching.slice(0, Math.max(0, filter.limit));
   const index = projectionIndex(state);
-  return retained.map(({ task, activity, attachments }) => projectThreadSummary(state, task, activity, index, attachments));
+  return retained.map(({ thread, activity, attachments }) => projectThreadSummary(state, thread, activity, index, attachments));
 }
 
 /**
@@ -133,20 +133,20 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
 export function threadHandleOptions(state: WorkspaceState, draftKey: string): ThreadHandleOption[] {
   const forked = sideChatIds(state);
   const index = projectionIndex(state);
-  const caller = state.tasks.find((task) => task.id === draftKey);
+  const caller = state.threads.find((thread) => thread.id === draftKey);
   /** A draft belonging to no thread yet is being written wherever the sidebar is pointed. */
   const projectId = caller ? caller.projectId ?? null : state.draftProjectId;
-  return threadHandles(state.tasks
-    .filter((task) => task.id !== draftKey && !forked.has(task.id) && task.archivedAt === undefined)
-    .map((task) => {
-      const project = task.projectId ? index.projects.get(task.projectId) : undefined;
+  return threadHandles(state.threads
+    .filter((thread) => thread.id !== draftKey && !forked.has(thread.id) && thread.archivedAt === undefined)
+    .map((thread) => {
+      const project = thread.projectId ? index.projects.get(thread.projectId) : undefined;
       return {
-        id: task.id,
-        title: task.title,
+        id: thread.id,
+        title: thread.title,
         project: project ? projectName(project) : null,
-        inScope: (task.projectId ?? null) === projectId,
-        running: index.busy.has(task.id),
-        lastActivityAt: threadActivityAt(task),
+        inScope: (thread.projectId ?? null) === projectId,
+        running: index.busy.has(thread.id),
+        lastActivityAt: threadActivityAt(thread),
       };
     }));
 }
@@ -155,52 +155,52 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
 export function findThread(state: WorkspaceState, reference: string): Thread | null {
   const wanted = reference.trim().toLowerCase();
   if (!wanted) return null;
-  let title: { task: Thread; activity: number } | null = null;
-  let prefix: { task: Thread; activity: number } | null = null;
-  for (const task of state.tasks) {
-    const id = task.id.toLowerCase();
-    if (id === wanted) return task;
-    const titleMatches = task.title.trim().toLowerCase() === wanted;
+  let title: { thread: Thread; activity: number } | null = null;
+  let prefix: { thread: Thread; activity: number } | null = null;
+  for (const thread of state.threads) {
+    const id = thread.id.toLowerCase();
+    if (id === wanted) return thread;
+    const titleMatches = thread.title.trim().toLowerCase() === wanted;
     const prefixMatches = id.startsWith(wanted);
     if (!titleMatches && !prefixMatches) continue;
-    const activity = threadActivityAt(task);
-    if (titleMatches && (!title || activity > title.activity)) title = { task, activity };
-    if (prefixMatches && (!prefix || activity > prefix.activity)) prefix = { task, activity };
+    const activity = threadActivityAt(thread);
+    if (titleMatches && (!title || activity > title.activity)) title = { thread, activity };
+    if (prefixMatches && (!prefix || activity > prefix.activity)) prefix = { thread, activity };
   }
-  return title?.task ?? prefix?.task ?? null;
+  return title?.thread ?? prefix?.thread ?? null;
 }
 
 export function threadTranscript(state: WorkspaceState, threadId: string, limit = DEFAULT_TRANSCRIPT_MESSAGES): ThreadTranscript | null {
-  const task = findThread(state, threadId);
-  if (!task) return null;
-  const kept = limit >= task.messages.length ? task.messages : task.messages.slice(task.messages.length - Math.max(0, limit));
+  const thread = findThread(state, threadId);
+  if (!thread) return null;
+  const kept = limit >= thread.messages.length ? thread.messages : thread.messages.slice(thread.messages.length - Math.max(0, limit));
   return {
-    thread: threadSummary(state, task),
+    thread: threadSummary(state, thread),
     messages: kept.map((message) => ({
       kind: message.kind,
       text: message.text.length > MESSAGE_TEXT_LIMIT ? `${message.text.slice(0, MESSAGE_TEXT_LIMIT)}…` : message.text,
       at: message.at,
     })),
-    omitted: task.messages.length - kept.length,
+    omitted: thread.messages.length - kept.length,
   };
 }
 
-function inScope(task: Thread, scope: ProjectScope) {
+function inScope(thread: Thread, scope: ProjectScope) {
   if (scope.kind === "all") return true;
-  if (scope.kind === "projectless") return task.projectId === undefined;
-  return task.projectId === scope.projectId;
+  if (scope.kind === "projectless") return thread.projectId === undefined;
+  return thread.projectId === scope.projectId;
 }
 
 function carriesAttachment(message: Thread["messages"][number]) {
   return Boolean(message.attachments?.length);
 }
 
-function countAttachments(task: Thread) {
+function countAttachments(thread: Thread) {
   let count = 0;
-  for (const message of task.messages) if (carriesAttachment(message)) count += 1;
+  for (const message of thread.messages) if (carriesAttachment(message)) count += 1;
   return count;
 }
 
-function matches(task: Thread, search: string) {
-  return task.title.toLowerCase().includes(search) || task.messages.some((message) => message.text.toLowerCase().includes(search));
+function matches(thread: Thread, search: string) {
+  return thread.title.toLowerCase().includes(search) || thread.messages.some((message) => message.text.toLowerCase().includes(search));
 }

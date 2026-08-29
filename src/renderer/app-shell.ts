@@ -12,11 +12,11 @@ export function useSubagentInspection(workspace: Workspace) {
 
   useEffect(() => {
     if (selected && !workspace.subagents.some((subagent) => subagent.id === selected)) setSelected(null);
-  }, [workspace.currentTask?.id, workspace.subagents, selected]);
+  }, [workspace.currentThread?.id, workspace.subagents, selected]);
 
   useEffect(() => {
     setSelected(null);
-  }, [workspace.currentTask?.id]);
+  }, [workspace.currentThread?.id]);
 
   useEffect(() => {
     if (!workspace.dockPanels.includes("agents")) setSelected(null);
@@ -84,7 +84,7 @@ export function useComposerFocusRecovery(dispatchRef: RefObject<Dispatch>, view:
 /** What a link inside a message reaches for: another thread, a file, or a page of its own. */
 export function useMessageLinks(dispatchRef: RefObject<Dispatch>) {
   return useMemo<MessageLinkActions>(() => ({
-    selectTask: (taskId: string) => void dispatchRef.current({ type: "task.select", taskId }),
+    selectThread: (threadId: string) => void dispatchRef.current({ type: "task.select", taskId: threadId }),
     openFile: (path: string, line: number | null) => void dispatchRef.current({ type: "file.open", path, line: line ?? undefined }),
     openUrlInApp: (url: string) => void dispatchRef.current({ type: "browser.open", url, newTab: true }),
   }), []);

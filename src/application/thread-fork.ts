@@ -1,5 +1,5 @@
 import { forkTitle, type Thread } from "../domain/thread.js";
-import { moveTask, nextSortIndex, orderTasks } from "./task-order.js";
+import { moveThread, nextSortIndex, orderThreads } from "./thread-order.js";
 
 /** What a new thread takes from the thread it was made from: where it runs, and how it runs. */
 function inherited(source: Thread) {
@@ -13,7 +13,7 @@ function inherited(source: Thread) {
 }
 
 /** A side chat: a thread of its own, starting empty, which forks the source's session on its first run. */
-export function sideChatTask(source: Thread, id: string, title: string, at: number): Thread {
+export function sideChatThread(source: Thread, id: string, title: string, at: number): Thread {
   return {
     id,
     title,
@@ -31,22 +31,22 @@ export function sideChatTask(source: Thread, id: string, title: string, at: numb
  * conversation, the session it was left in, and how the thread was set to run. What the thread has
  * been through stays its own: no verdict, no findings, no schedule, and no checkout crosses over.
  */
-export function forkedTasks(tasks: Thread[], source: Thread, id: string, at: number): { tasks: Thread[]; fork: Thread } {
+export function forkedThreads(threads: Thread[], source: Thread, id: string, at: number): { threads: Thread[]; fork: Thread } {
   const fork: Thread = {
     id,
-    title: forkTitle(source.title, tasks.map((task) => task.title)),
+    title: forkTitle(source.title, threads.map((thread) => thread.title)),
     titleByUser: true,
     ...inherited(source),
     messages: [...source.messages],
     ...(source.continuation ? { continuation: source.continuation, inheritedContinuation: true as const } : {}),
     continuationStatus: source.continuationStatus,
     lastChangeSnapshot: { files: [], capturedAt: at },
-    sortIndex: nextSortIndex(tasks),
+    sortIndex: nextSortIndex(threads),
     createdAt: at,
     updatedAt: at,
   };
   /** The slot after the source, counted in the list the copy is dropped into with the copy left out. */
-  const group = orderTasks(tasks.filter((task) => task.archivedAt === undefined && task.projectId === source.projectId));
-  const under = group.findIndex((task) => task.id === source.id) + 1;
-  return { fork, tasks: moveTask([...tasks, fork], fork.id, { projectId: source.projectId ?? null, index: under }) };
+  const group = orderThreads(threads.filter((thread) => thread.archivedAt === undefined && thread.projectId === source.projectId));
+  const under = group.findIndex((thread) => thread.id === source.id) + 1;
+  return { fork, threads: moveThread([...threads, fork], fork.id, { projectId: source.projectId ?? null, index: under }) };
 }

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { AnnotationAnchor, Task, TaskMessage } from "../../src/domain/task.ts";
+import type { AnnotationAnchor, ConversationMessage } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { dom, mount, query } from "../support/renderer-dom.mts";
 
 const { ConversationTimeline } = await import("../../src/renderer/components/ConversationTimeline.tsx");
@@ -14,7 +15,7 @@ Object.defineProperty(dom.window.Range.prototype, "getBoundingClientRect", {
 
 type Draft = { quote: string; note: string; anchor: AnnotationAnchor };
 
-const ANSWER: TaskMessage = { id: "m1", kind: "assistant", text: "hello world again", at: 1 };
+const ANSWER: ConversationMessage = { id: "m1", kind: "assistant", text: "hello world again", at: 1 };
 
 const TASK = {
   id: "task-1",
@@ -25,7 +26,7 @@ const TASK = {
   lastChangeSnapshot: { files: [], capturedAt: 1 },
   messages: [{ id: "m0", kind: "user", text: "ask", at: 0 }, ANSWER],
   updatedAt: 1,
-} as unknown as Task;
+} as unknown as Thread;
 
 function harness(onAdd: (draft: Draft) => void) {
   const scroller = document.createElement("div");
@@ -33,7 +34,7 @@ function harness(onAdd: (draft: Draft) => void) {
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
   return React.createElement(ConversationTimeline, {
-    currentTask: TASK,
+    currentThread: TASK,
     engine: "claude",
     engineLabel: "Claude",
     folder: "/repo",

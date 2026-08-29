@@ -145,10 +145,10 @@ test("the pull request is read per thread, on the way back, and only until it se
   dom.window.clearInterval = (id: number) => { timers.delete(id); };
   const poll = async () => { for (const timer of [...timers.values()]) await act(async () => { timer.fn(); }); };
 
-  const panel = (taskId: string) => renderSessionPanel({
+  const panel = (threadId: string) => renderSessionPanel({
     environment: { status: "available", files: [], branch: "pr-poll", baseline: null, additions: 0, deletions: 0 },
     workspaceId: "one-checkout",
-    taskId,
+    threadId,
   });
   const state = () => view.container.querySelector<HTMLElement>(".session-pull-request .session-row-icon")?.dataset.state ?? null;
 

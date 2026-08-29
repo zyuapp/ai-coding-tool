@@ -14,7 +14,7 @@ type DesktopInput = Extract<WorkspaceInput, {
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
   switch (input.type) {
     case "file.open": {
-      const roots = threadFileRoots(state, state.tasks.find((item) => item.id === (input.taskId ?? state.currentId)));
+      const roots = threadFileRoots(state, state.threads.find((item) => item.id === (input.taskId ?? state.currentId)));
       if (!roots.length && !isAbsoluteFilePath(input.path)) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
       return settled({ ...state, actionError: null }, [{ type: "file.open", roots, path: input.path, line: input.line ?? null }]);
     }

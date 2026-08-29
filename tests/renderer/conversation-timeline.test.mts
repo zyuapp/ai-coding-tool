@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import React, { act } from "react";
 import { test, vi } from "vitest";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
@@ -206,7 +206,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
 }
 
 type TimelineProps = React.ComponentProps<typeof ConversationTimeline>;
-type TimelineMessage = Task["messages"][number];
+type TimelineMessage = Thread["messages"][number];
 type TimelineMessageSeed = Omit<TimelineMessage, "id" | "at">;
 type TimelineReadingPoint = Parameters<NonNullable<TimelineProps["onReadingPointMove"]>>[0];
 type ThreadMountedView = Awaited<ReturnType<typeof mount>>;
@@ -234,13 +234,13 @@ function timelineView(
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
-  const task: Task = {
+  const task: Thread = {
     id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages,
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
+    currentThread: task, engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
   });
 }
 
@@ -273,7 +273,7 @@ function threadHarness() {
   const points: Record<string, TimelineReadingPoint> = {};
   const moves: Array<{ id: string; point: TimelineReadingPoint }> = [];
   const thread = (id: string, count: number, prefix?: string) => {
-    const currentTask: Task = {
+    const currentThread: Thread = {
       id, title: id, engine: "claude", executionPolicy: "confirm", continuationStatus: "none", updatedAt: 1,
       lastChangeSnapshot: { files: [], capturedAt: 1 },
       messages: transcript(...Array.from({ length: count }, (_, index): TimelineMessageSeed => ({
@@ -283,7 +283,7 @@ function threadHarness() {
         .map((message, index) => (prefix ? { ...message, id: `${prefix}${index}` } : message)),
     };
     return React.createElement(ConversationTimeline, {
-      currentTask,
+      currentThread,
       engine: "claude",
       engineLabel: "Claude",
       folder: "/p", status: "idle", compacting: false, waitingOn: null, scrollContainerRef,

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { pruneDeletedTasks } from "../../src/application/task-pruning.ts";
+import { pruneDeletedThreads } from "../../src/application/thread-pruning.ts";
 import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
-import type { ActiveRun } from "../../src/application/task-workspace.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { ActiveRun } from "../../src/application/thread-run-state.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
-function task(id: string, archived = false): Task {
+function task(id: string, archived = false): Thread {
   return {
     id,
     title: id,
@@ -41,7 +41,7 @@ test("permanently deleted threads leave no session data behind", () => {
   const payload = "held data";
   const state = {
     ...emptyWorkspaceState(),
-    tasks: [task("kept"), task(gone, true)],
+    threads: [task("kept"), task(gone, true)],
     currentId: "kept",
     history: [gone, "kept"],
     historyIndex: 1,
@@ -74,7 +74,7 @@ test("permanently deleted threads leave no session data behind", () => {
 
 test("pruning a missing task keeps unrelated keyed state intact", () => {
   const state = { ...emptyWorkspaceState(), prompts: { kept: "draft" }, readingPoints: { kept: null } };
-  const pruned = pruneDeletedTasks(state, new Set(["missing"]));
+  const pruned = pruneDeletedThreads(state, new Set(["missing"]));
 
   assert.equal(pruned.prompts, state.prompts);
   assert.equal(pruned.readingPoints, state.readingPoints);

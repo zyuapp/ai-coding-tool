@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { fireResizeObservers, mount, query } from "../support/renderer-dom.mts";
 
 const { ConversationTimeline, groupTimeline } = await import("../../src/renderer/components/ConversationTimeline.tsx");
 const { StreamingText } = await import("../../src/renderer/components/StreamingText.tsx");
 
 type TimelineProps = React.ComponentProps<typeof ConversationTimeline>;
-type TimelineMessage = Task["messages"][number];
+type TimelineMessage = Thread["messages"][number];
 type TimelineMessageSeed = Omit<TimelineMessage, "id" | "at">;
 
 function transcript(...messages: TimelineMessageSeed[]): TimelineMessage[] {
@@ -27,13 +27,13 @@ function timelineView(
   Object.defineProperty(scroller, "offsetWidth", { value: 860 });
   Object.defineProperty(scroller, "offsetHeight", { value: 900 });
   document.body.append(scroller);
-  const task: Task = {
+  const task: Thread = {
     id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages,
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     ...(runEndedAt === undefined ? {} : { runEndedAt }),
   };
   return React.createElement(ConversationTimeline, {
-    currentTask: task, engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
+    currentThread: task, engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
   });
 }
 
@@ -140,7 +140,7 @@ test("a block committing between tails does not replay the text already read", a
   assert.match(view.container.textContent, /The reducer owns every write\./);
 
   /** The delta clears the tail before the next one arrives, which is where a remount would rewind. */
-  const committed: Task["messages"] = [...streamed, { id: "reply-1", at: 2000, kind: "assistant", text: "The reducer owns every write.\n\n" }];
+  const committed: Thread["messages"] = [...streamed, { id: "reply-1", at: 2000, kind: "assistant", text: "The reducer owns every write.\n\n" }];
   await view.render(timelineView(committed, "running", null));
   assert.match(view.container.textContent, /The reducer owns every write\./);
 
@@ -188,8 +188,8 @@ function scrollHarness({ scrollHeight = 4000, clientHeight = 600 } = {}) {
   } });
   const scrollContainerRef = { current: scroller };
   type TimelineProps = React.ComponentProps<typeof ConversationTimeline>;
-  const render = (messages: Task["messages"], status: TimelineProps["status"], streamingTail: TimelineProps["streamingTail"]) => React.createElement(ConversationTimeline, {
-    currentTask: { id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
+  const render = (messages: Thread["messages"], status: TimelineProps["status"], streamingTail: TimelineProps["streamingTail"]) => React.createElement(ConversationTimeline, {
+    currentThread: { id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages, continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 },
     engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, streamingTail, scrollContainerRef,
   });
   /** Entries are empty because the transcript's observer only cares that something resized. */
@@ -215,7 +215,7 @@ test("an answer is read from its top while tool calls still follow the newest li
 
   /** More work after an answer is worth following again. */
   harness.sentTo.length = 0;
-  const resumed: Task["messages"] = [...working, { id: "reply-1", at: 3000, kind: "assistant", text: "Here is what I found.\n\n" }, { id: "k2", at: 4000, kind: "tool", text: "Read", detail: "two" }];
+  const resumed: Thread["messages"] = [...working, { id: "reply-1", at: 3000, kind: "assistant", text: "Here is what I found.\n\n" }, { id: "k2", at: 4000, kind: "tool", text: "Read", detail: "two" }];
   await view.render(harness.render(resumed, "running", null));
   await harness.resize();
   assert.equal(harness.sentTo.at(-1), harness.bottom, "a tool call after an answer follows again");

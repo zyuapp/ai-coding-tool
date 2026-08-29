@@ -1,4 +1,4 @@
-import { TaskComposer, type ComposerAction } from "./TaskComposer";
+import { ConversationComposer, type ComposerAction } from "./ConversationComposer";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { modelSupportsManualCompaction } from "../../domain/agent-engine";
@@ -8,23 +8,23 @@ type Workspace = ReturnType<typeof useTaskWorkspace>;
 
 /** The composer for the thread on screen, with every command its controls dispatch. */
 export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace; actions: ComposerAction[] }) {
-  const task = workspace.currentTask;
-  const compact = task && modelSupportsManualCompaction(task.engine, workspace.model)
-    && task.continuation?.provider === "codex"
-    && task.contextUsage !== undefined
+  const thread = workspace.currentThread;
+  const compact = thread && modelSupportsManualCompaction(thread.engine, workspace.model)
+    && thread.continuation?.provider === "codex"
+    && thread.contextUsage !== undefined
     && !workspace.runActive
     && workspace.waitingOn === null
     ? [{ name: "compact", description: "Compact the current chat's context.", run: workspace.actions.compactContext }]
     : [];
-  const review = task?.engine === "codex"
-    && task.continuation?.provider === "codex"
+  const review = thread?.engine === "codex"
+    && thread.continuation?.provider === "codex"
     && workspace.workspaceId
     && !workspace.runActive
     && workspace.waitingOn === null
     ? [{ name: "review", description: "Review changes in the current project.", run: workspace.actions.openReview }]
     : [];
   return (
-    <TaskComposer
+    <ConversationComposer
       focusToken={workspace.composerFocus}
       images={workspace.images}
       onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", imageId })}
@@ -38,7 +38,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       engineAccess={workspace.engineAccess}
       model={workspace.model}
       effort={workspace.effort}
-      contextUsage={workspace.currentTask?.contextUsage}
+      contextUsage={workspace.currentThread?.contextUsage}
       runActive={workspace.runActive}
       goal={workspace.goal}
       waiting={workspace.waitingOn !== null}
@@ -46,7 +46,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       annotations={workspace.annotations}
       pastes={workspace.pastes}
       files={workspace.files}
-      history={sentPrompts(workspace.currentTask?.messages ?? [])}
+      history={sentPrompts(workspace.currentThread?.messages ?? [])}
       actions={[...compact, ...review, ...actions]}
       reviewPicker={workspace.reviewPicker}
       threads={workspace.threadHandles}
@@ -73,7 +73,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       onSteerQueued={workspace.actions.steerQueued}
       onDropQueued={workspace.actions.dropQueued}
       onCancel={workspace.actions.cancelRun}
-      onGoalClear={() => { if (task) void workspace.actions.clearGoal(task.id); }}
+      onGoalClear={() => { if (thread) void workspace.actions.clearGoal(thread.id); }}
     />
   );
 }

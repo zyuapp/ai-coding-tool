@@ -1,7 +1,9 @@
 import type { AppCommand } from "./commands.js";
 import type { BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot, BrowserTab } from "../domain/browser.js";
+import type { ConversationMessageKind } from "../domain/conversation.js";
 import type { TerminalSession, TerminalSnapshot } from "../domain/terminal.js";
-import type { TaskMessageKind } from "../domain/task.js";
+
+export type TaskMessageKind = ConversationMessageKind;
 
 /** Which threads a query covers: everything, one project, or the threads that belong to no project. */
 export type ProjectScope =

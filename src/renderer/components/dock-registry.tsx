@@ -108,7 +108,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
       render: () => (
         <DiffPanel
           /** Per thread, so a selection or a half-typed note never carries into another thread's review. */
-          key={workspace.currentTask?.id ?? "draft"}
+          key={workspace.currentThread?.id ?? "draft"}
           diff={workspace.diff}
           {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
           openMenu={workspace.openMenu}
@@ -154,7 +154,7 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
     ...panels.flatMap(({ id, title, description, command, icon }) => command ? [{ id, title, description, command, icon, open: () => onOpenPanel(id) }] : []),
     { id: "browser", title: "Browser", description: "Browse in one session the whole app shares", command: "browser", icon: Globe, open: () => void workspace.actions.newBrowserTab() },
     { id: "terminal", title: "Terminal", description: `Run a shell here and let ${workspace.engineLabel} read what it prints`, command: "terminal", icon: SquareTerminal, disabled: !workspace.currentFolder, open: () => void workspace.actions.openTerminal() },
-    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentTask, open: onAddSideChat },
+    { id: "side-chat", title: "Side chat", description: "Start a focused conversation from this task", command: "side", icon: GitFork, disabled: !workspace.currentThread, open: onAddSideChat },
   ];
 
   return { panels, launchers };

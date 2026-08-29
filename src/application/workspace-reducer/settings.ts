@@ -2,7 +2,7 @@
 import { TAKE_KEYS, persistView, settled, stopCapture, targetId } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
-import { withSubagents } from "../task-workspace.js";
+import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";

@@ -21,7 +21,7 @@ test("naming a folder changes what it is called and nothing else", () => {
 });
 
 test("moving a folder waits for it to open, then takes the project and its threads with it", () => {
-  const state = workspace({ tasks: [], lastFolder: "/work/ai-coding-tool" });
+  const state = workspace({ threads: [], lastFolder: "/work/ai-coding-tool" });
   const moving = reduce(state, { type: "project.edit", projectId: "project-1", name: "App", root: " /work/moved " });
 
   assert.deepEqual(moving.effects, [{ type: "register-project", projectId: "project-1", root: "/work/moved" }]);

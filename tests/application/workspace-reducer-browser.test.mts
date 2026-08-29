@@ -40,7 +40,7 @@ test("a run has to be allowed an origin the user has never visited, and then nev
   const state = run(workspace(), [
     { type: "view.set-prompt", prompt: "Check the dashboard" },
   ]);
-  const withTask = { ...state, tasks: [task("task-1")], currentId: "task-1" };
+  const withTask = { ...state, threads: [task("task-1")], currentId: "task-1" };
 
   const asked = reduce(withTask, { type: "browser.open", taskId: "task-1", url: "https://dash.example.com/metrics" });
   const [blank] = dock(asked.state).browserTabs;
@@ -65,7 +65,7 @@ test("a run has to be allowed an origin the user has never visited, and then nev
 });
 
 test("a thread trusted to act without asking browses without asking", () => {
-  const state = { ...workspace(), tasks: [task("task-1", { executionPolicy: "autonomous" })], currentId: "task-1" };
+  const state = { ...workspace(), threads: [task("task-1", { executionPolicy: "autonomous" })], currentId: "task-1" };
 
   const opened = reduce(state, { type: "browser.open", taskId: "task-1", url: "https://example.com" });
 
@@ -126,7 +126,7 @@ test("a page that fails keeps saying so until the tab lands somewhere else", () 
 });
 
 test("acting in the browser needs a page, and clearing the session takes back every allowed site", () => {
-  const browsing = { ...workspace(), tasks: [task("task-1")], currentId: "task-1" };
+  const browsing = { ...workspace(), threads: [task("task-1")], currentId: "task-1" };
   const empty = reduce(browsing, { type: "browser.act", taskId: "task-1", action: { kind: "click", ref: "3" } });
   assert.match(required(empty.state.actionError), /no page open/);
 

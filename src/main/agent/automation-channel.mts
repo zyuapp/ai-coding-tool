@@ -18,7 +18,7 @@ type Pending = {
 
 const REQUEST_TIMEOUT = 10_000;
 
-/** Turns the agent process's one-way port into request/response bridges scoped per task. */
+/** Turns the agent process's one-way port into request/response bridges scoped per thread. */
 export class AutomationChannel {
   private readonly pending = new Map<string, Pending>();
 

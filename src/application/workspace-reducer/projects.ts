@@ -24,26 +24,26 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
       return reduceProjects(state, input);
 
     case "project.remove": {
-      if (state.tasks.some((task) => task.projectId === input.projectId && state.activeRuns[task.id])) {
+      if (state.threads.some((thread) => thread.projectId === input.projectId && state.activeRuns[thread.id])) {
         return settled({ ...state, actionError: RUNNING_PROJECT_ERROR });
       }
       if (state.worktrees.some((worktree) => worktree.projectId === input.projectId)) {
         return settled({ ...state, actionError: PROJECT_WORKTREES_ERROR });
       }
-      const leaving = state.tasks.filter((task) => task.projectId === input.projectId);
-      const effects = retireAutomations(state, leaving.map((task) => task.id));
+      const leaving = state.threads.filter((thread) => thread.projectId === input.projectId);
+      const effects = retireAutomations(state, leaving.map((thread) => thread.id));
       const project = state.projects.find((item) => item.id === input.projectId);
       const expandedProjects = new Set(state.expandedProjects);
       expandedProjects.delete(input.projectId);
       return settled({
         ...state,
         projects: state.projects.filter((item) => item.id !== input.projectId),
-        tasks: state.tasks.map((task) => {
-          if (task.projectId !== input.projectId) return task;
-          const { projectId: _removed, ...projectlessTask } = task;
-          return task.archivedAt === undefined ? { ...projectlessTask, archivedAt: now() } : projectlessTask;
+        threads: state.threads.map((thread) => {
+          if (thread.projectId !== input.projectId) return thread;
+          const { projectId: _removed, ...projectlessThread } = thread;
+          return thread.archivedAt === undefined ? { ...projectlessThread, archivedAt: now() } : projectlessThread;
         }),
-        currentId: state.tasks.find((task) => task.id === state.currentId)?.projectId === input.projectId ? null : state.currentId,
+        currentId: state.threads.find((thread) => thread.id === state.currentId)?.projectId === input.projectId ? null : state.currentId,
         draftProjectId: state.draftProjectId === input.projectId ? null : state.draftProjectId,
         lastFolder: project?.root === state.lastFolder ? null : state.lastFolder,
         expandedProjects,

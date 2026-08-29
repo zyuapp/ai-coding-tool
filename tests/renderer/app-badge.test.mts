@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { showUnreadCount } from "../../src/renderer/task-workspace/app-badge.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const finding = { id: "finding-1", headline: "5xx on checkout", at: 2 };
@@ -25,8 +25,8 @@ function withWindow(run: (counts: number[]) => void) {
   }
 }
 
-function countOf(tasks: Task[], sideChats: { id: string; sourceTaskId: string; error: null }[] = []) {
-  return deriveView(workspace({ tasks, sideChats })).unreadCount;
+function countOf(tasks: Thread[], sideChats: { id: string; sourceThreadId: string; error: null }[] = []) {
+  return deriveView(workspace({ threads: tasks, sideChats })).unreadCount;
 }
 
 test("the count is one for every thread carrying an unseen mark", () => {
@@ -50,8 +50,8 @@ test("a side chat counts once, under the thread whose dock holds it", () => {
     task("chat-2", { outcome: "failed", outcomeUnread: true }),
   ];
   const chats = [
-    { id: "chat-1", sourceTaskId: "main-task", error: null },
-    { id: "chat-2", sourceTaskId: "main-task", error: null },
+    { id: "chat-1", sourceThreadId: "main-task", error: null },
+    { id: "chat-2", sourceThreadId: "main-task", error: null },
   ];
   assert.equal(countOf(tasks, chats), 1);
 });

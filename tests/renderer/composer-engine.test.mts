@@ -5,13 +5,13 @@ import { deriveView, emptyWorkspaceState } from "../../src/application/workspace
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import { workspaceActions } from "../../src/renderer/task-workspace/workspace-actions.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { item, mount, query } from "../support/renderer-dom.mts";
 
-const { TaskComposer } = await import("../../src/renderer/components/TaskComposer.tsx");
+const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
 const { WorkspaceComposer } = await import("../../src/renderer/components/WorkspaceComposer.tsx");
 const { ReviewPicker } = await import("../../src/renderer/components/ReviewPicker.tsx");
 
@@ -27,7 +27,7 @@ function composerDesktop(): DesktopAPI {
 test("a thread that has an engine offers only its models, and says a new thread is how to use the other", async () => {
   window.desktop = composerDesktop();
   const chosen: Array<[string, string]> = [];
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-5.6-terra", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {},
@@ -56,7 +56,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   const chosen: string[] = [];
   const signIns: string[] = [];
   let reads = 0;
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
@@ -77,7 +77,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   await act(async () => { query<HTMLButtonElement>(codex, "button.setting-hint").click(); });
   assert.deepEqual(signIns, ["codex"]);
 
-  await view.render(React.createElement(TaskComposer, {
+  await view.render(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn: (engine) => signIns.push(engine),
@@ -95,7 +95,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
 test("an engine too old to speak to is inert, and its hint names both versions and the upgrade", async () => {
   window.desktop = composerDesktop();
   const chosen: string[] = [];
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
@@ -116,7 +116,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
 
 test("a Claude behind the app offers only the models it knows, and says an upgrade brings back more", async () => {
   window.desktop = composerDesktop();
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
@@ -137,7 +137,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
 test("the hint about a broken engine opens the Engines page, which is where it is checked again", async () => {
   window.desktop = composerDesktop();
   let opened = 0;
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
@@ -158,7 +158,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
 test("a thread that has its engine asks nothing when its model menu opens", async () => {
   window.desktop = composerDesktop();
   let reads = 0;
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: true, model: "opus", effort: "high", runActive: false,
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead: () => { reads += 1; },
@@ -176,12 +176,12 @@ test("an idle Sol thread offers compact as an app slash command", async () => {
   const dispatched: WorkspaceInput[] = [];
   const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
   const render = (model: AgentModel) => {
-    const currentTask: Task = {
+    const currentThread: Thread = {
       id: "task-1", title: "Sol thread", engine: "codex", model, executionPolicy: "confirm",
       messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
       contextUsage: { tokens: 125_000, limit: 272_000, model }, lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     };
-    const view = deriveView({ ...emptyWorkspaceState(), tasks: [currentTask], currentId: currentTask.id });
+    const view = deriveView({ ...emptyWorkspaceState(), threads: [currentThread], currentId: currentThread.id });
     return React.createElement(WorkspaceComposer, {
       workspace: { ...view, prompt: "/c", threadHandles: [], threadHandlesFor: () => [], dispatch, actions: workspaceActions(dispatch) } as never,
       actions: [],
@@ -209,7 +209,7 @@ test("an idle Codex project thread opens review options from the slash menu", as
   window.desktop = composerDesktop();
   const dispatched: WorkspaceInput[] = [];
   const dispatch = async (input: WorkspaceInput) => { dispatched.push(input); };
-  const currentTask: Task = {
+  const currentThread: Thread = {
     id: "task-1", title: "Codex thread", projectId: "project-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
     messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
     lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
@@ -217,7 +217,7 @@ test("an idle Codex project thread opens review options from the slash menu", as
   const derived = deriveView({
     ...emptyWorkspaceState(),
     projects: [{ id: "project-1", root: "/project", workspaceId: "workspace-1" }],
-    tasks: [currentTask], currentId: currentTask.id,
+    threads: [currentThread], currentId: currentThread.id,
   });
   assert.equal(derived.workspaceId, "workspace-1");
   const view = await mount(React.createElement(WorkspaceComposer, {
@@ -271,7 +271,7 @@ test("the review picker reads branches from the thread's worktree", async () => 
       return { status: "available", branches: ["main"], remotes: [], current: "feature" } as const;
     },
   };
-  const currentTask: Task = {
+  const currentThread: Thread = {
     id: "task-1", title: "Worktree review", projectId: "project-1", worktreeId: "worktree-1", engine: "codex", model: "gpt-5.6-terra", executionPolicy: "confirm",
     messages: [], continuation: { provider: "codex", value: "thread-1" }, continuationStatus: "available",
     lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
@@ -280,9 +280,9 @@ test("the review picker reads branches from the thread's worktree", async () => 
     ...emptyWorkspaceState(),
     projects: [{ id: "project-1", root: "/project", workspaceId: "project-workspace" }],
     worktrees: [{ id: "worktree-1", projectId: "project-1", root: "/worktree", workspaceId: "worktree-workspace", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }],
-    tasks: [currentTask],
-    currentId: currentTask.id,
-    reviewPicker: { taskId: currentTask.id, step: "base" },
+    threads: [currentThread],
+    currentId: currentThread.id,
+    reviewPicker: { taskId: currentThread.id, step: "base" },
   });
   const dispatch = async (_input: WorkspaceInput) => {};
   const view = await mount(React.createElement(WorkspaceComposer, {
@@ -298,15 +298,15 @@ test("the review picker reads branches from the thread's worktree", async () => 
 
 test("clearing a goal targets its existing thread", async () => {
   window.desktop = composerDesktop();
-  const currentTask: Task = {
+  const currentThread: Thread = {
     id: "task-goal", title: "Goal", engine: "codex", model: "gpt-5.6-sol", executionPolicy: "confirm",
     messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   const derived = deriveView({
     ...emptyWorkspaceState(),
-    tasks: [currentTask],
-    currentId: currentTask.id,
-    goals: { [currentTask.id]: { objective: "Count to 100", status: "active" } },
+    threads: [currentThread],
+    currentId: currentThread.id,
+    goals: { [currentThread.id]: { objective: "Count to 100", status: "active" } },
   });
   const commands: WorkspaceInput[] = [];
   const dispatch = async (input: WorkspaceInput) => { commands.push(input); };
@@ -323,7 +323,7 @@ test("clearing a goal targets its existing thread", async () => {
 
 test("the effort menu offers what the model takes, and is gone for a model that takes none", async () => {
   window.desktop = composerDesktop();
-  const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(TaskComposer, {
+  const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high",
     runActive: false, queuedMessages: [],
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},

@@ -5,12 +5,12 @@ import {
   applyThreadEvent,
   type ActiveRun,
   type RunTransitionState,
-} from "../../src/application/task-workspace.ts";
+} from "../../src/application/thread-run-state.ts";
 import type { SubagentEvent } from "../../src/contracts/ipc.js";
 import type { Subagent } from "../../src/domain/run.js";
-import type { Task } from "../../src/domain/task.js";
+import type { Thread } from "../../src/domain/thread.js";
 
-function task(id: string): Task {
+function task(id: string): Thread {
   return {
     id,
     title: id,
@@ -41,7 +41,7 @@ function activeRun(taskId = "task-a", runId = "run-a"): ActiveRun {
 
 function state(): RunTransitionState {
   return {
-    tasks: [task("task-a"), task("task-b")],
+    threads: [task("task-a"), task("task-b")],
     goals: {},
     activeRuns: { "task-a": activeRun() },
     runStatuses: { "task-a": "running" },
@@ -66,7 +66,7 @@ function subagentAt(subject: RunTransitionState, taskId: string, index: number):
   return subagent;
 }
 
-function lastMessage(subject: Task): Task["messages"][number] {
+function lastMessage(subject: Thread): Thread["messages"][number] {
   const message = subject.messages.at(-1);
   assert.ok(message);
   return message;
@@ -78,7 +78,7 @@ test("ignores events for another task and stale sequence numbers", () => {
   assert.deepEqual(otherTask, initial);
 
   const updated = applyRunEvent(initial, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-a", text: "hello" });
-  assert.equal(updated.tasks[0].messages[0].text, "hello");
+  assert.equal(updated.threads[0].messages[0].text, "hello");
   assert.equal(updated.activeRuns["task-a"].sequence, 1);
   assert.deepEqual(applyRunEvent(updated, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-a", text: "late" }), updated);
 });
@@ -147,12 +147,12 @@ test("stores the latest context usage for the active task", () => {
     model: "claude-sonnet",
   });
 
-  assert.deepEqual(updated.tasks[0].contextUsage, { tokens: 42_000, limit: 200_000, model: "claude-sonnet" });
+  assert.deepEqual(updated.threads[0].contextUsage, { tokens: 42_000, limit: 200_000, model: "claude-sonnet" });
 });
 
 test("records compaction and updates context usage", () => {
   const initial = state();
-  initial.tasks[0].contextUsage = { tokens: 182_000, limit: 200_000, model: "claude-sonnet" };
+  initial.threads[0].contextUsage = { tokens: 182_000, limit: 200_000, model: "claude-sonnet" };
   const compacting = applyRunEvent(initial, {
     type: "context.compaction-status",
     taskId: "task-a",
@@ -172,8 +172,8 @@ test("records compaction and updates context usage", () => {
 
   assert.equal(compacting.activeRuns["task-a"].status, "compacting");
   assert.equal(updated.activeRuns["task-a"].status, "running");
-  assert.equal(updated.tasks[0].messages[0].text, "Context auto-compacted: 182,000 → 41,000 tokens.");
-  assert.deepEqual(updated.tasks[0].contextUsage, { tokens: 41_000, limit: 200_000, model: "claude-sonnet" });
+  assert.equal(updated.threads[0].messages[0].text, "Context auto-compacted: 182,000 → 41,000 tokens.");
+  assert.deepEqual(updated.threads[0].contextUsage, { tokens: 41_000, limit: 200_000, model: "claude-sonnet" });
 });
 
 test("terminal runs finalize only working subagents", () => {
@@ -193,10 +193,10 @@ test("terminal runs finalize only working subagents", () => {
 
 test("only a failure is toned as one; a compaction notice is not", () => {
   const failed = applyRunEvent(state(), { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 1, status: "failed", message: "provider failed" });
-  assert.equal(lastMessage(failed.tasks[0]).tone, "error");
+  assert.equal(lastMessage(failed.threads[0]).tone, "error");
 
   const compacted = applyRunEvent(state(), { type: "context.compacted", taskId: "task-a", runId: "run-a", sequence: 1, trigger: "auto", preTokens: 120_000, postTokens: 40_000 });
-  assert.equal(lastMessage(compacted.tasks[0]).tone, undefined);
+  assert.equal(lastMessage(compacted.threads[0]).tone, undefined);
 });
 
 test("subagent progress can arrive first and duplicate activity is ignored", () => {
@@ -261,25 +261,25 @@ test("assistant chunks, tool intents, and continuation updates preserve order", 
   const tool = applyRunEvent(second, { type: "tool.intent", taskId: "task-a", runId: "run-a", sequence: 3, intent: { toolId: "tool-1", name: "Read", input: { file_path: "src/App.tsx" } } });
   const continued = applyRunEvent(tool, { type: "continuation.updated", taskId: "task-a", runId: "run-a", sequence: 4, continuation: { provider: "claude", value: "session-1" } });
 
-  assert.equal(continued.tasks[0].messages[0].text, "one\ntwo");
-  assert.equal(continued.tasks[0].messages[1].kind, "tool");
-  assert.deepEqual(continued.tasks[0].continuation, { provider: "claude", value: "session-1" });
-  assert.equal(continued.tasks[0].continuationStatus, "available");
+  assert.equal(continued.threads[0].messages[0].text, "one\ntwo");
+  assert.equal(continued.threads[0].messages[1].kind, "tool");
+  assert.deepEqual(continued.threads[0].continuation, { provider: "claude", value: "session-1" });
+  assert.equal(continued.threads[0].continuationStatus, "available");
 });
 
 test("a continuation the engine no longer has is dropped, so the thread starts over rather than failing again", () => {
   const continued = applyRunEvent(state(), { type: "continuation.updated", taskId: "task-a", runId: "run-a", sequence: 1, continuation: { provider: "codex", value: "thread-1" } });
   const lost = applyRunEvent(continued, { type: "continuation.lost", taskId: "task-a", runId: "run-a", sequence: 2 });
 
-  assert.equal(lost.tasks[0].continuation, undefined);
-  assert.equal(lost.tasks[0].continuationStatus, "invalid");
+  assert.equal(lost.threads[0].continuation, undefined);
+  assert.equal(lost.threads[0].continuationStatus, "invalid");
 });
 
 test("streamed Markdown blocks append without injected newlines", () => {
   const first = applyRunEvent(state(), { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-1", text: "## Title\n\n", append: true });
   const second = applyRunEvent(first, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 2, messageId: "message-1", text: "Paragraph.", append: true });
 
-  assert.equal(second.tasks[0].messages[0].text, "## Title\n\nParagraph.");
+  assert.equal(second.threads[0].messages[0].text, "## Title\n\nParagraph.");
 });
 
 test("compaction failure and unknown post-token count remain visible", () => {
@@ -287,8 +287,8 @@ test("compaction failure and unknown post-token count remain visible", () => {
   const compacted = applyRunEvent(failed, { type: "context.compacted", taskId: "task-a", runId: "run-a", sequence: 2, trigger: "manual", preTokens: 100_000 });
 
   assert.equal(failed.activeRuns["task-a"].status, "running");
-  assert.equal(compacted.tasks[0].messages[0].text, "Could not compact");
-  assert.equal(compacted.tasks[0].messages[1].text, "Context manual-compacted at 100,000 tokens.");
+  assert.equal(compacted.threads[0].messages[0].text, "Could not compact");
+  assert.equal(compacted.threads[0].messages[1].text, "Context manual-compacted at 100,000 tokens.");
 });
 
 test("concurrent runs advance independently and finish one at a time", () => {
@@ -304,8 +304,8 @@ test("concurrent runs advance independently and finish one at a time", () => {
   const first = applyRunEvent(both, { type: "assistant.delta", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-a", text: "from a" });
   const second = applyRunEvent(first, { type: "assistant.delta", taskId: "task-b", runId: "run-b", sequence: 1, messageId: "message-b", text: "from b" });
 
-  assert.equal(second.tasks[0].messages[0].text, "from a");
-  assert.equal(second.tasks[1].messages[0].text, "from b");
+  assert.equal(second.threads[0].messages[0].text, "from a");
+  assert.equal(second.threads[1].messages[0].text, "from b");
 
   const stopped = applyRunEvent(second, { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 2, status: "succeeded" });
   assert.equal(stopped.activeRuns["task-a"], undefined);
@@ -314,7 +314,7 @@ test("concurrent runs advance independently and finish one at a time", () => {
   assert.equal(stopped.runStatuses["task-b"], "running");
 
   const stillStreaming = applyRunEvent(stopped, { type: "assistant.delta", taskId: "task-b", runId: "run-b", sequence: 2, messageId: "message-b", text: "still going" });
-  assert.equal(stillStreaming.tasks[1].messages[0].text, "from b\nstill going");
+  assert.equal(stillStreaming.threads[1].messages[0].text, "from b\nstill going");
 });
 
 test("background processes are replaced whole, keep a stop already asked for, and outlive the run", () => {

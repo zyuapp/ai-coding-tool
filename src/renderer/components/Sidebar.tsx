@@ -13,18 +13,18 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       open={open}
       inactive={settingsVisible}
       projects={workspace.projects}
-      orderedTasks={workspace.orderedTasks}
-      recentTasks={workspace.recentTasks}
-      currentId={workspace.currentTask?.id ?? null}
+      orderedThreads={workspace.orderedThreads}
+      recentThreads={workspace.recentThreads}
+      currentId={workspace.currentThread?.id ?? null}
       draftProjectId={workspace.currentProject?.id ?? null}
       expandedProjects={workspace.expandedProjects}
-      runningTaskIds={workspace.runningTaskIds}
-      blockedTaskIds={workspace.blockedTaskIds}
+      runningThreadIds={workspace.runningThreadIds}
+      blockedThreadIds={workspace.blockedThreadIds}
       sideChatAttention={workspace.sideChatAttention}
       schedules={workspace.schedules}
-      worktreeTaskIds={workspace.worktreeTaskIds}
+      worktreeThreadIds={workspace.worktreeThreadIds}
       worktreeGroups={workspace.worktreeGroups}
-      activityTasks={workspace.activityTasks}
+      activityThreads={workspace.activityThreads}
       mode={workspace.sidebarMode}
       sections={workspace.sections}
       openMenu={workspace.openMenu}
@@ -33,7 +33,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       canGoForward={workspace.canGoForward}
       onGoBack={() => void workspace.actions.goBack()}
       onGoForward={() => void workspace.actions.goForward()}
-      onNewTask={workspace.actions.newTask}
+      onNewThread={workspace.actions.newThread}
       onOpenFolder={workspace.actions.openFolder}
       onToggleProject={workspace.actions.toggleProject}
       onRenameProject={(projectId, name) => void workspace.actions.editProject(projectId, { name })}
@@ -43,13 +43,13 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onSetMode={workspace.actions.setSidebarMode}
       onSetSectionOpen={workspace.actions.setSectionOpen}
       onSetOpenMenu={workspace.actions.setOpenMenu}
-      onSelectTask={workspace.actions.selectTask}
-      onArchiveTask={workspace.actions.archiveTask}
-      onDismissTask={workspace.actions.dismissTask}
-      onDismissAll={workspace.actions.dismissAllTasks}
-      onRenameTask={workspace.actions.renameTask}
-      onMoveTask={workspace.actions.moveTask}
-      onForkTask={workspace.actions.forkTask}
+      onSelectThread={workspace.actions.selectThread}
+      onArchiveThread={workspace.actions.archiveThread}
+      onDismissThread={workspace.actions.dismissThread}
+      onDismissAll={workspace.actions.dismissAllThreads}
+      onRenameThread={workspace.actions.renameThread}
+      onMoveThread={workspace.actions.moveThread}
+      onForkThread={workspace.actions.forkThread}
       onOpenSettings={onOpenSettings}
     />
   );

@@ -130,10 +130,10 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       const acted = host.state();
       return acted.actionError && acted.actionError !== before.actionError ? failed(acted.actionError) : ok({ thread: null });
     }
-    if (command.taskId !== undefined && !before.tasks.some((task) => task.id === command.taskId)) {
+    if (command.taskId !== undefined && !before.threads.some((thread) => thread.id === command.taskId)) {
       return failed(`No thread has the ID ${command.taskId}.`);
     }
-    const caller = before.tasks.find((task) => task.id === request.taskId);
+    const caller = before.threads.find((thread) => thread.id === request.taskId);
     if (command.type === "task.send" && command.taskId === undefined && !caller) {
       return failed(`No thread has the ID ${request.taskId}.`);
     }
@@ -153,12 +153,12 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const targeted = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
       ? { ...selected.command, project: callerProjectId }
       : selected.command;
-    const known = command.taskId === undefined ? new Set(before.tasks.map((task) => task.id)) : null;
+    const known = command.taskId === undefined ? new Set(before.threads.map((thread) => thread.id)) : null;
     await host.dispatch(targeted);
     const after = host.state();
     const thread = command.taskId
-      ? after.tasks.find((task) => task.id === command.taskId)
-      : after.tasks.find((task) => !known!.has(task.id));
+      ? after.threads.find((thread) => thread.id === command.taskId)
+      : after.threads.find((thread) => !known!.has(thread.id));
     if (!thread && after.actionError && after.actionError !== before.actionError) return failed(after.actionError);
     return ok({ thread: thread ? threadSummary(after, thread) : null });
   } catch (error) {
@@ -169,14 +169,14 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
 /** What the tools say when the caller is not a scheduled run at all. Nothing is written for one. */
 const UNSCHEDULED = "This turn is not a scheduled run, so there is nothing to surface or to silence and nothing was recorded. Say what you found in your reply instead; these two tools are only for a run the automation's schedule started.";
 
-function unreadCount(host: ThreadRequestHost, taskId: string) {
-  const task = host.state().tasks.find((item) => item.id === taskId);
-  return task ? unreadFindings(task).length : 0;
+function unreadCount(host: ThreadRequestHost, threadId: string) {
+  const thread = host.state().threads.find((item) => item.id === threadId);
+  return thread ? unreadFindings(thread).length : 0;
 }
 
 /** The newest finding a thread carries, named so two reads of it can be compared. */
-function newestFindingId(state: WorkspaceState, taskId: string) {
-  return state.tasks.find((task) => task.id === taskId)?.findings?.at(-1)?.id;
+function newestFindingId(state: WorkspaceState, threadId: string) {
+  return state.threads.find((thread) => thread.id === threadId)?.findings?.at(-1)?.id;
 }
 
 /** A run the user answered or steered into is theirs from then on, and what it finds answers them. */
@@ -189,18 +189,18 @@ const TAKEN_OVER = "The user joined this run while the report was going in, so i
  * The answer reports what the thread did, read back after the fact: predicting it from the state
  * beforehand told the run its report was raised in the very cases the thread went on to drop it.
  */
-async function raiseFinding(host: ThreadRequestHost, taskId: string, report: FindingReport): Promise<FindingResult> {
+async function raiseFinding(host: ThreadRequestHost, threadId: string, report: FindingReport): Promise<FindingResult> {
   const before = host.state();
-  const task = before.tasks.find((item) => item.id === taskId);
-  if (!task || !scheduledRun(before, taskId)) return { recorded: false, note: UNSCHEDULED };
-  const known = !isNews(task, report.key);
-  const newestBefore = newestFindingId(before, taskId);
-  await host.dispatch({ type: "automation.notify", taskId, ...report });
-  if (newestFindingId(host.state(), taskId) === newestBefore) {
+  const thread = before.threads.find((item) => item.id === threadId);
+  if (!thread || !scheduledRun(before, threadId)) return { recorded: false, note: UNSCHEDULED };
+  const known = !isNews(thread, report.key);
+  const newestBefore = newestFindingId(before, threadId);
+  await host.dispatch({ type: "automation.notify", taskId: threadId, ...report });
+  if (newestFindingId(host.state(), threadId) === newestBefore) {
     if (known) return { recorded: false, note: `This thread already carries a finding keyed "${report.key}", so the same one was held back. Raising only what it already knows lets this run settle unseen.` };
     return { recorded: false, note: TAKEN_OVER };
   }
-  const unread = unreadCount(host, taskId);
+  const unread = unreadCount(host, threadId);
   const carried = unread === 0
     ? "The user is looking at this thread, so it is already seen"
     : `This thread now carries ${unread} unread ${unread === 1 ? "finding" : "findings"}`;
@@ -208,10 +208,10 @@ async function raiseFinding(host: ThreadRequestHost, taskId: string, report: Fin
 }
 
 /** A run saying it looked and found nothing: it answers for the tick without raising anything, which is what leaves a quiet one its silence. */
-async function reportNothing(host: ThreadRequestHost, taskId: string, checked: string): Promise<FindingResult> {
-  const active = scheduledRun(host.state(), taskId);
+async function reportNothing(host: ThreadRequestHost, threadId: string, checked: string): Promise<FindingResult> {
+  const active = scheduledRun(host.state(), threadId);
   if (!active) return { recorded: false, note: UNSCHEDULED };
-  await host.dispatch({ type: "automation.nothing-to-report", taskId, checked });
+  await host.dispatch({ type: "automation.nothing-to-report", taskId: threadId, checked });
   if (active.notified) return { recorded: false, note: "This run already raised something new, so it surfaces anyway and what it found stands." };
   if (!active.quiet) return { recorded: true, note: "Noted. This automation has no quiet sentence, so every run of it surfaces, this one included." };
   return { recorded: true, note: "Noted. This run settles without reaching the user." };

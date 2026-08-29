@@ -7,7 +7,7 @@ test("a terminal opens in the thread's own checkout and takes a dock tab of its 
   const state = {
     ...workspace(),
     projects: [{ id: "project-1", root: "/repo" }],
-    tasks: [task("task-1", { projectId: "project-1" })],
+    threads: [task("task-1", { projectId: "project-1" })],
     currentId: "task-1",
   };
 
@@ -23,16 +23,16 @@ test("a terminal opens in the thread's own checkout and takes a dock tab of its 
   assert.equal(dock(opened.state).tab, terminal.id, "a shell is a tab in the dock, not a tab inside a panel");
   assert.deepEqual(opened.effects, [{ type: "terminal.start", terminalId: terminal.id, cwd: "/repo" }, { type: "focus-window" }], "the shell starts, and the window hands it the keyboard");
 
-  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
+  const inWorktree = { ...state, threads: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
   assert.equal(dock(reduce(inWorktree, { type: "terminal.open" }).state).terminals[0].cwd, "/worktrees/repo-w1");
 });
 
 test("a file named in a message opens against the checkout that thread works in", () => {
-  const state = { ...workspace(), projects: [{ id: "project-1", root: "/repo" }], tasks: [task("task-1", { projectId: "project-1" })], currentId: "task-1" };
+  const state = { ...workspace(), projects: [{ id: "project-1", root: "/repo" }], threads: [task("task-1", { projectId: "project-1" })], currentId: "task-1" };
   assert.deepEqual(reduce(state, { type: "file.open", path: "src/App.tsx", line: 42 }).effects, [{ type: "file.open", roots: ["/repo"], path: "src/App.tsx", line: 42 }]);
 
   const checkout = (id: string, lastUsedAt: number) => ({ id, projectId: "project-1", root: `/worktrees/repo-${id}`, workspaceId: `ws-${id}`, baseCommit: id, createdAt: 1, lastUsedAt });
-  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [checkout("w1", 1), checkout("w2", 9)] };
+  const inWorktree = { ...state, threads: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [checkout("w1", 1), checkout("w2", 9)] };
   /** Nearest the thread first: its own checkout, then its project, then the project's other checkouts. */
   assert.deepEqual(reduce(inWorktree, { type: "file.open", path: "src/App.tsx" }).effects, [{ type: "file.open", roots: ["/worktrees/repo-w1", "/repo", "/worktrees/repo-w2"], path: "src/App.tsx", line: null }]);
   const refused = reduce(workspace(), { type: "file.open", path: "src/App.tsx" });
@@ -46,7 +46,7 @@ test("opening the thread in another application hands over the checkout it works
   const state = {
     ...workspace(),
     projects: [{ id: "project-1", root: "/repo" }],
-    tasks: [task("task-1", { projectId: "project-1" })],
+    threads: [task("task-1", { projectId: "project-1" })],
     currentId: "task-1",
     openMenu: "workspace:open-in",
   };
@@ -55,7 +55,7 @@ test("opening the thread in another application hands over the checkout it works
   assert.deepEqual(local.effects, [{ type: "app.open-folder", root: "/repo", appId: "cursor" }]);
   assert.equal(local.state.openMenu, null, "choosing an application closes the list");
 
-  const inWorktree = { ...state, tasks: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
+  const inWorktree = { ...state, threads: [task("task-1", { projectId: "project-1", worktreeId: "w1" })], worktrees: [{ id: "w1", projectId: "project-1", root: "/worktrees/repo-w1", workspaceId: "ws-1", baseCommit: "abc", createdAt: 1, lastUsedAt: 1 }] };
   assert.deepEqual(
     reduce(inWorktree, { type: "app.open-folder", appId: "terminal" }).effects,
     [{ type: "app.open-folder", root: "/worktrees/repo-w1", appId: "terminal" }],

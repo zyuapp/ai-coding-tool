@@ -11,7 +11,7 @@ const WEB_HREF = /^https?:/i;
 
 /** What a link in a message can reach. A handler the host leaves out makes that link plain text. */
 export type MessageLinkActions = {
-  selectTask?: (taskId: string) => void;
+  selectThread?: (threadId: string) => void;
   openFile?: (path: string, line: number | null) => void;
   openUrlInApp?: (url: string) => void;
 };
@@ -102,8 +102,8 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
 function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const actions = useContext(MessageLinks);
   const href = props.href ?? "";
-  const taskId = parseThreadHref(href);
-  if (taskId && actions.selectTask) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectTask!(taskId); }}>{children}</a>;
+  const threadId = parseThreadHref(href);
+  if (threadId && actions.selectThread) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>{children}</a>;
   /** Anything else under the scheme is text, never a live link. */
   if (APP_HREF.test(href)) return <>{children}</>;
   const file = parseFileHref(href);

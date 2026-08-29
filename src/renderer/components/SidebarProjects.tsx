@@ -9,12 +9,12 @@ import type { WorktreeGroup } from "../../application/workspace-state";
 import { PopoverMenu } from "./PopoverMenu";
 import { RenameInput, useRenaming, type Renaming } from "./SidebarRename";
 import { ShowMore } from "./ShowMore";
-import type { TaskRowRenderer } from "./SidebarTaskRow";
+import type { ThreadRowRenderer } from "./SidebarThreadRow";
 
 export const RECENTS_DROPPABLE = "recents";
 export const PROJECTS_DROPPABLE = "projects";
 export const PROJECT_DRAG = "project";
-const PROJECT_TASK_LIMIT = 10;
+const PROJECT_THREAD_LIMIT = 10;
 
 function FolderIcon() {
   return (
@@ -28,7 +28,7 @@ function FolderIcon() {
  * Which folders are showing every thread they hold. The sidebar owns this so a folder opened wide
  * stays wide while activity mode is drawn over it.
  */
-export function useShownTasks() {
+export function useShownThreads() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   return {
     has: (projectId: string) => expanded.has(projectId),
@@ -40,19 +40,19 @@ export function useShownTasks() {
   };
 }
 
-export type ShownTasks = ReturnType<typeof useShownTasks>;
+export type ShownThreads = ReturnType<typeof useShownThreads>;
 
-/** A folder shows its first ten tasks, and enough more to keep the open one in view. */
-function visibleCount(projectTasks: Thread[], currentId: string | null, showAll: boolean) {
-  if (showAll) return projectTasks.length;
-  const current = projectTasks.findIndex((task) => task.id === currentId);
-  return Math.max(PROJECT_TASK_LIMIT, current + 1);
+/** A folder shows its first ten threads, and enough more to keep the open one in view. */
+function visibleCount(projectThreads: Thread[], currentId: string | null, showAll: boolean) {
+  if (showAll) return projectThreads.length;
+  const current = projectThreads.findIndex((thread) => thread.id === currentId);
+  return Math.max(PROJECT_THREAD_LIMIT, current + 1);
 }
 
 type ProjectRowProps = {
   project: Project;
   index: number;
-  tasks: Thread[];
+  threads: Thread[];
   /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
   checkouts: WorktreeGroup[];
   expanded: boolean;
@@ -61,10 +61,10 @@ type ProjectRowProps = {
   currentId: string | null;
   openMenu: string | null;
   renaming: Renaming;
-  renderRow: TaskRowRenderer;
+  renderRow: ThreadRowRenderer;
   onToggleShowAll: () => void;
   onSetOpenMenu: (menu: string | null) => void;
-  onNewTask: (projectId?: string, worktreeId?: string) => void;
+  onNewThread: (projectId?: string, worktreeId?: string) => void;
   onToggleProject: (projectId: string) => void;
   onEditProject: (projectId: string) => void;
   onRemoveProject: (projectId: string) => void;
@@ -73,7 +73,7 @@ type ProjectRowProps = {
 function ProjectRow({
   project,
   index,
-  tasks,
+  threads,
   checkouts,
   expanded,
   showAll,
@@ -84,13 +84,13 @@ function ProjectRow({
   renderRow,
   onToggleShowAll,
   onSetOpenMenu,
-  onNewTask,
+  onNewThread,
   onToggleProject,
   onEditProject,
   onRemoveProject,
 }: ProjectRowProps) {
-  const shown = visibleCount(tasks, currentId, showAll);
-  const hidden = tasks.length - shown;
+  const shown = visibleCount(threads, currentId, showAll);
+  const hidden = threads.length - shown;
   return (
     <Draggable draggableId={project.id} index={index} disableInteractiveElementBlocking>
       {(dragged: DraggableProvided, snapshot) => (
@@ -130,27 +130,27 @@ function ProjectRow({
               label={`More options for ${projectName(project)}`}
               className="project-menu"
               items={[
-                { label: "New task", onSelect: () => onNewTask(project.id) },
+                { label: "New task", onSelect: () => onNewThread(project.id) },
                 ...checkouts.map(({ worktree }) => ({
                   label: `New thread in ${worktreeName(worktree)}`,
-                  onSelect: () => onNewTask(project.id, worktree.id),
+                  onSelect: () => onNewThread(project.id, worktree.id),
                 })),
                 { label: "Edit…", onSelect: () => onEditProject(project.id) },
                 { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
               ]}
             />
-            <button className="project-new" onClick={() => onNewTask(project.id)} aria-label={`New task in ${projectName(project)}`}><SquarePen size={16} /></button>
+            <button className="project-new" onClick={() => onNewThread(project.id)} aria-label={`New task in ${projectName(project)}`}><SquarePen size={16} /></button>
           </div>
           {/** A folded folder holds no droppable, so a drag neither unfolds it nor opens a gap where it sits. */}
           {expanded && <Droppable droppableId={project.id} type="task">
             {(provided) => (
               <div className="project-tasks" ref={provided.innerRef} {...provided.droppableProps}>
-                {tasks.slice(0, shown).map((task, taskIndex) => renderRow(task, taskIndex, `project-task-row ${task.id === currentId ? "active" : ""}`, <span>{task.title}</span>))}
+                {threads.slice(0, shown).map((thread, threadIndex) => renderRow(thread, threadIndex, `project-task-row ${thread.id === currentId ? "active" : ""}`, <span>{thread.title}</span>))}
                 {provided.placeholder}
               </div>
             )}
           </Droppable>}
-          {expanded && tasks.length === 0 && <p className="empty-tasks">No threads yet</p>}
+          {expanded && threads.length === 0 && <p className="empty-tasks">No threads yet</p>}
           {expanded && (hidden > 0 || showAll) && (
             <ShowMore
               label={hidden > 0 ? `Show ${hidden} more` : "Show less"}
@@ -167,20 +167,20 @@ function ProjectRow({
 export type SidebarProjectsProps = {
   projects: Project[];
   /** The threads each project holds, in the order the folder lists them. */
-  tasksByProject: Map<string, Thread[]>;
+  threadsByProject: Map<string, Thread[]>;
   checkoutsByProject: Map<string, WorktreeGroup[]>;
-  recentTasks: Thread[];
+  recentThreads: Thread[];
   currentId: string | null;
   draftProjectId: string | null;
   expandedProjects: Set<string>;
   sections: SidebarSections;
-  shownTasks: ShownTasks;
+  shownThreads: ShownThreads;
   openMenu: string | null;
   formatTime: (value: number) => string;
-  renderRow: TaskRowRenderer;
+  renderRow: ThreadRowRenderer;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onSetOpenMenu: (menu: string | null) => void;
-  onNewTask: (projectId?: string, worktreeId?: string) => void;
+  onNewThread: (projectId?: string, worktreeId?: string) => void;
   onOpenFolder: () => void;
   onToggleProject: (projectId: string) => void;
   /** The name typed on the row itself. Blank gives the folder its own name back. */
@@ -191,20 +191,20 @@ export type SidebarProjectsProps = {
 
 export function SidebarProjects({
   projects,
-  tasksByProject,
+  threadsByProject,
   checkoutsByProject,
-  recentTasks,
+  recentThreads,
   currentId,
   draftProjectId,
   expandedProjects,
   sections,
-  shownTasks,
+  shownThreads,
   openMenu,
   formatTime,
   renderRow,
   onSetSectionOpen,
   onSetOpenMenu,
-  onNewTask,
+  onNewThread,
   onOpenFolder,
   onToggleProject,
   onRenameProject,
@@ -229,18 +229,18 @@ export function SidebarProjects({
                 key={project.id}
                 project={project}
                 index={projectIndex}
-                tasks={tasksByProject.get(project.id) ?? []}
+                threads={threadsByProject.get(project.id) ?? []}
                 checkouts={checkoutsByProject.get(project.id) ?? []}
                 expanded={expandedProjects.has(project.id)}
-                showAll={shownTasks.has(project.id)}
+                showAll={shownThreads.has(project.id)}
                 current={draftProjectId === project.id}
                 currentId={currentId}
                 openMenu={openMenu}
                 renaming={projectNames}
                 renderRow={renderRow}
-                onToggleShowAll={() => shownTasks.toggle(project.id)}
+                onToggleShowAll={() => shownThreads.toggle(project.id)}
                 onSetOpenMenu={onSetOpenMenu}
-                onNewTask={onNewTask}
+                onNewThread={onNewThread}
                 onToggleProject={onToggleProject}
                 onEditProject={onEditProject}
                 onRemoveProject={onRemoveProject}
@@ -262,17 +262,17 @@ export function SidebarProjects({
           label="Recent chat options"
           className="section-menu"
           popoverClassName="section-menu-popover"
-          items={[{ label: "New chat", onSelect: () => onNewTask() }]}
+          items={[{ label: "New chat", onSelect: () => onNewThread() }]}
         />
-        <button className="section-action recent-new" onClick={() => onNewTask()} aria-label="New chat"><SquarePen size={16} /></button>
+        <button className="section-action recent-new" onClick={() => onNewThread()} aria-label="New chat"><SquarePen size={16} /></button>
       </div>
       {sections.recents && <Droppable droppableId={RECENTS_DROPPABLE} type="task">
         {(provided, snapshot) => (
           <nav className="task-list" aria-label="Project-less tasks" ref={provided.innerRef} {...provided.droppableProps}>
-            {recentTasks.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
-            {recentTasks.map((task, index) => renderRow(task, index, `task-row ${task.id === currentId ? "active" : ""}`, <span className="task-row-text">
-                <span>{task.title}</span>
-                <small>{formatTime(threadActivityAt(task))}</small>
+            {recentThreads.length === 0 && !snapshot.isDraggingOver && <p className="sidebar-empty">No chats</p>}
+            {recentThreads.map((thread, index) => renderRow(thread, index, `task-row ${thread.id === currentId ? "active" : ""}`, <span className="task-row-text">
+                <span>{thread.title}</span>
+                <small>{formatTime(threadActivityAt(thread))}</small>
               </span>))}
             {provided.placeholder}
           </nav>

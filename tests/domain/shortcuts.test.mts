@@ -17,7 +17,7 @@ import {
 } from "../../src/domain/shortcuts.ts";
 import { reduce, shortcutCommands, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
 function input(code: string, { key = "", meta = false, control = false, alt = false, shift = false }: Partial<Omit<KeyInput, "code">> = {}): KeyInput {
   return { key, code, meta, control, alt, shift };
@@ -27,7 +27,7 @@ function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
   return { ...emptyWorkspaceState(), ...overrides };
 }
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function thread(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -118,7 +118,7 @@ test("only bound, unclaimed keystrokes reach the matcher", () => {
 });
 
 test("a keystroke means whatever the user could have clicked", () => {
-  const state = workspace({ tasks: [task("a"), task("b")], currentId: "a", draftProjectId: null });
+  const state = workspace({ threads: [thread("a"), thread("b")], currentId: "a", draftProjectId: null });
   assert.deepEqual(shortcutCommands(state, "dock.tab-3", "any"), [{ type: "view.select-dock-index", index: 2 }]);
   assert.deepEqual(shortcutCommands(state, "dock.tab-last", "any"), [{ type: "view.select-dock-index", index: -1 }]);
   assert.deepEqual(shortcutCommands(state, "nav.back", "any"), [{ type: "view.go-back" }]);
@@ -128,12 +128,12 @@ test("a keystroke means whatever the user could have clicked", () => {
   assert.deepEqual(shortcutCommands(state, "thread.new-worktree", "any"), [{ type: "task.new" }, { type: "task.set-worktree", worktree: true }]);
   assert.deepEqual(shortcutCommands(state, "nothing.at.all", "any"), [], "an action the app does not have asks for nothing");
 
-  const inProject = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a" });
+  const inProject = workspace({ threads: [thread("a", { projectId: "p1" })], currentId: "a" });
   assert.deepEqual(shortcutCommands(inProject, "thread.new", "any"), [{ type: "task.new", projectId: "p1" }], "a new thread starts where the last one was");
 });
 
 test("going back with a keystroke moves the cursor rather than recording a visit", () => {
-  const state = run(workspace({ tasks: [task("a"), task("b")] }), [
+  const state = run(workspace({ threads: [thread("a"), thread("b")] }), [
     { type: "task.select", taskId: "a" },
     { type: "task.select", taskId: "b" },
     { type: "view.shortcut", action: "nav.back", surface: "any" },
@@ -144,7 +144,7 @@ test("going back with a keystroke moves the cursor rather than recording a visit
 });
 
 test("a keystroke that moves the user somewhere leaves the settings sheet behind", () => {
-  const state = workspace({ tasks: [task("a"), task("b")], currentId: "a", settingsOpen: true, history: ["a"], historyIndex: 0 });
+  const state = workspace({ threads: [thread("a"), thread("b")], currentId: "a", settingsOpen: true, history: ["a"], historyIndex: 0 });
 
   const started = reduce(state, { type: "view.shortcut", action: "thread.new", surface: "any" });
   assert.equal(started.state.settingsOpen, false, "a new thread is not started behind the sheet");
@@ -158,7 +158,7 @@ test("a keystroke that moves the user somewhere leaves the settings sheet behind
 });
 
 test("a new tab answers with whatever the panel is showing", () => {
-  const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
+  const state = workspace({ threads: [thread("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
   const shell = reduce(state, { type: "view.shortcut", action: "tab.new", surface: "any" });
   assert.deepEqual(shell.effects.map((effect) => effect.type), ["terminal.start", "focus-window"], "with no page in front, a shell, and the keyboard with it");
 
@@ -171,7 +171,7 @@ test("a new tab answers with whatever the panel is showing", () => {
 });
 
 test("a shell is asked for once: the dock's newest answers before a second is opened", () => {
-  const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
+  const state = workspace({ threads: [thread("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
 
   const opened = reduce(state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
   assert.deepEqual(opened.effects.map((effect) => effect.type), ["terminal.start", "focus-window"], "with no shell in the dock, one is spun up");
@@ -193,7 +193,7 @@ test("a shell is asked for once: the dock's newest answers before a second is op
 });
 
 test("the shell that has the keyboard is put away when it is asked for again", () => {
-  const state = workspace({ tasks: [task("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
+  const state = workspace({ threads: [thread("a", { projectId: "p1" })], currentId: "a", projects: [{ id: "p1", root: "/repo" }] });
   const opened = reduce(state, { type: "view.shortcut", action: "terminal.focus", surface: "any" });
   const shell = dockFor(opened.state, "a").terminals.at(-1)!;
   const typing = run(opened.state, [{ type: "view.dock-keys", tab: shell.id }]);
@@ -211,7 +211,7 @@ test("the shell that has the keyboard is put away when it is asked for again", (
 });
 
 test("a numbered keystroke shows the tab in that position", () => {
-  const state = run(workspace({ tasks: [task("a")], currentId: "a" }), [
+  const state = run(workspace({ threads: [thread("a")], currentId: "a" }), [
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "view.open-dock-panel", panel: "automation" },
   ]);

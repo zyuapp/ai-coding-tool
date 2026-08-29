@@ -93,7 +93,7 @@ test("an invalid schedule leaves the stored automation untouched", (t) => {
   scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
 
   assert.throws(() => scheduler.update("task-1", { schedule: "*/5 * * * * *" }), /at most once a minute/);
-  assert.equal(scheduler.forTask("task-1")!.schedule, HOURLY);
+  assert.equal(scheduler.forThread("task-1")!.schedule, HOURLY);
   assert.throws(() => scheduler.update("task-missing", { paused: true }), /no automation/);
 });
 
@@ -106,21 +106,21 @@ test("a run records its outcome, and a skipped tick is not counted as a run", as
 
   clock.advance(60);
   assert.equal(await scheduler.runNow("task-1"), "succeeded");
-  assert.equal(scheduler.forTask("task-1")!.runCount, 1);
-  assert.equal(scheduler.forTask("task-1")!.lastRunAt, 1_060);
-  assert.equal(scheduler.forTask("task-1")!.lastStatus, "succeeded");
+  assert.equal(scheduler.forThread("task-1")!.runCount, 1);
+  assert.equal(scheduler.forThread("task-1")!.lastRunAt, 1_060);
+  assert.equal(scheduler.forThread("task-1")!.lastStatus, "succeeded");
 
   outcome = "skipped";
   clock.advance(60);
   await scheduler.runNow("task-1");
-  assert.equal(scheduler.forTask("task-1")!.runCount, 1, "a skipped tick never ran");
-  assert.equal(scheduler.forTask("task-1")!.lastRunAt, 1_060, "last run still points at the real run");
-  assert.equal(scheduler.forTask("task-1")!.lastStatus, "skipped");
+  assert.equal(scheduler.forThread("task-1")!.runCount, 1, "a skipped tick never ran");
+  assert.equal(scheduler.forThread("task-1")!.lastRunAt, 1_060, "last run still points at the real run");
+  assert.equal(scheduler.forThread("task-1")!.lastStatus, "skipped");
 
   outcome = "failed";
   await scheduler.runNow("task-1");
-  assert.equal(scheduler.forTask("task-1")!.runCount, 2);
-  assert.equal(store.rows.get(scheduler.forTask("task-1")!.id)!.lastStatus, "failed", "outcomes survive a restart");
+  assert.equal(scheduler.forThread("task-1")!.runCount, 2);
+  assert.equal(store.rows.get(scheduler.forThread("task-1")!.id)!.lastStatus, "failed", "outcomes survive a restart");
 });
 
 test("a tick that never ran still timestamps its status, and a rewrite carries both moments", async (t) => {
@@ -131,13 +131,13 @@ test("a tick that never ran still timestamps its status, and a rewrite carries b
 
   clock.advance(60);
   await scheduler.runNow("task-1");
-  assert.equal(scheduler.forTask("task-1")!.lastStatusAt, 1_060);
+  assert.equal(scheduler.forThread("task-1")!.lastStatusAt, 1_060);
 
   outcome = "skipped";
   clock.advance(60);
   await scheduler.runNow("task-1");
-  assert.equal(scheduler.forTask("task-1")!.lastRunAt, 1_060, "a skip is not a run");
-  assert.equal(scheduler.forTask("task-1")!.lastStatusAt, 1_120, "but it is when the status was last true");
+  assert.equal(scheduler.forThread("task-1")!.lastRunAt, 1_060, "a skip is not a run");
+  assert.equal(scheduler.forThread("task-1")!.lastStatusAt, 1_120, "but it is when the status was last true");
 
   const rewritten = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *" });
   assert.equal(rewritten.lastRunAt, 1_060);
@@ -180,7 +180,7 @@ test("a run that meets its stop condition deletes the automation and is not resu
 
   await scheduler.runNow("task-1");
 
-  assert.equal(scheduler.forTask("task-1"), null);
+  assert.equal(scheduler.forThread("task-1"), null);
   assert.equal(scheduler.list().length, 0);
   assert.equal(store.rows.size, 0, "the deleted automation is not rewritten by the run's bookkeeping");
 });
@@ -197,13 +197,13 @@ test("a one-shot automation fires at its scheduled time and then retires itself"
   const ran = new Promise<void>((resolve) => { fired = resolve; });
   const scheduler = schedulerFor(t, store, async () => { fired(); return "succeeded"; });
   scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
-  assert.equal(scheduler.forTask("task-1")!.nextRunAt, Date.parse(when));
+  assert.equal(scheduler.forThread("task-1")!.nextRunAt, Date.parse(when));
 
   vi.advanceTimersByTime(whenAt - now);
   await ran;
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(scheduler.forTask("task-1"), null, "a spent one-shot does not linger in the panel");
+  assert.equal(scheduler.forThread("task-1"), null, "a spent one-shot does not linger in the panel");
   assert.equal(store.rows.size, 0);
 });
 
@@ -224,7 +224,7 @@ test("a one-shot whose moment is skipped is kept and marked missed, not deleted"
   await refused;
   await new Promise((resolve) => setImmediate(resolve));
 
-  const missed = scheduler.forTask("task-1");
+  const missed = scheduler.forThread("task-1");
   assert.ok(missed, "a one-shot that never ran is not thrown away");
   assert.equal(missed.lastStatus, "missed");
   assert.equal(missed.runCount, 0);
@@ -241,7 +241,7 @@ test("a one-shot missed while the app was closed reloads as missed rather than a
 
   scheduler.start();
 
-  const reloaded = scheduler.forTask("task-past");
+  const reloaded = scheduler.forThread("task-past");
   assert.ok(reloaded);
   assert.equal(reloaded.lastStatus, "missed");
   assert.equal(reloaded.nextRunAt, null);
@@ -258,7 +258,7 @@ test("re-running a missed one-shot by hand retires it", async (t) => {
 
   assert.equal(await scheduler.runNow("task-past"), "succeeded");
 
-  assert.equal(scheduler.forTask("task-past"), null);
+  assert.equal(scheduler.forThread("task-past"), null);
   assert.equal(store.rows.size, 0);
 });
 
@@ -270,15 +270,15 @@ test("running a one-shot early leaves it armed for its real time", async (t) => 
 
   await scheduler.runNow("task-1");
 
-  assert.equal(scheduler.forTask("task-1")!.runCount, 1);
-  assert.equal(scheduler.forTask("task-1")!.nextRunAt, Date.parse(when));
+  assert.equal(scheduler.forThread("task-1")!.runCount, 1);
+  assert.equal(scheduler.forThread("task-1")!.nextRunAt, Date.parse(when));
 });
 
 test("pausing stops the countdown without discarding the automation", (t) => {
   const store = memoryStore();
   const scheduler = schedulerFor(t, store, async () => "succeeded");
   scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
-  assert.notEqual(scheduler.forTask("task-1")!.nextRunAt, null);
+  assert.notEqual(scheduler.forThread("task-1")!.nextRunAt, null);
 
   const paused = scheduler.update("task-1", { paused: true });
   assert.equal(paused.paused, true);
@@ -320,8 +320,8 @@ test("a stored schedule this build cannot parse is skipped instead of blocking s
 
   assert.doesNotThrow(() => scheduler.start());
 
-  assert.equal(scheduler.forTask("task-broken")!.nextRunAt, null, "the broken automation is never armed");
-  assert.notEqual(scheduler.forTask("task-sound")!.nextRunAt, null, "and it does not take the others down with it");
+  assert.equal(scheduler.forThread("task-broken")!.nextRunAt, null, "the broken automation is never armed");
+  assert.notEqual(scheduler.forThread("task-sound")!.nextRunAt, null, "and it does not take the others down with it");
 });
 
 test("a paused automation stays paused across a restart", (t) => {
@@ -332,8 +332,8 @@ test("a paused automation stays paused across a restart", (t) => {
 
   const second = schedulerFor(t, store, async () => "succeeded");
   second.start();
-  assert.equal(second.forTask("task-1")!.paused, true);
-  assert.equal(second.forTask("task-1")!.nextRunAt, null);
+  assert.equal(second.forThread("task-1")!.paused, true);
+  assert.equal(second.forThread("task-1")!.nextRunAt, null);
 });
 
 test("what a schedule surfaces for survives every rewrite of it, and is what makes a tick quiet", async (t) => {
@@ -395,7 +395,7 @@ test("a tick dropped for overrunning is counted, since croner records it nowhere
   job.options.protect(job);
   job.options.protect(job);
 
-  assert.equal(scheduler.forTask("task-1")!.overrunCount, 2);
+  assert.equal(scheduler.forThread("task-1")!.overrunCount, 2);
   assert.equal(store.rows.get(id)!.overrunCount, 2, "so a restart still knows how many ticks were lost");
-  assert.equal(scheduler.forTask("task-1")!.runCount, 0, "a tick that was dropped never ran");
+  assert.equal(scheduler.forThread("task-1")!.runCount, 0, "a tick that was dropped never ran");
 });

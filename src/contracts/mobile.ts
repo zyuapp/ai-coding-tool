@@ -2,7 +2,8 @@ import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
 import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
-import type { Annotation, AnnotationAnchor, PastedText, TaskMessageKind } from "../domain/task.js";
+import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
+import type { TaskMessageKind } from "./threads.js";
 
 /**
  * The commands a paired phone may dispatch. The phone is the user on a small screen, not an agent,

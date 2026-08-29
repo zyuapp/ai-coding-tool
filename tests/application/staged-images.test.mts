@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { MAX_ATTACHMENTS, type Task } from "../../src/domain/task.ts";
+import { MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
-function task(id: string): Task {
+function task(id: string): Thread {
   return {
     id,
     title: id,
@@ -22,7 +23,7 @@ function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
 }
 
 function workspaceWithTasks(): WorkspaceState {
-  return { ...emptyWorkspaceState(), tasks: [task("task-1"), task("task-2")], currentId: "task-1" };
+  return { ...emptyWorkspaceState(), threads: [task("task-1"), task("task-2")], currentId: "task-1" };
 }
 
 test("a grabbed window is drafted against the thread it landed in, and removed by id", () => {
@@ -82,7 +83,7 @@ test("a send clears the images it carried, and a path with nothing to say is ign
     workspace: { id: "w", kind: "projectless", root: "/tmp" },
   });
 
-  assert.deepEqual(started.state.tasks[0].messages.at(-1)!.attachments, ["/attachments/one.png"]);
+  assert.deepEqual(started.state.threads[0].messages.at(-1)!.attachments, ["/attachments/one.png"]);
   assert.deepEqual(started.state.images, {});
 });
 

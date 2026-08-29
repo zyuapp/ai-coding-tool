@@ -3,9 +3,9 @@ import { test } from "vitest";
 import { clampQuote, promptWithAnnotations } from "../../src/application/annotations.ts";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -28,7 +28,7 @@ function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
 }
 
 function currentWorkspace() {
-  return workspace({ tasks: [task("task-1")], currentId: "task-1" });
+  return workspace({ threads: [task("task-1")], currentId: "task-1" });
 }
 
 test("the prompt carries each quote and its note, and an empty note stays quiet", () => {
@@ -91,7 +91,7 @@ test("a send flattens annotations into the prompt, keeps them on the message, an
   assert.ok(effect.command.prompt.startsWith("About this\n\n"));
   assert.ok(effect.command.prompt.includes("> the claim\nnot true"));
 
-  const message = started.state.tasks[0].messages.at(-1);
+  const message = started.state.threads[0].messages.at(-1);
   assert.ok(message);
   assert.equal(message.text, "About this");
   assert.deepEqual(message.annotations!.map((item) => [item.quote, item.note]), [["the claim", "not true"]]);

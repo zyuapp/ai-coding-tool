@@ -19,7 +19,7 @@ const REQUEST_TIMEOUT = 10_000;
 /** A wait is answered by the window when the thread settles, so it outlasts an ordinary request. */
 const WAIT_SLACK = 10_000;
 
-/** Turns the agent process's one-way port into request/response bridges scoped per task. */
+/** Turns the agent process's one-way port into request/response bridges scoped per thread. */
 export class ThreadChannel {
   private readonly pending = new Map<string, Pending>();
 

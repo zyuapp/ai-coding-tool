@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { markPrefix, promptWithAttachments, taskTitleFor } from "../../src/application/attachments.ts";
+import { markPrefix, promptWithAttachments, threadTitleFor } from "../../src/application/attachments.ts";
 
 test("prompt is unchanged when nothing is attached", () => {
   assert.equal(promptWithAttachments("Fix the header", []), "Fix the header");
@@ -43,7 +43,7 @@ test("an image-only send still produces a prompt", () => {
 });
 
 test("title falls back to the attachment count when there is no text", () => {
-  assert.equal(taskTitleFor("", [{ path: "/tmp/a.png", labels: [] }]), "Screenshot");
-  assert.equal(taskTitleFor("", [{ path: "/a.png", labels: [] }, { path: "/b.png", labels: [] }]), "2 screenshots");
-  assert.equal(taskTitleFor("Fix it", [{ path: "/a.png", labels: [] }]), "Fix it");
+  assert.equal(threadTitleFor("", [{ path: "/tmp/a.png", labels: [] }]), "Screenshot");
+  assert.equal(threadTitleFor("", [{ path: "/a.png", labels: [] }, { path: "/b.png", labels: [] }]), "2 screenshots");
+  assert.equal(threadTitleFor("Fix it", [{ path: "/a.png", labels: [] }]), "Fix it");
 });

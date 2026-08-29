@@ -9,7 +9,7 @@ import type { Workflow } from "../../src/domain/workflow.ts";
 import { task, workspace, effectAt, PROJECT, required, run, send } from "./workspace-reducer-fixtures.mts";
 
 test("visiting threads builds a trail that back and forward walk without extending it", () => {
-  const state = run(workspace({ tasks: [task("task-a"), task("task-b"), task("task-c")] }), [
+  const state = run(workspace({ threads: [task("task-a"), task("task-b"), task("task-c")] }), [
     { type: "task.select", taskId: "task-a" },
     { type: "task.select", taskId: "task-b" },
     { type: "task.select", taskId: "task-c" },
@@ -30,7 +30,7 @@ test("visiting threads builds a trail that back and forward walk without extendi
 });
 
 test("history follows wherever the app took the user, not just sidebar clicks", () => {
-  const drafted = run(workspace({ tasks: [task("task-a")] }), [
+  const drafted = run(workspace({ threads: [task("task-a")] }), [
     { type: "task.select", taskId: "task-a" },
     { type: "task.new" },
     { type: "view.set-prompt", prompt: "Inspect the app" },
@@ -43,7 +43,7 @@ test("history follows wherever the app took the user, not just sidebar clicks", 
 });
 
 test("visiting a thread after going back drops the trail ahead of it", () => {
-  const walked = run(workspace({ tasks: [task("task-a"), task("task-b"), task("task-c")] }), [
+  const walked = run(workspace({ threads: [task("task-a"), task("task-b"), task("task-c")] }), [
     { type: "task.select", taskId: "task-a" },
     { type: "task.select", taskId: "task-b" },
     { type: "view.go-back" },
@@ -55,7 +55,7 @@ test("visiting a thread after going back drops the trail ahead of it", () => {
 });
 
 test("back and forward step over threads that are gone or archived", () => {
-  const visited = run(workspace({ tasks: [task("task-a"), task("task-b"), task("task-c")] }), [
+  const visited = run(workspace({ threads: [task("task-a"), task("task-b"), task("task-c")] }), [
     { type: "task.select", taskId: "task-a" },
     { type: "task.select", taskId: "task-b" },
     { type: "task.select", taskId: "task-c" },
@@ -66,11 +66,11 @@ test("back and forward step over threads that are gone or archived", () => {
   assert.equal(back.currentId, "task-a", "the archived thread in between is skipped");
   assert.equal(reduce(back, { type: "view.go-forward" }).state.currentId, "task-c");
 
-  const emptied = { ...visited, tasks: visited.tasks.filter((item) => item.id !== "task-a") };
+  const emptied = { ...visited, threads: visited.threads.filter((item) => item.id !== "task-a") };
   assert.ok(!deriveView({ ...emptied, historyIndex: 1 }).canGoBack, "a thread that no longer exists is nowhere to go");
 
   const duplicate = workspace({
-    tasks: [task("archived", { archivedAt: 0 }), task("shared", { archivedAt: 0 }), task("shared")],
+    threads: [task("archived", { archivedAt: 0 }), task("shared", { archivedAt: 0 }), task("shared")],
     history: ["archived", "shared"],
     historyIndex: -1,
   });
@@ -79,7 +79,7 @@ test("back and forward step over threads that are gone or archived", () => {
 
 /** A thread with the review open in its dock, which is what a review search points at. */
 function reviewing() {
-  const state = run(workspace({ tasks: [task("task-a")], currentId: "task-a", lastFolder: "/repo" }), [
+  const state = run(workspace({ threads: [task("task-a")], currentId: "task-a", lastFolder: "/repo" }), [
     { type: "view.open-dock-panel", panel: DIFF_PANEL },
   ]);
   const owner = dockOwner(state);
@@ -135,7 +135,7 @@ test("closing the review takes its find bar with it", () => {
 
 /** A thread with a small panel open in its dock, which is what a panel search points at. */
 function panelling() {
-  const state = run(workspace({ tasks: [task("task-a")], currentId: "task-a" }), [
+  const state = run(workspace({ threads: [task("task-a")], currentId: "task-a" }), [
     { type: "view.open-dock-panel", panel: "agents" },
   ]);
   const owner = dockOwner(state);
@@ -167,7 +167,7 @@ test("closing the panel being searched takes its find bar with it", () => {
 });
 
 test("coming back to the window reads Git again", () => {
-  const state = workspace({ projects: [PROJECT], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
+  const state = workspace({ projects: [PROJECT], threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });
 
   const back = reduce({ ...state, focused: false }, { type: "view.set-focused", focused: true });
   assert.deepEqual(back.effects, [{ type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a" }]);
@@ -177,7 +177,7 @@ test("coming back to the window reads Git again", () => {
 });
 
 test("coming back to the window reads an engine the user went off to install, and only that engine", () => {
-  const state = workspace({ projects: [PROJECT], tasks: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", focused: false });
+  const state = workspace({ projects: [PROJECT], threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", focused: false });
   const environment = { type: "refresh-environment", workspaceId: required(PROJECT.workspaceId), taskId: "task-a" };
 
   const ready = reduce({ ...state, engineStatus: { claude: { access: "ready" } } }, { type: "view.set-focused", focused: true });
@@ -195,27 +195,27 @@ test("coming back to the window reads an engine the user went off to install, an
 test("a thread's panels are fed only where its engine can fill them", () => {
   const workflow: Workflow = { id: "wf-1", name: "Release", description: "", status: "running", phases: [], agents: [], totalTokens: 0, totalToolCalls: 0, startedAt: 1 };
   const subagent: Subagent = { id: "sub-1", description: "Inspect", status: "working", startedAt: 1, activity: [] };
-  const state = workspace({ tasks: [task("task-a")], currentId: "task-a", workflows: { "task-a": [workflow] }, subagents: { "task-a": [subagent] } });
+  const state = workspace({ threads: [task("task-a")], currentId: "task-a", workflows: { "task-a": [workflow] }, subagents: { "task-a": [subagent] } });
   const claude = deriveView(state);
   assert.deepEqual(claude.capabilities, capabilitiesFor("claude"));
   assert.equal(claude.engineLabel, "Claude");
   assert.deepEqual(claude.workflows, [workflow]);
   assert.deepEqual(claude.subagents, [subagent]);
 
-  const silent = engineFeeds({ ...capabilitiesFor("claude"), workflows: false, subagents: false }, state, state.tasks[0]);
+  const silent = engineFeeds({ ...capabilitiesFor("claude"), workflows: false, subagents: false }, state, state.threads[0]);
   assert.deepEqual(silent.workflows, []);
   assert.deepEqual(silent.subagents, []);
-  const fed = engineFeeds({ ...capabilitiesFor("claude"), workflows: false }, state, state.tasks[0]);
+  const fed = engineFeeds({ ...capabilitiesFor("claude"), workflows: false }, state, state.threads[0]);
   assert.deepEqual(fed.subagents, [subagent], "each feed is gated on its own flag");
 
-  const codex = deriveView({ ...state, tasks: [{ ...state.tasks[0], engine: "codex", model: "gpt-5.6-sol" }] });
+  const codex = deriveView({ ...state, threads: [{ ...state.threads[0], engine: "codex", model: "gpt-5.6-sol" }] });
   assert.deepEqual(codex.subagents, [subagent], "Codex feeds the shared subagent panel");
   assert.deepEqual(codex.workflows, []);
 });
 
 test("the jump panel opens on the most recent threads, then a name narrows them", () => {
   const state = workspace({
-    tasks: [
+    threads: [
       task("task-a", { title: "Dock the browser panel", updatedAt: 3 }),
       task("task-b", { title: "Panel find", updatedAt: 2 }),
       task("task-c", { title: "Ship the review", updatedAt: 1 }),
@@ -233,7 +233,7 @@ test("the jump panel opens on the most recent threads, then a name narrows them"
 });
 
 test("the arrow keys walk the rows and wrap, and a name that moves them starts at the top again", () => {
-  const state = run(workspace({ tasks: [task("task-a", { updatedAt: 2 }), task("task-b", { updatedAt: 1 })] }), [
+  const state = run(workspace({ threads: [task("task-a", { updatedAt: 2 }), task("task-b", { updatedAt: 1 })] }), [
     { type: "view.jump-open" },
     { type: "view.jump-step", delta: 1 },
   ]);
@@ -248,7 +248,7 @@ test("the arrow keys walk the rows and wrap, and a name that moves them starts a
 });
 
 test("choosing a row opens that thread and closes the panel", () => {
-  const state = run(workspace({ tasks: [task("task-a"), task("task-b")] }), [
+  const state = run(workspace({ threads: [task("task-a"), task("task-b")] }), [
     { type: "view.jump-open" },
     { type: "view.jump-choose", taskId: "task-b" },
   ]);
@@ -258,7 +258,7 @@ test("choosing a row opens that thread and closes the panel", () => {
 });
 
 test("a settings row opens its page on the control it names, and closes the panel", () => {
-  const state = run(workspace({ tasks: [task("task-a")] }), [
+  const state = run(workspace({ threads: [task("task-a")] }), [
     { type: "view.jump-open" },
     { type: "view.jump-choose-setting", section: "appearance", settingId: "appearance.ui-font" },
   ]);
@@ -276,7 +276,7 @@ test("a settings row opens its page on the control it names, and closes the pane
 });
 
 test("the jump keystroke closes the panel it opened, and settings give way to it", () => {
-  const state = workspace({ tasks: [task("task-a")], settingsOpen: true });
+  const state = workspace({ threads: [task("task-a")], settingsOpen: true });
   const opened = reduce(state, { type: "view.shortcut", action: "thread.jump", surface: "any" }).state;
   assert.ok(opened.jump);
   assert.ok(!opened.settingsOpen);

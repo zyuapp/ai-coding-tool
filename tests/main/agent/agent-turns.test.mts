@@ -5,10 +5,10 @@ import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provid
 import { reduce } from "../../../src/application/workspace-reducer.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../../src/application/workspace-state.ts";
 import type { AgentTurn, ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
-import type { Task } from "../../../src/domain/task.ts";
+import type { Thread } from "../../../src/domain/thread.ts";
 import { input, liveQueryFactory, liveTurn, tick, turn, type LiveQueryCapture } from "../../support/claude-session.mjs";
 
-function task(id: string): Task {
+function task(id: string): Thread {
   return { id, title: id, engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 };
 }
 
@@ -63,15 +63,15 @@ test("a tool call from work that outlived its run is asked, not refused", async 
 });
 
 test("a turn the agent starts itself is taken on by the thread, and read there", () => {
-  const idle = workspace({ tasks: [task("task-a")], currentId: "task-b", sideChats: [] });
+  const idle = workspace({ threads: [task("task-a")], currentId: "task-b", sideChats: [] });
   const opened = reduce(idle, { type: "run.event", event: { type: "run.started", taskId: "task-a", runId: "run-agent", sequence: 1, agentInitiated: true } });
   assert.equal(opened.state.activeRuns["task-a"]?.runId, "run-agent");
 
   const said = reduce(opened.state, { type: "run.event", event: { type: "assistant.delta", taskId: "task-a", runId: "run-agent", sequence: 2, messageId: "m-1", text: "The workflow finished." } });
-  assert.equal(said.state.tasks.find((item) => item.id === "task-a")?.messages.at(-1)?.text, "The workflow finished.");
+  assert.equal(said.state.threads.find((item) => item.id === "task-a")?.messages.at(-1)?.text, "The workflow finished.");
 
   const ended = reduce(said.state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-agent", sequence: 3, status: "succeeded" } });
-  const settledTask = ended.state.tasks.find((item) => item.id === "task-a");
+  const settledTask = ended.state.threads.find((item) => item.id === "task-a");
   assert.ok(settledTask);
   assert.equal(ended.state.activeRuns["task-a"], undefined);
   assert.equal(settledTask.outcomeUnread, true, "a thread the user is not on says it has something to read");

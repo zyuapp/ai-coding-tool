@@ -9,7 +9,7 @@ import type { DiffFile } from "./diff.js";
 import type { ConversationMessage } from "./conversation.js";
 
 /**
- * Where a search is pointed. A thread names the task whose messages are searched, so a side chat is
+ * Where a search is pointed. A thread target names whose messages are searched, so a side chat is
  * searched by the same path the main thread is, and a null id is the draft, which has nothing yet.
  * A page and a shell hold their own text and keep their own place in it; the review and a panel
  * count their own matches and report them the same way, but the reducer holds their place.

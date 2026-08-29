@@ -4,7 +4,7 @@ import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
@@ -40,18 +40,18 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     open: true,
     inactive: false,
     projects: [],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set<string>(),
-    runningTaskIds: new Set<string>(),
-    blockedTaskIds: new Set<string>(),
+    runningThreadIds: new Set<string>(),
+    blockedThreadIds: new Set<string>(),
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set<string>(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set<string>(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -60,7 +60,7 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     canGoForward: false,
     onGoBack() {},
     onGoForward() {},
-    onNewTask() {},
+    onNewThread() {},
     onOpenFolder() {},
     onToggleProject() {},
     onRenameProject() {},
@@ -69,12 +69,12 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     onSetMode() {},
     onSetSectionOpen() {},
     onSetOpenMenu() {},
-    onSelectTask() {},
-    onArchiveTask() {},
-    onDismissTask() {},
+    onSelectThread() {},
+    onArchiveThread() {},
+    onDismissThread() {},
     onDismissAll() {},
-    onRenameTask() {},
-    onMoveTask() {}, onForkTask() {},
+    onRenameThread() {},
+    onMoveThread() {}, onForkThread() {},
     onMoveProject() {},
     onOpenSettings() {},
     ...overrides,
@@ -275,9 +275,9 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   return desktop;
 }
 
-type SeedProjectTask = Pick<Task, "id" | "title" | "updatedAt"> & Partial<Task>;
+type SeedProjectThread = Pick<Thread, "id" | "title" | "updatedAt"> & Partial<Thread>;
 
-function seedProjectTasks(tasks: SeedProjectTask[]) {
+function seedProjectTasks(tasks: SeedProjectThread[]) {
   localStorage.clear();
   localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
     tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
@@ -296,7 +296,7 @@ function seedProjectTasks(tasks: SeedProjectTask[]) {
 
 
 test("activity mode ranks threads into priority, running, and the rest, and only priority dismisses", async () => {
-  const thread = (id: string, overrides: Partial<Task> = {}): Task => ({
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
   });
@@ -306,17 +306,17 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     open: true,
     inactive: false,
     projects: [{ id: "project-1", root: "/work/project" }],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(["busy", "asked"]),
-    blockedTaskIds: new Set(["asked"]),
+    runningThreadIds: new Set(["busy", "asked"]),
+    blockedThreadIds: new Set(["asked"]),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: {
+    worktreeThreadIds: new Set(),
+    activityThreads: {
       priority: [thread("asked", { projectId: "project-1" }), thread("unread", { outcome: "finished", outcomeUnread: true }), thread("seen", { outcome: "finished" })],
       running: [thread("busy")],
       threads: [thread("quiet")],
@@ -328,12 +328,12 @@ test("activity mode ranks threads into priority, running, and the rest, and only
     canGoBack: false,
     canGoForward: false,
     onGoBack() {}, onGoForward() {},
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {},
-    onDismissTask: (taskId) => { dismissed.push(taskId); },
+    onSelectThread() {}, onArchiveThread() {}, onRenameThread() {},
+    onDismissThread: (taskId) => { dismissed.push(taskId); },
     onDismissAll: () => { clearedAll += 1; },
-    onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const listed = (label: string) => [...view.container.querySelectorAll(`nav[aria-label="${label}"] .task-row-text > span`)].map((row) => row.textContent);
@@ -379,25 +379,25 @@ test("activity mode ranks threads into priority, running, and the rest, and only
 });
 
 test("only the priority heading offers to dismiss every dot at once", async () => {
-  const thread = (id: string, overrides: Partial<Task> = {}): Task => ({
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1, ...overrides,
   });
-  const sidebar = (priority: Task[]) => renderProjectSidebar({
+  const sidebar = (priority: Thread[]) => renderProjectSidebar({
     open: true,
     inactive: false,
     projects: [],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority, running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority, running: [], threads: [] },
     mode: "activity",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -405,10 +405,10 @@ test("only the priority heading offers to dismiss every dot at once", async () =
     canGoBack: false,
     canGoForward: false,
     onGoBack() {}, onGoForward() {},
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {}, onDismissTask() {}, onDismissAll() {},
-    onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onDismissAll() {},
+    onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
   const view = await mount(sidebar([]));
@@ -503,7 +503,7 @@ test("opening a dotted row in projects mode takes its dot off", async () => {
 });
 
 test("the sidebar lists a project's threads as one list, and its menu starts another in a checkout", async () => {
-  const thread = (id: string, overrides: Partial<Task> = {}): Task => ({
+  const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
     id, title: id, projectId: "project-1", engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1, ...overrides,
   });
@@ -512,25 +512,25 @@ test("the sidebar lists a project's threads as one list, and its menu starts ano
   const view = await mount(renderProjectSidebar({
     inactive: false,
     projects: [{ id: "project-1", root: "/project" }],
-    orderedTasks: [thread("in-checkout", { worktreeId: "wt1" }), thread("in-project")],
-    recentTasks: [],
+    orderedThreads: [thread("in-checkout", { worktreeId: "wt1" }), thread("in-project")],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
-    worktreeGroups: [{ worktree, tasks: [thread("in-checkout", { worktreeId: "wt1" })] }],
-    worktreeTaskIds: new Set(["in-checkout"]),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeGroups: [{ worktree, threads: [thread("in-checkout", { worktreeId: "wt1" })] }],
+    worktreeThreadIds: new Set(["in-checkout"]),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: "project:project-1",
     settingsOpen: false,
-    onNewTask(projectId, worktreeId) { started.push([projectId, worktreeId]); },
+    onNewThread(projectId, worktreeId) { started.push([projectId, worktreeId]); },
     onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onDismissThread() {}, onDismissAll() {}, onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   assert.deepEqual(
@@ -549,31 +549,31 @@ test("the sidebar lists a project's threads as one list, and its menu starts ano
 });
 
 test("the sidebar marks each thread's engine, schedule, and checkout", async () => {
-  const task = (id: string, projectId?: string, engine: Task["engine"] = "claude"): Task => ({
+  const task = (id: string, projectId?: string, engine: Thread["engine"] = "claude"): Thread => ({
     id, title: id, ...(projectId ? { projectId } : {}), engine, executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
   });
   const view = await mount(renderProjectSidebar({
     inactive: false,
     projects: [{ id: "project-1", root: "/project" }],
-    orderedTasks: [task("scheduled-task", "project-1"), task("plain-task", "project-1", "codex")],
-    recentTasks: [task("scheduled-chat"), task("plain-chat", undefined, "codex")],
+    orderedThreads: [task("scheduled-task", "project-1"), task("plain-task", "project-1", "codex")],
+    recentThreads: [task("scheduled-chat"), task("plain-chat", undefined, "codex")],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(["project-1"]),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map([["scheduled-task", automationView({ taskId: "scheduled-task" })], ["scheduled-chat", automationView({ taskId: "scheduled-chat" })]]),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(["plain-task"]),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(["plain-task"]),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
     settingsOpen: false,
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onDismissThread() {}, onDismissAll() {}, onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   const marks = (label: string) => [...view.container.querySelectorAll(`[aria-label="${label}"]`)]
@@ -588,7 +588,7 @@ test("the sidebar marks each thread's engine, schedule, and checkout", async () 
 });
 
 test("the sidebar follows the thread the keyboard steps to", async () => {
-  const thread = (id: string): Task => ({
+  const thread = (id: string): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   });
@@ -599,17 +599,17 @@ test("the sidebar follows the thread the keyboard steps to", async () => {
     open: true,
     inactive: false,
     projects: [],
-    orderedTasks: [thread("first"), thread("second")],
-    recentTasks: [thread("first"), thread("second")],
+    orderedThreads: [thread("first"), thread("second")],
+    recentThreads: [thread("first"), thread("second")],
     currentId,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -617,11 +617,11 @@ test("the sidebar follows the thread the keyboard steps to", async () => {
     canGoBack: false,
     canGoForward: false,
     onGoBack() {}, onGoForward() {},
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {},
-    onDismissTask() {}, onDismissAll() {},
-    onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onRenameThread() {},
+    onDismissThread() {}, onDismissAll() {},
+    onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   });
 
   const view = await mount(sidebar("first"));
@@ -638,17 +638,17 @@ test("the sidebar steps through visited threads", async () => {
     open: false,
     inactive: false,
     projects: [],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set(),
-    runningTaskIds: new Set(),
-    blockedTaskIds: new Set(),
+    runningThreadIds: new Set(),
+    blockedThreadIds: new Set(),
     schedules: new Map(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -657,9 +657,9 @@ test("the sidebar steps through visited threads", async () => {
     canGoForward: false,
     onGoBack: () => { backSteps += 1; },
     onGoForward() {},
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onDismissTask() {}, onDismissAll() {}, onMoveTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onDismissThread() {}, onDismissAll() {}, onMoveThread() {}, onMoveProject() {}, onOpenSettings() {},
   }));
 
   assert.ok(query<HTMLButtonElement>(view.container, 'button[aria-label="Go forward"]').disabled, "nothing ahead to go forward to");
@@ -680,10 +680,10 @@ test("a run settling on the thread on screen ranks it without marking it, even b
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 1, status: "succeeded" });
   });
   await settleFrame();
-  assert.equal(item(workspace.get().currentTask).outcome, "finished");
-  assert.equal(item(workspace.get().currentTask).outcomeUnread, undefined);
+  assert.equal(item(workspace.get().currentThread).outcome, "finished");
+  assert.equal(item(workspace.get().currentThread).outcomeUnread, undefined);
 
   await act(async () => { window.dispatchEvent(new Event("focus")); });
-  assert.equal(item(workspace.get().currentTask).outcomeUnread, undefined, "and coming back finds nothing marked");
+  assert.equal(item(workspace.get().currentThread).outcomeUnread, undefined, "and coming back finds nothing marked");
   await workspace.view.unmount();
 });

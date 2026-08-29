@@ -8,9 +8,10 @@ import { TaskDatabase } from "../../src/main/task-database.mts";
 import type { PersistedSubagent, PersistedTask } from "../../src/contracts/ipc.ts";
 import type { Automation } from "../../src/domain/automation.ts";
 import type { Subagent } from "../../src/domain/run.ts";
-import type { TaskMessage, TaskStoreData } from "../../src/domain/task.ts";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
 
-function loadDatabase(database: TaskDatabase): TaskStoreData {
+function loadDatabase(database: TaskDatabase): ThreadStoreData {
   const loaded = database.load();
   assert.ok(loaded);
   return loaded;
@@ -294,7 +295,7 @@ test("SQLite task storage keeps what a thread's runs found, and which of its mes
   try {
     database.persist({ tasks: [{ task, messages: [
       { index: 0, message: { id: "label", kind: "user", text: "Poll", detail: "Automation run #2", withdrawn: true, at: 10 } },
-      { index: 1, message: { id: "reply", kind: "assistant", text: "Nothing new", quiet: true, at: 11 } as unknown as TaskMessage },
+      { index: 1, message: { id: "reply", kind: "assistant", text: "Nothing new", quiet: true, at: 11 } as unknown as ConversationMessage },
     ] }] });
 
     const [loaded] = loadDatabase(database).tasks;

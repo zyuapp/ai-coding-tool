@@ -5,10 +5,10 @@ import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
-import type { Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
-import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
+import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
@@ -18,7 +18,7 @@ const { SubagentInspector } = await import("../../src/renderer/components/Subage
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 const { OpenInMenu } = await import("../../src/renderer/components/OpenInMenu.tsx");
-const { TaskComposer } = await import("../../src/renderer/components/TaskComposer.tsx");
+const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
 
 function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
@@ -47,8 +47,8 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
 }
 
 
-function renderTaskComposer(overrides: Partial<TaskComposerProps>) {
-  return React.createElement(TaskComposer, {
+function renderConversationComposer(overrides: Partial<ConversationComposerProps>) {
+  return React.createElement(ConversationComposer, {
     prompt: "",
     folder: "",
     mode: "confirm",
@@ -514,10 +514,10 @@ test("workspace header keeps session summary and right panel controls separate",
   let summaryToggles = 0;
   let rightPanelToggles = 0;
   const view = await mount(React.createElement(WorkspaceHeader, {
-    currentTask: {
+    currentThread: {
       id: "codex-thread", title: "Codex thread", engine: "codex", executionPolicy: "confirm", messages: [],
       continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
-    } satisfies Task,
+    } satisfies Thread,
     folder: "/project",
     folderLabel: "project",
     sidebarOpen: false,

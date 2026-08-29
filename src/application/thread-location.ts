@@ -12,7 +12,7 @@ export type ThreadLocation =
 
 type ProjectState = { projects: Project[] };
 type WorktreeState = { worktrees: Worktree[] };
-type ClaimState = { tasks: Thread[] };
+type ClaimState = { threads: Thread[] };
 type LeavingState = ClaimState & WorktreeState & { releasingWorktrees: string[]; deletingWorktrees: string[] };
 type LocationState = LeavingState & { creatingWorktrees: string[] };
 
@@ -31,7 +31,7 @@ export function worktreeFor(state: WorktreeState, thread: Thread | undefined) {
 
 /** Every thread still linked to a checkout, including archived threads. */
 export function worktreeClaimants(state: ClaimState, worktreeId: string) {
-  return state.tasks.filter((thread) => thread.worktreeId === worktreeId);
+  return state.threads.filter((thread) => thread.worktreeId === worktreeId);
 }
 
 /** The folder a thread works in: the checkout it shares once it has one, otherwise its project's. */
@@ -67,7 +67,7 @@ export function leavingThreadIds(state: LeavingState): Set<string> {
   const leaving = new Set(state.releasingWorktrees);
   if (state.deletingWorktrees.length === 0) return leaving;
   const going = new Set(state.worktrees.filter((worktree) => state.deletingWorktrees.includes(worktree.root)).map((worktree) => worktree.id));
-  for (const thread of state.tasks) if (thread.worktreeId && going.has(thread.worktreeId)) leaving.add(thread.id);
+  for (const thread of state.threads) if (thread.worktreeId && going.has(thread.worktreeId)) leaving.add(thread.id);
   return leaving;
 }
 

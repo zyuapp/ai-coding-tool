@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import { folderName, legacyProjectId } from "../../src/domain/project.ts";
+import { retainedThreads } from "../../src/domain/thread-retention.ts";
 import {
-  folderName,
-  legacyProjectId,
   migrateV1ToV2,
-  parseTaskStore,
-  retainedTasks,
-  serializeTaskStore,
-  validateTaskStoreData,
-  type TaskMessage,
-  type TaskStoreData,
-} from "../../src/domain/task.ts";
+  parseThreadStore,
+  serializeThreadStore,
+  validateThreadStoreData,
+  type ThreadStoreData,
+} from "../../src/domain/thread-storage.ts";
 import { LEGACY_TASK_STORE_KEYS, TASK_STORE_KEYS, TaskStore } from "../../src/application/task-store.ts";
 
 const task = {
@@ -43,7 +42,7 @@ function legacyValues(overrides: Partial<LegacyValues> = {}): LegacyValues {
 
 /** Invalid historical rows still need encoding before they cross the parser's trust boundary. */
 function serializeUnchecked(value: unknown) {
-  return serializeTaskStore(value as TaskStoreData);
+  return serializeThreadStore(value as ThreadStoreData);
 }
 
 test("migrates all v1 keys and keeps a resumable transcript", () => {
@@ -84,7 +83,7 @@ test("loads the previous Threadline namespace and saves it under AI Coding Tool"
 
 test("malformed storage preserves the payload and blocks writes", () => {
   const raw = legacyValues({ tasks: "{not-json" });
-  const result = parseTaskStore(raw);
+  const result = parseThreadStore(raw);
   assert.equal(result.ok, false);
   if (result.ok) return;
   assert.equal(result.canWrite, false);
@@ -119,8 +118,8 @@ test("serializes and parses v2 data without changing it", () => {
     finishedAt: 22,
     activity: [{ id: "activity-1", kind: "text", text: "Done", at: 22 }],
   }];
-  const serialized = serializeTaskStore(migrated.data);
-  const parsed = parseTaskStore(serialized);
+  const serialized = serializeThreadStore(migrated.data);
+  const parsed = parseThreadStore(serialized);
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.data, migrated.data);
@@ -175,7 +174,7 @@ test("reads the established v2 field names without relying on this build's seria
   const worktree = { id: "worktree-1", projectId: "project-1", root: "/worktrees/app-1", workspaceId: "workspace-worktree", baseCommit: "abcdef1", createdAt: 10, lastUsedAt: 35 };
   const versioned = (value: unknown) => JSON.stringify({ version: 2, value });
 
-  const parsed = parseTaskStore({
+  const parsed = parseThreadStore({
     tasks: versioned([storedThread]),
     projects: versioned([project]),
     worktrees: versioned([worktree]),
@@ -196,7 +195,7 @@ test("idle subagents survive reload, while work interrupted by restart becomes s
     { id: "working", description: "Interrupted", sessionScoped: true, status: "working", startedAt: 11, activity: [] },
   ];
 
-  const parsed = parseTaskStore(serializeTaskStore(migrated.data));
+  const parsed = parseThreadStore(serializeThreadStore(migrated.data));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.equal(parsed.data.tasks[0].subagents?.[0]?.status, "idle");
@@ -220,16 +219,16 @@ test("validating decoded v2 data matches serialized parsing", () => {
     }],
   };
 
-  const parsed = parseTaskStore(serializeUnchecked(decoded));
+  const parsed = parseThreadStore(serializeUnchecked(decoded));
   const original = structuredClone(decoded);
-  const validated = validateTaskStoreData(decoded);
+  const validated = validateThreadStoreData(decoded);
   assert.equal(validated.ok, parsed.ok);
   if (validated.ok && parsed.ok) assert.deepEqual(validated.data, parsed.data);
   assert.deepEqual(decoded, original, "validation sanitizes its result without changing decoded rows");
 
   const invalid = { ...decoded, tasks: [{ ...decoded.tasks[0], title: 42 }] };
-  const hidden = parseTaskStore(serializeUnchecked(invalid));
-  const directlyHidden = validateTaskStoreData(invalid);
+  const hidden = parseThreadStore(serializeUnchecked(invalid));
+  const directlyHidden = validateThreadStoreData(invalid);
   assert.equal(directlyHidden.ok, true);
   assert.equal(hidden.ok, true);
   if (!directlyHidden.ok || !hidden.ok) return;
@@ -243,13 +242,13 @@ test("current tasks and unexpired archives keep their existing objects", () => {
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   const tasks = migrated.data.tasks;
-  const validated = validateTaskStoreData(migrated.data);
+  const validated = validateThreadStoreData(migrated.data);
 
   assert.equal(validated.ok, true);
   if (!validated.ok) return;
   assert.equal(validated.data.tasks[0], tasks[0]);
   assert.equal(validated.data.tasks[0].messages, tasks[0].messages);
-  assert.equal(retainedTasks(tasks, tasks[0].updatedAt), tasks);
+  assert.equal(retainedThreads(tasks, tasks[0].updatedAt), tasks);
 });
 
 test("invalid continuation keeps messages and marks the task non-resumable", () => {
@@ -265,7 +264,7 @@ test("invalid continuation keeps messages and marks the task non-resumable", () 
 });
 
 test("an empty store is a clean version-zero result", () => {
-  const result = parseTaskStore({ tasks: null, projects: null, worktrees: null, lastFolder: null });
+  const result = parseThreadStore({ tasks: null, projects: null, worktrees: null, lastFolder: null });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.sourceVersion, 0);
@@ -276,11 +275,11 @@ test("salvages a v2 task with an invalid continuation", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
   tasks.value[0].continuation = { provider: "", value: "" };
   tasks.value[0].continuationStatus = "available";
-  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  const result = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.data.tasks[0].continuation, undefined);
@@ -292,11 +291,11 @@ test("a task saved with the old attention dot still loads, without one", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
   tasks.value[0].attention = "approval";
   tasks.value[0].attentionRead = true;
-  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  const result = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.data.tasks.length, 1, "a dot the app no longer keeps is no reason to drop the thread");
@@ -309,10 +308,10 @@ test("hides a v2 task with an invalid policy or timestamp and keeps the store wr
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
   tasks.value.push({ ...tasks.value[0], id: "unreadable", executionPolicy: "not-a-policy", updatedAt: "not-a-timestamp" });
-  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  const result = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.data.tasks.map((task) => task.id), [migrated.data.tasks[0].id]);
@@ -323,10 +322,10 @@ test("hides a v2 task that references an unknown project", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const projects = JSON.parse(serialized.projects!);
   projects.value = [];
-  const result = parseTaskStore({ ...serialized, projects: JSON.stringify(projects) });
+  const result = parseThreadStore({ ...serialized, projects: JSON.stringify(projects) });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.data.tasks, []);
@@ -337,10 +336,10 @@ test("a thread saved by a newer build is hidden rather than failing the store", 
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
   tasks.value.push({ ...tasks.value[0], id: "from-the-future", engine: "an-engine-this-build-lacks" });
-  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  const result = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.data.tasks.map((task) => task.id), [migrated.data.tasks[0].id]);
@@ -411,7 +410,7 @@ test("ignores an incomplete split-v2 write and recovers from intact v1", () => {
     [TASK_STORE_KEYS.v1.tasks, raw.tasks],
     [TASK_STORE_KEYS.v1.projects, raw.projects],
     [TASK_STORE_KEYS.v1.lastFolder, raw.lastFolder],
-    [TASK_STORE_KEYS.v2.tasks, serializeTaskStore({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }).tasks],
+    [TASK_STORE_KEYS.v2.tasks, serializeThreadStore({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }).tasks],
   ]);
   const result = new TaskStore({
     getItem: (key) => memory.get(key) ?? null,
@@ -451,8 +450,8 @@ test("v2 round-trips model, context usage, and archive metadata", () => {
     contextUsage: { tokens: 42_000, limit: 1_000_000, model: "claude-opus" },
     archivedAt: 30,
   };
-  const data: TaskStoreData = { ...migrated.data, tasks: [richTask] };
-  const parsed = parseTaskStore(serializeTaskStore(data));
+  const data: ThreadStoreData = { ...migrated.data, tasks: [richTask] };
+  const parsed = parseThreadStore(serializeThreadStore(data));
 
   assert.equal(parsed.ok, true);
   if (parsed.ok) assert.deepEqual(parsed.data, data);
@@ -470,10 +469,10 @@ test("v2 hides a task with invalid model or usage values", () => {
     (value) => { value.archivedAt = Number.NaN; },
   ];
   for (const mutate of mutations) {
-    const serialized = serializeTaskStore(migrated.data);
+    const serialized = serializeThreadStore(migrated.data);
     const tasks = JSON.parse(serialized.tasks!);
     mutate(tasks.value[0]);
-    const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+    const parsed = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
     assert.equal(parsed.ok, true);
     if (!parsed.ok) return;
     assert.deepEqual(parsed.data.tasks, []);
@@ -485,11 +484,11 @@ test("v2 drops the retired default model and context window instead of rejecting
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
   Object.assign(tasks.value[0], { model: "default", contextWindow: "1m" });
 
-  const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  const parsed = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
 
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
@@ -501,11 +500,11 @@ test("v2 tasks written before the engine was recorded load as Claude threads", (
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
-  const serialized = serializeTaskStore(migrated.data);
+  const serialized = serializeThreadStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
   delete tasks.value[0].engine;
 
-  const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  const parsed = parseThreadStore({ ...serialized, tasks: JSON.stringify(tasks) });
 
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
@@ -534,9 +533,9 @@ test("a corrupt v2 envelope blocks writes instead of falling back to older data"
 });
 
 test("a valid v2 envelope takes precedence over split and v1 values", () => {
-  const envelopeData: TaskStoreData = { version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null };
-  const envelope = serializeTaskStore(envelopeData);
-  const split = serializeTaskStore({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: "/split" });
+  const envelopeData: ThreadStoreData = { version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null };
+  const envelope = serializeThreadStore(envelopeData);
+  const split = serializeThreadStore({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: "/split" });
   const raw = legacyValues();
   const memory = new Map<string, string | null>([
     [TASK_STORE_KEYS.v2.envelope, JSON.stringify(envelope)],
@@ -581,7 +580,7 @@ test("storage written before a checkout could hold two threads lifts the checkou
     updatedAt: 2,
     worktree: { ...checkout, enteredAt: 3 },
   };
-  const result = parseTaskStore({
+  const result = parseThreadStore({
     tasks: JSON.stringify({ version: 2, value: [stored] }),
     projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/repo" }] }),
     worktrees: null,
@@ -610,7 +609,7 @@ test("a thread claiming a checkout that is not there is local again, rather than
     worktreeId: "wt-gone",
     worktreeEnteredAt: 3,
   };
-  const result = parseTaskStore({
+  const result = parseThreadStore({
     tasks: JSON.stringify({ version: 2, value: [stored] }),
     projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/repo" }] }),
     worktrees: JSON.stringify({ version: 2, value: [] }),
@@ -646,7 +645,7 @@ test("duplicate checkout ids keep the first record before invalid projects are r
     worktreeEnteredAt: 4,
   };
   const first = checkout("shared", "project-1", "/first");
-  const result = parseTaskStore({
+  const result = parseThreadStore({
     tasks: JSON.stringify({ version: 2, value: [embedded, blocked] }),
     projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/repo" }] }),
     worktrees: JSON.stringify({
@@ -674,17 +673,17 @@ test("what a thread's runs found survives being written and read back, and a mal
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   migrated.data.tasks[0].findings = [{ id: "finding-1", headline: "Checkout is returning 5xx", detail: "12 in the last hour", key: "checkout", at: 30 }];
-  migrated.data.tasks[0].messages = [{ ...task.messages[0], withdrawn: true }, { ...task.messages[0], id: "message-2", quiet: true }] as unknown as TaskMessage[];
+  migrated.data.tasks[0].messages = [{ ...task.messages[0], withdrawn: true }, { ...task.messages[0], id: "message-2", quiet: true }] as unknown as ConversationMessage[];
   Object.assign(migrated.data.tasks[0], { silencedKeys: ["latency"] });
 
-  const parsed = parseTaskStore(serializeTaskStore(migrated.data));
+  const parsed = parseThreadStore(serializeThreadStore(migrated.data));
   assert.equal(parsed.ok, true);
   if (!parsed.ok) return;
   assert.deepEqual(parsed.data.tasks[0].findings, migrated.data.tasks[0].findings);
   assert.deepEqual(parsed.data.tasks[0].messages.map((message) => message.withdrawn), [true, true], "a message stored under the older name reads back withdrawn");
   assert.deepEqual(parsed.data.tasks[0].handledIssues, ["latency"], "and so do the issues the user filed away");
 
-  const broken = parseTaskStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], findings: [{ id: "finding-1", at: 30 }] }] }));
+  const broken = parseThreadStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], findings: [{ id: "finding-1", at: 30 }] }] }));
   assert.equal(broken.ok, true);
   if (!broken.ok) return;
   assert.deepEqual(broken.data.tasks, [], "a finding with nothing to say is not a finding");

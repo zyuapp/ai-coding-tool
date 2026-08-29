@@ -281,7 +281,7 @@ test("the window answers thread requests from the reducer's own state", async ()
 
   await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
   await act(async () => { await workspace.get().actions.sendPrompt(); });
-  const started = workspace.get().currentTask;
+  const started = workspace.get().currentThread;
   assert.ok(started, "a thread exists to ask about");
 
   await act(async () => { await desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: started.id, op: "list" }); });
@@ -303,7 +303,7 @@ test("a thread command reaches the reducer and reports the thread it acted on", 
 
   await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
   await act(async () => { await workspace.get().actions.sendPrompt(); });
-  const caller = item(workspace.get().currentTask);
+  const caller = item(workspace.get().currentThread);
 
   await act(async () => {
     await desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: caller.id, op: "command", command: { type: "task.send", text: "Implement item 2" } });
@@ -311,7 +311,7 @@ test("a thread command reaches the reducer and reports the thread it acted on", 
   const answer = threadCommandResult(desktop.threadAnswers.at(-1));
   const answeredThread = item(answer.thread);
   assert.notEqual(answeredThread.id, caller.id, "the send started its own thread");
-  assert.equal(item(workspace.get().currentTask).id, caller.id, "the user stays where they were");
+  assert.equal(item(workspace.get().currentThread).id, caller.id, "the user stays where they were");
   assert.equal(desktop.sent.filter((command) => command.type === "start").length, 2);
 
   await act(async () => {
@@ -334,7 +334,7 @@ test("a send answers before the title it asked for, and takes the title once it 
 
   await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
   await act(async () => { await workspace.get().actions.sendPrompt(); });
-  const caller = item(workspace.get().currentTask);
+  const caller = item(workspace.get().currentThread);
 
   await act(async () => {
     await desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: caller.id, op: "command", command: { type: "task.send", text: "Implement item 2" } });
@@ -343,7 +343,7 @@ test("a send answers before the title it asked for, and takes the title once it 
   assert.equal(desktop.sent.filter((command) => command.type === "start").length, 2, "both runs started while the titles were still pending");
 
   await act(async () => { item(name)("Header repair"); });
-  assert.equal(workspace.get().tasks.find((task) => task.id === answered.id)?.title, "Header repair");
+  assert.equal(workspace.get().threads.find((thread) => thread.id === answered.id)?.title, "Header repair");
 
   await workspace.view.unmount();
 });
@@ -358,7 +358,7 @@ test("a new thread inherits agent settings and can select any registered model",
     workspace.get().actions.setPrompt("Coordinate the work");
   });
   await act(async () => { await workspace.get().actions.sendPrompt(); });
-  const caller = item(workspace.get().currentTask);
+  const caller = item(workspace.get().currentThread);
 
   await act(async () => {
     await desktop.askThreads({ type: "thread.request", requestId: "inherit", taskId: caller.id, op: "command", command: { type: "task.send", text: "Inherit my settings" } });
@@ -395,7 +395,7 @@ test("a wait is held open until the thread it names stops working", async () => 
 
   await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
   await act(async () => { await workspace.get().actions.sendPrompt(); });
-  const running = item(workspace.get().currentTask);
+  const running = item(workspace.get().currentThread);
   const runId = startCommand(desktop.sent.at(-1)).runId;
 
   await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: running.id, op: "wait", threadId: running.id, timeoutMs: 60_000 }); });
@@ -422,7 +422,7 @@ test("a wait on a thread that is already idle answers at once, and an unknown th
 
   await act(async () => { workspace.get().actions.setPrompt("Fix the header"); });
   await act(async () => { await workspace.get().actions.sendPrompt(); });
-  const started = item(workspace.get().currentTask);
+  const started = item(workspace.get().currentThread);
   const runId = startCommand(desktop.sent.at(-1)).runId;
   await act(async () => { desktop.listener({ type: "run.status", taskId: started.id, runId, sequence: 1, status: "succeeded" }); });
   await settleFrame();

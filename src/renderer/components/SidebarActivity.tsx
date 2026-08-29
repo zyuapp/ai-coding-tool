@@ -1,8 +1,8 @@
 import { LuCheckCheck as CheckCheck } from "react-icons/lu";
-import { dismissableTasks } from "../../domain/attention";
+import { dismissableThreads } from "../../domain/attention";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
-import type { ActivitySections } from "../../application/task-order";
-import type { ActivityRowRenderer } from "./SidebarTaskRow";
+import type { ActivitySections } from "../../application/thread-order";
+import type { ActivityRowRenderer } from "./SidebarThreadRow";
 
 /** The activity mode's three lists, top to bottom, with the heading each is drawn under. */
 const ACTIVITY_SECTIONS = [
@@ -13,20 +13,20 @@ const ACTIVITY_SECTIONS = [
 
 export type SidebarActivityProps = {
   /** The threads ranked by what wants the user, which is what activity mode draws. */
-  activityTasks: ActivitySections;
+  activityThreads: ActivitySections;
   sections: SidebarSections;
-  blockedTaskIds: Set<string>;
+  blockedThreadIds: Set<string>;
   onSetSectionOpen: (section: SidebarSection, open: boolean) => void;
   onDismissAll: () => void;
   renderRow: ActivityRowRenderer;
 };
 
-export function SidebarActivity({ activityTasks, sections, blockedTaskIds, onSetSectionOpen, onDismissAll, renderRow }: SidebarActivityProps) {
+export function SidebarActivity({ activityThreads, sections, blockedThreadIds, onSetSectionOpen, onDismissAll, renderRow }: SidebarActivityProps) {
   return (
     <>
       {ACTIVITY_SECTIONS.map(({ key, label }) => {
-        const tasks = activityTasks[key];
-        const dottedCount = key === "priority" ? dismissableTasks(tasks).length : 0;
+        const threads = activityThreads[key];
+        const dottedCount = key === "priority" ? dismissableThreads(threads).length : 0;
         return (
           <section className="activity-group" key={key}>
             <div className="section-heading activity-heading">
@@ -40,10 +40,10 @@ export function SidebarActivity({ activityTasks, sections, blockedTaskIds, onSet
                 </button>
               )}
             </div>
-            {sections[key] && tasks.length === 0 && key === "priority" && <p className="sidebar-empty">Nothing waiting</p>}
+            {sections[key] && threads.length === 0 && key === "priority" && <p className="sidebar-empty">Nothing waiting</p>}
             {/** Only Priority speaks: a spinner appearing in Running is not news anyone needs read out. */}
             {sections[key] && <nav className="task-list" aria-label={label} aria-live={key === "priority" ? "polite" : undefined}>
-              {tasks.map((task) => renderRow(task, key === "priority" && !blockedTaskIds.has(task.id) ? "dismiss" : "none"))}
+              {threads.map((thread) => renderRow(thread, key === "priority" && !blockedThreadIds.has(thread.id) ? "dismiss" : "none"))}
             </nav>}
           </section>
         );

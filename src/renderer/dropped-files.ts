@@ -58,8 +58,8 @@ async function stageImage(file: File) {
  * What a drop or a paste of files does. An image is copied into the app's own images, so it shows a
  * preview and can be drawn on. Everything else, folders included, is named by where it already sits.
  */
-export async function attachDroppedFiles(files: File[], taskId: string | undefined, dispatch: (command: AppCommand) => void, staged: string[] = []) {
-  const target = taskId === undefined ? {} : { taskId };
+export async function attachDroppedFiles(files: File[], threadId: string | undefined, dispatch: (command: AppCommand) => void, staged: string[] = []) {
+  const target = threadId === undefined ? {} : { taskId: threadId };
   const named: string[] = [];
   const held = new Set(staged);
   for (const file of files) {

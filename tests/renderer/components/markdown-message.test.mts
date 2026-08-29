@@ -55,7 +55,7 @@ test("a thread link opens that thread in place, and nothing else under the schem
     "",
     "Not [an archive](aicodingtool://archive/task-9) and not [the docs](https://example.com).",
   ].join("\n");
-  const view = await mountMessage(markdown, { selectTask: (taskId) => selected.push(taskId) });
+  const view = await mountMessage(markdown, { selectThread: (taskId) => selected.push(taskId) });
 
   const links = [...view.container.querySelectorAll("a")];
   assert.deepEqual(links.map((link) => link.textContent), ["the sidebar work", "the docs"], "an unknown aicodingtool:// path stays plain text");

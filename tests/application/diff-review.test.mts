@@ -6,7 +6,7 @@ import {
   type WorkspaceEffect,
   type WorkspaceInput,
 } from "../../src/application/workspace-reducer.ts";
-import type { ActiveRun } from "../../src/application/task-workspace.ts";
+import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import {
   deriveView,
   diffFor,
@@ -18,7 +18,8 @@ import {
 } from "../../src/application/workspace-state.ts";
 import type { DiffSummaryResult } from "../../src/contracts/ipc.js";
 import { DRAWN_FILE_LIMIT, DRAWN_LINE_BUDGET, type DiffFileSummary, type DiffRange } from "../../src/domain/diff.js";
-import type { Project, Task } from "../../src/domain/task.js";
+import type { Project } from "../../src/domain/project.js";
+import type { Thread } from "../../src/domain/thread.js";
 
 const PROJECT: Project = { id: "project-a", root: "/repo", workspaceId: "workspace-a" };
 type AvailableDiffSummary = Extract<DiffSummaryResult, { status: "available" }>;
@@ -88,7 +89,7 @@ function activeRun(taskId: string, runId: string): ActiveRun {
   };
 }
 
-function thread(id: string, title: string): Task {
+function thread(id: string, title: string): Thread {
   return {
     id,
     title,
@@ -406,7 +407,7 @@ describe("Where a review lives", { concurrent: true }, () => {
 
 test("a run that settles reads the review the thread has open again", () => {
   const withTask = workspace({
-    tasks: [thread("task-a", "a")],
+    threads: [thread("task-a", "a")],
     currentId: "task-a",
     draftProjectId: null,
     activeRuns: { "task-a": activeRun("task-a", "run-1") },
@@ -425,7 +426,7 @@ test("a run that settles reads the review the thread has open again", () => {
 
 test("a review belongs to its thread, so each keeps its own place", () => {
   const twoThreads = workspace({
-    tasks: [
+    threads: [
       thread("task-a", "a"),
       thread("task-b", "b"),
     ],
@@ -442,7 +443,7 @@ test("a review belongs to its thread, so each keeps its own place", () => {
 
 test("a thread that goes for good takes its review with it", () => {
   const withTask = workspace({
-    tasks: [thread("task-a", "a")],
+    threads: [thread("task-a", "a")],
     currentId: "task-a",
     draftProjectId: null,
   });
@@ -498,7 +499,7 @@ test("a review composed in the draft is asked for again under the thread the sen
 
 test("a thread that moves into a worktree reviews the checkout it moved to", () => {
   const withTask = workspace({
-    tasks: [thread("task-a", "a")],
+    threads: [thread("task-a", "a")],
     currentId: "task-a",
     draftProjectId: null,
   });

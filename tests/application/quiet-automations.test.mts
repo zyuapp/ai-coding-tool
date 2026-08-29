@@ -7,13 +7,14 @@ import { whyTickCannotRun } from "../../src/application/findings.ts";
 import { whyRunSurfaces } from "../../src/application/run-testimony.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { activitySections } from "../../src/application/task-order.ts";
-import { automationRunPrompt, type ActiveRun } from "../../src/application/task-workspace.ts";
+import { activitySections } from "../../src/application/thread-order.ts";
+import { automationRunPrompt, type ActiveRun } from "../../src/application/thread-run-state.ts";
 import type { AutomationFire, RunEvent } from "../../src/contracts/ipc.ts";
 import type { FindingReport, FindingResult, ThreadRequest } from "../../src/contracts/threads.ts";
 import { isNews, issueState } from "../../src/domain/attention.ts";
 import { automationAfterRun, type AutomationPatch, type AutomationView } from "../../src/domain/automation.ts";
-import { threadActivityAt, type Task, type TaskFinding } from "../../src/domain/task.ts";
+import type { AutomationFinding } from "../../src/domain/finding.ts";
+import { threadActivityAt, type Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { AutomationPanelProps } from "../../src/renderer/components/AutomationPanel.tsx";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
@@ -23,7 +24,7 @@ const { AutomationPanel, automationMeta, lastRunLabel } = await import("../../sr
 const { answerThreadRequest } = await import("../../src/renderer/task-workspace/thread-requests.ts");
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
 
-function task(id: string, overrides: Partial<Task> = {}): Task {
+function task(id: string, overrides: Partial<Thread> = {}): Thread {
   return {
     id,
     title: id,
@@ -79,7 +80,7 @@ function effectAt<T extends WorkspaceEffect["type"]>(effects: WorkspaceEffect[],
   return effect as Extract<WorkspaceEffect, { type: T }>;
 }
 
-function findingsOf(value: Task): TaskFinding[] {
+function findingsOf(value: Thread): AutomationFinding[] {
   assert.ok(value.findings);
   return value.findings;
 }
@@ -94,7 +95,7 @@ const PROJECTLESS: WorkspaceRecord = { id: "projectless", kind: "projectless", r
 /** Runs a tick all the way to its start, which is where the run's provenance is settled. */
 function fire(overrides: Partial<AutomationFire> = {}) {
   const tick: AutomationFire = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2, unattended: true, ...overrides };
-  const pending = reduce(workspace({ tasks: [task("task-a")] }), { type: "automation.fired", fire: tick });
+  const pending = reduce(workspace({ threads: [task("task-a")] }), { type: "automation.fired", fire: tick });
   return reduce(pending.state, { type: "run.resolved", pendingId: effectAt(pending.effects, 0, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
 }
 
@@ -136,7 +137,7 @@ test("a run the user sent is theirs, and nothing about it is inferred as quiet o
 });
 
 test("a turn the agent starts for itself belongs to the composer rather than to the scheduler", () => {
-  const opened = reduce(workspace({ tasks: [task("task-a")] }), {
+  const opened = reduce(workspace({ threads: [task("task-a")] }), {
     type: "run.event",
     event: { type: "run.started", taskId: "task-a", runId: "run-x", sequence: 1, agentInitiated: true },
   });
@@ -147,7 +148,7 @@ test("a turn the agent starts for itself belongs to the composer rather than to 
 
 test("a human steering into a scheduled run takes it over", () => {
   const scheduled = workspace({
-    tasks: [task("task-a")],
+    threads: [task("task-a")],
     currentId: "task-a",
     activeRuns: { "task-a": activeRun({ runId: "run-a" }) },
     runStatuses: { "task-a": "running" },
@@ -178,7 +179,7 @@ test("what the automation last did names the moment of the status, not of the la
 });
 
 /** A thread mid-tick, with the provenance the scheduler gave the run. */
-function midRun(run: Partial<ActiveRun> = {}, taskOverrides: Partial<Task> = {}): WorkspaceState {
+function midRun(run: Partial<ActiveRun> = {}, taskOverrides: Partial<Thread> = {}): WorkspaceState {
   const started = task("task-a", {
     createdAt: 10,
     messages: [{ id: "label", kind: "user", text: "Poll", detail: "Automation run #2", withdrawn: true, at: 10 }],
@@ -192,7 +193,7 @@ function midRun(run: Partial<ActiveRun> = {}, taskOverrides: Partial<Task> = {})
     ...(started.outcomeUnread ? { outcomeUnread: true as const } : {}),
   };
   return workspace({
-    tasks: [started],
+    threads: [started],
     activeRuns: { "task-a": activeRun({ before, ...run }) },
     runStatuses: { "task-a": "running" },
   });
@@ -215,7 +216,7 @@ test("only a quiet scheduled run that succeeded saying it found nothing settles 
         for (const notified of [false, true]) {
           for (const acknowledged of [false, true]) {
             const settled = settleRun(midRun({ origin, quiet, notified, acknowledged }), status);
-            const [thread] = settled.state.tasks;
+            const [thread] = settled.state.threads;
             const row = `${origin} quiet=${quiet} ${status} notified=${notified} acknowledged=${acknowledged}`;
             const unseen = origin === "automation" && quiet && status === "succeeded" && acknowledged && !notified;
             const expected = unseen ? undefined : status === "succeeded" ? "finished" : status === "failed" ? "failed" : "stopped";
@@ -249,17 +250,17 @@ test("a tick that surfaced nothing leaves the thread exactly where it stood", ()
     event: { type: "assistant.delta", taskId: "task-a", runId: "run-1", sequence: 2, messageId: "reply", text: "Datadog is clean." },
   }).state;
   const settled = settleRun(working).state;
-  const [thread] = settled.tasks;
+  const [thread] = settled.threads;
 
   assert.equal(thread.runEndedAt, 500, "the ending the last audible run stamped on is put back");
   assert.deepEqual(thread.messages.map((message) => message.withdrawn), [true, true], "everything the tick wrote is withdrawn, its own reply included");
   assert.equal(threadActivityAt(thread), 500, "so nothing about the thread moved");
-  assert.deepEqual(activitySections(settled.tasks, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
+  assert.deepEqual(activitySections(settled.threads, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
 });
 
 test("what a silent tick looked at is kept, since it is all such a schedule ever shows", () => {
   const settled = settleRun(said(midRun(), { type: "automation.nothing-to-report", taskId: "task-a", checked: "the last hour of Datadog errors" })).state;
-  const [thread] = settled.tasks;
+  const [thread] = settled.threads;
   const lastChecked = thread.lastChecked;
   assert.ok(lastChecked);
 
@@ -273,23 +274,23 @@ test("what a silent tick looked at is kept, since it is all such a schedule ever
 test("a quiet tick that found something bumps the thread and leads the list", () => {
   const raised = said(midRun(), { type: "automation.notify", taskId: "task-a", headline: "5xx on checkout" });
   const settled = settleRun(said(raised, { type: "automation.nothing-to-report", taskId: "task-a", checked: "the last hour of errors" })).state;
-  const [thread] = settled.tasks;
+  const [thread] = settled.threads;
 
   assert.equal(thread.outcome, "finished", "a run that spoke cannot be retracted into silence");
   const runEndedAt = thread.runEndedAt;
   assert.ok(runEndedAt !== undefined && runEndedAt > 0);
   assert.equal(threadActivityAt(thread), runEndedAt);
-  assert.deepEqual(activitySections(settled.tasks, new Set(), new Set()).priority.map((item) => item.id), ["task-a"]);
+  assert.deepEqual(activitySections(settled.threads, new Set(), new Set()).priority.map((item) => item.id), ["task-a"]);
 });
 
 test("what a run found outlives every run after it, unlike the verdict beside it", () => {
   const found = said(midRun(), { type: "automation.notify", taskId: "task-a", headline: "Disk at 91%", detail: "`/dev/disk1` is nearly full." });
   const settled = settleRun(found).state;
-  assert.equal(settled.tasks[0].outcome, "finished");
+  assert.equal(settled.threads[0].outcome, "finished");
 
   const again = reduce(settled, { type: "automation.fired", fire: { automationId: "automation-1", taskId: "task-a", runId: "run-2", prompt: "Poll", runNumber: 3 } });
   const started = reduce(again.state, { type: "run.resolved", pendingId: effectAt(again.effects, 0, "resolve-run-workspace").pendingId, workspace: PROJECTLESS }).state;
-  const [thread] = started.tasks;
+  const [thread] = started.threads;
   const findings = findingsOf(thread);
 
   assert.equal(thread.outcome, undefined, "the next run supersedes the last one's verdict");
@@ -299,27 +300,27 @@ test("what a run found outlives every run after it, unlike the verdict beside it
 });
 
 test("landing on a thread reads its findings and keeps them; dismissing files them away", () => {
-  const found = said(midRun(), { type: "automation.notify", taskId: "task-a", headline: "Two alerts firing" }).tasks[0];
-  const holding = workspace({ tasks: [found] });
+  const found = said(midRun(), { type: "automation.notify", taskId: "task-a", headline: "Two alerts firing" }).threads[0];
+  const holding = workspace({ threads: [found] });
 
-  assert.equal(activitySections(holding.tasks, new Set(), new Set()).priority.length, 1);
+  assert.equal(activitySections(holding.threads, new Set(), new Set()).priority.length, 1);
   const read = reduce(holding, { type: "task.select", taskId: "task-a" }).state;
-  assert.deepEqual(findingsOf(read.tasks[0]).map((finding) => finding.read), [true], "seen, but still there");
-  assert.equal(activitySections(read.tasks, new Set(), new Set()).priority.length, 1, "a read finding keeps its place");
+  assert.deepEqual(findingsOf(read.threads[0]).map((finding) => finding.read), [true], "seen, but still there");
+  assert.equal(activitySections(read.threads, new Set(), new Set()).priority.length, 1, "a read finding keeps its place");
 
   const dismissed = reduce(read, { type: "task.dismiss", taskId: "task-a" }).state;
-  assert.equal(dismissed.tasks[0].findings, undefined);
-  assert.deepEqual(activitySections(dismissed.tasks, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
-  assert.deepEqual(reduce(read, { type: "task.dismiss-all" }).state.tasks[0].findings, undefined, "dismissing everything reaches a thread with no verdict too");
+  assert.equal(dismissed.threads[0].findings, undefined);
+  assert.deepEqual(activitySections(dismissed.threads, new Set(), new Set()).threads.map((item) => item.id), ["task-a"]);
+  assert.deepEqual(reduce(read, { type: "task.dismiss-all" }).state.threads[0].findings, undefined, "dismissing everything reaches a thread with no verdict too");
 });
 
 test("a finding raised on the thread the user is watching is not marked unread", () => {
   const watched = { ...midRun(), currentId: "task-a", focused: true };
   const seen = said(watched, { type: "automation.notify", taskId: "task-a", headline: "Nothing they can miss" });
-  assert.deepEqual(findingsOf(seen.tasks[0]).map((finding) => finding.read), [true]);
+  assert.deepEqual(findingsOf(seen.threads[0]).map((finding) => finding.read), [true]);
 
   const away = said({ ...watched, focused: false }, { type: "automation.notify", taskId: "task-a", headline: "Behind the browser" });
-  assert.equal(findingsOf(away.tasks[0])[0].read, undefined);
+  assert.equal(findingsOf(away.threads[0])[0].read, undefined);
 });
 
 test("a raised finding goes out to the desktop, and one the thread already carries does not", () => {
@@ -339,14 +340,14 @@ test("a raised finding goes out to the desktop, and one the thread already carri
 test("a turn that is not a scheduled run raises nothing at all", () => {
   const attended = midRun({ origin: "composer" });
   const asked = said(attended, { type: "automation.notify", taskId: "task-a", headline: "Ignore me" });
-  assert.equal(asked.tasks[0].findings, undefined);
+  assert.equal(asked.threads[0].findings, undefined);
   assert.equal(asked.activeRuns["task-a"].notified, false);
   assert.equal(said(attended, { type: "automation.nothing-to-report", taskId: "task-a", checked: "" }).activeRuns["task-a"].acknowledged, false);
 });
 
 /** The window answering the two tools, which is where their wording is decided. */
 type ToolHost = ThreadRequestHost & {
-  task: () => Task;
+  task: () => Thread;
   run: () => ActiveRun;
 };
 
@@ -356,7 +357,7 @@ function toolHost(initial: WorkspaceState): ToolHost {
     state: () => state,
     dispatch: (input: WorkspaceInput) => { state = reduce(state, input).state; },
     waiters: { current: [] },
-    task: () => state.tasks[0],
+    task: () => state.threads[0],
     run: () => state.activeRuns["task-a"],
   };
 }
@@ -390,15 +391,15 @@ test("a tick that only found what the thread already knows settles unseen", asyn
   const host = toolHost(midRun());
   await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   const spoke = settleRun(host.state()).state;
-  assert.equal(spoke.tasks[0].outcome, "finished", "the first sighting is news");
+  assert.equal(spoke.threads[0].outcome, "finished", "the first sighting is news");
 
   /** The next tick, on a thread that already carries it: the same alert must not wake the user again. */
-  const again = toolHost(midRun({}, { findings: spoke.tasks[0].findings, lastFindingAt: spoke.tasks[0].lastFindingAt }));
+  const again = toolHost(midRun({}, { findings: spoke.threads[0].findings, lastFindingAt: spoke.threads[0].lastFindingAt }));
   const repeat = await answer(again, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   assert.equal(repeat.result.recorded, false);
   const settled = settleRun(again.state()).state;
-  assert.equal(settled.tasks[0].outcome, undefined, "nothing new means nothing to surface");
-  assert.equal(findingsOf(settled.tasks[0]).length, 1, "and nothing to add");
+  assert.equal(settled.threads[0].outcome, undefined, "nothing new means nothing to surface");
+  assert.equal(findingsOf(settled.threads[0]).length, 1, "and nothing to add");
 });
 
 test("dismissing a finding files it away rather than asking to be told again", async () => {
@@ -407,23 +408,23 @@ test("dismissing a finding files it away rather than asking to be told again", a
   const spoke = settleRun(host.state()).state;
 
   const filed = reduce(spoke, { type: "task.dismiss", taskId: "task-a" }).state;
-  assert.equal(filed.tasks[0].findings, undefined, "the row is gone from Priority");
-  assert.deepEqual(filed.tasks[0].handledIssues, ["checkout"], "but what it was about is remembered");
+  assert.equal(filed.threads[0].findings, undefined, "the row is gone from Priority");
+  assert.deepEqual(filed.threads[0].handledIssues, ["checkout"], "but what it was about is remembered");
 
   /** The next tick, still finding it: handled means handled. */
   const next = toolHost(midRun({}, { handledIssues: ["checkout"] }));
   const repeat = await answer(next, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   assert.equal(repeat.result.recorded, false, "a dismissal is not a request to be told again");
-  assert.equal(settleRun(next.state()).state.tasks[0].outcome, undefined, "so the tick stays quiet");
+  assert.equal(settleRun(next.state()).state.threads[0].outcome, undefined, "so the tick stays quiet");
 });
 
 test("a filed-away finding surfaces again once a run stops finding it", async () => {
   const gone = toolHost(midRun({}, { handledIssues: ["checkout"] }));
   await answer(gone, { op: "nothing-to-report", checked: "the alert log, empty" });
   const cleared = settleRun(gone.state()).state;
-  assert.equal(cleared.tasks[0].handledIssues, undefined, "the run stopped finding it, so it is over");
+  assert.equal(cleared.threads[0].handledIssues, undefined, "the run stopped finding it, so it is over");
 
-  const back = toolHost(midRun({}, { handledIssues: cleared.tasks[0].handledIssues }));
+  const back = toolHost(midRun({}, { handledIssues: cleared.threads[0].handledIssues }));
   const again = await answer(back, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   assert.equal(again.result.recorded, true, "the same trouble returning is news again");
 });
@@ -433,7 +434,7 @@ test("a run that still reports a filed-away finding keeps it filed", async () =>
   await answer(host, { op: "notify", report: { headline: "5xx on checkout", key: "checkout" } });
   const settled = settleRun(host.state()).state;
 
-  assert.deepEqual(settled.tasks[0].handledIssues, ["checkout"], "the one it still finds stays filed, the one it did not is closed");
+  assert.deepEqual(settled.threads[0].handledIssues, ["checkout"], "the one it still finds stays filed, the one it did not is closed");
 });
 
 test("where a keyed issue stands with a thread has three answers", () => {
@@ -506,7 +507,7 @@ test("a run that has spoken cannot be talked back into silence", async () => {
   assert.equal(retracted.result.recorded, false);
   assert.match(retracted.result.note, /already raised something new/);
   assert.equal(host.run().notified, true);
-  assert.equal(settleRun(host.state()).state.tasks[0].outcome, "finished");
+  assert.equal(settleRun(host.state()).state.threads[0].outcome, "finished");
 });
 
 test("nothing_to_report says what silence it bought, and buys none on a loud automation", async () => {
@@ -519,7 +520,7 @@ test("nothing_to_report says what silence it bought, and buys none on a loud aut
   const loud = toolHost(midRun({ quiet: false }));
   const heard = await answer(loud, { op: "nothing-to-report", checked: "the last hour of logs" });
   assert.match(heard.result.note, /every run of it surfaces/);
-  assert.equal(settleRun(loud.state()).state.tasks[0].outcome, "finished");
+  assert.equal(settleRun(loud.state()).state.threads[0].outcome, "finished");
 });
 
 test("both tools teach rather than fail when the turn is nobody's schedule", async () => {
@@ -545,7 +546,7 @@ test("a thread at its fill takes the newest finding and lets the oldest go", asy
   assert.equal(carried.length, 10);
   assert.equal(carried.at(-1), "One too many");
   assert.equal(carried[0], "Finding 1", "the oldest made way for it");
-  assert.equal(settleRun(host.state()).state.tasks[0].outcome, "finished");
+  assert.equal(settleRun(host.state()).state.threads[0].outcome, "finished");
 });
 
 test("what an earlier run filled the thread with cannot silence what this one found", async () => {
@@ -555,7 +556,7 @@ test("what an earlier run filled the thread with cannot silence what this one fo
   const raised = await answer(host, { op: "notify", report: { headline: "The database is down", key: "db" } });
   assert.equal(raised.result.recorded, true);
   assert.equal(host.run().notified, true);
-  const settled = settleRun(host.state()).state.tasks[0];
+  const settled = settleRun(host.state()).state.threads[0];
   assert.equal(settled.outcome, "finished", "a quiet tick that found something new still surfaces");
   assert.ok(findingsOf(settled).some((finding) => finding.key === "db"));
 });
@@ -574,23 +575,23 @@ test("a quiet tick carries what it surfaces for, and the two tools that answer i
 });
 
 test("a tick the scheduler said is quiet withdraws its own label from the start", () => {
-  const fired = reduce(workspace({ tasks: [task("task-a", { createdAt: 5, updatedAt: 5 })] }), {
+  const fired = reduce(workspace({ threads: [task("task-a", { createdAt: 5, updatedAt: 5 })] }), {
     type: "automation.fired",
     fire: { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2, quiet: true, surfaceWhen: "there is an error." },
   });
   const started = reduce(fired.state, { type: "run.resolved", pendingId: effectAt(fired.effects, 0, "resolve-run-workspace").pendingId, workspace: PROJECTLESS });
-  const [label] = started.state.tasks[0].messages;
+  const [label] = started.state.threads[0].messages;
 
   assert.equal(label.withdrawn, true);
-  assert.equal(threadActivityAt(started.state.tasks[0]), 5, "the label alone does not count as the thread doing something");
+  assert.equal(threadActivityAt(started.state.threads[0]), 5, "the label alone does not count as the thread doing something");
   assert.match(effectAt(started.effects, 0, "start-run").command.prompt, /Surface it when: there is an error\./, "the tick's sentence reaches the run that has to honour it");
 });
 
 /** Fires a tick at a thread that cannot take it, with the scheduler's count of the ones before it. */
-function declined(consecutiveDeclines: number, tasks: Task[] = [task("task-a")], origin: ActiveRun["origin"] = "automation") {
+function declined(consecutiveDeclines: number, threads: Thread[] = [task("task-a")], origin: ActiveRun["origin"] = "automation") {
   const automation = automationView({ createdAt: 100, updatedAt: 100, runCount: 4, lastRunAt: 900, consecutiveDeclines });
   const busy = workspace({
-    tasks,
+    threads,
     automations: [automation],
     activeRuns: { "task-a": activeRun({ runId: "other", origin, quiet: false, messagesBefore: 0 }) },
     runStatuses: { "task-a": "running" },
@@ -600,8 +601,8 @@ function declined(consecutiveDeclines: number, tasks: Task[] = [task("task-a")],
 
 test("a tick that cannot run says which thread turned it away", () => {
   const fire: AutomationFire = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 5 };
-  const idle = workspace({ tasks: [task("task-a")] });
-  const [waiting] = idle.tasks;
+  const idle = workspace({ threads: [task("task-a")] });
+  const [waiting] = idle.threads;
   const busy = (origin: ActiveRun["origin"]): WorkspaceState => workspace({
     ...idle,
     activeRuns: { "task-a": activeRun({ runId: "other", origin, quiet: false }) },
@@ -625,29 +626,29 @@ test("a schedule turned away three times running says so out loud on its thread"
   for (const before of [0, 1]) {
     const early = declined(before);
     assert.deepEqual(early.effects.map((effect) => effect.type), ["automation.ack"], `${before} declines before is not yet worth saying`);
-    assert.equal(early.state.tasks[0].findings, undefined);
+    assert.equal(early.state.threads[0].findings, undefined);
   }
 
   const third = declined(2);
   assert.deepEqual(third.effects.map((effect) => effect.type), ["automation.ack", "announce-thread"]);
   assert.equal(effectAt(third.effects, 0, "automation.ack").ack.started, false, "the tick is still turned away");
-  const [finding] = findingsOf(third.state.tasks[0]);
+  const [finding] = findingsOf(third.state.threads[0]);
   assert.match(finding.headline, /has not been able to run since/);
   assert.equal(finding.key, "declined:automation-1");
   assert.equal(effectAt(third.effects, 1, "announce-thread").notice.headline, finding.headline);
 
   const chatting = declined(2, [task("task-a")], "composer");
   assert.deepEqual(chatting.effects.map((effect) => effect.type), ["automation.ack"], "a thread its own user is working in is not a broken schedule");
-  assert.equal(chatting.state.tasks[0].findings, undefined);
+  assert.equal(chatting.state.threads[0].findings, undefined);
 
-  const fourth = declined(3, third.state.tasks);
+  const fourth = declined(3, third.state.threads);
   assert.deepEqual(fourth.effects.map((effect) => effect.type), ["automation.ack"], "it is said once, not on every tick after");
-  assert.equal(findingsOf(fourth.state.tasks[0]).length, 1);
+  assert.equal(findingsOf(fourth.state.threads[0]).length, 1);
 });
 
 test("a tick waits behind messages the user has queued, and does not call that a broken schedule", () => {
   const waiting = workspace({
-    tasks: [task("task-a")],
+    threads: [task("task-a")],
     automations: [{ id: "automation-1", taskId: "task-a", prompt: "Poll", schedule: "* * * * *", paused: false, createdAt: 100, updatedAt: 100, runCount: 4, lastRunAt: 900, consecutiveDeclines: 2, nextRunAt: null }],
     queuedMessages: { "task-a": [{ id: "q1", text: "do the thing", prompt: "do the thing", attachments: [] }] },
   });
@@ -694,18 +695,18 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     open: true,
     inactive: false,
     projects: [{ id: "project-1", root: "/work/api" }],
-    orderedTasks: [],
-    recentTasks: [],
+    orderedThreads: [],
+    recentThreads: [],
     currentId: null,
     draftProjectId: null,
     expandedProjects: new Set<string>(),
-    runningTaskIds: new Set<string>(),
-    blockedTaskIds: new Set<string>(),
+    runningThreadIds: new Set<string>(),
+    blockedThreadIds: new Set<string>(),
     sideChatAttention: new Set<string>(),
     schedules: new Map<string, AutomationView>(),
     worktreeGroups: [],
-    worktreeTaskIds: new Set<string>(),
-    activityTasks: { priority: [], running: [], threads: [] },
+    worktreeThreadIds: new Set<string>(),
+    activityThreads: { priority: [], running: [], threads: [] },
     mode: "activity",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -713,10 +714,10 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     canGoBack: false,
     canGoForward: false,
     onGoBack() {}, onGoForward() {},
-    onNewTask() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {}, onRemoveProject() {},
+    onNewThread() {}, onOpenFolder() {}, onToggleProject() {}, onRenameProject() {}, onEditProject() {}, onRemoveProject() {},
     onSetMode() {}, onSetSectionOpen() {}, onSetOpenMenu() {},
-    onSelectTask() {}, onArchiveTask() {}, onRenameTask() {}, onDismissTask() {}, onDismissAll() {},
-    onMoveTask() {}, onForkTask() {}, onMoveProject() {}, onOpenSettings() {},
+    onSelectThread() {}, onArchiveThread() {}, onRenameThread() {}, onDismissThread() {}, onDismissAll() {},
+    onMoveThread() {}, onForkThread() {}, onMoveProject() {}, onOpenSettings() {},
     ...overrides,
   });
 }
@@ -732,13 +733,13 @@ test("a priority row says what was found rather than where it lives and when it 
     projectId: "project-1",
     findings: [{ id: "f1", headline: "Checkout is returning 5xx", at: 1 }],
   });
-  const view = await mount(sidebar({ activityTasks: { priority: [found], running: [], threads: [] } }));
+  const view = await mount(sidebar({ activityThreads: { priority: [found], running: [], threads: [] } }));
 
   assert.equal(query(view.container, ".task-row-text small").textContent, "Checkout is returning 5xx");
   assert.equal(query(view.container, ".task-attention").getAttribute("aria-label"), "Checkout is returning 5xx", "a screen reader hears the reason, not \"Finished\"");
 
-  const read: Task = { ...found, findings: [{ ...item(found.findings?.[0]), read: true }] };
-  await view.render(sidebar({ activityTasks: { priority: [read], running: [], threads: [] } }));
+  const read: Thread = { ...found, findings: [{ ...item(found.findings?.[0]), read: true }] };
+  await view.render(sidebar({ activityThreads: { priority: [read], running: [], threads: [] } }));
   assert.equal(view.container.querySelector(".task-attention"), null, "read takes the dot off");
   assert.match(query(view.container, ".task-row-text small").textContent ?? "", /^api · /, "and the row goes back to saying where it lives");
   await view.unmount();
@@ -759,7 +760,7 @@ test("priority says when it holds nothing, speaks its changes, and running does 
 test("the schedule mark and the dismiss button both say what state the schedule is in", async () => {
   const scheduled = task("task-a", { outcome: "finished", outcomeUnread: true });
   const marks = (schedule: Partial<AutomationView>) => sidebar({
-    activityTasks: { priority: [scheduled], running: [], threads: [] },
+    activityThreads: { priority: [scheduled], running: [], threads: [] },
     schedules: new Map([["task-a", automationView({ nextRunAt: 2, ...schedule })]]),
   });
   const view = await mount(marks({}));

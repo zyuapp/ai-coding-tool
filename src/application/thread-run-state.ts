@@ -34,12 +34,12 @@ export type ThreadMark = {
   outcomeUnread?: true;
 };
 
-export function threadMark(task: Thread | undefined): ThreadMark {
+export function threadMark(thread: Thread | undefined): ThreadMark {
   return {
-    updatedAt: task?.updatedAt ?? 0,
-    ...(task?.runEndedAt === undefined ? {} : { runEndedAt: task.runEndedAt }),
-    ...(task?.outcome === undefined ? {} : { outcome: task.outcome }),
-    ...(task?.outcomeUnread ? { outcomeUnread: true as const } : {}),
+    updatedAt: thread?.updatedAt ?? 0,
+    ...(thread?.runEndedAt === undefined ? {} : { runEndedAt: thread.runEndedAt }),
+    ...(thread?.outcome === undefined ? {} : { outcome: thread.outcome }),
+    ...(thread?.outcomeUnread ? { outcomeUnread: true as const } : {}),
   };
 }
 
@@ -49,11 +49,11 @@ export function threadMark(task: Thread | undefined): ThreadMark {
  * beginning the run superseded is returned, unread as it was. A tick that says nothing takes
  * nothing away either.
  */
-export function withdrawRun(task: Thread, from: number, before: ThreadMark): Thread {
-  const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = task;
+export function withdrawRun(thread: Thread, from: number, before: ThreadMark): Thread {
+  const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = thread;
   return {
     ...rest,
-    messages: task.messages.map((message, index) => index < from || message.withdrawn ? message : { ...message, withdrawn: true as const }),
+    messages: thread.messages.map((message, index) => index < from || message.withdrawn ? message : { ...message, withdrawn: true as const }),
     updatedAt: before.updatedAt,
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
@@ -74,7 +74,7 @@ export type RunProvenance = {
 
 export const ATTENDED_RUN: RunProvenance = { origin: "composer", quiet: false };
 
-export type TaskRunStatus = "idle" | "running" | "stopped";
+export type ThreadRunStatus = "idle" | "running" | "stopped";
 
 export type ApprovalView = {
   approvalId: string;
@@ -87,7 +87,7 @@ export type ApprovalView = {
 };
 
 /**
- * The unfinished end of a streaming message. It stays out of the task so nothing half-written is
+ * The unfinished end of a streaming message. It stays out of the thread so nothing half-written is
  * persisted, and the next committed block replaces it.
  */
 export type StreamingTail = {
@@ -95,23 +95,23 @@ export type StreamingTail = {
   text: string;
 };
 
-/** Runs and their outcomes are keyed by task, so tasks progress independently. */
+/** Runs and their outcomes are keyed by thread, so threads progress independently. */
 export type RunTransitionState = {
-  tasks: Thread[];
+  threads: Thread[];
   goals: Record<string, ActiveGoal>;
   activeRuns: Record<string, ActiveRun>;
-  runStatuses: Record<string, TaskRunStatus>;
+  runStatuses: Record<string, ThreadRunStatus>;
   approvals: Record<string, ApprovalView>;
   streamingTails: Record<string, StreamingTail>;
   /**
-   * What each task's session has running in the background. The agent process (re)starts with none and
+   * What each thread's session has running in the background. The agent process (re)starts with none and
    * says so, so this is never persisted, and it outlives the run that started the work.
    */
   backgroundProcesses: Record<string, BackgroundProcess[]>;
-  /** What each task has driven as a dynamic workflow. A workflow left running outlives the run that started it. */
+  /** What each thread has driven as a dynamic workflow. A workflow left running outlives the run that started it. */
   workflows: Record<string, Workflow[]>;
   /**
-   * The helper agents each task has delegated to. A live feed rather than thread content, so a report
+   * The helper agents each thread has delegated to. A live feed rather than thread content, so a report
    * arriving every few milliseconds never rewrites the thread it belongs to.
    */
   subagents: Record<string, Subagent[]>;
@@ -136,76 +136,76 @@ export function automationRunLabel(runNumber: number) {
   return `Automation run #${runNumber}`;
 }
 
-export function withActiveRun<T extends RunTransitionState>(state: T, taskId: string, run: ActiveRun | null): T {
-  if (run) return { ...state, activeRuns: { ...state.activeRuns, [taskId]: run } } as T;
-  const { [taskId]: _finished, ...activeRuns } = state.activeRuns;
+export function withActiveRun<T extends RunTransitionState>(state: T, threadId: string, run: ActiveRun | null): T {
+  if (run) return { ...state, activeRuns: { ...state.activeRuns, [threadId]: run } } as T;
+  const { [threadId]: _finished, ...activeRuns } = state.activeRuns;
   return { ...state, activeRuns } as T;
 }
 
-export function withRunStatus<T extends RunTransitionState>(state: T, taskId: string, status: TaskRunStatus): T {
-  if (status !== "idle") return { ...state, runStatuses: { ...state.runStatuses, [taskId]: status } } as T;
-  const { [taskId]: _cleared, ...runStatuses } = state.runStatuses;
+export function withRunStatus<T extends RunTransitionState>(state: T, threadId: string, status: ThreadRunStatus): T {
+  if (status !== "idle") return { ...state, runStatuses: { ...state.runStatuses, [threadId]: status } } as T;
+  const { [threadId]: _cleared, ...runStatuses } = state.runStatuses;
   return { ...state, runStatuses } as T;
 }
 
-export function withStreamingTail<T extends RunTransitionState>(state: T, taskId: string, tail: StreamingTail | null): T {
-  if (tail) return { ...state, streamingTails: { ...state.streamingTails, [taskId]: tail } } as T;
-  if (!(taskId in state.streamingTails)) return state;
-  const { [taskId]: _cleared, ...streamingTails } = state.streamingTails;
+export function withStreamingTail<T extends RunTransitionState>(state: T, threadId: string, tail: StreamingTail | null): T {
+  if (tail) return { ...state, streamingTails: { ...state.streamingTails, [threadId]: tail } } as T;
+  if (!(threadId in state.streamingTails)) return state;
+  const { [threadId]: _cleared, ...streamingTails } = state.streamingTails;
   return { ...state, streamingTails } as T;
 }
 
-export function withBackgroundProcesses<T extends RunTransitionState>(state: T, taskId: string, processes: BackgroundProcess[]): T {
-  if (processes.length) return { ...state, backgroundProcesses: { ...state.backgroundProcesses, [taskId]: processes } } as T;
-  if (!(taskId in state.backgroundProcesses)) return state;
-  const { [taskId]: _ended, ...backgroundProcesses } = state.backgroundProcesses;
+export function withBackgroundProcesses<T extends RunTransitionState>(state: T, threadId: string, processes: BackgroundProcess[]): T {
+  if (processes.length) return { ...state, backgroundProcesses: { ...state.backgroundProcesses, [threadId]: processes } } as T;
+  if (!(threadId in state.backgroundProcesses)) return state;
+  const { [threadId]: _ended, ...backgroundProcesses } = state.backgroundProcesses;
   return { ...state, backgroundProcesses } as T;
 }
 
-export function withWorkflows<T extends RunTransitionState>(state: T, taskId: string, workflows: Workflow[]): T {
-  if (workflows.length) return { ...state, workflows: { ...state.workflows, [taskId]: workflows } } as T;
-  if (!(taskId in state.workflows)) return state;
-  const { [taskId]: _ended, ...rest } = state.workflows;
+export function withWorkflows<T extends RunTransitionState>(state: T, threadId: string, workflows: Workflow[]): T {
+  if (workflows.length) return { ...state, workflows: { ...state.workflows, [threadId]: workflows } } as T;
+  if (!(threadId in state.workflows)) return state;
+  const { [threadId]: _ended, ...rest } = state.workflows;
   return { ...state, workflows: rest } as T;
 }
 
 /** Every workflow record but the named one, with that one replaced by what the update returns. */
-function updateWorkflow<T extends RunTransitionState>(state: T, taskId: string, id: string, update: (existing?: Workflow) => Workflow): T {
-  const workflows = state.workflows[taskId] ?? [];
+function updateWorkflow<T extends RunTransitionState>(state: T, threadId: string, id: string, update: (existing?: Workflow) => Workflow): T {
+  const workflows = state.workflows[threadId] ?? [];
   const existing = workflows.find((workflow) => workflow.id === id);
-  return withWorkflows(state, taskId, existing
+  return withWorkflows(state, threadId, existing
     ? workflows.map((workflow) => workflow.id === id ? update(workflow) : workflow)
     : [...workflows, update(undefined)]);
 }
 
-export function runStatusFor(state: RunTransitionState, taskId: string | null): TaskRunStatus {
-  return taskId ? state.runStatuses[taskId] ?? "idle" : "idle";
+export function runStatusFor(state: RunTransitionState, threadId: string | null): ThreadRunStatus {
+  return threadId ? state.runStatuses[threadId] ?? "idle" : "idle";
 }
 
-export function applyTask<T extends RunTransitionState>(state: T, taskId: string, update: (task: Thread) => Thread): T {
-  return { ...state, tasks: state.tasks.map((task) => task.id === taskId ? update(task) : task) } as T;
+export function updateThread<T extends RunTransitionState>(state: T, threadId: string, update: (thread: Thread) => Thread): T {
+  return { ...state, threads: state.threads.map((thread) => thread.id === threadId ? update(thread) : thread) } as T;
 }
 
-export function withSubagents<T extends RunTransitionState>(state: T, taskId: string, subagents: Subagent[]): T {
-  if (subagents.length) return { ...state, subagents: { ...state.subagents, [taskId]: subagents } } as T;
-  if (!(taskId in state.subagents)) return state;
-  const { [taskId]: _cleared, ...rest } = state.subagents;
+export function withSubagents<T extends RunTransitionState>(state: T, threadId: string, subagents: Subagent[]): T {
+  if (subagents.length) return { ...state, subagents: { ...state.subagents, [threadId]: subagents } } as T;
+  if (!(threadId in state.subagents)) return state;
+  const { [threadId]: _cleared, ...rest } = state.subagents;
   return { ...state, subagents: rest } as T;
 }
 
-function updateSubagent<T extends RunTransitionState>(state: T, taskId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
-  const held = state.subagents[taskId] ?? [];
+function updateSubagent<T extends RunTransitionState>(state: T, threadId: string, subagentId: string, update: (subagent?: Subagent) => Subagent): T {
+  const held = state.subagents[threadId] ?? [];
   const index = held.findIndex((subagent) => subagent.id === subagentId);
-  if (index === -1) return withSubagents(state, taskId, [...held, update()]);
+  if (index === -1) return withSubagents(state, threadId, [...held, update()]);
   const replaced = update(held[index]);
   if (replaced === held[index]) return state;
-  return withSubagents(state, taskId, held.map((subagent, position) => position === index ? replaced : subagent));
+  return withSubagents(state, threadId, held.map((subagent, position) => position === index ? replaced : subagent));
 }
 
 /** Shared subagent state changes, whether a run carries them or a session reports them later. */
-function applySubagentReport<T extends RunTransitionState>(state: T, taskId: string, event: SubagentReport): T {
+function applySubagentReport<T extends RunTransitionState>(state: T, threadId: string, event: SubagentReport): T {
   if (event.type === "subagent.started") {
-    return updateSubagent(state, taskId, event.id, (existing) => {
+    return updateSubagent(state, threadId, event.id, (existing) => {
       const { finishedAt: _finishedAt, lastToolName: _lastToolName, ...preserved } = existing ?? {};
       return {
         ...preserved,
@@ -220,7 +220,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, taskId: str
     });
   }
   if (event.type === "subagent.status") {
-    return updateSubagent(state, taskId, event.id, (existing) => {
+    return updateSubagent(state, threadId, event.id, (existing) => {
       const base: Subagent = existing ?? {
         id: event.id,
         description: "Subagent",
@@ -237,7 +237,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, taskId: str
     });
   }
   if (event.type === "subagent.progress") {
-    return updateSubagent(state, taskId, event.id, (existing) => ({
+    return updateSubagent(state, threadId, event.id, (existing) => ({
       ...(existing ?? {
         id: event.id,
         status: "working" as const,
@@ -253,7 +253,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, taskId: str
     }));
   }
   if (event.type === "subagent.activity") {
-    return updateSubagent(state, taskId, event.id, (existing) => {
+    return updateSubagent(state, threadId, event.id, (existing) => {
       const base: Subagent = existing ?? {
         id: event.id,
         description: "Subagent",
@@ -274,7 +274,7 @@ function applySubagentReport<T extends RunTransitionState>(state: T, taskId: str
       };
     });
   }
-  return updateSubagent(state, taskId, event.id, (existing) => ({
+  return updateSubagent(state, threadId, event.id, (existing) => ({
     ...(existing ?? {
       id: event.id,
       description: "Subagent",
@@ -353,7 +353,7 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
   let next = withRunStatus(withActiveRun(withStreamingTail(state, event.taskId, null), event.taskId, null), event.taskId, event.status === "cancelled" ? "stopped" : "idle");
   const { [event.runId]: _expired, ...approvals } = next.approvals;
   next = { ...next, approvals } as T;
-  next = applyTask(next, event.taskId, (task) => ({ ...task, runEndedAt: now() }));
+  next = updateThread(next, event.taskId, (thread) => ({ ...thread, runEndedAt: now() }));
   const subagents = next.subagents[event.taskId];
   if (subagents?.some((subagent) => subagent.status === "working" && !subagent.sessionScoped)) {
     const status = event.status === "succeeded" ? "completed" : event.status === "failed" ? "failed" : "stopped";
@@ -368,7 +368,7 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
       ? { ...workflow, status: "stopped" as const, finishedAt: now(), stopping: false }
       : workflow));
   }
-  if (event.status === "failed" && event.message) next = applyTask(next, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.message!)], updatedAt: now() }));
+  if (event.status === "failed" && event.message) next = updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createFailureMessage(event.message!)], updatedAt: now() }));
   return next;
 }
 
@@ -393,46 +393,46 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   }
   if (event.type === "assistant.delta") {
     /** The block being committed is what the tail was showing, so it stops standing in for it. */
-    return applyTask(withStreamingTail(withSequence, event.taskId, null), event.taskId, (task) => {
-      const messages = [...task.messages];
+    return updateThread(withStreamingTail(withSequence, event.taskId, null), event.taskId, (thread) => {
+      const messages = [...thread.messages];
       const last = messages.at(-1);
       if (last?.kind === "assistant" && last.id === event.messageId) messages[messages.length - 1] = { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` };
       else messages.push({ id: event.messageId, kind: "assistant", text: event.text, at: now() });
-      return { ...task, messages, updatedAt: now() };
+      return { ...thread, messages, updatedAt: now() };
     });
   }
   if (event.type === "context.usage") {
-    return applyTask(withSequence, event.taskId, (task) => ({
-      ...task,
+    return updateThread(withSequence, event.taskId, (thread) => ({
+      ...thread,
       contextUsage: { tokens: event.tokens, limit: event.limit, model: event.model },
     }));
   }
   if (event.type === "context.compaction-status") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.compacting ? "compacting" : "running" });
     return event.error
-      ? applyTask(activeState, event.taskId, (task) => ({ ...task, messages: [...task.messages, createFailureMessage(event.error!)], updatedAt: now() }))
+      ? updateThread(activeState, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createFailureMessage(event.error!)], updatedAt: now() }))
       : activeState;
   }
   if (event.type === "context.compacted") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "running" });
-    return applyTask(activeState, event.taskId, (task) => ({
-      ...task,
-      messages: [...task.messages, createConversationMessage(
+    return updateThread(activeState, event.taskId, (thread) => ({
+      ...thread,
+      messages: [...thread.messages, createConversationMessage(
         "system",
         event.postTokens === undefined
           ? `Context ${event.trigger}-compacted at ${event.preTokens.toLocaleString("en-US")} tokens.`
           : `Context ${event.trigger}-compacted: ${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tokens.`,
       )],
-      ...(task.contextUsage && event.postTokens !== undefined
-        ? { contextUsage: { ...task.contextUsage, tokens: event.postTokens } }
+      ...(thread.contextUsage && event.postTokens !== undefined
+        ? { contextUsage: { ...thread.contextUsage, tokens: event.postTokens } }
         : {}),
       updatedAt: now(),
     }));
   }
   if (event.type === "tool.intent") {
-    return applyTask(withSequence, event.taskId, (task) => ({
-      ...task,
-      messages: [...task.messages, createConversationMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
+    return updateThread(withSequence, event.taskId, (thread) => ({
+      ...thread,
+      messages: [...thread.messages, createConversationMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
       updatedAt: now(),
     }));
   }
@@ -453,10 +453,10 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   }
   if (event.type === "continuation.updated") {
     /** A session of the thread's own ends any inheritance: a copy forks what it was given until then. */
-    return applyTask(withSequence, event.taskId, ({ inheritedContinuation: _spent, ...task }) => ({ ...task, continuation: event.continuation, continuationStatus: "available", updatedAt: now() }));
+    return updateThread(withSequence, event.taskId, ({ inheritedContinuation: _spent, ...thread }) => ({ ...thread, continuation: event.continuation, continuationStatus: "available", updatedAt: now() }));
   }
   if (event.type === "continuation.lost") {
-    return applyTask(withSequence, event.taskId, ({ continuation: _lost, ...task }) => ({ ...task, continuationStatus: "invalid", updatedAt: now() }));
+    return updateThread(withSequence, event.taskId, ({ continuation: _lost, ...thread }) => ({ ...thread, continuationStatus: "invalid", updatedAt: now() }));
   }
   return withSequence;
 }

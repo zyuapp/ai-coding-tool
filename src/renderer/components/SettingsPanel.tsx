@@ -116,7 +116,7 @@ export type SettingsPanelProps = {
   initialSection?: SettingsSection;
   /** The control on that page to scroll to and mark, when something named one. */
   initialSetting?: string | null;
-  archivedTasks: Thread[];
+  archivedThreads: Thread[];
   managedWorktrees: WorktreeSettingsView[] | null;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
@@ -157,7 +157,7 @@ export type SettingsPanelProps = {
   onSetComputerUse: (enabled: boolean) => void;
   onSetBrowserTools: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
-  onRestoreTask: (taskId: string) => void;
+  onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
   onRefreshEngines: () => void;
   onSignInEngine: (engine: AgentEngine) => void;
@@ -178,7 +178,7 @@ export function SettingsPanel({
   onClose,
   initialSection = "general",
   initialSetting = null,
-  archivedTasks,
+  archivedThreads,
   managedWorktrees,
   worktreeManagementError,
   worktreeManagementNotice,
@@ -209,7 +209,7 @@ export function SettingsPanel({
   onSetComputerUse,
   onSetBrowserTools,
   onSetNotifications,
-  onRestoreTask,
+  onRestoreThread,
   onClearArchive,
   onRefreshEngines,
   onSignInEngine,
@@ -329,8 +329,8 @@ export function SettingsPanel({
         />
       )}
 
-      {section === "archive" && <ArchiveSettings archivedTasks={archivedTasks} confirming={confirmingClear} confirmationRef={confirmation} clearRef={clearArchive}
-        onRestoreTask={onRestoreTask} onClearArchive={onClearArchive} onStartConfirm={() => setConfirmingClear(true)} onCancelConfirm={() => cancelConfirmation(false)} />}
+      {section === "archive" && <ArchiveSettings archivedThreads={archivedThreads} confirming={confirmingClear} confirmationRef={confirmation} clearRef={clearArchive}
+        onRestoreThread={onRestoreThread} onClearArchive={onClearArchive} onStartConfirm={() => setConfirmingClear(true)} onCancelConfirm={() => cancelConfirmation(false)} />}
 
       {section === "computer-use" && <ComputerUseSettings computerUse={computerUse} onSetComputerUse={onSetComputerUse} {...computerUsePermissions} />}
     </section>

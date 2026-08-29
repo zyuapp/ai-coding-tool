@@ -15,18 +15,18 @@ type ScreenState = Pick<DockState, "currentId" | "sideChats" | "docks">;
 export function threadOnScreen(state: ScreenState, taskId: string): boolean {
   if (state.currentId === taskId) return true;
   const chat = state.sideChats.find((item) => item.id === taskId);
-  if (!chat || state.currentId !== chat.sourceTaskId) return false;
-  const dock = dockFor(state, chat.sourceTaskId);
+  if (!chat || state.currentId !== chat.sourceThreadId) return false;
+  const dock = dockFor(state, chat.sourceThreadId);
   return dock.open && dock.tab === taskId;
 }
 
 /** The marks the sidebar and the app icon share, with every side chat folded into its source thread. */
-export function unreadView(state: { tasks: Thread[] } & Pick<DockState, "sideChats">, listed: Thread[]) {
+export function unreadView(state: { threads: Thread[] } & Pick<DockState, "sideChats">, listed: Thread[]) {
   const sideChatAttention = new Set<string>();
   for (const chat of state.sideChats) {
-    const task = state.tasks.find((item) => item.id === chat.id);
-    if (task && hasUnreadAttention(task)) sideChatAttention.add(chat.sourceTaskId);
+    const thread = state.threads.find((item) => item.id === chat.id);
+    if (thread && hasUnreadAttention(thread)) sideChatAttention.add(chat.sourceThreadId);
   }
-  const unreadCount = listed.filter((task) => hasUnreadAttention(task) || sideChatAttention.has(task.id)).length;
+  const unreadCount = listed.filter((thread) => hasUnreadAttention(thread) || sideChatAttention.has(thread.id)).length;
   return { sideChatAttention, unreadCount };
 }

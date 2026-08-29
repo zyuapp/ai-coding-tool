@@ -5,7 +5,8 @@ import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import { settleFrame, settleUntil } from "../support/settle.mts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { StoredTask, Task } from "../../src/domain/task.ts";
+import type { Thread } from "../../src/domain/thread.ts";
+import type { StoredThread } from "../../src/domain/thread-storage.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
@@ -283,7 +284,7 @@ test("workspace hook runs a projectless task and scopes events, approvals, and c
     desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 3, status: "awaiting-approval" });
   });
   await settleFrame();
-  assert.equal(item(workspace.get().currentTask).messages.length, 2);
+  assert.equal(item(workspace.get().currentThread).messages.length, 2);
   assert.equal(item(workspace.get().approval).approvalId, "approval-1");
   await act(async () => { workspace.get().actions.decideApproval(true); workspace.get().actions.cancelRun(); });
   assert.deepEqual(desktop.sent.slice(1).map((command) => command.type), ["approval", "cancel"]);
@@ -296,7 +297,7 @@ const BRANCH_PROJECT = { id: "project-1", root: "/project", workspaceId: "worksp
 
 /** A store holding one thread in a project, which is a thread with a checkout to move. */
 function seedBranchProject(overrides: Partial<DesktopAPI> = {}) {
-  const task: Task = {
+  const task: Thread = {
     id: "task-1", title: "Task", projectId: BRANCH_PROJECT.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
@@ -372,7 +373,7 @@ test("workspace hook reopens a legacy project and prevents duplicate submissions
 
 test("workspace hook reads a stored subagent's activity only when it is opened", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
-  const task: StoredTask = {
+  const task: StoredThread = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
     subagents: [{ id: "agent-1", description: "Explore", status: "completed", startedAt: 1, finishedAt: 2, activity: [] }],
@@ -401,7 +402,7 @@ test("workspace hook reads a stored subagent's activity only when it is opened",
 
 test("threads a newer build wrote are counted, and the notice asks the updater before it closes", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
-  const task: Task = {
+  const task: Thread = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
@@ -412,20 +413,20 @@ test("threads a newer build wrote are counted, and the notice asks the updater b
   });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});
-  assert.equal(workspace.get().hiddenTasks, 2);
+  assert.equal(workspace.get().hiddenThreads, 2);
 
   await act(async () => { await workspace.get().actions.checkForUpdates(); });
   assert.equal(asked, 1);
 
-  await act(async () => { await workspace.get().actions.dismissHiddenTasks(); });
-  assert.equal(workspace.get().hiddenTasks, 0);
-  assert.deepEqual(workspace.get().tasks.map((item) => item.id), ["task-1"]);
+  await act(async () => { await workspace.get().actions.dismissHiddenThreads(); });
+  assert.equal(workspace.get().hiddenThreads, 0);
+  assert.deepEqual(workspace.get().threads.map((item) => item.id), ["task-1"]);
   await workspace.view.unmount();
 });
 
 test("workspace hook removes a project without touching its folder", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
-  const task: Task = {
+  const task: Thread = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
@@ -436,9 +437,9 @@ test("workspace hook removes a project without touching its folder", async () =>
   await act(async () => { workspace.get().actions.removeProject(project.id); });
 
   assert.equal(workspace.get().projects.length, 0);
-  assert.equal(workspace.get().currentTask, undefined);
-  assert.ok(workspace.get().tasks[0].archivedAt);
-  assert.equal(workspace.get().tasks[0].projectId, undefined);
+  assert.equal(workspace.get().currentThread, undefined);
+  assert.ok(workspace.get().threads[0].archivedAt);
+  assert.equal(workspace.get().threads[0].projectId, undefined);
   assert.equal(workspace.get().folder, "");
   await workspace.view.unmount();
 });
@@ -493,7 +494,7 @@ test("workspace hook ignores a changed-files response from a replaced run", asyn
   resolveOld({ status: "available", files: ["stale"], branch: "old", baseline: null, additions: 99, deletions: 99 });
   await act(async () => {});
 
-  assert.notDeepEqual(item(workspace.get().currentTask).lastChangeSnapshot.files, ["stale"]);
+  assert.notDeepEqual(item(workspace.get().currentThread).lastChangeSnapshot.files, ["stale"]);
   await workspace.view.unmount();
 });
 
@@ -581,7 +582,7 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
   await act(async () => { workspace.get().actions.setPrompt("First"); await workspace.get().actions.sendPrompt(); });
   const first = startCommand(desktop.sent[0]);
 
-  await act(async () => { workspace.get().actions.newTask(projectId); });
+  await act(async () => { workspace.get().actions.newThread(projectId); });
   assert.equal(workspace.get().runActive, false);
   assert.equal(workspace.get().prompt, "");
   await act(async () => { workspace.get().actions.setPrompt("Second"); await workspace.get().actions.sendPrompt(); });
@@ -589,27 +590,27 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
 
   assert.notEqual(second.taskId, first.taskId);
   assert.equal(workspace.get().runActive, true);
-  assert.deepEqual([...workspace.get().runningTaskIds].sort(), [first.taskId, second.taskId].sort());
-  assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [second.taskId, first.taskId]);
+  assert.deepEqual([...workspace.get().runningThreadIds].sort(), [first.taskId, second.taskId].sort());
+  assert.deepEqual(workspace.get().orderedThreads.map((task) => task.id), [second.taskId, first.taskId]);
 
   await act(async () => {
     desktop.listener({ type: "assistant.delta", taskId: first.taskId, runId: first.runId, sequence: 1, messageId: "message-1", text: "one" });
     desktop.listener({ type: "assistant.delta", taskId: second.taskId, runId: second.runId, sequence: 1, messageId: "message-2", text: "two" });
   });
   await settleFrame();
-  assert.equal(item(item(workspace.get().currentTask).messages.at(-1)).text, "two");
-  assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [second.taskId, first.taskId]);
+  assert.equal(item(item(workspace.get().currentThread).messages.at(-1)).text, "two");
+  assert.deepEqual(workspace.get().orderedThreads.map((task) => task.id), [second.taskId, first.taskId]);
 
-  await act(async () => { workspace.get().actions.moveTask(second.taskId, { projectId, index: 1 }); });
-  assert.deepEqual(workspace.get().orderedTasks.map((task) => task.id), [first.taskId, second.taskId]);
+  await act(async () => { workspace.get().actions.moveThread(second.taskId, { projectId, index: 1 }); });
+  assert.deepEqual(workspace.get().orderedThreads.map((task) => task.id), [first.taskId, second.taskId]);
 
   await act(async () => { desktop.listener({ type: "run.status", taskId: second.taskId, runId: second.runId, sequence: 2, status: "succeeded" }); });
   await settleFrame();
   assert.equal(workspace.get().runActive, false);
-  assert.deepEqual([...workspace.get().runningTaskIds], [first.taskId]);
+  assert.deepEqual([...workspace.get().runningThreadIds], [first.taskId]);
 
   await act(async () => { workspace.get().actions.setPrompt("Draft for second"); });
-  await act(async () => { workspace.get().actions.selectTask(first.taskId); });
+  await act(async () => { workspace.get().actions.selectThread(first.taskId); });
   assert.equal(workspace.get().runActive, true);
   assert.equal(workspace.get().status, "running");
   assert.equal(workspace.get().prompt, "");
@@ -617,7 +618,7 @@ test("workspace hook runs tasks concurrently with per-task composer state", asyn
   await act(async () => { workspace.get().actions.setPrompt("Ignored"); await workspace.get().actions.sendPrompt(); });
   assert.equal(desktop.sent.filter((command) => command.type === "start").length, 2);
 
-  await act(async () => { workspace.get().actions.selectTask(second.taskId); });
+  await act(async () => { workspace.get().actions.selectThread(second.taskId); });
   assert.equal(workspace.get().prompt, "Draft for second");
   await workspace.view.unmount();
 });

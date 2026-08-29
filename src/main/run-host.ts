@@ -143,7 +143,7 @@ async function handleAutomationRequest(host: RunHost, request: AutomationRequest
   try {
     const scheduler = host.scheduler();
     const result = request.op === "read"
-      ? scheduler.forTask(request.taskId)
+      ? scheduler.forThread(request.taskId)
       : request.op === "list"
         ? scheduler.list()
         : request.op === "save"

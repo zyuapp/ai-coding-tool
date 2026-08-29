@@ -14,7 +14,7 @@ export type ThreadBridge = {
 
 /**
  * What a scheduled run says about itself, answered by the window that keeps it. Scoped to the running
- * task: a run reports on its own thread or on none at all.
+ * thread: a run reports on its own thread or on none at all.
  */
 export type FindingBridge = {
   notify(report: FindingReport): Promise<FindingResult>;
@@ -32,7 +32,7 @@ export type TerminalBridge = {
   read(read: TerminalRead): Promise<TerminalReadResult>;
 };
 
-/** Scoped to the running task, so a run can only reach its own automation. */
+/** Scoped to the running thread, so a run can only reach its own automation. */
 export type AutomationBridge = {
   read(): Promise<AutomationView | null>;
   list(): Promise<AutomationView[]>;

@@ -6,7 +6,7 @@ import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
-import { applyTask, withdrawRun, type ActiveRun, type RunTransitionState } from "./task-workspace.js";
+import { updateThread, withdrawRun, type ActiveRun, type RunTransitionState } from "./thread-run-state.js";
 
 /** Every run that ends leaves a verdict, including the one the user stopped: it still waits on them. */
 export function outcomeFor(event: RunEvent): ThreadOutcome | null {
@@ -30,7 +30,7 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
   const active = scheduledRun(state, taskId);
   if (!active) return state;
   /** A duplicate is still the run answering for itself, but it is not news, so it does not break the silence. */
-  const raised = state.tasks.some((task) => task.id === taskId && isNews(task, report.key));
+  const raised = state.threads.some((thread) => thread.id === taskId && isNews(thread, report.key));
   return {
     ...state,
     activeRuns: { ...state.activeRuns, [taskId]: {
@@ -39,7 +39,7 @@ export function withNotifiedRun<T extends RunTransitionState>(state: T, taskId: 
       notified: active.notified || raised,
       reportedIssues: report.key === undefined || active.reportedIssues.includes(report.key) ? active.reportedIssues : [...active.reportedIssues, report.key],
     } },
-    tasks: state.tasks.map((task) => task.id === taskId ? withFinding(task, report, at, seen) : task),
+    threads: state.threads.map((thread) => thread.id === taskId ? withFinding(thread, report, at, seen) : thread),
   };
 }
 
@@ -48,7 +48,7 @@ export function withNothingToReport<T extends RunTransitionState>(state: T, task
   const active = scheduledRun(state, taskId);
   if (!active) return state;
   const acknowledged = { ...state, activeRuns: { ...state.activeRuns, [taskId]: { ...active, acknowledged: true } } };
-  return applyTask(acknowledged, taskId, (task) => ({ ...task, lastChecked: { at, note: checked } }));
+  return updateThread(acknowledged, taskId, (thread) => ({ ...thread, lastChecked: { at, note: checked } }));
 }
 
 /** Why a settling run reaches the user, or null when it has earned its silence. */
@@ -96,8 +96,8 @@ export function withSettledTick<T extends RunTransitionState>(state: T, taskId: 
   const finished = surfacing !== "failed" && surfacing !== "cancelled";
   const closing = finished && active.origin === "automation" && active.acknowledged;
   if (!unseen && !closing) return state;
-  return applyTask(state, taskId, (task) => {
-    const settled = unseen ? withdrawRun(task, active.messagesBefore, active.before) : task;
+  return updateThread(state, taskId, (thread) => {
+    const settled = unseen ? withdrawRun(thread, active.messagesBefore, active.before) : thread;
     return closing ? withClosedIssues(settled, active.reportedIssues) : settled;
   });
 }

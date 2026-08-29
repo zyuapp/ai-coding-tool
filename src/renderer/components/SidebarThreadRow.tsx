@@ -36,10 +36,10 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(task: Thread, sideChatWaiting: boolean) {
-  const finding = newestUnreadFinding(task);
+function attentionMark(thread: Thread, sideChatWaiting: boolean) {
+  const finding = newestUnreadFinding(thread);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
-  if (hasUnreadAttention(task)) return <span key="status" className={`task-attention ${task.outcome!}`} aria-label={OUTCOME_LABELS[task.outcome!]} />;
+  if (hasUnreadAttention(thread)) return <span key="status" className={`task-attention ${thread.outcome!}`} aria-label={OUTCOME_LABELS[thread.outcome!]} />;
   /** A side chat has no row, so the thread holding it says one of its chats is waiting. */
   if (sideChatWaiting) return <span key="status" className="task-attention" aria-label={SIDE_CHAT_LABEL} />;
   return false;
@@ -49,14 +49,14 @@ function attentionMark(task: Thread, sideChatWaiting: boolean) {
  * What a row says under its title in activity mode: which folder it lives in, and when it last moved.
  * A row carrying something a run found says that instead — the headline is why the row is in Priority.
  */
-function activityMeta(task: Thread, projects: Project[], formatTime: (value: number) => string) {
-  const finding = newestUnreadFinding(task);
+function activityMeta(thread: Thread, projects: Project[], formatTime: (value: number) => string) {
+  const finding = newestUnreadFinding(thread);
   if (finding) return finding.headline;
-  const project = projects.find((item) => item.id === task.projectId);
-  return [project && projectName(project), formatTime(threadActivityAt(task))].filter(Boolean).join(" · ");
+  const project = projects.find((item) => item.id === thread.projectId);
+  return [project && projectName(project), formatTime(threadActivityAt(thread))].filter(Boolean).join(" · ");
 }
 
-function TaskSpinner() {
+function ThreadSpinner() {
   const ref = useRef<HTMLSpanElement>(null);
   // Anchor every spinner to the document timeline so rows that mount later stay in phase. A row that
   // mounts while nothing is drawing it has no animation to anchor yet, so each start is anchored too.
@@ -77,7 +77,7 @@ function TaskSpinner() {
  * What a thread offers on a right-click, grouped the way a menu on this platform is: naming it,
  * taking a reference to it, copying it, then putting it away.
  */
-function threadMenuEntries(task: Thread, actions: {
+function threadMenuEntries(thread: Thread, actions: {
   onRename: () => void;
   onFork: (worktree: boolean) => void;
   onArchive: () => void;
@@ -85,7 +85,7 @@ function threadMenuEntries(task: Thread, actions: {
   return [
     { label: "Rename", onSelect: actions.onRename },
     "separator",
-    { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(task.id)) },
+    { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(thread.id)) },
     "separator",
     { label: "Fork", onSelect: () => actions.onFork(false) },
     { label: "Fork into a new worktree", onSelect: () => actions.onFork(true) },
@@ -94,72 +94,72 @@ function threadMenuEntries(task: Thread, actions: {
   ];
 }
 
-export type TaskRowsOptions = {
+export type ThreadRowsOptions = {
   projects: Project[];
   currentId: string | null;
-  runningTaskIds: Set<string>;
-  /** Threads stopped on an approval only the user can answer. A subset of `runningTaskIds`. */
-  blockedTaskIds: Set<string>;
+  runningThreadIds: Set<string>;
+  /** Threads stopped on an approval only the user can answer. A subset of `runningThreadIds`. */
+  blockedThreadIds: Set<string>;
   /** Threads holding a side chat with something unseen, which have no row of their own. */
   sideChatAttention: Set<string>;
   schedules: Map<string, AutomationView>;
-  worktreeTaskIds: Set<string>;
+  worktreeThreadIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
   openMenu: string | null;
   formatTime: (value: number) => string;
   onSetOpenMenu: (menu: string | null) => void;
-  onSelectTask: (taskId: string) => void;
-  onArchiveTask: (taskId: string) => void;
-  onDismissTask: (taskId: string) => void;
-  onRenameTask: (taskId: string, title: string) => void;
-  onForkTask: (taskId: string, worktree: boolean) => void;
+  onSelectThread: (threadId: string) => void;
+  onArchiveThread: (threadId: string) => void;
+  onDismissThread: (threadId: string) => void;
+  onRenameThread: (threadId: string, title: string) => void;
+  onForkThread: (threadId: string, worktree: boolean) => void;
 };
 
 /** Both lists draw the same row, so both of them ask this for one: only the placement differs. */
-export function useTaskRows({
+export function useThreadRows({
   projects,
   currentId,
-  runningTaskIds,
-  blockedTaskIds,
+  runningThreadIds,
+  blockedThreadIds,
   sideChatAttention,
   schedules,
-  worktreeTaskIds,
+  worktreeThreadIds,
   worktreeGroups,
   openMenu,
   formatTime,
   onSetOpenMenu,
-  onSelectTask,
-  onArchiveTask,
-  onDismissTask,
-  onRenameTask,
-  onForkTask,
-}: TaskRowsOptions) {
-  const [taskMenuPosition, setTaskMenuPosition] = useState({ x: 0, y: 0 });
-  const taskNames = useRenaming((taskId, value) => { if (value.trim()) onRenameTask(taskId, value); });
+  onSelectThread,
+  onArchiveThread,
+  onDismissThread,
+  onRenameThread,
+  onForkThread,
+}: ThreadRowsOptions) {
+  const [threadMenuPosition, setThreadMenuPosition] = useState({ x: 0, y: 0 });
+  const threadNames = useRenaming((threadId, value) => { if (value.trim()) onRenameThread(threadId, value); });
 
-  const checkouts = new Map(worktreeGroups.flatMap(({ worktree, tasks }) =>
-    tasks.map((task) => [task.id, worktree] as const)));
+  const checkouts = new Map(worktreeGroups.flatMap(({ worktree, threads }) =>
+    threads.map((thread) => [thread.id, worktree] as const)));
   /** A thread's own mark names its checkout, which is what one flat list leaves it to say. */
-  const worktreeLabel = (taskId: string) => {
-    const worktree = checkouts.get(taskId);
+  const worktreeLabel = (threadId: string) => {
+    const worktree = checkouts.get(threadId);
     return `Works in ${worktree ? worktreeName(worktree) : "a worktree"}`;
   };
   /** Threads sharing a checkout share its colour, so a list ranked by attention still groups by eye. */
-  const worktreeMark = (taskId: string) => {
-    const worktree = checkouts.get(taskId);
+  const worktreeMark = (threadId: string) => {
+    const worktree = checkouts.get(threadId);
     return `task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`;
   };
 
   /** What a thread is: its engine, checkout, schedule, and what it is doing now. */
-  const rowMarks = (task: Thread): React.ReactNode[] => [
-    <ThreadEngineIcon key="engine" engine={task.engine} className="task-engine" size={13} />,
-    worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className={worktreeMark(task.id)} size={13} aria-label={worktreeLabel(task.id)} />,
-    schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
-    blockedTaskIds.has(task.id)
+  const rowMarks = (thread: Thread): React.ReactNode[] => [
+    <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
+    worktreeThreadIds.has(thread.id) && <FolderSymlink key="worktree" className={worktreeMark(thread.id)} size={13} aria-label={worktreeLabel(thread.id)} />,
+    schedules.has(thread.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(thread.id)!)} />,
+    blockedThreadIds.has(thread.id)
       ? <span key="status" className="task-attention approval" aria-label={BLOCKED_LABEL} />
-      : runningTaskIds.has(task.id)
-        ? <TaskSpinner key="status" />
-        : attentionMark(task, sideChatAttention.has(task.id)),
+      : runningThreadIds.has(thread.id)
+        ? <ThreadSpinner key="status" />
+        : attentionMark(thread, sideChatAttention.has(thread.id)),
   ].filter(Boolean);
 
   /**
@@ -167,15 +167,15 @@ export function useTaskRows({
    * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
    * different icons in one view; archiving a thread there is on its menu.
    */
-  const rowActions = (task: Thread, action: RowAction): React.ReactNode[] => [
+  const rowActions = (thread: Thread, action: RowAction): React.ReactNode[] => [
     action === "dismiss" && <button
       key="dismiss"
       className="row-action task-dismiss"
       type="button"
-      aria-label={schedules.has(task.id) ? `Dismiss ${task.title}, which keeps running on its schedule` : `Dismiss ${task.title}`}
+      aria-label={schedules.has(thread.id) ? `Dismiss ${thread.title}, which keeps running on its schedule` : `Dismiss ${thread.title}`}
       onClick={(event) => {
         event.stopPropagation();
-        onDismissTask(task.id);
+        onDismissThread(thread.id);
       }}
     >
       <Check size={13} aria-hidden="true" />
@@ -184,10 +184,10 @@ export function useTaskRows({
       key="archive"
       className="row-action task-archive"
       type="button"
-      aria-label={`Archive ${task.title}`}
+      aria-label={`Archive ${thread.title}`}
       onClick={(event) => {
         event.stopPropagation();
-        onArchiveTask(task.id);
+        onArchiveThread(thread.id);
       }}
     >
       <Archive size={13} aria-hidden="true" />
@@ -195,94 +195,94 @@ export function useTaskRows({
   ].filter(Boolean);
 
   /**
-   * Every task row ends in the same rail: two layers of icons over one set of slots, the marks it
+   * Every thread row ends in the same rail: two layers of icons over one set of slots, the marks it
    * carries at rest and the actions it offers hovered. Both fill the rail from its right edge, so an
    * action lands on the mark it stands in for, and every rail is the same width, so the slots line up
    * down the list. A layer that gains an icon keeps the other layer's geometry.
    */
-  const taskRail = (task: Thread, action: RowAction) => {
-    const actions = rowActions(task, action);
+  const threadRail = (thread: Thread, action: RowAction) => {
+    const actions = rowActions(thread, action);
     return (
       <span className="row-rail">
-        <span className="row-layer row-marks">{rowMarks(task)}</span>
+        <span className="row-layer row-marks">{rowMarks(thread)}</span>
         {actions.length > 0 && <span className="row-layer row-actions">{actions}</span>}
       </span>
     );
   };
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (task: Thread, className: string, content: React.ReactNode, action: RowAction) => (
+  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction) => (
     <>
     <div
       className={className}
-      onClick={() => onSelectTask(task.id)}
-      onDoubleClick={(event) => taskNames.start(task.id, event.currentTarget.closest(".task-entry"))}
+      onClick={() => onSelectThread(thread.id)}
+      onDoubleClick={(event) => threadNames.start(thread.id, event.currentTarget.closest(".task-entry"))}
       onContextMenu={(event) => {
         event.preventDefault();
-        taskNames.row.current = event.currentTarget.closest(".task-entry");
-        setTaskMenuPosition({ x: event.clientX, y: event.clientY });
-        onSetOpenMenu(`task:${task.id}`);
+        threadNames.row.current = event.currentTarget.closest(".task-entry");
+        setThreadMenuPosition({ x: event.clientX, y: event.clientY });
+        onSetOpenMenu(`task:${thread.id}`);
       }}
-      title={task.title}
+      title={thread.title}
     >
-      {taskNames.editing === task.id
+      {threadNames.editing === thread.id
         ? <RenameInput
-            inputRef={taskNames.input}
+            inputRef={threadNames.input}
             className="task-rename"
-            label={`Rename ${task.title}`}
-            value={task.title}
-            onCommit={(value) => taskNames.commit(task.id, value)}
-            onCancel={taskNames.cancel}
+            label={`Rename ${thread.title}`}
+            value={thread.title}
+            onCommit={(value) => threadNames.commit(thread.id, value)}
+            onCancel={threadNames.cancel}
           />
-        : <>{content}{taskRail(task, action)}</>}
+        : <>{content}{threadRail(thread, action)}</>}
     </div>
-    {openMenu === `task:${task.id}` && <ContextMenu
-      at={taskMenuPosition}
-      returnFocus={taskNames.row}
+    {openMenu === `task:${thread.id}` && <ContextMenu
+      at={threadMenuPosition}
+      returnFocus={threadNames.row}
       onClose={() => onSetOpenMenu(null)}
-      entries={threadMenuEntries(task, {
-        onRename: () => taskNames.start(task.id),
-        onFork: (worktree) => onForkTask(task.id, worktree),
-        onArchive: () => onArchiveTask(task.id),
+      entries={threadMenuEntries(thread, {
+        onRename: () => threadNames.start(thread.id),
+        onFork: (worktree) => onForkThread(thread.id, worktree),
+        onArchive: () => onArchiveThread(thread.id),
       })}
     />}
     </>
   );
 
-  const selectOnEnter = (event: React.KeyboardEvent, taskId: string) => {
-    if (event.key === "Enter") onSelectTask(taskId);
+  const selectOnEnter = (event: React.KeyboardEvent, threadId: string) => {
+    if (event.key === "Enter") onSelectThread(threadId);
   };
 
-  const taskRow = (task: Thread, index: number, className: string, content: React.ReactNode) => (
-    <Draggable draggableId={task.id} index={index} key={task.id}>
+  const threadRow = (thread: Thread, index: number, className: string, content: React.ReactNode) => (
+    <Draggable draggableId={thread.id} index={index} key={thread.id}>
       {(provided: DraggableProvided, snapshot) => (
         <div
           className={`task-entry ${snapshot.isDragging ? "is-dragging" : ""}`}
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          onKeyDown={(event) => selectOnEnter(event, task.id)}
+          onKeyDown={(event) => selectOnEnter(event, thread.id)}
         >
-          {rowBody(task, className, content, "archive")}
+          {rowBody(thread, className, content, "archive")}
         </div>
       )}
     </Draggable>
   );
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
-  const activityRow = (task: Thread, action: RowAction) => (
-    <div className="task-entry" key={task.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, task.id)}>
-      {rowBody(task, `task-row ${task.id === currentId ? "active" : ""}`, (
+  const activityRow = (thread: Thread, action: RowAction) => (
+    <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread.id)}>
+      {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
-          <span>{task.title}</span>
-          <small>{activityMeta(task, projects, formatTime)}</small>
+          <span>{thread.title}</span>
+          <small>{activityMeta(thread, projects, formatTime)}</small>
         </span>
       ), action)}
     </div>
   );
 
-  return { taskRow, activityRow };
+  return { threadRow, activityRow };
 }
 
-export type TaskRowRenderer = ReturnType<typeof useTaskRows>["taskRow"];
-export type ActivityRowRenderer = ReturnType<typeof useTaskRows>["activityRow"];
+export type ThreadRowRenderer = ReturnType<typeof useThreadRows>["threadRow"];
+export type ActivityRowRenderer = ReturnType<typeof useThreadRows>["activityRow"];

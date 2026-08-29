@@ -197,7 +197,7 @@ test("automations survive a restart of the app", async (t) => {
   t.onTestFinished(() => { scheduler.stop(); database.close(); });
   scheduler.start();
 
-  const reloaded = scheduler.forTask("task-restart");
+  const reloaded = scheduler.forThread("task-restart");
   assert.ok(reloaded);
   assert.equal(reloaded.id, saved.id);
   assert.equal(reloaded.prompt, "Check whether PR 42 is approved");

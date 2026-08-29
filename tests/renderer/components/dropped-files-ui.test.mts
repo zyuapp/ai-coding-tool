@@ -3,8 +3,8 @@ import { test, afterAll } from "vitest";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { TaskComposerProps } from "../../../src/renderer/components/TaskComposer.tsx";
-import type { AttachedFile } from "../../../src/domain/task.ts";
+import type { ConversationComposerProps } from "../../../src/renderer/components/ConversationComposer.tsx";
+import type { AttachedFile } from "../../../src/domain/conversation.ts";
 import type { DesktopAPI } from "../../../src/contracts/ipc.ts";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
@@ -20,7 +20,7 @@ Object.defineProperty(window, "desktop", { value: {
   projectlessWorkspace: async () => ({ id: "workspace-1", kind: "projectless", root: "/project" } as const),
 } satisfies Pick<DesktopAPI, "commands" | "projectlessWorkspace"> });
 
-const { TaskComposer } = await import("../../../src/renderer/components/TaskComposer.tsx");
+const { ConversationComposer } = await import("../../../src/renderer/components/ConversationComposer.tsx");
 const { useFileDrop } = await import("../../../src/renderer/file-drop.ts");
 
 afterAll(async () => {
@@ -45,8 +45,8 @@ function query<E extends Element = HTMLElement>(root: ParentNode, selector: stri
   return element;
 }
 
-function composer(props: Partial<TaskComposerProps>) {
-  return React.createElement(TaskComposer, {
+function composer(props: Partial<ConversationComposerProps>) {
+  return React.createElement(ConversationComposer, {
     prompt: "",
     folder: "/project",
     workspaceId: "workspace-1",

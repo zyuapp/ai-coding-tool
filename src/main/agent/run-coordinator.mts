@@ -54,7 +54,7 @@ type RunEventPayload = RunEvent extends infer Event
   : never;
 
 export class RunCoordinator {
-  /** One live run per task; different tasks run concurrently. */
+  /** One live run per thread; different threads run concurrently. */
   private readonly runs = new Map<string, ActiveRun>();
 
   constructor(

@@ -5,14 +5,14 @@ import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
 import { settleUntil } from "../support/settle.mts";
 import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { PastedText, RunAttachment } from "../../src/domain/task.ts";
+import type { PastedText, RunAttachment } from "../../src/domain/conversation.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
-import type { TaskComposerProps } from "../../src/renderer/components/TaskComposer.tsx";
+import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
-const { TaskComposer } = await import("../../src/renderer/components/TaskComposer.tsx");
+const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
 
 const automationView = (overrides: Partial<AutomationView> = {}): AutomationView => ({
   id: "automation-1",
@@ -207,8 +207,8 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   return desktop;
 }
 
-function renderTaskComposer(overrides: Partial<TaskComposerProps>) {
-  return React.createElement(TaskComposer, {
+function renderConversationComposer(overrides: Partial<ConversationComposerProps>) {
+  return React.createElement(ConversationComposer, {
     prompt: "",
     folder: "",
     mode: "confirm",
@@ -231,7 +231,7 @@ function renderTaskComposer(overrides: Partial<TaskComposerProps>) {
 
 test("an active native goal stays visible and can be cleared", async () => {
   let cleared = 0;
-  const view = await mount(renderTaskComposer({
+  const view = await mount(renderConversationComposer({
     goal: { objective: "All checks pass", status: "active", iterations: 2 },
     onGoalClear: () => { cleared += 1; },
   }));
@@ -245,7 +245,7 @@ test("an active native goal stays visible and can be cleared", async () => {
 
 test("context usage stays within 100% when the window shrinks below the used tokens", async () => {
   window.desktop = fakeDesktop();
-  const view = await mount(renderTaskComposer({
+  const view = await mount(renderConversationComposer({
     prompt: "",
     folder: "/project",
     workspaceId: "workspace-1",
@@ -276,7 +276,7 @@ test("one outside pointer press dismisses the slash menu until the draft changes
   window.desktop = fakeDesktop({ commands: async () => ({ status: "available", commands: [{ name: "review", description: "Review this change.", argumentHint: "" }] }) });
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt, folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium", runActive: false,
       onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
     });
@@ -311,7 +311,7 @@ test("a slash action runs at once and clears the draft", async () => {
   let opened = 0;
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -363,7 +363,7 @@ test("the up arrow recalls sent prompts and the down arrow walks back to the dra
   window.desktop = fakeDesktop();
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -420,7 +420,7 @@ test("a skill completes anywhere in the draft, where an action is not offered", 
   });
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -472,7 +472,7 @@ test("the @ menu offers threads, keeps browsing in this project, and completes t
   ];
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -530,7 +530,7 @@ test("the side surface keeps the slash palette but never offers to fork a fork",
   });
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -569,7 +569,7 @@ test("a pasted image becomes an attachment chip and is saved on send", async () 
   let sent: RunAttachment[] | null = null;
   function Harness() {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -611,7 +611,7 @@ test("a long paste is held aside as a pill, and a short one lands in the draft",
   const blob = Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\n");
   function Harness({ pastes }: { pastes: PastedText[] }) {
     const [prompt, setPrompt] = React.useState("");
-    return renderTaskComposer({
+    return renderConversationComposer({
       prompt,
       folder: "/project",
       workspaceId: "workspace-1",
@@ -669,7 +669,7 @@ test("a long paste is held aside as a pill, and a short one lands in the draft",
 
 test("the composer offers model and effort choices, ordered most to least capable", async () => {
   window.desktop = fakeDesktop();
-  const view = await mount(React.createElement(TaskComposer, {
+  const view = await mount(React.createElement(ConversationComposer, {
     prompt: "",
     folder: "/project",
     workspaceId: "workspace-1",
@@ -719,7 +719,7 @@ test("the composer offers model and effort choices, ordered most to least capabl
 test("the send button holds while the checkout a send needs is still being made", async () => {
   window.desktop = fakeDesktop();
   const sent: string[] = [];
-  const composer = (waiting: boolean) => React.createElement(TaskComposer, {
+  const composer = (waiting: boolean) => React.createElement(ConversationComposer, {
     prompt: "Refactor the loader", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium",
     runActive: false, waiting, queuedMessages: [],
     onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {},

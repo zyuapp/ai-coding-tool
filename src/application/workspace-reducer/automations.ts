@@ -3,7 +3,7 @@ import { resolveWorkspaceEffect, settled, targetId, withPending } from "./shared
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
-import { automationRunLabel, automationRunPrompt } from "../task-workspace.js";
+import { automationRunLabel, automationRunPrompt } from "../thread-run-state.js";
 import { projectFor, worktreeFor } from "../thread-location.js";
 import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 
@@ -17,10 +17,10 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
     /** The scheduler owns the cadence; the workspace decides whether this tick can actually run. */
     case "automation.fired": {
       const { fire } = input;
-      const task = state.tasks.find((item) => item.id === fire.taskId);
-      const project = task ? projectFor(state, task) : undefined;
-      const refusal = whyTickCannotRun(state, fire, task, project);
-      if (refusal) return declinedTick(state, fire, task, refusal);
+      const thread = state.threads.find((item) => item.id === fire.taskId);
+      const project = thread ? projectFor(state, thread) : undefined;
+      const refusal = whyTickCannotRun(state, fire, thread, project);
+      if (refusal) return declinedTick(state, fire, thread, refusal);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: fire.runId,
@@ -36,7 +36,7 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
         ...(fire.unattended ? { unattended: true as const } : {}),
         automationId: fire.automationId,
       };
-      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, task, project, worktreeFor(state, task), false)]);
+      return settled(withPending(state, pending), [resolveWorkspaceEffect(pending.id, thread, project, worktreeFor(state, thread), false)]);
     }
 
     case "automation.notify":

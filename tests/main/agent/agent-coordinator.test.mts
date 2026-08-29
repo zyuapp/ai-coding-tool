@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { Query } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
-import { applyRunEvent, applyThreadEvent, type RunTransitionState } from "../../../src/application/task-workspace.ts";
+import { applyRunEvent, applyThreadEvent, type RunTransitionState } from "../../../src/application/thread-run-state.ts";
 import type { AgentEvent, InternalStartRunCommand, RunEvent } from "../../../src/contracts/ipc.ts";
 import type { ThreadBridge, AgentProvider, ProviderEvent, ProviderResult, ProviderRunInput } from "../../../src/main/agent/agent-provider.mts";
 import { ClaudeAgentProvider } from "../../../src/main/agent/claude-agent-provider.mts";
@@ -312,7 +312,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
   await terminal;
 
   let state: RunTransitionState = {
-    tasks: [{ id: "task-v", title: "Vertical flow", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
+    threads: [{ id: "task-v", title: "Vertical flow", engine: "claude", executionPolicy: "confirm", messages: [], continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1 }],
     goals: {},
     activeRuns: { "task-v": {
       taskId: "task-v",
@@ -336,7 +336,7 @@ test("Claude subagent events reach correlated renderer state", async () => {
   };
   for (const event of events) state = "runId" in event ? applyRunEvent(state, event) : applyThreadEvent(state, event);
 
-  const task = state.tasks[0];
+  const task = state.threads[0];
   assert.ok(task);
   const subagent = state.subagents["task-v"]?.[0];
   assert.ok(subagent);

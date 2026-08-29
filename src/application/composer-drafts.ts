@@ -75,7 +75,7 @@ export function focusedTab(state: WorkspaceState, owner: string, tab: string): W
 function focusAfter(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
   if (input.type !== "annotation.add" || input.anchor?.kind === "diff") return state;
   const chat = state.sideChats.find((item) => item.id === key);
-  return chat ? focusedTab(state, chat.sourceTaskId, key) : focusComposer(state);
+  return chat ? focusedTab(state, chat.sourceThreadId, key) : focusComposer(state);
 }
 
 /** An image the app already holds, put back in a composer. What it is of is lost with the send. */

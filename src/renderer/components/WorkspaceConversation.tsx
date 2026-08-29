@@ -16,21 +16,21 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   /** A side chat is a thread too, so the main transcript only claims the bar when it is the one named. */
-  const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentTask?.id ?? null) ? find : null;
+  const mine = find?.target.kind === "thread" && find.target.taskId === (workspace.currentThread?.id ?? null) ? find : null;
   return (
     <div className="work-area">
       {mine && findBar}
-      {!workspace.currentTask && (
+      {!workspace.currentThread && (
         <ThreadModeSwitch
           projects={workspace.projects}
           projectId={workspace.currentProject?.id ?? null}
-          onSelectProject={workspace.actions.newTask}
+          onSelectProject={workspace.actions.newThread}
         />
       )}
       <div className="conversation" ref={transcriptRef}>
         <ConversationTimeline
           find={mine}
-          currentTask={workspace.currentTask}
+          currentThread={workspace.currentThread}
           engine={workspace.engine}
           engineLabel={workspace.engineLabel}
           folder={workspace.folder}
@@ -40,11 +40,11 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           streamingTail={workspace.streamingTail}
           readingPoint={workspace.readingPoint}
           onReadingPointMove={(point) => {
-            if (workspace.currentTask) void workspace.dispatch({ type: "view.reading-point", taskId: workspace.currentTask.id, point });
+            if (workspace.currentThread) void workspace.dispatch({ type: "view.reading-point", taskId: workspace.currentThread.id, point });
           }}
           scrollContainerRef={transcriptRef}
           restored={workspace.restored}
-          startOptions={!workspace.currentTask && (
+          startOptions={!workspace.currentThread && (
             <ThreadStartOptions
               projects={workspace.projects}
               projectId={workspace.currentProject?.id ?? null}
@@ -52,7 +52,7 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
               branch={workspace.draftBranch}
               worktree={workspace.draftWorktree}
               {...(workspace.draftWorktreeName ? { startsInWorktree: workspace.draftWorktreeName } : {})}
-              onSelectProject={workspace.actions.newTask}
+              onSelectProject={workspace.actions.newThread}
               onSelectBranch={workspace.actions.setBranch}
               onSetWorktree={workspace.actions.setWorktree}
             />

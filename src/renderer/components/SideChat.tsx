@@ -9,7 +9,7 @@ import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import { ApprovalCard } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
-import { TaskComposer } from "./TaskComposer";
+import { ConversationComposer } from "./ConversationComposer";
 import { useFileDrop } from "../file-drop";
 
 export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
@@ -54,7 +54,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onClose: () => void;
 }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
-  const available = sourceContinued || Boolean(chat.task.continuation);
+  const available = sourceContinued || Boolean(chat.thread.continuation);
   const drop = useFileDrop(onFilesAdd);
 
   return (
@@ -70,8 +70,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
       <div className="side-chat-transcript" ref={transcriptRef}>
         <ConversationTimeline
           find={find}
-          currentTask={chat.task}
-          engine={chat.task.engine}
+          currentThread={chat.thread}
+          engine={chat.thread.engine}
           engineLabel={engineLabel}
           folder={project?.root ?? ""}
           status={chat.status}
@@ -93,18 +93,18 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         {chat.approval && <ApprovalCard approval={chat.approval} onDecide={onDecide} />}
       </div>
       {chat.error && <p className="side-chat-error" role="alert">{chat.error}</p>}
-      <TaskComposer
+      <ConversationComposer
         focusToken={focusToken}
         prompt={chat.prompt}
         folder={project?.root ?? ""}
         {...(project?.workspaceId ? { workspaceId: project.workspaceId } : {})}
-        mode={chat.task.executionPolicy}
-        engine={chat.task.engine}
+        mode={chat.thread.executionPolicy}
+        engine={chat.thread.engine}
         engineLabel={engineLabel}
         engineLocked
-        model={chat.task.model ?? defaultModelFor(chat.task.engine)}
-        effort={chat.task.effort ?? defaultEffortFor(chat.task.engine)}
-        {...(chat.task.contextUsage ? { contextUsage: chat.task.contextUsage } : {})}
+        model={chat.thread.model ?? defaultModelFor(chat.thread.engine)}
+        effort={chat.thread.effort ?? defaultEffortFor(chat.thread.engine)}
+        {...(chat.thread.contextUsage ? { contextUsage: chat.thread.contextUsage } : {})}
         runActive={chat.running}
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
@@ -112,7 +112,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         files={chat.files}
         threads={threads ?? []}
         images={chat.images}
-        history={sentPrompts(chat.task.messages)}
+        history={sentPrompts(chat.thread.messages)}
         surface="side"
         disabled={!available}
         onPromptChange={onPrompt}

@@ -4,16 +4,17 @@ import { fileReviewHits, findHits, MAX_FIND_HITS, reviewHits, sameFindTarget, sa
 import type { DiffFile, DiffLineKind } from "../../src/domain/diff.ts";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { DIFF_PANEL, deriveView, dockFor, dockOwner, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { Task, TaskMessage } from "../../src/domain/task.ts";
+import type { ConversationMessage } from "../../src/domain/conversation.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
-type MessageSeed = Omit<TaskMessage, "id" | "at"> & Partial<Pick<TaskMessage, "id" | "at">>;
+type MessageSeed = Omit<ConversationMessage, "id" | "at"> & Partial<Pick<ConversationMessage, "id" | "at">>;
 
-function messages(...entries: MessageSeed[]): TaskMessage[] {
+function messages(...entries: MessageSeed[]): ConversationMessage[] {
   return entries.map((entry, index) => ({ id: `m${index}`, at: index * 1000, ...entry }));
 }
 
 function thread(...entries: MessageSeed[]): WorkspaceState {
-  const task: Task = {
+  const subject: Thread = {
     id: "t1",
     title: "T",
     engine: "claude",
@@ -23,7 +24,7 @@ function thread(...entries: MessageSeed[]): WorkspaceState {
     lastChangeSnapshot: { files: [], capturedAt: 1 },
     updatedAt: 1,
   };
-  return { ...emptyWorkspaceState(), tasks: [task], currentId: task.id };
+  return { ...emptyWorkspaceState(), threads: [subject], currentId: subject.id };
 }
 
 function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
@@ -103,7 +104,7 @@ test("⌘F over the transcript counts matches here and steps through them", () =
 
 test("find belongs to the thread it is searching, so moving away closes it", () => {
   const state = thread({ kind: "user", text: "retry" });
-  const other: WorkspaceState = { ...state, tasks: [...state.tasks, { ...state.tasks[0], id: "t2", messages: [] }] };
+  const other: WorkspaceState = { ...state, threads: [...state.threads, { ...state.threads[0], id: "t2", messages: [] }] };
   const searching = run(other, [{ type: "view.find-open" }, { type: "view.find-query", query: "retry" }]);
 
   assert.equal(reduce(searching, { type: "task.select", taskId: "t2" }).state.find, null);
