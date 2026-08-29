@@ -109,9 +109,15 @@ export type WorktreeSnapshotResult = {
 export type ComputerUsePermissions = {
   accessibility: boolean;
   screenRecording: boolean;
+  /** Linux has no macOS permission switches; this reports the runtime path Settings can explain. */
+  linuxRuntime?: {
+    status: "available" | "limited" | "unavailable";
+    display: "x11" | "xwayland" | "wayland" | "none";
+    message: string;
+  };
 };
 
-export type ComputerUsePermission = keyof ComputerUsePermissions;
+export type ComputerUsePermission = "accessibility" | "screenRecording";
 
 export type ComputerUseMcp = {
   command: string;
@@ -205,7 +211,11 @@ export type AutomationResponse = {
   requestId: string;
 } & ({ ok: true; result: unknown } | { ok: false; message: string });
 
+export type DesktopPlatform = "macos" | "linux" | "other";
+
 export type DesktopAPI = MobileDesktopAPI & {
+  /** Static renderer-facing platform identity; runtime capabilities still come from main. */
+  readonly platform: DesktopPlatform;
   openFolder(): Promise<WorkspaceRecord | null>;
   /** Opens a folder named by path rather than picked, refusing anything that is not one to work in. */
   registerProject(root: string): Promise<WorkspaceRecord>;
@@ -243,7 +253,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   createWorktree(request: CreateWorktreeRequest): Promise<CreatedWorktree>;
   /** Reads the worktree directories under roots owned by this app without changing them. */
   listManagedWorktrees(): Promise<ManagedWorktree[]>;
-  /** Shows one app-owned worktree in Finder. */
+  /** Shows one app-owned worktree in the platform's file manager. */
   revealWorktree(root: string): Promise<void>;
   /** Force-commits what the worktree still holds so the thread can leave it without losing work. */
   releaseWorktree(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshotResult>;
@@ -321,8 +331,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
   /** A window grabbed by the desktop hotkey, on its way to the composer the user was last in. */
   onWindowScreenshot(listener: (shot: WindowScreenshot) => void): () => void;
-  /** A desktop-wide binding another app already holds, which leaves the action with no keystroke. */
-  onDesktopShortcutRefused(listener: (binding: string) => void): () => void;
+  /** A desktop-wide binding main could not claim, with a platform reason when the path is unavailable. */
+  onDesktopShortcutRefused(listener: (refusal: DesktopShortcutRefusal) => void): () => void;
   /** How a grab announces itself. Main owns both, so it is told rather than asked. */
   setCaptureOptions(options: CaptureOptions): void;
   /** The theme's ground and canvas, which the platform's own window frame is drawn from. */
@@ -350,6 +360,10 @@ export type ShortcutInvocation = { action: string; surface: ShortcutSurface };
 
 /** A window the desktop hotkey grabbed, already written to the attachments directory. */
 export type WindowScreenshot = { app: string; title: string; path: string };
+
+export type DesktopShortcutRefusal =
+  | { binding: string; reason: "taken" }
+  | { binding: string; reason: "unsupported"; message: string };
 
 /** What a thread wants in front of the user: the thread a click lands on, the name it is shown under, and the line itself. */
 export type ThreadNotice = { taskId: string; title: string; headline: string };

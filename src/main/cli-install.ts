@@ -1,55 +1,81 @@
 import { execFile } from "node:child_process";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
+import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { CLI_INSTALL_PATH, CLI_SCRIPT, isCliScript, type CliStatus } from "../domain/cli.js";
+import { CLI_INSTALL_PATH, cliConfiguration, isCliScript, type CliConfiguration, type CliStatus } from "../domain/cli.js";
 
 const run = promisify(execFile);
 const STAGING_PATH = path.join(tmpdir(), "aic-cli-install");
 
-export async function cliStatus(): Promise<CliStatus> {
-  if (process.platform !== "darwin") return { state: "unsupported", path: CLI_INSTALL_PATH };
-  try {
-    const contents = await readFile(CLI_INSTALL_PATH, "utf8");
-    return { state: isCliScript(contents) ? "installed" : "conflict", path: CLI_INSTALL_PATH };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { state: "missing", path: CLI_INSTALL_PATH };
-    throw error;
+export function createCliInstaller(configuration: CliConfiguration | null, platform: string, searchPath: () => string = () => process.env.PATH ?? "") {
+  function result(state: CliStatus["state"], target = configuration?.installPath ?? CLI_INSTALL_PATH): CliStatus {
+    const onPath = platform === "linux"
+      ? searchPath().split(path.delimiter).some((entry) => path.resolve(entry) === path.dirname(target))
+      : undefined;
+    return { state, path: target, ...(onPath === undefined ? {} : { onPath }) };
   }
-}
 
-export async function installCli(): Promise<CliStatus> {
-  requireDarwin();
-  try {
-    await mkdir(path.dirname(CLI_INSTALL_PATH), { recursive: true });
-    await writeFile(CLI_INSTALL_PATH, CLI_SCRIPT, "utf8");
-    await chmod(CLI_INSTALL_PATH, 0o755);
-  } catch (error) {
-    if (!isPermissionError(error)) throw error;
-    await writeFile(STAGING_PATH, CLI_SCRIPT, "utf8");
+  async function status(): Promise<CliStatus> {
+    if (!configuration) return result("unsupported");
     try {
-      await elevate(`mkdir -p '${path.dirname(CLI_INSTALL_PATH)}' && cp '${STAGING_PATH}' '${CLI_INSTALL_PATH}' && chmod 755 '${CLI_INSTALL_PATH}'`);
-    } finally {
-      await rm(STAGING_PATH, { force: true });
+      if (platform === "linux" && !(await lstat(configuration.installPath)).isFile()) return result("conflict");
+      const contents = await readFile(configuration.installPath, "utf8");
+      return result(isCliScript(contents) ? "installed" : "conflict");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return result("missing");
+      throw error;
     }
   }
-  return cliStatus();
-}
 
-export async function uninstallCli(): Promise<CliStatus> {
-  requireDarwin();
-  try {
-    await rm(CLI_INSTALL_PATH, { force: true });
-  } catch (error) {
-    if (!isPermissionError(error)) throw error;
-    await elevate(`rm -f '${CLI_INSTALL_PATH}'`);
+  async function install(): Promise<CliStatus> {
+    const target = requireSupported(configuration);
+    if (platform === "linux") {
+      await mkdir(path.dirname(target.installPath), { recursive: true });
+      const staged = `${target.installPath}.${process.pid}.${randomUUID()}.tmp`;
+      try {
+        await writeFile(staged, target.script, { encoding: "utf8", mode: 0o755, flag: "wx" });
+        await chmod(staged, 0o755);
+        await rename(staged, target.installPath);
+      } finally {
+        await rm(staged, { force: true }).catch(() => undefined);
+      }
+      return status();
+    }
+    try {
+      await mkdir(path.dirname(target.installPath), { recursive: true });
+      await writeFile(target.installPath, target.script, "utf8");
+      await chmod(target.installPath, 0o755);
+    } catch (error) {
+      if (!isPermissionError(error) || platform !== "darwin") throw error;
+      await writeFile(STAGING_PATH, target.script, "utf8");
+      try {
+        await elevate(`mkdir -p '${path.dirname(target.installPath)}' && cp '${STAGING_PATH}' '${target.installPath}' && chmod 755 '${target.installPath}'`);
+      } finally {
+        await rm(STAGING_PATH, { force: true });
+      }
+    }
+    return status();
   }
-  return cliStatus();
+
+  async function uninstall(): Promise<CliStatus> {
+    const target = requireSupported(configuration);
+    try {
+      await rm(target.installPath, { force: true });
+    } catch (error) {
+      if (!isPermissionError(error) || platform !== "darwin") throw error;
+      await elevate(`rm -f '${target.installPath}'`);
+    }
+    return status();
+  }
+
+  return { status, install, uninstall };
 }
 
-function requireDarwin() {
-  if (process.platform !== "darwin") throw new Error("The aic command can only be installed on macOS.");
+function requireSupported(configuration: CliConfiguration | null): CliConfiguration {
+  if (!configuration) throw new Error("The aic command can only be installed on macOS or Linux.");
+  return configuration;
 }
 
 function isPermissionError(error: unknown) {
@@ -67,3 +93,8 @@ async function elevate(command: string) {
     throw new Error(message.trim() || "The command could not be installed.");
   }
 }
+
+const runtimeInstaller = createCliInstaller(cliConfiguration(process.platform, homedir()), process.platform);
+export const cliStatus = runtimeInstaller.status;
+export const installCli = runtimeInstaller.install;
+export const uninstallCli = runtimeInstaller.uninstall;

@@ -33,7 +33,7 @@ export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn }: 
     <main className="settings-main">
       <div className="settings-page-heading">
         <h2>Engines</h2>
-        <p>AI Coding Tool runs the Claude Code and Codex commands installed on this Mac.</p>
+        <p>AI Coding Tool runs the Claude Code and Codex commands installed on this computer.</p>
       </div>
 
       <section className="settings-group" aria-labelledby="engines-heading" aria-live="polite">

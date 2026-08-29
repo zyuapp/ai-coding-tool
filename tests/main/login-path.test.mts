@@ -69,7 +69,8 @@ test("a folder tools are installed in is added when it is really there, and neve
   try {
     process.env.HOME = home;
     process.env.PATH = "/usr/bin";
-    process.env.SHELL = "/bin/sh";
+    /** This case isolates standard-folder discovery from whatever a Linux login profile adds. */
+    process.env.SHELL = path.join(home, "no-such-shell");
     await adoptLoginShellPath();
     const folders = (process.env.PATH ?? "").split(path.delimiter);
 

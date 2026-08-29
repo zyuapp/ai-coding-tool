@@ -22,8 +22,18 @@ test("the committed protocol bindings come from the pinned Codex, which the app 
 
   assert.equal(app.devDependencies["@openai/codex"], pinned, "the dependency is pinned to the exact generated version, and is needed only to generate them");
   assert.equal(CODEX_PROTOCOL_VERSION, pinned, "run npm run generate:codex-protocol after bumping @openai/codex");
-  const packageRoot = path.dirname(createRequire(import.meta.url).resolve("@openai/codex-darwin-arm64/package.json"));
-  const { stdout } = await promisify(execFile)(path.join(packageRoot, "vendor", "aarch64-apple-darwin", "bin", "codex"), ["--version"]);
+  const platform = process.platform === "darwin" ? "darwin-arm64" : `${process.platform}-${process.arch}`;
+  const platformPackage = `@openai/codex-${platform}`;
+  const triples: Record<string, string> = {
+    "darwin-arm64": "aarch64-apple-darwin",
+    "darwin-x64": "x86_64-apple-darwin",
+    "linux-arm64": "aarch64-unknown-linux-musl",
+    "linux-x64": "x86_64-unknown-linux-musl",
+  };
+  const triple = triples[platform];
+  assert.ok(triple, `the pinned Codex is not available for ${process.platform}-${process.arch}`);
+  const packageRoot = path.dirname(createRequire(import.meta.url).resolve(`${platformPackage}/package.json`));
+  const { stdout } = await promisify(execFile)(path.join(packageRoot, "vendor", triple, "bin", "codex"), ["--version"]);
   assert.equal(stdout.trim(), `codex-cli ${pinned}`);
 });
 
@@ -45,7 +55,6 @@ test("the app runs the Codex the user installed, and refuses rather than guessin
 
 test("neither engine's executable is packaged, since the app runs the one on the machine", async () => {
   const files = (await json("package.json")).build.files as string[];
-  for (const platformPackage of ["@openai/codex-darwin-arm64", "@anthropic-ai/claude-agent-sdk-darwin-arm64"]) {
-    assert.ok(files.includes(`!**/node_modules/${platformPackage}/**/*`), `${platformPackage} is excluded from the package`);
-  }
+  assert.ok(files.includes("!**/node_modules/@openai/codex-*/**/*"), "native Codex packages are excluded from every platform package");
+  assert.ok(files.includes("!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*"), "native Claude packages are excluded from every platform package");
 });

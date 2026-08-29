@@ -87,7 +87,7 @@ export function Conversation({ thread }: { thread: MobileThreadView }) {
 
   return (
     <div className="transcript" ref={scroller} onScroll={onScroll}>
-      {thread.omitted > 0 && <p className="omitted">{thread.omitted} earlier {thread.omitted === 1 ? "message" : "messages"} are only on the Mac.</p>}
+      {thread.omitted > 0 && <p className="omitted">{thread.omitted} earlier {thread.omitted === 1 ? "message" : "messages"} are only on the computer.</p>}
       {blocks.map((block) => (block.kind === "tools"
         ? <ToolRun key={block.key} engine={thread.settings.engine} calls={block.calls} />
         : <Message key={block.key} message={block.message} answer={block.answer} />))}

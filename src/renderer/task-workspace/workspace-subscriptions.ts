@@ -178,9 +178,11 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
     window.desktop.setCaptureOptions({ sound: host.state().captureSound, focus: host.state().captureFocus });
     const stopListening = window.desktop.onShortcut(({ action, surface }) => void host.dispatch({ type: "view.shortcut", action, surface }));
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void host.dispatch({ type: "shortcut.captured", binding }));
-    const stopRefusals = window.desktop.onDesktopShortcutRefused((binding) => void host.dispatch({
+    const stopRefusals = window.desktop.onDesktopShortcutRefused((refusal) => void host.dispatch({
       type: "action.failed",
-      message: `${displayShortcut(binding, MAC)} belongs to another app, so grabbing a window has no shortcut.`,
+      message: refusal.reason === "unsupported"
+        ? refusal.message
+        : `${displayShortcut(refusal.binding, MAC)} belongs to another app, so grabbing a window has no shortcut.`,
     }));
     return () => {
       stopListening();

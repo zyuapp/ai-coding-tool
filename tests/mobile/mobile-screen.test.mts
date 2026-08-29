@@ -138,7 +138,7 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.equal(document.querySelector(".bar-title p")?.textContent, "App", "the bar names the project; the status lives in the row, the dots and the approval card");
 
   const text = document.body.textContent ?? "";
-  assert.match(text, /3 earlier messages are only on the Mac/);
+  assert.match(text, /3 earlier messages are only on the computer/);
   /** Two calls of the same tool are one row with a count, not two rows saying "Bash". */
   assert.match(text, /Bash ×2/);
   assert.equal(document.querySelector(".queued .queued-text")?.textContent, "then deploy");

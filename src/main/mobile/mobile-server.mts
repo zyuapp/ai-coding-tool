@@ -381,7 +381,7 @@ export class MobileServer {
     }
     const inFlight = [...handled.values()].filter((outcome) => outcome === null).length;
     if (inFlight >= MAX_COMMANDS_IN_FLIGHT) {
-      return this.ack(session, requestId, { ok: false, message: "This phone has too many commands still waiting on the Mac." });
+      return this.ack(session, requestId, { ok: false, message: "This phone has too many commands still waiting on the computer." });
     }
     handled.set(requestId, null);
     this.trim(handled);
@@ -411,7 +411,7 @@ export class MobileServer {
 
   private onPair(socket: WebSocket, request: MobilePairRequest, source: string): Session | null {
     if (request.version !== MOBILE_PROTOCOL_VERSION) {
-      refuse(socket, "version", "This phone page is a different version from the Mac. Reload it.");
+      refuse(socket, "version", "This phone page is a different version from the computer. Reload it.");
       return null;
     }
     /** A code buys a device, so it is not spent on a socket that has already gone. */
@@ -441,13 +441,13 @@ export class MobileServer {
    */
   private onResume(socket: WebSocket, request: MobileResumeRequest): Session | null {
     if (request.version !== MOBILE_PROTOCOL_VERSION) {
-      refuse(socket, "version", "This phone page is a different version from the Mac. Reload it.");
+      refuse(socket, "version", "This phone page is a different version from the computer. Reload it.");
       return null;
     }
     const now = Date.now();
     const device = this.options.devices.authenticate(request.token);
     if (!device) {
-      refuse(socket, "unauthorized", "This phone is not paired with this Mac.");
+      refuse(socket, "unauthorized", "This phone is not paired with this computer.");
       return null;
     }
     this.options.devices.markSeen(device.id, now);
