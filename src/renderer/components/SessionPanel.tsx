@@ -100,8 +100,9 @@ function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onNewThread
         popoverClassName="session-menu-popover"
         anchored
         items={[
-          { label: "New thread here", disabled: working, onSelect: onNewThread },
-          "separator",
+          ...(inWorktree
+            ? [{ label: "New thread here", onSelect: onNewThread } as const, "separator" as const]
+            : []),
           {
             label: location.kind === "worktree" ? leaveLabel(location.threads) : "Hand off to worktree",
             disabled: runActive || working,
