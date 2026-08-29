@@ -777,11 +777,11 @@ button, select { color: inherit; }
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
 .topbar:has(.open-in.open) { z-index: 40; }
 .open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; outline: none; }
-.open-in-popover button { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; gap: 7px; height: 22px; }
+.open-in-popover button { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 9px; height: 28px; }
 .open-in-popover button > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-in-icon { display: grid; place-items: center; color: var(--muted); }
 .open-in-popover button:hover .open-in-icon, .open-in-popover button:focus .open-in-icon { color: var(--accent-ink); }
-.open-in-icon img { width: 16px; height: 16px; object-fit: contain; }
+.open-in-icon img { width: 20px; height: 20px; object-fit: contain; }
 /** Headings carry their own gap above and none below, so each one sits with the rows it names. */
 .open-in-group { margin: 7px 0 0; padding: 0 12px 3px; color: var(--quiet-soft); font-size: var(--text-badge); letter-spacing: 0.06em; text-transform: uppercase; }
 .open-in-group:first-child { margin-top: 1px; }

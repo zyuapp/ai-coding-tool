@@ -7,8 +7,8 @@ const ICNS_HEADER = 8;
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-/** The smallest icon worth taking for a 16 point row, which a Retina screen draws at 32 pixels. */
-const WANTED_WIDTH = 32;
+/** The smallest icon worth taking for a 20 point row, which a Retina screen draws at 40 pixels. */
+const WANTED_WIDTH = 40;
 
 function isPng(record: Buffer) {
   return record.length > 24 && PNG_MAGIC.every((byte, index) => record[index] === byte);

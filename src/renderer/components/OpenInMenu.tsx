@@ -95,7 +95,7 @@ export function OpenInMenu({ openMenu, onSetOpenMenu, enabled, onOpenInApp }: Op
                     }}
                   >
                     <span className="open-in-icon">
-                      {app.icon ? <img src={app.icon} alt="" width={16} height={16} /> : <Icon size={16} />}
+                      {app.icon ? <img src={app.icon} alt="" width={20} height={20} /> : <Icon size={20} />}
                     </span>
                     <span>{app.label}</span>
                   </button>
