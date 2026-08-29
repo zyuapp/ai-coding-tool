@@ -36,11 +36,37 @@ import { DEFAULT_ENGINE, DEFAULT_MODEL, byEngine, capabilitiesFor, defaultEffort
 import { engineReadinessOf } from "./engine-access.js";
 import { DEFAULT_EFFORT, OPEN_SUBAGENT_GROUPS, type AgentEffort, type ExecutionPolicy, type Subagent, type SubagentGroups } from "../domain/run.js";
 import { annotationsFor, filesFor, imagesFor, pastesFor } from "./composer-drafts.js";
-import { legacyProjectId, projectName, retainedTasks, threadActivityAt, type Annotation, type AttachedFile, type PastedText, type Project, type StagedImage, type Task, type TaskStoreData } from "../domain/task.js";
+import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domain/conversation.js";
+import { legacyProjectId, projectName, type Project } from "../domain/project.js";
+import { retainedThreads } from "../domain/thread-retention.js";
+import type { ThreadStoreData } from "../domain/thread-storage.js";
+import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
+import {
+  leavingThreadIds,
+  locationOf,
+  projectFor,
+  threadWorkspaceId,
+  threadWorkspaceRoot,
+  worktreeById,
+  worktreeClaimants,
+  worktreeFor,
+} from "./thread-location.js";
 import { worktreeSettingsViews } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
+export {
+  locationOf,
+  projectFor,
+  threadFileRoots as taskFileRoots,
+  threadWorkspaceId as taskWorkspaceId,
+  threadWorkspaceRoot as taskWorkspaceRoot,
+  worktreeById,
+  worktreeClaimants,
+  worktreeFor,
+  leavingThreadIds as leavingTaskIds,
+} from "./thread-location.js";
+export type { ThreadLocation } from "./thread-location.js";
 
 /**
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
@@ -80,21 +106,13 @@ export type PendingRun = {
   creatingWorktree?: boolean;
 };
 
-/** Where a thread's runs happen, with the moment between asking for a checkout and having one. */
-export type ThreadLocation =
-  | { kind: "local" }
-  | { kind: "creating" }
-  | { kind: "releasing" }
-  /** `threads` counts everyone in the checkout, which says whether leaving it takes it away. */
-  | { kind: "worktree"; worktree: Worktree; threads: number };
-
 /** What a thread is waiting on before it can work: a checkout being made or removed, or a run finding one. */
 export type ThreadWait = "worktree" | "worktree-release" | "run";
 
 /** A checkout with the threads working in it, which is how a project offers starting one more there. */
 export type WorktreeGroup = {
   worktree: Worktree;
-  tasks: Task[];
+  tasks: Thread[];
 };
 
 /**
@@ -126,7 +144,7 @@ export type SideChat = {
 
 export type SideChatView = SideChat & {
   title: string;
-  task: Task;
+  task: Thread;
   prompt: string;
   annotations: Annotation[];
   pastes: PastedText[];
@@ -193,7 +211,7 @@ export type ReviewPicker = {
 };
 
 export type WorkspaceState = {
-  tasks: Task[];
+  tasks: Thread[];
   /** Native goals live only as long as this app session. */
   goals: Record<string, ActiveGoal>;
   projects: Project[];
@@ -357,7 +375,7 @@ function worktreeMoveView(state: WorkspaceState): WorktreeMoveView | null {
   const move = state.worktreeMove;
   const task = move && state.tasks.find((item) => item.id === move.taskId);
   if (!move || !task) return null;
-  const workspaceId = taskWorkspaceId(state, task);
+  const workspaceId = threadWorkspaceId(state, task);
   const environment = workspaceId ? state.environments[workspaceId] : undefined;
   const worktree = worktreeFor(state, task);
   return {
@@ -465,11 +483,11 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
   };
 }
 
-export function stateFromData(data: TaskStoreData, storageError: string | null = null): WorkspaceState {
+export function stateFromData(data: ThreadStoreData, storageError: string | null = null): WorkspaceState {
   const projects = data.lastFolder && !data.projects.some((project) => project.root === data.lastFolder)
     ? [...data.projects, { id: legacyProjectId(data.lastFolder), root: data.lastFolder }]
     : data.projects;
-  const stored = retainedTasks(data.tasks, Date.now());
+  const stored = retainedThreads(data.tasks, Date.now());
   const subagents: Record<string, Subagent[]> = {};
   const tasks = stored.map(({ subagents: delegated, ...task }) => {
     if (delegated?.length) subagents[task.id] = delegated;
@@ -502,7 +520,7 @@ export function stateFromData(data: TaskStoreData, storageError: string | null =
  * store is read, so threads and projects arrive into the session rather than replacing it: a draft,
  * an annotation, a run on its way out and a run already going all outlive the arrival.
  */
-export function withStoreData(state: WorkspaceState, data: TaskStoreData): WorkspaceState {
+export function withStoreData(state: WorkspaceState, data: ThreadStoreData): WorkspaceState {
   const landing = stateFromData(data);
   /** Threads the answer cannot know about: a fork, which is never stored, and one just started here. */
   const held = sideChatIds(state);
@@ -572,50 +590,7 @@ export function workflowById(state: Pick<WorkspaceState, "workflows">, id: strin
 export function currentFolder(state: WorkspaceState): string | null {
   const task = state.tasks.find((item) => item.id === state.currentId);
   const draft = state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.root : undefined;
-  return taskWorkspaceRoot(state, task) ?? draft ?? state.lastFolder;
-}
-
-export function projectFor(state: WorkspaceState, task: Task | undefined) {
-  return task?.projectId ? state.projects.find((project) => project.id === task.projectId) : undefined;
-}
-
-export function worktreeById(state: Pick<WorkspaceState, "worktrees">, worktreeId: string | undefined) {
-  return worktreeId ? state.worktrees.find((worktree) => worktree.id === worktreeId) : undefined;
-}
-
-/** The checkout a thread works in, when it works in one rather than in its project. */
-export function worktreeFor(state: Pick<WorkspaceState, "worktrees">, task: Task | undefined) {
-  return worktreeById(state, task?.worktreeId);
-}
-
-/** Every thread still linked to a checkout, including archived threads. */
-export function worktreeClaimants(state: Pick<WorkspaceState, "tasks">, worktreeId: string) {
-  return state.tasks.filter((task) => task.worktreeId === worktreeId);
-}
-
-/** The folder a thread works in: the checkout it shares once it has one, otherwise its project's. */
-export function taskWorkspaceRoot(state: WorkspaceState, task: Task | undefined) {
-  return worktreeFor(state, task)?.root ?? projectFor(state, task)?.root;
-}
-
-/**
- * Where a file a message named is looked for, nearest the thread first: the checkout it works in,
- * its project's own checkout, then the project's other checkouts, most recently used first.
- */
-export function taskFileRoots(state: WorkspaceState, task: Task | undefined): string[] {
-  const project = projectFor(state, task);
-  const siblings = project
-    ? [...state.worktrees.filter((worktree) => worktree.projectId === project.id)]
-        .sort((left, right) => right.lastUsedAt - left.lastUsedAt)
-        .map((worktree) => worktree.root)
-    : [];
-  const roots = [worktreeFor(state, task)?.root, project?.root, ...siblings];
-  return [...new Set(roots.filter((root): root is string => !!root))];
-}
-
-/** Where a thread's runs happen: the checkout it shares once it has one, otherwise its project's. */
-export function taskWorkspaceId(state: WorkspaceState, task: Task | undefined) {
-  return worktreeFor(state, task)?.workspaceId ?? projectFor(state, task)?.workspaceId;
+  return threadWorkspaceRoot(state, task) ?? draft ?? state.lastFolder;
 }
 
 /**
@@ -627,20 +602,8 @@ export function busyTaskIds(state: WorkspaceState): Set<string> {
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const taskId of state.creatingWorktrees) busy.add(taskId);
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
-  for (const taskId of leavingTaskIds(state)) busy.add(taskId);
+  for (const taskId of leavingThreadIds(state)) busy.add(taskId);
   return busy;
-}
-
-/**
- * Threads whose checkout is going: the ones that asked to leave, and every thread in a checkout the
- * user is deleting, whichever thread or Settings asked for it.
- */
-export function leavingTaskIds(state: Pick<WorkspaceState, "tasks" | "worktrees" | "releasingWorktrees" | "deletingWorktrees">): Set<string> {
-  const leaving = new Set(state.releasingWorktrees);
-  if (state.deletingWorktrees.length === 0) return leaving;
-  const going = new Set(state.worktrees.filter((worktree) => state.deletingWorktrees.includes(worktree.root)).map((worktree) => worktree.id));
-  for (const task of state.tasks) if (task.worktreeId && going.has(task.worktreeId)) leaving.add(task.id);
-  return leaving;
 }
 
 /** Threads stopped on a question only the user can answer, which outranks any work they were doing. */
@@ -649,23 +612,14 @@ export function blockedTaskIds(state: WorkspaceState): Set<string> {
 }
 
 /** What the current thread is waiting on, if anything: its own checkout, or where a send will run. */
-export function waitFor(state: WorkspaceState, currentTask: Task | undefined): ThreadWait | null {
+export function waitFor(state: WorkspaceState, currentTask: Thread | undefined): ThreadWait | null {
   if (currentTask && state.creatingWorktrees.includes(currentTask.id)) return "worktree";
-  if (currentTask && leavingTaskIds(state).has(currentTask.id)) return "worktree-release";
+  if (currentTask && leavingThreadIds(state).has(currentTask.id)) return "worktree-release";
   const key = promptKey(state);
   const resolving = Object.values(state.pendingRuns).find((pending) =>
     (currentTask !== undefined && pending.taskId === currentTask.id) || pending.draftKey === key);
   if (!resolving) return null;
   return resolving.creatingWorktree ? "worktree" : "run";
-}
-
-type LocationState = Pick<WorkspaceState, "tasks" | "worktrees" | "creatingWorktrees" | "releasingWorktrees" | "deletingWorktrees">;
-
-export function locationOf(state: LocationState, task: Task | undefined): ThreadLocation {
-  if (task && leavingTaskIds(state).has(task.id)) return { kind: "releasing" };
-  const worktree = worktreeFor(state, task);
-  if (worktree) return { kind: "worktree", worktree, threads: worktreeClaimants(state, worktree.id).length };
-  return task && state.creatingWorktrees.includes(task.id) ? { kind: "creating" } : { kind: "local" };
 }
 
 /** Composer drafts live per task, with one draft per project for the not-yet-created task. */
@@ -728,7 +682,7 @@ const NO_QUEUED: QueuedMessage[] = [];
 const NO_WORKFLOWS: Workflow[] = [];
 
 /** What the thread's engine reports about its run; a feed the engine cannot fill stays empty. */
-export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceState, currentTask: Task | undefined) {
+export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceState, currentTask: Thread | undefined) {
   return {
     subagents: capabilities.subagents && currentTask ? state.subagents[currentTask.id] ?? NO_SUBAGENTS : NO_SUBAGENTS,
     workflows: capabilities.workflows ? (state.currentId ? state.workflows[state.currentId] : undefined) ?? NO_WORKFLOWS : NO_WORKFLOWS,
@@ -736,7 +690,7 @@ export function engineFeeds(capabilities: EngineCapabilities, state: WorkspaceSt
 }
 
 /** The engine in front: what it is called, what it can feed, and whether a picker may still move off it. */
-function engineView(state: WorkspaceState, currentTask: Task | undefined) {
+function engineView(state: WorkspaceState, currentTask: Thread | undefined) {
   const engine = currentTask?.engine ?? state.draftEngine;
   const capabilities = capabilitiesFor(engine);
   return {
@@ -765,12 +719,12 @@ export function deriveView(state: WorkspaceState) {
   const forked = sideChatIds(state);
   const listedTasks = state.tasks.filter((task) => !forked.has(task.id));
   const visibleTasks = listedTasks.filter((task) => task.archivedAt === undefined);
-  const orderedTasks = orderTasks(visibleTasks), tasksByWorktree = new Map<string, Task[]>();
+  const orderedTasks = orderTasks(visibleTasks), tasksByWorktree = new Map<string, Thread[]>();
   for (const task of orderedTasks) if (task.worktreeId)
     tasksByWorktree.get(task.worktreeId)?.push(task) ?? tasksByWorktree.set(task.worktreeId, [task]);
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const workspaceId = currentTask
-    ? taskWorkspaceId(state, currentTask)
+    ? threadWorkspaceId(state, currentTask)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
   const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
   const owner = dockOwner(state), dock = dockFor(state, owner);

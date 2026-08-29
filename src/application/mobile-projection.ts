@@ -1,6 +1,7 @@
 import { deriveView, type WorkspaceState } from "./workspace-state.js";
 import { threadSummaries, threadTranscript } from "./thread-projection.js";
-import { projectName, type Task } from "../domain/task.js";
+import { projectName } from "../domain/project.js";
+import type { Thread } from "../domain/thread.js";
 import { orderTasks } from "./task-order.js";
 import type { MobileDraftView, MobileMessage, MobilePatch, MobileProjectGroup, MobileThreadDelta, MobileThreadEntry, MobileThreadView, MobileView } from "../contracts/mobile.js";
 
@@ -55,7 +56,7 @@ export function projectMobileView(state: WorkspaceState, at: number): MobileView
  * A thread holds its slot when it starts, speaks or finishes, so the list never reshuffles under
  * a thumb; only waiting on the user lifts a row. `entries` arrive newest first already.
  */
-export function rankGroup(entries: MobileThreadEntry[], tasksById: Map<string, Task>): MobileThreadEntry[] {
+export function rankGroup(entries: MobileThreadEntry[], tasksById: Map<string, Thread>): MobileThreadEntry[] {
   const blocked: MobileThreadEntry[] = [];
   const rest: MobileThreadEntry[] = [];
   for (const entry of entries) (entry.status === "awaiting-approval" ? blocked : rest).push(entry);

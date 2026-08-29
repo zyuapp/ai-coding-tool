@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Draggable, Droppable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuSquarePen as SquarePen } from "react-icons/lu";
-import { folderName, projectName, threadActivityAt } from "../../domain/task";
-import type { Project, Task } from "../../domain/task";
+import { folderName, projectName, type Project } from "../../domain/project";
+import { threadActivityAt, type Thread } from "../../domain/thread";
 import type { SidebarSection, SidebarSections } from "../../domain/sidebar";
 import { worktreeName } from "../../domain/worktree";
 import type { WorktreeGroup } from "../../application/workspace-state";
@@ -43,7 +43,7 @@ export function useShownTasks() {
 export type ShownTasks = ReturnType<typeof useShownTasks>;
 
 /** A folder shows its first ten tasks, and enough more to keep the open one in view. */
-function visibleCount(projectTasks: Task[], currentId: string | null, showAll: boolean) {
+function visibleCount(projectTasks: Thread[], currentId: string | null, showAll: boolean) {
   if (showAll) return projectTasks.length;
   const current = projectTasks.findIndex((task) => task.id === currentId);
   return Math.max(PROJECT_TASK_LIMIT, current + 1);
@@ -52,7 +52,7 @@ function visibleCount(projectTasks: Task[], currentId: string | null, showAll: b
 type ProjectRowProps = {
   project: Project;
   index: number;
-  tasks: Task[];
+  tasks: Thread[];
   /** A checkout is somewhere a thread can be started, not a list the sidebar draws. */
   checkouts: WorktreeGroup[];
   expanded: boolean;
@@ -167,9 +167,9 @@ function ProjectRow({
 export type SidebarProjectsProps = {
   projects: Project[];
   /** The threads each project holds, in the order the folder lists them. */
-  tasksByProject: Map<string, Task[]>;
+  tasksByProject: Map<string, Thread[]>;
   checkoutsByProject: Map<string, WorktreeGroup[]>;
-  recentTasks: Task[];
+  recentTasks: Thread[];
   currentId: string | null;
   draftProjectId: string | null;
   expandedProjects: Set<string>;

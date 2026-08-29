@@ -1,6 +1,6 @@
 import { LuPencil as Pencil, LuX as X } from "react-icons/lu";
 import { useEffect, useId, useRef, useState } from "react";
-import type { Annotation } from "../../domain/task";
+import type { Annotation } from "../../domain/conversation";
 
 /** Whether a line-clamped element cuts its text, so the fade only covers text that is really there. */
 function useClamped(text: string) {

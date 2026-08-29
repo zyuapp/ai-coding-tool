@@ -1,7 +1,7 @@
-import type { TaskMessage } from "../../domain/task";
+import type { ConversationMessage } from "../../domain/conversation";
 
 /** A state change the workspace made on its own: a worktree move, a compaction, or a run that failed. */
-export function SystemNotice({ message }: { message: TaskMessage }) {
+export function SystemNotice({ message }: { message: ConversationMessage }) {
   return (
     <article className={`message system${message.tone === "error" ? " error" : ""}`}>
       <div className="message-text">{message.text}</div>

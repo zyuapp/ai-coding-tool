@@ -1,7 +1,7 @@
 import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft, LuHouse as House } from "react-icons/lu";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
-import type { ThreadLocation } from "../../application/workspace-state";
+import type { ThreadLocation } from "../../application/thread-location";
 import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";

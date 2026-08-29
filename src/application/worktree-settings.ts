@@ -1,5 +1,5 @@
 import type { ManagedWorktree } from "../domain/worktree.js";
-import { projectName } from "../domain/task.js";
+import { projectName } from "../domain/project.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 export type WorktreeSettingsView = ManagedWorktree & {

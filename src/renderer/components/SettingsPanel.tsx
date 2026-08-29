@@ -1,7 +1,7 @@
 import { LuArchive as Archive, LuArrowLeft as ArrowLeft, LuBot as Bot, LuFolderGit2 as FolderGit2, LuGauge as Gauge, LuGlobe as Globe, LuKeyboard as Keyboard, LuMonitorCog as MonitorCog, LuPalette as Palette, LuSlidersHorizontal as SlidersHorizontal, LuSmartphone as Smartphone } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { ShortcutSetting } from "../../domain/shortcuts";
-import type { Task } from "../../domain/task";
+import type { Thread } from "../../domain/thread";
 import type { ThemeMode } from "../../domain/theme";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
@@ -116,7 +116,7 @@ export type SettingsPanelProps = {
   initialSection?: SettingsSection;
   /** The control on that page to scroll to and mark, when something named one. */
   initialSetting?: string | null;
-  archivedTasks: Task[];
+  archivedTasks: Thread[];
   managedWorktrees: WorktreeSettingsView[] | null;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;

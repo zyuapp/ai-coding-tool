@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { DiffSummaryResult } from "../../contracts/ipc";
 import type { DiffState, FindView } from "../../application/workspace-state";
 import type { FindResults } from "../../domain/find";
-import type { Annotation, AnnotationAnchor } from "../../domain/task";
+import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import { commentQuote, foldedForSize, rangeKey, type DiffFileSummary, type DiffRange } from "../../domain/diff";
 import {
   anchoredDiffComments,

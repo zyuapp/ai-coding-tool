@@ -1,12 +1,13 @@
-import { threadActivityAt, type Task, type TaskDropTarget } from "../domain/task.js";
+import type { ThreadDropTarget } from "../domain/project.js";
+import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
 
 /** The activity sidebar's three lists, in the order they are drawn. */
-export type ActivitySections = Record<"priority" | "running" | "threads", Task[]>;
+export type ActivitySections = Record<"priority" | "running" | "threads", Thread[]>;
 
-type RankedTask = { task: Task; activity: number };
+type RankedThread = { task: Thread; activity: number };
 
-function newestFirst(tasks: RankedTask[]): Task[] {
+function newestFirst(tasks: RankedThread[]): Thread[] {
   return tasks.sort((left, right) => right.activity - left.activity).map(({ task }) => task);
 }
 
@@ -18,10 +19,10 @@ function newestFirst(tasks: RankedTask[]): Task[] {
  * Running holds its rows in the sidebar's own order instead, because ranking live threads by their
  * newest activity reshuffles the list under the user every time one of them speaks.
  */
-export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<string>): ActivitySections {
-  const priority: RankedTask[] = [];
-  const running: Task[] = [];
-  const threads: RankedTask[] = [];
+export function activitySections(tasks: Thread[], busy: Set<string>, blocked: Set<string>): ActivitySections {
+  const priority: RankedThread[] = [];
+  const running: Thread[] = [];
+  const threads: RankedThread[] = [];
   for (const task of tasks) {
     if (blocked.has(task.id)) {
       priority.push({ task, activity: threadActivityAt(task) });
@@ -42,14 +43,14 @@ export function activitySections(tasks: Task[], busy: Set<string>, blocked: Set<
  * Sidebar order. `sortIndex` wins so rows never move on their own; tasks stored before
  * sortIndex existed fall back to recency until {@link backfillSortIndex} pins them down.
  */
-function compareTasks(left: Task, right: Task) {
+function compareTasks(left: Thread, right: Thread) {
   if (left.sortIndex !== undefined && right.sortIndex !== undefined) return left.sortIndex - right.sortIndex;
   if (left.sortIndex !== undefined) return -1;
   if (right.sortIndex !== undefined) return 1;
   return right.updatedAt - left.updatedAt;
 }
 
-export function orderTasks(tasks: Task[]): Task[] {
+export function orderTasks(tasks: Thread[]): Thread[] {
   for (let index = 1; index < tasks.length; index += 1) {
     if (compareTasks(tasks[index - 1]!, tasks[index]!) > 0) return [...tasks].sort(compareTasks);
   }
@@ -57,13 +58,13 @@ export function orderTasks(tasks: Task[]): Task[] {
 }
 
 /** Freezes the order tasks loaded in, so a first launch after upgrading keeps the list the user last saw. */
-export function backfillSortIndex(tasks: Task[]): Task[] {
+export function backfillSortIndex(tasks: Thread[]): Thread[] {
   if (tasks.every((task) => task.sortIndex !== undefined)) return tasks;
   const positions = new Map(orderTasks(tasks).map((task, index) => [task.id, index]));
   return tasks.map((task) => task.sortIndex === undefined ? { ...task, sortIndex: positions.get(task.id)! } : task);
 }
 
-export function nextSortIndex(tasks: Task[]): number {
+export function nextSortIndex(tasks: Thread[]): number {
   let lowest = 0;
   for (const task of tasks) lowest = Math.min(lowest, task.sortIndex ?? 0);
   return lowest - 1;
@@ -77,7 +78,7 @@ export function nextSortIndex(tasks: Task[]): number {
  * A checkout is cut from one project, so a thread working in one reorders freely inside that
  * project's list but is never carried to another project.
  */
-export function moveTask(tasks: Task[], taskId: string, target: TaskDropTarget): Task[] {
+export function moveTask(tasks: Thread[], taskId: string, target: ThreadDropTarget): Thread[] {
   const visible = orderTasks(tasks.filter((task) => task.archivedAt === undefined));
   const moving = visible.find((task) => task.id === taskId);
   if (!moving) return tasks;

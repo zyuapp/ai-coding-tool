@@ -1,12 +1,12 @@
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
-import type { Annotation as TaskAnnotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/task";
+import type { Annotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
 import { FileRow } from "./FileRow";
 import { PasteRow } from "./PasteRow";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
 import type { AgentEngine, AgentModel, EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
-import type { ContextUsage } from "../../domain/task";
+import type { ContextUsage } from "../../domain/thread-run";
 import { AttachmentAnnotator, AttachmentStrip, useComposerAttachments } from "./ComposerAttachments";
 import { ComposerSettings, EVERY_ENGINE_READY } from "./ComposerSettings";
 import { CommandMenu, ThreadMenu, menuActiveDescendant, menuControls, useComposerMenus, type ComposerAction } from "./ComposerMenus";
@@ -65,7 +65,7 @@ export type TaskComposerProps = {
   goal?: ActiveGoal | null;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
-  annotations?: TaskAnnotation[];
+  annotations?: Annotation[];
   /** Text pasted in that was too long to sit in the prompt, waiting to ride the next send. */
   pastes?: PastedText[];
   /** Files and folders dropped or pasted in, waiting to ride the next send. */
@@ -81,7 +81,7 @@ export type TaskComposerProps = {
   onReviewStep?: (step: ReviewPickerState["step"]) => void;
   onReview?: (target: ReviewTarget) => void;
   onReviewClose?: () => void;
-  onAnnotationRecall?: (annotations: TaskAnnotation[]) => void;
+  onAnnotationRecall?: (annotations: Annotation[]) => void;
   onAnnotationRemove?: (annotationId: string) => void;
   onPasteAdd?: (text: string) => void;
   onPasteRecall?: (pastes: PastedText[]) => void;

@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import type { StreamingTail } from "../../application/task-workspace";
 import type { FindView, ReadingPoint, ThreadWait } from "../../application/workspace-state";
 import type { AgentEngine } from "../../domain/agent-engine";
-import type { Annotation, AnnotationAnchor, Task } from "../../domain/task";
+import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
+import type { Thread } from "../../domain/thread";
 import { groupTimeline, messageRows } from "../timeline/grouping";
 import { MAX_FIND_HITS, targetKey } from "../../domain/find";
 import { drawnMatches, paintMatches } from "../find/paint";
@@ -24,7 +25,7 @@ export { READING_SETTLE_MS } from "../timeline/use-reading-view";
 const EMPTY_ANNOTATIONS: Annotation[] = [];
 
 export type ConversationTimelineProps = {
-  currentTask?: Task;
+  currentTask?: Thread;
   engine: AgentEngine;
   /** What the engine running this thread is called. */
   engineLabel: string;

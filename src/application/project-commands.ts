@@ -1,5 +1,5 @@
 import type { ProjectCommand, ViewCommand } from "../contracts/commands.js";
-import { legacyProjectId, sameRoot } from "../domain/task.js";
+import { legacyProjectId, sameRoot } from "../domain/project.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import { moveProject as moveProjectInList, nameProject, nextProjectSortIndex } from "./project-order.js";
 import type { WorkspaceState } from "./workspace-state.js";

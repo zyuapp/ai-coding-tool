@@ -1,9 +1,9 @@
 import { LuPanelLeft as PanelLeft, LuPanelRight as PanelRight, LuSlidersHorizontal as SlidersHorizontal } from "react-icons/lu";
-import type { Task } from "../../domain/task";
+import type { Thread } from "../../domain/thread";
 import { OpenInMenu } from "./OpenInMenu";
 
 export type WorkspaceHeaderProps = {
-  currentTask?: Task;
+  currentTask?: Thread;
   folder: string;
   /** What the folder is called, which is the project's name rather than the directory's. */
   folderLabel: string;

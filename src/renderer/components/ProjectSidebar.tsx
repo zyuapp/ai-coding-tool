@@ -1,10 +1,9 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { LuPlus as Plus, LuSettings as Settings } from "react-icons/lu";
-import { projectName } from "../../domain/task";
+import { projectName, type Project, type ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
-import type { TaskDropTarget } from "../../domain/task";
-import type { Project, Task } from "../../domain/task";
+import type { Thread } from "../../domain/thread";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
 import type { ActivitySections } from "../../application/task-order";
 import type { AutomationView } from "../../domain/automation";
@@ -18,8 +17,8 @@ export type ProjectSidebarProps = {
   open: boolean;
   inactive: boolean;
   projects: Project[];
-  orderedTasks: Task[];
-  recentTasks: Task[];
+  orderedTasks: Thread[];
+  recentTasks: Thread[];
   currentId: string | null;
   draftProjectId: string | null;
   expandedProjects: Set<string>;
@@ -59,7 +58,7 @@ export type ProjectSidebarProps = {
   onDismissTask: (taskId: string) => void;
   onDismissAll: () => void;
   onRenameTask: (taskId: string, title: string) => void;
-  onMoveTask: (taskId: string, target: TaskDropTarget) => void;
+  onMoveTask: (taskId: string, target: ThreadDropTarget) => void;
   /** Copies the thread into a new one beside it, with a checkout of its own when `worktree`. */
   onForkTask: (taskId: string, worktree: boolean) => void;
   onMoveProject: (projectId: string, index: number) => void;
@@ -152,7 +151,7 @@ export function ProjectSidebar({
   const railSlots = [...orderedTasks, ...recentTasks].reduce((widest, task) => Math.max(widest, markCount(task)), 1);
 
   /** Every thread carries its engine mark, which also covers the one slot an action needs. */
-  function markCount(task: Task) {
+  function markCount(task: Thread) {
     const status = blockedTaskIds.has(task.id) || runningTaskIds.has(task.id) || hasUnreadAttention(task) || sideChatAttention.has(task.id);
     return 1 + Number(worktreeTaskIds.has(task.id)) + Number(schedules.has(task.id)) + Number(status);
   }

@@ -1,7 +1,9 @@
 import { runStatusFor } from "./task-workspace.js";
-import { projectFor, sideChatIds, worktreeFor, type WorkspaceState } from "./workspace-state.js";
+import { projectFor, worktreeFor } from "./thread-location.js";
+import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
-import { findProject, projectName, threadActivityAt, threadCreatedAt, type Project, type Task } from "../domain/task.js";
+import { findProject, projectName, type Project } from "../domain/project.js";
+import { threadActivityAt, threadCreatedAt, type Thread } from "../domain/thread.js";
 import { threadHandles, type ThreadHandleOption } from "../domain/thread-handles.js";
 import type { Worktree } from "../domain/worktree.js";
 
@@ -57,7 +59,7 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   return { projects, worktrees, busy };
 }
 
-function projectThreadSummary(state: WorkspaceState, task: Task, activity: number, index?: ProjectionIndex, attachments?: number): ThreadSummary {
+function projectThreadSummary(state: WorkspaceState, task: Thread, activity: number, index?: ProjectionIndex, attachments?: number): ThreadSummary {
   const project = index ? (task.projectId ? index.projects.get(task.projectId) : undefined) : projectFor(state, task);
   const worktree = index ? (task.worktreeId ? index.worktrees.get(task.worktreeId) : undefined) : worktreeFor(state, task);
   return {
@@ -75,7 +77,7 @@ function projectThreadSummary(state: WorkspaceState, task: Task, activity: numbe
   };
 }
 
-export function threadSummary(state: WorkspaceState, task: Task, index?: ProjectionIndex): ThreadSummary {
+export function threadSummary(state: WorkspaceState, task: Thread, index?: ProjectionIndex): ThreadSummary {
   return projectThreadSummary(state, task, threadActivityAt(task), index);
 }
 
@@ -84,7 +86,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
   const search = filter.search?.trim().toLowerCase();
   const forked = sideChatIds(state);
   if (filter.limit === undefined) {
-    const matching: Array<{ task: Task; attachments?: number }> = [];
+    const matching: Array<{ task: Thread; attachments?: number }> = [];
     for (const task of state.tasks) {
       if (forked.has(task.id)) continue;
       if (!inScope(task, filter.scope)) continue;
@@ -101,7 +103,7 @@ export function threadSummaries(state: WorkspaceState, filter: ThreadFilter, at:
       .map(({ task, attachments }) => projectThreadSummary(state, task, threadActivityAt(task), index, attachments))
       .sort((left, right) => right.lastActivityAt - left.lastActivityAt);
   }
-  const matching: Array<{ task: Task; activity: number; attachments?: number }> = [];
+  const matching: Array<{ task: Thread; activity: number; attachments?: number }> = [];
   for (const task of state.tasks) {
     if (forked.has(task.id)) continue;
     if (!inScope(task, filter.scope)) continue;
@@ -150,11 +152,11 @@ export function threadHandleOptions(state: WorkspaceState, draftKey: string): Th
 }
 
 /** The thread a reference names: its id, an unambiguous id prefix, or its title. Newest wins. */
-export function findThread(state: WorkspaceState, reference: string): Task | null {
+export function findThread(state: WorkspaceState, reference: string): Thread | null {
   const wanted = reference.trim().toLowerCase();
   if (!wanted) return null;
-  let title: { task: Task; activity: number } | null = null;
-  let prefix: { task: Task; activity: number } | null = null;
+  let title: { task: Thread; activity: number } | null = null;
+  let prefix: { task: Thread; activity: number } | null = null;
   for (const task of state.tasks) {
     const id = task.id.toLowerCase();
     if (id === wanted) return task;
@@ -183,22 +185,22 @@ export function threadTranscript(state: WorkspaceState, threadId: string, limit 
   };
 }
 
-function inScope(task: Task, scope: ProjectScope) {
+function inScope(task: Thread, scope: ProjectScope) {
   if (scope.kind === "all") return true;
   if (scope.kind === "projectless") return task.projectId === undefined;
   return task.projectId === scope.projectId;
 }
 
-function carriesAttachment(message: Task["messages"][number]) {
+function carriesAttachment(message: Thread["messages"][number]) {
   return Boolean(message.attachments?.length);
 }
 
-function countAttachments(task: Task) {
+function countAttachments(task: Thread) {
   let count = 0;
   for (const message of task.messages) if (carriesAttachment(message)) count += 1;
   return count;
 }
 
-function matches(task: Task, search: string) {
+function matches(task: Thread, search: string) {
   return task.title.toLowerCase().includes(search) || task.messages.some((message) => message.text.toLowerCase().includes(search));
 }

@@ -7,7 +7,8 @@ import type { AutomationFire } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withFinding } from "../domain/attention.js";
 import { declineCount, DECLINES_BEFORE_SURFACING } from "../domain/automation.js";
-import type { Project, Task } from "../domain/task.js";
+import type { Project } from "../domain/project.js";
+import type { Thread } from "../domain/thread.js";
 import { announced } from "./notices.js";
 import { scheduledRun, withNotifiedRun } from "./run-testimony.js";
 import { threadBusy } from "./thread-projection.js";
@@ -38,7 +39,7 @@ function whoIsBusy(state: WorkspaceState, taskId: string): "busy-user" | "busy-a
  * from one an agent is busy in, and answered first: the two would otherwise both read as busy, and
  * only the second is a schedule failing to get a turn.
  */
-export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, task?: Task, project?: Project): TickRefusal | null {
+export function whyTickCannotRun(state: WorkspaceState, fire: AutomationFire, task?: Thread, project?: Project): TickRefusal | null {
   if (!task) return "no-thread";
   const busy = whoIsBusy(state, fire.taskId);
   if (busy) return busy;
@@ -63,7 +64,7 @@ export function raisedFinding(state: WorkspaceState, report: FindingReport & { t
  * A tick with nowhere to run is acknowledged and dropped, which the scheduler counts. A schedule
  * turned away over and over is a silence of its own, so the thread says so out loud, once.
  */
-export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: Task | undefined, refusal: TickRefusal): WorkspaceTransition {
+export function declinedTick(state: WorkspaceState, fire: AutomationFire, task: Thread | undefined, refusal: TickRefusal): WorkspaceTransition {
   const acked: WorkspaceEffect[] = [{ type: "automation.ack", ack: { automationId: fire.automationId, runId: fire.runId, started: false } }];
   const automation = state.automations.find((item) => item.id === fire.automationId);
   if (!task || !automation || declineCount(automation) + 1 < DECLINES_BEFORE_SURFACING) return { state, effects: acked };

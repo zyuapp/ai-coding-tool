@@ -3,7 +3,8 @@ import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffe
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceSettings } from "./settings.js";
 import { reduceTasks } from "./tasks.js";
-import { busyTaskIds, dockHoldsTab, findTargetFor, projectFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
+import { projectFor } from "../thread-location.js";
+import { busyTaskIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
 import { jumpView } from "../workspace-jump.js";
 import { refreshEngines } from "../engine-access.js";
 import { readAttention } from "../../domain/attention.js";

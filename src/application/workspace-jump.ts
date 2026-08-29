@@ -6,7 +6,8 @@
 import { rankSettingsJumps } from "../domain/settings-jump.js";
 import type { SettingsJumpOption } from "../domain/settings-catalog.js";
 import { rankThreadJumps, type ThreadJumpOption } from "../domain/thread-jump.js";
-import { projectName, threadActivityAt, type Project, type Task } from "../domain/task.js";
+import { projectName, type Project } from "../domain/project.js";
+import { threadActivityAt, type Thread } from "../domain/thread.js";
 import type { WorkspaceState } from "./workspace-state.js";
 
 /** A thread row of the jump panel: the thread, plus whether it is working right now. */
@@ -20,7 +21,7 @@ export type JumpRow = ThreadJumpRow | SettingJumpRow;
 
 export type JumpView = { query: string; index: number; options: JumpRow[] };
 
-const jumpCache = new WeakMap<Task[], { projects: Project[]; options: ThreadJumpOption[] }>();
+const jumpCache = new WeakMap<Thread[], { projects: Project[]; options: ThreadJumpOption[] }>();
 
 /** Every thread the panel can offer, newest first. Rebuilt only when the threads or the folders change. */
 function threadJumpOptions(state: WorkspaceState): ThreadJumpOption[] {

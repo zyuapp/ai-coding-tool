@@ -2,7 +2,7 @@ import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderG
 import { useRef, useState } from "react";
 import type { DraftBranch } from "../../application/workspace-state";
 import { BranchMenu, useBranches } from "./BranchMenu";
-import { projectName, type Project } from "../../domain/task";
+import { projectName, type Project } from "../../domain/project";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
 /** Which projects a typed query keeps, matched on the name shown and on the path behind it. */

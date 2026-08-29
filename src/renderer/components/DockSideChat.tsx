@@ -7,7 +7,9 @@ import type { FindView, SideChatView } from "../../application/workspace-state";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import type { Annotation, AnnotationAnchor, AttachedFile, PastedText, Project, RunAttachment, Task } from "../../domain/task";
+import type { Annotation, AnnotationAnchor, AttachedFile, PastedText, RunAttachment } from "../../domain/conversation";
+import type { Project } from "../../domain/project";
+import type { Thread } from "../../domain/thread";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 type Dispatch = (command: AppCommand) => Promise<void>;
@@ -86,7 +88,7 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, engineLa
 /** The side chats the dock holds as tabs of their own, each drawn from the workspace's own records. */
 export function DockSideChats({ workspace, source, activeTab, find, findBar, focusTokenFor, onClose }: {
   workspace: Workspace;
-  source: Task;
+  source: Thread;
   activeTab: string;
   find: FindView | null;
   findBar: ReactNode;

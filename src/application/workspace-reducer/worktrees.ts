@@ -3,8 +3,9 @@ import { reduceDiffs } from "./diffs.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR, dropWorktree, leaveWorktree, now, releaseWorktrees, rereadDiff, runsInWorkspace, settled, targetId, threadBusy, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { applyTask } from "../task-workspace.js";
-import { leavingTaskIds, projectFor, taskWorkspaceId, withoutWorktreeRoot, worktreeFor, type WorkspaceState } from "../workspace-state.js";
-import { createTaskMessage } from "../../domain/task.js";
+import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";
+import { withoutWorktreeRoot, type WorkspaceState } from "../workspace-state.js";
+import { createConversationMessage } from "../../domain/conversation.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 type WorktreeInput = Extract<WorkspaceInput, {
@@ -29,7 +30,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const move = { type: "task.set-worktree", worktree: input.worktree } as const;
       if (!task) return reduceWorktrees(state, move);
       if (input.worktree === Boolean(task.worktreeId)) return settled(state);
-      const workspaceId = taskWorkspaceId(state, task);
+      const workspaceId = threadWorkspaceId(state, task);
       const environment = workspaceId ? state.environments[workspaceId] : undefined;
       const holding = environment?.status === "available" ? environment.files.length : 0;
       if (!input.worktree && !holding) return reduceWorktrees(state, move);
@@ -48,7 +49,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       /** Asking for a checkout of its own is asking for a new one, so it drops any the user had picked. */
       if (!task) return settled(input.taskId === undefined ? { ...state, draftWorktree: input.worktree, draftWorktreeId: null } : state);
       if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
-      if (leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
+      if (leavingThreadIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
       if (threadBusy(state, task.id)) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR });
       if (input.worktree) {
         if (task.worktreeId) return settled(state);
@@ -61,7 +62,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const releasing = releaseWorktrees(state, [task]);
       /** A checkout other threads are still in stays where it is; only this thread walks out of it. */
       if (!releasing.length) {
-        return settled(leaveWorktree({ ...state, actionError: null }, task.id, createTaskMessage(
+        return settled(leaveWorktree({ ...state, actionError: null }, task.id, createConversationMessage(
           "system",
           "Returned to the project checkout. The worktree is still there, and other threads are still working in it.",
           leaving.root,
@@ -86,10 +87,10 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const taskId = targetId(state, input.taskId);
       const task = taskId ? state.tasks.find((item) => item.id === taskId) : undefined;
       if (!task) return reduceWorktrees(state, { type: "task.set-branch", branch: input.branch, ...(input.create ? { create: true } : {}) });
-      const workspaceId = taskWorkspaceId(state, task);
+      const workspaceId = threadWorkspaceId(state, task);
       if (!workspaceId) return settled({ ...state, actionError: SWITCH_PROJECT_ERROR });
       if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
-      if (leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
+      if (leavingThreadIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
       if (runsInWorkspace(state, workspaceId) || threadBusy(state, task.id)) return settled({ ...state, actionError: SWITCH_RUNNING_ERROR });
       return settled({ ...state, actionError: null }, [{
         type: "checkout-branch",
@@ -130,7 +131,7 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       if (!task || !task.projectId) return settled(settling);
       if (task.worktreeId) return settled(settling);
       const worktree: Worktree = { ...input.worktree, projectId: task.projectId };
-      const note = createTaskMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);
+      const note = createConversationMessage("system", `Moved into a worktree at ${worktree.root}`, `Detached at ${worktree.baseCommit.slice(0, 7)}`);
       return rereadDiff(applyTask({ ...settling, worktrees: [...settling.worktrees, worktree] }, input.taskId, (item) => ({
         ...item,
         worktreeId: worktree.id,
@@ -159,14 +160,14 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       const text = commit
         ? `Returned to the project checkout. Uncommitted work was committed as ${shortCommit ?? commit.slice(0, 7)}, and the worktree was removed.`
         : "Returned to the project checkout. The worktree had nothing uncommitted, and was removed.";
-      return rereadDiff(dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)), input.taskId);
+      return rereadDiff(dropWorktree(state, worktree.id, () => createConversationMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)), input.taskId);
     }
 
     case "worktree.deleted": {
       const worktree = state.worktrees.find((item) => item.id === input.worktreeId || item.root === input.root);
       const { commit, shortCommit, ref } = input.snapshot;
       const text = commit ? `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.` : "Worktree deleted. Back on the project checkout.";
-      const dropped = worktree ? dropWorktree(state, worktree.id, () => createTaskMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
+      const dropped = worktree ? dropWorktree(state, worktree.id, () => createConversationMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
       const notice = ref ? `Deleted ${input.root}. Recover it with git show ${ref}.` : commit ? `Deleted ${input.root}. Recover loose work with git show ${shortCommit ?? commit}.` : `Deleted ${input.root}.`;
       return reduceDiffs({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
     }

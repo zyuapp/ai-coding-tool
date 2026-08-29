@@ -4,7 +4,8 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
 import { automationRunLabel, automationRunPrompt } from "../task-workspace.js";
-import { projectFor, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { projectFor, worktreeFor } from "../thread-location.js";
+import type { PendingRun, WorkspaceState } from "../workspace-state.js";
 
 type AutomationInput = Extract<WorkspaceInput, {
   type: "automation.fired" | "automation.notify" | "automation.nothing-to-report" | "automation.save" | "automation.update"

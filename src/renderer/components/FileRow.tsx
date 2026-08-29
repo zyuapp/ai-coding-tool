@@ -1,5 +1,5 @@
 import { LuFile as FileMark, LuFolder as Folder, LuX as X } from "react-icons/lu";
-import type { AttachedFile } from "../../domain/task";
+import type { AttachedFile } from "../../domain/conversation";
 import { useMessageLinks } from "./MarkdownMessage";
 
 /** Attached files as pills: removable while drafted in a composer, read-only on a sent message. */

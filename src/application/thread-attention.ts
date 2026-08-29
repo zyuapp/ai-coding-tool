@@ -3,7 +3,7 @@
  * thread's dock rather than a row of its own, so its mark belongs to the thread that holds it.
  */
 import { hasUnreadAttention } from "../domain/attention.js";
-import type { Task } from "../domain/task.js";
+import type { Thread } from "../domain/thread.js";
 import { dockFor, type DockState } from "./workspace-dock.js";
 
 type ScreenState = Pick<DockState, "currentId" | "sideChats" | "docks">;
@@ -21,7 +21,7 @@ export function threadOnScreen(state: ScreenState, taskId: string): boolean {
 }
 
 /** The marks the sidebar and the app icon share, with every side chat folded into its source thread. */
-export function unreadView(state: { tasks: Task[] } & Pick<DockState, "sideChats">, listed: Task[]) {
+export function unreadView(state: { tasks: Thread[] } & Pick<DockState, "sideChats">, listed: Thread[]) {
   const sideChatAttention = new Set<string>();
   for (const chat of state.sideChats) {
     const task = state.tasks.find((item) => item.id === chat.id);

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuFolderOpen as FolderOpen } from "react-icons/lu";
 import type { ProjectEditorView } from "../../application/workspace-state";
-import { folderName } from "../../domain/task";
+import { folderName } from "../../domain/project";
 import { useModalFocus } from "../focus";
 
 export type ProjectEditDialogProps = {

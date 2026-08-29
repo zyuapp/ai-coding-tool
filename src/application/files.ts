@@ -1,4 +1,5 @@
-import { clampTitle, type AttachedFile } from "../domain/task.js";
+import type { AttachedFile } from "../domain/conversation.js";
+import { clampTitle } from "../domain/thread.js";
 
 const FILE_HEADING = "Files and folders I attached to my message, by where they are on this machine:";
 

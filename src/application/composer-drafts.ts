@@ -6,7 +6,7 @@
 import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
-import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/task.js";
+import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
 
 const TOO_MANY_IMAGES_ERROR = `You can attach up to ${MAX_ATTACHMENTS} images.`;
 const TOO_MANY_FILES_ERROR = `You can attach up to ${MAX_ATTACHED_FILES} files.`;

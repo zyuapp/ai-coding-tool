@@ -6,7 +6,7 @@
  * A page and a shell hold their own text, so they count their own matches: the target says who does.
  */
 import type { DiffFile } from "./diff.js";
-import type { TaskMessage } from "./task.js";
+import type { ConversationMessage } from "./conversation.js";
 
 /**
  * Where a search is pointed. A thread names the task whose messages are searched, so a side chat is
@@ -62,7 +62,7 @@ export function sameFindTarget(one: FindTarget, other: FindTarget): boolean {
 }
 
 /** Every match in a message's own text, which is the order the timeline draws it in. */
-function hitsInMessage(message: TaskMessage, needle: string, limit: number): FindHit[] {
+function hitsInMessage(message: ConversationMessage, needle: string, limit: number): FindHit[] {
   const hits: FindHit[] = [];
   for (const field of ["text", "detail"] as const) {
     const haystack = (field === "text" ? message.text : message.detail)?.toLowerCase();
@@ -76,7 +76,7 @@ function hitsInMessage(message: TaskMessage, needle: string, limit: number): Fin
 }
 
 /** Every match in a thread, oldest first, capped so a query like "e" cannot cost the whole transcript. */
-export function findHits(messages: TaskMessage[], query: string): FindHit[] {
+export function findHits(messages: ConversationMessage[], query: string): FindHit[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
   const hits: FindHit[] = [];
@@ -87,10 +87,10 @@ export function findHits(messages: TaskMessage[], query: string): FindHit[] {
   return hits;
 }
 
-const hitCache = new WeakMap<TaskMessage[], { query: string; hits: FindHit[] }>();
+const hitCache = new WeakMap<ConversationMessage[], { query: string; hits: FindHit[] }>();
 
 /** Reuses a transcript search while its immutable message list and normalized query are unchanged. */
-export function memoizedFindHits(messages: TaskMessage[], query: string): FindHit[] {
+export function memoizedFindHits(messages: ConversationMessage[], query: string): FindHit[] {
   const needle = query.trim().toLowerCase();
   const cached = hitCache.get(messages);
   if (cached?.query === needle) return cached.hits;

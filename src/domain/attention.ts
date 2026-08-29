@@ -6,18 +6,20 @@
  *
  * A function belongs here when a thread, or a list of threads, is all it needs.
  */
-import { createTaskMessage, MAX_FINDINGS, MAX_HANDLED_ISSUES, type Task, type TaskFinding } from "./task.js";
+import { createConversationMessage } from "./conversation.js";
+import { MAX_FINDINGS, MAX_HANDLED_ISSUES, type AutomationFinding } from "./finding.js";
+import type { Thread } from "./thread.js";
 
-export function unreadFindings(task: Task): TaskFinding[] {
+export function unreadFindings(task: Thread): AutomationFinding[] {
   return (task.findings ?? []).filter((finding) => !finding.read);
 }
 
 /** The headline a row shows: the newest thing the user has not seen. */
-export function newestUnreadFinding(task: Task): TaskFinding | undefined {
+export function newestUnreadFinding(task: Thread): AutomationFinding | undefined {
   return unreadFindings(task).at(-1);
 }
 
-function hasFindings(task: Task): boolean {
+function hasFindings(task: Thread): boolean {
   return (task.findings ?? []).length > 0;
 }
 
@@ -25,20 +27,20 @@ function hasFindings(task: Task): boolean {
  * Whether the thread has anything to put to the user: a verdict its last run left, or something a
  * run found. Read or not, it holds the thread in Priority and is what a dismissal files away.
  */
-export function wantsAttention(task: Task): boolean {
+export function wantsAttention(task: Thread): boolean {
   return Boolean(task.outcome) || hasFindings(task);
 }
 
 /** Whether any of that is still unseen, which is the narrower thing a row's dot stands for. */
-export function hasUnreadAttention(task: Task): boolean {
+export function hasUnreadAttention(task: Thread): boolean {
   return Boolean(newestUnreadFinding(task) || (task.outcome && task.outcomeUnread));
 }
 
-function findingKeys(task: Task): string[] {
+function findingKeys(task: Thread): string[] {
   return (task.findings ?? []).flatMap((finding) => finding.key ?? []);
 }
 
-function handledKeys(task: Task): string[] {
+function handledKeys(task: Thread): string[] {
   return task.handledIssues ?? [];
 }
 
@@ -47,14 +49,14 @@ function handledKeys(task: Task): string[] {
  * away, or one it has never been told about. A report with no key, blank included, is always
  * unknown: a blank is stored as no key at all, so treating it as one would match nothing forever.
  */
-export function issueState(task: Task, key?: string): "unknown" | "carried" | "handled" {
+export function issueState(task: Thread, key?: string): "unknown" | "carried" | "handled" {
   if (!key) return "unknown";
   if (findingKeys(task).includes(key)) return "carried";
   return handledKeys(task).includes(key) ? "handled" : "unknown";
 }
 
 /** Only an issue the thread has never heard of is news; carried and filed away are the same one. */
-export function isNews(task: Task, key?: string): boolean {
+export function isNews(task: Thread, key?: string): boolean {
   return issueState(task, key) === "unknown";
 }
 
@@ -63,9 +65,9 @@ export function isNews(task: Task, key?: string): boolean {
  * the transcript still carries it once the finding itself is filed away. An issue the thread already
  * knows changes nothing.
  */
-export function withFinding(task: Task, report: { headline: string; detail?: string; key?: string }, at: number, seen = false): Task {
+export function withFinding(task: Thread, report: { headline: string; detail?: string; key?: string }, at: number, seen = false): Thread {
   if (!isNews(task, report.key)) return task;
-  const finding: TaskFinding = {
+  const finding: AutomationFinding = {
     id: crypto.randomUUID(),
     headline: report.headline,
     ...(report.detail ? { detail: report.detail } : {}),
@@ -78,19 +80,19 @@ export function withFinding(task: Task, report: { headline: string; detail?: str
     findings: [...task.findings ?? [], finding].slice(-MAX_FINDINGS),
     /** Outlives the finding itself, so a schedule that found something at 3am can still prove it. */
     lastFindingAt: at,
-    messages: [...task.messages, createTaskMessage("system", report.headline, report.detail)],
+    messages: [...task.messages, createConversationMessage("system", report.headline, report.detail)],
     updatedAt: at,
   };
 }
 
 /** Landing on the thread takes the marks off. The findings stay, the way a verdict stays. */
-export function withReadFindings(task: Task): Task {
+export function withReadFindings(task: Thread): Thread {
   if (!unreadFindings(task).length) return task;
   return { ...task, findings: task.findings!.map((finding) => finding.read ? finding : { ...finding, read: true as const }) };
 }
 
 /** Filing the thread away is what retires what it found. */
-export function withoutFindings(task: Task): Task {
+export function withoutFindings(task: Thread): Thread {
   if (!task.findings) return task;
   const { findings: _filed, ...rest } = task;
   return rest;
@@ -100,7 +102,7 @@ export function withoutFindings(task: Task): Task {
  * Landing on a thread takes its marks off. The verdict and what its runs found both stay, so the
  * thread keeps its place in Priority until the user files it away.
  */
-export function readAttention<T extends { tasks: Task[] }>(state: T, taskId: string | null): T {
+export function readAttention<T extends { tasks: Thread[] }>(state: T, taskId: string | null): T {
   const seen = taskId ? state.tasks.find((task) => task.id === taskId) : undefined;
   if (!seen || (!seen.outcomeUnread && !unreadFindings(seen).length)) return state;
   const { outcomeUnread: _read, ...rest } = seen;
@@ -108,7 +110,7 @@ export function readAttention<T extends { tasks: Task[] }>(state: T, taskId: str
 }
 
 /** Retires the named threads' verdicts, leaving the list alone when none of them carry one. */
-export function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
+export function withoutOutcome(tasks: Thread[], dismissing: Set<string>): Thread[] {
   if (!tasks.some((task) => dismissing.has(task.id) && task.outcome)) return tasks;
   return tasks.map((task) => {
     if (!dismissing.has(task.id) || !task.outcome) return task;
@@ -122,13 +124,13 @@ export function withoutOutcome(tasks: Task[], dismissing: Set<string>): Task[] {
  * go with it rather than being forgotten: a dismissal says the finding is handled, not that the user
  * wants telling again on the next tick.
  */
-export function dismissed(tasks: Task[], dismissing: Set<string>): Task[] {
+export function dismissed(tasks: Thread[], dismissing: Set<string>): Thread[] {
   const filed = withoutOutcome(tasks, dismissing);
   if (!filed.some((task) => dismissing.has(task.id) && task.findings)) return filed;
   return filed.map((task) => dismissing.has(task.id) ? withoutFindings(withHandledIssues(task)) : task);
 }
 
-function withHandledIssues(task: Task): Task {
+function withHandledIssues(task: Thread): Thread {
   const keys = findingKeys(task);
   if (!keys.length) return task;
   const handled = [...handledKeys(task).filter((key) => issueState(task, key) !== "carried"), ...keys];
@@ -139,7 +141,7 @@ function withHandledIssues(task: Task): Task {
  * What a run that has finished looking says about the keys it did not report: the thing it was
  * filed away for is over, so the next sighting is news again.
  */
-export function withClosedIssues(task: Task, reportedIssues: string[]): Task {
+export function withClosedIssues(task: Thread, reportedIssues: string[]): Thread {
   const held = handledKeys(task);
   const still = held.filter((key) => reportedIssues.includes(key));
   if (still.length === held.length) return task;
@@ -151,6 +153,6 @@ export function withClosedIssues(task: Task, reportedIssues: string[]): Task {
 }
 
 /** Which threads a "dismiss everything" reaches: the ones carrying anything to file away. */
-export function dismissableTasks(tasks: Task[]): Task[] {
+export function dismissableTasks(tasks: Thread[]): Thread[] {
   return tasks.filter(wantsAttention);
 }

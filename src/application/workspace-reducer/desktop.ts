@@ -1,7 +1,8 @@
 /** The machine around the thread: its shells, its files, and the applications that open them. */
 import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR, focusDockTab, settled, showDockTab } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal, taskFileRoots, withDock, type WorkspaceState } from "../workspace-state.js";
+import { threadFileRoots } from "../thread-location.js";
+import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal, withDock, type WorkspaceState } from "../workspace-state.js";
 import { isAbsoluteFilePath } from "../../domain/markdown-links.js";
 import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 
@@ -13,7 +14,7 @@ type DesktopInput = Extract<WorkspaceInput, {
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
   switch (input.type) {
     case "file.open": {
-      const roots = taskFileRoots(state, state.tasks.find((item) => item.id === (input.taskId ?? state.currentId)));
+      const roots = threadFileRoots(state, state.tasks.find((item) => item.id === (input.taskId ?? state.currentId)));
       if (!roots.length && !isAbsoluteFilePath(input.path)) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
       return settled({ ...state, actionError: null }, [{ type: "file.open", roots, path: input.path, line: input.line ?? null }]);
     }

@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Draggable, type DraggableProvided } from "@hello-pangea/dnd";
 import { LuAlarmClock as AlarmClock, LuArchive as Archive, LuCheck as Check, LuFolderSymlink as FolderSymlink } from "react-icons/lu";
-import { projectName, threadActivityAt } from "../../domain/task";
+import { projectName, type Project } from "../../domain/project";
+import { threadActivityAt, type Thread } from "../../domain/thread";
 import { hasUnreadAttention, newestUnreadFinding } from "../../domain/attention";
-import type { Project, Task, TaskOutcome } from "../../domain/task";
+import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
@@ -15,7 +16,7 @@ import { ThreadEngineIcon } from "./ThreadEngineIcon";
 /** What a row's trailing slot offers, if anything. Only one of them ever shows in a given list. */
 export type RowAction = "archive" | "dismiss" | "none";
 
-const OUTCOME_LABELS: Record<TaskOutcome, string> = {
+const OUTCOME_LABELS: Record<ThreadOutcome, string> = {
   finished: "Finished",
   failed: "Failed",
   stopped: "Stopped",
@@ -35,7 +36,7 @@ function scheduleLabel(automation: AutomationView) {
 }
 
 /** The dot a row carries. What a run found is named outright: "Finished" says nothing a headline does. */
-function attentionMark(task: Task, sideChatWaiting: boolean) {
+function attentionMark(task: Thread, sideChatWaiting: boolean) {
   const finding = newestUnreadFinding(task);
   if (finding) return <span key="status" className="task-attention" aria-label={finding.headline} />;
   if (hasUnreadAttention(task)) return <span key="status" className={`task-attention ${task.outcome!}`} aria-label={OUTCOME_LABELS[task.outcome!]} />;
@@ -48,7 +49,7 @@ function attentionMark(task: Task, sideChatWaiting: boolean) {
  * What a row says under its title in activity mode: which folder it lives in, and when it last moved.
  * A row carrying something a run found says that instead — the headline is why the row is in Priority.
  */
-function activityMeta(task: Task, projects: Project[], formatTime: (value: number) => string) {
+function activityMeta(task: Thread, projects: Project[], formatTime: (value: number) => string) {
   const finding = newestUnreadFinding(task);
   if (finding) return finding.headline;
   const project = projects.find((item) => item.id === task.projectId);
@@ -76,7 +77,7 @@ function TaskSpinner() {
  * What a thread offers on a right-click, grouped the way a menu on this platform is: naming it,
  * taking a reference to it, copying it, then putting it away.
  */
-function threadMenuEntries(task: Task, actions: {
+function threadMenuEntries(task: Thread, actions: {
   onRename: () => void;
   onFork: (worktree: boolean) => void;
   onArchive: () => void;
@@ -150,7 +151,7 @@ export function useTaskRows({
   };
 
   /** What a thread is: its engine, checkout, schedule, and what it is doing now. */
-  const rowMarks = (task: Task): React.ReactNode[] => [
+  const rowMarks = (task: Thread): React.ReactNode[] => [
     <ThreadEngineIcon key="engine" engine={task.engine} className="task-engine" size={13} />,
     worktreeTaskIds.has(task.id) && <FolderSymlink key="worktree" className={worktreeMark(task.id)} size={13} aria-label={worktreeLabel(task.id)} />,
     schedules.has(task.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(task.id)!)} />,
@@ -166,7 +167,7 @@ export function useTaskRows({
    * - a thread still asking has nothing to dismiss - and nothing on the others, rather than two
    * different icons in one view; archiving a thread there is on its menu.
    */
-  const rowActions = (task: Task, action: RowAction): React.ReactNode[] => [
+  const rowActions = (task: Thread, action: RowAction): React.ReactNode[] => [
     action === "dismiss" && <button
       key="dismiss"
       className="row-action task-dismiss"
@@ -199,7 +200,7 @@ export function useTaskRows({
    * action lands on the mark it stands in for, and every rail is the same width, so the slots line up
    * down the list. A layer that gains an icon keeps the other layer's geometry.
    */
-  const taskRail = (task: Task, action: RowAction) => {
+  const taskRail = (task: Thread, action: RowAction) => {
     const actions = rowActions(task, action);
     return (
       <span className="row-rail">
@@ -210,7 +211,7 @@ export function useTaskRows({
   };
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (task: Task, className: string, content: React.ReactNode, action: RowAction) => (
+  const rowBody = (task: Thread, className: string, content: React.ReactNode, action: RowAction) => (
     <>
     <div
       className={className}
@@ -252,7 +253,7 @@ export function useTaskRows({
     if (event.key === "Enter") onSelectTask(taskId);
   };
 
-  const taskRow = (task: Task, index: number, className: string, content: React.ReactNode) => (
+  const taskRow = (task: Thread, index: number, className: string, content: React.ReactNode) => (
     <Draggable draggableId={task.id} index={index} key={task.id}>
       {(provided: DraggableProvided, snapshot) => (
         <div
@@ -269,7 +270,7 @@ export function useTaskRows({
   );
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
-  const activityRow = (task: Task, action: RowAction) => (
+  const activityRow = (task: Thread, action: RowAction) => (
     <div className="task-entry" key={task.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, task.id)}>
       {rowBody(task, `task-row ${task.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">

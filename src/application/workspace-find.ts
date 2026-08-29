@@ -3,12 +3,12 @@
  * other view counts its own matches and reports them back.
  */
 import { memoizedFindHits, searchesItself, type FindHit } from "../domain/find.js";
-import type { Task } from "../domain/task.js";
+import type { Thread } from "../domain/thread.js";
 import type { FindState, WorkspaceState } from "./workspace-state.js";
 
 export type FindView = FindState & { matches: number; counting: boolean; hit: FindHit | null };
 
-export function findView(state: WorkspaceState, currentTask: Task | undefined): FindView | null {
+export function findView(state: WorkspaceState, currentTask: Thread | undefined): FindView | null {
   const find = state.find;
   if (!find) return null;
   const target = find.target;

@@ -1,8 +1,8 @@
-import { forkTitle, type Task } from "../domain/task.js";
+import { forkTitle, type Thread } from "../domain/thread.js";
 import { moveTask, nextSortIndex, orderTasks } from "./task-order.js";
 
 /** What a new thread takes from the thread it was made from: where it runs, and how it runs. */
-function inherited(source: Task) {
+function inherited(source: Thread) {
   return {
     ...(source.projectId ? { projectId: source.projectId } : {}),
     executionPolicy: source.executionPolicy,
@@ -13,7 +13,7 @@ function inherited(source: Task) {
 }
 
 /** A side chat: a thread of its own, starting empty, which forks the source's session on its first run. */
-export function sideChatTask(source: Task, id: string, title: string, at: number): Task {
+export function sideChatTask(source: Thread, id: string, title: string, at: number): Thread {
   return {
     id,
     title,
@@ -31,8 +31,8 @@ export function sideChatTask(source: Task, id: string, title: string, at: number
  * conversation, the session it was left in, and how the thread was set to run. What the thread has
  * been through stays its own: no verdict, no findings, no schedule, and no checkout crosses over.
  */
-export function forkedTasks(tasks: Task[], source: Task, id: string, at: number): { tasks: Task[]; fork: Task } {
-  const fork: Task = {
+export function forkedTasks(tasks: Thread[], source: Thread, id: string, at: number): { tasks: Thread[]; fork: Thread } {
+  const fork: Thread = {
     id,
     title: forkTitle(source.title, tasks.map((task) => task.title)),
     titleByUser: true,

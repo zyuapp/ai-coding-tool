@@ -3,7 +3,7 @@ import { LuBot as Bot, LuFileText as FileText, LuGlobe as Globe, LuPenLine as Pe
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { AgentEngine } from "../../domain/agent-engine";
-import type { TaskMessage } from "../../domain/task";
+import type { ConversationMessage } from "../../domain/conversation";
 import { describeToolCall, type ToolFamily } from "../../domain/tool-call";
 import { timeSteps, toSegments, type TimedStep, type TurnSegment } from "../timeline/grouping";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -153,7 +153,7 @@ export function TurnSegments({ engine, segments, tail, live = false }: { engine:
 }
 
 /** Settled turn: every step, tool calls and interim text alike, folds behind one row. */
-export function SettledSteps({ engine, steps, endsAt }: { engine: AgentEngine; steps: TaskMessage[]; endsAt: number | null }) {
+export function SettledSteps({ engine, steps, endsAt }: { engine: AgentEngine; steps: ConversationMessage[]; endsAt: number | null }) {
   const summary = (
     <>
       <span className="work-lead">Worked</span>

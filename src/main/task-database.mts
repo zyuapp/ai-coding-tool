@@ -3,7 +3,10 @@ import path from "node:path";
 import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
-import { validateTaskStoreData, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
+import type { ConversationMessage } from "../domain/conversation.js";
+import type { Project } from "../domain/project.js";
+import { validateThreadStoreData, type ThreadStoreData } from "../domain/thread-storage.js";
+import type { Thread } from "../domain/thread.js";
 import type { LoadedTaskStore } from "../contracts/ipc.js";
 import { isWorktree, type Worktree } from "../domain/worktree.js";
 
@@ -169,7 +172,7 @@ export class TaskDatabase {
   load(): LoadedTaskStore | null {
     const taskRecords = Array.from(
       this.database.prepare("SELECT data FROM tasks").iterate() as Iterable<{ data: string }>,
-      ({ data }) => JSON.parse(data) as Omit<Task, "messages">,
+      ({ data }) => JSON.parse(data) as Omit<Thread, "messages">,
     );
     const projects = Array.from(
       this.database.prepare("SELECT data FROM projects ORDER BY position").iterate() as Iterable<{ data: string }>,
@@ -178,10 +181,10 @@ export class TaskDatabase {
     const lastFolderRow = this.database.prepare("SELECT value FROM settings WHERE key = 'lastFolder'").get() as { value: string } | undefined;
     if (!taskRecords.length && !projects.length && !lastFolderRow) return null;
 
-    const messages = new Map<string, TaskMessage[]>();
+    const messages = new Map<string, ConversationMessage[]>();
     for (const row of this.database.prepare("SELECT task_id, data FROM messages ORDER BY task_id, position").iterate() as Iterable<{ task_id: string; data: string }>) {
       const values = messages.get(row.task_id) ?? [];
-      values.push(JSON.parse(row.data) as TaskMessage);
+      values.push(JSON.parse(row.data) as ConversationMessage);
       messages.set(row.task_id, values);
     }
     const subagents = new Map<string, Subagent[]>();
@@ -201,14 +204,14 @@ export class TaskDatabase {
       this.database.prepare("SELECT data FROM worktrees").iterate() as Iterable<{ data: string }>,
       ({ data }) => JSON.parse(data) as Worktree,
     );
-    const data: TaskStoreData = {
+    const data: ThreadStoreData = {
       version: 2,
       tasks,
       projects,
       worktrees,
       lastFolder: lastFolderRow ? JSON.parse(lastFolderRow.value) as string | null : null,
     };
-    const validated = validateTaskStoreData(data);
+    const validated = validateThreadStoreData(data);
     if (!validated.ok) throw new Error(validated.errors.join(" "));
     return { ...validated.data, hiddenTasks: validated.hiddenTasks };
   }

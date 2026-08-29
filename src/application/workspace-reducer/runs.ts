@@ -9,11 +9,13 @@ import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "..
 import { nextSortIndex } from "../task-order.js";
 import { applyRunEvent, applyTask, applyThreadEvent, ATTENDED_RUN, threadMark, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../task-workspace.js";
 import { threadOnScreen } from "../thread-attention.js";
-import { DRAFT_DOCK, leavingTaskIds, projectFor, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
+import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeById, worktreeFor } from "../thread-location.js";
+import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
-import { createTaskMessage, type Task } from "../../domain/task.js";
+import { createConversationMessage } from "../../domain/conversation.js";
+import type { Thread } from "../../domain/thread.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 
 type RunInput = Extract<WorkspaceInput, {
@@ -64,7 +66,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const task = state.tasks.find((item) => item.id === taskId);
       if (!task || !modelSupportsManualCompaction(task.engine, task.model ?? defaultModelFor(task.engine)) || task.continuation?.provider !== "codex" || !task.contextUsage || threadBusy(state, task.id)) return settled(state);
       if (state.creatingWorktrees.includes(task.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
-      if (leavingTaskIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
+      if (leavingThreadIds(state).has(task.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
       const project = projectFor(state, task);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
@@ -166,7 +168,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const said = noticed && headline ? announced(next, noticed, headline) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
-      const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));
+      const workspaceId = threadWorkspaceId(state, state.tasks.find((task) => task.id === event.taskId));
       /** A review the thread has open is only as current as the run that was writing under it. */
       const settledDiff = finished && workspaceId && next.diffs[event.taskId]
         ? readDiffFrom(next, event.taskId, workspaceId, next.diffs[event.taskId].range)
@@ -242,7 +244,7 @@ function reviewableTask(state: WorkspaceState, taskId: string | null) {
   const task = state.tasks.find((item) => item.id === taskId);
   return task?.engine === "codex"
     && task.continuation?.provider === "codex"
-    && taskWorkspaceId(state, task)
+    && threadWorkspaceId(state, task)
     && !threadBusy(state, task.id)
     ? task
     : undefined;
@@ -273,7 +275,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   const engine = pending.model ? engineForModel(pending.model) : state.draftEngine;
   const model = pending.model ?? state.draftModel;
   const effort = effortForModel(model, pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)));
-  const task: Task = existing ?? {
+  const task: Thread = existing ?? {
     id: crypto.randomUUID(),
     title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
@@ -288,10 +290,10 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     createdAt: now(),
     updatedAt: now(),
   };
-  const message = createTaskMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes, pending.files);
+  const message = createConversationMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes, pending.files);
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
-    ? [createTaskMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
+    ? [createConversationMessage("system", `Moved into a worktree at ${arriving.root}`, `Detached at ${arriving.baseCommit.slice(0, 7)}`)]
     : [];
   const located = arriving ? { ...task, worktreeId: arriving.id, worktreeEnteredAt: task.worktreeEnteredAt ?? now() } : task;
   /** A copied thread forks the session it inherited until a session of its own comes back to continue. */
@@ -329,7 +331,7 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   const task = state.tasks.find((item) => item.id === taskId);
   if (!task || task.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
   /** A quiet tick's own label counts for nothing in the thread's activity, like the rest of its run. */
-  const message = { ...createTaskMessage("user", pending.text, pending.detail), ...(pending.quiet ? { withdrawn: true as const } : {}) };
+  const message = { ...createConversationMessage("user", pending.text, pending.detail), ...(pending.quiet ? { withdrawn: true as const } : {}) };
   const created = worktree && task.projectId ? { ...worktree, projectId: task.projectId } : undefined;
   const entered = created ?? worktreeFor(state, task);
   const withMessage = applyTask(withUsedWorktree(state, created, entered?.id), taskId, (item) => ({

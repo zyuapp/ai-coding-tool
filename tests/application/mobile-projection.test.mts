@@ -120,6 +120,15 @@ test("a running thread and a blocked one are told apart in the list", () => {
   assert.deepEqual(statuses.sort(), [["asking", "awaiting-approval"], ["running", "running"]]);
 });
 
+test("a settled run's unread mark reaches the phone list", () => {
+  const read = projectMobileView(workspace([task("settled", { projectId: "project-app", outcome: "finished" })]), NOW);
+  const unread = projectMobileView(workspace([task("settled", { projectId: "project-app", outcome: "finished", outcomeUnread: true })]), NOW);
+
+  assert.equal(read.groups[0]!.threads[0]!.unread, false);
+  assert.equal(unread.groups[0]!.threads[0]!.unread, true);
+  assert.deepEqual(applyMobilePatch(read, diffMobileView(read, unread)!), unread);
+});
+
 test("the open thread carries its transcript, approval, queue, draft and settings", () => {
   const state = workspace([
     task("in-app", {

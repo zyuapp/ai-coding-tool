@@ -1,5 +1,5 @@
 import type { AppCommand } from "../contracts/commands";
-import type { StagedImage } from "../domain/task";
+import type { StagedImage } from "../domain/conversation";
 
 /** How wide or tall a dropped image may be before it is scaled down to be kept. */
 const MAX_IMAGE_EDGE = 4_096;

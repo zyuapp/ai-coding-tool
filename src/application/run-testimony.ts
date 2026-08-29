@@ -5,11 +5,11 @@
 import type { RunEvent } from "../contracts/ipc.js";
 import type { FindingReport } from "../contracts/threads.js";
 import { isNews, withClosedIssues, withFinding } from "../domain/attention.js";
-import type { TaskOutcome } from "../domain/task.js";
+import type { ThreadOutcome } from "../domain/thread-run.js";
 import { applyTask, withdrawRun, type ActiveRun, type RunTransitionState } from "./task-workspace.js";
 
 /** Every run that ends leaves a verdict, including the one the user stopped: it still waits on them. */
-export function outcomeFor(event: RunEvent): TaskOutcome | null {
+export function outcomeFor(event: RunEvent): ThreadOutcome | null {
   if (event.type !== "run.status") return null;
   if (event.status === "succeeded") return "finished";
   if (event.status === "failed") return "failed";

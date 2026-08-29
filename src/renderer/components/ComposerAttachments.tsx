@@ -1,7 +1,7 @@
 import { LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { markPrefix } from "../../application/attachments";
-import { MAX_ATTACHMENTS, type RunAttachment, type StagedImage } from "../../domain/task";
+import { MAX_ATTACHMENTS, type RunAttachment, type StagedImage } from "../../domain/conversation";
 import { ImageAnnotator, renderAnnotatedSource, type Annotation } from "./ImageAnnotator";
 
 type Attachment = {

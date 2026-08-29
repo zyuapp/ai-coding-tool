@@ -1,4 +1,4 @@
-import type { Project } from "../domain/task.js";
+import type { Project } from "../domain/project.js";
 
 /**
  * Sidebar order. `sortIndex` wins so folders never move on their own; projects stored before

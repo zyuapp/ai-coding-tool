@@ -2,7 +2,7 @@ import { LuClipboardPaste as ClipboardPaste, LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { pasteSummary } from "../../application/pastes";
-import type { PastedText } from "../../domain/task";
+import type { PastedText } from "../../domain/conversation";
 import { useModalFocus } from "../focus";
 
 function PasteViewer({ paste, label, onClose }: { paste: PastedText; label: string; onClose: () => void }) {

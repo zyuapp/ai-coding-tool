@@ -1,14 +1,14 @@
-import type { TaskMessage } from "../../domain/task";
+import type { ConversationMessage } from "../../domain/conversation";
 
 export type TimelineGroup =
-  | { kind: "message"; id: string; message: TaskMessage }
-  | { kind: "turn"; id: string; steps: TaskMessage[]; final: TaskMessage | null; endsAt: number | null; live: boolean };
+  | { kind: "message"; id: string; message: ConversationMessage }
+  | { kind: "turn"; id: string; steps: ConversationMessage[]; final: ConversationMessage | null; endsAt: number | null; live: boolean };
 
 /** A step runs until the next one starts; the newest step of a live turn has not ended yet. */
-export type TimedStep = { message: TaskMessage; endsAt: number | null };
+export type TimedStep = { message: ConversationMessage; endsAt: number | null };
 
 export type TurnSegment =
-  | { kind: "note"; id: string; message: TaskMessage }
+  | { kind: "note"; id: string; message: ConversationMessage }
   | { kind: "tools"; id: string; steps: TimedStep[] };
 
 type TimelineOptions = { running: boolean; tailMessageId?: string; runEndedAt?: number };
@@ -29,8 +29,8 @@ function endOf(group: TimelineGroup, next: TimelineGroup | undefined, runEndedAt
  * settled; the newest turn of a running task is live and keeps collecting steps. A turn no answer
  * closed ends where the next group opens, or where the run it belonged to stopped.
  */
-export function groupTimeline(messages: TaskMessage[], { running, tailMessageId, runEndedAt }: TimelineOptions): TimelineGroup[] {
-  const groups: (TimelineGroup | TaskMessage[])[] = [];
+export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt }: TimelineOptions): TimelineGroup[] {
+  const groups: (TimelineGroup | ConversationMessage[])[] = [];
   for (const message of messages) {
     if (message.kind === "user" || message.kind === "system") {
       groups.push({ kind: "message", id: message.id, message });
@@ -60,7 +60,7 @@ export function groupTimeline(messages: TaskMessage[], { running, tailMessageId,
   return timeline.map((group, index) => group.kind !== "turn" ? group : { ...group, endsAt: endOf(group, timeline[index + 1], runEndedAt) });
 }
 
-export function timeSteps(steps: TaskMessage[], turnEndsAt: number | null): TimedStep[] {
+export function timeSteps(steps: ConversationMessage[], turnEndsAt: number | null): TimedStep[] {
   return steps.map((message, index) => ({ message, endsAt: steps[index + 1]?.at ?? turnEndsAt }));
 }
 

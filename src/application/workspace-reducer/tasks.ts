@@ -7,9 +7,10 @@ import { forkedTasks } from "../task-fork.js";
 import { activitySections, moveTask as moveTaskInList } from "../task-order.js";
 import { pruneDeletedTasks } from "../task-pruning.js";
 import { applyTask } from "../task-workspace.js";
-import { DRAFT_DOCK, blockedTaskIds, busyTaskIds, projectFor, sideChatIds, worktreeById, type WorkspaceState } from "../workspace-state.js";
+import { projectFor, worktreeById } from "../thread-location.js";
+import { DRAFT_DOCK, blockedTaskIds, busyTaskIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
 import { dismissableTasks, dismissed, readAttention } from "../../domain/attention.js";
-import { clampTitle } from "../../domain/task.js";
+import { clampTitle } from "../../domain/thread.js";
 import { defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type TaskInput = Extract<WorkspaceInput, {

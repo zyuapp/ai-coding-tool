@@ -1,4 +1,4 @@
-import type { PastedText } from "../domain/task.js";
+import type { PastedText } from "../domain/conversation.js";
 
 /** A paste past either of these fills the composer rather than reading as a sentence, so it rides as a pill. */
 export const PASTE_PILL_LINES = 12;

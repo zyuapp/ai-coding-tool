@@ -8,7 +8,8 @@ import { promptWithPastes } from "../pastes.js";
 import { pruneDeletedTasks } from "../task-pruning.js";
 import { ATTENDED_RUN, applyTask, threadMark, withActiveRun, withBackgroundProcesses, withRunStatus, type RunProvenance, type ThreadMark } from "../task-workspace.js";
 import { viewPreferences } from "../view-preferences.js";
-import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, diffFor, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, projectFor, taskWorkspaceId, withDiff, withDock, withPrompt, workflowById, worktreeClaimants, worktreeFor, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
+import { projectFor, threadWorkspaceId, worktreeClaimants, worktreeFor } from "../thread-location.js";
+import { DIFF_PANEL, DRAFT_DOCK, WORKFLOW_PANEL, browserTarget, diffFor, dockFor, dockHoldsTab, dockOwner, dockSideChats, dockTabAfterClosing, frontDock, ownerOfBrowserTab, ownerOfTerminal, withDiff, withDock, withPrompt, workflowById, type DiffState, type DraftBranch, type FindState, type PendingRun, type QueuedMessage, type SideChat, type ThreadDock, type WorkspaceState } from "../workspace-state.js";
 import type { ChangedFilesResult, ClaudeRunSettings, StartRunCommand } from "../../contracts/ipc.js";
 import { withoutOutcome } from "../../domain/attention.js";
 import { browserOrigin, type BrowserTab } from "../../domain/browser.js";
@@ -16,7 +17,9 @@ import type { DiffRange } from "../../domain/diff.js";
 import { searchesItself, type FindTarget } from "../../domain/find.js";
 import { defaultEffortFor, defaultModelFor, effortForModel } from "../../domain/agent-engine.js";
 import type { RunStatus } from "../../domain/run.js";
-import { createTaskMessage, type Annotation, type AttachedFile, type PastedText, type Project, type RunAttachment, type Task } from "../../domain/task.js";
+import { createConversationMessage, type Annotation, type AttachedFile, type PastedText, type RunAttachment } from "../../domain/conversation.js";
+import type { Project } from "../../domain/project.js";
+import type { Thread } from "../../domain/thread.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 const REOPEN_PROJECT_ERROR = "Reopen this project folder before running a task.";
@@ -329,7 +332,7 @@ function claudeRunSettings(state: WorkspaceState): ClaudeRunSettings | undefined
   return { chromeBrowser: true as const };
 }
 
-export function startRunCommand(state: WorkspaceState, task: Task, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
+export function startRunCommand(state: WorkspaceState, task: Thread, runId: string, prompt: string, workspaceId: string, policy = task.executionPolicy): StartRunCommand {
   const claude = claudeRunSettings(state);
   return {
     type: "start",
@@ -349,7 +352,7 @@ export function startRunCommand(state: WorkspaceState, task: Task, runId: string
 }
 
 /** A side chat's first turn forks the source thread; every turn after resumes its own branch. */
-export function sideChannelFor(state: WorkspaceState, task: Task): Partial<StartRunCommand> {
+export function sideChannelFor(state: WorkspaceState, task: Thread): Partial<StartRunCommand> {
   if (!state.sideChats.some((chat) => chat.id === task.id)) return {};
   if (task.continuation) return { channel: "side" };
   const continuation = forkableContinuation(state, task.id);
@@ -394,7 +397,7 @@ export function withDeliveredMessage(state: WorkspaceState, taskId: string, mess
   if (!delivered) return state;
   return applyTask(withAttendedRun(withQueued(state, taskId, queued.filter((message) => message.id !== messageId)), taskId), taskId, (task) => ({
     ...task,
-    messages: [...task.messages, createTaskMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
+    messages: [...task.messages, createConversationMessage("user", delivered.text, undefined, delivered.attachments, delivered.annotations, delivered.pastes, delivered.files)],
     updatedAt: now(),
   }));
 }
@@ -443,7 +446,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
  * its uncommitted work with it; a thread starting in a worktree begins from that checkout as it
  * stands, which is also why a branch to start from has nothing left to say once one is named.
  */
-export function resolveWorkspaceEffect(pendingId: string, task: Task | undefined, project: Project | undefined, worktree: Worktree | undefined, wantsWorktree: boolean, branch?: DraftBranch | null): Extract<WorkspaceEffect, { type: "resolve-run-workspace" }> {
+export function resolveWorkspaceEffect(pendingId: string, task: Thread | undefined, project: Project | undefined, worktree: Worktree | undefined, wantsWorktree: boolean, branch?: DraftBranch | null): Extract<WorkspaceEffect, { type: "resolve-run-workspace" }> {
   if (worktree) {
     return { type: "resolve-run-workspace", pendingId, picker: false, workspace: { id: worktree.workspaceId, kind: "worktree", root: worktree.root } };
   }
@@ -486,7 +489,7 @@ export function runsInWorkspace(state: WorkspaceState, workspaceId: string | und
   if (!workspaceId) return false;
   return Object.keys(state.activeRuns).some((taskId) => {
     const task = state.tasks.find((item) => item.id === taskId);
-    return task ? taskWorkspaceId(state, task) === workspaceId : false;
+    return task ? threadWorkspaceId(state, task) === workspaceId : false;
   });
 }
 
@@ -494,7 +497,7 @@ export function runsInWorkspace(state: WorkspaceState, workspaceId: string | und
  * One thread walks out of a checkout the others keep. It is local again and says so in its own
  * timeline; the directory and every other claim on it are untouched.
  */
-export function leaveWorktree(state: WorkspaceState, taskId: string, note: ReturnType<typeof createTaskMessage>): WorkspaceState {
+export function leaveWorktree(state: WorkspaceState, taskId: string, note: ReturnType<typeof createConversationMessage>): WorkspaceState {
   return applyTask(state, taskId, ({ worktreeId: _left, worktreeEnteredAt: _forked, ...task }) => ({
     ...task,
     messages: [...task.messages, note],
@@ -507,7 +510,7 @@ export function leaveWorktree(state: WorkspaceState, taskId: string, note: Retur
  * draft pointed at it goes back to the project. The record goes with the directory: nothing is left
  * pointing at a folder that is not there.
  */
-export function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => ReturnType<typeof createTaskMessage>): WorkspaceState {
+export function dropWorktree(state: WorkspaceState, worktreeId: string, note: () => ReturnType<typeof createConversationMessage>): WorkspaceState {
   const gone = state.worktrees.find((worktree) => worktree.id === worktreeId);
   const claimants = new Set(worktreeClaimants(state, worktreeId).map((task) => task.id));
   return {
@@ -525,7 +528,7 @@ export function dropWorktree(state: WorkspaceState, worktreeId: string, note: ()
 }
 
 /** Hands back a checkout only when every linked thread explicitly leaves it. */
-export function releaseWorktrees(state: WorkspaceState, leaving: Task[]): Extract<WorkspaceEffect, { type: "release-worktree" }>[] {
+export function releaseWorktrees(state: WorkspaceState, leaving: Thread[]): Extract<WorkspaceEffect, { type: "release-worktree" }>[] {
   const going = new Set(leaving.map((task) => task.id));
   const released = new Set<string>();
   return leaving.flatMap((task) => {
@@ -645,7 +648,7 @@ export { DIFF_PANEL, WORKFLOW_PANEL };
 /** The checkout the thread in front works in: what Git is read from, for its diff as for its status. */
 export function currentWorkspaceId(state: WorkspaceState) {
   const currentTask = state.tasks.find((task) => task.id === state.currentId);
-  if (currentTask) return taskWorkspaceId(state, currentTask);
+  if (currentTask) return threadWorkspaceId(state, currentTask);
   return state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined;
 }
 
@@ -727,7 +730,7 @@ export function readDiff(state: WorkspaceState, owner: string, range: DiffRange,
 export function rereadDiff(state: WorkspaceState, taskId: string): WorkspaceTransition {
   const diff = state.diffs[taskId];
   if (!diff) return settled(state);
-  const workspaceId = taskWorkspaceId(state, state.tasks.find((task) => task.id === taskId));
+  const workspaceId = threadWorkspaceId(state, state.tasks.find((task) => task.id === taskId));
   return diff.workspaceId === workspaceId ? settled(state) : readDiffFrom(state, taskId, workspaceId, diff.range, { result: null, collapsed: [], viewed: {} });
 }
 

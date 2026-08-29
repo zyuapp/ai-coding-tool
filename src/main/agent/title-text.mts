@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { clampTitle } from "../../domain/task.js";
+import { clampTitle } from "../../domain/thread.js";
 
 /** How much of a first message a title is read from. */
 export const TITLE_MESSAGE_LIMIT = 2_000;

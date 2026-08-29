@@ -6,7 +6,8 @@ import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
 import type { SettingsSection } from "../../domain/settings-section";
 import type { SidebarMode, SidebarSection } from "../../domain/sidebar";
-import type { RunAttachment, TaskDropTarget } from "../../domain/task";
+import type { RunAttachment } from "../../domain/conversation";
+import type { ThreadDropTarget } from "../../domain/project";
 import type { ThemeMode } from "../../domain/theme";
 import type { ReviewTarget } from "../../domain/review";
 import { systemPrefersDark } from "../theme";
@@ -21,7 +22,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     restoreTask: (taskId: string) => dispatch({ type: "task.restore", taskId }),
     clearArchive: () => dispatch({ type: "task.clear-archive" }),
     renameTask: (taskId: string, title: string) => dispatch({ type: "task.rename", taskId, title }),
-    moveTask: (taskId: string, target: TaskDropTarget) => dispatch({ type: "task.move", taskId, target }),
+    moveTask: (taskId: string, target: ThreadDropTarget) => dispatch({ type: "task.move", taskId, target }),
     forkTask: (taskId: string, worktree = false) => dispatch({ type: "task.fork", taskId, ...(worktree ? { worktree } : {}) }),
     toggleProject: (projectId: string) => dispatch({ type: "view.toggle-project", projectId }),
     moveProject: (projectId: string, index: number) => dispatch({ type: "project.move", projectId, index }),

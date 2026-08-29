@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationAnchor } from "../../domain/task";
+import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import {
   commentQuote,
   diffRows,

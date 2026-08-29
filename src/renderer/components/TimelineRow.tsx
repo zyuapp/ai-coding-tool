@@ -1,7 +1,7 @@
 import { attachmentUrl } from "../../application/attachments";
 import type { StreamingTail } from "../../application/task-workspace";
 import type { AgentEngine } from "../../domain/agent-engine";
-import type { TaskMessage } from "../../domain/task";
+import type { ConversationMessage } from "../../domain/conversation";
 import { timeSteps, toSegments, type TimelineGroup } from "../timeline/grouping";
 import { AnnotationRow } from "./AnnotationRow";
 import { CopyButton } from "./CopyButton";
@@ -16,7 +16,7 @@ let momentFormatter: Intl.DateTimeFormat | undefined;
 const clockTime = (at: number) => (clockFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(at);
 const fullMoment = (at: number) => (momentFormatter ??= new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "medium" })).format(at);
 
-function UserMessage({ message, onView }: { message: TaskMessage; onView: (source: string) => void }) {
+function UserMessage({ message, onView }: { message: ConversationMessage; onView: (source: string) => void }) {
   return (
     <article className="message user">
       <div className="message-stack">

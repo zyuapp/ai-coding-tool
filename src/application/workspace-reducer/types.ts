@@ -13,14 +13,14 @@ import type { DiffRange } from "../../domain/diff.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
 import type { SubagentActivity } from "../../domain/run.js";
 import type { ShortcutOverrides } from "../../domain/shortcuts.js";
-import type { TaskStoreData } from "../../domain/task.js";
+import type { ThreadStoreData } from "../../domain/thread-storage.js";
 import type { TerminalUpdate } from "../../domain/terminal.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
 import type { ManagedWorktree } from "../../domain/worktree.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
-  | { type: "store.loaded"; data: TaskStoreData; hiddenTasks?: number }
+  | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number }
   /** The store has nothing to hand over: a first run, with no threads to restore. */
   | { type: "store.absent" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }

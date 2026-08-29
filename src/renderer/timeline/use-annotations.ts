@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import type { Annotation, AnnotationAnchor } from "../../domain/task";
+import type { Annotation, AnnotationAnchor } from "../../domain/conversation";
 import { useDismissibleLayer } from "../focus";
 import { ANNOTATION_HIGHLIGHT, highlights, renderedOffset, renderedRange } from "./highlights";
 

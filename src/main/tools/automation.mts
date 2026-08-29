@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/task.js";
+import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../../domain/finding.js";
 import { MAX_SURFACE_WHEN, type AutomationView } from "../../domain/automation.js";
 import type { AutomationBridge, FindingBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";

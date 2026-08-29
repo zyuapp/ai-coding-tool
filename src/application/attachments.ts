@@ -1,4 +1,5 @@
-import { clampTitle, type RunAttachment } from "../domain/task.js";
+import type { RunAttachment } from "../domain/conversation.js";
+import { clampTitle } from "../domain/thread.js";
 
 const ATTACHMENT_HEADING = "Attached screenshots (numbered red boxes mark the areas in question):";
 

@@ -2,7 +2,9 @@ import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../c
 import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
 import type { ActiveGoal } from "../domain/goal.js";
-import { createFailureMessage, createTaskMessage, type Task, type TaskOutcome } from "../domain/task.js";
+import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
+import type { ThreadOutcome } from "../domain/thread-run.js";
+import type { Thread } from "../domain/thread.js";
 
 export type ActiveRun = RunProvenance & {
   taskId: string;
@@ -28,11 +30,11 @@ export type ActiveRun = RunProvenance & {
 export type ThreadMark = {
   updatedAt: number;
   runEndedAt?: number;
-  outcome?: TaskOutcome;
+  outcome?: ThreadOutcome;
   outcomeUnread?: true;
 };
 
-export function threadMark(task: Task | undefined): ThreadMark {
+export function threadMark(task: Thread | undefined): ThreadMark {
   return {
     updatedAt: task?.updatedAt ?? 0,
     ...(task?.runEndedAt === undefined ? {} : { runEndedAt: task.runEndedAt }),
@@ -47,7 +49,7 @@ export function threadMark(task: Task | undefined): ThreadMark {
  * beginning the run superseded is returned, unread as it was. A tick that says nothing takes
  * nothing away either.
  */
-export function withdrawRun(task: Task, from: number, before: ThreadMark): Task {
+export function withdrawRun(task: Thread, from: number, before: ThreadMark): Thread {
   const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = task;
   return {
     ...rest,
@@ -95,7 +97,7 @@ export type StreamingTail = {
 
 /** Runs and their outcomes are keyed by task, so tasks progress independently. */
 export type RunTransitionState = {
-  tasks: Task[];
+  tasks: Thread[];
   goals: Record<string, ActiveGoal>;
   activeRuns: Record<string, ActiveRun>;
   runStatuses: Record<string, TaskRunStatus>;
@@ -180,7 +182,7 @@ export function runStatusFor(state: RunTransitionState, taskId: string | null): 
   return taskId ? state.runStatuses[taskId] ?? "idle" : "idle";
 }
 
-export function applyTask<T extends RunTransitionState>(state: T, taskId: string, update: (task: Task) => Task): T {
+export function applyTask<T extends RunTransitionState>(state: T, taskId: string, update: (task: Thread) => Thread): T {
   return { ...state, tasks: state.tasks.map((task) => task.id === taskId ? update(task) : task) } as T;
 }
 
@@ -415,7 +417,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "running" });
     return applyTask(activeState, event.taskId, (task) => ({
       ...task,
-      messages: [...task.messages, createTaskMessage(
+      messages: [...task.messages, createConversationMessage(
         "system",
         event.postTokens === undefined
           ? `Context ${event.trigger}-compacted at ${event.preTokens.toLocaleString("en-US")} tokens.`
@@ -430,7 +432,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "tool.intent") {
     return applyTask(withSequence, event.taskId, (task) => ({
       ...task,
-      messages: [...task.messages, createTaskMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
+      messages: [...task.messages, createConversationMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
       updatedAt: now(),
     }));
   }

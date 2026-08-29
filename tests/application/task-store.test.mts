@@ -128,6 +128,65 @@ test("serializes and parses v2 data without changing it", () => {
   assert.equal(parsed.preservedV1, null);
 });
 
+test("reads the established v2 field names without relying on this build's serializer", () => {
+  const storedThread = {
+    id: "task-rich",
+    title: "Inspect persistence",
+    titleByUser: true,
+    projectId: "project-1",
+    executionPolicy: "allow-edits",
+    engine: "claude",
+    model: "sonnet",
+    effort: "high",
+    contextUsage: { tokens: 12_000, limit: 200_000, model: "claude-sonnet" },
+    messages: [{
+      id: "message-1",
+      kind: "assistant",
+      text: "Found it",
+      detail: "Stored detail",
+      tone: "error",
+      attachments: ["/attachments/shot.png"],
+      annotations: [{ id: "annotation-1", quote: "Earlier output", note: "Check this" }],
+      pastes: [{ id: "paste-1", text: "Pasted context" }],
+      files: [{ id: "file-1", path: "/work/src", name: "src", folder: true }],
+      withdrawn: true,
+      at: 30,
+    }],
+    continuation: { provider: "claude", value: "session-1" },
+    continuationStatus: "available",
+    lastChangeSnapshot: { files: [" M src/App.tsx"], capturedAt: 31 },
+    sortIndex: 2,
+    outcome: "failed",
+    outcomeUnread: true,
+    findings: [{ id: "finding-1", headline: "Requests fail", detail: "Five errors", key: "http-500", at: 32, read: true }],
+    handledIssues: ["old-issue"],
+    lastFindingAt: 32,
+    lastChecked: { at: 33, note: "No new failures" },
+    runEndedAt: 34,
+    worktreeId: "worktree-1",
+    worktreeEnteredAt: 35,
+    inheritedContinuation: true,
+    createdAt: 20,
+    updatedAt: 36,
+    archivedAt: 37,
+    subagents: [{ id: "agent-1", description: "Inspect", status: "idle", startedAt: 21, activity: [] }],
+  };
+  const project = { id: "project-1", root: "/work/app", name: "App", workspaceId: "workspace-project", sortIndex: 1 };
+  const worktree = { id: "worktree-1", projectId: "project-1", root: "/worktrees/app-1", workspaceId: "workspace-worktree", baseCommit: "abcdef1", createdAt: 10, lastUsedAt: 35 };
+  const versioned = (value: unknown) => JSON.stringify({ version: 2, value });
+
+  const parsed = parseTaskStore({
+    tasks: versioned([storedThread]),
+    projects: versioned([project]),
+    worktrees: versioned([worktree]),
+    lastFolder: versioned("/work/app"),
+  });
+
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  assert.deepEqual(parsed.data, { version: 2, tasks: [storedThread], projects: [project], worktrees: [worktree], lastFolder: "/work/app" });
+});
+
 test("idle subagents survive reload, while work interrupted by restart becomes stopped", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);

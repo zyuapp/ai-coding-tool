@@ -1,11 +1,11 @@
 import {
-  parseTaskStore,
-  serializeTaskStore,
-  type SerializedTaskStore,
+  parseThreadStore,
+  serializeThreadStore,
+  type SerializedThreadStore,
   type StorageValues,
-  type TaskStoreData,
-  type TaskStoreParseResult,
-} from "../domain/task.js";
+  type ThreadStoreData,
+  type ThreadStoreParseResult,
+} from "../domain/thread-storage.js";
 
 export const TASK_STORE_KEYS = {
   v1: {
@@ -43,7 +43,7 @@ export type KeyValueStorage = {
 };
 
 export type TaskStoreSaveResult =
-  | { ok: true; values: SerializedTaskStore }
+  | { ok: true; values: SerializedThreadStore }
   | { ok: false; reason: "load-required" | "corrupt" | "storage"; error?: string };
 
 export class TaskStore {
@@ -51,7 +51,7 @@ export class TaskStore {
   private writable = false;
   constructor(private readonly storage: KeyValueStorage) {}
 
-  load(): TaskStoreParseResult {
+  load(): ThreadStoreParseResult {
     let envelope: string | null = null;
     let values: StorageValues | null = null;
     try {
@@ -90,17 +90,17 @@ export class TaskStore {
     const result = decodedEnvelope === "corrupt"
       ? corruptEnvelope(envelope!)
       : decodedEnvelope
-        ? parseTaskStore(decodedEnvelope)
-        : parseTaskStore(values!);
+        ? parseThreadStore(decodedEnvelope)
+        : parseThreadStore(values!);
     this.loaded = true;
     this.writable = result.ok;
     return result;
   }
 
-  save(data: TaskStoreData): TaskStoreSaveResult {
+  save(data: ThreadStoreData): TaskStoreSaveResult {
     if (!this.loaded) return { ok: false, reason: "load-required" };
     if (!this.writable) return { ok: false, reason: "corrupt" };
-    const values = serializeTaskStore(data);
+    const values = serializeThreadStore(data);
     try {
       this.storage.setItem(TASK_STORE_KEYS.v2.envelope, JSON.stringify(values));
       return { ok: true, values };
@@ -141,7 +141,7 @@ function parseEnvelope(raw: string): StorageValues | "corrupt" {
   }
 }
 
-function corruptEnvelope(raw: string): TaskStoreParseResult {
+function corruptEnvelope(raw: string): ThreadStoreParseResult {
   return {
     ok: false,
     canWrite: false,

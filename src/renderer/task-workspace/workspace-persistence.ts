@@ -1,9 +1,10 @@
 import { sideChatIds, type WorkspaceState } from "../../application/workspace-state.js";
 import type { PersistedSubagent, PersistedTask, TaskStoreDelta } from "../../contracts/ipc.js";
 import type { Subagent, SubagentActivity } from "../../domain/run.js";
-import type { Task, TaskStoreData } from "../../domain/task.js";
+import type { Thread } from "../../domain/thread.js";
+import type { ThreadStoreData } from "../../domain/thread-storage.js";
 
-function persistedTask(task: Task): PersistedTask {
+function persistedTask(task: Thread): PersistedTask {
   const { messages: _messages, ...record } = task;
   return record;
 }
@@ -63,7 +64,7 @@ export function persistenceDelta(previous: PersistenceState | null, next: Persis
       const heldBefore = previous?.subagents[task.id];
       const held = next.subagents[task.id];
       if (before === task && heldBefore === held) return [];
-      const messages: Array<{ index: number; message: Task["messages"][number] }> = [];
+      const messages: Array<{ index: number; message: Thread["messages"][number] }> = [];
       for (let index = 0; index < task.messages.length; index += 1) {
         const message = task.messages[index]!;
         if (before?.messages[index] !== message) messages.push({ index, message });
@@ -84,7 +85,7 @@ export function persistenceDelta(previous: PersistenceState | null, next: Persis
 }
 
 /** Writes anything created before the durable store finished loading, including worktree records. */
-export function storeBackfill(stored: TaskStoreData, current: PersistenceState) {
+export function storeBackfill(stored: ThreadStoreData, current: PersistenceState) {
   const subagents: Record<string, Subagent[]> = {};
   for (const task of stored.tasks) if (task.subagents?.length) subagents[task.id] = task.subagents;
   return persistenceDelta({

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { QueuedMessage } from "../../application/workspace-state";
-import type { Annotation as TaskAnnotation, AttachedFile, PastedText, RecalledMessage, StagedImage } from "../../domain/task";
+import type { Annotation, AttachedFile, PastedText, RecalledMessage, StagedImage } from "../../domain/conversation";
 import type { ComposerCaret } from "./composer-caret";
 
 function carries(message: RecalledMessage) {
@@ -11,7 +11,7 @@ function carries(message: RecalledMessage) {
 /** Stepping ↑/↓ through the sent history; the live draft is stashed and comes back below the newest. */
 export function useComposerRecall({ prompt, annotations, pastes, files, images, history, queuedMessages, caret, onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall }: {
   prompt: string;
-  annotations: TaskAnnotation[];
+  annotations: Annotation[];
   pastes: PastedText[];
   files: AttachedFile[];
   images: StagedImage[];
@@ -19,7 +19,7 @@ export function useComposerRecall({ prompt, annotations, pastes, files, images, 
   queuedMessages: QueuedMessage[];
   caret: ComposerCaret;
   onPromptChange: (prompt: string) => void;
-  onAnnotationRecall?: (annotations: TaskAnnotation[]) => void;
+  onAnnotationRecall?: (annotations: Annotation[]) => void;
   onPasteRecall?: (pastes: PastedText[]) => void;
   onFileRecall?: (files: AttachedFile[]) => void;
   onImageRecall?: (paths: string[]) => void;

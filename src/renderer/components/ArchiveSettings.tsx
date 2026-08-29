@@ -1,8 +1,9 @@
 import { LuArchive as Archive } from "react-icons/lu";
-import { ARCHIVE_RETENTION_MS, type Task } from "../../domain/task";
+import { ARCHIVE_RETENTION_MS } from "../../domain/thread-retention";
+import type { Thread } from "../../domain/thread";
 
 export type ArchiveSettingsProps = {
-  archivedTasks: Task[];
+  archivedTasks: Thread[];
   /** Whether deleting every archived thread is one press away from happening. */
   confirming: boolean;
   confirmationRef: React.RefObject<HTMLButtonElement | null>;

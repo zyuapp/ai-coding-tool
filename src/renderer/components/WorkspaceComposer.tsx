@@ -2,7 +2,7 @@ import { TaskComposer, type ComposerAction } from "./TaskComposer";
 import { attachDroppedFiles, imageSources } from "../dropped-files";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 import { modelSupportsManualCompaction } from "../../domain/agent-engine";
-import { sentPrompts } from "../../domain/task";
+import { sentPrompts } from "../../domain/conversation";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
 

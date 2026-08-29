@@ -1,4 +1,4 @@
-import type { Annotation } from "../domain/task.js";
+import type { Annotation } from "../domain/conversation.js";
 
 /** A quote longer than this is cut when the annotation is made, so a select-all cannot flood the prompt. */
 export const ANNOTATION_QUOTE_LIMIT = 2000;

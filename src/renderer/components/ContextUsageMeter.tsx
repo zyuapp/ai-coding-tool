@@ -1,5 +1,5 @@
 import { useId, type CSSProperties } from "react";
-import type { ContextUsage } from "../../domain/task";
+import type { ContextUsage } from "../../domain/thread-run";
 
 export function ContextUsageMeter({ usage }: { usage: ContextUsage }) {
   const tooltipId = useId();
