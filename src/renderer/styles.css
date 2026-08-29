@@ -2344,7 +2344,8 @@ pre {
 .side-chat-transcript .empty-state p { max-width: 310px; font-size: var(--text-content); }
 .side-chat-transcript .message { margin-bottom: 25px; }
 .side-chat-transcript .message.user { margin-bottom: 30px; }
-.side-chat-transcript .message.user .message-text { max-width: 88%; padding: 9px 13px; }
+.side-chat-transcript .message-stack { max-width: 92%; }
+.side-chat-transcript .message.user .message-text { padding: 9px 13px; }
 .side-chat-transcript .message-text { font-size: var(--text-content); }
 .side-chat-error { margin: 0; padding: 9px 17px; border-top: 1px solid var(--danger-line); background: var(--danger-surface); color: var(--danger-soft); font-size: var(--text-control); }
 /** The side chat lays its own rows out, so the composer takes the row it falls in rather than the workspace's third. */
