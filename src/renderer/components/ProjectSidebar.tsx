@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
-import { LuSettings as Settings } from "react-icons/lu";
+import { LuPlus as Plus, LuSettings as Settings } from "react-icons/lu";
 import { projectName } from "../../domain/task";
 import { hasUnreadAttention } from "../../domain/attention";
 import type { TaskDropTarget } from "../../domain/task";
@@ -182,9 +182,13 @@ export function ProjectSidebar({
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >
       <SidebarHeader mode={mode} canGoBack={canGoBack} canGoForward={canGoForward} onSetMode={onSetMode} onGoBack={onGoBack} onGoForward={onGoForward} />
-      <button className="new-task-button" onClick={() => onNewTask()}>
-        <span className="new-task-icon" aria-hidden="true">＋</span>
-        <span>New task</span>
+      <button className="new-task-button" onClick={() => onNewTask()} aria-label="New task" data-tip="New task">
+        {/** Two copies of one outline: the resting hairline, and the accent that draws over it on hover. */}
+        <svg className="new-task-edge" aria-hidden="true" focusable="false">
+          <rect className="new-task-edge-rest" pathLength={100} />
+          <rect className="new-task-edge-draw" pathLength={100} />
+        </svg>
+        <Plus className="new-task-icon" size={17} />
       </button>
 
       <div className="sidebar-scroll">
