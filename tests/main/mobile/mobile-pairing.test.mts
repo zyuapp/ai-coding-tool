@@ -85,6 +85,15 @@ test("wrong codes shut the door on the phone that keeps trying", async (t) => {
   assert.equal(elsewhere.ok, true);
 });
 
+test("a scan with no code on screen is not a guess, so it never shuts the door", async (t) => {
+  const { devices, file } = await store(t);
+  for (let attempt = 0; attempt < MAX_PAIRING_FAILURES * 2; attempt += 1) devices.redeem("K7M2P9QX", "iPhone", PHONE, AT);
+  assert.equal(devices.locked(PHONE, AT), false);
+  const code = devices.mint(AT);
+  assert.equal(devices.redeem(code.code, "iPhone", PHONE, AT).ok, true);
+  assert.equal(await readFile(`${file}.tmp`, "utf8").catch(() => null), null, "the staging file was left behind");
+});
+
 test("a wrong guess leaves the code the user is looking at standing", async (t) => {
   const { devices } = await store(t);
   const code = devices.mint(AT);

@@ -55,8 +55,8 @@ export async function runSystemEffect(effect: SystemEffect, host: EffectHost): P
       return;
 
     /** The bridge's own settings, each of which answers with the whole of what the bridge is doing. */
-    case "remote.set-enabled": case "remote.set-lan-exposed": case "remote.create-pairing-code":
-    case "remote.revoke-device": case "remote.set-tailscale-serve": case "remote.refresh":
+    case "remote.set-enabled": case "remote.create-pairing-code":
+    case "remote.revoke-device": case "remote.refresh":
       try {
         await dispatch({ type: "remote.changed", remote: await runRemoteEffect(effect, desktop) });
       } catch (error) {

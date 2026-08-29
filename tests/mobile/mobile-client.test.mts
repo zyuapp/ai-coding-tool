@@ -73,6 +73,51 @@ test("a refused or expired code stops trying and says to scan a fresh one", () =
   assert.deepEqual(run(refused.state, [{ kind: "closed" }]).effects, []);
 });
 
+test("a phone turned away for a token it no longer holds pairs again with the code it was opened with", () => {
+  const start = initialMobileClient({ credential: { token: TOKEN, deviceId: "d1", deviceName: "iPhone" }, code: CODE, deviceName: "iPhone" });
+  const opened = run(start, [{ kind: "opened" }]);
+  assert.equal(sent(opened.effects)[0]?.kind, "resume", "a token that may still be good is tried first");
+  const refused = run(opened.state, [{ kind: "received", message: { kind: "error", sequence: 0, code: "unauthorized", message: "no" } }]);
+  assert.equal(refused.state.entry, "pairing");
+  assert.equal(refused.state.credential, null);
+  assert.deepEqual(refused.effects, [{ kind: "store", credential: null }, { kind: "disconnect" }, { kind: "connect", delayMs: 0 }]);
+  const again = run(refused.state, [{ kind: "opened" }]);
+  assert.deepEqual(sent(again.effects), [{ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: CODE, deviceName: "iPhone" }]);
+});
+
+test("a page the Mac calls out of date fetches itself again", () => {
+  const step = run(paired(), [{ kind: "received", message: { kind: "error", sequence: 0, code: "version", message: "old" } }]);
+  assert.deepEqual(step.effects, [{ kind: "disconnect" }, { kind: "reload" }]);
+  assert.deepEqual(step.state.credential, paired().credential);
+});
+
+test("a pairing phone locked out is told what the Mac said rather than that it will try again", () => {
+  const pairing = initialMobileClient({ credential: null, code: CODE, deviceName: "iPhone" });
+  const refused = run(pairing, [{ kind: "opened" }, { kind: "received", message: { kind: "error", sequence: 0, code: "rate-limited", message: "Too many wrong codes. Wait a few minutes and scan the code again." } }]);
+  assert.equal(refused.state.notice, "Too many wrong codes. Wait a few minutes and scan the code again.");
+  assert.deepEqual(refused.effects.filter((effect) => effect.kind !== "send"), [{ kind: "disconnect" }]);
+  assert.equal(shouldReconnect(refused.state), false, "its code will have expired before the lockout lifts");
+});
+
+test("a frame before the first snapshot is answered but does not make the phone live on nothing", () => {
+  const start = initialMobileClient({ credential: { token: TOKEN, deviceId: "d1", deviceName: "iPhone" }, code: null, deviceName: "iPhone" });
+  const step = run(start, [{ kind: "opened" }, { kind: "received", message: { kind: "ping", sequence: 1, at: 5 } }]);
+  assert.equal(step.state.connection, "connecting");
+  assert.deepEqual(sent(step.effects).filter((message) => message.kind === "pong"), [{ kind: "pong", at: 5 }]);
+  const live = run(step.state, [{ kind: "received", message: snapshot(2) }]);
+  assert.equal(live.state.connection, "live");
+});
+
+test("a wake on a line that has gone quiet redials at once as a resume", () => {
+  const live = run(paired(), [{ kind: "received", message: { kind: "patch", sequence: 2, patch: { groups: [] } } }]).state;
+  assert.deepEqual(run(live, [{ kind: "wake", stale: false }]).effects, [], "a line that is answering is left alone");
+  const stale = run(live, [{ kind: "wake", stale: true }]);
+  assert.deepEqual(stale.effects, [{ kind: "disconnect" }, { kind: "connect", delayMs: 0 }]);
+  assert.equal(stale.state.connection, "resuming");
+  assert.equal(stale.state.sessionId, "s1", "the session is kept so the redial replays rather than reloads");
+  assert.deepEqual(sent(run(stale.state, [{ kind: "opened" }]).effects)[0], { kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: TOKEN, sessionId: "s1", lastSequence: 2 });
+});
+
 test("a page opened with neither a code nor a token asks to be shown one", () => {
   const start = initialMobileClient({ credential: null, code: null, deviceName: "iPhone" });
   assert.equal(start.entry, "blocked");

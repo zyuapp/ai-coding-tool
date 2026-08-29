@@ -240,12 +240,9 @@ export type TerminalCommand =
  */
 export type RemoteCommand =
   | { type: "remote.set-enabled"; enabled: boolean }
-  /** The opt-in second bind that anything on the same network can reach. Off by default. */
-  | { type: "remote.set-lan-exposed"; exposed: boolean }
   /** Mints the code the QR carries. Minting a second one discards the first. */
   | { type: "remote.create-pairing-code" }
   | { type: "remote.revoke-device"; deviceId: string }
-  | { type: "remote.set-tailscale-serve"; enabled: boolean }
   /** Asks Tailscale again whether it is installed, signed in, and what this machine is called. */
   | { type: "remote.refresh" };
 

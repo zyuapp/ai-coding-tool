@@ -1,7 +1,16 @@
 import { isMobileServerMessage, type MobileCommand } from "../../contracts/mobile";
-import { MOBILE_DEAD_AFTER_MS } from "../../domain/mobile";
+import { MOBILE_DEAD_AFTER_MS, MOBILE_PING_INTERVAL_MS } from "../../domain/mobile";
 import { reduceMobileClient, type MobileClientEffect, type MobileClientEvent, type MobileClientState } from "./protocol";
 import { writeCredential, type CredentialStore } from "./storage";
+
+/** How long a dial may sit unanswered. A phone whose tunnel is not back yet would otherwise wait on the browser's own minute. */
+const CONNECT_TIMEOUT_MS = 10_000;
+
+/** Silence past this on a line that claims to be open means the phone slept through the Mac's pings. */
+const STALE_AFTER_MS = MOBILE_PING_INTERVAL_MS + 5_000;
+
+/** Set for the page's lifetime once it has reloaded itself for a version refusal, so two stale builds cannot chase each other. */
+const RELOADED_KEY = "aicodingtool.mobile.reloaded";
 
 /**
  * The one impure part: a socket, three timers, and the two things a phone does that a desktop does
@@ -27,6 +36,7 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
   let retry: ReturnType<typeof setTimeout> | null = null;
   let settle: ReturnType<typeof setTimeout> | null = null;
   let deadline: ReturnType<typeof setTimeout> | null = null;
+  let lastHeardAt = Date.now();
   let stopped = false;
 
   function dispatch(event: MobileClientEvent) {
@@ -41,7 +51,7 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
     if (effect.kind === "send") {
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(effect.message));
     } else if (effect.kind === "store") writeCredential(store, effect.credential);
-    else if (effect.kind === "reload") window.location.reload();
+    else if (effect.kind === "reload") reload();
     else if (effect.kind === "disconnect") drop();
     else if (effect.kind === "connect") schedule(effect.delayMs);
     else if (effect.kind === "settle") {
@@ -50,8 +60,24 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
     }
   }
 
+  function reload() {
+    try {
+      if (window.sessionStorage.getItem(RELOADED_KEY)) return;
+      window.sessionStorage.setItem(RELOADED_KEY, "1");
+    } catch {
+      // Storage refused is no reason not to reload once.
+    }
+    window.location.reload();
+  }
+
+  function disarm() {
+    if (deadline) clearTimeout(deadline);
+    deadline = null;
+  }
+
   /** Closes the line without asking for another: a deliberate hang-up is not a dropped call. */
   function drop() {
+    disarm();
     const closing = socket;
     socket = null;
     if (!closing) return;
@@ -69,18 +95,25 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
 
   /** Silence for longer than the server's own ping interval allows means the line is gone. */
   function watch() {
-    if (deadline) clearTimeout(deadline);
+    lastHeardAt = Date.now();
+    arm(MOBILE_DEAD_AFTER_MS);
+  }
+
+  function arm(delayMs: number) {
+    disarm();
     deadline = setTimeout(() => {
       const dead = socket;
       drop();
       if (dead) dispatch({ kind: "closed" });
-    }, MOBILE_DEAD_AFTER_MS);
+    }, delayMs);
   }
 
   function open() {
     if (stopped || socket) return;
     const opening = new WebSocket(url);
     socket = opening;
+    /** A dial that hangs is cut like a line that went quiet, so a wake can dial afresh. */
+    arm(CONNECT_TIMEOUT_MS);
     opening.onopen = () => {
       watch();
       dispatch({ kind: "opened" });
@@ -92,6 +125,7 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
     };
     opening.onclose = () => {
       if (socket !== opening) return;
+      disarm();
       socket = null;
       dispatch({ kind: "closed" });
     };
@@ -100,7 +134,8 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
 
   function wake() {
     if (document.visibilityState === "hidden") return;
-    dispatch({ kind: "wake" });
+    const stale = socket !== null && Date.now() - lastHeardAt > STALE_AFTER_MS;
+    dispatch({ kind: "wake", stale });
   }
 
   document.addEventListener("visibilitychange", wake);
@@ -120,7 +155,7 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("online", wake);
       window.removeEventListener("pageshow", wake);
-      for (const timer of [retry, settle, deadline]) if (timer) clearTimeout(timer);
+      for (const timer of [retry, settle]) if (timer) clearTimeout(timer);
       drop();
     },
   };

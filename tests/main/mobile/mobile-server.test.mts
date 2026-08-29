@@ -49,6 +49,7 @@ async function harness(t: { onTestFinished(callback: () => void | Promise<void>)
     },
     command: async (_sessionId, command) => { commands.push(command); },
     onChange: () => { changes += 1; },
+    sessionGraceMs: 0,
   });
   let changes = 0;
   await server.start("127.0.0.1");
@@ -254,7 +255,7 @@ test("a phone whose pairing is revoked loses the session with it", async (t) => 
 });
 
 test("a view the window will not give up is reported rather than dropped", async (t) => {
-  const { devices, socketUrl, refuse } = await harness(t);
+  const { devices, socketUrl, refuse, server } = await harness(t);
   refuse("The AI Coding Tool window is not open.");
   const code = devices.mint(Date.now());
   const client = phone(socketUrl);
@@ -265,6 +266,80 @@ test("a view the window will not give up is reported rather than dropped", async
   const failed = await client.waitFor("error");
   assert.equal(failed.code, "internal");
   assert.match(failed.message, /window is not open/);
+  /** A session that never got its view is not kept: the phone is hung up on and dials into a fresh one. */
+  await until(() => client.closes.length > 0, "the phone was left on a session with no view");
+  assert.equal(server.sessionViews().length, 0);
+});
+
+test("a command whose acknowledgement was lost before the session expired is still only run once", async (t) => {
+  const { devices, socketUrl, server, commands } = await harness(t);
+  const code = devices.mint(Date.now());
+  const first = phone(socketUrl);
+  await first.opened();
+  first.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  const paired = await first.waitFor("paired");
+  const opening = await first.waitFor("snapshot");
+  const command: MobileCommand = { type: "task.send", taskId: "task-1", text: "ship it" };
+  first.send({ kind: "command", requestId: "request-1", command });
+  await first.waitFor("ack");
+
+  first.socket.close();
+  await until(() => server.sessionViews()[0]?.connection === "offline", "the session never went offline");
+  (server as unknown as { tick(): void }).tick();
+  assert.equal(server.sessionViews().length, 0, "the session outlived its grace");
+
+  const back = phone(socketUrl);
+  t.onTestFinished(() => back.socket.close());
+  await back.opened();
+  back.send({ kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: paired.token, sessionId: opening.sessionId, lastSequence: opening.sequence + 1 });
+  await back.waitFor("snapshot");
+  back.send({ kind: "command", requestId: "request-1", command });
+  const again = await back.waitFor("ack");
+  assert.equal(again.ok, true);
+  assert.deepEqual(commands, [command], "the window ran the resent command a second time");
+});
+
+test("a resume with nothing to replay is still handed a frame, so the phone calls itself live at once", async (t) => {
+  const { devices, socketUrl } = await harness(t);
+  const code = devices.mint(Date.now());
+  const first = phone(socketUrl);
+  await first.opened();
+  first.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  const paired = await first.waitFor("paired");
+  const opening = await first.waitFor("snapshot");
+  first.socket.close();
+
+  const back = phone(socketUrl);
+  t.onTestFinished(() => back.socket.close());
+  await back.opened();
+  back.send({ kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: paired.token, sessionId: opening.sessionId, lastSequence: opening.sequence });
+  const ping = await back.waitFor("ping");
+  assert.equal(ping.sequence, opening.sequence + 1, "the frame is numbered after what the phone already saw");
+  assert.equal(back.messages.some((message) => message.kind === "snapshot"), false);
+});
+
+test("a page served through a proxy is let in by the host it was served on, and wrong codes count against the phone behind the proxy", async (t) => {
+  const { socketUrl, devices } = await harness(t);
+  const proxied = { origin: "https://mac.tail1234.ts.net", headers: { "x-forwarded-host": "mac.tail1234.ts.net", "x-forwarded-proto": "https", "x-forwarded-for": "100.64.0.7" } };
+  const allowed = phone(socketUrl, proxied);
+  t.onTestFinished(() => allowed.socket.close());
+  await allowed.opened();
+
+  const foreign = phone(socketUrl, { ...proxied, origin: "https://evil.example" });
+  await assert.rejects(foreign.opened(), /403/);
+
+  devices.mint(Date.now());
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const guess = phone(socketUrl, proxied);
+    await guess.opened();
+    guess.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: "WRONGONE", deviceName: "iPhone" });
+    await guess.waitFor("error");
+  }
+  const other = phone(socketUrl, { ...proxied, headers: { ...proxied.headers, "x-forwarded-for": "100.64.0.8" } });
+  t.onTestFinished(() => other.socket.close());
+  await other.opened();
+  other.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: devices.mint(Date.now()).code, deviceName: "iPad" });
+  await other.waitFor("paired");
 });
 
 test("a phone's request is answered by the window, or by the wait running out", async () => {

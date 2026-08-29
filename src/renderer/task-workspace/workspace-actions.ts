@@ -132,10 +132,8 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     reportFind: (target: FindTarget, results: FindResults) => dispatch({ type: "find.results", target, results }),
     resizeTerminal: (terminalId: string, cols: number, rows: number) => dispatch({ type: "terminal.resize", terminalId, cols, rows }),
     setRemoteEnabled: (enabled: boolean) => dispatch({ type: "remote.set-enabled", enabled }),
-    setRemoteLanExposed: (exposed: boolean) => dispatch({ type: "remote.set-lan-exposed", exposed }),
     createRemotePairingCode: () => dispatch({ type: "remote.create-pairing-code" }),
     revokeRemoteDevice: (deviceId: string) => dispatch({ type: "remote.revoke-device", deviceId }),
-    setTailscaleServe: (enabled: boolean) => dispatch({ type: "remote.set-tailscale-serve", enabled }),
     refreshRemote: () => dispatch({ type: "remote.refresh" }),
   };
 }

@@ -16,19 +16,17 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: tr
 const LOOPBACK = { kind: "loopback" as const, host: "127.0.0.1", port: 7737 };
 const TAILNET = { kind: "tailscale-https" as const, host: "mac.tail1234.ts.net", port: 443 };
 
-type Calls = { enabled: boolean[]; lan: boolean[]; serve: boolean[]; revoked: string[]; codes: number; refreshes: number };
+type Calls = { enabled: boolean[]; revoked: string[]; codes: number; refreshes: number };
 
 function draw(remote: MobileServerState) {
   const host = document.createElement("div");
   document.body.replaceChildren(host);
-  const calls: Calls = { enabled: [], lan: [], serve: [], revoked: [], codes: 0, refreshes: 0 };
+  const calls: Calls = { enabled: [], revoked: [], codes: 0, refreshes: 0 };
   act(() => void createRoot(host).render(React.createElement(MobileSettings, {
     remote,
     onSetEnabled: (value: boolean) => calls.enabled.push(value),
-    onSetLanExposed: (value: boolean) => calls.lan.push(value),
     onCreatePairingCode: () => { calls.codes += 1; },
     onRevokeDevice: (id: string) => calls.revoked.push(id),
-    onSetTailscaleServe: (value: boolean) => calls.serve.push(value),
     onRefreshTailscale: () => { calls.refreshes += 1; },
   })));
   return calls;
@@ -40,23 +38,9 @@ function click(selector: string, index = 0) {
   act(() => void node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
 }
 
-
-
-test("a bridge that is off says so and offers nothing to pair with", () => {
-  const calls = draw(emptyMobileServerState());
-  const text = document.body.textContent ?? "";
-  assert.match(text, /Off/);
-  assert.match(text, /Turn phone access on to pair a phone/);
-  assert.match(text, /No phone has paired/);
-  assert.equal(document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-pairing-heading'] button")?.disabled, true);
-
-  click("[aria-labelledby='phone-availability-heading'] [role='switch']");
-  assert.deepEqual(calls.enabled, [true]);
-});
-
-test("a listening bridge draws every address, and the QR of the code on screen", async () => {
-  const at = Date.now();
-  const remote: MobileServerState = {
+/** A bridge that is on and served over the tailnet, which is the only state a phone can reach. */
+function served(overrides: Partial<MobileServerState> = {}): MobileServerState {
+  return {
     ...emptyMobileServerState(),
     enabled: true,
     status: "listening",
@@ -64,17 +48,36 @@ test("a listening bridge draws every address, and the QR of the code on screen",
     addresses: [TAILNET, LOOPBACK],
     primary: TAILNET,
     tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: true, certs: true, error: null },
-    pairing: { code: "K7M2P9QX", expiresAt: at + 90_000, address: TAILNET, url: pairingUrl(TAILNET, "K7M2P9QX") },
+    ...overrides,
   };
-  const calls = draw(remote);
+}
+
+function text() {
+  return document.body.textContent ?? "";
+}
+
+test("a bridge that is off says so and offers nothing to pair with", () => {
+  const calls = draw(emptyMobileServerState());
+  assert.match(text(), /Off/);
+  assert.match(text(), /Turn phone access on and finish the Tailscale steps/);
+  assert.match(text(), /No phone has paired/);
+  assert.equal(document.querySelector<HTMLButtonElement>("[aria-labelledby='phone-pairing-heading'] button")?.disabled, true);
+  assert.equal(calls.codes, 0, "a code was asked for with nothing to reach it by");
+
+  click("[aria-labelledby='phone-availability-heading'] [role='switch']");
+  assert.deepEqual(calls.enabled, [true]);
+});
+
+test("a served bridge draws the QR of the code on screen, and the address it is served at", async () => {
+  const at = Date.now();
+  const calls = draw(served({ pairing: { code: "K7M2P9QX", expiresAt: at + 90_000, address: TAILNET, url: pairingUrl(TAILNET, "K7M2P9QX") } }));
   await settleUntil(() => document.querySelector("img.phone-qr") !== null, "no QR was ever drawn");
 
-  const text = document.body.textContent ?? "";
-  assert.match(text, /Listening/);
-  assert.match(text, /https:\/\/mac\.tail1234\.ts\.net/);
-  assert.match(text, /http:\/\/127\.0\.0\.1:7737/);
-  assert.match(text, /K7M2P9QX/);
-  assert.match(text, /Expires in 1:3\d/);
+  assert.match(text(), /On/);
+  assert.match(text(), /https:\/\/mac\.tail1234\.ts\.net/);
+  assert.match(text(), /K7M2P9QX/);
+  assert.match(text(), /Expires in 1:3\d/);
+  assert.equal(calls.codes, 0, "a code was asked for while one was still live");
 
   const qr = document.querySelector<HTMLImageElement>("img.phone-qr");
   assert.ok(qr, "no QR was drawn");
@@ -82,109 +85,79 @@ test("a listening bridge draws every address, and the QR of the code on screen",
   assert.equal(qr.alt, "QR code for https://mac.tail1234.ts.net/m/#pair=K7M2P9QX");
   assert.equal(qr.alt.includes("?"), false, "the code rides the fragment, where no proxy sees it");
 
-  click("[data-route='tailscale'] [role='switch']");
-  assert.deepEqual(calls.serve, [false], "the switch offers the opposite of what is happening");
-  click("[data-route='lan'] [role='switch']");
-  assert.deepEqual(calls.lan, [true]);
+  click("[aria-labelledby='phone-pairing-heading'] button");
+  assert.equal(calls.codes, 1);
 });
 
-test("paired phones are listed with a way to cut each one off", () => {
-  const remote: MobileServerState = {
-    ...emptyMobileServerState(),
-    enabled: true,
-    status: "listening",
-    port: 7737,
-    addresses: [LOOPBACK],
-    primary: LOOPBACK,
+test("a code is asked for the moment a phone could scan one, and again once it runs out", () => {
+  const calls = draw(served());
+  assert.equal(calls.codes, 1, "the page should mint a code rather than wait to be asked");
+  assert.match(text(), /Making a code/);
+
+  const expired = served({ pairing: { code: "OLDCODE1", expiresAt: Date.now() - 1, address: TAILNET, url: pairingUrl(TAILNET, "OLDCODE1") } });
+  const again = draw(expired);
+  assert.equal(again.codes, 1, "an expired code should be replaced without a press");
+  assert.match(text(), /This code has expired/);
+});
+
+test("paired phones are listed once each, with what they are doing and a way to cut each one off", () => {
+  const calls = draw(served({
     devices: [
       { id: "device-1", name: "iPhone", pairedAt: 1, lastSeenAt: Date.now() },
       { id: "device-2", name: "iPad", pairedAt: 1, lastSeenAt: null },
     ],
-    sessions: [{ id: "s1", startedAt: 1, lastSeenAt: 2, sequence: 9, connection: "live", deviceName: "iPhone" }],
-  };
-  const calls = draw(remote);
-  const text = document.body.textContent ?? "";
-  assert.match(text, /2 paired/);
-  assert.match(text, /Never connected/);
-  assert.match(text, /1 connected/);
-  assert.match(text, /Live\./);
+    sessions: [
+      { id: "s1", deviceId: "device-1", startedAt: 1, lastSeenAt: 2, sequence: 9, connection: "offline", deviceName: "iPhone" },
+      { id: "s2", deviceId: "device-1", startedAt: 3, lastSeenAt: 4, sequence: 2, connection: "live", deviceName: "iPhone" },
+    ],
+  }));
+  assert.match(text(), /1 of 2 connected/);
+  assert.equal(document.querySelectorAll("[data-device]").length, 2, "a phone with two sessions was listed twice");
+  assert.match(document.querySelector("[data-device='device-1']")?.textContent ?? "", /Connected/);
+  assert.match(document.querySelector("[data-device='device-2']")?.textContent ?? "", /Never connected/);
 
   click("[aria-labelledby='phone-devices-heading'] button.danger", 1);
   assert.deepEqual(calls.revoked, ["device-2"]);
 });
 
-test("a machine without Tailscale says so and cannot be switched on", () => {
-  const remote: MobileServerState = {
-    ...emptyMobileServerState(),
-    enabled: true,
-    status: "listening",
-    port: 7737,
+test("a machine without Tailscale is told to install it, and nothing to scan is drawn", () => {
+  const calls = draw(served({
     addresses: [LOOPBACK],
     primary: LOOPBACK,
     tailscale: { status: "missing", magicDnsName: null, serving: false, certs: false, error: null },
-  };
-  const calls = draw(remote);
-  assert.match(document.body.textContent ?? "", /Not installed\. Install Tailscale/);
-  const toggle = document.querySelector<HTMLButtonElement>("[data-route='tailscale'] [role='switch']");
-  assert.equal(toggle?.disabled, true);
+  }));
+  assert.match(text(), /Waiting for Tailscale/);
+  assert.match(document.querySelector("[data-step='installed']")?.textContent ?? "", /Install Tailscale/);
+  assert.equal(document.querySelector("[data-step='installed']")?.classList.contains("needed"), true);
+  assert.equal(document.querySelector("[data-step='signed-in']")?.classList.contains("needed"), false, "only the next step is asked for");
+  assert.equal(document.querySelector(".phone-pairing"), null, "a QR was drawn that no phone could use");
+  assert.equal(calls.codes, 0);
 
-  click("[data-route='tailscale'] .setting-row-action button");
+  click("[aria-labelledby='phone-tailscale-heading'] button");
   assert.equal(calls.refreshes, 1);
+});
+
+test("a tailnet that issues no certificate says where to turn it on", () => {
+  draw(served({
+    addresses: [LOOPBACK],
+    primary: LOOPBACK,
+    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: false, error: null },
+  }));
+  const step = document.querySelector("[data-step='https']");
+  assert.match(step?.textContent ?? "", /admin console, under DNS/);
+  assert.equal(step?.classList.contains("needed"), true);
+  assert.match(document.querySelector("[data-step='signed-in']")?.textContent ?? "", /Signed in as mac\.tail1234\.ts\.net/);
 });
 
 test("a bridge that failed to start says why", () => {
   draw({ ...emptyMobileServerState(), enabled: true, status: "error", error: "listen EADDRINUSE: address already in use 127.0.0.1:7737" });
-  assert.match(document.body.textContent ?? "", /Failed to start/);
+  assert.match(text(), /Failed to start/);
   assert.match(document.querySelector("[role='alert']")?.textContent ?? "", /EADDRINUSE/);
 });
 
-test("a tailnet that issues no certificate says where to turn it on, and cannot be switched on", () => {
-  const remote: MobileServerState = {
-    ...emptyMobileServerState(),
-    enabled: true,
-    status: "listening",
-    port: 7737,
-    addresses: [LOOPBACK],
-    primary: LOOPBACK,
-    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: false, error: null },
-  };
-  draw(remote);
-  assert.match(document.body.textContent ?? "", /issues no HTTPS certificate/);
-  assert.match(document.body.textContent ?? "", /admin console, under DNS/);
-  const toggle = document.querySelector<HTMLButtonElement>("[data-route='tailscale'] [role='switch']");
-  assert.equal(toggle?.disabled, true, "the switch offered to turn on something that hangs");
-});
-
-test("each way in is told in one place, and neither is offered before the bridge is on", () => {
-  const off: MobileServerState = { ...emptyMobileServerState(), enabled: false, status: "off" };
-  draw(off);
-  assert.equal(document.querySelector("[data-route='tailscale']"), null, "a route was offered with the bridge off");
-  assert.equal(document.querySelector("[data-route='lan']"), null);
-  assert.match(document.body.textContent ?? "", /Turn phone access on to choose a way in/);
-
-  const on: MobileServerState = {
-    ...emptyMobileServerState(),
-    enabled: true,
-    status: "listening",
-    port: 7737,
-    addresses: [LOOPBACK],
-    primary: LOOPBACK,
-    tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: true, error: null },
-  };
-  draw(on);
-
-  const tailnet = document.querySelector("[data-route='tailscale']");
-  const lan = document.querySelector("[data-route='lan']");
-  assert.ok(tailnet && lan, "both ways in should be drawn once the bridge is on");
-  /** Each block carries its own switch, its own state and its own cost, so neither is read halfway. */
-  for (const route of [tailnet, lan]) {
-    assert.ok(route.querySelector("[role='switch']"), "a way in was drawn without its own switch");
-    assert.ok(route.querySelector(".phone-route-note")?.textContent?.trim(), "a way in was drawn without saying what it costs");
-  }
-  assert.match(lan.textContent ?? "", /plain HTTP/, "the plain link should say what it leaks");
-  assert.match(tailnet.textContent ?? "", /mobile data/, "Tailscale should say it works away from home");
-
-  assert.equal(document.querySelector("[data-route='tailscale'] .phone-route-address"), null, "an address was shown for a way in that is off");
-  assert.match(document.body.textContent ?? "", /No way in is on/);
-  assert.match(document.body.textContent ?? "", /only this Mac can open/);
+test("the Tailscale checklist is drawn with the bridge off, so the user knows what it takes before turning it on", () => {
+  draw({ ...emptyMobileServerState(), tailscale: { status: "ready", magicDnsName: TAILNET.host, serving: false, certs: true, error: null } });
+  assert.equal(document.querySelectorAll("[data-step]").length, 4);
+  assert.match(document.querySelector("[data-step='serving']")?.textContent ?? "", /Turns on with phone access/);
+  assert.equal(document.querySelector(".phone-check.needed"), null, "nothing is asked of the user while access is off");
 });

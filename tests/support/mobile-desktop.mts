@@ -7,7 +7,6 @@ import type { SettingsPanelProps } from "../../src/renderer/components/SettingsP
 export const mobileDesktopStub: MobileDesktopAPI = {
   mobileState: async () => emptyMobileServerState(),
   setMobileEnabled: async () => emptyMobileServerState(),
-  setMobileLanExposed: async () => emptyMobileServerState(),
   createMobilePairingCode: async () => ({
     code: "PAIR1234",
     expiresAt: 0,
@@ -15,7 +14,6 @@ export const mobileDesktopStub: MobileDesktopAPI = {
     url: "http://127.0.0.1:7737/m?pair=PAIR1234",
   }),
   revokeMobileDevice: async () => emptyMobileServerState(),
-  setTailscaleServe: async () => emptyMobileServerState(),
   refreshTailscale: async () => emptyMobileServerState(),
   onMobileState: () => () => {},
   onMobileRequest: () => () => {},
@@ -31,12 +29,10 @@ export const engineDesktopStub: Pick<DesktopAPI, "engineStatus" | "signInEngine"
 };
 
 /** The same for the settings panel, whose phone page is not what any of these tests are about. */
-export const mobileSettingsProps: Pick<SettingsPanelProps, "remote" | "onSetRemoteEnabled" | "onSetRemoteLanExposed" | "onCreateRemotePairingCode" | "onRevokeRemoteDevice" | "onSetTailscaleServe" | "onRefreshRemote"> = {
+export const mobileSettingsProps: Pick<SettingsPanelProps, "remote" | "onSetRemoteEnabled" | "onCreateRemotePairingCode" | "onRevokeRemoteDevice" | "onRefreshRemote"> = {
   remote: emptyMobileServerState(),
   onSetRemoteEnabled() {},
-  onSetRemoteLanExposed() {},
   onCreateRemotePairingCode() {},
   onRevokeRemoteDevice() {},
-  onSetTailscaleServe() {},
   onRefreshRemote() {},
 };

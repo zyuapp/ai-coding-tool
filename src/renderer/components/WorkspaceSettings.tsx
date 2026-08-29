@@ -39,7 +39,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
       onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}
-      onResetShortcuts={() => void workspace.actions.resetShortcuts()} onSetRemoteEnabled={(enabled) => void workspace.actions.setRemoteEnabled(enabled)} onSetRemoteLanExposed={(exposed) => void workspace.actions.setRemoteLanExposed(exposed)} onCreateRemotePairingCode={() => void workspace.actions.createRemotePairingCode()} onRevokeRemoteDevice={(deviceId) => void workspace.actions.revokeRemoteDevice(deviceId)} onSetTailscaleServe={(enabled) => void workspace.actions.setTailscaleServe(enabled)} onRefreshRemote={() => void workspace.actions.refreshRemote()}
+      onResetShortcuts={() => void workspace.actions.resetShortcuts()} onSetRemoteEnabled={(enabled) => void workspace.actions.setRemoteEnabled(enabled)} onCreateRemotePairingCode={() => void workspace.actions.createRemotePairingCode()} onRevokeRemoteDevice={(deviceId) => void workspace.actions.revokeRemoteDevice(deviceId)} onRefreshRemote={() => void workspace.actions.refreshRemote()}
     />
   );
 }

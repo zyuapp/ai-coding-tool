@@ -4,35 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 import WebSocket from "ws";
-import { allowedOrigins, bindHost, lanAddressesFrom, reachableAddresses } from "../../../src/main/mobile/addresses.mts";
+import { allowedOrigins, reachableAddresses } from "../../../src/main/mobile/addresses.mts";
 import { servesPort } from "../../../src/main/mobile/tailscale.mts";
 import { MOBILE_PROTOCOL_VERSION, type MobileRequest } from "../../../src/contracts/mobile.ts";
 import type { MobileServerState } from "../../../src/domain/mobile.ts";
 
-const INTERFACES = {
-  lo0: [{ family: "IPv4", address: "127.0.0.1", internal: true }],
-  en0: [{ family: "IPv4", address: "192.168.1.24", internal: false }, { family: "IPv6", address: "fe80::1", internal: false }],
-  en1: [{ family: "IPv4", address: "192.168.1.24", internal: false }],
-  utun3: [{ family: "IPv4", address: "100.101.102.103", internal: false }],
-  bridge0: [{ family: "IPv4", address: "169.254.9.9", internal: false }],
-};
-
-test("only a real network card is offered as a LAN address", () => {
-  assert.deepEqual(lanAddressesFrom(INTERFACES, 7737), [{ kind: "lan", host: "192.168.1.24", port: 7737 }]);
-});
-
-test("the bind and the addresses move together with what the user turned on", () => {
-  assert.equal(bindHost(false), "127.0.0.1");
-  assert.equal(bindHost(true), "0.0.0.0");
-
-  const quiet = reachableAddresses({ port: 7737, lanExposed: false, magicDnsName: null });
+test("the addresses are the loopback bind and the tailnet name while Tailscale serves it", () => {
+  const quiet = reachableAddresses({ port: 7737, magicDnsName: null });
   assert.deepEqual(quiet, [{ kind: "loopback", host: "127.0.0.1", port: 7737 }]);
   assert.deepEqual(allowedOrigins(quiet), ["http://127.0.0.1:7737", "http://localhost:7737"]);
 
-  const open = reachableAddresses({ port: 7737, lanExposed: true, magicDnsName: "mac.tail1234.ts.net" });
-  assert.deepEqual(open[0], { kind: "tailscale-https", host: "mac.tail1234.ts.net", port: 443 });
-  assert.equal(open.at(-1)?.kind, "loopback");
-  assert.ok(allowedOrigins(open).includes("https://mac.tail1234.ts.net"), "the tailnet name is served without a port");
+  const served = reachableAddresses({ port: 7737, magicDnsName: "mac.tail1234.ts.net" });
+  assert.deepEqual(served, [{ kind: "tailscale-https", host: "mac.tail1234.ts.net", port: 443 }, { kind: "loopback", host: "127.0.0.1", port: 7737 }]);
+  assert.ok(allowedOrigins(served).includes("https://mac.tail1234.ts.net"), "the tailnet name is served without a port");
 });
 
 test("Serve is only ours when a handler points at this very port", () => {
@@ -92,7 +76,6 @@ test("the bridge starts off, comes up on the loopback, and goes back down prompt
   const on = await host.setMobileEnabled(true);
   assert.equal(on.enabled, true);
   assert.equal(on.status, "listening");
-  assert.equal(on.lanExposed, false, "the network bind is not something being on turns on");
   assert.deepEqual(on.primary, { kind: "loopback", host: "127.0.0.1", port: on.port });
   assert.equal(JSON.parse(await readFile(path.join(folder, "mobile.v1.json"), "utf8")).enabled, true);
 
@@ -122,26 +105,6 @@ test("a pairing code needs a listening server and carries the address in its fra
 
   await host.setMobileEnabled(false);
   assert.equal(host.mobileState().pairing, null, "turning the bridge off throws away the code with it");
-});
-
-test("a code minted before the address changed is thrown away rather than left pointing at the old one", async (t) => {
-  const { host } = await bridge(t);
-  const on = await host.setMobileEnabled(true);
-  const offer = await host.createMobilePairingCode();
-  assert.equal(offer.address.kind, "loopback");
-  assert.equal(host.mobileState().pairing?.code, offer.code);
-
-  await host.setMobileLanExposed(true);
-  assert.equal(host.mobileState().pairing, null, "the loopback code survived a change of address");
-
-  const after = await host.createMobilePairingCode();
-  assert.ok(after.url.includes(`/m/#pair=${after.code}`), after.url);
-  /** A machine with no network card of its own has nothing but loopback to offer, and that is fine. */
-  const lan = host.mobileState().addresses.find((address) => address.kind === "lan");
-  if (lan) assert.equal(after.address.kind, "lan", "the new code still points at loopback");
-
-  await host.setMobileLanExposed(false);
-  assert.equal(host.mobileState().pairing, null, "turning it back off left the network code on screen");
 });
 
 test("a phone paired through the host reaches the window, and revoking it drops the line", async (t) => {

@@ -115,6 +115,8 @@ export type MobileServerOptions = {
   command: (sessionId: string, command: MobileCommand) => Promise<void>;
   /** Something a phone did changed what settings should say. */
   onChange: () => void;
+  /** How long a dropped session is held for its phone. A test shortens it rather than wait five minutes. */
+  sessionGraceMs?: number;
 };
 
 /**
@@ -158,8 +160,8 @@ export class MobileServer {
   }
 
   sessionViews(): MobileSessionView[] {
-    return [...this.sessions.values()].map(({ id, startedAt, lastSeenAt, sequence, connection, deviceName }) =>
-      ({ id, startedAt, lastSeenAt, sequence, connection, deviceName }));
+    return [...this.sessions.values()].map(({ id, deviceId, deviceName, startedAt, lastSeenAt, sequence, connection }) =>
+      ({ id, deviceId, deviceName, startedAt, lastSeenAt, sequence, connection }));
   }
 
   async start(host: string): Promise<void> {
@@ -220,12 +222,16 @@ export class MobileServer {
       this.forget(session);
       hangUp(session.socket, 4003, "This phone was unpaired.");
     }
+    this.handled.delete(deviceId);
   }
 
-  /** A session the server no longer holds, whose socket may still be delivering messages. */
+  /**
+   * A session the server no longer holds, whose socket may still be delivering messages. What its
+   * device has already run is kept: a phone that sleeps past the session's grace wakes with the same
+   * outbox, and would otherwise run every command whose acknowledgement it never read a second time.
+   */
   private forget(session: Session) {
     this.sessions.delete(session.id);
-    if (![...this.sessions.values()].some((other) => other.deviceId === session.deviceId)) this.handled.delete(session.deviceId);
   }
 
   private emit(session: Session, message: OutboundMessage) {
@@ -277,7 +283,7 @@ export class MobileServer {
       if (session.socket !== socket) return;
       session.socket = null;
       session.connection = "offline";
-      session.expiresAt = Date.now() + SESSION_GRACE_MS;
+      session.expiresAt = Date.now() + (this.options.sessionGraceMs ?? SESSION_GRACE_MS);
       this.options.onChange();
     });
   }
@@ -288,8 +294,15 @@ export class MobileServer {
       session.awaitingSnapshot = false;
       this.emit(session, { kind: "snapshot", sessionId: session.id, build: this.build, view });
     } catch (error) {
-      session.awaitingSnapshot = false;
-      this.emit(session, { kind: "error", code: "internal", message: error instanceof Error ? error.message : String(error) });
+      /**
+       * A session with no view to patch is no session. The phone hears why, is hung up on, and
+       * redials on its backoff into a fresh session that asks for the view again.
+       */
+      const message = error instanceof Error ? error.message : String(error);
+      this.emit(session, { kind: "error", code: "internal", message });
+      this.forget(session);
+      hangUp(session.socket, 1011, message);
+      this.options.onChange();
     }
   }
 
@@ -309,7 +322,15 @@ export class MobileServer {
   private originAllowed(request: IncomingMessage) {
     const origin = request.headers.origin;
     if (origin === undefined) return true;
-    return this.options.allowedOrigins().includes(origin);
+    if (this.options.allowedOrigins().includes(origin)) return true;
+    /**
+     * A page from the very host the socket was opened on is our own page, whatever the host is
+     * called: a browser cannot forge the Host header, and Tailscale Serve passes the name and scheme
+     * it answered on. This is what lets a tailnet phone back in before Tailscale has been asked.
+     */
+    const host = forwardedHost(request);
+    const scheme = forwardedScheme(request);
+    return host !== null && origin === `${scheme}://${host}`;
   }
 
   private accept(socket: WebSocket, source: string) {
@@ -434,6 +455,8 @@ export class MobileServer {
     if (held && held.deviceId === device.id && resumable(held, request.lastSequence)) {
       this.attach(held, socket);
       for (const entry of held.buffer) if (entry.sequence > request.lastSequence) write(socket, entry.text);
+      /** A phone with nothing to catch up on is still owed a frame, or it waits for the next tick to call itself live. */
+      this.emit(held, { kind: "ping", at: now });
       return held;
     }
     const session = this.openSession(device.id, device.name, now);
@@ -575,9 +598,37 @@ function parseJson(text: string): unknown {
   }
 }
 
-/** Only ever used to count wrong pairing codes against one caller, so an unknown peer is one bucket. */
+/**
+ * Only ever used to count wrong pairing codes against one caller. Tailscale Serve proxies from the
+ * loopback and names the real peer in the forwarded header, which is trusted only from the loopback:
+ * without it every phone on the tailnet would be one bucket, and one stale QR would lock them all out.
+ */
 function sourceOf(request: IncomingMessage) {
-  return request.socket.remoteAddress ?? "unknown";
+  const remote = request.socket.remoteAddress ?? "unknown";
+  if (!isLoopback(remote)) return remote;
+  const forwarded = header(request, "x-forwarded-for")?.split(",")[0]?.trim();
+  return forwarded || remote;
+}
+
+function isLoopback(address: string) {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+}
+
+function header(request: IncomingMessage, name: string): string | null {
+  const value = request.headers[name];
+  const text = Array.isArray(value) ? value[0] : value;
+  return text?.trim() || null;
+}
+
+/** The host the page was served on, as the proxy in front of us saw it, else as this server did. */
+function forwardedHost(request: IncomingMessage): string | null {
+  if (!isLoopback(request.socket.remoteAddress ?? "")) return header(request, "host");
+  return header(request, "x-forwarded-host") ?? header(request, "host");
+}
+
+function forwardedScheme(request: IncomingMessage): string {
+  if (!isLoopback(request.socket.remoteAddress ?? "")) return "http";
+  return header(request, "x-forwarded-proto") === "https" ? "https" : "http";
 }
 
 function plain(response: ServerResponse, status: number, text: string) {

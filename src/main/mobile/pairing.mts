@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { MobileErrorCode } from "../../contracts/mobile.js";
 import {
@@ -21,6 +21,8 @@ import {
 /** What a phone is called when it does not say. */
 const UNNAMED_DEVICE = "Phone";
 const MAX_DEVICE_NAME = 128;
+/** How far `lastSeenAt` may drift before it is worth a write. It is shown in days, so a minute is nothing. */
+const SEEN_WRITE_INTERVAL_MS = 60 * 1_000;
 
 export type PairingOutcome =
   | { ok: true; device: PairedDevice; token: string }
@@ -84,11 +86,14 @@ export class PairingStore {
     }
   }
 
+  /** Written beside and renamed over, so a crash mid-write leaves the last good list rather than half of one. */
   private write() {
     const stored: StoredDevices = { version: 1, devices: this.devices };
     try {
       mkdirSync(path.dirname(this.filePath), { recursive: true });
-      writeFileSync(this.filePath, JSON.stringify(stored), { mode: 0o600 });
+      const staging = `${this.filePath}.tmp`;
+      writeFileSync(staging, JSON.stringify(stored), { mode: 0o600 });
+      renameSync(staging, this.filePath);
     } catch (error) {
       console.error("Could not write the paired phone list:", error);
     }
@@ -124,12 +129,15 @@ export class PairingStore {
    * once; the caller's failure count is what makes guessing not worth it.
    */
   redeem(code: string, deviceName: string, source: string, at: number): PairingOutcome {
-    const attempts = this.attempts.get(source) ?? noPairingAttempts();
+    const held = this.attempts.get(source);
+    const attempts = held && !pairingAttemptsStale(held, at) ? held : noPairingAttempts();
     if (pairingLocked(attempts, at)) {
       return { ok: false, code: "rate-limited", message: "Too many wrong codes. Wait a few minutes and scan the code again." };
     }
     const pending = this.pending(at);
-    if (!pending || !pairingCodeMatches(pending, code)) {
+    /** With no code standing there is nothing to guess at, so a late scan is not counted as a guess. */
+    if (!pending) return { ok: false, code: "expired-code", message: "That pairing code has expired. Show a new one on the Mac." };
+    if (!pairingCodeMatches(pending, code)) {
       this.attempts.set(source, registerPairingFailure(attempts, at));
       this.prune(at);
       return { ok: false, code: "expired-code", message: "That pairing code is wrong or has expired. Show a new one on the Mac." };
@@ -173,7 +181,7 @@ export class PairingStore {
 
   markSeen(deviceId: string, at: number) {
     const device = this.devices.find((entry) => entry.id === deviceId);
-    if (!device || device.lastSeenAt === at) return;
+    if (!device || (device.lastSeenAt !== null && at - device.lastSeenAt < SEEN_WRITE_INTERVAL_MS)) return;
     this.devices = this.devices.map((entry) => entry.id === deviceId ? { ...entry, lastSeenAt: at } : entry);
     this.write();
   }

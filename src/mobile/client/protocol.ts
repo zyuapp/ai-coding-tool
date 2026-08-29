@@ -62,8 +62,12 @@ export type MobileClientEvent =
   | { kind: "dispatch"; requestId: string; command: MobileCommand }
   /** The moment a resume's replay has had time to land, after which silence means a frame was lost. */
   | { kind: "settled" }
-  /** The phone came back: the tab is visible again, or the network is. */
-  | { kind: "wake" }
+  /**
+   * The phone came back: the tab is visible again, or the network is. `stale` says the line it holds
+   * has been silent for longer than the Mac's ping interval, which after a sleep means it is dead
+   * whatever the socket says.
+   */
+  | { kind: "wake"; stale?: boolean }
   | { kind: "dismiss-notice" };
 
 export type MobileClientEffect =
@@ -146,9 +150,14 @@ export function reduceMobileClient(state: MobileClientState, event: MobileClient
       if (state.connection === "live") return flush(state, state.outbox);
       if (state.connection === "offline") return { state, effects: [] };
       return { state, effects: [{ kind: "settle", delayMs: MOBILE_SETTLE_MS }] };
-    case "wake":
-      if (state.connection !== "offline" || !shouldReconnect(state)) return { state, effects: [] };
-      return { state: { ...state, attempt: 0 }, effects: [{ kind: "connect", delayMs: 0 }] };
+    case "wake": {
+      if (!shouldReconnect(state)) return { state, effects: [] };
+      if (state.connection === "offline") return { state: { ...state, attempt: 0 }, effects: [{ kind: "connect", delayMs: 0 }] };
+      /** A line that has gone quiet is redialled now rather than found dead at the deadline; a resume replays only what was missed. */
+      if (!event.stale) return { state, effects: [] };
+      const connection: MobileConnectionState = state.lastSequence > 0 ? "resuming" : "connecting";
+      return { state: { ...state, attempt: 0, connection }, effects: [{ kind: "disconnect" }, { kind: "connect", delayMs: 0 }] };
+    }
     case "dismiss-notice":
       return { state: { ...state, notice: null }, effects: [] };
   }
@@ -212,6 +221,8 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
     if (state.sessionId !== null && message.sequence > state.lastSequence + 1) return resync(state);
   }
   const seen = { ...state, lastSequence: message.sequence };
+  /** Before the first snapshot there is no view to be live on, so the line is kept as it was and only answered. */
+  const settled = (next: MobileClientState): MobileClientStep => (state.sessionId === null ? { state: next, effects: [] } : live(next));
   switch (message.kind) {
     case "paired": {
       const credential: MobileCredential = { token: message.token, deviceId: message.deviceId, deviceName: message.deviceName };
@@ -227,13 +238,13 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
       return live(fresh);
     }
     case "patch":
-      return live({ ...seen, view: applyMobilePatch(seen.view, message.patch) });
+      return settled({ ...seen, view: applyMobilePatch(seen.view, message.patch) });
     case "ack": {
       const outbox = seen.outbox.filter((item) => item.requestId !== message.requestId);
-      return live({ ...seen, outbox, notice: message.ok ? seen.notice : message.message });
+      return settled({ ...seen, outbox, notice: message.ok ? seen.notice : message.message });
     }
     case "ping":
-      return withEffect(live(seen), { kind: "send", message: { kind: "pong", at: message.at } });
+      return withEffect(settled(seen), { kind: "send", message: { kind: "pong", at: message.at } });
   }
 }
 
@@ -257,7 +268,20 @@ function refused(state: MobileClientState, code: MobileErrorCode, message: strin
       effects: [{ kind: "disconnect" }, { kind: "connect", delayMs: backoffDelay(attempt) }],
     };
   }
-  const sentence = REFUSALS[code];
+  /**
+   * A phone turned away for a token it no longer holds, but opened from a fresh QR, has the code to
+   * pair again: the token was revoked or the Mac forgot it, and the scan is exactly what fixes that.
+   */
+  if (code === "unauthorized" && state.code) {
+    const next: MobileClientState = { ...state, credential: null, entry: "pairing", connection: "offline", sessionId: null, lastSequence: 0, notice: null };
+    return { state: next, effects: [{ kind: "store", credential: null }, { kind: "disconnect" }, { kind: "connect", delayMs: 0 }] };
+  }
+  /** The page is what is out of date, so it fetches itself again; the sentence stays for a reload that is refused. */
+  if (code === "version") {
+    return { state: { ...state, connection: "offline", notice: REFUSALS.version }, effects: [{ kind: "disconnect" }, { kind: "reload" }] };
+  }
+  /** A pairing phone locked out cannot wait it out: its code expires first. The Mac's own words say what to do. */
+  const sentence = code === "rate-limited" ? message : REFUSALS[code];
   if (!sentence) return { state: { ...state, notice: message }, effects: [] };
   const cleared = code === "unauthorized";
   const next: MobileClientState = {

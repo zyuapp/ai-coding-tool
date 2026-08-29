@@ -81,10 +81,8 @@ const api: DesktopAPI = {
   answerThreadRequest: (response: ThreadResponse) => ipcRenderer.send("thread:answer", response),
   mobileState: () => ipcRenderer.invoke("mobile:state"),
   setMobileEnabled: (enabled: boolean) => ipcRenderer.invoke("mobile:set-enabled", enabled),
-  setMobileLanExposed: (exposed: boolean) => ipcRenderer.invoke("mobile:set-lan", exposed),
   createMobilePairingCode: () => ipcRenderer.invoke("mobile:pair-code"),
   revokeMobileDevice: (deviceId: string) => ipcRenderer.invoke("mobile:revoke", deviceId),
-  setTailscaleServe: (enabled: boolean) => ipcRenderer.invoke("mobile:tailscale-serve", enabled),
   refreshTailscale: () => ipcRenderer.invoke("mobile:tailscale-refresh"),
   onMobileState: (listener: (state: MobileServerState) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: MobileServerState) => listener(payload);

@@ -28,7 +28,7 @@ const PAGE_KEYWORDS: Record<SettingsSection, string> = {
   shortcuts: "keyboard keys binding keystroke rebind",
   "computer-use": "accessibility screen recording permissions automation apps",
   browser: "session cookies sign out sites origins clear data",
-  phone: "mobile remote pairing tailscale lan device qr",
+  phone: "mobile remote pairing tailscale device qr",
   archive: "archived deleted restore threads trash",
 };
 

@@ -100,10 +100,8 @@ export function serveMobileBridge(trusted: (event: IpcMainEvent | IpcMainInvokeE
   };
   ipcMain.handle("mobile:state", async (event) => { guard(event); return (await loaded()).mobileState(); });
   ipcMain.handle("mobile:set-enabled", async (event, enabled: unknown) => { guard(event); return (await loaded()).setMobileEnabled(setting(enabled)); });
-  ipcMain.handle("mobile:set-lan", async (event, exposed: unknown) => { guard(event); return (await loaded()).setMobileLanExposed(setting(exposed)); });
   ipcMain.handle("mobile:pair-code", async (event) => { guard(event); return (await loaded()).createMobilePairingCode(); });
   ipcMain.handle("mobile:revoke", async (event, id: unknown) => { guard(event); return (await loaded()).revokeMobileDevice(deviceId(id)); });
-  ipcMain.handle("mobile:tailscale-serve", async (event, enabled: unknown) => { guard(event); return (await loaded()).setTailscaleServe(setting(enabled)); });
   ipcMain.handle("mobile:tailscale-refresh", async (event) => { guard(event); return (await loaded()).refreshTailscale(); });
   ipcMain.on("mobile:answer", (event, response: unknown) => {
     if (!trusted(event) || !isMobileResponse(response)) return;

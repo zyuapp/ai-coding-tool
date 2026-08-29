@@ -447,15 +447,11 @@ export type MobileDesktopAPI = {
   mobileState(): Promise<MobileServerState>;
   /** Turns the local server on or off. Off closes every live session. */
   setMobileEnabled(enabled: boolean): Promise<MobileServerState>;
-  /** The opt-in second bind that anything on the same network can reach. Off by default. */
-  setMobileLanExposed(exposed: boolean): Promise<MobileServerState>;
   /** Mints the code the QR carries. Minting a second one discards the first. */
   createMobilePairingCode(): Promise<MobilePairingOffer>;
   /** Forgets a phone's token, which drops its session with it. */
   revokeMobileDevice(deviceId: string): Promise<MobileServerState>;
-  /** Puts Tailscale Serve in front of the local server, or takes it away. */
-  setTailscaleServe(enabled: boolean): Promise<MobileServerState>;
-  /** Asks Tailscale again whether it is installed, signed in, and what this machine is called. */
+  /** Asks Tailscale again whether it is installed, signed in and issuing certificates, and serves the bridge once it is. */
   refreshTailscale(): Promise<MobileServerState>;
   onMobileState(listener: (state: MobileServerState) => void): () => void;
   onMobileRequest(listener: (request: MobileRequest) => void): () => void;

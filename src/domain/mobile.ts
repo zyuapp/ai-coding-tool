@@ -44,11 +44,10 @@ export const MOBILE_DEFAULT_PORT = 7737;
 export const MOBILE_APP_PATH = "/m";
 
 /**
- * Where a phone can reach the Mac. Loopback is the default bind and only works on the Mac itself;
- * `lan` is the opt-in bind that anything on the same network can see; `tailscale-https` is the name
- * Tailscale Serve answers on, which is the only one with a real certificate in front of it.
+ * Where a phone can reach the Mac. Loopback is the only bind and only works on the Mac itself;
+ * `tailscale-https` is the name Tailscale Serve answers on, with a real certificate in front of it.
  */
-export type MobileAddressKind = "loopback" | "lan" | "tailscale-https";
+export type MobileAddressKind = "loopback" | "tailscale-https";
 
 export type MobileAddress = {
   kind: MobileAddressKind;
@@ -69,9 +68,9 @@ export function addressOrigin(address: MobileAddress): string {
   return bare ? `${scheme}://${address.host}` : `${scheme}://${address.host}:${address.port}`;
 }
 
-/** Which address the QR should carry: the one with a certificate, then the one off-machine phones can see. */
+/** Which address the QR should carry: the one a phone can reach, then the Mac's own. */
 export function preferredAddress(addresses: MobileAddress[]): MobileAddress | null {
-  const rank: MobileAddressKind[] = ["tailscale-https", "lan", "loopback"];
+  const rank: MobileAddressKind[] = ["tailscale-https", "loopback"];
   for (const kind of rank) {
     const match = addresses.find((address) => address.kind === kind);
     if (match) return match;
@@ -137,7 +136,7 @@ export type MobileSession = {
   connection: MobileConnectionState;
 };
 
-export type MobileSessionView = Omit<MobileSession, "deviceId"> & { deviceName: string };
+export type MobileSessionView = MobileSession & { deviceName: string };
 
 /** Whether Tailscale is on this machine, signed in, and serving HTTPS in front of the local server. */
 export type TailscaleState = {
@@ -162,8 +161,6 @@ export function emptyTailscaleState(): TailscaleState {
 export type MobileServerState = {
   enabled: boolean;
   status: MobileServerStatus;
-  /** Whether the server also binds a LAN address, which is off by default and plainly less safe. */
-  lanExposed: boolean;
   port: number | null;
   addresses: MobileAddress[];
   /** The address the QR points at, chosen by {@link preferredAddress}. */
@@ -180,7 +177,6 @@ export function emptyMobileServerState(): MobileServerState {
   return {
     enabled: false,
     status: "off",
-    lanExposed: false,
     port: null,
     addresses: [],
     primary: null,

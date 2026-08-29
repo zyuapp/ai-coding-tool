@@ -147,13 +147,11 @@ test("a phone's request travels to the window and is answered there", () => {
 
 test("an address says where a phone reaches the Mac, and only Tailscale is secure", () => {
   const loopback: MobileAddress = { kind: "loopback", host: "127.0.0.1", port: 7737 };
-  const lan: MobileAddress = { kind: "lan", host: "192.168.1.20", port: 7737 };
   const tailscale: MobileAddress = { kind: "tailscale-https", host: "mac.tail1234.ts.net", port: 443 };
 
   assert.equal(addressOrigin(loopback), "http://127.0.0.1:7737");
   assert.equal(addressOrigin(tailscale), "https://mac.tail1234.ts.net");
-  assert.deepEqual(preferredAddress([loopback, lan, tailscale]), tailscale);
-  assert.deepEqual(preferredAddress([loopback, lan]), lan);
+  assert.deepEqual(preferredAddress([loopback, tailscale]), tailscale);
   assert.deepEqual(preferredAddress([loopback]), loopback);
   assert.equal(preferredAddress([]), null);
 });

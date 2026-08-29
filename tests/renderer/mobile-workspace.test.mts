@@ -33,7 +33,7 @@ function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
 }
 
 function session(id: string): MobileSessionView {
-  return { id, deviceName: "Phone", startedAt: NOW, lastSeenAt: NOW, sequence: 4, connection: "live" };
+  return { id, deviceId: "device-1", deviceName: "Phone", startedAt: NOW, lastSeenAt: NOW, sequence: 4, connection: "live" };
 }
 
 function remoteState(overrides: Partial<MobileServerState> = {}): MobileServerState {
@@ -86,18 +86,14 @@ test("a phone is answered as soon as the reducer has decided, not when the run e
 test("the settings screen's commands describe the bridge's work and never do it", () => {
   const commands: WorkspaceInput[] = [
     { type: "remote.set-enabled", enabled: true },
-    { type: "remote.set-lan-exposed", exposed: true },
     { type: "remote.create-pairing-code" },
     { type: "remote.revoke-device", deviceId: "device-1" },
-    { type: "remote.set-tailscale-serve", enabled: true },
     { type: "remote.refresh" },
   ];
   const expected: WorkspaceEffect[] = [
     { type: "remote.set-enabled", enabled: true },
-    { type: "remote.set-lan-exposed", exposed: true },
     { type: "remote.create-pairing-code" },
     { type: "remote.revoke-device", deviceId: "device-1" },
-    { type: "remote.set-tailscale-serve", enabled: true },
     { type: "remote.refresh" },
   ];
   const before = workspace({ actionError: "something went wrong" });

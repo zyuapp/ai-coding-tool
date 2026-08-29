@@ -30,8 +30,8 @@ export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHo
     case "automation.save": case "automation.update": case "automation.delete": case "automation.run-now":
     case "automation.ack": case "focus-window": case "close-window": case "apply-shortcuts":
     case "apply-capture-options": case "capture-shortcut": case "announce-thread":
-    case "remote.set-enabled": case "remote.set-lan-exposed": case "remote.create-pairing-code":
-    case "remote.revoke-device": case "remote.set-tailscale-serve": case "remote.refresh":
+    case "remote.set-enabled": case "remote.create-pairing-code":
+    case "remote.revoke-device": case "remote.refresh":
     case "engine.read": case "engine.sign-in":
       return runSystemEffect(effect, host);
   }

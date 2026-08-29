@@ -75,11 +75,9 @@ export type RemoteEffect = Extract<WorkspaceEffect, { type: `remote.${string}` }
 export async function runRemoteEffect(effect: RemoteEffect, desktop: DesktopAPI): Promise<MobileServerState> {
   switch (effect.type) {
     case "remote.set-enabled": return desktop.setMobileEnabled(effect.enabled);
-    case "remote.set-lan-exposed": return desktop.setMobileLanExposed(effect.exposed);
     /** The offer the QR draws is read back from the bridge state, which is all settings draws. */
     case "remote.create-pairing-code": return desktop.createMobilePairingCode().then(() => desktop.mobileState());
     case "remote.revoke-device": return desktop.revokeMobileDevice(effect.deviceId);
-    case "remote.set-tailscale-serve": return desktop.setTailscaleServe(effect.enabled);
     case "remote.refresh": return desktop.refreshTailscale();
   }
 }

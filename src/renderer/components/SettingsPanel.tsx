@@ -168,10 +168,8 @@ export type SettingsPanelProps = {
   onSetShortcut: (action: string, binding: string | null) => void;
   onResetShortcuts: () => void;
   onSetRemoteEnabled: (enabled: boolean) => void;
-  onSetRemoteLanExposed: (exposed: boolean) => void;
   onCreateRemotePairingCode: () => void;
   onRevokeRemoteDevice: (deviceId: string) => void;
-  onSetTailscaleServe: (enabled: boolean) => void;
   onRefreshRemote: () => void;
 };
 
@@ -221,10 +219,8 @@ export function SettingsPanel({
   onSetShortcut,
   onResetShortcuts,
   onSetRemoteEnabled,
-  onSetRemoteLanExposed,
   onCreateRemotePairingCode,
   onRevokeRemoteDevice,
-  onSetTailscaleServe,
   onRefreshRemote,
 }: SettingsPanelProps) {
   const { section, found, choosePage } = useSettingsPlace(initialSection, initialSetting);
@@ -324,10 +320,8 @@ export function SettingsPanel({
         <MobileSettings
           remote={remote}
           onSetEnabled={onSetRemoteEnabled}
-          onSetLanExposed={onSetRemoteLanExposed}
           onCreatePairingCode={onCreateRemotePairingCode}
           onRevokeDevice={onRevokeRemoteDevice}
-          onSetTailscaleServe={onSetTailscaleServe}
           onRefreshTailscale={onRefreshRemote}
         />
       )}
