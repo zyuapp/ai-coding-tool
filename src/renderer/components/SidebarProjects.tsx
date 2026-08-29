@@ -135,7 +135,6 @@ function ProjectRow({
                   label: `New thread in ${worktreeName(worktree)}`,
                   onSelect: () => onNewTask(project.id, worktree.id),
                 })),
-                { label: expanded ? "Collapse" : "Expand", onSelect: () => onToggleProject(project.id) },
                 { label: "Edit…", onSelect: () => onEditProject(project.id) },
                 { label: "Remove", danger: true, onSelect: () => onRemoveProject(project.id) },
               ]}
