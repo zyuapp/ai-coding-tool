@@ -207,6 +207,13 @@
   --terminal-text: 12px;
   --row-slot: 22px;
   --row-slots: 4;
+  /**
+   * The height every pane's top strip takes, so the line each one draws under it lands on the same
+   * row across the window. The sidebar has no line of its own, so its window strip and its new task
+   * button add up to this instead.
+   */
+  --chrome-head: 72px;
+  --window-strip: 40px; /* the band the traffic lights sit in */
   --system-ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   --system-mono-font: ui-monospace, "SFMono-Regular", Menlo, monospace;
   --ui-font: var(--system-ui-font);
@@ -293,7 +300,7 @@ button, select { color: inherit; }
 }
 
 .traffic-space {
-  height: 40px;
+  height: var(--window-strip);
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -332,8 +339,9 @@ button, select { color: inherit; }
   display: grid;
   place-items: center;
   width: calc(100% - 6px);
-  height: 38px;
-  margin: 2px 3px 0;
+  /** The window strip above plus this button come to --chrome-head, so its lower edge meets the top bar's line. */
+  height: calc(var(--chrome-head) - var(--window-strip));
+  margin: 0 3px;
   border-radius: 10px;
   color: var(--quiet);
   transition: color 0.2s ease;
@@ -747,7 +755,7 @@ button, select { color: inherit; }
   flex: 1;
   --dock-width: min(var(--right-dock-width, clamp(380px, 40vw, 620px)), calc(100vw - 320px));
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr) auto;
+  grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto;
   /**
    * The dock's track takes its width the moment the dock is asked for, and gives it back the moment
    * it is dismissed — never over the half second the dock takes to slide. Everything in the column
@@ -864,7 +872,7 @@ button, select { color: inherit; }
   min-width: 0;
   width: var(--dock-width);
   display: grid;
-  grid-template-rows: 50px minmax(0, 1fr);
+  grid-template-rows: var(--chrome-head) minmax(0, 1fr);
   /** Clipped rather than hidden, with room for the resize handle to straddle the dock's own edge. */
   overflow: clip;
   overflow-clip-margin: 8px;
@@ -907,12 +915,12 @@ button, select { color: inherit; }
   inset: 0 7px;
   background: var(--line-strong);
 }
-.right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+.right-dock-tabs { position: relative; z-index: 2; min-width: 0; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--line); padding: 0 8px; }
 .right-dock-tabs > div:first-child { min-width: 0; flex: 1; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .right-dock-tabs > div::-webkit-scrollbar { display: none; }
 .right-dock-tabs [role="tab"], .right-dock-tab {
   min-width: 0;
-  height: 36px;
+  height: 40px;
   flex: 0 1 150px;
   display: flex;
   align-items: center;
@@ -1069,7 +1077,7 @@ button, select { color: inherit; }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
 .workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
-.agents-panel-heading { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
+.agents-panel-heading { min-height: var(--chrome-head); display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line-soft); padding: 0 22px; }
 .agents-panel-heading h2 { margin: 0; color: var(--ink-soft); font-size: var(--text-heading); font-weight: 580; }
 .agents-panel-heading p { margin: 4px 0 0; color: var(--quiet); font-size: var(--text-meta); }
 .agents-panel-heading > span { color: var(--info-soft); font-size: var(--text-meta); }
@@ -2223,7 +2231,7 @@ pre {
 .subagent-inspector {
   min-width: 0;
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr);
+  grid-template-rows: var(--chrome-head) minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: var(--sunken);
@@ -2235,13 +2243,13 @@ pre {
   position: relative;
   min-width: 0;
   display: grid;
-  grid-template-rows: 72px minmax(0, 1fr) auto auto;
+  grid-template-rows: var(--chrome-head) minmax(0, 1fr) auto auto;
   overflow: hidden;
   border-left: 1px solid var(--line);
   background: var(--sunken);
   height: 100%;
 }
-.side-chat:has(> .find-slot) { grid-template-rows: 72px auto minmax(0, 1fr) auto auto; }
+.side-chat:has(> .find-slot) { grid-template-rows: var(--chrome-head) auto minmax(0, 1fr) auto auto; }
 .side-chat-header {
   min-width: 0;
   display: flex;
