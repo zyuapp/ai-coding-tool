@@ -6,15 +6,16 @@ export const DEFAULT_ENGINE: AgentEngine = "claude";
 
 /**
  * Every effort any engine offers, deepest first, which is the order pickers list them in. Which of
- * them a model takes is the model's own business, so each model names its own.
+ * them a model takes is the model's own business, so each model names its own. The order is the
+ * description, so only an effort that does something else says anything.
  */
 const EFFORTS = {
-  ultra: { label: "Ultra", description: "Deepest reasoning, splitting work across agents" },
-  max: { label: "Max", description: "Everything the model has, slowest" },
-  xhigh: { label: "Extra high", description: "Deeper than high" },
-  high: { label: "High", description: "Deep reasoning" },
-  medium: { label: "Medium", description: "Moderate thinking" },
-  low: { label: "Low", description: "Minimal thinking, fastest replies" },
+  ultra: { label: "Ultra", description: "Splits the work across agents" },
+  max: { label: "Max" },
+  xhigh: { label: "Extra high" },
+  high: { label: "High" },
+  medium: { label: "Medium" },
+  low: { label: "Low" },
 } as const satisfies Record<AgentEffort, Omit<EffortSpec, "id">>;
 
 /** Deepest first. A clamp walks this to find the nearest effort a model will take. */
@@ -56,7 +57,7 @@ export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MO
  */
 export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[] };
 
-export type EffortSpec = { id: AgentEffort; label: string; description: string };
+export type EffortSpec = { id: AgentEffort; label: string; description?: string };
 
 /** The panels and controls an engine can feed; one that cannot is not drawn for its threads. */
 export type EngineCapabilities = {

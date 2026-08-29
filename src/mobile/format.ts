@@ -1,6 +1,6 @@
 import type { MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
 import { effortForModel, modelsFor, type AgentEngine } from "../domain/agent-engine";
-import type { ExecutionPolicy } from "../domain/run";
+import { POLICIES } from "../domain/run";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
 
 /**
@@ -83,19 +83,11 @@ export function relativeTime(at: number, now: number): string {
   return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const MODE_LABELS: Record<ExecutionPolicy, string> = {
-  autonomous: "Auto",
-  bypass: "Bypass",
-  "allow-edits": "Edits",
-  confirm: "Confirm",
-  plan: "Plan",
-};
-
 /** A thread's settings as the composer's bottom edge reads them. Effort is null for a model that takes none. */
 export function settingsSummary(settings: MobileThreadSettings): { mode: string; model: string; effort: string | null } {
   const spec = modelsFor(settings.engine).find((candidate) => candidate.id === settings.model);
   return {
-    mode: MODE_LABELS[settings.policy],
+    mode: POLICIES[settings.policy].label,
     model: spec?.label ?? settings.model,
     effort:
       spec?.efforts.find((candidate) => candidate.id === effortForModel(settings.model, settings.effort))?.label ?? null,

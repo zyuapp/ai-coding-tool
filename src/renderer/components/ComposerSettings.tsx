@@ -1,34 +1,34 @@
 import type { IconType } from "react-icons";
-import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
 import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
-import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
+import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
 
-type Choice<T extends string> = { value: T; label: string; short: string; description: string; icon: IconType; danger?: true };
+type Choice<T extends string> = { value: T; label: string; description?: string; icon: IconType; danger?: true };
 
-// ExecutionPolicy still accepts "plan"; it is left out of the picker because nobody uses it.
 const modes: Choice<ExecutionPolicy>[] = [
-  { value: "autonomous", label: "Auto mode", short: "Auto", description: "Only ask for potentially unsafe actions", icon: Zap },
-  { value: "bypass", label: "Bypass permissions", short: "Bypass", description: "Use tools and change files without asking", icon: ShieldOff, danger: true },
-  { value: "allow-edits", label: "Allow edits", short: "Edits", description: "Apply file edits without asking", icon: FileCheck2 },
-  { value: "confirm", label: "Let me decide", short: "Confirm", description: "Ask before using tools or changing files", icon: Hand },
+  { value: "autonomous", ...POLICIES.autonomous, icon: Zap },
+  { value: "bypass", ...POLICIES.bypass, icon: ShieldOff, danger: true },
+  { value: "allow-edits", ...POLICIES["allow-edits"], icon: FileCheck2 },
+  { value: "confirm", ...POLICIES.confirm, icon: Hand },
 ];
 
 const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-5.6-luna": Moon };
 
-const effortStyles: Record<AgentEffort, { short: string; icon: IconType }> = {
-  ultra: { short: "Ultra", icon: Flame },
-  max: { short: "Max", icon: Flame },
-  xhigh: { short: "Extra high", icon: Signal },
-  high: { short: "High", icon: SignalHigh },
-  medium: { short: "Medium", icon: SignalMedium },
-  low: { short: "Low", icon: SignalLow },
+/** Bars for the depth ladder, and a mark of its own for the tier that works differently. */
+const effortIcons: Record<AgentEffort, IconType> = {
+  ultra: Network,
+  max: Flame,
+  xhigh: Signal,
+  high: SignalHigh,
+  medium: SignalMedium,
+  low: SignalLow,
 };
 
-const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, short: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
-const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, ...effortStyles[spec.id] })));
+const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
+const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, ...spec, icon: effortIcons[spec.id] })));
 
 /** The model list is one list, headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -88,7 +88,7 @@ function Option<T extends string>({ item, selected, disabled = false, onSelect }
     onClick={onSelect}
   >
     <span className="setting-icon" aria-hidden="true"><Icon size={20} /></span>
-    <span><strong>{item.label}</strong><small>{item.description}</small></span>
+    <span><strong>{item.label}</strong>{item.description && <small>{item.description}</small>}</span>
     <span className="setting-check" aria-hidden="true">{selected && <Check size={20} />}</span>
   </button>;
 }
@@ -102,7 +102,7 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   onChange: (value: T) => void;
 }) {
   const selected = choices.find((item) => item.value === value) ?? choices[0];
-  return <SettingMenu label={label} axis={axis} heading={heading} value={selected.short}>
+  return <SettingMenu label={label} axis={axis} heading={heading} value={selected.label}>
     {(close) => choices.map((item) => <Option key={item.value} item={item} selected={item.value === value} onSelect={() => { onChange(item.value); close(); }} />)}
   </SettingMenu>;
 }
@@ -122,7 +122,7 @@ function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen
   const offered = modelGroups.filter((group) => !engineLocked || group.engine === engine);
   const locked = modelGroups.filter((group) => engineLocked && group.engine !== engine);
   /** Only a menu that offers another engine needs to know whether that engine can be picked. */
-  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.short} {...(engineLocked ? {} : { onOpen })}>
+  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.label} {...(engineLocked ? {} : { onOpen })}>
     {(close) => <>
       {offered.map((group) => {
         const readiness = engineAccess[group.engine];

@@ -88,7 +88,7 @@ export function BrowserPanel({ tab, approval, focusToken = 0, find, onOpen, onGo
           <div className="browser-empty">
             <span className="agent-orb"><Globe size={17} /></span>
             <h2>No page open</h2>
-            <p>Open a page here and every thread can read it — signed in as you, in one session for the whole app.</p>
+            <p>Open a page here and every thread can read it, signed in as you, in one session for the whole app.</p>
           </div>
         )}
         {tab.error && <p className="browser-error">{tab.error}</p>}

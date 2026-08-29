@@ -253,7 +253,7 @@ export function ImageAnnotator({ source, annotations, prefix = "", onCancel, onA
           </div>
         </div>
         <footer className="annotator-bar">
-          <span className="annotator-count">{shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"} — point at one to edit or remove it`}</span>
+          <span className="annotator-count">{shapes.length === 0 ? activeTool.hint : `${shapes.length} mark${shapes.length === 1 ? "" : "s"}. Point at one to edit or remove it.`}</span>
           <button type="button" className="annotator-action" onClick={onCancel}>Cancel</button>
           <button type="button" className="annotator-action primary" disabled={!image} onClick={apply}>
             <Check size={15} /> Done

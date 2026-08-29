@@ -1,5 +1,17 @@
 export type ExecutionPolicy = "confirm" | "plan" | "allow-edits" | "autonomous" | "bypass";
 
+/** How a mode reads wherever it is named, so one setting means one thing on every screen. */
+export const POLICIES: Record<ExecutionPolicy, { label: string; description: string }> = {
+  autonomous: { label: "Auto", description: "Only ask for potentially unsafe actions" },
+  bypass: { label: "Bypass", description: "Use tools and change files without asking" },
+  "allow-edits": { label: "Edits", description: "Apply file edits without asking" },
+  confirm: { label: "Confirm", description: "Ask before using tools or changing files" },
+  plan: { label: "Plan", description: "Plan the work without doing it" },
+};
+
+/** The modes a picker offers, in the order it lists them. Plan is left out because nobody uses it. */
+export const POLICY_CHOICES: readonly ExecutionPolicy[] = ["autonomous", "bypass", "allow-edits", "confirm"];
+
 /** How much reasoning a run asks for. Models that do not offer a level fall back to the nearest one they do. */
 export type AgentEffort = "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
 export const DEFAULT_EFFORT: AgentEffort = "high";

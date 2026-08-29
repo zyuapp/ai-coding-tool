@@ -2,20 +2,14 @@ import { LuCheck as Check } from "react-icons/lu";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
 import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
-import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
+import { POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 
-type Choice<T extends string> = { value: T; label: string; description: string };
+type Choice<T extends string> = { value: T; label: string; description?: string };
 
-/** The same wording the desktop composer uses, so a setting means one thing across both screens. */
-const MODES: Choice<ExecutionPolicy>[] = [
-  { value: "autonomous", label: "Auto mode", description: "Only ask for potentially unsafe actions" },
-  { value: "bypass", label: "Bypass permissions", description: "Use tools and change files without asking" },
-  { value: "allow-edits", label: "Allow edits", description: "Apply file edits without asking" },
-  { value: "confirm", label: "Let me decide", description: "Ask before using tools or changing files" },
-];
+const MODES: Choice<ExecutionPolicy>[] = POLICY_CHOICES.map((policy) => ({ value: policy, ...POLICIES[policy] }));
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description })));
-const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, label: spec.label, description: spec.description })));
+const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, ...spec })));
 
 /** One model list headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -23,7 +17,7 @@ const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(
 function OptionButton<T extends string>({ choice, selected, onSelect }: { choice: Choice<T>; selected: boolean; onSelect: () => void }) {
   return (
     <button type="button" role="radio" aria-checked={selected} className="sheet-option" onClick={onSelect}>
-      <span><strong>{choice.label}</strong><small>{choice.description}</small></span>
+      <span><strong>{choice.label}</strong>{choice.description && <small>{choice.description}</small>}</span>
       <span className="sheet-check" aria-hidden="true">{selected && <Check size={16} />}</span>
     </button>
   );

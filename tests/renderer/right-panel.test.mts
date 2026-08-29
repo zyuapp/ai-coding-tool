@@ -366,9 +366,9 @@ test("a side chat composes with everything the main composer has", async () => {
   await act(async () => { query<HTMLElement>(item(settings[0]), "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
     [...item(settings[0]).querySelectorAll(".setting-option")].map((option) => [query(option, "strong").textContent, query(option, "small").textContent]),
-    [["Auto mode", "Only ask for potentially unsafe actions"], ["Bypass permissions", "Use tools and change files without asking"], ["Allow edits", "Apply file edits without asking"], ["Let me decide", "Ask before using tools or changing files"]],
+    [["Auto", "Only ask for potentially unsafe actions"], ["Bypass", "Use tools and change files without asking"], ["Edits", "Apply file edits without asking"], ["Confirm", "Ask before using tools or changing files"]],
   );
-  await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>(".setting-option")].find((option) => option.textContent.includes("Auto mode"))).click(); });
+  await act(async () => { item([...item(settings[0]).querySelectorAll<HTMLButtonElement>(".setting-option")].find((option) => option.textContent.includes("Auto"))).click(); });
   assert.deepEqual(policies, ["autonomous"]);
 
   const approval = query(view.container, ".approval-card");

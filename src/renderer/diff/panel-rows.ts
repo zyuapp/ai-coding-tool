@@ -25,7 +25,7 @@ export function emptyPatchNote(file: DiffFileSummary) {
 export function patchNote(patch: PatchState | undefined) {
   if (!patch || patch.status === "reading") return "Reading the patch…";
   if (patch.status === "error") return patch.message;
-  if (patch.status === "too-large") return `Patch is larger than ${Math.round(patch.limit / 1_000_000)} MB — open it in your editor.`;
+  if (patch.status === "too-large") return `Patch is larger than ${Math.round(patch.limit / 1_000_000)} MB. Open it in your editor.`;
   return null;
 }
 

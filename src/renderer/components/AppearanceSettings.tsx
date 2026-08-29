@@ -406,7 +406,7 @@ export function AppearanceSettings({
           </div>
         </div>
 
-        <SettingRow id="appearance.reading-size" description={<p className="size-sample">Ran the tests — three failed in the parser.</p>}>
+        <SettingRow id="appearance.reading-size" description={<p className="size-sample">Ran the tests. Three failed in the parser.</p>}>
           <SizeField label="Conversation text size" range={READING_SIZE} value={readingSize} onChoose={onSetReadingSize} />
         </SettingRow>
 
