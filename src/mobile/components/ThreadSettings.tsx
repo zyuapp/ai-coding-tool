@@ -1,7 +1,7 @@
 import { LuCheck as Check } from "react-icons/lu";
 import { Fragment } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
-import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description: string };
@@ -15,7 +15,7 @@ const MODES: Choice<ExecutionPolicy>[] = [
 ];
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description })));
-const effortsOf = byEngine((engine): Choice<AgentEffort>[] => effortsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description })));
+const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, label: spec.label, description: spec.description })));
 
 /** One model list headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -72,7 +72,7 @@ export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, o
         <div className="sheet-body">
           <Group heading="Permission" choices={MODES} value={settings.policy} onChange={onPolicy} />
           <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onModel={onModel} />
-          <Group heading="Effort" choices={effortsOf[settings.engine]} value={settings.effort} onChange={(effort) => onEffort(settings.engine, effort)} />
+          {effortsOf[settings.model].length > 0 && <Group heading="Effort" choices={effortsOf[settings.model]} value={effortForModel(settings.model, settings.effort)} onChange={(effort) => onEffort(settings.engine, effort)} />}
         </div>
         <button type="button" className="primary wide" onClick={onClose}>Done</button>
       </div>

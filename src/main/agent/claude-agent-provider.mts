@@ -1,5 +1,5 @@
 import { query, type CanUseTool, type McpServerConfig, type ModelInfo, type Query, type SDKUserMessage, type SlashCommand } from "@anthropic-ai/claude-agent-sdk";
-import { claudeEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { claudeEffort, modelTakesEffort, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import { engineBinaryPath } from "./engine-binary.mjs";
 import { continuationOf, type AgentProvider, type ProviderResult, type ProviderRunInput } from "./agent-provider.mjs";
 import { withheldTools } from "./channel-tools.mjs";
@@ -131,7 +131,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         permissionMode: claudePermissionMode(input.policy),
         ...(input.policy === "bypass" ? { allowDangerouslySkipPermissions: true } : {}),
         model: input.model,
-        effort: claudeEffort(input.effort),
+        ...(modelTakesEffort(input.model) ? { effort: claudeEffort(input.effort) } : {}),
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),

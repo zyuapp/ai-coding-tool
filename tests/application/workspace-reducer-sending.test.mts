@@ -219,11 +219,11 @@ test("only a thread the send just created is named, from what the user typed and
 });
 
 test("choosing another engine's model moves the draft onto that engine, but never a thread that has a message", () => {
-  const drafted = reduce(workspace({ draftEffort: "max" }), { type: "task.set-model", engine: "codex", model: "gpt-5.6-terra" }).state;
-  assert.equal(drafted.draftEngine, "codex");
-  assert.equal(drafted.draftModel, "gpt-5.6-terra");
-  assert.equal(drafted.draftEffort, "high", "an effort the new engine lacks lands on its default");
-  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" }).state.draftEffort, "low", "an effort both engines offer stays");
+  const drafted = reduce(workspace({ draftEngine: "codex", draftModel: "gpt-5.6-sol", draftEffort: "ultra" }), { type: "task.set-model", engine: "claude", model: "sonnet" }).state;
+  assert.equal(drafted.draftEngine, "claude");
+  assert.equal(drafted.draftModel, "sonnet");
+  assert.equal(drafted.draftEffort, "max", "an effort the new model lacks drops to the nearest one below");
+  assert.equal(reduce(workspace({ draftEffort: "low" }), { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" }).state.draftEffort, "low", "an effort both models offer stays");
   assert.equal(deriveView(drafted).engineLocked, false, "a draft may still choose either engine");
 
   const thread = task("task-a", { model: "opus", messages: [{ id: "m1", kind: "user", text: "Have a look", at: 5 }] });

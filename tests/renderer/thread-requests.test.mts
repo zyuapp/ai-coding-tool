@@ -373,7 +373,7 @@ test("a new thread inherits agent settings and can select any registered model",
   const switched = startCommand(desktop.sent.at(-1));
   assert.equal(switched.engine, "codex");
   assert.equal(switched.model, "gpt-5.6-luna");
-  assert.equal(switched.effort, "high", "an unsupported inherited effort falls back to the selected engine's default");
+  assert.equal(switched.effort, "max", "an inherited effort the new model takes comes across");
 
   await act(async () => {
     await desktop.askThreads({ type: "thread.request", requestId: "override", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna lightly", model: "gpt-5.6-luna", effort: "low" } });
@@ -381,9 +381,9 @@ test("a new thread inherits agent settings and can select any registered model",
   assert.equal(startCommand(desktop.sent.at(-1)).effort, "low");
 
   await act(async () => {
-    await desktop.askThreads({ type: "thread.request", requestId: "invalid", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna", model: "gpt-5.6-luna", effort: "max" } });
+    await desktop.askThreads({ type: "thread.request", requestId: "invalid", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna", model: "gpt-5.6-luna", effort: "ultra" } });
   });
-  assert.match(failedThreadResponse(desktop.threadAnswers.at(-1)).message, /does not support max effort/);
+  assert.match(failedThreadResponse(desktop.threadAnswers.at(-1)).message, /does not support ultra effort/);
 
   await workspace.view.unmount();
 });

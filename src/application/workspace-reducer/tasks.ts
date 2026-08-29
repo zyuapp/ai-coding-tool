@@ -10,7 +10,7 @@ import { applyTask } from "../task-workspace.js";
 import { DRAFT_DOCK, blockedTaskIds, busyTaskIds, projectFor, sideChatIds, worktreeById, type WorkspaceState } from "../workspace-state.js";
 import { dismissableTasks, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle } from "../../domain/task.js";
-import { defaultEffortFor, engineHasEffort, engineHasModel } from "../../domain/agent-engine.js";
+import { defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type TaskInput = Extract<WorkspaceInput, {
   type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive"
@@ -154,18 +154,20 @@ export function reduceTasks(state: WorkspaceState, input: TaskInput): WorkspaceT
       /** A thread keeps the engine it started on, so the model must be one that engine offers too. */
       const engine = state.tasks.find((task) => task.id === taskId)?.engine;
       if (!engineHasModel(input.engine, input.model) || engine && !engineHasModel(engine, input.model)) return settled(state);
-      /** A draft that changes engine keeps its effort only where the new engine offers it. */
-      const draftEffort = engineHasEffort(input.engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(input.engine);
+      /** A draft keeps its effort where the new model takes it, and drops to the nearest one below where it does not. */
+      const draftEffort = effortForModel(input.model, state.draftEffort);
       const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort } : state;
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, model: input.model, updatedAt: now() })) : drafted);
     }
 
     case "task.set-effort": {
       const taskId = targetId(state, input.taskId);
-      const engine = state.tasks.find((task) => task.id === taskId)?.engine;
-      if (!engineHasEffort(input.engine, input.effort) || engine && !engineHasEffort(engine, input.effort)) return settled(state);
-      /** The draft keeps its own engine, so it takes the effort only where that engine offers it. */
-      const drafted = input.taskId === undefined && engineHasEffort(state.draftEngine, input.effort) ? { ...state, draftEffort: input.effort } : state;
+      const task = state.tasks.find((item) => item.id === taskId);
+      /** Effort belongs to the model, so only one the target model takes can be set on it. */
+      if (task && !modelHasEffort(task.model ?? defaultModelFor(task.engine), input.effort)) return settled(state);
+      if (!task && !modelHasEffort(state.draftModel, input.effort)) return settled(state);
+      /** The draft keeps its own model, so it takes the effort only where that model offers it. */
+      const drafted = input.taskId === undefined && modelHasEffort(state.draftModel, input.effort) ? { ...state, draftEffort: input.effort } : state;
       return settled(taskId ? applyTask(drafted, taskId, (task) => ({ ...task, effort: input.effort, updatedAt: now() })) : drafted);
     }
   }

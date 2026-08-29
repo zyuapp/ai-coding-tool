@@ -1,6 +1,6 @@
 import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { claudeEffort, contextWindowLimit, type AgentModel } from "../../domain/agent-engine.js";
-import type { BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
+import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
 import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
@@ -36,6 +36,11 @@ function backgroundProcesses(tasks: { task_id: string; task_type: string; descri
     const kind = backgroundProcessKinds[task.task_type];
     return kind ? [{ id: task.task_id, kind, description: task.description }] : [];
   });
+}
+
+/** The effort a run asks the SDK to hold, or null to clear it for a model that takes none. */
+function effortFlag(input: { model: AgentModel; effort: AgentEffort }): ClaudeEffort | null {
+  return modelTakesEffort(input.model) ? claudeEffort(input.effort) : null;
 }
 
 export function claudePermissionMode(policy: ExecutionPolicy) {
@@ -147,7 +152,8 @@ export class ClaudeSession {
   /** What the agent process called this session. A later run resumes it by this id. */
   sessionId?: string;
   private model?: AgentModel;
-  private effort?: string;
+  /** The effort flag the session is running under, which is null for a model that takes none. */
+  private effort?: ClaudeEffort | null;
 
   constructor(readonly key: string, private readonly onEnded: () => void, private readonly onIdle: () => void = () => {}) {}
 
@@ -167,7 +173,7 @@ export class ClaudeSession {
 
   open(opener: SessionOpener, seed: ProviderRunInput) {
     this.model = seed.model;
-    this.effort = seed.effort;
+    this.effort = effortFlag(seed);
     this.reportWorkflow = seed.reportWorkflow;
     this.reportBackground = seed.reportBackground;
     this.reportGoal = seed.reportGoal;
@@ -262,9 +268,10 @@ export class ClaudeSession {
     }
     /** A run can leave plan mode itself, so the policy is re-stated every turn rather than only when it changes. */
     await query.setPermissionMode?.(claudePermissionMode(input.policy))?.catch?.(() => {});
-    if (this.effort !== input.effort) {
-      this.effort = input.effort;
-      await query.applyFlagSettings?.({ effortLevel: claudeEffort(input.effort) })?.catch?.(() => {});
+    const effort = effortFlag(input);
+    if (this.effort !== effort) {
+      this.effort = effort;
+      await query.applyFlagSettings?.({ effortLevel: effort })?.catch?.(() => {});
     }
   }
 

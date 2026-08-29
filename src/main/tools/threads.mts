@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { MAX_THREAD_WAIT_MS } from "../../contracts/ipc.js";
 import type { ThreadSummary, ThreadTranscript } from "../../contracts/threads.js";
-import { AGENT_ENGINES, effortsFor, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
+import { AGENT_ENGINES, isAgentEffort, isAgentModel, modelsFor, type AgentModel } from "../../domain/agent-engine.js";
 import type { AgentEffort } from "../../domain/run.js";
 import type { ThreadBridge } from "../agent/agent-provider.mjs";
 import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
@@ -21,7 +21,7 @@ const projectField = z.string().optional().describe(
 );
 
 const modelIds = AGENT_ENGINES.flatMap((engine) => modelsFor(engine).map((model) => model.id));
-const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => effortsFor(engine).map((effort) => effort.id)))];
+const effortIds = [...new Set(AGENT_ENGINES.flatMap((engine) => modelsFor(engine).flatMap((model) => model.efforts.map((effort) => effort.id))))];
 const modelField = z.enum(modelIds as [AgentModel, ...AgentModel[]]).refine(isAgentModel).optional().describe(
   "Model for the new thread. Omit to inherit the calling thread's model.",
 );

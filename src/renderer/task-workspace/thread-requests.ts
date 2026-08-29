@@ -6,7 +6,7 @@ import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import { terminalLineLimit } from "../../domain/terminal";
 import { errorMessage } from "./errors";
-import { defaultEffortFor, defaultModelFor, engineForModel, engineHasEffort } from "../../domain/agent-engine";
+import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, modelHasEffort, modelTakesEffort } from "../../domain/agent-engine";
 
 /** How much page text a read returns when the caller does not say. */
 const DEFAULT_PAGE_TEXT = 4_000;
@@ -140,12 +140,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const selected: { command: typeof command } | { error: string } = command.type === "task.send" && command.taskId === undefined && caller
       ? (() => {
           const model = command.model ?? caller.model ?? defaultModelFor(caller.engine);
-          const engine = engineForModel(model);
-          const inheritedEffort = caller.effort ?? defaultEffortFor(caller.engine);
-          const effort = command.effort ?? (engineHasEffort(engine, inheritedEffort) ? inheritedEffort : defaultEffortFor(engine));
-          return engineHasEffort(engine, effort)
-            ? { command: { ...command, model, effort } }
-            : { error: `The ${model} model does not support ${effort} effort.` };
+          if (command.effort && !modelHasEffort(model, command.effort)) return { error: `The ${model} model does not support ${command.effort} effort.` };
+          /** An inherited effort the new model does not take drops to the nearest one it does. */
+          const effort = command.effort ?? effortForModel(model, caller.effort ?? defaultEffortFor(engineForModel(model)));
+          const { effort: _asked, ...rest } = command;
+          return { command: modelTakesEffort(model) ? { ...command, model, effort } : { ...rest, model } };
         })()
       : { command };
     if ("error" in selected) return failed(selected.error);

@@ -1,7 +1,7 @@
 import type { IconType } from "react-icons";
 import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type ReactNode } from "react";
-import { AGENT_ENGINES, byEngine, effortsFor, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
@@ -28,7 +28,7 @@ const effortStyles: Record<AgentEffort, { short: string; icon: IconType }> = {
 };
 
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, short: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
-const effortsOf = byEngine((engine): Choice<AgentEffort>[] => effortsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, ...effortStyles[spec.id] })));
+const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, ...effortStyles[spec.id] })));
 
 /** The model list is one list, headed by engine, so choosing a model is how an engine is chosen. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
@@ -165,7 +165,7 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
       <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
-      <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[engine]} value={effort} onChange={(choice) => onEffortChange(engine, choice)} />
+      {effortsOf[model].length > 0 && <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={(choice) => onEffortChange(engine, choice)} />}
     </div>
   );
 }

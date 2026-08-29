@@ -54,7 +54,7 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
 
   const retuned = run(opened, [
     { type: "task.set-policy", taskId: "chat-1", policy: "autonomous" },
-    { type: "task.set-model", taskId: "chat-1", engine: "claude", model: "haiku" },
+    { type: "task.set-model", taskId: "chat-1", engine: "claude", model: "sonnet" },
     { type: "task.set-effort", taskId: "chat-1", engine: "claude", effort: "low" },
     { type: "task.set-policy", taskId: "main-task", policy: "allow-edits" },
     { type: "view.set-prompt", taskId: "chat-1", prompt: "Fix the typo" },
@@ -65,7 +65,7 @@ test("a side chat snapshots the source settings at creation, then owns them", ()
   const resolved = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const command = effectAt(resolved, "start-run").command;
   assert.equal(command.policy, "autonomous");
-  assert.equal(command.model, "haiku");
+  assert.equal(command.model, "sonnet");
   assert.equal(command.effort, "low");
 });
 

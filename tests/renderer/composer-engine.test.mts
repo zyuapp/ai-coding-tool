@@ -320,3 +320,28 @@ test("clearing a goal targets its existing thread", async () => {
   assert.deepEqual(commands, [{ type: "task.send", taskId: "task-goal", text: "/goal clear", steer: true }]);
   await view.unmount();
 });
+
+test("the effort menu offers what the model takes, and is gone for a model that takes none", async () => {
+  window.desktop = composerDesktop();
+  const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(TaskComposer, {
+    prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high",
+    runActive: false, queuedMessages: [],
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+  });
+  const efforts = async (engine: "claude" | "codex", model: AgentModel) => {
+    const view = await mount(composer(engine, model));
+    await act(async () => {});
+    const menus = [...view.container.querySelectorAll<HTMLElement>(".setting-menu")];
+    const labels = menus.map((menu) => query(menu, "summary").getAttribute("aria-label"));
+    if (!labels.includes("Effort")) { await view.unmount(); return null; }
+    const menu = item(menus.at(-1));
+    await act(async () => { query<HTMLElement>(menu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+    const options = [...menu.querySelectorAll(".setting-option strong")].map((option) => option.textContent);
+    await view.unmount();
+    return options;
+  };
+
+  assert.deepEqual(await efforts("codex", "gpt-5.6-sol"), ["Ultra effort", "Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"]);
+  assert.deepEqual(await efforts("codex", "gpt-5.6-luna"), ["Max effort", "Extra high effort", "High effort", "Medium effort", "Low effort"], "Luna does not delegate, so it has no ultra");
+  assert.equal(await efforts("claude", "haiku"), null, "Haiku reasons at one depth, so it is drawn without an effort menu");
+});

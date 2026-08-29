@@ -4,45 +4,57 @@ import type { AgentEffort } from "./run.js";
 export type AgentEngine = "claude" | "codex";
 export const DEFAULT_ENGINE: AgentEngine = "claude";
 
-const CLAUDE_MODELS = [
-  { id: "fable", label: "Fable", description: "Most capable for demanding work", contextWindow: 1_000_000 },
-  { id: "opus", label: "Opus", description: "Best for complex reasoning", contextWindow: 1_000_000 },
-  { id: "sonnet", label: "Sonnet", description: "Balanced speed and capability", contextWindow: 1_000_000 },
-  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000 },
-] as const;
+/**
+ * Every effort any engine offers, deepest first, which is the order pickers list them in. Which of
+ * them a model takes is the model's own business, so each model names its own.
+ */
+const EFFORTS = {
+  ultra: { label: "Ultra effort", description: "Deepest reasoning, splitting work across agents" },
+  max: { label: "Max effort", description: "Everything the model has, slowest" },
+  xhigh: { label: "Extra high effort", description: "Deeper than high" },
+  high: { label: "High effort", description: "Deep reasoning" },
+  medium: { label: "Medium effort", description: "Moderate thinking" },
+  low: { label: "Low effort", description: "Minimal thinking, fastest replies" },
+} as const satisfies Record<AgentEffort, Omit<EffortSpec, "id">>;
 
-const CLAUDE_EFFORTS = [
-  { id: "max", label: "Max effort", description: "Everything the model has, slowest" },
-  { id: "xhigh", label: "Extra high effort", description: "Deeper than high, where the model offers it" },
-  { id: "high", label: "High effort", description: "Deep reasoning" },
-  { id: "medium", label: "Medium effort", description: "Moderate thinking" },
-  { id: "low", label: "Low effort", description: "Minimal thinking, fastest replies" },
-] as const satisfies readonly EffortSpec[];
+/** Deepest first. A clamp walks this to find the nearest effort a model will take. */
+const EFFORT_ORDER = Object.keys(EFFORTS) as readonly AgentEffort[];
+
+/** The named efforts as specs, always deepest first however they were named. */
+function efforts(...ids: readonly AgentEffort[]): readonly EffortSpec[] {
+  return EFFORT_ORDER.filter((id) => ids.includes(id)).map((id) => ({ id, ...EFFORTS[id] }));
+}
+
+const EFFORTS_THROUGH_MAX = efforts("max", "xhigh", "high", "medium", "low");
+/** Codex's deepest tier hands work to sub-agents, which its smallest model does not do. */
+const EFFORTS_THROUGH_ULTRA = efforts("ultra", ...EFFORTS_THROUGH_MAX.map((spec) => spec.id));
 
 /** The efforts the Claude SDK accepts, which its `EffortLevel` type must keep matching. */
-export type ClaudeEffort = (typeof CLAUDE_EFFORTS)[number]["id"];
+export type ClaudeEffort = Exclude<AgentEffort, "ultra">;
+
+const CLAUDE_MODELS = [
+  { id: "fable", label: "Fable", description: "Most capable for demanding work", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
+  { id: "opus", label: "Opus", description: "Best for complex reasoning", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
+  { id: "sonnet", label: "Sonnet", description: "Balanced speed and capability", contextWindow: 1_000_000, efforts: EFFORTS_THROUGH_MAX },
+  { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [] },
+] as const;
 
 /** Codex's model catalogue exposes no context window; 272k is what its GPT-5 line documents. */
 const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
-  { id: "gpt-5.6-sol", label: "Sol", description: "Latest frontier agentic coding model", contextWindow: CODEX_CONTEXT_WINDOW },
-  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW },
-  { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW },
+  { id: "gpt-5.6-sol", label: "Sol", description: "Latest frontier agentic coding model", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
+  { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
+  { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX },
 ] as const;
-
-const CODEX_EFFORTS: readonly EffortSpec[] = [
-  { id: "ultra", label: "Ultra effort", description: "Deepest reasoning Codex offers, slowest" },
-  { id: "xhigh", label: "Extra high effort", description: "Deeper than high" },
-  { id: "high", label: "High effort", description: "Deep reasoning" },
-  { id: "medium", label: "Medium effort", description: "Moderate thinking" },
-  { id: "low", label: "Low effort", description: "Minimal thinking, fastest replies" },
-];
 
 export type AgentModel = (typeof CLAUDE_MODELS)[number]["id"] | (typeof CODEX_MODELS)[number]["id"];
 
-/** Runs always request the widest context a model offers, so `contextWindow` is that ceiling. */
-export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number };
+/**
+ * Runs always request the widest context a model offers, so `contextWindow` is that ceiling. An
+ * empty `efforts` is a model that takes no effort at all, which is drawn as no effort control.
+ */
+export type ModelSpec = { id: AgentModel; label: string; description: string; contextWindow: number; efforts: readonly EffortSpec[] };
 
 export type EffortSpec = { id: AgentEffort; label: string; description: string };
 
@@ -56,7 +68,6 @@ type EngineSpec = {
   label: string;
   models: readonly ModelSpec[];
   defaultModel: AgentModel;
-  efforts: readonly EffortSpec[];
   defaultEffort: AgentEffort;
   capabilities: EngineCapabilities;
 };
@@ -66,7 +77,6 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     label: "Claude",
     models: CLAUDE_MODELS,
     defaultModel: "opus",
-    efforts: CLAUDE_EFFORTS,
     defaultEffort: "high",
     capabilities: { workflows: true, subagents: true },
   },
@@ -74,7 +84,6 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     label: "Codex",
     models: CODEX_MODELS,
     defaultModel: "gpt-5.6-sol",
-    efforts: CODEX_EFFORTS,
     defaultEffort: "high",
     capabilities: { workflows: false, subagents: true },
   },
@@ -154,8 +163,8 @@ export function engineNeedsAttention(status: EngineStatus | null): boolean {
   return AGENT_ENGINES.some((engine) => status?.[engine] && engineNotice(engine, status[engine]) !== null);
 }
 
-const MODEL_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => model.id)));
-const EFFORT_IDS = new Set<string>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].efforts.map((effort) => effort.id)));
+const MODEL_SPECS = new Map<string, ModelSpec>(AGENT_ENGINES.flatMap((engine) => ENGINES[engine].models.map((model) => [model.id, model] as const)));
+const EFFORT_IDS = new Set<string>(EFFORT_ORDER);
 
 export function isAgentEngine(value: unknown): value is AgentEngine {
   return typeof value === "string" && Object.hasOwn(ENGINES, value);
@@ -163,7 +172,7 @@ export function isAgentEngine(value: unknown): value is AgentEngine {
 
 /** True for a model any engine offers; use `engineHasModel` to ask about one engine. */
 export function isAgentModel(value: unknown): value is AgentModel {
-  return typeof value === "string" && MODEL_IDS.has(value);
+  return typeof value === "string" && MODEL_SPECS.has(value);
 }
 
 export function isAgentEffort(value: unknown): value is AgentEffort {
@@ -188,19 +197,41 @@ export function modelSupportsManualCompaction(engine: AgentEngine, model: AgentM
 
 /** An effort Claude does not offer lands on its default, so a foreign one never reaches the SDK. */
 export function claudeEffort(effort: AgentEffort): ClaudeEffort {
-  return CLAUDE_EFFORTS.some((spec) => spec.id === effort) ? effort as ClaudeEffort : "high";
+  return EFFORTS_THROUGH_MAX.some((spec) => spec.id === effort) ? effort as ClaudeEffort : "high";
 }
 
+/** True for an effort at least one of the engine's models takes; ask `modelHasEffort` about a model. */
 export function engineHasEffort(engine: AgentEngine, effort: AgentEffort) {
-  return ENGINES[engine].efforts.some((spec) => spec.id === effort);
+  return ENGINES[engine].models.some((model) => model.efforts.some((spec) => spec.id === effort));
+}
+
+export function modelHasEffort(model: AgentModel, effort: AgentEffort) {
+  return effortsFor(model).some((spec) => spec.id === effort);
+}
+
+/** False for a model that reasons at one depth, whose threads are run and drawn without an effort. */
+export function modelTakesEffort(model: AgentModel) {
+  return effortsFor(model).length > 0;
+}
+
+/**
+ * The effort a run on this model actually gets: the one asked for where the model takes it, else the
+ * nearest one below. A model that takes no effort keeps what it was given, since nothing reads it.
+ */
+export function effortForModel(model: AgentModel, effort: AgentEffort): AgentEffort {
+  const offered = effortsFor(model);
+  if (offered.length === 0 || offered.some((spec) => spec.id === effort)) return effort;
+  const asked = EFFORT_ORDER.indexOf(effort);
+  return (offered.find((spec) => EFFORT_ORDER.indexOf(spec.id) >= asked) ?? offered[offered.length - 1]!).id;
 }
 
 export function modelsFor(engine: AgentEngine): readonly ModelSpec[] {
   return ENGINES[engine].models;
 }
 
-export function effortsFor(engine: AgentEngine): readonly EffortSpec[] {
-  return ENGINES[engine].efforts;
+/** The efforts this model takes, deepest first. Empty for a model that takes none. */
+export function effortsFor(model: AgentModel): readonly EffortSpec[] {
+  return MODEL_SPECS.get(model)?.efforts ?? [];
 }
 
 export function defaultModelFor(engine: AgentEngine): AgentModel {
@@ -223,6 +254,11 @@ export function engineLabel(engine: AgentEngine): string {
 /** One value per engine, built now so a picker reads a stable list instead of building one per render. */
 export function byEngine<T>(build: (engine: AgentEngine) => T): Record<AgentEngine, T> {
   return Object.fromEntries(AGENT_ENGINES.map((engine) => [engine, build(engine)])) as Record<AgentEngine, T>;
+}
+
+/** One value per model, built now so a picker reads a stable list instead of building one per render. */
+export function byModel<T>(build: (model: ModelSpec) => T): Record<AgentModel, T> {
+  return Object.fromEntries([...MODEL_SPECS.values()].map((spec) => [spec.id, build(spec)])) as Record<AgentModel, T>;
 }
 
 /** A model the engine does not offer is measured against the engine's default model. */

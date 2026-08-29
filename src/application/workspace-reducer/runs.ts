@@ -11,7 +11,7 @@ import { applyRunEvent, applyTask, applyThreadEvent, ATTENDED_RUN, threadMark, w
 import { threadOnScreen } from "../thread-attention.js";
 import { DRAFT_DOCK, leavingTaskIds, projectFor, taskWorkspaceId, worktreeById, worktreeFor, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
-import { defaultEffortFor, defaultModelFor, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
 import { isReviewTarget, type ReviewTarget } from "../../domain/review.js";
 import { createTaskMessage, type Task } from "../../domain/task.js";
 import type { WorkspaceRecord } from "../../domain/workspace.js";
@@ -271,14 +271,15 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   /** This thread's own first run inside a checkout forks its session rather than resuming it there. */
   const entering = Boolean(arriving) && existing?.worktreeEnteredAt === undefined;
   const engine = pending.model ? engineForModel(pending.model) : state.draftEngine;
-  const effort = pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine));
+  const model = pending.model ?? state.draftModel;
+  const effort = effortForModel(model, pending.effort ?? (engineHasEffort(engine, state.draftEffort) ? state.draftEffort : defaultEffortFor(engine)));
   const task: Task = existing ?? {
     id: crypto.randomUUID(),
     title: taskTitleFor(pending.text || pasteTitle(pending.pastes ?? []) || fileTitle(pending.files ?? []), pending.attachments.map((path) => ({ path, labels: [] }))),
     ...(pending.projectId ? { projectId: pending.projectId } : {}),
     executionPolicy: state.draftPolicy,
     engine,
-    model: pending.model ?? state.draftModel,
+    model,
     effort,
     messages: [],
     continuationStatus: "none",
