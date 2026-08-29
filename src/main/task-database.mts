@@ -4,6 +4,7 @@ import type { TaskStoreDelta } from "../contracts/ipc.js";
 import { isAutomation, type Automation } from "../domain/automation.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
 import { validateTaskStoreData, type Project, type Task, type TaskMessage, type TaskStoreData } from "../domain/task.js";
+import type { LoadedTaskStore } from "../contracts/ipc.js";
 import { isWorktree, type Worktree } from "../domain/worktree.js";
 
 /** Automations are read while the app boots, so one unreadable row must not take the window with it. */
@@ -165,7 +166,7 @@ export class TaskDatabase {
     this.closed = true;
   }
 
-  load(): TaskStoreData | null {
+  load(): LoadedTaskStore | null {
     const taskRecords = Array.from(
       this.database.prepare("SELECT data FROM tasks").iterate() as Iterable<{ data: string }>,
       ({ data }) => JSON.parse(data) as Omit<Task, "messages">,
@@ -209,7 +210,7 @@ export class TaskDatabase {
     };
     const validated = validateTaskStoreData(data);
     if (!validated.ok) throw new Error(validated.errors.join(" "));
-    return validated.data;
+    return { ...validated.data, hiddenTasks: validated.hiddenTasks };
   }
 
   /** A subagent's activity, read only when someone opens it: a session's logs never all fit in the window. */

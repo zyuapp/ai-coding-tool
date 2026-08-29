@@ -42,7 +42,7 @@ function useDesktopSubscriptions(host: SubscriptionHost) {
     void window.desktop.loadTaskStore().then(async (data) => {
       if (cancelled) return;
       if (data) {
-        await host.dispatch({ type: "store.loaded", data });
+        await host.dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks });
         const current = persistenceState(host.state());
         const backfill = storeBackfill(data, current);
         if (hasPersistenceDelta(backfill)) await window.desktop.persistTaskStore(backfill);

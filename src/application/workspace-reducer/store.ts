@@ -12,7 +12,7 @@ type StoreInput = Extract<WorkspaceInput, {
 export function reduceStore(state: WorkspaceState, input: StoreInput): WorkspaceTransition {
   switch (input.type) {
     case "store.loaded":
-      return settled({ ...withStoreData(state, input.data), restored: true });
+      return settled({ ...withStoreData(state, input.data), hiddenTasks: input.hiddenTasks ?? 0, restored: true });
 
     case "store.absent":
       return settled({ ...state, restored: true });

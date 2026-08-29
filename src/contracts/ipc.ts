@@ -20,6 +20,8 @@ import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
 import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
+import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
+export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
 export type WindowTheme = {
@@ -37,23 +39,6 @@ export type InstalledApp = ExternalApp & {
 
 export type WorkspaceId = string;
 export type RunChannel = "main" | "side";
-
-export type PersistedTask = Omit<Task, "messages">;
-export type PersistedSubagent = Omit<Subagent, "activity">;
-
-export type TaskStoreDelta = {
-  tasks: Array<{
-    task: PersistedTask;
-    messages: Array<{ index: number; message: TaskMessage }>;
-    subagents?: Array<{ index: number; subagent: PersistedSubagent }>;
-    activity?: Array<{ subagentId: string; index: number; item: SubagentActivity }>;
-  }>;
-  removedTasks?: string[];
-  projects?: Project[];
-  /** The whole list, as `projects` is: a checkout is only ever added or dropped, never edited alone. */
-  worktrees?: Worktree[];
-  lastFolder?: string | null;
-};
 
 /** What only the Claude engine can be told. Another engine ignores the whole object. */
 export type ClaudeRunSettings = {
@@ -277,7 +262,8 @@ export type DesktopAPI = MobileDesktopAPI & {
   engineStatus(refresh?: boolean): Promise<EngineStatus>;
   /** Signs in through the engine's own flow, in the browser, and answers with the status after it. */
   signInEngine(engine: AgentEngine): Promise<EngineStatus>;
-  loadTaskStore(): Promise<TaskStoreData | null>;
+  checkForUpdates(): void;
+  loadTaskStore(): Promise<LoadedTaskStore | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;

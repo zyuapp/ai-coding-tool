@@ -53,6 +53,7 @@ const api: DesktopAPI = {
   suggestTaskTitle: (text: string, attachments: string[], engine: AgentEngine) => ipcRenderer.invoke("task-title:suggest", text, attachments, engine),
   engineStatus: (refresh?: boolean) => ipcRenderer.invoke("engine:status", refresh === true),
   signInEngine: (engine: AgentEngine) => ipcRenderer.invoke("engine:sign-in", engine),
+  checkForUpdates: () => ipcRenderer.send("updates:check"),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),

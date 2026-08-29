@@ -20,7 +20,7 @@ export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHo
     case "read-diff": case "checkout-branch":
       return runProjectEffect(effect, host);
 
-    case "file.open": case "app.open-folder": case "browser.open": case "browser.navigate":
+    case "file.open": case "app.open-folder": case "app.check-for-updates": case "browser.open": case "browser.navigate":
     case "browser.history": case "browser.reload": case "browser.close": case "browser.show":
     case "browser.act": case "browser.clear-data": case "terminal.start": case "terminal.write":
     case "terminal.resize": case "terminal.close": case "find-in-page": case "stop-find-in-page":

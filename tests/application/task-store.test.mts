@@ -169,11 +169,14 @@ test("validating decoded v2 data matches serialized parsing", () => {
   assert.deepEqual(decoded, original, "validation sanitizes its result without changing decoded rows");
 
   const invalid = { ...decoded, tasks: [{ ...decoded.tasks[0], title: 42 }] };
-  const rejected = parseTaskStore(serializeUnchecked(invalid));
-  const directlyRejected = validateTaskStoreData(invalid);
-  assert.equal(directlyRejected.ok, false);
-  assert.equal(rejected.ok, false);
-  if (!directlyRejected.ok && !rejected.ok) assert.deepEqual(directlyRejected.errors, rejected.errors);
+  const hidden = parseTaskStore(serializeUnchecked(invalid));
+  const directlyHidden = validateTaskStoreData(invalid);
+  assert.equal(directlyHidden.ok, true);
+  assert.equal(hidden.ok, true);
+  if (!directlyHidden.ok || !hidden.ok) return;
+  assert.deepEqual(directlyHidden.data.tasks, []);
+  assert.equal(directlyHidden.hiddenTasks, 1);
+  assert.equal(hidden.hiddenTasks, 1);
 });
 
 test("current tasks and unexpired archives keep their existing objects", () => {
@@ -243,22 +246,21 @@ test("a task saved with the old attention dot still loads, without one", () => {
   assert.equal("attentionRead" in result.data.tasks[0], false);
 });
 
-test("rejects invalid v2 policy and timestamps", () => {
+test("hides a v2 task with an invalid policy or timestamp and keeps the store writable", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
   const serialized = serializeTaskStore(migrated.data);
   const tasks = JSON.parse(serialized.tasks!);
-  tasks.value[0].executionPolicy = "not-a-policy";
-  tasks.value[0].updatedAt = "not-a-timestamp";
+  tasks.value.push({ ...tasks.value[0], id: "unreadable", executionPolicy: "not-a-policy", updatedAt: "not-a-timestamp" });
   const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.equal(result.errorKind, "corrupt");
-  assert.equal(result.canWrite, false);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.tasks.map((task) => task.id), [migrated.data.tasks[0].id]);
+  assert.equal(result.hiddenTasks, 1);
 });
 
-test("rejects a v2 task that references an unknown project", () => {
+test("hides a v2 task that references an unknown project", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
@@ -266,10 +268,24 @@ test("rejects a v2 task that references an unknown project", () => {
   const projects = JSON.parse(serialized.projects!);
   projects.value = [];
   const result = parseTaskStore({ ...serialized, projects: JSON.stringify(projects) });
-  assert.equal(result.ok, false);
-  if (result.ok) return;
-  assert.equal(result.canWrite, false);
-  assert.match(result.errors.join(" "), /unknown project/);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.tasks, []);
+  assert.equal(result.hiddenTasks, 1);
+});
+
+test("a thread saved by a newer build is hidden rather than failing the store", () => {
+  const migrated = migrateV1ToV2(legacyValues());
+  assert.equal(migrated.ok, true);
+  if (!migrated.ok) return;
+  const serialized = serializeTaskStore(migrated.data);
+  const tasks = JSON.parse(serialized.tasks!);
+  tasks.value.push({ ...tasks.value[0], id: "from-the-future", engine: "an-engine-this-build-lacks" });
+  const result = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.data.tasks.map((task) => task.id), [migrated.data.tasks[0].id]);
+  assert.equal(result.hiddenTasks, 1);
 });
 
 test("storage write failures disable future writes without touching v1", () => {
@@ -383,7 +399,7 @@ test("v2 round-trips model, context usage, and archive metadata", () => {
   if (parsed.ok) assert.deepEqual(parsed.data, data);
 });
 
-test("v2 rejects invalid model and usage values", () => {
+test("v2 hides a task with invalid model or usage values", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
@@ -399,7 +415,10 @@ test("v2 rejects invalid model and usage values", () => {
     const tasks = JSON.parse(serialized.tasks!);
     mutate(tasks.value[0]);
     const parsed = parseTaskStore({ ...serialized, tasks: JSON.stringify(tasks) });
-    assert.equal(parsed.ok, false);
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) return;
+    assert.deepEqual(parsed.data.tasks, []);
+    assert.equal(parsed.hiddenTasks, 1);
   }
 });
 
@@ -591,7 +610,7 @@ test("duplicate checkout ids keep the first record before invalid projects are r
   assert.equal(result.data.tasks[1].worktreeEnteredAt, undefined);
 });
 
-test("what a thread's runs found survives being written and read back, and a malformed one refuses the store", () => {
+test("what a thread's runs found survives being written and read back, and a malformed one hides the thread", () => {
   const migrated = migrateV1ToV2(legacyValues());
   assert.equal(migrated.ok, true);
   if (!migrated.ok) return;
@@ -606,6 +625,9 @@ test("what a thread's runs found survives being written and read back, and a mal
   assert.deepEqual(parsed.data.tasks[0].messages.map((message) => message.withdrawn), [true, true], "a message stored under the older name reads back withdrawn");
   assert.deepEqual(parsed.data.tasks[0].handledIssues, ["latency"], "and so do the issues the user filed away");
 
-  const broken = serializeUnchecked({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], findings: [{ id: "finding-1", at: 30 }] }] });
-  assert.equal(parseTaskStore(broken).ok, false, "a finding with nothing to say is not a finding");
+  const broken = parseTaskStore(serializeUnchecked({ ...migrated.data, tasks: [{ ...migrated.data.tasks[0], findings: [{ id: "finding-1", at: 30 }] }] }));
+  assert.equal(broken.ok, true);
+  if (!broken.ok) return;
+  assert.deepEqual(broken.data.tasks, [], "a finding with nothing to say is not a finding");
+  assert.equal(broken.hiddenTasks, 1);
 });

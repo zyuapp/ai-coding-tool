@@ -20,7 +20,7 @@ import type { ManagedWorktree } from "../../domain/worktree.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
-  | { type: "store.loaded"; data: TaskStoreData }
+  | { type: "store.loaded"; data: TaskStoreData; hiddenTasks?: number }
   /** The store has nothing to hand over: a first run, with no threads to restore. */
   | { type: "store.absent" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }
@@ -114,6 +114,7 @@ export type WorkspaceEffect =
   | { type: "file.open"; roots: string[]; path: string; line: number | null }
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
+  | { type: "app.check-for-updates" }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
   | { type: "terminal.start"; terminalId: string; cwd: string }
   | { type: "terminal.write"; terminalId: string; data: string }

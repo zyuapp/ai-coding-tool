@@ -177,6 +177,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     readAttachment: async () => "iVBORw0KGgo=",
     pathForFile: () => "", describeFiles: async () => [],
     suggestTaskTitle: async () => null,
+    checkForUpdates: () => {},
     loadTaskStore: async () => null,
     loadSubagentActivity: async () => [],
     persistTaskStore: async (delta) => { persisted.push(delta); },

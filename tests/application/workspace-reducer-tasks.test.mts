@@ -82,6 +82,16 @@ test("nothing is empty until the store has answered, whatever it answers", () =>
   assert.equal(reduce(workspace(), { type: "store.failed", message: "unreadable" }).state.restored, true);
 });
 
+test("threads this build cannot read are counted until the notice is closed", () => {
+  const loaded = reduce(workspace(), { type: "store.loaded", data: STORE_ANSWER, hiddenTasks: 49 });
+  assert.equal(loaded.state.hiddenTasks, 49);
+  assert.equal(deriveView(loaded.state).hiddenTasks, 49);
+
+  const dismissed = reduce(loaded.state, { type: "view.dismiss-hidden-tasks" });
+  assert.equal(dismissed.state.hiddenTasks, 0);
+  assert.deepEqual(dismissed.state.tasks, loaded.state.tasks, "closing the notice keeps the threads that did load");
+});
+
 test("a draft typed before the load is still there, and still where it was typed, after", () => {
   const typed = run(workspace(), [
     { type: "view.set-prompt", prompt: "the first message after a restart" },

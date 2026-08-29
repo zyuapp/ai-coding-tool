@@ -502,6 +502,11 @@ ipcMain.handle("usage:plan", async (event, engine: unknown) => {
   }
 });
 
+ipcMain.on("updates:check", (event) => {
+  if (!trustedSender(event)) return;
+  void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error));
+});
+
 ipcMain.on("computer-use:restart", (event) => {
   if (!trustedSender(event)) return;
   requestRestart();

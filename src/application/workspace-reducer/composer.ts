@@ -8,7 +8,7 @@ type ComposerInput = Extract<WorkspaceInput, {
   type: "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall" | "paste.add"
     | "paste.remove" | "paste.recall" | "image.add" | "image.remove" | "image.recall"
     | "file.attach" | "file.detach" | "file.recall" | "view.set-prompt" | "view.reading-point"
-    | "view.dismiss-action-error";
+    | "view.dismiss-action-error" | "view.dismiss-hidden-tasks";
 }>;
 
 export function reduceComposer(state: WorkspaceState, input: ComposerInput): WorkspaceTransition {
@@ -42,5 +42,8 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
 
     case "view.dismiss-action-error":
       return settled({ ...state, actionError: null, actionErrorPage: null });
+
+    case "view.dismiss-hidden-tasks":
+      return settled({ ...state, hiddenTasks: 0 });
   }
 }

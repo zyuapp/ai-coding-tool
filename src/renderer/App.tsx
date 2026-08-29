@@ -19,6 +19,21 @@ import { useFileDrop, useRefusedStrayDrops } from "./file-drop";
 import { attachDroppedFiles, imageSources } from "./dropped-files";
 import { useComposerFocusRecovery, useEscapeLayers, useLatestDispatch, useMessageLinks, useSubagentInspection } from "./app-shell";
 
+/** Threads a newer build wrote, which this one left on disk. The count returns on the next launch. */
+function HiddenTasksNotice({ workspace }: { workspace: ReturnType<typeof useTaskWorkspace> }) {
+  const hidden = workspace.hiddenTasks;
+  if (hidden < 1) return null;
+  return (
+    <div className="storage-notice" role="status">
+      <span>{hidden} {hidden === 1 ? "thread needs" : "threads need"} a newer version</span>
+      <button className="storage-notice-link" type="button" onClick={() => void workspace.actions.checkForUpdates()}>Update</button>
+      <button type="button" aria-label="Dismiss" onClick={() => void workspace.actions.dismissHiddenTasks()}>
+        <X size={15} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export function App() {
   const workspace = useTaskWorkspace();
   const dispatchRef = useLatestDispatch(workspace.dispatch);
@@ -160,6 +175,8 @@ export function App() {
             )}
           </div>
         )}
+
+        {!workspace.storageError && <HiddenTasksNotice workspace={workspace} />}
 
         <WorkspaceConversation workspace={workspace} find={find} findBar={findBar} onAnnotateSide={annotateToSideChat} />
 

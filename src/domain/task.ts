@@ -350,6 +350,8 @@ export type TaskStoreParseResult =
   | {
       ok: true;
       data: TaskStoreData;
+      /** Threads this build cannot read, which stay on disk untouched. */
+      hiddenTasks: number;
       sourceVersion: 0 | 1 | 2;
       preservedV1: StorageValues | null;
     }
@@ -385,7 +387,7 @@ type DecodedTaskStore = {
 };
 
 type TaskStoreValidationResult =
-  | { ok: true; data: TaskStoreData }
+  | { ok: true; data: TaskStoreData; hiddenTasks: number }
   | { ok: false; errors: string[] };
 
 export type SerializedTaskStore = StorageValues;
@@ -415,6 +417,7 @@ export function parseTaskStore(raw: StorageValues): TaskStoreParseResult {
     return {
       ok: true,
       data: { version: TASK_STORE_VERSION, tasks: [], projects: [], worktrees: [], lastFolder: null },
+      hiddenTasks: 0,
       sourceVersion: 0,
       preservedV1: null,
     };
@@ -477,6 +480,7 @@ export function migrateV1ToV2(raw: StorageValues): TaskStoreParseResult {
   return {
     ok: true,
     data: { version: TASK_STORE_VERSION, tasks, projects, worktrees: [], lastFolder },
+    hiddenTasks: 0,
     sourceVersion: 1,
     preservedV1: raw,
   };
@@ -581,9 +585,14 @@ function decodeV2(raw: StorageValues):
   };
 }
 
-/** Validates v2 values that have already been decoded from their storage transport. */
+/**
+ * Validates v2 values that have already been decoded from their storage transport. A thread this
+ * build cannot read is counted and left out rather than failing the store: its record stays on disk
+ * for the build that wrote it, and the threads around it still open.
+ */
 export function validateTaskStoreData(values: DecodedTaskStore): TaskStoreValidationResult {
   const errors: string[] = [];
+  let hiddenTasks = 0;
   if (!Array.isArray(values.tasks)) errors.push("v2 tasks must be an array");
   if (!Array.isArray(values.projects)) errors.push("v2 projects must be an array");
   if (values.worktrees !== null && !Array.isArray(values.worktrees)) errors.push("v2 worktrees must be an array");
@@ -592,12 +601,13 @@ export function validateTaskStoreData(values: DecodedTaskStore): TaskStoreValida
   const stored = Array.isArray(values.worktrees) ? values.worktrees.filter(isWorktree) : [];
   if (Array.isArray(values.worktrees) && stored.length !== values.worktrees.length) errors.push("v2 worktrees contains an invalid value");
   const lifted: Worktree[] = [];
-  const tasks = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, errors, lifted)).filter((task): task is StoredTask => task !== null) : [];
+  const readable = Array.isArray(values.tasks) ? values.tasks.map((value) => sanitizeV2Task(value, lifted)) : [];
+  const tasks = readable.filter((task): task is StoredTask => task !== null);
+  hiddenTasks += readable.length - tasks.length;
   if (Array.isArray(values.projects) && projects.length !== values.projects.length) errors.push("v2 projects contains an invalid value");
   const projectIds = new Set(projects.map((project) => project.id));
-  for (const task of tasks) {
-    if (task.projectId && !projectIds.has(task.projectId)) errors.push(`v2 task ${task.id} references an unknown project`);
-  }
+  const placed = tasks.filter((task) => !task.projectId || projectIds.has(task.projectId));
+  hiddenTasks += tasks.length - placed.length;
   if (errors.length) return { ok: false, errors };
   const worktreesById = new Map<string, Worktree>();
   for (const worktree of stored) {
@@ -610,7 +620,8 @@ export function validateTaskStoreData(values: DecodedTaskStore): TaskStoreValida
   const worktreeIds = new Set(worktrees.map((worktree) => worktree.id));
   return {
     ok: true,
-    data: { version: TASK_STORE_VERSION, tasks: tasks.map((task) => claiming(task, worktreeIds)), projects, worktrees, lastFolder: values.lastFolder as string | null },
+    hiddenTasks,
+    data: { version: TASK_STORE_VERSION, tasks: placed.map((task) => claiming(task, worktreeIds)), projects, worktrees, lastFolder: values.lastFolder as string | null },
   };
 }
 
@@ -782,27 +793,19 @@ function recordedEngine(value: unknown) {
   return { ...value, engine: UNRECORDED_ENGINE };
 }
 
-function sanitizeV2Task(raw: unknown, errors: string[], lifted: Worktree[]): StoredTask | null {
+/** Null for a thread this build cannot read, which the caller counts and leaves out. */
+function sanitizeV2Task(raw: unknown, lifted: Worktree[]): StoredTask | null {
   const retired = renamedFields(dropRetiredSettings(recordedEngine(raw)));
   const value = isRecord(retired) ? liftEmbeddedWorktree(retired, lifted) : retired;
-  if (!isTaskBase(value)) {
-    errors.push("v2 tasks contains an invalid value");
-    return null;
-  }
+  if (!isTaskBase(value)) return null;
 
   const continuation = value.continuation;
   if (continuation !== undefined && !isContinuation(continuation)) {
     const { continuation: _discarded, ...withoutContinuation } = value;
     return settleStoredSubagents({ ...withoutContinuation, continuationStatus: "invalid" });
   }
-  if (continuation && value.continuationStatus !== "available") {
-    errors.push(`v2 task ${value.id} has an inconsistent continuation status`);
-    return null;
-  }
-  if (!continuation && value.continuationStatus !== "none" && value.continuationStatus !== "invalid") {
-    errors.push(`v2 task ${value.id} has an inconsistent continuation status`);
-    return null;
-  }
+  if (continuation && value.continuationStatus !== "available") return null;
+  if (!continuation && value.continuationStatus !== "none" && value.continuationStatus !== "invalid") return null;
   return settleStoredSubagents(value);
 }
 

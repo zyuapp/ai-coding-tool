@@ -113,6 +113,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     readAttachment: async () => "iVBORw0KGgo=",
     pathForFile: () => "", describeFiles: async () => [],
     suggestTaskTitle: async () => null,
+    checkForUpdates: () => {},
     loadTaskStore: async () => null,
     loadSubagentActivity: async () => [],
     persistTaskStore: async (delta) => { persisted.push(delta); },
@@ -381,7 +382,7 @@ test("removing a project retires the automations of every task it takes with it"
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   });
   const desktop = fakeDesktop({
-    loadTaskStore: async () => ({ version: 2, projects: [project], worktrees: [], tasks: [task("task-1"), task("task-2"), task("task-3")], lastFolder: project.root }),
+    loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [task("task-1"), task("task-2"), task("task-3")], lastFolder: project.root }),
   });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});

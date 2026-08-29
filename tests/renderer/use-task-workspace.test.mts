@@ -139,6 +139,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     readAttachment: async () => "iVBORw0KGgo=",
     pathForFile: () => "", describeFiles: async () => [],
     suggestTaskTitle: async () => null,
+    checkForUpdates: () => {},
     loadTaskStore: async () => null,
     loadSubagentActivity: async () => [],
     persistTaskStore: async (delta) => { persisted.push(delta); },
@@ -300,7 +301,7 @@ function seedBranchProject(overrides: Partial<DesktopAPI> = {}) {
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
   const store: NonNullable<Awaited<ReturnType<DesktopAPI["loadTaskStore"]>>> = {
-    version: 2, projects: [BRANCH_PROJECT], worktrees: [], tasks: [task], lastFolder: BRANCH_PROJECT.root,
+    version: 2, hiddenTasks: 0, projects: [BRANCH_PROJECT], worktrees: [], tasks: [task], lastFolder: BRANCH_PROJECT.root,
   };
   return fakeDesktop({
     loadTaskStore: async () => store,
@@ -378,7 +379,7 @@ test("workspace hook reads a stored subagent's activity only when it is opened",
   };
   const asked: Array<[string, string]> = [];
   const desktop = fakeDesktop({
-    loadTaskStore: async () => ({ version: 2, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }),
+    loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }),
     loadSubagentActivity: async (taskId, subagentId) => {
       asked.push([taskId, subagentId]);
       return [{ id: "activity-1", kind: "text", text: "Reading", at: 1 }];
@@ -398,13 +399,37 @@ test("workspace hook reads a stored subagent's activity only when it is opened",
   await workspace.view.unmount();
 });
 
+test("threads a newer build wrote are counted, and the notice asks the updater before it closes", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const task: Task = {
+    id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  let asked = 0;
+  const desktop = fakeDesktop({
+    loadTaskStore: async () => ({ version: 2, hiddenTasks: 2, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }),
+    checkForUpdates: () => { asked += 1; },
+  });
+  const workspace = await mountWorkspace(desktop);
+  await act(async () => {});
+  assert.equal(workspace.get().hiddenTasks, 2);
+
+  await act(async () => { await workspace.get().actions.checkForUpdates(); });
+  assert.equal(asked, 1);
+
+  await act(async () => { await workspace.get().actions.dismissHiddenTasks(); });
+  assert.equal(workspace.get().hiddenTasks, 0);
+  assert.deepEqual(workspace.get().tasks.map((item) => item.id), ["task-1"]);
+  await workspace.view.unmount();
+});
+
 test("workspace hook removes a project without touching its folder", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const task: Task = {
     id: "task-1", title: "Task", projectId: project.id, engine: "claude", executionPolicy: "confirm", messages: [],
     continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
   };
-  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }) });
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [], tasks: [task], lastFolder: project.root }) });
   const workspace = await mountWorkspace(desktop);
   await act(async () => {});
 

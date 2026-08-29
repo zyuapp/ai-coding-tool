@@ -213,7 +213,10 @@ export type FileCommand =
  * The thread's checkout, handed to another application on the machine. Only the user asks for this,
  * so it never appears in `ExternalCommand`: a run has the folder already.
  */
-export type ExternalAppCommand = { type: "app.open-folder"; appId: string };
+export type ExternalAppCommand =
+  | { type: "app.open-folder"; appId: string }
+  /** Asks the updater to look now, from the notice about threads a newer version wrote. */
+  | { type: "app.check-for-updates" };
 
 /**
  * The terminal panel. Every command here is the user's own: a run may read what a shell has printed
@@ -267,6 +270,8 @@ export type ViewCommand =
    */
   | { type: "view.reading-point"; taskId: string; point: ReadingPoint }
   | { type: "view.dismiss-action-error" }
+  /** Closes the notice about threads this build cannot read. It returns on the next launch. */
+  | { type: "view.dismiss-hidden-tasks" }
   | { type: "view.toggle-project"; projectId: string }
   /** Opens the folder editor on one project, or closes whichever it was on with a null. */
   | { type: "view.edit-project"; projectId: string | null }

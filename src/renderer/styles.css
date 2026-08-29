@@ -2205,6 +2205,33 @@ pre {
 .storage-error button.storage-error-link:hover { border-color: var(--danger-line-hover); }
 
 /**
+ * Threads a newer build wrote, which this one leaves on disk. Nothing is broken, so it takes the
+ * info tone rather than the error's, and it is sized to its words so it holds one line at any width.
+ */
+.storage-notice {
+  position: absolute;
+  z-index: 8;
+  top: 78px;
+  left: 22px;
+  width: max-content;
+  max-width: calc(100% - 44px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  border: 1px solid var(--info-line);
+  border-radius: 9px;
+  padding: 7px 8px 7px 12px;
+  background: var(--info-surface-soft);
+  color: var(--info-soft);
+  font-size: var(--text-control);
+}
+.storage-notice span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-notice button { flex: none; display: grid; place-items: center; border: 0; padding: 2px; background: none; color: inherit; cursor: pointer; }
+.storage-notice button.storage-notice-link { border: 1px solid var(--info-line); border-radius: 7px; padding: 3px 9px; font-size: var(--text-meta); font-weight: 560; white-space: nowrap; }
+.storage-notice button.storage-notice-link:hover { border-color: var(--info); }
+
+/**
  * The shadow belongs to the scrolling frame rather than the card inside it. A scroll container
  * clips its children to its own box, which cut the card's shadow away everywhere the two met and
  * left it pooling in the four pockets the rounded corners open up.

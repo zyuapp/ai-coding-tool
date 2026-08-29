@@ -323,7 +323,8 @@ export type WorkspaceState = {
   remote: MobileServerState;
   focused: boolean;
 } & RunTransitionState & {
-  storageError: string | null;
+  /** `hiddenTasks` counts the threads on disk this build cannot read, which stay there untouched. */
+  storageError: string | null; hiddenTasks: number;
   actionError: string | null;
   /** The settings page that clears the error above, when one does. */
   actionErrorPage: SettingsSection | null;
@@ -456,7 +457,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     backgroundProcesses: {},
     workflows: {},
     subagents: {},
-    storageError,
+    storageError, hiddenTasks: 0,
     actionError: null,
     actionErrorPage: null,
     writable: storageError === null,
@@ -838,7 +839,7 @@ export function deriveView(state: WorkspaceState) {
     /** What the composer calls the checkout a draft starts in, when the user picked one. */
     draftWorktreeName: draftWorktree ? worktreeName(draftWorktree) : null,
     environment,
-    storageError: state.storageError,
+    storageError: state.storageError, hiddenTasks: state.hiddenTasks,
     actionError: state.actionError,
     actionErrorPage: state.actionErrorPage,
     restored: state.restored,
