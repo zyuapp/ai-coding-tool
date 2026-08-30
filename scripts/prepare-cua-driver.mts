@@ -4,12 +4,12 @@ import { execFile, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { promisify } from "node:util";
-// @ts-expect-error Electron Builder imports the same plain-JavaScript version constants.
-import { CUA_DRIVER_VERSION } from "./cua-driver-version.mjs";
+// @ts-expect-error Electron Builder imports the same plain-JavaScript release metadata.
+import { CUA_DRIVER_VERSION, CUA_RELEASE } from "./cua-driver-version.mjs";
 
 const version = CUA_DRIVER_VERSION;
 const archiveName = `cua-driver-rs-${version}-darwin-arm64.tar.gz`;
-const expectedArchiveHash = "ac05a34ff2416830ec56f44d9986cf04ffb1f6a15a5df6f4dd9bec13ac198d63";
+const expectedArchiveHash = CUA_RELEASE.archiveSha256;
 const marker = `${version}-darwin-arm64-v4`;
 const targetDir = path.resolve("vendor/cua-driver");
 const binaryPath = path.join(targetDir, "cua-driver");
@@ -40,6 +40,10 @@ async function run(command: string, args: string[]) {
 const sdkRoot = path.dirname(createRequire(import.meta.url).resolve("@trycua/cua-driver-darwin-arm64/package.json"));
 await thin(path.join(sdkRoot, "libcua_driver_sdk.dylib"));
 await thin(path.join(sdkRoot, "cua_driver_node_runtime.node"));
+
+// @ts-expect-error The notice generator is plain JavaScript so npm and Electron Builder can run it directly.
+const { writeLegalNotices } = await import("./generate-legal-notices.mjs");
+await writeLegalNotices();
 
 try {
   if ((await readFile(markerPath, "utf8")).trim() === marker) {

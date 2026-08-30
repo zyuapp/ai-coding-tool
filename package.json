@@ -13,7 +13,8 @@
   "scripts": {
     "build": "vite build && npm run build:mobile && tsc -p tsconfig.main.json",
     "build:mobile": "vite build --config vite.mobile.config.mts",
-    "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
+    "check": "npm run check:licenses && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && npm run lint",
+    "check:licenses": "node scripts/generate-legal-notices.mjs --check",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
@@ -93,10 +94,13 @@
       "dist/**",
       "assets/**",
       "!assets/legal/**",
+      "!dist/renderer/legal/**",
+      "!dist/mobile/legal/**",
       "!node_modules/@trycua/**",
       "!node_modules/@ubjs/**",
       "!**/node_modules/@openai/codex-darwin-arm64/**/*",
       "!**/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/**/*",
+      "!**/node_modules/fast-uri/benchmark/**/*",
       "!**/node_modules/**/*.map",
       "!**/node_modules/zod/src/**/*"
     ],
@@ -124,6 +128,22 @@
       {
         "from": "assets/legal",
         "to": "legal"
+      },
+      {
+        "from": "dist/renderer/legal/RENDERER-THIRD-PARTY-LICENSES.md",
+        "to": "legal/RENDERER-THIRD-PARTY-LICENSES.md"
+      },
+      {
+        "from": "dist/mobile/legal/MOBILE-THIRD-PARTY-LICENSES.md",
+        "to": "legal/MOBILE-THIRD-PARTY-LICENSES.md"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSE",
+        "to": "legal/ELECTRON-MIT.txt"
+      },
+      {
+        "from": "node_modules/electron/dist/LICENSES.chromium.html",
+        "to": "legal/ELECTRON-THIRD-PARTY-NOTICES.html"
       }
     ],
     "mac": {

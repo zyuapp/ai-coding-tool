@@ -52,6 +52,7 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist/renderer",
     emptyOutDir: true,
     chunkSizeWarningLimit: 700,
+    license: { fileName: "legal/RENDERER-THIRD-PARTY-LICENSES.md" },
     rolldownOptions: {
       output: {
         codeSplitting: {
