@@ -106,6 +106,8 @@ export type ThreadRowsOptions = {
   worktreeThreadIds: Set<string>;
   worktreeGroups: WorktreeGroup[];
   openMenu: string | null;
+  /** The digit that reaches a thread, while the command key is held. Nothing otherwise. */
+  slotOf: (threadId: string) => number | undefined;
   formatTime: (value: number) => string;
   onSetOpenMenu: (menu: string | null) => void;
   onSelectThread: (threadId: string) => void;
@@ -126,6 +128,7 @@ export function useThreadRows({
   worktreeThreadIds,
   worktreeGroups,
   openMenu,
+  slotOf,
   formatTime,
   onSetOpenMenu,
   onSelectThread,
@@ -211,8 +214,11 @@ export function useThreadRows({
   };
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction) => (
+  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction) => {
+    const slot = slotOf(thread.id);
+    return (
     <>
+    {slot !== undefined && <span className="row-number" aria-hidden="true">{slot}</span>}
     <div
       className={className}
       onClick={() => onSelectThread(thread.id)}
@@ -247,7 +253,8 @@ export function useThreadRows({
       })}
     />}
     </>
-  );
+    );
+  };
 
   const selectOnEnter = (event: React.KeyboardEvent, threadId: string) => {
     if (event.key === "Enter") onSelectThread(threadId);

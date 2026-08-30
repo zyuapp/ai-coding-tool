@@ -25,6 +25,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       worktreeThreadIds={workspace.worktreeThreadIds}
       worktreeGroups={workspace.worktreeGroups}
       activityThreads={workspace.activityThreads}
+      threadSlots={workspace.threadSlots}
       mode={workspace.sidebarMode}
       sections={workspace.sections}
       openMenu={workspace.openMenu}

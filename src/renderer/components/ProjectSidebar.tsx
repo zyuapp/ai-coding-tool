@@ -12,6 +12,7 @@ import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
 import { useThreadRows } from "./SidebarThreadRow";
+import { useCommandHeld } from "../command-held";
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -33,6 +34,8 @@ export type ProjectSidebarProps = {
   worktreeGroups: WorktreeGroup[];
   /** The same threads ranked by what wants the user, which is what activity mode draws. */
   activityThreads: ActivitySections;
+  /** The threads ⌘1 through ⌘9 reach, in the order they are drawn. */
+  threadSlots: string[];
   mode: SidebarMode;
   sections: SidebarSections;
   openMenu: string | null;
@@ -90,6 +93,7 @@ export function ProjectSidebar({
   worktreeThreadIds,
   worktreeGroups,
   activityThreads,
+  threadSlots,
   mode,
   sections,
   openMenu,
@@ -119,6 +123,10 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const list = useRef<HTMLElement>(null);
   const shownThreads = useShownThreads();
+  /** Holding the command key names the rows it can reach, so the numbers are never in the way. */
+  const numbered = useCommandHeld(open && !inactive);
+  const slots = useMemo(() => new Map(threadSlots.map((threadId, index) => [threadId, index + 1])), [threadSlots]);
+  const slotOf = (threadId: string) => numbered ? slots.get(threadId) : undefined;
   let timeFormatter: Intl.DateTimeFormat | undefined;
   const formatTime = (value: number) => (timeFormatter ??= new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })).format(value);
 
@@ -135,6 +143,7 @@ export function ProjectSidebar({
     worktreeThreadIds,
     worktreeGroups,
     openMenu,
+    slotOf,
     formatTime,
     onSetOpenMenu,
     onSelectThread,
@@ -176,7 +185,7 @@ export function ProjectSidebar({
     <DragDropContext onDragEnd={finishDrag}>
     <aside
       ref={list}
-      className={`sidebar ${open ? "compact-open" : "hidden"}`}
+      className={`sidebar ${open ? "compact-open" : "hidden"} ${numbered ? "numbered" : ""}`.trimEnd()}
       inert={inactive || !open}
       style={{ "--row-slots": railSlots } as React.CSSProperties}
     >

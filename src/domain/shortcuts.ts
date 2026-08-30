@@ -197,12 +197,11 @@ export const FIXED_SHORTCUTS: readonly ShortcutBinding[] = [
   { action: "dock.expand", binding: "Mod+Shift+\\", surface: "any" },
   { action: "sidebar.toggle", binding: "Mod+B", surface: "any" },
   { action: "settings.toggle", binding: "Mod+,", surface: "any" },
-  ...Array.from({ length: 8 }, (_, index) => ({
-    action: `dock.tab-${index + 1}`,
+  ...Array.from({ length: 9 }, (_, index) => ({
+    action: `slot-${index + 1}`,
     binding: `Mod+${index + 1}`,
     surface: "any" as const,
   })),
-  { action: "dock.tab-last", binding: "Mod+9", surface: "any" },
 ];
 
 const FIXED_BINDINGS = new Set(FIXED_SHORTCUTS.map((fixed) => fixed.binding));
@@ -240,12 +239,17 @@ export function shortcutAction(id: string): ShortcutAction | undefined {
   return ACTIONS_BY_ID.get(id);
 }
 
-/** Which tab `dock.tab-*` names, counting from zero, with -1 for the last one. */
-export function dockTabShortcutIndex(actionId: string): number | null {
-  if (actionId === "dock.tab-last") return -1;
-  const match = /^dock\.tab-([1-8])$/.exec(actionId);
+/**
+ * Which position `slot-*` names, counting from zero. A digit means the nth of whatever the keyboard
+ * is in: a tab of the panel holding it, else a thread in the sidebar.
+ */
+export function slotShortcutIndex(actionId: string): number | null {
+  const match = /^slot-([1-9])$/.exec(actionId);
   return match ? Number(match[1]) - 1 : null;
 }
+
+/** How many threads the sidebar numbers, which is how many digits there are to press. */
+export const SLOT_COUNT = 9;
 
 /** What each action is bound to now, for the settings list. */
 export function shortcutSettings(overrides: ShortcutOverrides): ShortcutSetting[] {

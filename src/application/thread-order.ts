@@ -1,6 +1,7 @@
 import type { ThreadDropTarget } from "../domain/project.js";
 import { threadActivityAt, type Thread } from "../domain/thread.js";
 import { wantsAttention } from "../domain/attention.js";
+import type { SidebarMode, SidebarSections } from "../domain/sidebar.js";
 
 /** The activity sidebar's three lists, in the order they are drawn. */
 export type ActivitySections = Record<"priority" | "running" | "threads", Thread[]>;
@@ -100,4 +101,37 @@ export function moveThread(threads: Thread[], threadId: string, target: ThreadDr
     if (!next) return thread;
     return next.sortIndex === thread.sortIndex && next.projectId === thread.projectId ? thread : next;
   });
+}
+
+/** The sidebar as the numbering reads it: the lists it draws, and which of them are folded open. */
+export type SidebarShape = {
+  mode: SidebarMode;
+  sections: SidebarSections;
+  /** The projects in the order the sidebar lists them, each with the threads it holds. */
+  projects: { expanded: boolean; threads: Thread[] }[];
+  recentThreads: Thread[];
+  activityThreads: ActivitySections;
+};
+
+const ACTIVITY_ORDER = ["priority", "running", "threads"] as const;
+
+/**
+ * The threads a digit reaches: the first nine rows the sidebar draws, top to bottom. A folded
+ * section or folder draws no rows, so the threads under it are not numbered.
+ */
+export function slotThreadIds(shape: SidebarShape, limit: number): string[] {
+  const ids: string[] = [];
+  const take = (threads: Thread[]) => {
+    for (const thread of threads) {
+      if (ids.length === limit) return;
+      ids.push(thread.id);
+    }
+  };
+  if (shape.mode === "activity") {
+    for (const section of ACTIVITY_ORDER) if (shape.sections[section]) take(shape.activityThreads[section]);
+    return ids;
+  }
+  if (shape.sections.projects) for (const project of shape.projects) if (project.expanded) take(project.threads);
+  if (shape.sections.recents) take(shape.recentThreads);
+  return ids;
 }

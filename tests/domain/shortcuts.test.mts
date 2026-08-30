@@ -119,8 +119,8 @@ test("only bound, unclaimed keystrokes reach the matcher", () => {
 
 test("a keystroke means whatever the user could have clicked", () => {
   const state = workspace({ threads: [thread("a"), thread("b")], currentId: "a", draftProjectId: null });
-  assert.deepEqual(shortcutCommands(state, "dock.tab-3", "any"), [{ type: "view.select-dock-index", index: 2 }]);
-  assert.deepEqual(shortcutCommands(state, "dock.tab-last", "any"), [{ type: "view.select-dock-index", index: -1 }]);
+  assert.deepEqual(shortcutCommands({ ...state, keyboardTab: "agents" }, "slot-3", "any"), [{ type: "view.select-dock-index", index: 2 }]);
+  assert.deepEqual(shortcutCommands({ ...state, keyboardTab: "agents" }, "slot-9", "any"), [{ type: "view.select-dock-index", index: -1 }]);
   assert.deepEqual(shortcutCommands(state, "nav.back", "any"), [{ type: "view.go-back" }]);
   assert.deepEqual(shortcutCommands(state, "nav.back", "browser"), [{ type: "browser.go", delta: -1 }], "inside a page, back is the page's own");
   assert.deepEqual(shortcutCommands(state, "sidebar.toggle", "any"), [{ type: "view.set-sidebar-open", open: false }]);
@@ -210,15 +210,42 @@ test("the shell that has the keyboard is put away when it is asked for again", (
   assert.equal(back.state.dockFocus?.tab, shell.id, "with the keyboard in it again");
 });
 
-test("a numbered keystroke shows the tab in that position", () => {
-  const state = run(workspace({ threads: [thread("a")], currentId: "a" }), [
+test("a numbered keystroke shows the tab in that position while a panel view has the keyboard", () => {
+  const opened = run(workspace({ threads: [thread("a")], currentId: "a" }), [
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "view.open-dock-panel", panel: "automation" },
   ]);
+  const state = { ...opened, keyboardTab: "automation" };
   assert.equal(dockFor(state, "a").tab, "automation");
-  assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "dock.tab-1", surface: "any" }).state, "a").tab, "agents");
-  assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "dock.tab-last", surface: "any" }).state, "a").tab, "automation");
-  assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "dock.tab-8", surface: "any" }).state, "a").tab, "automation", "a position with no tab in it does nothing");
+  assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "slot-1", surface: "any" }).state, "a").tab, "agents");
+  assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "slot-9", surface: "any" }).state, "a").tab, "automation", "the last of them, the way a browser counts");
+  assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "slot-8", surface: "any" }).state, "a").tab, "automation", "a position with no tab in it does nothing");
+});
+
+test("a numbered keystroke opens the thread in that position when the panel has no keyboard", () => {
+  const state = workspace({
+    threads: [thread("a", { projectId: "p1" }), thread("b", { projectId: "p1" }), thread("c")],
+    projects: [{ id: "p1", root: "/repo" }],
+    expandedProjects: new Set(["p1"]),
+    currentId: "a",
+  });
+  assert.deepEqual(deriveView(state).threadSlots, ["a", "b", "c"], "the folder's threads are counted before the ones outside it");
+  assert.deepEqual(shortcutCommands(state, "slot-2", "any"), [{ type: "task.select", taskId: "b" }]);
+  assert.deepEqual(shortcutCommands(state, "slot-3", "any"), [{ type: "task.select", taskId: "c" }]);
+  assert.deepEqual(shortcutCommands(state, "slot-4", "any"), [], "a position with no thread in it does nothing");
+
+  const folded = { ...state, expandedProjects: new Set<string>() };
+  assert.deepEqual(deriveView(folded).threadSlots, ["c"], "a folded folder draws no rows, so its threads are not numbered");
+  assert.deepEqual(shortcutCommands(folded, "slot-1", "any"), [{ type: "task.select", taskId: "c" }]);
+
+  const ranked = { ...state, sidebarMode: "activity" as const };
+  assert.deepEqual(deriveView(ranked).threadSlots, ["a", "b", "c"], "activity mode counts its own lists, top to bottom");
+
+  const settings = { ...state, settingsOpen: true };
+  assert.deepEqual(shortcutCommands(settings, "slot-3", "any"), [
+    { type: "view.set-settings-open", open: false },
+    { type: "task.select", taskId: "c" },
+  ], "a thread asked for from the settings sheet leaves it");
 });
 
 test("changing a binding persists it, hands it to the window, and stops the capture", () => {

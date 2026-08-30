@@ -1,10 +1,10 @@
 import { apply } from "./workspace-reducer/dispatch.js";
 import { prunedFind, prunedWorkflowPanels, settled, shownPageEffects, TAKE_KEYS } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, type WorkspaceState } from "./workspace-state.js";
+import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
-import { dockTabShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
+import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
 
 export type { WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 export { DIFF_PANEL, WORKFLOW_PANEL, WORKSPACE_ERRORS } from "./workspace-reducer/shared.js";
@@ -74,12 +74,21 @@ function currentProjectId(state: WorkspaceState): string | undefined {
  * page: everything else reads the same state the buttons do.
  */
 export function shortcutCommands(state: WorkspaceState, action: string, surface: ShortcutSurface): AppCommand[] {
-  const tab = dockTabShortcutIndex(action);
-  if (tab !== null) return [{ type: "view.select-dock-index", index: tab }];
   const projectId = currentProjectId(state);
   const newThread: AppCommand = { type: "task.new", ...(projectId ? { projectId } : {}) };
   /** Settings are drawn over the whole window, so a keystroke that moves the user somewhere leaves them. */
   const leaving: AppCommand[] = state.settingsOpen || state.computerUseSetup ? [{ type: "view.set-settings-open", open: false }] : [];
+  /**
+   * A digit means the nth of whatever the keyboard is in. A panel view holding it counts that panel's
+   * tabs, the last of them on ⌘9 the way a browser does; anywhere else counts the sidebar's threads.
+   */
+  const slot = slotShortcutIndex(action);
+  if (slot !== null) {
+    if (state.keyboardTab !== null) return [{ type: "view.select-dock-index", index: slot === 8 ? -1 : slot }];
+    const threadId = threadSlots(state)[slot];
+    if (!threadId) return [];
+    return [...leaving, ...(state.jump ? [{ type: "view.jump-close" } as AppCommand] : []), { type: "task.select", taskId: threadId }];
+  }
   switch (action) {
     case "thread.new": return [...leaving, newThread];
     case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];

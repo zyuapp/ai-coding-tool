@@ -1,6 +1,7 @@
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
-import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
-import { activitySections, backfillSortIndex, orderThreads } from "./thread-order.js";
+import { backfillProjectSortIndex } from "./project-order.js";
+import { sidebarLists } from "./sidebar-lists.js";
+import { backfillSortIndex, orderThreads } from "./thread-order.js";
 import type { ChangedFilesResult } from "../contracts/ipc.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
@@ -711,6 +712,16 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
 
 export type WorkspaceView = ReturnType<typeof deriveView>;
 
+/**
+ * The threads ⌘1 through ⌘9 reach, read straight from state so a keystroke and the numbers on screen
+ * always name the same rows.
+ */
+export function threadSlots(state: WorkspaceState): string[] {
+  const forked = sideChatIds(state);
+  const visible = state.threads.filter((thread) => !forked.has(thread.id) && thread.archivedAt === undefined);
+  return sidebarLists(state, state.projects, visible, busyThreadIds(state), blockedThreadIds(state)).threadSlots;
+}
+
 /** Everything the UI reads, derived in one place so components never reach into raw state. */
 export function deriveView(state: WorkspaceState) {
   const currentThread = state.threads.find((thread) => thread.id === state.currentId);
@@ -721,7 +732,9 @@ export function deriveView(state: WorkspaceState) {
   const forked = sideChatIds(state);
   const listedThreads = state.threads.filter((thread) => !forked.has(thread.id));
   const visibleThreads = listedThreads.filter((thread) => thread.archivedAt === undefined);
-  const orderedThreads = orderThreads(visibleThreads), threadsByWorktree = new Map<string, Thread[]>();
+  const busy = busyThreadIds(state), blocked = blockedThreadIds(state);
+  const lists = sidebarLists(state, state.projects, visibleThreads, busy, blocked);
+  const { orderedThreads } = lists, threadsByWorktree = new Map<string, Thread[]>();
   for (const thread of orderedThreads) if (thread.worktreeId)
     threadsByWorktree.get(thread.worktreeId)?.push(thread) ?? threadsByWorktree.set(thread.worktreeId, [thread]);
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
@@ -731,19 +744,12 @@ export function deriveView(state: WorkspaceState) {
   const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
   const owner = dockOwner(state), dock = dockFor(state, owner);
   const waitingOn = waitFor(state, currentThread);
-  const busy = busyThreadIds(state);
-  const blocked = blockedThreadIds(state);
   return {
     ...engineView(state, currentThread),
     ...unreadView(state, listedThreads),
+    ...lists,
     threads: listedThreads,
-    projects: orderProjects(state.projects),
-    orderedThreads,
-    /** The same threads ranked by what wants the user, which is the sidebar's other shape. */
-    activityThreads: activitySections(visibleThreads, busy, blocked),
     archivedThreads: listedThreads.filter((thread) => thread.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
-    /** Ranked and stamped by when each chat last did something, so a tick that surfaced nothing moves none of them. */
-    recentThreads: visibleThreads.filter((thread) => !thread.projectId).sort((a, b) => threadActivityAt(b) - threadActivityAt(a)),
     currentThread,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
