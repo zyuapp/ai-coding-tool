@@ -11,7 +11,7 @@ test("the panel and sidebar choices are persisted and survive the store loading"
   assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, chromeBrowser: false, computerUse: true, browserTools: true, notifications: true, sidebarOpen: false, sidebarMode: "projects", sections: OPEN_SIDEBAR_SECTIONS, subagentGroups: OPEN_SUBAGENT_GROUPS, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, chromeBrowser: false, conciseReplies: false, computerUse: true, browserTools: true, notifications: true, sidebarOpen: false, sidebarMode: "projects", sections: OPEN_SIDEBAR_SECTIONS, subagentGroups: OPEN_SUBAGENT_GROUPS, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");

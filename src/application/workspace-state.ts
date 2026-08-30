@@ -280,6 +280,8 @@ export type WorkspaceState = {
   captureFocus: boolean;
   /** Whether a run reaches the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
+  /** Whether Claude threads answer under the concise ruleset. */
+  conciseReplies: boolean;
   /** Whether a run may see and operate other applications. */
   computerUse: boolean;
   /** Whether a run may drive the browser panel. The user's own tabs stay usable either way. */
@@ -435,6 +437,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     captureSound: true,
     captureFocus: true,
     chromeBrowser: false,
+    conciseReplies: false,
     computerUse: true,
     browserTools: true,
     notifications: true,
@@ -813,7 +816,7 @@ export function deriveView(state: WorkspaceState) {
     sessionPanelOpen: state.sessionPanelOpen,
     captureSound: state.captureSound,
     captureFocus: state.captureFocus,
-    chromeBrowser: state.chromeBrowser,
+    chromeBrowser: state.chromeBrowser, conciseReplies: state.conciseReplies,
     computerUse: state.computerUse,
     browserTools: state.browserTools,
     notifications: state.notifications,

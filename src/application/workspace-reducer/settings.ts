@@ -16,7 +16,7 @@ type SettingsInput = Extract<WorkspaceInput, {
   type: "view.set-theme" | "view.set-theme-family" | "view.set-theme-mode" | "view.system-scheme" | "view.set-ui-font"
     | "view.set-mono-font" | "view.set-reading-size" | "view.set-terminal-size" | "view.set-sidebar-mode" | "view.set-sidebar-open"
     | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured"
-    | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-chrome-browser"
+    | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-chrome-browser" | "view.set-concise-replies"
     | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
     | "view.set-subagent-group" | "view.set-section-open";
 }>;
@@ -158,9 +158,9 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       return settled(next, [...persistView(next), { type: "apply-capture-options", options: input.options }]);
     }
 
-    case "view.set-chrome-browser":
+    case "view.set-chrome-browser": case "view.set-concise-replies":
     case "view.set-computer-use": case "view.set-browser-tools": case "view.set-notifications": {
-      const field = { "view.set-chrome-browser": "chromeBrowser", "view.set-computer-use": "computerUse", "view.set-browser-tools": "browserTools", "view.set-notifications": "notifications" }[input.type] as "chromeBrowser" | "computerUse" | "browserTools" | "notifications";
+      const field = { "view.set-chrome-browser": "chromeBrowser", "view.set-concise-replies": "conciseReplies", "view.set-computer-use": "computerUse", "view.set-browser-tools": "browserTools", "view.set-notifications": "notifications" }[input.type] as "chromeBrowser" | "conciseReplies" | "computerUse" | "browserTools" | "notifications";
       if (state[field] === input.enabled) return settled(state);
       const next = { ...state, [field]: input.enabled };
       return settled(next, persistView(next));

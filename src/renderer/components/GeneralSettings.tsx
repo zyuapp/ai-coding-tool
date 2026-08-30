@@ -16,12 +16,15 @@ export type GeneralSettingsProps = {
   /** Whether runs reach the user's own Chrome through the Claude in Chrome extension. */
   chromeBrowser: boolean;
   onSetChromeBrowser: (enabled: boolean) => void;
+  /** Whether Claude threads answer under the concise ruleset. */
+  conciseReplies: boolean;
+  onSetConciseReplies: (enabled: boolean) => void;
   /** Whether a thread that needs the user announces itself on the desktop. */
   notifications: boolean;
   onSetNotifications: (enabled: boolean) => void;
 };
 
-export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, notifications, onSetNotifications }: GeneralSettingsProps) {
+export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, conciseReplies, onSetConciseReplies, notifications, onSetNotifications }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -91,6 +94,10 @@ export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, notificatio
 
         <SettingRow id="general.chrome-browser" status={chromeBrowser} description="Claude drives the Chrome you already have open, instead of the browser panel, when you ask for your own browser. Needs the Claude in Chrome extension, and Chrome running.">
           <button type="button" role="switch" aria-checked={chromeBrowser} onClick={() => onSetChromeBrowser(!chromeBrowser)}>{chromeBrowser ? "Turn off" : "Turn on"}</button>
+        </SettingRow>
+
+        <SettingRow id="general.concise-replies" status={conciseReplies} description="Claude leads with the answer and keeps it short. Ask it to expand and it still will.">
+          <button type="button" role="switch" aria-checked={conciseReplies} onClick={() => onSetConciseReplies(!conciseReplies)}>{conciseReplies ? "Turn off" : "Turn on"}</button>
         </SettingRow>
       </section>
     </>

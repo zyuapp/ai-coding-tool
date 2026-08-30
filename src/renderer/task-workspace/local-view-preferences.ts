@@ -19,6 +19,7 @@ export function loadViewPreferences(): ViewPreferences {
     captureSound: stored.captureSound ?? true,
     captureFocus: stored.captureFocus ?? true,
     chromeBrowser: stored.chromeBrowser ?? false,
+    conciseReplies: stored.conciseReplies ?? false,
     computerUse: stored.computerUse ?? true,
     browserTools: stored.browserTools ?? true,
     notifications: stored.notifications ?? true,
