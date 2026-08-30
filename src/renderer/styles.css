@@ -2125,6 +2125,8 @@ pre {
   grid-column: 1;
   grid-row: 3;
 }
+/** A composer menu stands over the whole workspace, so the footer rises past the topbar while one is open. */
+.composer-wrap:has(.command-menu, .setting-menu[open]) { z-index: 41; }
 
 .goal-bar {
   display: grid;
@@ -3530,6 +3532,12 @@ button.file-name { cursor: pointer; }
   bottom: 39px;
   left: -4px;
   width: min(560px, calc(100cqw - 40px));
+  /** The list scrolls rather than growing past the top of the window on a long model roster. */
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
   border: 1px solid var(--line-mid);
   border-radius: 16px;
   padding: 13px;
