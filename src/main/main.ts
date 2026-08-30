@@ -305,6 +305,8 @@ app.whenReady().then(async () => {
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
+  const { preparePrivateCodexHome, PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
+  process.env[PRIVATE_CODEX_HOME_ENV] = await preparePrivateCodexHome(userData);
   grantAppWindowPermissions();
   applyWindowTheme(loadWindowTheme());
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");
@@ -316,6 +318,7 @@ app.whenReady().then(async () => {
   worktreeService = new WorktreeServiceConstructor({ worktreesRoot: WORKTREES_ROOT, legacyRoots: legacyWorktreesRoots(userData), workspaces: workspaceService });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)] });
+  taskDatabase.cutOverCodexThreads();
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, runs.dispatchAutomation, {
     onChange: (automations) => {

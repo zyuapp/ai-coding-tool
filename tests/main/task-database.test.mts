@@ -17,6 +17,40 @@ function loadDatabase(database: TaskDatabase): ThreadStoreData {
   return loaded;
 }
 
+test("the private Codex cutover drops old Codex threads once and keeps later ones across restarts", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-codex-cutover-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const task = (id: string, engine: "claude" | "codex", updatedAt: number): PersistedTask => ({
+    id,
+    title: id,
+    engine,
+    executionPolicy: "confirm",
+    continuationStatus: "none",
+    lastChangeSnapshot: { files: [], capturedAt: updatedAt },
+    updatedAt,
+  });
+  const database = new TaskDatabase(file);
+  try {
+    database.persist({ tasks: [
+      { task: task("old-codex", "codex", 1), messages: [] },
+      { task: task("claude", "claude", 2), messages: [] },
+    ] });
+    assert.equal(database.cutOverCodexThreads(), 1);
+    assert.deepEqual(loadDatabase(database).tasks.map(({ id }) => id), ["claude"]);
+    database.persist({ tasks: [{ task: task("private-codex", "codex", 3), messages: [] }] });
+  } finally {
+    database.close();
+  }
+
+  const reopened = new TaskDatabase(file);
+  try {
+    assert.equal(reopened.cutOverCodexThreads(), 0);
+    assert.deepEqual(loadDatabase(reopened).tasks.map(({ id }) => id), ["private-codex", "claude"]);
+  } finally {
+    reopened.close();
+  }
+});
+
 test("SQLite task storage appends and updates messages without rewriting the transcript", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
