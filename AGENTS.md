@@ -1,5 +1,5 @@
 # AI Coding Tool
-This app is designed to make it easier for people and agents to work together. For now, I’m building it only for macOS, Claude models, and GPT models because I don’t want to support platforms or models I don’t use every day. Still, structure the app so we can add other operating systems and more model providers later without major changes. Push back if I suggest anything that would make future expansion harder.
+This app is designed to make it easier for people and agents to work together. For now, I’m building it only for macOS, Linux, Claude models, and GPT models because I don’t want to support platforms or models I don’t use every day. Still, structure the app so we can add other operating systems and more model providers later without major changes. Push back if I suggest anything that would make future expansion harder.
 
 # What do I value
 1. Simplicity. The app should feel obvious. Users should understand each feature without having to stop and figure it out. Avoid lengthy explanations, especially in Settings. If a feature needs too much explanation, simplify the feature.
