@@ -10,7 +10,7 @@ import { updateThread } from "../thread-run-state.js";
 import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
-import { clampTitle } from "../../domain/thread.js";
+import { clampTitle, type Thread } from "../../domain/thread.js";
 import { defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
@@ -18,6 +18,34 @@ type ThreadCommandInput = Extract<WorkspaceInput, {
     | "task.restore" | "task.clear-archive" | "task.rename" | "title.suggested" | "task.fork"
     | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort";
 }>;
+
+/** Puts the user on a thread: what it holds becomes read, and the app follows it to its folder. */
+function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
+  const thread = state.threads.find((item) => item.id === taskId);
+  const project = projectFor(state, thread);
+  return readAttention({
+    ...state,
+    currentId: taskId,
+    draftProjectId: thread?.projectId ?? null,
+    lastFolder: project?.root ?? state.lastFolder,
+    actionError: null,
+  }, taskId);
+}
+
+/** Priority as the sidebar draws it. A side chat has no row of its own, so it is not one of them. */
+function priorityThreads(state: WorkspaceState): Thread[] {
+  const sideChats = sideChatIds(state);
+  const listed = state.threads.filter((thread) => thread.archivedAt === undefined && !sideChats.has(thread.id));
+  return activitySections(listed, busyThreadIds(state), blockedThreadIds(state)).priority;
+}
+
+/** The row Priority moves on to once this one leaves it: the one below, or the one above when it was last. */
+function priorityNeighbour(state: WorkspaceState, taskId: string): string | undefined {
+  const priority = priorityThreads(state);
+  const index = priority.findIndex((thread) => thread.id === taskId);
+  if (index === -1) return undefined;
+  return (priority[index + 1] ?? priority[index - 1])?.id;
+}
 
 export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommandInput): WorkspaceTransition {
   switch (input.type) {
@@ -47,15 +75,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.select": {
       const chat = state.sideChats.find((item) => item.id === input.taskId);
       const taskId = chat?.sourceThreadId ?? input.taskId;
-      const thread = state.threads.find((item) => item.id === taskId);
-      const project = projectFor(state, thread);
-      const landed = readAttention({
-        ...state,
-        currentId: taskId,
-        draftProjectId: thread?.projectId ?? null,
-        lastFolder: project?.root ?? state.lastFolder,
-        actionError: null,
-      }, taskId);
+      const landed = landOnThread(state, taskId);
       if (!chat) return settled(landed);
       const shown = showDockTab(readAttention(landed, chat.id), taskId, chat.id);
       return focusDockTab(shown, taskId, chat.id);
@@ -63,14 +83,18 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
 
     case "task.dismiss": {
       const threads = dismissed(state.threads, new Set([input.taskId]));
-      return settled(threads === state.threads ? state : { ...state, threads });
+      if (threads === state.threads) return settled(state);
+      /** Filing away the thread being read moves on to the row that takes its place, so Priority can be worked down without going back to the list. */
+      const successor = state.sidebarMode === "activity" && state.currentId === input.taskId
+        ? priorityNeighbour(state, input.taskId)
+        : undefined;
+      const filed = { ...state, threads };
+      return settled(successor ? landOnThread(filed, successor) : filed);
     }
 
     case "task.dismiss-all": {
       /** Only what the button offers: the Priority rows. A thread still working has yet to show what it found. */
-      const sideChats = sideChatIds(state), listed = state.threads.filter((thread) => thread.archivedAt === undefined && !sideChats.has(thread.id));
-      const { priority } = activitySections(listed, busyThreadIds(state), blockedThreadIds(state));
-      const dotted = new Set(dismissableThreads(priority).map((thread) => thread.id));
+      const dotted = new Set(dismissableThreads(priorityThreads(state)).map((thread) => thread.id));
       return settled(dotted.size ? { ...state, threads: dismissed(state.threads, dotted) } : state);
     }
 

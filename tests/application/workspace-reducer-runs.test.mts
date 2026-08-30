@@ -154,6 +154,54 @@ test("a dot can be dismissed without opening the thread it is on", () => {
   assert.equal(dismissed.state.currentId, "task-b", "and dismissing does not carry the user there");
 });
 
+test("filing away the thread on screen in Priority moves on to the row that takes its place", () => {
+  const state = workspace({
+    sidebarMode: "activity",
+    threads: [
+      task("lead", { outcome: "finished", createdAt: 30, updatedAt: 30 }),
+      task("next", { outcome: "failed", outcomeUnread: true, createdAt: 20, updatedAt: 20 }),
+      task("last", { outcome: "finished", createdAt: 10, updatedAt: 10 }),
+    ],
+    currentId: "lead",
+  });
+  assert.deepEqual(deriveView(state).activityThreads.priority.map((item) => item.id), ["lead", "next", "last"]);
+
+  const filed = reduce(state, { type: "task.dismiss", taskId: "lead" }).state;
+  assert.equal(filed.currentId, "next");
+  assert.equal(filed.threads[1].outcomeUnread, undefined, "landing on it reads what it was waiting to say");
+  assert.deepEqual(deriveView(filed).activityThreads.priority.map((item) => item.id), ["next", "last"]);
+
+  const onward = reduce(filed, { type: "task.dismiss", taskId: "next" }).state;
+  assert.equal(onward.currentId, "last", "so Priority can be worked down one row at a time");
+
+  const emptied = reduce(onward, { type: "task.dismiss", taskId: "last" }).state;
+  assert.equal(emptied.currentId, "last", "the last row has nowhere to move on to");
+});
+
+test("the row above takes over when the one filed away was at the end of Priority", () => {
+  const state = workspace({
+    sidebarMode: "activity",
+    threads: [
+      task("lead", { outcome: "finished", createdAt: 30, updatedAt: 30 }),
+      task("last", { outcome: "finished", createdAt: 10, updatedAt: 10 }),
+    ],
+    currentId: "last",
+  });
+
+  const filed = reduce(state, { type: "task.dismiss", taskId: "last" }).state;
+  assert.equal(filed.currentId, "lead");
+});
+
+test("filing away a row the user is not on never moves them, in either sidebar", () => {
+  const threads = [task("task-a", { outcome: "finished" }), task("task-b", { outcome: "finished" })];
+
+  const ranked = reduce(workspace({ sidebarMode: "activity", threads, currentId: "task-b" }), { type: "task.dismiss", taskId: "task-a" });
+  assert.equal(ranked.state.currentId, "task-b");
+
+  const foldered = reduce(workspace({ threads, currentId: "task-a" }), { type: "task.dismiss", taskId: "task-a" });
+  assert.equal(foldered.state.currentId, "task-a", "the folder sidebar has no queue to move along");
+});
+
 test("one dismissal takes the dot off every thread carrying one", () => {
   const state = workspace({
     threads: [
