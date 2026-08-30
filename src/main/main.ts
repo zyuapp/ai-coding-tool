@@ -24,12 +24,14 @@ import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu } from "./app-menu.js";
+import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
 import { startRunHost } from "./run-host.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { adoptUserDataFolder } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
+import { windowFrameOptions } from "./platform-capabilities.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
 import { mobileBridgeHolding, mobileWindowGone, serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
@@ -239,10 +241,10 @@ async function createWindow() {
   const placement = rememberedPlacement();
   window = new BrowserWindow({
     ...placement,
+    ...windowFrameOptions(),
     minWidth: 820,
     minHeight: 620,
     fullscreen: placement.fullScreen,
-    titleBarStyle: "hiddenInset",
     backgroundColor: windowTheme.canvas,
     icon,
     webPreferences: {
@@ -325,6 +327,10 @@ app.whenReady().then(async () => {
   const userData = app.getPath("userData");
   const { preparePrivateCodexHome, PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
   process.env[PRIVATE_CODEX_HOME_ENV] = await preparePrivateCodexHome(userData);
+  if (process.platform === "linux" && app.isPackaged && process.env.APPIMAGE) {
+    void registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
+      .catch((error) => console.error("Could not register the AppImage URL handler:", error));
+  }
   grantAppWindowPermissions();
   applyWindowTheme(loadWindowTheme());
   const { WorkspaceService: WorkspaceServiceConstructor } = await import("./workspace/workspace-service.mjs");

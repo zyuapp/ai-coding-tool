@@ -136,16 +136,16 @@ export class PairingStore {
     }
     const pending = this.pending(at);
     /** With no code standing there is nothing to guess at, so a late scan is not counted as a guess. */
-    if (!pending) return { ok: false, code: "expired-code", message: "That pairing code has expired. Show a new one on the Mac." };
+    if (!pending) return { ok: false, code: "expired-code", message: "That pairing code has expired. Show a new one on the computer." };
     if (!pairingCodeMatches(pending, code)) {
       this.attempts.set(source, registerPairingFailure(attempts, at));
       this.prune(at);
-      return { ok: false, code: "expired-code", message: "That pairing code is wrong or has expired. Show a new one on the Mac." };
+      return { ok: false, code: "expired-code", message: "That pairing code is wrong or has expired. Show a new one on the computer." };
     }
     this.code = null;
     this.attempts.delete(source);
     if (this.devices.length >= MAX_PAIRED_DEVICES) {
-      return { ok: false, code: "unauthorized", message: `This Mac is already paired with ${MAX_PAIRED_DEVICES} phones. Revoke one first.` };
+      return { ok: false, code: "unauthorized", message: `This computer is already paired with ${MAX_PAIRED_DEVICES} phones. Revoke one first.` };
     }
     const token = randomBytes(32).toString("hex");
     const device: PairedDevice = {

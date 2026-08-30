@@ -12,7 +12,9 @@ const target = path.resolve("src/main/agent/claude-baseline.ts");
  * The Claude Code the SDK ships. The app never runs it — it runs the one the user installed — but the
  * app is written against it, so its version is the floor an installed command has to reach.
  */
-const packageRoot = path.dirname(createRequire(import.meta.url).resolve("@anthropic-ai/claude-agent-sdk-darwin-arm64/package.json"));
+const platform = process.platform === "darwin" ? "darwin-arm64" : `${process.platform}-${process.arch}`;
+const platformPackage = `@anthropic-ai/claude-agent-sdk-${platform}`;
+const packageRoot = path.dirname(createRequire(import.meta.url).resolve(`${platformPackage}/package.json`));
 const version = readVersion((await run(path.join(packageRoot, "claude"), ["--version"])).stdout);
 if (!version) throw new Error("Claude Code printed no version.");
 

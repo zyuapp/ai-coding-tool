@@ -267,7 +267,7 @@ function FontSelect({ axis, label, chosen, onChoose }: {
           </label>
           <ul className="font-select-list" role="listbox" aria-label={label}>
             {families.map((font) => option(font.id, font.label))}
-            {shown.length > 0 && <li className="font-select-heading" role="none">On this Mac</li>}
+            {shown.length > 0 && <li className="font-select-heading" role="none">On this computer</li>}
             {shown.map((family) => option(customFontId(family), family))}
           </ul>
           {extras.length > shown.length && <p className="font-select-note">Showing the first 100 of {extras.length}. Narrow the search to see the rest.</p>}
@@ -385,7 +385,7 @@ export function AppearanceSettings({
         <div className="settings-group-heading">
           <div>
             <h3 id="fonts-heading">Fonts</h3>
-            <p>The families AI Coding Tool ships, or any font installed on this Mac.</p>
+            <p>The families AI Coding Tool ships, or any font installed on this computer.</p>
           </div>
         </div>
 

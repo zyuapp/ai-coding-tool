@@ -8,7 +8,7 @@ import { registered, startMainProcess, tick, waitFor, type MainHarness } from ".
 import type { AgentEvent, ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.js";
 import type { BrowserBounds, BrowserInspectionResult, BrowserSnapshot } from "../../src/domain/browser.js";
-import type { CliStatus } from "../../src/domain/cli.js";
+import { cliConfiguration, type CliStatus } from "../../src/domain/cli.js";
 import type { KeyInput } from "../../src/domain/shortcuts.js";
 import type { WorkspaceRecord } from "../../src/domain/workspace.js";
 
@@ -257,7 +257,7 @@ test("a folder the aic command names is registered and handed to the window that
     assert.equal(opened().length, 2, "a URL that names no absolute folder opens nothing");
 
     await assert.rejects(cliStatus(untrusted));
-    assert.equal((await cliStatus(trusted)).path, "/usr/local/bin/aic");
+    assert.equal((await cliStatus(trusted)).path, cliConfiguration(process.platform, os.homedir())?.installPath ?? "/usr/local/bin/aic");
     await assert.rejects(installCli(untrusted));
     await assert.rejects(uninstallCli(untrusted));
   } finally {
@@ -361,20 +361,25 @@ test("the app menu sends help actions through the window command path", async ()
   const menu = main.applicationMenu() as MenuEntry[] | null;
   assert.ok(menu, "the app sets its own menu");
   const appMenu = menu.find((entry) => entry.label === "AI Coding Tool");
-  assert.ok(appMenu?.submenu, "the first menu is the app's own");
-  assert.deepEqual(
-    appMenu.submenu.map((entry) => entry.type ?? entry.role ?? entry.label),
-    ["about", "separator", "Check for Updates…", "Open Source Licenses…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"],
-    "every role macOS puts there stays where the user looks for it",
-  );
-  assert.deepEqual(menu.slice(1).map((entry) => entry.role), ["fileMenu", "editMenu", "viewMenu", "windowMenu"]);
+  if (process.platform === "darwin") {
+    assert.ok(appMenu?.submenu, "the first menu is the app's own");
+    assert.deepEqual(
+      appMenu.submenu.map((entry) => entry.type ?? entry.role ?? entry.label),
+      ["about", "separator", "Check for Updates…", "Open Source Licenses…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"],
+      "every role macOS puts there stays where the user looks for it",
+    );
+    assert.deepEqual(menu.slice(1).map((entry) => entry.role), ["fileMenu", "editMenu", "viewMenu", "windowMenu"]);
+  } else {
+    assert.equal(appMenu, undefined);
+    assert.deepEqual(menu.slice(0, 4).map((entry) => entry.role), ["fileMenu", "editMenu", "viewMenu", "windowMenu"]);
+  }
 
-  const check = appMenu.submenu.find((entry) => entry.label === "Check for Updates…");
+  const check = menu.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Check for Updates…");
   assert.ok(check?.click);
   check.click();
   assert.deepEqual(main.sentOn<ShortcutInvocation>("window:shortcut").at(-1), { action: "app.check-for-updates", surface: "any" });
 
-  const licenses = appMenu.submenu.find((entry) => entry.label === "Open Source Licenses…");
+  const licenses = menu.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Open Source Licenses…");
   assert.ok(licenses?.click);
   licenses.click();
   assert.deepEqual(main.sentOn<ShortcutInvocation>("window:shortcut").at(-1), { action: "app.open-source-licenses", surface: "any" });

@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
-import { CLI_COMMAND, type CliStatus } from "../../domain/cli";
+import { CLI_COMMAND, CLI_INSTALL_PATH, type CliStatus } from "../../domain/cli";
 import { SettingRow } from "./SettingRow";
 
 function cliDescription(status: CliStatus | null) {
   if (!status) return "Looking for the command…";
   switch (status.state) {
-    case "installed": return `Installed at ${status.path}.`;
+    case "installed": return status.onPath === false
+      ? `Installed at ${status.path}. Add its folder to PATH to run ${CLI_COMMAND} by name.`
+      : `Installed at ${status.path}.`;
     case "conflict": return `Something else already answers to ${CLI_COMMAND} at ${status.path}.`;
-    case "unsupported": return "The command can only be installed on macOS.";
-    default: return `Goes in ${status.path}, which asks for your password once.`;
+    case "unsupported": return "The command can only be installed on macOS or Linux.";
+    default: return status.path === CLI_INSTALL_PATH
+      ? `Goes in ${status.path}, which asks for your password once.`
+      : `Goes in ${status.path}, inside your user account.`;
   }
 }
 

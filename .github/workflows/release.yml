@@ -20,12 +20,13 @@ permissions:
   contents: read
 
 jobs:
-  release:
+  build-mac:
     if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
     environment: release
-    permissions:
-      contents: write
+    outputs:
+      commit: ${{ steps.version.outputs.commit }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,7 +44,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           npm version "$BUMP" --message "Release v%s"
-          echo "tag=$(git describe --tags --exact-match)" >> "$GITHUB_OUTPUT"
+          TAG="$(git describe --tags --exact-match)"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git bundle create "$RUNNER_TEMP/release.bundle" main "refs/tags/$TAG"
       - name: Restore signing credentials
         shell: bash
         env:
@@ -61,20 +65,114 @@ jobs:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: npm run package:mac
+      - name: Save release source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release.bundle
+          if-no-files-found: error
+      - name: Save macOS packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: packages-mac
+          path: |
+            release/*.dmg
+            release/*.dmg.blockmap
+            release/*.zip
+            release/*.zip.blockmap
+            release/latest-mac.yml
+          if-no-files-found: error
+
+  build-linux:
+    needs: build-mac
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Restore release source
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+      - name: Check out release commit
+        env:
+          RELEASE_COMMIT: ${{ needs.build-mac.outputs.commit }}
+        run: |
+          git fetch "$RUNNER_TEMP/release-source/release.bundle" refs/heads/main:refs/remotes/release/main
+          test "$(git rev-parse refs/remotes/release/main)" = "$RELEASE_COMMIT"
+          git checkout --detach refs/remotes/release/main
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build Linux package
+        run: npm run package:linux -- --${{ matrix.arch }}
+      - name: Save Linux packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: packages-linux-${{ matrix.arch }}
+          path: |
+            release/*.AppImage
+            release/*.AppImage.blockmap
+            release/*.deb
+            release/latest-linux*.yml
+          if-no-files-found: error
+
+  publish:
+    needs:
+      - build-mac
+      - build-linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Restore release source
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+      - name: Restore packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: packages-*
+          path: release
+          merge-multiple: true
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_COMMIT: ${{ needs.build-mac.outputs.commit }}
+          TAG: ${{ needs.build-mac.outputs.tag }}
         run: |
-          if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            git push --atomic origin HEAD:main "refs/tags/$TAG"
+          git fetch "$RUNNER_TEMP/release-source/release.bundle" \
+            refs/heads/main:refs/remotes/release/main \
+            "refs/tags/$TAG:refs/tags/$TAG"
+          test "$(git rev-parse refs/remotes/release/main)" = "$RELEASE_COMMIT"
+          REMOTE_TAG="$(git ls-remote origin "refs/tags/$TAG^{}" | awk '{print $1}')"
+          if [ -z "$REMOTE_TAG" ]; then
+            REMOTE_TAG="$(git ls-remote origin "refs/tags/$TAG" | awk '{print $1}')"
+          fi
+          if [ -n "$REMOTE_TAG" ]; then
+            test "$REMOTE_TAG" = "$RELEASE_COMMIT" || {
+              echo "Remote $TAG does not identify release commit $RELEASE_COMMIT." >&2
+              exit 1
+            }
+            git push origin refs/remotes/release/main:refs/heads/main
+          else
+            git push --atomic origin refs/remotes/release/main:refs/heads/main "refs/tags/$TAG"
           fi
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
-          gh release upload "$TAG" \
-            release/*.dmg \
-            release/*.dmg.blockmap \
-            release/*.zip \
-            release/*.zip.blockmap \
-            release/latest-mac.yml \
-            --clobber
+          gh release upload "$TAG" release/* --clobber

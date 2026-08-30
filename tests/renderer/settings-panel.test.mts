@@ -13,7 +13,7 @@ import type { SettingsPanelProps } from "../../src/renderer/components/SettingsP
 import { engineDesktopStub, mobileDesktopStub, mobileSettingsProps } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
-import { settleFrame } from "../support/settle.mts";
+import { settleUntil } from "../support/settle.mts";
 
 const { App } = await import("../../src/renderer/App.tsx");
 const { SettingsPanel } = await import("../../src/renderer/components/SettingsPanel.tsx");
@@ -46,6 +46,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     remoteChecking: false,
     shortcuts: [],
     capturingShortcut: null,
+    desktopShortcutUnavailable: null,
     onSetThemeFamily() {},
     onSetThemeMode() {},
     onSetUiFont() {},
@@ -314,6 +315,17 @@ test("the general section installs the aic command and takes it back", async () 
   await view.unmount();
 });
 
+test("the Linux command explains when its user-local bin folder is not on PATH", async () => {
+  window.desktop = fakeDesktop({
+    cliStatus: async () => ({ state: "installed", path: "/home/me/.local/bin/aic", onPath: false }),
+  });
+  const view = await mount(renderSettingsPanel({ onClose() {} }));
+  await act(async () => {});
+
+  assert.match(view.container.textContent, /Add its folder to PATH to run aic by name/);
+  await view.unmount();
+});
+
 test("an install the password prompt refuses is reported, not swallowed", async () => {
   window.desktop = fakeDesktop({ installCli: async () => { throw new Error("Cancelled."); } });
   const view = await mount(renderSettingsPanel({ onClose() {}, archivedThreads: [], theme: "aicodingtool-dark", allowedOrigins: [], shortcuts: [], captureSound: true, captureFocus: true, capturingShortcut: null, onSetTheme() {}, onRestoreThread() {}, onClearArchive() {}, onClearBrowserData() {}, onSetCaptureOptions() {}, onCaptureShortcut() {}, onSetShortcut() {}, onResetShortcuts() {} }));
@@ -358,6 +370,50 @@ test("computer-use settings refresh permissions", async () => {
   assert.match(view.container.textContent, /Restart AI Coding Tool/);
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-restart button").click(); });
   assert.equal(restarted, true);
+  await view.unmount();
+});
+
+test("Linux computer-use settings show runtime capability without macOS permission controls", async () => {
+  window.desktop = fakeDesktop({
+    platform: "linux",
+    computerUsePermissions: async () => ({
+      accessibility: true,
+      screenRecording: true,
+      linuxRuntime: {
+        status: "limited",
+        display: "xwayland",
+        message: "X11 and XWayland apps are available. Native Wayland apps depend on the compositor and may not be reachable.",
+      },
+    }),
+  });
+  const view = await mount(renderSettingsPanel({
+    onClose() {},
+    initialSection: "computer-use",
+    archivedThreads: [],
+    allowedOrigins: [],
+    shortcuts: [],
+    capturingShortcut: null,
+    onRestoreThread() {},
+    onClearArchive() {},
+    onClearBrowserData() {},
+    onCaptureShortcut() {},
+    onSetShortcut() {},
+    onResetShortcuts() {},
+  }));
+  await act(async () => {});
+
+  assert.match(view.container.textContent, /Linux runtime/);
+  assert.match(view.container.textContent, /Compositor-dependent/);
+  assert.doesNotMatch(view.container.textContent, /Enable Accessibility|Enable Screen Recording|macOS permissions/);
+  await view.unmount();
+});
+
+test("computer-use settings stay platform-neutral while Linux capability is loading", async () => {
+  window.desktop = fakeDesktop({ platform: "linux", computerUsePermissions: async () => new Promise<never>(() => undefined) });
+  const view = await mount(renderSettingsPanel({ onClose() {}, initialSection: "computer-use" }));
+
+  assert.match(view.container.textContent, /Platform setup.*Checking what this computer can use/s);
+  assert.doesNotMatch(view.container.textContent, /macOS permissions|Enable Accessibility|Enable Screen Recording/);
   await view.unmount();
 });
 
@@ -576,12 +632,49 @@ test("computer-use setup events open settings directly", async () => {
   await act(async () => {
     desktop.listener({ type: "computer-use.setup-required", taskId: start.taskId, runId: start.runId, sequence: 1 });
   });
-  await settleFrame();
+  await settleUntil(() => Boolean(view.container.querySelector(".settings-view")));
 
   assert.ok(view.container.querySelector(".settings-view"));
   assert.equal(view.container.querySelector(".computer-use-card"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-back").click(); });
   assert.equal(view.container.querySelector(".settings-view"), null);
+  await view.unmount();
+});
+
+test("an unavailable desktop shortcut is explained in Settings without a startup error", async () => {
+  localStorage.clear();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  const message = "Global active-window capture is unavailable in this Wayland session. Use an X11 session.";
+
+  await act(async () => {
+    desktop.refuseShortcut({ binding: "Alt+Shift+S", reason: "unsupported", message });
+  });
+
+  assert.equal(view.container.querySelector(".storage-error"), null);
+  await openSettingsPage(view, "Shortcuts");
+  const capture = item([...view.container.querySelectorAll<HTMLElement>(".shortcut-row")]
+    .find((row) => query(row, "strong").textContent === "Grab the window you are in"));
+  assert.match(query(capture, ".shortcut-unavailable").textContent, /Wayland session.*X11 session/);
+  await act(async () => {
+    item([...capture.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Clear")).click();
+  });
+  assert.equal(capture.querySelector(".shortcut-unavailable"), null, "clearing the affected binding clears its inline status");
+  await view.unmount();
+});
+
+test("a desktop shortcut owned by another app remains an actionable error", async () => {
+  localStorage.clear();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+
+  await act(async () => {
+    desktop.refuseShortcut({ binding: "Alt+Shift+S", reason: "taken" });
+  });
+
+  assert.match(query(view.container, ".storage-error").textContent, /Alt\+Shift\+S belongs to another app/);
   await view.unmount();
 });
 

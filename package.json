@@ -1,10 +1,11 @@
 {
   "name": "ai-coding-tool",
-  "version": "0.4.2",
+  "version": "0.4.4",
   "private": true,
   "license": "MIT",
   "author": "Zhuocheng Yu",
   "description": "A fast local desktop client for Claude coding tasks.",
+  "desktopName": "com.zyuapp.aicodingtool.desktop",
   "homepage": "https://github.com/zyuapp/ai-coding-tool",
   "engines": {
     "node": ">=22.12.0"
@@ -20,6 +21,7 @@
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:cua && npm run build && electron .",
     "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
+    "package:linux": "npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",
     "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts"
   },
@@ -98,8 +100,8 @@
       "!dist/mobile/legal/**",
       "!node_modules/@trycua/**",
       "!node_modules/@ubjs/**",
-      "!**/node_modules/@openai/codex-darwin-arm64/**/*",
-      "!**/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/**/*",
+      "!**/node_modules/@openai/codex-*/**/*",
+      "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
       "!**/node_modules/fast-uri/benchmark/**/*",
       "!**/node_modules/**/*.map",
       "!**/node_modules/zod/src/**/*"
@@ -110,12 +112,8 @@
         "to": "cua-driver"
       },
       {
-        "from": "node_modules/@trycua/cua-driver",
-        "to": "cua-sdk/node_modules/@trycua/cua-driver"
-      },
-      {
-        "from": "node_modules/@trycua/cua-driver-darwin-arm64",
-        "to": "cua-sdk/node_modules/@trycua/cua-driver-darwin-arm64"
+        "from": "node_modules/@trycua",
+        "to": "cua-sdk/node_modules/@trycua"
       },
       {
         "from": "node_modules/@ubjs/core",
@@ -171,6 +169,34 @@
         }
       ],
       "artifactName": "AICodingTool-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "category": "Development",
+      "executableName": "aicodingtool",
+      "icon": "assets/icon.png",
+      "maintainer": "Zhuocheng Yu <zhuocheng.yu.d@gmail.com>",
+      "syncDesktopName": true,
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "artifactName": "AICodingTool-${version}-${arch}.${ext}"
+    },
+    "deb": {
+      "packageCategory": "devel",
+      "priority": "optional",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "x11-utils"
+      ]
     },
     "publish": [
       {

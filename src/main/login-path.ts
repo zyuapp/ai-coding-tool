@@ -1,16 +1,22 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { loginShellSessionOptions } from "./platform-capabilities.js";
 
 const execFileAsync = promisify(execFile);
 
 /** Room for a shell with heavy start-up files, short enough that the window is not held back on one. */
 const TIMEOUT_MS = 5_000;
 
+/** `execFile`'s default, kept for the Linux streaming implementation below. */
+const MAX_OUTPUT = 1024 * 1024;
+
 /** Printed either side of the environment, so whatever a start-up file prints of its own is skipped. */
 const MARK = "__aic_environment__";
+
+const SHELL_ARGUMENTS = ["-ilc", `printf '${MARK}'; /usr/bin/env; printf '${MARK}'`];
 
 /** Where a Mac keeps tools that launchd's own search path never lists, in the order a shell looks. */
 function toolFolders(home: string) {
@@ -41,12 +47,54 @@ export function mergeSearchPaths(...paths: (string | null | undefined)[]) {
 }
 
 /**
- * The environment the user's shell starts with. Login and interactive, because a search path can be
- * written in the files that only one of those reads.
+ * `execFile` does not support its sibling `spawn` API's `detached` option. On Linux an interactive
+ * shell can therefore touch the launching terminal and stop its whole process group with SIGTTIN.
+ * Spawn it as a new session there, while keeping the long-standing macOS execution path untouched.
  */
+async function linuxLoginShellEnvironment(shell: string) {
+  return new Promise<string>((resolve) => {
+    const child = spawn(shell, SHELL_ARGUMENTS, {
+      ...loginShellSessionOptions("linux"),
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    let output = "";
+    let stopped = false;
+    let finished = false;
+
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    };
+    const timer = setTimeout(stop, TIMEOUT_MS);
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve(output);
+    };
+
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      const room = MAX_OUTPUT - output.length;
+      if (room > 0) output += chunk.slice(0, room);
+      if (chunk.length > room) stop();
+    });
+    child.once("error", finish);
+    child.once("close", finish);
+  });
+}
+
 async function loginShellEnvironment(shell: string) {
+  if (process.platform === "linux") return linuxLoginShellEnvironment(shell);
+  /** Login and interactive, because a search path can be written in the files only one reads. */
   try {
-    const { stdout } = await execFileAsync(shell, ["-ilc", `printf '${MARK}'; /usr/bin/env; printf '${MARK}'`], {
+    const { stdout } = await execFileAsync(shell, SHELL_ARGUMENTS, {
       timeout: TIMEOUT_MS,
       encoding: "utf8",
     });

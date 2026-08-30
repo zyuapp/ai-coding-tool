@@ -139,7 +139,7 @@ export const CERTS_OFF = "This tailnet does not issue HTTPS certificates yet. Tu
 /** Puts HTTPS on 443 in front of the local port. Tailscale holds this itself, across restarts of this app. */
 export async function startTailscaleServe(port: number): Promise<TailscaleAction> {
   const binary = await findTailscale();
-  if (!binary) return { ok: false, message: "Tailscale is not installed on this Mac." };
+  if (!binary) return { ok: false, message: "Tailscale is not installed on this computer." };
   const ready = await readTailscale(null);
   if (ready.status === "ready" && !ready.certs) return { ok: false, message: CERTS_OFF };
   try {

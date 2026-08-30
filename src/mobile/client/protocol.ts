@@ -94,13 +94,13 @@ export const MOBILE_SETTLE_MS = 750;
 /** How many unacknowledged commands the phone will hold. Past this a new one is refused, not queued. */
 export const MOBILE_OUTBOX_LIMIT = 50;
 
-const SCAN_AGAIN = "Scan the QR code on your Mac to connect this phone.";
+const SCAN_AGAIN = "Scan the QR code on your computer to connect this phone.";
 
 const REFUSALS: Record<MobileErrorCode, string | null> = {
   version: "This page is out of date. Reload it to carry on.",
-  unauthorized: "This phone is no longer paired. Scan a fresh QR code on your Mac.",
-  "expired-code": "That pairing code has expired. Scan a fresh QR code on your Mac.",
-  "rate-limited": "The Mac is turning connections away. Trying again shortly.",
+  unauthorized: "This phone is no longer paired. Scan a fresh QR code on your computer.",
+  "expired-code": "That pairing code has expired. Scan a fresh QR code on your computer.",
+  "rate-limited": "The computer is turning connections away. Trying again shortly.",
   unreadable: null,
   internal: null,
 };
@@ -196,7 +196,7 @@ function closed(state: MobileClientState): MobileClientStep {
 /** A full outbox refuses rather than drops: text the user typed is not thrown away in silence. */
 function dispatch(state: MobileClientState, requestId: string, command: MobileCommand): MobileClientStep {
   if (state.outbox.length >= MOBILE_OUTBOX_LIMIT) {
-    return { state: { ...state, notice: "Too much is already waiting for your Mac. Wait for it to catch up." }, effects: [] };
+    return { state: { ...state, notice: "Too much is already waiting for your computer. Wait for it to catch up." }, effects: [] };
   }
   const live = state.connection === "live";
   const next = { ...state, outbox: [...state.outbox, { requestId, command, sent: live }] };

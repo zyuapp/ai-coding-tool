@@ -8,9 +8,38 @@ import { promisify } from "node:util";
 import { CUA_DRIVER_VERSION, CUA_RELEASE } from "./cua-driver-version.mjs";
 
 const version = CUA_DRIVER_VERSION;
-const archiveName = `cua-driver-rs-${version}-darwin-arm64.tar.gz`;
-const expectedArchiveHash = CUA_RELEASE.archiveSha256;
-const marker = `${version}-darwin-arm64-v4`;
+const targets = {
+  "darwin-arm64": {
+    archiveName: `cua-driver-rs-${version}-darwin-arm64.tar.gz`,
+    archiveHash: CUA_RELEASE.archiveSha256,
+    archiveEntry: `cua-driver-rs-${version}-darwin-arm64/cua-driver`,
+    sdkPackage: "@trycua/cua-driver-darwin-arm64",
+    thin: true,
+  },
+  "linux-x64": {
+    archiveName: `cua-driver-rs-${version}-linux-x86_64-binary.tar.gz`,
+    archiveHash: "cc66abc3344f7573f6af36e741f7e82a43fd24c5cbf9d71d83dffb33a0e32506",
+    archiveEntry: "cua-driver",
+    sdkPackage: "@trycua/cua-driver-linux-x64-gnu",
+    thin: false,
+  },
+  "linux-arm64": {
+    archiveName: `cua-driver-rs-${version}-linux-arm64-binary.tar.gz`,
+    archiveHash: "8c481feb732845186249272e6df16ccf64e56bb40b2d3a73f110785d0fcd0ea1",
+    archiveEntry: "cua-driver",
+    sdkPackage: "@trycua/cua-driver-linux-arm64-gnu",
+    thin: false,
+  },
+} as const;
+
+/** macOS packaging remains Apple Silicon-only; Linux follows the build host's native architecture. */
+const platformTarget = (process.platform === "darwin" ? "darwin-arm64" : `${process.platform}-${process.arch}`) as keyof typeof targets;
+const target = targets[platformTarget];
+/** Computer use ships with supported macOS and Linux builds; other hosts can still run the client. */
+if (!target) process.exit(0);
+
+const { archiveName, archiveHash: expectedArchiveHash, archiveEntry, sdkPackage } = target;
+const marker = `${version}-${platformTarget}-v5`;
 const targetDir = path.resolve("vendor/cua-driver");
 const binaryPath = path.join(targetDir, "cua-driver");
 const markerPath = path.join(targetDir, "version");
@@ -19,7 +48,7 @@ async function hash(data: NodeJS.ArrayBufferView) {
   return createHash("sha256").update(data).digest("hex");
 }
 
-/** The Cua releases ship both architectures, and half of every one can never run on the app's target. */
+/** The macOS Cua release and SDK ship both architectures, and the app currently targets Apple Silicon. */
 async function thin(file: string) {
   const { stdout } = await promisify(execFile)("lipo", ["-archs", file]);
   if (stdout.trim() === "arm64") return;
@@ -36,10 +65,12 @@ async function run(command: string, args: string[]) {
   });
 }
 
-/** The SDK the app loads in process ships beside the driver, and carries the same second architecture. */
-const sdkRoot = path.dirname(createRequire(import.meta.url).resolve("@trycua/cua-driver-darwin-arm64/package.json"));
-await thin(path.join(sdkRoot, "libcua_driver_sdk.dylib"));
-await thin(path.join(sdkRoot, "cua_driver_node_runtime.node"));
+/** Fail before packaging when npm did not install the native SDK matching this build host. */
+const sdkRoot = path.dirname(createRequire(import.meta.url).resolve(`${sdkPackage}/package.json`));
+if (target.thin) {
+  await thin(path.join(sdkRoot, "libcua_driver_sdk.dylib"));
+  await thin(path.join(sdkRoot, "cua_driver_node_runtime.node"));
+}
 
 // @ts-expect-error The notice generator is plain JavaScript so npm and Electron Builder can run it directly.
 const { writeLegalNotices } = await import("./generate-legal-notices.mjs");
@@ -59,8 +90,8 @@ const archive = Buffer.from(await response.arrayBuffer());
 if (await hash(archive) !== expectedArchiveHash) throw new Error("Cua Driver archive checksum mismatch.");
 const archivePath = path.join(targetDir, archiveName);
 await writeFile(archivePath, archive);
-await run("tar", ["-xzf", archivePath, "-C", targetDir, "--strip-components=1", `${archiveName.slice(0, -7)}/cua-driver`]);
+await run("tar", ["-xzf", archivePath, "-C", targetDir, `--strip-components=${archiveEntry.split("/").length - 1}`, archiveEntry]);
 await rm(archivePath, { force: true });
-await thin(binaryPath);
+if (target.thin) await thin(binaryPath);
 await chmod(binaryPath, 0o755);
 await writeFile(markerPath, `${marker}\n`);

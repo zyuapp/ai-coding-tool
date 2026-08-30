@@ -91,7 +91,7 @@ export function WorktreeSettings({ worktrees, error, notice, onRefresh, onReveal
                           </>
                         : <>
                             {worktree.available
-                              ? <button type="button" onClick={() => onReveal(worktree.root)}>Reveal in Finder</button>
+                              ? <button type="button" onClick={() => onReveal(worktree.root)}>{window.desktop.platform === "macos" ? "Reveal in Finder" : "Show in file manager"}</button>
                               : <span aria-hidden="true" />}
                             {worktree.busy
                               ? <em>Run active</em>

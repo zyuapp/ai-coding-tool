@@ -212,11 +212,20 @@
    * button add up to this instead.
    */
   --chrome-head: 72px;
-  --window-strip: 40px; /* the band the traffic lights sit in */
+  /** The sidebar toolbar remains useful below a native frame; on macOS its left side also houses the traffic lights. */
+  --window-strip: 40px;
+  --window-controls-inset: 0px;
+  --settings-titlebar-inset: 0px;
   --system-ui-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
   --system-mono-font: ui-monospace, "SFMono-Regular", Menlo, monospace;
   --ui-font: var(--system-ui-font);
   --mono: var(--system-mono-font);
+}
+
+/** Only macOS overlays inset window controls on renderer content. */
+:root[data-window-chrome="inset"] {
+  --window-controls-inset: 84px;
+  --settings-titlebar-inset: 48px;
 }
 
 /**
@@ -778,7 +787,7 @@ button, select { color: inherit; }
   grid-row: 1;
 }
 /** Without the sidebar the topbar owns the window edge, so it starts clear of the traffic lights. */
-.topbar.traffic-inset { padding-left: 84px; }
+.topbar.traffic-inset { padding-left: max(22px, var(--window-controls-inset)); }
 .workspace-controls { display: flex; align-items: center; gap: 4px; }
 .open-in { position: relative; display: flex; }
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
@@ -895,7 +904,7 @@ button, select { color: inherit; }
 .workspace.dock-full .right-dock-resizer { display: none; }
 /** The dock now owns the window's top edge, so its tab strip drags the window and clears the traffic lights. */
 .workspace.dock-full .right-dock-tabs { -webkit-app-region: drag; }
-.workspace.dock-full .right-dock-tabs.traffic-inset { padding-left: 84px; }
+.workspace.dock-full .right-dock-tabs.traffic-inset { padding-left: max(8px, var(--window-controls-inset)); }
 .workspace.dock-full .right-dock-tabs > div, .workspace.dock-full .right-dock-tabs button { -webkit-app-region: no-drag; }
 /** A 16px grab strip centred on the dock's edge; the line it draws stays 2px so the seam looks unchanged. */
 .right-dock-resizer {
@@ -1704,7 +1713,7 @@ pre {
   padding: 0 12px 18px;
   background: var(--sidebar);
 }
-.settings-traffic-space { height: 48px; flex: 0 0 auto; -webkit-app-region: drag; }
+.settings-traffic-space { height: max(12px, var(--settings-titlebar-inset)); flex: 0 0 auto; -webkit-app-region: drag; }
 .settings-back {
   flex: 0 0 auto;
   display: flex;
@@ -2021,6 +2030,7 @@ pre {
 /** The keystroke is what the row is about, so it sits apart from the buttons that change it. */
 .setting-row.shortcut-row .setting-row-action { gap: 6px; }
 .setting-row.shortcut-row .setting-row-action > kbd, .setting-row.shortcut-row .setting-row-action > em { margin-right: 12px; }
+.setting-row p.shortcut-unavailable { color: var(--accent-soft); }
 .setting-row-action kbd.shortcut-keys { display: inline-flex; align-items: center; gap: 5px; }
 .shortcut-key {
   min-width: 30px;
@@ -2115,6 +2125,8 @@ pre {
   grid-column: 1;
   grid-row: 3;
 }
+/** A composer menu stands over the whole workspace, so the footer rises past the topbar while one is open. */
+.composer-wrap:has(.command-menu, .setting-menu[open]) { z-index: 41; }
 
 .goal-bar {
   display: grid;
@@ -3520,6 +3532,12 @@ button.file-name { cursor: pointer; }
   bottom: 39px;
   left: -4px;
   width: min(560px, calc(100cqw - 40px));
+  /** The list scrolls rather than growing past the top of the window on a long model roster. */
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
   border: 1px solid var(--line-mid);
   border-radius: 16px;
   padding: 13px;
@@ -3658,9 +3676,9 @@ button.setting-hint:hover { color: var(--ink); }
     visibility: hidden;
   }
   /** The sidebar floats over the workspace here, so the topbar always clears the traffic lights. */
-  .topbar { padding-left: 84px; }
+  .topbar { padding-left: max(22px, var(--window-controls-inset)); }
   /** And so does an expanded dock's tab strip, which owns the top edge in its place. */
-  .workspace.dock-full .right-dock-tabs { padding-left: 84px; }
+  .workspace.dock-full .right-dock-tabs { padding-left: max(8px, var(--window-controls-inset)); }
   /** Narrow windows slide the sidebar over the workspace instead of making room for it. */
   .sidebar.hidden { margin-left: 0; }
   .sidebar.compact-open { transform: translateX(0); visibility: visible; }
@@ -3677,7 +3695,7 @@ button.setting-hint:hover { color: var(--ink); }
 
 @media (max-width: 620px) {
   .workspace.summary-open .composer-wrap { margin-right: 0; }
-  .topbar { min-width: 0; gap: 8px; padding-inline: 84px 16px; }
+  .topbar { min-width: 0; gap: 8px; padding-inline: max(22px, var(--window-controls-inset)) 16px; }
   .task-heading { flex: 1; gap: 8px; }
   .task-heading h1, .task-heading p { max-width: none; }
   .session-panel { top: 82px; right: 12px; width: calc(100% - 24px); max-height: calc(100% - 94px); }

@@ -68,7 +68,7 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
     {
       id: "installed",
       done: installed,
-      name: "Installed on this Mac",
+      name: "Installed on this computer",
       hint: tailscale.status === "unknown" ? "Looking for Tailscale…" : installed ? null : "Install Tailscale, then check again.",
     },
     {
@@ -86,7 +86,7 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
     {
       id: "serving",
       done: tailscale.serving,
-      name: "Serving this Mac",
+      name: "Serving this computer",
       hint: !on ? "Turns on with phone access." : tailscale.serving || !signedIn || !tailscale.certs ? null : "Not serving yet. Check again.",
     },
   ];
@@ -104,7 +104,7 @@ function TailscaleSection({ remote, checking, onRefresh }: { remote: MobileServe
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-tailscale-heading">Tailscale</h3>
-          <p>The phone reaches this Mac over your tailnet, so both need Tailscale signed into the same account.</p>
+          <p>The phone reaches this computer over your tailnet, so both need Tailscale signed into the same account.</p>
         </div>
         <div className="settings-group-action">
           <button type="button" disabled={checking} onClick={onRefresh}><RefreshCw size={13} aria-hidden="true" className={checking ? "spinning" : ""} />{checking ? "Checking…" : "Check again"}</button>
@@ -202,7 +202,7 @@ function DeviceSection({ devices, sessions, onRevokeDevice }: { devices: PairedD
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-devices-heading">Phones</h3>
-          <p>A connected phone keeps this Mac awake, and closing this window hides it rather than quitting. Removing a phone cuts it off at once.</p>
+          <p>A connected phone keeps this computer awake, and closing this window hides it rather than quitting. Removing a phone cuts it off at once.</p>
         </div>
         <div className="settings-group-action"><span>{devices.length === 0 ? "None paired" : `${connected} of ${devices.length} connected`}</span></div>
       </div>

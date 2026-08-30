@@ -1,7 +1,7 @@
 import type { ProjectEvent, RegisterProjectEffect } from "../project-commands.js";
 import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
-import type { WorkspaceState } from "../workspace-state.js";
+import type { DesktopShortcutUnavailable, WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
 import type { AgentEvent, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
@@ -57,6 +57,8 @@ export type WorkspaceEvent =
   | { type: "subagent.activity.loaded"; taskId: string; subagentId: string; activity: SubagentActivity[] }
   /** The keystroke settings were waiting for, or null when the user pressed Escape instead. */
   | { type: "shortcut.captured"; binding: string | null }
+  /** An expected platform limitation for a desktop-wide shortcut, shown with that setting. */
+  | { type: "shortcut.unavailable"; refusal: DesktopShortcutUnavailable }
   /** What a page or a shell found, counted by whoever holds the text. `index` counts from zero. */
   | { type: "find.results"; target: FindTarget; results: FindResults }
   /** What the main process says the phone bridge now is, after anything at all moved it. */

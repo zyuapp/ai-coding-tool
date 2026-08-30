@@ -15,7 +15,7 @@ import { READING_SIZE, TERMINAL_SIZE, monoFontById, sizeById, uiFontById } from 
 type SettingsInput = Extract<WorkspaceInput, {
   type: "view.set-theme" | "view.set-theme-family" | "view.set-theme-mode" | "view.system-scheme" | "view.set-ui-font"
     | "view.set-mono-font" | "view.set-reading-size" | "view.set-terminal-size" | "view.set-sidebar-mode" | "view.set-sidebar-open"
-    | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured"
+    | "view.focus-composer" | "view.set-shortcut" | "view.reset-shortcuts" | "view.capture-shortcut" | "shortcut.captured" | "shortcut.unavailable"
     | "view.inspect-subagent" | "subagent.activity.loaded" | "view.set-capture-options" | "view.set-chrome-browser" | "view.set-concise-replies"
     | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
     | "view.set-subagent-group" | "view.set-section-open";
@@ -133,6 +133,12 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       if (!action) return settled(state);
       if (input.binding === null) return settled({ ...state, capturingShortcut: null }, stopCapture(state));
       return reduceSettings(state, { type: "view.set-shortcut", action, binding: input.binding });
+    }
+
+    case "shortcut.unavailable": {
+      const current = state.desktopShortcutUnavailable;
+      if (current?.binding === input.refusal.binding && current.message === input.refusal.message) return settled(state);
+      return settled({ ...state, desktopShortcutUnavailable: input.refusal });
     }
 
     case "view.inspect-subagent": {

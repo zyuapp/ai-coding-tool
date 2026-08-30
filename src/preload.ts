@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AgentEngine } from "./domain/agent-engine";
 import type { CaptureOptions } from "./domain/capture";
-import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, ThreadNotice, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
+import type { AgentEvent, AutomationAck, AutomationFire, BrowserFindEvent, BrowserPageEvent, ComputerUsePermission, CreateWorktreeRequest, DesktopAPI, DesktopShortcutRefusal, ThreadNotice, ReleaseWorktreeRequest, RunCommand, ShortcutInvocation, TerminalDataEvent, TerminalReadOptions, TerminalStartOptions, WindowScreenshot, WindowTheme } from "./contracts/ipc";
 import type { BrowserAction, BrowserBounds } from "./domain/browser";
 import type { WorkspaceRecord } from "./domain/workspace";
 import type { ShortcutOverrides } from "./domain/shortcuts";
@@ -12,6 +12,7 @@ import type { MobileServerState } from "./domain/mobile";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "./domain/automation";
 
 const api: DesktopAPI = {
+  platform: process.platform === "darwin" ? "macos" : process.platform === "linux" ? "linux" : "other",
   openFolder: () => ipcRenderer.invoke("workspace:open"),
   registerProject: (root: string) => ipcRenderer.invoke("workspace:register", root),
   onOpenProject: (listener: (workspace: WorkspaceRecord) => void) => {
@@ -145,8 +146,8 @@ const api: DesktopAPI = {
     ipcRenderer.on("window:screenshot", handler);
     return () => ipcRenderer.removeListener("window:screenshot", handler);
   },
-  onDesktopShortcutRefused: (listener: (binding: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: string) => listener(payload);
+  onDesktopShortcutRefused: (listener: (refusal: DesktopShortcutRefusal) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: DesktopShortcutRefusal) => listener(payload);
     ipcRenderer.on("window:shortcut-refused", handler);
     return () => ipcRenderer.removeListener("window:shortcut-refused", handler);
   },

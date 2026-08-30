@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -43,6 +43,30 @@ test("the process takes the search path its login shell has, and keeps the one i
   }
 });
 
+test.skipIf(process.platform !== "linux")("the Linux login shell has no share in the launching terminal's job control", async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-shell-session-"));
+  const shell = path.join(folder, "probe");
+  await writeFile(shell, `#!/bin/sh
+read pid comm state ppid pgrp session tty rest < /proc/$$/stat
+printf '${MARK}PATH=p%s:s%s:t%s\n${MARK}' "$pid" "$session" "$tty"
+`);
+  await chmod(shell, 0o755);
+  const started = process.env.PATH;
+  const originalShell = process.env.SHELL;
+  try {
+    process.env.PATH = "/usr/bin";
+    process.env.SHELL = shell;
+    await adoptLoginShellPath();
+    const [pid, session, tty] = (process.env.PATH ?? "").split(path.delimiter);
+
+    assert.equal(session.slice(1), pid.slice(1), "the probe is the leader of its own session");
+    assert.equal(tty, "t0", "the new session has no controlling terminal");
+  } finally {
+    process.env.PATH = started;
+    if (originalShell === undefined) delete process.env.SHELL; else process.env.SHELL = originalShell;
+  }
+});
+
 test("a shell that cannot be run leaves the process able to find its tools anyway", async () => {
   const bin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-bin-"));
   const started = process.env.PATH;
@@ -69,7 +93,8 @@ test("a folder tools are installed in is added when it is really there, and neve
   try {
     process.env.HOME = home;
     process.env.PATH = "/usr/bin";
-    process.env.SHELL = "/bin/sh";
+    /** This case isolates standard-folder discovery from whatever a Linux login profile adds. */
+    process.env.SHELL = path.join(home, "no-such-shell");
     await adoptLoginShellPath();
     const folders = (process.env.PATH ?? "").split(path.delimiter);
 

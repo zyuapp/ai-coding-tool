@@ -4,6 +4,7 @@ import { desktopAccelerator, formatShortcut, keystrokeOf, resolveShortcuts, shor
 import { writeAttachment } from "./attachment-store.js";
 import { flashWindow } from "./capture-flash.js";
 import { notify } from "./desktop-notice.js";
+import { windowCaptureCapability } from "./platform-capabilities.js";
 import { captureFrontmostWindow } from "./window-screenshot.js";
 
 /** What the keyboard needs from main: the window an action lands in, and bringing it back to the user. */
@@ -36,7 +37,9 @@ let desktopBinding: string | null = null;
 
 function sendToWindow(host: KeyboardHost, channel: string, payload?: unknown) {
   const window = host.window();
-  if (window && !window.isDestroyed()) window.webContents.send(channel, payload);
+  if (!window || window.isDestroyed()) return false;
+  window.webContents.send(channel, payload);
+  return true;
 }
 
 function handleKey(host: KeyboardHost, input: Electron.Input, surface: ShortcutSurface): boolean {
@@ -86,20 +89,26 @@ function releaseDesktopShortcut() {
 }
 
 /**
- * Claims the capture keystroke from the whole desktop. Carbon registers it without activating us, so
- * the app the user is in keeps the keyboard and stays the app the capture describes.
+ * Claims the capture keystroke from the whole desktop without activating us, so the app the user is
+ * in keeps the keyboard and stays the app the capture describes.
  */
 function claimDesktopShortcut(host: KeyboardHost) {
-  if (process.platform !== "darwin") return;
   const wanted = shortcuts.find((binding) => binding.surface === "desktop" && binding.action === "window.capture");
   const accelerator = wanted ? desktopAccelerator(wanted.binding) : null;
+  const capability = windowCaptureCapability();
+  if (capability.status === "unsupported") {
+    if (desktopBinding !== null) releaseDesktopShortcut();
+    /** A replacement renderer needs the status too, so every preferences handshake sends it anew. */
+    if (accelerator) sendToWindow(host, "window:shortcut-refused", { binding: wanted!.binding, reason: "unsupported", message: capability.message });
+    return;
+  }
   if (accelerator === desktopBinding) return;
   releaseDesktopShortcut();
   desktopBinding = accelerator;
   if (!accelerator) return;
   if (!globalShortcut.register(accelerator, () => void captureWindowToComposer(host))) {
     desktopBinding = null;
-    sendToWindow(host, "window:shortcut-refused", wanted!.binding);
+    sendToWindow(host, "window:shortcut-refused", { binding: wanted!.binding, reason: "taken" });
   }
 }
 

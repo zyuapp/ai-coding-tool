@@ -1,5 +1,6 @@
 import { app, dialog, shell, type BrowserWindow } from "electron";
 import type { AppUpdater } from "electron-updater";
+import { automaticUpdatesAvailable, manualUpdateRecovery } from "./platform-capabilities.js";
 
 const RELEASES_URL = "https://github.com/zyuapp/ai-coding-tool/releases/latest";
 
@@ -39,6 +40,10 @@ export async function checkForUpdates(host: UpdateHost, options: { userRequested
   const userRequested = options.userRequested === true;
   if (!app.isPackaged) {
     if (userRequested) await reportSourceCopy(host.window());
+    return;
+  }
+  if (!automaticUpdatesAvailable()) {
+    if (userRequested) await reportManualLinuxUpdates(host.window());
     return;
   }
   if (userRequested && downloadedVersion) return offerInstall(host, downloadedVersion);
@@ -111,6 +116,21 @@ async function reportSourceCopy(window: BrowserWindow | null) {
   });
 }
 
+/** Debian packages are installed and updated by the user's package workflow, not AppImageUpdater. */
+async function reportManualLinuxUpdates(window: BrowserWindow | null) {
+  if (!window || window.isDestroyed()) return;
+  const result = await dialog.showMessageBox(window, {
+    type: "info",
+    title: "Check for updates manually",
+    message: "This Linux package is updated manually.",
+    detail: "Download the latest package and install it the same way you installed this one.",
+    buttons: ["Open downloads", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (result.response === 0) await shell.openExternal(RELEASES_URL);
+}
+
 /**
  * An update the installed copy refuses says so and offers the download, rather than stopping in the
  * log. macOS ties a copy's signature to the bundle id it was signed with, so a build that changes
@@ -122,7 +142,7 @@ export async function reportUpdateFailure(window: BrowserWindow | null, error: E
     type: "warning",
     title: "Update failed",
     message: "AI Coding Tool could not install the update.",
-    detail: `${error.message}\n\nDownload the new version and replace the app in Applications.`,
+    detail: `${error.message}\n\n${manualUpdateRecovery()}`,
     buttons: ["Open downloads", "Later"],
     defaultId: 0,
     cancelId: 1,

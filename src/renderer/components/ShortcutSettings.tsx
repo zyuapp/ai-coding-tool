@@ -1,16 +1,18 @@
 import { shortcutKeys, type ShortcutSetting } from "../../domain/shortcuts";
+import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
 import { MAC } from "../platform";
 
 export type ShortcutSettingsProps = {
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
+  desktopShortcutUnavailable: DesktopShortcutUnavailable | null;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
   onResetShortcuts: () => void;
 };
 
-export function ShortcutSettings({ shortcuts, capturingShortcut, onCaptureShortcut, onSetShortcut, onResetShortcuts }: ShortcutSettingsProps) {
+export function ShortcutSettings({ shortcuts, capturingShortcut, desktopShortcutUnavailable, onCaptureShortcut, onSetShortcut, onResetShortcuts }: ShortcutSettingsProps) {
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -29,12 +31,16 @@ export function ShortcutSettings({ shortcuts, capturingShortcut, onCaptureShortc
             )}
           </div>
 
-          {shortcuts.filter((shortcut) => shortcut.group === group).map((shortcut) => (
-            <div className="setting-row shortcut-row" key={shortcut.id}>
+          {shortcuts.filter((shortcut) => shortcut.group === group).map((shortcut) => {
+            const unavailable = shortcut.surface === "desktop" && shortcut.binding === desktopShortcutUnavailable?.binding
+              ? desktopShortcutUnavailable
+              : null;
+            return <div className="setting-row shortcut-row" key={shortcut.id}>
               <span className="setting-status blank" aria-hidden="true" />
               <div>
                 <strong>{shortcut.label}</strong>
                 <p>{shortcut.description}</p>
+                {unavailable && <p className="shortcut-unavailable" role="status">{unavailable.message}</p>}
               </div>
               <div className="setting-row-action">
                 {capturingShortcut === shortcut.id
@@ -52,8 +58,8 @@ export function ShortcutSettings({ shortcuts, capturingShortcut, onCaptureShortc
                         : <button type="button" disabled={!shortcut.binding} onClick={() => onSetShortcut(shortcut.id, null)}>Clear</button>}
                     </>}
               </div>
-            </div>
-          ))}
+            </div>;
+          })}
         </section>
       ))}
     </main>

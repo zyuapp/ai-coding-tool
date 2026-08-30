@@ -126,8 +126,13 @@ export function fakeElectron(userData: string) {
     },
     Notification,
     nativeTheme: { themeSource: "system" },
+    desktopCapturer: { getSources: async () => [] },
+    systemPreferences: {
+      getMediaAccessStatus: () => "granted",
+      isTrustedAccessibilityClient: () => true,
+    },
     powerSaveBlocker: { start: () => 1, stop() {}, isStarted: () => true },
-    screen: { getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }] },
+    screen: { getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 }, scaleFactor: 1 }] },
     dialog,
     Menu,
     ipcMain: {
