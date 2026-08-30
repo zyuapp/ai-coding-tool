@@ -2,6 +2,9 @@
 
 > WIP: Building a Codex-like desktop UI for Claude and GPT models.
 
+<img width="1920" height="1052" alt="image" src="https://github.com/user-attachments/assets/fd1c7248-a8df-4450-94da-7e966a20a9ee" />
+
+
 ## Install
 
 macOS (Apple silicon) and Linux (x86_64, arm64):
