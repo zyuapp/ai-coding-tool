@@ -137,10 +137,10 @@ export function engineNotice(engine: AgentEngine, readiness: EngineReadiness): E
   const fix = readiness.fix ? { fix: readiness.fix } : {};
   const named = `${label} ${readiness.version ?? "on this machine"}`;
   if (readiness.access === "missing") return { blocking: true, message: `${label} is not installed.`, ...fix };
-  if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. This app needs ${readiness.required}.`, ...fix };
+  if (readiness.access === "outdated") return { blocking: true, message: `${named} is too old. Update to ${readiness.required}.`, ...fix };
   if (readiness.access === "unavailable") return { blocking: true, message: `${label} is installed but would not start.` };
   /** Ready, but behind: it runs, and the models it never heard of are simply missing from the menu. */
-  if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some of its models are missing.`, ...fix };
+  if (readiness.required) return { blocking: false, message: `${named} is behind ${readiness.required}, so some models are hidden.`, ...fix };
   return null;
 }
 

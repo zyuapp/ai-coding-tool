@@ -37,9 +37,11 @@ export const EVERY_ENGINE_READY = byEngine((): EngineReadiness => ({ access: "re
 
 /** What is wrong with an engine, said in the words Settings and the composer error use as well. */
 function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpenSettings?: () => void }) {
+  /** The fix command is long, so it is offered to copy and spelled out only where Settings cannot. */
   return <div className="setting-hint setting-readiness">
     <span>{notice.message}</span>
-    {notice.fix ? <><code>{notice.fix}</code><CopyButton text={notice.fix} label={`Copy ${notice.fix}`} /></> : null}
+    {notice.fix && !onOpenSettings && <code>{notice.fix}</code>}
+    {notice.fix && <CopyButton text={notice.fix} label={`Copy ${notice.fix}`} />}
     {onOpenSettings && <button className="setting-readiness-link" type="button" onClick={onOpenSettings}>Settings</button>}
   </div>;
 }
