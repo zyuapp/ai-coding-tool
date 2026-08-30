@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/zyuapp/ai-coding-tool/main/install.sh | sh
 #
 # macOS gets the signed app in /Applications. Linux gets the AppImage in ~/Applications,
-# which is the only Linux package the in-app updater can update.
+# which is the only Linux package that updates itself without asking for a password.
 set -eu
 
 REPO="zyuapp/ai-coding-tool"
@@ -61,14 +61,34 @@ has_fuse2() {
   PATH="$PATH:/sbin:/usr/sbin" ldconfig -p 2>/dev/null | grep -q "libfuse\.so\.2"
 }
 
-fuse2_package() {
+# One command per package manager, printed as well as run, so it can be repeated by hand.
+fuse2_command() {
   case "$(. /etc/os-release 2>/dev/null; printf '%s %s' "${ID:-}" "${ID_LIKE:-}")" in
-    *arch*) echo "sudo pacman -S fuse2" ;;
-    *ubuntu* | *debian*) echo "sudo apt install libfuse2t64" ;;
-    *fedora* | *rhel*) echo "sudo dnf install fuse-libs" ;;
-    *suse*) echo "sudo zypper install libfuse2" ;;
-    *) echo "install the FUSE 2 library" ;;
+    *arch*) echo "pacman -S --needed --noconfirm fuse2" ;;
+    *ubuntu* | *debian*) echo "apt-get install -y libfuse2t64" ;;
+    *fedora* | *rhel*) echo "dnf install -y fuse-libs" ;;
+    *suse*) echo "zypper install -y libfuse2" ;;
   esac
+}
+
+# Empty when this system has no known command, so callers fall back to explaining the step.
+fuse2_root_command() {
+  base="$(fuse2_command)"
+  [ -n "$base" ] || return 0
+  if [ "$(id -u)" = 0 ]; then printf '%s' "$base"; return 0; fi
+  command -v sudo >/dev/null 2>&1 && printf 'sudo %s' "$base"
+  return 0
+}
+
+# The sudo password prompt is the user's chance to refuse, and it reads the terminal directly,
+# so this still works when the script itself arrived on stdin through a pipe.
+install_fuse2() {
+  privileged="$(fuse2_root_command)"
+  [ -n "$privileged" ] || return 1
+  say "AI Coding Tool needs the FUSE 2 library. Installing it with: $privileged"
+  # Word splitting is intended: every branch above is a fixed command with fixed arguments.
+  $privileged || return 1
+  has_fuse2
 }
 
 command -v curl >/dev/null 2>&1 || fail "curl is required."
@@ -118,10 +138,12 @@ else
   chmod 755 "$staging/$asset"
   mv -f "$staging/$asset" "$target"
   say "Installed $target"
-  if has_fuse2; then
+  if has_fuse2 || install_fuse2; then
     launch_linux "$target"
     say "It adds itself to your app menu the first time it runs."
   else
-    say "It needs FUSE 2 before it can start: $(fuse2_package), then run $target once."
+    manual="$(fuse2_root_command)"
+    [ -n "$manual" ] || manual="install the FUSE 2 library"
+    say "It needs FUSE 2 before it can start: $manual, then run $target once."
   fi
 fi
