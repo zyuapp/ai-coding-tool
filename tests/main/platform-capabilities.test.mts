@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { automaticUpdatesAvailable, computerUseCapability, linuxDisplayServer, manualUpdateRecovery, needsGlobalShortcutsPortal, windowCaptureCapability, windowFrameOptions } from "../../src/main/platform-capabilities.ts";
+import { automaticUpdatesAvailable, computerUseCapability, linuxDisplayServer, manualUpdateRecovery, windowCaptureCapability, windowFrameOptions } from "../../src/main/platform-capabilities.ts";
 
 test("Linux display capability distinguishes X11, XWayland, native Wayland, and headless sessions", () => {
   assert.equal(linuxDisplayServer({ DISPLAY: ":0" }), "x11");
@@ -23,7 +23,11 @@ test("computer use admits X11 and explicit native Wayland, and explains unavaila
 
 test("global capture admits X11 paths but fails closed on native Wayland", () => {
   assert.deepEqual(windowCaptureCapability("linux", { DISPLAY: ":1" }), { status: "available", display: "x11" });
-  assert.deepEqual(windowCaptureCapability("linux", { DISPLAY: ":1", WAYLAND_DISPLAY: "wayland-1" }), { status: "available", display: "xwayland" });
+  const xwayland = windowCaptureCapability("linux", { DISPLAY: ":1", WAYLAND_DISPLAY: "wayland-1" });
+  assert.equal(xwayland.status, "unsupported");
+  if (xwayland.status === "unsupported") assert.match(xwayland.message, /capture portal.*cannot identify.*X11\/XWayland/i);
+  const sessionType = windowCaptureCapability("linux", { DISPLAY: ":1", XDG_SESSION_TYPE: "wayland" });
+  assert.equal(sessionType.status, "unsupported", "the session type still fails closed when WAYLAND_DISPLAY was not inherited");
   const wayland = windowCaptureCapability("linux", { WAYLAND_DISPLAY: "wayland-1" });
   assert.equal(wayland.status, "unsupported");
   if (wayland.status === "unsupported") assert.match(wayland.message, /compositor.*safe global active-window capture/i);
@@ -37,11 +41,7 @@ test("manual update recovery keeps the macOS location and names the Linux artifa
   assert.equal(automaticUpdatesAvailable("linux", {}), false);
 });
 
-test("desktop chrome keeps macOS inset controls and enables Wayland's shortcut portal", () => {
+test("desktop chrome keeps macOS inset controls", () => {
   assert.deepEqual(windowFrameOptions("darwin"), { titleBarStyle: "hiddenInset" });
   assert.deepEqual(windowFrameOptions("linux"), {});
-  assert.equal(needsGlobalShortcutsPortal("linux", { DISPLAY: ":0", WAYLAND_DISPLAY: "wayland-1" }), true);
-  assert.equal(needsGlobalShortcutsPortal("linux", { WAYLAND_DISPLAY: "wayland-1" }), false);
-  assert.equal(needsGlobalShortcutsPortal("linux", { DISPLAY: ":0" }), false);
-  assert.equal(needsGlobalShortcutsPortal("darwin", { WAYLAND_DISPLAY: "wayland-1" }), false);
 });

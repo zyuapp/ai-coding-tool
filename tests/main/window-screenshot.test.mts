@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { desktopSourceWindowId, x11ActiveWindowId, x11WindowProperties } from "../../src/main/window-screenshot.ts";
+import { desktopSourceWindowId, x11ActiveWindowId, x11CaptureFailureMessage, x11WindowProperties, x11WindowSize } from "../../src/main/window-screenshot.ts";
 
 test("X11 active-window IDs are read without treating the root window as an app", () => {
   assert.equal(x11ActiveWindowId("_NET_ACTIVE_WINDOW(WINDOW): window id # 0x4a00007\n"), 0x4a00007);
@@ -22,4 +22,14 @@ test("Electron desktop source IDs match both decimal and hexadecimal X11 IDs", (
   assert.equal(desktopSourceWindowId("window:77594631:0"), 77594631);
   assert.equal(desktopSourceWindowId("window:0x4a00007:0"), 0x4a00007);
   assert.equal(desktopSourceWindowId("screen:0:0"), null);
+});
+
+test("X11 capture sizes its thumbnails from the active window's device-pixel geometry", () => {
+  assert.deepEqual(x11WindowSize("  Width: 1437\n  Height: 911\n"), { width: 1437, height: 911 });
+  assert.equal(x11WindowSize("  Width: 0\n  Height: 911\n"), null);
+  assert.equal(x11WindowSize("xwininfo: Window id: 0x1\n"), null);
+});
+
+test("missing X11 utilities produce an actionable capture failure", () => {
+  assert.match(x11CaptureFailureMessage(Object.assign(new Error("spawn xprop ENOENT"), { code: "ENOENT" })), /xprop and xwininfo.*x11-utils.*try again/i);
 });

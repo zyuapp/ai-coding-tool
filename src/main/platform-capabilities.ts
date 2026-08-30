@@ -24,14 +24,6 @@ export function windowFrameOptions(platform: NodeJS.Platform = process.platform)
   return platform === "darwin" ? { titleBarStyle: "hiddenInset" } : {};
 }
 
-/** Electron routes Wayland global shortcuts through the desktop portal only when this feature is on. */
-export function needsGlobalShortcutsPortal(
-  platform: NodeJS.Platform = process.platform,
-  environment: NodeJS.ProcessEnv = process.env,
-) {
-  return platform === "linux" && Boolean(environment.WAYLAND_DISPLAY && environment.DISPLAY);
-}
-
 /**
  * The connection variables are more useful than XDG_SESSION_TYPE here: a process may run in a
  * Wayland login while an XWayland display is also available, or inherit no display connection at
@@ -77,14 +69,22 @@ export function windowCaptureCapability(
   if (platform === "darwin") return { status: "available", display: "macos" };
   if (platform !== "linux") return { status: "unsupported", message: `Window capture is not supported on ${platform}.` };
   const display = linuxDisplayServer(environment);
-  if (display === "x11" || display === "xwayland") return { status: "available", display };
-  if (display === "wayland") {
+  /**
+   * Chromium uses PipeWire's chooser whenever it is in a Wayland session, including when DISPLAY
+   * also exposes XWayland. That chooser cannot safely pair an xprop active-window ID with the
+   * source the user selects, so the global shortcut must never reach desktopCapturer there.
+   */
+  const waylandSession = environment.XDG_SESSION_TYPE?.trim().toLowerCase() === "wayland" || display === "xwayland" || display === "wayland";
+  if (waylandSession && display !== "none") {
     return {
       status: "unsupported",
       display,
-      message: "This Wayland compositor does not expose a safe global active-window capture path. Use an X11 session or XWayland window.",
+      message: display === "wayland"
+        ? "This Wayland compositor does not expose a safe global active-window capture path. Use an X11 session."
+        : "Global active-window capture is unavailable in this Wayland session because its capture portal cannot identify the active X11/XWayland window. Use an X11 session.",
     };
   }
+  if (display === "x11") return { status: "available", display };
   return {
     status: "unsupported",
     display,

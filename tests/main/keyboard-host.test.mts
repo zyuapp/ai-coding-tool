@@ -3,11 +3,13 @@ import { test } from "vitest";
 import type { ShortcutOverrides } from "../../src/domain/shortcuts.ts";
 import { registered, startMainProcess } from "../support/electron-harness.mjs";
 
-test("pure Wayland leaves the global capture key unclaimed and reports why", { skip: process.platform !== "linux" }, async (t) => {
+test("Wayland with XWayland leaves the global capture key unclaimed before a portal can open", { skip: process.platform !== "linux" }, async (t) => {
   const previousDisplay = process.env.DISPLAY;
   const previousWayland = process.env.WAYLAND_DISPLAY;
-  Reflect.deleteProperty(process.env, "DISPLAY");
+  const previousSessionType = process.env.XDG_SESSION_TYPE;
+  process.env.DISPLAY = ":99";
   process.env.WAYLAND_DISPLAY = "wayland-test";
+  process.env.XDG_SESSION_TYPE = "wayland";
   try {
     const main = await startMainProcess(t, "aic-keyboard-wayland-");
     const setShortcuts = registered<(event: unknown, overrides: ShortcutOverrides) => void>(main.listeners, "shortcuts:set");
@@ -17,7 +19,7 @@ test("pure Wayland leaves the global capture key unclaimed and reports why", { s
     assert.deepEqual(main.sentOn("window:shortcut-refused"), [{
       binding: "Alt+Shift+S",
       reason: "unsupported",
-      message: "This Wayland compositor does not expose a safe global active-window capture path. Use an X11 session or XWayland window.",
+      message: "Global active-window capture is unavailable in this Wayland session because its capture portal cannot identify the active X11/XWayland window. Use an X11 session.",
     }]);
     await main.dispose();
   } finally {
@@ -25,5 +27,7 @@ test("pure Wayland leaves the global capture key unclaimed and reports why", { s
     else process.env.DISPLAY = previousDisplay;
     if (previousWayland === undefined) Reflect.deleteProperty(process.env, "WAYLAND_DISPLAY");
     else process.env.WAYLAND_DISPLAY = previousWayland;
+    if (previousSessionType === undefined) Reflect.deleteProperty(process.env, "XDG_SESSION_TYPE");
+    else process.env.XDG_SESSION_TYPE = previousSessionType;
   }
 });

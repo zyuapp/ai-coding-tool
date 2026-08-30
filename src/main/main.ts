@@ -31,18 +31,13 @@ import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { adoptUserDataFolder } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
-import { needsGlobalShortcutsPortal, windowFrameOptions } from "./platform-capabilities.js";
+import { windowFrameOptions } from "./platform-capabilities.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
 import { mobileBridgeHolding, mobileWindowGone, serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
 app.setName("AI Coding Tool");
-if (needsGlobalShortcutsPortal()) {
-  const current = app.commandLine?.getSwitchValue("enable-features") ?? "";
-  const features = current.split(",").map((feature) => feature.trim()).filter(Boolean);
-  if (!features.includes("GlobalShortcutsPortal")) app.commandLine?.appendSwitch("enable-features", [...features, "GlobalShortcutsPortal"].join(","));
-}
 /** Ahead of the lock, which writes its own files into the folder and would leave nothing to move onto. */
 app.setPath("userData", adoptUserDataFolder(app.getPath("appData"), app.getName()));
 
@@ -313,7 +308,7 @@ app.whenReady().then(async () => {
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
   if (process.platform === "linux" && app.isPackaged && process.env.APPIMAGE) {
-    await registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
+    void registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
       .catch((error) => console.error("Could not register the AppImage URL handler:", error));
   }
   grantAppWindowPermissions();

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { desktopCapturer, screen, systemPreferences } from "electron";
+import { desktopCapturer, systemPreferences } from "electron";
 import type { WindowFrame } from "./capture-flash.js";
 import { windowCaptureCapability } from "./platform-capabilities.js";
 
@@ -93,7 +93,7 @@ async function captureFrontmostMacWindow(sound: boolean): Promise<WindowShot> {
   }
 }
 
-type X11Window = { id: number; pid: number | null; app: string; title: string };
+type X11Window = { id: number; pid: number | null; app: string; title: string; width: number; height: number };
 
 export function x11ActiveWindowId(output: string): number | null {
   const value = /(?:^|\s)(0x[\da-f]+)(?:\s|$)/i.exec(output)?.[1];
@@ -108,7 +108,7 @@ function quotedValues(value: string): string[] {
   });
 }
 
-export function x11WindowProperties(id: number, output: string): X11Window {
+export function x11WindowProperties(id: number, output: string): Omit<X11Window, "width" | "height"> {
   const lines = output.split("\n");
   const nameLine = lines.find((line) => line.startsWith("_NET_WM_NAME"))
     ?? lines.find((line) => line.startsWith("WM_NAME"));
@@ -122,6 +122,15 @@ export function x11WindowProperties(id: number, output: string): X11Window {
   return { id, pid: Number.isSafeInteger(pid) && pid! > 0 ? pid : null, app, title };
 }
 
+/** xwininfo reports device pixels, which is exactly the size Electron's X11 thumbnail needs. */
+export function x11WindowSize(output: string): { width: number; height: number } | null {
+  const width = /^\s*Width:\s*(\d+)\s*$/m.exec(output)?.[1];
+  const height = /^\s*Height:\s*(\d+)\s*$/m.exec(output)?.[1];
+  if (!width || !height) return null;
+  const size = { width: Number.parseInt(width, 10), height: Number.parseInt(height, 10) };
+  return Number.isSafeInteger(size.width) && size.width > 0 && Number.isSafeInteger(size.height) && size.height > 0 ? size : null;
+}
+
 export function desktopSourceWindowId(sourceId: string): number | null {
   const value = /^window:(0x[\da-f]+|\d+):/i.exec(sourceId)?.[1];
   if (!value) return null;
@@ -132,16 +141,23 @@ export function desktopSourceWindowId(sourceId: string): number | null {
 async function frontmostX11Window(): Promise<X11Window | null> {
   const id = x11ActiveWindowId(await run("xprop", ["-root", "_NET_ACTIVE_WINDOW"]));
   if (id === null) return null;
-  const properties = await run("xprop", ["-id", `0x${id.toString(16)}`, "_NET_WM_PID", "_NET_WM_NAME", "WM_NAME", "WM_CLASS"]);
-  return x11WindowProperties(id, properties);
+  const target = `0x${id.toString(16)}`;
+  const [properties, geometry] = await Promise.all([
+    run("xprop", ["-id", target, "_NET_WM_PID", "_NET_WM_NAME", "WM_NAME", "WM_CLASS"]),
+    run("xwininfo", ["-id", target]),
+  ]);
+  const size = x11WindowSize(geometry);
+  if (!size) throw new Error("xwininfo did not report a usable active-window size.");
+  return { ...x11WindowProperties(id, properties), ...size };
 }
 
-function captureThumbnailSize() {
-  const displays = screen.getAllDisplays();
-  return {
-    width: Math.max(1, ...displays.map((display) => Math.ceil(display.size.width * display.scaleFactor))),
-    height: Math.max(1, ...displays.map((display) => Math.ceil(display.size.height * display.scaleFactor))),
-  };
+export function x11CaptureFailureMessage(cause: unknown) {
+  const code = typeof cause === "object" && cause !== null && "code" in cause ? cause.code : undefined;
+  if (code === "ENOENT") {
+    return "X11 window capture needs the xprop and xwininfo tools. Install your distribution's x11-utils package (x11-utils on Debian or Ubuntu), then try again.";
+  }
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return `Could not capture the active X11 window: ${message}`;
 }
 
 async function captureFrontmostX11Window(display: "x11" | "xwayland"): Promise<WindowShot> {
@@ -151,7 +167,8 @@ async function captureFrontmostX11Window(display: "x11" | "xwayland"): Promise<W
       ? { status: "unsupported", message: "The active window is not exposed through XWayland. Native Wayland windows require compositor-specific capture support." }
       : { status: "no-window", app: "the desktop" };
     if (window.pid === process.pid) return { status: "no-window", app: "AI Coding Tool" };
-    const sources = await desktopCapturer.getSources({ types: ["window"], thumbnailSize: captureThumbnailSize() });
+    /** Keep every enumerated thumbnail no larger than the one window whose pixels we need. */
+    const sources = await desktopCapturer.getSources({ types: ["window"], thumbnailSize: { width: window.width, height: window.height } });
     const source = sources.find((candidate) => desktopSourceWindowId(candidate.id) === window.id);
     if (!source) {
       return display === "xwayland"
@@ -170,8 +187,7 @@ async function captureFrontmostX11Window(display: "x11" | "xwayland"): Promise<W
       frame: { x: 0, y: 0, width: 0, height: 0 },
     };
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    return { status: "failed", message: `Could not capture the active X11 window: ${message}` };
+    return { status: "failed", message: x11CaptureFailureMessage(cause) };
   }
 }
 
