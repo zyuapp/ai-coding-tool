@@ -107,7 +107,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. This app needs 0.150.1.");
+  assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. Update to 0.150.1.");
   assert.equal(query(codex, ".setting-hint code").textContent, "brew update && brew upgrade --cask codex");
   await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
   assert.deepEqual(chosen, [], "a model an old engine cannot run is not chosen");
@@ -129,7 +129,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const claude = query(modelMenu, "[role=group][aria-label=Claude]");
   assert.deepEqual([...claude.querySelectorAll(".setting-option strong")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
-  assert.equal(query(claude, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some of its models are missing.");
+  assert.equal(query(claude, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some models are hidden.");
   assert.equal(query(claude, ".setting-hint code").textContent, "claude update");
   await view.unmount();
 });

@@ -432,7 +432,7 @@ test("the engines page says what is wrong with each engine, and checks again on 
 
   const rows = view.container.querySelectorAll<HTMLElement>(".engine-setting-row");
   assert.equal(rows.length, 2);
-  assert.match(item(rows[0]).textContent, /Claude 2.1.100 is behind 2.1.250, so some of its models are missing./);
+  assert.match(item(rows[0]).textContent, /Claude 2.1.100 is behind 2.1.250, so some models are hidden./);
   assert.match(item(rows[0]).textContent, /claude update/);
   assert.match(item(rows[0]).textContent, /Behind/);
   assert.match(item(rows[1]).textContent, /Codex is not installed./);

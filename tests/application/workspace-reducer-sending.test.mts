@@ -253,7 +253,7 @@ test("a send is refused with the command that fixes it when the engine is missin
   });
   assert.equal(
     required(reduce(old, { type: "task.send", attachments: [] }).state.actionError),
-    "Codex 0.147.0 is too old. This app needs 0.150.1. Run `brew update && brew upgrade --cask codex` to fix it.",
+    "Codex 0.147.0 is too old. Update to 0.150.1. Run `brew update && brew upgrade --cask codex` to fix it.",
   );
 });
 
