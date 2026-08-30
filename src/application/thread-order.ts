@@ -103,7 +103,7 @@ export function moveThread(threads: Thread[], threadId: string, target: ThreadDr
   });
 }
 
-/** The sidebar as the numbering reads it: the lists it draws, and which of them are folded open. */
+/** The sidebar as the number shortcuts read it: the lists it draws and which are folded open. */
 export type SidebarShape = {
   mode: SidebarMode;
   sections: SidebarSections;
@@ -117,7 +117,7 @@ const ACTIVITY_ORDER = ["priority", "running", "threads"] as const;
 
 /**
  * The threads a digit reaches: the first nine rows the sidebar draws, top to bottom. A folded
- * section or folder draws no rows, so the threads under it are not numbered.
+ * section or folder draws no rows, so the threads under it have no shortcut slot.
  */
 export function slotThreadIds(shape: SidebarShape, limit: number): string[] {
   const ids: string[] = [];

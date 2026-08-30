@@ -248,7 +248,7 @@ export function slotShortcutIndex(actionId: string): number | null {
   return match ? Number(match[1]) - 1 : null;
 }
 
-/** How many threads the sidebar numbers, which is how many digits there are to press. */
+/** How many sidebar thread positions the number shortcuts can reach. */
 export const SLOT_COUNT = 9;
 
 /** What each action is bound to now, for the settings list. */

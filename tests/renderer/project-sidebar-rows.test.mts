@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import React, { act } from "react";
 import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
@@ -10,7 +10,6 @@ import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectS
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
-import { MAC } from "../../src/renderer/platform.ts";
 import { settleFrame } from "../support/settle.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
@@ -53,7 +52,6 @@ function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
     worktreeGroups: [],
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [] },
-    threadSlots: [],
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -525,7 +523,6 @@ test("the sidebar lists a project's threads as one list, and its menu starts ano
     worktreeGroups: [{ worktree, threads: [thread("in-checkout", { worktreeId: "wt1" })] }],
     worktreeThreadIds: new Set(["in-checkout"]),
     activityThreads: { priority: [], running: [], threads: [] },
-    threadSlots: [],
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: "project:project-1",
@@ -570,7 +567,6 @@ test("the sidebar marks each thread's engine, schedule, and checkout", async () 
     worktreeGroups: [],
     worktreeThreadIds: new Set(["plain-task"]),
     activityThreads: { priority: [], running: [], threads: [] },
-    threadSlots: [],
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -588,64 +584,6 @@ test("the sidebar marks each thread's engine, schedule, and checkout", async () 
   assert.deepEqual(marks("Works in a worktree"), ["plain-task"], "a thread with its own checkout is marked wherever it is listed");
   assert.deepEqual(marks("Claude thread"), ["scheduled-chat", "scheduled-task"]);
   assert.deepEqual(marks("Codex thread"), ["plain-chat", "plain-task"]);
-  await view.unmount();
-});
-
-test("holding the command key numbers the threads a digit reaches", async () => {
-  const task = (id: string, projectId?: string): Thread => ({
-    id, title: id, ...(projectId ? { projectId } : {}), engine: "claude", executionPolicy: "confirm", messages: [],
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, sortIndex: 0, updatedAt: 1,
-  });
-  const command = MAC ? "Meta" : "Control";
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  const view = await mount(renderProjectSidebar({
-    projects: [{ id: "project-1", root: "/project" }],
-    orderedThreads: [task("first", "project-1"), task("second", "project-1")],
-    recentThreads: [task("third")],
-    expandedProjects: new Set(["project-1"]),
-    threadSlots: ["first", "second", "third"],
-  }));
-  const numbers = () => [...view.container.querySelectorAll(".row-number")].map((badge) => badge.textContent);
-
-  assert.deepEqual(numbers(), [], "nothing is numbered until the key is held");
-
-  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: command })); });
-  assert.deepEqual(numbers(), [], "and not on the way to a chord either");
-
-  await act(async () => { vi.advanceTimersByTime(400); });
-  const held = numbers();
-  const marked = query(view.container, ".sidebar").classList.contains("numbered");
-
-  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent("keyup", { key: command })); });
-  const released = numbers();
-  vi.useRealTimers();
-
-  assert.deepEqual(held, ["1", "2", "3"], "a held key numbers the rows in the order they are drawn");
-  assert.ok(marked, "and the lists open room for them");
-  assert.deepEqual(released, [], "letting go takes them away");
-  await view.unmount();
-});
-
-test("a number shortcut clears the thread numbers when main swallowed its keydown", async () => {
-  seedProjectTasks([
-    { id: "first", title: "First", sortIndex: 0, updatedAt: 2 },
-    { id: "second", title: "Second", sortIndex: 1, updatedAt: 1 },
-  ]);
-  const desktop = fakeDesktop();
-  window.desktop = desktop;
-  const view = await mount(React.createElement(App));
-  const command = MAC ? "Meta" : "Control";
-  const numbers = () => [...view.container.querySelectorAll(".row-number")].map((badge) => badge.textContent);
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-
-  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: command })); });
-  await act(async () => { vi.advanceTimersByTime(400); });
-  assert.deepEqual(numbers(), ["1", "2"], "the held modifier first reveals the reachable rows");
-
-  await act(async () => { desktop.pressShortcut("slot-2"); });
-  assert.deepEqual(numbers(), [], "the IPC shortcut clears them without waiting for a DOM keyup");
-
-  vi.useRealTimers();
   await view.unmount();
 });
 
@@ -672,7 +610,6 @@ test("the sidebar follows the thread the keyboard steps to", async () => {
     worktreeGroups: [],
     worktreeThreadIds: new Set(),
     activityThreads: { priority: [], running: [], threads: [] },
-    threadSlots: [],
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -712,7 +649,6 @@ test("the sidebar steps through visited threads", async () => {
     worktreeGroups: [],
     worktreeThreadIds: new Set(),
     activityThreads: { priority: [], running: [], threads: [] },
-    threadSlots: [],
     mode: "projects",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,

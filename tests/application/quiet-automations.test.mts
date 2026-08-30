@@ -707,7 +707,6 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     worktreeGroups: [],
     worktreeThreadIds: new Set<string>(),
     activityThreads: { priority: [], running: [], threads: [] },
-    threadSlots: [],
     mode: "activity",
     sections: { projects: true, recents: true, priority: true, running: true, threads: true },
     openMenu: null,
@@ -762,7 +761,6 @@ test("the schedule mark and the dismiss button both say what state the schedule 
   const scheduled = task("task-a", { outcome: "finished", outcomeUnread: true });
   const marks = (schedule: Partial<AutomationView>) => sidebar({
     activityThreads: { priority: [scheduled], running: [], threads: [] },
-    threadSlots: [],
     schedules: new Map([["task-a", automationView({ nextRunAt: 2, ...schedule })]]),
   });
   const view = await mount(marks({}));

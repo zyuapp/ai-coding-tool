@@ -212,7 +212,7 @@ test("the shell that has the keyboard is put away when it is asked for again", (
   assert.equal(back.state.dockFocus?.tab, shell.id, "with the keyboard in it again");
 });
 
-test("a numbered keystroke shows the tab in that position while a panel view has the keyboard", () => {
+test("a number shortcut shows the tab in that position while a panel view has the keyboard", () => {
   const opened = run(workspace({ threads: [thread("a")], currentId: "a" }), [
     { type: "view.open-dock-panel", panel: "agents" },
     { type: "view.open-dock-panel", panel: "automation" },
@@ -224,7 +224,7 @@ test("a numbered keystroke shows the tab in that position while a panel view has
   assert.equal(dockFor(reduce(state, { type: "view.shortcut", action: "slot-8", surface: "any" }).state, "a").tab, "automation", "a position with no tab in it does nothing");
 });
 
-test("a numbered keystroke opens the thread in that position when the panel has no keyboard", () => {
+test("a number shortcut opens the thread in that position when the panel has no keyboard", () => {
   const state = workspace({
     threads: [thread("a", { projectId: "p1" }), thread("b", { projectId: "p1" }), thread("c")],
     projects: [{ id: "p1", root: "/repo" }],
@@ -237,7 +237,7 @@ test("a numbered keystroke opens the thread in that position when the panel has 
   assert.deepEqual(shortcutCommands(state, "slot-4", "any"), [], "a position with no thread in it does nothing");
 
   const folded = { ...state, expandedProjects: new Set<string>() };
-  assert.deepEqual(deriveView(folded).threadSlots, ["c"], "a folded folder draws no rows, so its threads are not numbered");
+  assert.deepEqual(deriveView(folded).threadSlots, ["c"], "a folded folder draws no rows, so its threads have no shortcut slot");
   assert.deepEqual(shortcutCommands(folded, "slot-1", "any"), [{ type: "task.select", taskId: "c" }]);
 
   const ranked = { ...state, sidebarMode: "activity" as const };

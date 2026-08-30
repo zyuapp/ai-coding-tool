@@ -3,7 +3,6 @@ import type { WorkspaceState } from "../../application/workspace-state";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { AgentEvent } from "../../contracts/ipc";
 import { displayShortcut } from "../../domain/shortcuts";
-import { releaseCommandHold } from "../command-held";
 import { MAC } from "../platform";
 import { subscribeToDesktop } from "./desktop-subscriptions";
 import { errorMessage } from "./errors";
@@ -177,10 +176,7 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
     /** Preferences are read before the first render, so the bindings they hold reach main from here. */
     window.desktop.setShortcuts(host.state().shortcuts);
     window.desktop.setCaptureOptions({ sound: host.state().captureSound, focus: host.state().captureFocus });
-    const stopListening = window.desktop.onShortcut(({ action, surface }) => {
-      releaseCommandHold();
-      void host.dispatch({ type: "view.shortcut", action, surface });
-    });
+    const stopListening = window.desktop.onShortcut(({ action, surface }) => void host.dispatch({ type: "view.shortcut", action, surface }));
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void host.dispatch({ type: "shortcut.captured", binding }));
     const stopRefusals = window.desktop.onDesktopShortcutRefused((binding) => void host.dispatch({
       type: "action.failed",

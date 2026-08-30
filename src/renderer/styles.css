@@ -592,32 +592,6 @@ button, select { color: inherit; }
 .show-more:hover { color: var(--muted-strong); }
 .empty-tasks { margin: 0; line-height: 24px; cursor: default; }
 .task-entry { position: relative; min-width: 0; }
-/**
- * The digit that reaches a thread, drawn in the indent a project's threads already carry. The
- * project-less lists have no indent of their own, so they open one while the numbers are up.
- */
-.row-number {
-  position: absolute;
-  left: 11px;
-  top: 50%;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--chip);
-  color: var(--ink-dim);
-  font-size: var(--text-meta);
-  font-weight: 620;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  transform: translateY(-50%) scale(0.86);
-  opacity: 0;
-  transition: opacity 90ms ease, transform 90ms ease;
-}
-.sidebar.numbered .row-number { opacity: 1; transform: translateY(-50%) scale(1); }
-.sidebar.numbered .task-row { padding-left: 36px; }
-.task-row { transition: padding-left 90ms ease; }
 .context-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 .anchored-menu-popover { position: fixed; z-index: 1000; right: auto; bottom: auto; }
 /**

@@ -713,8 +713,8 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
 export type WorkspaceView = ReturnType<typeof deriveView>;
 
 /**
- * The threads ⌘1 through ⌘9 reach, read straight from state so a keystroke and the numbers on screen
- * always name the same rows.
+ * The threads ⌘1 through ⌘9 reach, read straight from state so each keystroke follows the current
+ * visible order.
  */
 export function threadSlots(state: WorkspaceState): string[] {
   const forked = sideChatIds(state);
