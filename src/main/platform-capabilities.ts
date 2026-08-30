@@ -29,8 +29,8 @@ export function windowFrameOptions(platform: NodeJS.Platform = process.platform)
  * short-lived probe a session of its own so a terminal-launched app cannot receive SIGTTIN with it.
  * Other platforms keep the exact child-process options they already used.
  */
-export function loginShellSessionOptions(platform: NodeJS.Platform = process.platform): { detached?: true; killSignal?: "SIGKILL" } {
-  return platform === "linux" ? { detached: true, killSignal: "SIGKILL" } : {};
+export function loginShellSessionOptions(platform: NodeJS.Platform = process.platform): { detached?: true } {
+  return platform === "linux" ? { detached: true } : {};
 }
 
 /**

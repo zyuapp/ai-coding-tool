@@ -47,6 +47,6 @@ test("desktop chrome keeps macOS inset controls", () => {
 });
 
 test("Linux login-shell probes leave the terminal's job-control session", () => {
-  assert.deepEqual(loginShellSessionOptions("linux"), { detached: true, killSignal: "SIGKILL" }, "a hung interactive shell cannot ignore its timeout");
+  assert.deepEqual(loginShellSessionOptions("linux"), { detached: true });
   assert.deepEqual(loginShellSessionOptions("darwin"), {}, "macOS keeps its existing spawn behavior");
 });
