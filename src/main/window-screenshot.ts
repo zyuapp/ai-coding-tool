@@ -154,27 +154,21 @@ async function frontmostX11Window(): Promise<X11Window | null> {
 export function x11CaptureFailureMessage(cause: unknown) {
   const code = typeof cause === "object" && cause !== null && "code" in cause ? cause.code : undefined;
   if (code === "ENOENT") {
-    return "X11 window capture needs the xprop and xwininfo tools. Install your distribution's x11-utils package (x11-utils on Debian or Ubuntu), then try again.";
+    return "X11 window capture needs xprop and xwininfo. Install those tools (the x11-utils package on Debian or Ubuntu), then try again.";
   }
   const message = cause instanceof Error ? cause.message : String(cause);
   return `Could not capture the active X11 window: ${message}`;
 }
 
-async function captureFrontmostX11Window(display: "x11" | "xwayland"): Promise<WindowShot> {
+async function captureFrontmostX11Window(): Promise<WindowShot> {
   try {
     const window = await frontmostX11Window();
-    if (!window) return display === "xwayland"
-      ? { status: "unsupported", message: "The active window is not exposed through XWayland. Native Wayland windows require compositor-specific capture support." }
-      : { status: "no-window", app: "the desktop" };
+    if (!window) return { status: "no-window", app: "the desktop" };
     if (window.pid === process.pid) return { status: "no-window", app: "AI Coding Tool" };
     /** Keep every enumerated thumbnail no larger than the one window whose pixels we need. */
     const sources = await desktopCapturer.getSources({ types: ["window"], thumbnailSize: { width: window.width, height: window.height } });
     const source = sources.find((candidate) => desktopSourceWindowId(candidate.id) === window.id);
-    if (!source) {
-      return display === "xwayland"
-        ? { status: "unsupported", message: "The active window is not available through XWayland. Native Wayland windows require compositor-specific capture support." }
-        : { status: "failed", message: "The active X11 window is not available to Electron's desktop capture service." };
-    }
+    if (!source) return { status: "failed", message: "The active X11 window is not available to Electron's desktop capture service." };
     if (source.thumbnail.isEmpty()) return { status: "failed", message: "The desktop capture service returned an empty image for the active window." };
     const png = source.thumbnail.toPNG();
     if (png.byteLength === 0) return { status: "failed", message: "The desktop capture service returned an empty image for the active window." };
@@ -196,8 +190,8 @@ export async function captureFrontmostWindow(sound: boolean): Promise<WindowShot
   const capability = windowCaptureCapability();
   if (capability.status === "unsupported") return capability;
   if (process.platform === "darwin") return captureFrontmostMacWindow(sound);
-  if (capability.display !== "x11" && capability.display !== "xwayland") {
+  if (capability.display !== "x11") {
     return { status: "unsupported", message: "The active Linux display does not expose a safe global window-capture path." };
   }
-  return captureFrontmostX11Window(capability.display);
+  return captureFrontmostX11Window();
 }

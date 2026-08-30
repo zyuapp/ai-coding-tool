@@ -140,8 +140,8 @@ test("AppImage registration refuses to overwrite unrelated regular files", async
   assert.equal(await readFile(iconPath, "utf8"), "somebody else's icon");
 });
 
-test("AppImage registration leaves an unrelated icon alone when no owned entry exists", async (t) => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "aic-linux-protocol-unrelated-icon-"));
+test("AppImage registration repairs an orphaned icon at its reverse-DNS path", async (t) => {
+  const home = await mkdtemp(path.join(os.tmpdir(), "aic-linux-protocol-orphaned-icon-"));
   t.onTestFinished(() => rm(home, { recursive: true, force: true }));
   const dataHome = path.join(home, ".local", "share");
   const desktopPath = path.join(dataHome, "applications", LINUX_DESKTOP_FILE);
@@ -150,15 +150,18 @@ test("AppImage registration leaves an unrelated icon alone when no owned entry e
   await mkdir(path.dirname(iconPath), { recursive: true });
   await Promise.all([
     writeFile(sourceIcon, "new icon", "utf8"),
-    writeFile(iconPath, "somebody else's icon", "utf8"),
+    writeFile(iconPath, "old app icon", "utf8"),
   ]);
 
-  await assert.rejects(registerAppImageProtocol({
+  const associations: string[] = [];
+  const result = await registerAppImageProtocol({
     appImage: "/opt/AI Coding Tool.AppImage",
     home,
     iconSource: sourceIcon,
-    associate: async () => assert.fail("unsafe files must fail before association"),
-  }), /unrelated application icon/);
-  await assert.rejects(lstat(desktopPath), { code: "ENOENT" });
-  assert.equal(await readFile(iconPath, "utf8"), "somebody else's icon");
+    associate: async (desktopFile) => { associations.push(desktopFile); },
+  });
+  assert.equal(result.desktopPath, desktopPath);
+  assert.match(await readFile(desktopPath, "utf8"), /Exec="\/opt\/AI Coding Tool\.AppImage" %U/);
+  assert.equal(await readFile(iconPath, "utf8"), "new icon");
+  assert.deepEqual(associations, [LINUX_DESKTOP_FILE]);
 });

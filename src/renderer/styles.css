@@ -1713,7 +1713,7 @@ pre {
   padding: 0 12px 18px;
   background: var(--sidebar);
 }
-.settings-traffic-space { height: var(--settings-titlebar-inset); flex: 0 0 auto; -webkit-app-region: drag; }
+.settings-traffic-space { height: max(12px, var(--settings-titlebar-inset)); flex: 0 0 auto; -webkit-app-region: drag; }
 .settings-back {
   flex: 0 0 auto;
   display: flex;

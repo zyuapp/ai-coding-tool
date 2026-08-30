@@ -141,11 +141,9 @@ export async function registerAppImageProtocol(options: AppImageProtocolRegistra
   }
   const iconIsCurrent = currentIcon.kind === "file" && currentIcon.contents.equals(iconContents);
   const writeIcon = !iconIsCurrent;
+  /** The reverse-DNS icon path is ours even when a user deleted the companion desktop entry. */
   if (writeIcon && currentIcon.kind === "other") {
     throw new Error(`Refusing to replace a non-file Linux integration path: ${iconPath}`);
-  }
-  if (writeIcon && !desktopIsOwned && !desktopIsCurrent && !mayReplace(currentIcon.kind, iconPath)) {
-    throw new Error(`Refusing to overwrite an unrelated application icon: ${iconPath}`);
   }
 
   if (writeDesktop || writeIcon) {

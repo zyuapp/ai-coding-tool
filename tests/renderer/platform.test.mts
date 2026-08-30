@@ -17,10 +17,10 @@ test("only macOS uses inset renderer window chrome", () => {
   assert.equal(root.dataset.windowChrome, "inset");
 });
 
-test("traffic-light spacing is supplied only by inset window chrome", () => {
+test("native chrome stays compact while inset chrome supplies macOS spacing", () => {
   assert.match(styles, /--window-controls-inset:\s*0px;/);
   assert.match(styles, /--settings-titlebar-inset:\s*0px;/);
   assert.match(styles, /:root\[data-window-chrome="inset"\]\s*\{[^}]*--window-controls-inset:\s*84px;[^}]*--settings-titlebar-inset:\s*48px;/s);
-  assert.match(styles, /\.settings-traffic-space\s*\{\s*height:\s*var\(--settings-titlebar-inset\);/);
+  assert.match(styles, /\.settings-traffic-space\s*\{\s*height:\s*max\(12px,\s*var\(--settings-titlebar-inset\)\);/);
   assert.doesNotMatch(styles, /(?:topbar|right-dock-tabs)[^\n{]*\{[^}\n]*(?:padding-left|padding-inline):\s*84px/);
 });
