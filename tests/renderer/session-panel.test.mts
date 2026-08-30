@@ -592,7 +592,7 @@ test("the open-in button waits for a folder to hand over", async () => {
   await view.unmount();
 });
 
-test("the session panel's thread menu starts another thread here and offers the hand-off its location allows", async () => {
+test("the session panel's thread menu starts another worktree thread and offers the hand-off its location allows", async () => {
   const calls: { threads: number; worktree: boolean[]; menu: Array<string | null> } = { threads: 0, worktree: [], menu: [] };
   const panel = (location: ThreadLocation, openMenu: string | null, runActive = false) => renderSessionPanel({
     environment: { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 },
@@ -617,13 +617,9 @@ test("the session panel's thread menu starts another thread here and offers the 
   assert.deepEqual(calls.menu, ["session:location"]);
 
   await view.render(panel({ kind: "local" }, "session:location"));
-  assert.deepEqual(items(), ["New thread here", "Hand off to worktree"]);
+  assert.deepEqual(items(), ["Hand off to worktree"]);
   assert.ok(!view.container.contains(query(document, ".session-menu-popover")), "the list hangs outside the scrolling panel, which would crop it");
   await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
-  assert.equal(calls.threads, 1);
-
-  await view.render(panel({ kind: "local" }, "session:location"));
-  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[1]).click(); });
   assert.deepEqual(calls.worktree, [true]);
 
   const checkout = { id: "wt1", root: "/worktrees/repo-wt1", projectId: "p", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 };
@@ -632,7 +628,7 @@ test("the session panel's thread menu starts another thread here and offers the 
   assert.deepEqual(items(), ["New thread here", "Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
   assert.match(query(view.container, ".session-location-name").textContent, /Worktree/);
   await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
-  assert.equal(calls.threads, 2, "the same action is available in a shared checkout");
+  assert.equal(calls.threads, 1, "the action is available in a shared checkout");
 
   await view.render(panel(worktree, "session:location"));
   await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[1]).click(); });

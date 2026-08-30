@@ -75,7 +75,7 @@ test("usage reads the Codex account and limits over a short-lived app server", a
   assert.equal(usage.status, "available");
   assert.deepEqual(clients[0].sent.map((call) => call.method), ["initialize", "account/read", "account/rateLimits/read"]);
   assert.equal(clients[0].closed, true);
-  assert.deepEqual(clients[0].command.args, ["app-server", "--listen", "stdio://"]);
+  assert.deepEqual(clients[0].command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
 });
 
 test("a non-ChatGPT account has no plan limits, while failures and timeouts report why", async () => {

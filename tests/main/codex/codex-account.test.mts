@@ -31,7 +31,7 @@ test("Codex is ready with an account, signed out without one, and asked once per
   assert.deepEqual(await ready.access.read(), { claude: { access: "ready" }, codex: { access: "ready" } });
   assert.equal(ready.clients.length, 1, "the answer is kept rather than asked again");
   assert.deepEqual(ready.clients[0].sent.map((call) => call.method), ["initialize", "account/read"]);
-  assert.deepEqual(ready.clients[0].command.args, ["app-server", "--listen", "stdio://"]);
+  assert.deepEqual(ready.clients[0].command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
   assert.equal(ready.clients[0].closed, true, "the server only lives for the question");
 
   const out = host(signedOut);

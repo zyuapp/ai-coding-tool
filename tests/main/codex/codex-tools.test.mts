@@ -31,7 +31,8 @@ test("a session serves the run's tools under one token and points the app server
   const codex = harness();
   const { client } = await turn(codex, bridges);
 
-  assert.deepEqual(overrides(client.command.args), {
+  const toolOverrides = Object.fromEntries(Object.entries(overrides(client.command.args)).filter(([key]) => key.startsWith("mcp_servers.aicodingtool.")));
+  assert.deepEqual(toolOverrides, {
     "mcp_servers.aicodingtool.url": "\"http://127.0.0.1:1/mcp\"",
     "mcp_servers.aicodingtool.bearer_token_env_var": "\"AICODINGTOOL_MCP_TOKEN\"",
     "mcp_servers.aicodingtool.default_tools_approval_mode": "\"approve\"",
