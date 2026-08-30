@@ -25,6 +25,15 @@ export function windowFrameOptions(platform: NodeJS.Platform = process.platform)
 }
 
 /**
+ * An interactive Linux shell may open /dev/tty while discovering its job-control state. Give that
+ * short-lived probe a session of its own so a terminal-launched app cannot receive SIGTTIN with it.
+ * Other platforms keep the exact child-process options they already used.
+ */
+export function loginShellSessionOptions(platform: NodeJS.Platform = process.platform): { detached?: true } {
+  return platform === "linux" ? { detached: true } : {};
+}
+
+/**
  * Classifies the display connections inherited by this process. Capability checks may additionally
  * consult XDG_SESSION_TYPE when the desktop session itself changes whether an operation is safe.
  */

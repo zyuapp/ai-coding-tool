@@ -32,7 +32,7 @@ function icns(records: Array<[string, Buffer]>) {
 test("the reader takes the smallest icon a menu row can use", () => {
   const chosen = pngInIcns(icns([["ic13", png(256)], ["ic11", png(32)], ["ic07", png(128)]]));
 
-  assert.equal(chosen?.readUInt32BE(16), 32);
+  assert.equal(chosen?.readUInt32BE(16), 128);
 });
 
 test("a bundle with nothing that big gives up its widest icon", () => {

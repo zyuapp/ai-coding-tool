@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { automaticUpdatesAvailable, computerUseCapability, linuxDisplayServer, manualUpdateRecovery, windowCaptureCapability, windowFrameOptions } from "../../src/main/platform-capabilities.ts";
+import { automaticUpdatesAvailable, computerUseCapability, linuxDisplayServer, loginShellSessionOptions, manualUpdateRecovery, windowCaptureCapability, windowFrameOptions } from "../../src/main/platform-capabilities.ts";
 
 test("Linux display capability distinguishes X11, XWayland, native Wayland, and headless sessions", () => {
   assert.equal(linuxDisplayServer({ DISPLAY: ":0" }), "x11");
@@ -44,4 +44,9 @@ test("manual update recovery keeps the macOS location and names the Linux artifa
 test("desktop chrome keeps macOS inset controls", () => {
   assert.deepEqual(windowFrameOptions("darwin"), { titleBarStyle: "hiddenInset" });
   assert.deepEqual(windowFrameOptions("linux"), {});
+});
+
+test("Linux login-shell probes leave the terminal's job-control session", () => {
+  assert.deepEqual(loginShellSessionOptions("linux"), { detached: true });
+  assert.deepEqual(loginShellSessionOptions("darwin"), {}, "macOS keeps its existing spawn behavior");
 });

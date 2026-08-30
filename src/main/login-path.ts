@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { loginShellSessionOptions } from "./platform-capabilities.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,6 +50,7 @@ async function loginShellEnvironment(shell: string) {
     const { stdout } = await execFileAsync(shell, ["-ilc", `printf '${MARK}'; /usr/bin/env; printf '${MARK}'`], {
       timeout: TIMEOUT_MS,
       encoding: "utf8",
+      ...loginShellSessionOptions(),
     });
     return stdout;
   } catch (error) {
