@@ -116,10 +116,10 @@ test("child messages, tools, cumulative usage, resume, and terminal errors becom
   tracker.threadStatusChanged({ threadId: "child-a", status: { type: "idle" } });
   tracker.turnStarted(turn("child-a", "child-turn-2"));
   tracker.tokenUsageUpdated(usage("child-a", "child-turn-2", 120, 0));
-  tracker.error({ threadId: "child-a", turnId: "child-turn", willRetry: false, error: { message: "stale failure", codexErrorInfo: null, additionalDetails: null } });
+  tracker.error({ threadId: "child-a", turnId: "child-turn", willRetry: false, error: { message: "stale failure", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
   assert.deepEqual(tracker.liveTurns, [{ threadId: "child-a", turnId: "child-turn-2" }]);
-  tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: true, error: { message: "retry", codexErrorInfo: null, additionalDetails: null } });
-  tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: false, error: { message: "failed", codexErrorInfo: null, additionalDetails: null } });
+  tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: true, error: { message: "retry", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
+  tracker.error({ threadId: "child-a", turnId: "child-turn-2", willRetry: false, error: { message: "failed", codexErrorInfo: null, additionalDetails: null, misalignment: null } });
 
   assert.deepEqual(reports.filter((report) => report.type === "subagent.activity").map((report) => [report.kind, report.title, report.text]), [
     ["tool", "command_execution", JSON.stringify({ command: "rg TODO src", cwd: "/tmp/project" }, null, 2)],

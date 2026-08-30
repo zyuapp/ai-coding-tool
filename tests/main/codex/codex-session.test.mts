@@ -589,7 +589,7 @@ test("a turn the server fails ends the run with its reason, and the session stay
   const running = codex.provider.execute(input());
   const client = await opened(codex);
   await sentBy(client, "turn/start");
-  client.notify("error", { ...at, error: { message: "usage limit reached", codexErrorInfo: "usageLimitExceeded", additionalDetails: null }, willRetry: false });
+  client.notify("error", { ...at, error: { message: "usage limit reached", codexErrorInfo: "usageLimitExceeded", additionalDetails: null, misalignment: null }, willRetry: false });
   completeTurn(client, "failed");
   assert.deepEqual(await running, { status: "failed", message: "usage limit reached" });
 

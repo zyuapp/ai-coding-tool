@@ -9,7 +9,7 @@ disable-model-invocation: true
 Three dependencies touch several versioned files in this repo:
 
 - `@anthropic-ai/claude-agent-sdk` is an npm dependency. Its call sites are `src/main/agent/claude-session.mts` and `src/main/agent/claude-agent-provider.mts`. Its resolved version and license are recorded in the generated legal notices.
-- `@openai/codex` is the exact npm pin that provides the Codex CLI and app server. Its generated protocol is committed in `src/main/codex/protocol`; call sites are in `src/main/codex`.
+- `@openai/codex` is the exact development pin used to generate the app-server protocol committed in `src/main/codex/protocol`; call sites are in `src/main/codex`. The shipped app runs the Codex executable installed by the user, not this npm package.
 - `@trycua/cua-driver` is the exact npm pin that provides the embedded host. Its call site is `src/main/computer-use-host.ts`.
 - The vendored Cua Driver binary, its archive checksum, source commits, transitive native versions, and corresponding-source pointers are pinned in `scripts/cua-driver-version.mjs`. `npm run prepare:cua` downloads the binary whenever `vendor/cua-driver/version` no longer matches the pin.
 - `assets/legal/CUA-RUST-DEPENDENCIES.html` and `assets/legal/UBJS-NATIVE-DEPENDENCIES.html` record the native dependencies shipped with CUA for the `aarch64-apple-darwin` target.
@@ -53,7 +53,7 @@ All three packages are pre-1.0, so a patch bump can still break. Never judge fro
    - Codex: pack the matching `@openai/codex@<version>-darwin-arm64` package into a temp dir, unpack it, run its `vendor/aarch64-apple-darwin/bin/codex app-server generate-ts --out <temp-output>`, and diff that output against `src/main/codex/protocol`. Ignore `version.ts`, which this repo adds after generation.
 3. Read every hit against the repo's own call sites listed above.
 
-Breaking means an export the repo uses was removed, renamed, or retyped; a default changed in a way that changes behaviour; or a new required config or permission step.
+Breaking means an export a production call site uses was removed, renamed, or changed incompatibly; a default changed in a way that changes behaviour; or a new required config or permission step. A generated response gaining a required nullable field is not breaking when production code only receives or ignores that field. Update typed test fixtures mechanically and continue. Do not change runtime behaviour solely to satisfy a fixture.
 
 **If it breaks, stop.** Change nothing. Report the dependency, version, breakage, affected call sites, and required migration. The user decides whether to take it on.
 
@@ -120,7 +120,7 @@ Before committing, run `git diff --check` and inspect `git diff --name-only`. A 
 Make one commit per dependency. Stage only that dependency's files:
 
 - Agent SDK: `package.json`, `package-lock.json`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Commit as `Move the agent SDK to <version>`.
-- Codex: `package.json`, `package-lock.json`, and `src/main/codex/protocol`. Include either generated legal notice if it changed. Commit as `Move Codex to <version>`.
+- Codex: `package.json`, `package-lock.json`, and `src/main/codex/protocol`. Include `scripts/generate-codex-protocol.mts` if generation needed a fix, any behaviour-preserving typed fixture updates required by the generated responses, and either generated legal notice if it changed. Commit as `Move Codex to <version>`.
 - Cua Driver: `package.json`, `package-lock.json`, `scripts/cua-driver-version.mjs`, `assets/legal/CUA-RUST-DEPENDENCIES.html`, `assets/legal/UBJS-NATIVE-DEPENDENCIES.html`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Commit as `Move the Cua Driver to <version>`.
 
 When updating more than one, finish and commit each dependency before touching the next because they share `package.json`.

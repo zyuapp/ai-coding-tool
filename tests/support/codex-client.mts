@@ -230,6 +230,6 @@ export function completeTurn(client: FakeCodexClient, status: "completed" | "int
   const started = client.calls("turn/start").at(-1) as { threadId?: string } | undefined;
   client.notify("turn/completed", {
     threadId: started?.threadId ?? "thread-1",
-    turn: { id: "turn-1", items: [], itemsView: "summary", status, error: error ? { message: error.message, codexErrorInfo: null, additionalDetails: null } : null, startedAt: 1, completedAt: 2, durationMs: 1000 },
+    turn: { id: "turn-1", items: [], itemsView: "summary", status, error: error ? { message: error.message, codexErrorInfo: null, additionalDetails: null, misalignment: null } : null, startedAt: 1, completedAt: 2, durationMs: 1000 },
   });
 }
