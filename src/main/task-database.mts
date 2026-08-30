@@ -163,36 +163,6 @@ export class TaskDatabase {
     this.database.prepare("DELETE FROM automations WHERE id = ?").run(id);
   }
 
-  /**
-   * Existing Codex task ids point into the shared default Codex home. Remove those app records once
-   * when moving to private state; the original Codex sessions themselves are left untouched.
-   */
-  cutOverCodexThreads(): number {
-    const marker = this.database.prepare("SELECT value FROM settings WHERE key = 'privateCodexHome'").get();
-    if (marker) return 0;
-    const ids = Array.from(
-      this.database.prepare("SELECT id, data FROM tasks").iterate() as Iterable<{ id: string; data: string }>,
-      ({ id, data }) => ({ id, task: JSON.parse(data) as { engine?: string } }),
-    ).filter(({ task }) => task.engine === "codex").map(({ id }) => id);
-    this.database.exec("BEGIN IMMEDIATE");
-    try {
-      const dropAutomation = this.database.prepare("DELETE FROM automations WHERE task_id = ?");
-      const dropActivity = this.database.prepare("DELETE FROM subagent_activity WHERE task_id = ?");
-      const dropTask = this.database.prepare("DELETE FROM tasks WHERE id = ?");
-      for (const id of ids) {
-        dropAutomation.run(id);
-        dropActivity.run(id);
-        dropTask.run(id);
-      }
-      this.database.prepare("INSERT INTO settings (key, value) VALUES ('privateCodexHome', '1')").run();
-      this.database.exec("COMMIT");
-      return ids.length;
-    } catch (error) {
-      this.database.exec("ROLLBACK");
-      throw error;
-    }
-  }
-
   close() {
     if (this.closed) return;
     this.database.close();

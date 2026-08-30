@@ -1,7 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { codexExecutable } from "./codex-executable.mjs";
-import { toml } from "./codex-config.mjs";
-import { codexChildEnvironment } from "./codex-home.mjs";
 import type { ClientInfo } from "./protocol/ClientInfo.js";
 import type { ClientRequest } from "./protocol/ClientRequest.js";
 import type { InitializeCapabilities } from "./protocol/InitializeCapabilities.js";
@@ -139,13 +137,7 @@ export const CLIENT_INFO: ClientInfo = { name: "aicodingtool", title: "AICodingT
 
 /** The bundled `codex app-server` over stdio. */
 export function codexAppServer(args: readonly string[] = [], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): AppServerCommand {
-  const env = codexChildEnvironment(options.env);
-  const privateState = env.CODEX_HOME ? [
-    "-c", `sqlite_home=${toml(env.CODEX_HOME)}`,
-    "-c", `cli_auth_credentials_store=${toml("file")}`,
-    "-c", `mcp_oauth_credentials_store=${toml("file")}`,
-  ] : [];
-  return { executable: codexExecutable(), args: ["app-server", "--listen", "stdio://", ...args, ...privateState], ...options, env };
+  return { executable: codexExecutable(), args: ["app-server", "--listen", "stdio://", ...args], ...options };
 }
 
 /** Keeps the newest bytes a stream produced, dropping whole chunks from the front. */

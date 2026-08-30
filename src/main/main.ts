@@ -325,8 +325,6 @@ app.whenReady().then(async () => {
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
-  const { preparePrivateCodexHome, PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
-  process.env[PRIVATE_CODEX_HOME_ENV] = await preparePrivateCodexHome(userData);
   if (process.platform === "linux" && app.isPackaged && process.env.APPIMAGE) {
     void registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
       .catch((error) => console.error("Could not register the AppImage URL handler:", error));
@@ -342,7 +340,6 @@ app.whenReady().then(async () => {
   worktreeService = new WorktreeServiceConstructor({ worktreesRoot: WORKTREES_ROOT, legacyRoots: legacyWorktreesRoots(userData), workspaces: workspaceService });
   const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
   taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)] });
-  taskDatabase.cutOverCodexThreads();
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, runs.dispatchAutomation, {
     onChange: (automations) => {
