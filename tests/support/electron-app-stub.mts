@@ -70,6 +70,7 @@ export function fakeElectron(userData: string) {
   const globalShortcuts = new Map<string, Callback>();
   const agents: FakeAgent[] = [];
   const externalUrls: string[] = [];
+  const openedPaths: string[] = [];
   const relaunches: Array<{ args?: string[] }> = [];
   const badgeCounts: number[] = [];
   const webRequestListeners = new Map<string, Callback>();
@@ -138,7 +139,7 @@ export function fakeElectron(userData: string) {
     net: { fetch: async (url: string) => new Response(url) },
     shell: {
       openExternal: async (url: string) => { externalUrls.push(url); },
-      openPath: async () => "",
+      openPath: async (file: string) => { openedPaths.push(file); return ""; },
     },
     session: {
       defaultSession: { setPermissionRequestHandler() {} },
@@ -155,6 +156,7 @@ export function fakeElectron(userData: string) {
     agents,
     appListeners,
     externalUrls,
+    openedPaths,
     messageBoxes,
     applicationMenu,
     relaunches,

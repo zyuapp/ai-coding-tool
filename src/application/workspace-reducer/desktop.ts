@@ -7,7 +7,7 @@ import { isAbsoluteFilePath } from "../../domain/markdown-links.js";
 import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
-  type: "file.open" | "app.open-folder" | "app.check-for-updates" | "terminal.open" | "terminal.select" | "terminal.close"
+  type: "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
     | "terminal.input" | "terminal.resize" | "terminal.updated";
 }>;
 
@@ -27,6 +27,9 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
 
     case "app.check-for-updates":
       return settled(state, [{ type: "app.check-for-updates" }]);
+
+    case "app.open-source-licenses":
+      return settled(state, [{ type: "app.open-source-licenses" }]);
 
     case "terminal.open": {
       const owner = dockOwner(state);

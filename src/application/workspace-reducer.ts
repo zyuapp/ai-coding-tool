@@ -90,6 +90,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     return [...leaving, ...(state.jump ? [{ type: "view.jump-close" } as AppCommand] : []), { type: "task.select", taskId: threadId }];
   }
   switch (action) {
+    case "app.check-for-updates": return [{ type: "app.check-for-updates" }];
+    case "app.open-source-licenses": return [{ type: "app.open-source-licenses" }];
     case "thread.new": return [...leaving, newThread];
     case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];
     case "run.cancel": return [{ type: "run.cancel" }];

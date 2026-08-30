@@ -424,6 +424,16 @@ test("threads a newer build wrote are counted, and the notice asks the updater b
   await workspace.view.unmount();
 });
 
+test("the licenses menu command opens the notices through a workspace effect", async () => {
+  let opened = 0;
+  const desktop = fakeDesktop({ openSourceLicenses: async () => { opened += 1; } });
+  const workspace = await mountWorkspace(desktop);
+
+  await act(async () => { desktop.pressShortcut("app.open-source-licenses"); });
+  assert.equal(opened, 1);
+  await workspace.view.unmount();
+});
+
 test("workspace hook removes a project without touching its folder", async () => {
   const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
   const task: Thread = {

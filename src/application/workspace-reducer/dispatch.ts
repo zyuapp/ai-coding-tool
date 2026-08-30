@@ -98,7 +98,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "browser.updated":
       return reduceBrowser(state, input);
 
-    case "file.open": case "app.open-folder": case "app.check-for-updates": case "terminal.open":
+    case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":
     case "terminal.resize": case "terminal.updated":
       return reduceDesktop(state, input);

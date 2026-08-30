@@ -75,6 +75,17 @@ test("a terminal needs a folder to start in", () => {
   assert.equal(refused.state.actionError, WORKSPACE_ERRORS.terminalFolder);
 });
 
+test("application help actions ask the desktop without changing workspace state", () => {
+  const state = workspace();
+  const updates = reduce(state, { type: "app.check-for-updates" });
+  const licenses = reduce(state, { type: "app.open-source-licenses" });
+
+  assert.equal(updates.state, state);
+  assert.deepEqual(updates.effects, [{ type: "app.check-for-updates" }]);
+  assert.equal(licenses.state, state);
+  assert.deepEqual(licenses.effects, [{ type: "app.open-source-licenses" }]);
+});
+
 test("what a shell reports is the only thing that writes the terminal record, and its output is never state", () => {
   const opened = reduce(workspace({ lastFolder: "/repo" }), { type: "terminal.open" });
   const [terminal] = dock(opened.state).terminals;

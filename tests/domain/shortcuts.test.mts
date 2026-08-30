@@ -125,6 +125,8 @@ test("a keystroke means whatever the user could have clicked", () => {
   assert.deepEqual(shortcutCommands(state, "nav.back", "browser"), [{ type: "browser.go", delta: -1 }], "inside a page, back is the page's own");
   assert.deepEqual(shortcutCommands(state, "sidebar.toggle", "any"), [{ type: "view.set-sidebar-open", open: false }]);
   assert.deepEqual(shortcutCommands(state, "settings.toggle", "any"), [{ type: "view.set-settings-open", open: true }]);
+  assert.deepEqual(shortcutCommands(state, "app.check-for-updates", "any"), [{ type: "app.check-for-updates" }]);
+  assert.deepEqual(shortcutCommands(state, "app.open-source-licenses", "any"), [{ type: "app.open-source-licenses" }]);
   assert.deepEqual(shortcutCommands(state, "thread.new-worktree", "any"), [{ type: "task.new" }, { type: "task.set-worktree", worktree: true }]);
   assert.deepEqual(shortcutCommands(state, "nothing.at.all", "any"), [], "an action the app does not have asks for nothing");
 

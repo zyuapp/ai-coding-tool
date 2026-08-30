@@ -65,6 +65,7 @@ let updateRestartScheduled = false;
 let reopenArgs: string[] | null = null;
 /** Folders the `aic` command named, held until the window is up and listening for them. */
 const pendingProjectOpens: string[] = [];
+const pendingMenuCommands: string[] = [];
 let rendererListening = false;
 
 function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
@@ -194,6 +195,23 @@ async function flushProjectOpens() {
     }
   }
   revealWindow();
+}
+
+function flushMenuCommands() {
+  if (!rendererListening || !window || window.isDestroyed()) return;
+  while (pendingMenuCommands.length) window.webContents.send("window:shortcut", { action: pendingMenuCommands.shift()!, surface: "any" });
+}
+
+/** A menu remains usable after macOS closes the last window, so its command waits for the next renderer. */
+function sendMenuCommand(action: string) {
+  pendingMenuCommands.push(action);
+  if (!window || window.isDestroyed()) {
+    rendererListening = false;
+    void createWindow().then(revealWindow).catch((error) => console.error("Could not reopen the app window:", error));
+    return;
+  }
+  revealWindow();
+  flushMenuCommands();
 }
 
 function openProjectPath(root: string) {
@@ -334,7 +352,10 @@ app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
-  installAppMenu(() => void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error)));
+  installAppMenu({
+    onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
+    onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
+  });
   await createWindow();
   void startMobileBridge({ window: () => window, userData, staticRoot: path.join(__dirname, "../../mobile") })
     .catch((error) => console.error("Could not start the phone bridge:", error));
@@ -422,6 +443,7 @@ ipcMain.on("workspace:open-project-ready", (event) => {
   if (!trustedSender(event)) return;
   rendererListening = true;
   void flushProjectOpens();
+  flushMenuCommands();
 });
 
 ipcMain.handle("cli:status", async (event) => {
@@ -508,6 +530,15 @@ ipcMain.handle("usage:plan", async (event, engine: unknown) => {
 ipcMain.on("updates:check", (event) => {
   if (!trustedSender(event)) return;
   void checkForUpdates(updateHost, { userRequested: true }).catch((error) => console.error("Update check failed:", error));
+});
+
+ipcMain.handle("licenses:open", async (event) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const notices = app.isPackaged
+    ? path.join(process.resourcesPath, "legal", "THIRD-PARTY-NOTICES.txt")
+    : path.join(app.getAppPath(), "assets", "legal", "THIRD-PARTY-NOTICES.txt");
+  const failure = await shell.openPath(notices);
+  if (failure) throw new Error(failure);
 });
 
 ipcMain.on("computer-use:restart", (event) => {

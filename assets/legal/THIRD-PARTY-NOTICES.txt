@@ -1,0 +1,115 @@
+AI Coding Tool open source notices
+==================================
+
+This directory contains the license notices for AI Coding Tool and the CUA
+computer-use software redistributed with it. The CUA notices apply to version
+0.22.2 of the driver and SDK and version 0.31.0-3 of the UniFFI JavaScript
+runtime.
+
+AI Coding Tool
+--------------
+
+AI Coding Tool is licensed under the MIT License. See
+AI-CODING-TOOL-MIT.txt.
+
+CUA Driver and SDK
+------------------
+
+The CUA-authored portions of the bundled cua-driver executable,
+@trycua/cua-driver JavaScript SDK, and CUA native SDK library are distributed
+under the MIT License. The compiled executable and SDK library also incorporate
+the separately licensed Rust components identified below and in
+CUA-RUST-DEPENDENCIES.html.
+
+Copyright (c) 2025 Cua AI, Inc.
+
+The complete copyright and permission notice is in CUA-MIT.txt.
+
+Version: 0.22.2
+Source tag: https://github.com/trycua/cua/tree/cua-driver-rs-v0.22.2
+Source commit: https://github.com/trycua/cua/tree/d114f35fec05ecd37bf529e5587be86852205b64
+Release: https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.22.2
+
+AI Coding Tool removes the x86_64 architecture slice from CUA's universal
+macOS executable, SDK library, and Node runtime for its arm64 distribution. It
+makes no source-code changes to those components.
+
+The licenses and copyright notices for Rust libraries linked into the bundled
+macOS arm64 executable are in CUA-RUST-DEPENDENCIES.html. That report was
+generated from the CUA 0.22.2 Cargo.lock file for the cua-driver package and
+the aarch64-apple-darwin target. Build-only and development-only dependencies
+are excluded.
+
+MPL-covered UniFFI components
+-----------------------------
+
+The following redistributed components are governed by the Mozilla Public
+License 2.0:
+
+* @trycua/cua-driver-darwin-arm64@0.22.2/cua_driver_node_runtime.node
+* @ubjs/core@0.31.0-3
+* @ubjs/node@0.31.0-3
+* The UniFFI 0.31.0 Rust components identified in
+  CUA-RUST-DEPENDENCIES.html
+
+The full license is in MPL-2.0.txt.
+
+The corresponding source for @ubjs/core, @ubjs/node, and the native N-API
+runtime is available at these exact version and commit references:
+
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/0.31.0-3
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/0.31.0-3/typescript
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/0.31.0-3/runtimes/core
+https://github.com/jhugman/uniffi-bindgen-react-native/tree/0.31.0-3/runtimes/napi
+
+The licenses and copyright notices for the Rust and C libraries linked into
+the CUA Node runtime are in UBJS-NATIVE-DEPENDENCIES.html. The report was
+generated from the 0.31.0-3 runtime Cargo.lock file for the
+aarch64-apple-darwin target. Build-only and development-only dependencies are
+excluded. The runtime statically incorporates libffi 3.5.2 through
+libffi-sys@4.1.0; its copyright and MIT permission notice is in
+LIBFFI-MIT.txt. Its exact package source is available at:
+
+https://crates.io/crates/libffi-sys/4.1.0
+
+The cua_driver_node_runtime.node file is CUA's compatibility build of that
+runtime. Its corresponding source also includes CUA's deterministic build and
+transformation script:
+
+https://github.com/trycua/cua/blob/cua-driver-rs-v0.22.2/libs/cua-driver/scripts/build-node-runtime.mjs
+
+The CUA source tree pins the upstream package and records its integrity in:
+
+https://github.com/trycua/cua/blob/cua-driver-rs-v0.22.2/libs/cua-driver/typescript/package-lock.json
+
+The Rust report links each MPL-covered Rust package and exact version to its
+source. Versioned package source is also available from crates.io, including:
+
+https://github.com/mozilla/uniffi-rs/tree/v0.31.0
+https://github.com/mozilla/uniffi-rs/tree/309762f55db3f0548194a9ceba3027fa64b18a93
+https://crates.io/crates/uniffi/0.31.0
+https://crates.io/crates/uniffi_core/0.31.0
+
+Cua Driver Node runtime notice
+------------------------------
+
+`cua_driver_node_runtime.node` is a compatibility build derived from the N-API
+runtime in `uniffi-bindgen-react-native` 0.31.0-3, copyright its contributors
+and licensed under the Mozilla Public License 2.0.
+
+The corresponding source is the pinned npm development dependency plus the
+deterministic transformations in `scripts/build-node-runtime.mjs`. The source
+and build script are available in the Cua repository at the release tag that
+matches this package.
+
+https://www.mozilla.org/MPL/2.0/
+
+Inter font
+----------
+
+The CUA cursor overlay embeds the Inter font. It is distributed under the SIL
+Open Font License 1.1. The full copyright and license notice is in
+INTER-OFL-1.1.txt. The corresponding font and license source is available at:
+
+https://github.com/trycua/cua/tree/cua-driver-rs-v0.22.2/libs/cua-driver/rust/crates/cursor-overlay/assets

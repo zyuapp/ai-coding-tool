@@ -4,7 +4,7 @@ import { reportFailure, type EffectHost } from "./effect-host";
 
 /** The panels that hold something of their own: pages, shells, and the files opened out of them. */
 export type SurfaceEffect = Extract<WorkspaceEffect, {
-  type: `browser.${string}` | `terminal.${string}` | "file.open" | "app.open-folder" | "app.check-for-updates" | "find-in-page"
+  type: `browser.${string}` | `terminal.${string}` | "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "find-in-page"
     | "stop-find-in-page" | "focus-browser" | "find-in-terminal" | "stop-find-in-terminal";
 }>;
 
@@ -19,6 +19,9 @@ export async function runSurfaceEffect(effect: SurfaceEffect, host: EffectHost):
 
     case "app.check-for-updates":
       return desktop.checkForUpdates();
+
+    case "app.open-source-licenses":
+      return reportFailure(host, desktop.openSourceLicenses());
 
     case "browser.open":
       return reportFailure(host, desktop.openBrowserTab(effect.tabId, effect.url));

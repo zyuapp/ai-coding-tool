@@ -115,6 +115,7 @@ export type WorkspaceEffect =
   /** The thread's checkout, opened in another application on the machine. */
   | { type: "app.open-folder"; root: string; appId: string }
   | { type: "app.check-for-updates" }
+  | { type: "app.open-source-licenses" }
   /** The terminal panel's shells. `start` is idempotent: a terminal that already runs keeps its process. */
   | { type: "terminal.start"; terminalId: string; cwd: string }
   | { type: "terminal.write"; terminalId: string; data: string }

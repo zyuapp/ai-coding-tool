@@ -219,7 +219,9 @@ export type FileCommand =
 export type ExternalAppCommand =
   | { type: "app.open-folder"; appId: string }
   /** Asks the updater to look now, from the notice about threads a newer version wrote. */
-  | { type: "app.check-for-updates" };
+  | { type: "app.check-for-updates" }
+  /** Opens the notices shipped with this exact build in the system text viewer. */
+  | { type: "app.open-source-licenses" };
 
 /**
  * The terminal panel. Every command here is the user's own: a run may read what a shell has printed

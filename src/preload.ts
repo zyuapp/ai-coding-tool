@@ -54,6 +54,7 @@ const api: DesktopAPI = {
   engineStatus: (refresh?: boolean) => ipcRenderer.invoke("engine:status", refresh === true),
   signInEngine: (engine: AgentEngine) => ipcRenderer.invoke("engine:sign-in", engine),
   checkForUpdates: () => ipcRenderer.send("updates:check"),
+  openSourceLicenses: () => ipcRenderer.invoke("licenses:open"),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),

@@ -357,14 +357,14 @@ test("a page keeps bounded developer diagnostics and waits for page conditions",
 
 type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };
 
-test("the app menu offers a check for updates the user can come back to", async () => {
+test("the app menu sends help actions through the window command path", async () => {
   const menu = main.applicationMenu() as MenuEntry[] | null;
   assert.ok(menu, "the app sets its own menu");
   const appMenu = menu.find((entry) => entry.label === "AI Coding Tool");
   assert.ok(appMenu?.submenu, "the first menu is the app's own");
   assert.deepEqual(
     appMenu.submenu.map((entry) => entry.type ?? entry.role ?? entry.label),
-    ["about", "separator", "Check for Updates…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"],
+    ["about", "separator", "Check for Updates…", "Open Source Licenses…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"],
     "every role macOS puts there stays where the user looks for it",
   );
   assert.deepEqual(menu.slice(1).map((entry) => entry.role), ["fileMenu", "editMenu", "viewMenu", "windowMenu"]);
@@ -372,10 +372,15 @@ test("the app menu offers a check for updates the user can come back to", async 
   const check = appMenu.submenu.find((entry) => entry.label === "Check for Updates…");
   assert.ok(check?.click);
   check.click();
-  await tick();
-  assert.deepEqual(
-    main.messageBoxes.map((box) => box.message),
-    ["This copy of AI Coding Tool runs from source."],
-    "a copy run from source says so rather than failing the check",
-  );
+  assert.deepEqual(main.sentOn<ShortcutInvocation>("window:shortcut").at(-1), { action: "app.check-for-updates", surface: "any" });
+
+  const licenses = appMenu.submenu.find((entry) => entry.label === "Open Source Licenses…");
+  assert.ok(licenses?.click);
+  licenses.click();
+  assert.deepEqual(main.sentOn<ShortcutInvocation>("window:shortcut").at(-1), { action: "app.open-source-licenses", surface: "any" });
+
+  const openLicenses = handler<(event: IpcEvent) => Promise<void>>("licenses:open");
+  await assert.rejects(openLicenses(main.untrusted));
+  await openLicenses(main.trusted);
+  assert.equal(main.openedPaths.at(-1), path.join(process.cwd(), "assets", "legal", "THIRD-PARTY-NOTICES.txt"));
 });

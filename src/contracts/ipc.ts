@@ -265,6 +265,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   /** Signs in through the engine's own flow, in the browser, and answers with the status after it. */
   signInEngine(engine: AgentEngine): Promise<EngineStatus>;
   checkForUpdates(): void;
+  openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */

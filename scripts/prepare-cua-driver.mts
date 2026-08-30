@@ -4,8 +4,10 @@ import { execFile, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { promisify } from "node:util";
+// @ts-expect-error Electron Builder imports the same plain-JavaScript version constants.
+import { CUA_DRIVER_VERSION } from "./cua-driver-version.mjs";
 
-const version = "0.22.2";
+const version = CUA_DRIVER_VERSION;
 const archiveName = `cua-driver-rs-${version}-darwin-arm64.tar.gz`;
 const expectedArchiveHash = "ac05a34ff2416830ec56f44d9986cf04ffb1f6a15a5df6f4dd9bec13ac198d63";
 const marker = `${version}-darwin-arm64-v4`;
@@ -37,6 +39,7 @@ async function run(command: string, args: string[]) {
 /** The SDK the app loads in process ships beside the driver, and carries the same second architecture. */
 const sdkRoot = path.dirname(createRequire(import.meta.url).resolve("@trycua/cua-driver-darwin-arm64/package.json"));
 await thin(path.join(sdkRoot, "libcua_driver_sdk.dylib"));
+await thin(path.join(sdkRoot, "cua_driver_node_runtime.node"));
 
 try {
   if ((await readFile(markerPath, "utf8")).trim() === marker) {
