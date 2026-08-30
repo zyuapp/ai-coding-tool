@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/zyuapp/ai-coding-tool/main/install.
 ```
 
 ## Why did I build this project?
-1. Not a huge fan of the Claude desktop app
+1. Not a fan of the Claude desktop app
 2. Really like the Codex desktop app
 
 ## What features does it support?
