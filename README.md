@@ -18,13 +18,14 @@ curl -fsSL https://raw.githubusercontent.com/zyuapp/ai-coding-tool/main/install.
 2. Really like the Codex desktop app
 
 ## What features does it support?
-1. Priority view that is similar to the Codex app and T3Code
-2. Turn any thread into a schedule automation by talking to the agent
-3. Annotation in chat view and code review
-4. Throw away side chats
-5. Start a thread in any branch and covert it into a worktree thread later
-6. Thread can create threads
-7. In app browser
-8. Using [Cua driver](https://cua.ai/cua-driver) to perform computer use. Thank you Cua driver for making this easy!
+1. Use your Codex subscription and Claude subscription. Require you to have claude and codex cli installed and authenticated.
+2. Priority view that is similar to the Codex app and T3Code
+3. Turn any thread into a schedule automation by talking to the agent
+4. Annotation in chat view and code review
+5. Throw away side chats
+6. Start a thread in any branch and covert it into a worktree thread later
+7. Thread can create threads
+8. In app browser
+9. Using [Cua driver](https://cua.ai/cua-driver) to perform computer use. Thank you Cua driver for making this easy!
 
 Unofficial project. Not affiliated with or endorsed by OpenAI or Anthropic.
