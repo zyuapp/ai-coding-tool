@@ -20,6 +20,7 @@ async function repository() {
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
   await git(root, "config", "user.name", "AI Coding Tool Tests");
+  await git(root, "config", "commit.gpgsign", "false");
   await writeFile(path.join(root, "tracked.txt"), "one\n");
   await git(root, "add", "tracked.txt");
   await git(root, "commit", "-m", "initial");
