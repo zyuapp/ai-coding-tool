@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createPackage } from "@electron/asar";
@@ -12,6 +12,15 @@ const { ANTHROPIC_AGENT_SDK_VERSION, lockedPackageVersion } = await import("../.
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
+
+test("release packaging installs and reuses the Electron distribution that supplies its notices", async () => {
+  const project = JSON.parse(await readFile(path.resolve("package.json"), "utf8"));
+  assert.equal(project.scripts["prepare:electron"], "install-electron");
+  for (const script of ["start", "package:mac", "package:linux"]) {
+    assert.match(project.scripts[script], /^npm run prepare:electron &&/);
+  }
+  assert.equal(project.build.electronDist, "node_modules/electron/dist");
+});
 
 async function writeAsar(resources: string, forbiddenPackage?: string, sdkVersion = ANTHROPIC_AGENT_SDK_VERSION) {
   const source = path.join(resources, "app-source");

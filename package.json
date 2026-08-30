@@ -18,10 +18,11 @@
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
+    "prepare:electron": "install-electron",
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
-    "start": "npm run prepare:cua && npm run build && electron .",
-    "package:mac": "npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
-    "package:linux": "npm run prepare:cua && npm run build && electron-builder --linux --publish never",
+    "start": "npm run prepare:electron && npm run prepare:cua && npm run build && electron .",
+    "package:mac": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
+    "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",
     "generate:claude-baseline": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-claude-baseline.mts"
   },
@@ -92,6 +93,7 @@
     "directories": {
       "output": "release"
     },
+    "electronDist": "node_modules/electron/dist",
     "files": [
       "dist/**",
       "assets/**",
