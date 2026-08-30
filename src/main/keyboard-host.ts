@@ -34,8 +34,6 @@ let capturingShortcut = false;
 let captureOptions = DEFAULT_CAPTURE_OPTIONS;
 /** What the desktop is currently holding for us, so an unchanged binding is never re-registered. */
 let desktopBinding: string | null = null;
-/** One unsupported path is announced once, rather than again whenever settings resends preferences. */
-let desktopCapabilityRefusal: string | null = null;
 
 function sendToWindow(host: KeyboardHost, channel: string, payload?: unknown) {
   const window = host.window();
@@ -100,14 +98,10 @@ function claimDesktopShortcut(host: KeyboardHost) {
   const capability = windowCaptureCapability();
   if (capability.status === "unsupported") {
     if (desktopBinding !== null) releaseDesktopShortcut();
-    const refusal = accelerator ? `${wanted!.binding}\0${capability.message}` : null;
-    if (refusal && refusal !== desktopCapabilityRefusal) {
-      const sent = sendToWindow(host, "window:shortcut-refused", { binding: wanted!.binding, reason: "unsupported", message: capability.message });
-      desktopCapabilityRefusal = sent ? refusal : null;
-    } else if (!refusal) desktopCapabilityRefusal = null;
+    /** A replacement renderer needs the status too, so every preferences handshake sends it anew. */
+    if (accelerator) sendToWindow(host, "window:shortcut-refused", { binding: wanted!.binding, reason: "unsupported", message: capability.message });
     return;
   }
-  desktopCapabilityRefusal = null;
   if (accelerator === desktopBinding) return;
   releaseDesktopShortcut();
   desktopBinding = accelerator;

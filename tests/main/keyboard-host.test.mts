@@ -16,11 +16,16 @@ test("Wayland with XWayland leaves the global capture key unclaimed before a por
     setShortcuts(main.trusted, {});
 
     assert.equal(main.globalShortcuts.size, 0);
-    assert.deepEqual(main.sentOn("window:shortcut-refused"), [{
+    const refusal = {
       binding: "Alt+Shift+S",
       reason: "unsupported",
       message: "Global active-window capture is unavailable in this Wayland session because its capture portal cannot identify the active X11/XWayland window. Use an X11 session.",
-    }]);
+    };
+    assert.deepEqual(main.sentOn("window:shortcut-refused"), [refusal]);
+
+    /** A renderer reload repeats its preferences handshake and must receive its own capability state. */
+    setShortcuts(main.trusted, {});
+    assert.deepEqual(main.sentOn("window:shortcut-refused"), [refusal, refusal]);
     await main.dispose();
   } finally {
     if (previousDisplay === undefined) Reflect.deleteProperty(process.env, "DISPLAY");

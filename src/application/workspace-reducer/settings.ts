@@ -135,8 +135,11 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       return reduceSettings(state, { type: "view.set-shortcut", action, binding: input.binding });
     }
 
-    case "shortcut.unavailable":
+    case "shortcut.unavailable": {
+      const current = state.desktopShortcutUnavailable;
+      if (current?.binding === input.refusal.binding && current.message === input.refusal.message) return settled(state);
       return settled({ ...state, desktopShortcutUnavailable: input.refusal });
+    }
 
     case "view.inspect-subagent": {
       const taskId = targetId(state, input.taskId);
