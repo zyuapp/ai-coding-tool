@@ -626,6 +626,29 @@ test("holding the command key numbers the threads a digit reaches", async () => 
   await view.unmount();
 });
 
+test("a number shortcut clears the thread numbers when main swallowed its keydown", async () => {
+  seedProjectTasks([
+    { id: "first", title: "First", sortIndex: 0, updatedAt: 2 },
+    { id: "second", title: "Second", sortIndex: 1, updatedAt: 1 },
+  ]);
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  const command = MAC ? "Meta" : "Control";
+  const numbers = () => [...view.container.querySelectorAll(".row-number")].map((badge) => badge.textContent);
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+  await act(async () => { dom.window.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: command })); });
+  await act(async () => { vi.advanceTimersByTime(400); });
+  assert.deepEqual(numbers(), ["1", "2"], "the held modifier first reveals the reachable rows");
+
+  await act(async () => { desktop.pressShortcut("slot-2"); });
+  assert.deepEqual(numbers(), [], "the IPC shortcut clears them without waiting for a DOM keyup");
+
+  vi.useRealTimers();
+  await view.unmount();
+});
+
 test("the sidebar follows the thread the keyboard steps to", async () => {
   const thread = (id: string): Thread => ({
     id, title: id, engine: "claude", executionPolicy: "confirm", messages: [],
