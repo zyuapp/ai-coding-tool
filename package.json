@@ -148,8 +148,7 @@
       "syncDesktopName": true,
       "target": [
         "AppImage",
-        "deb",
-        "pacman"
+        "deb"
       ],
       "artifactName": "AICodingTool-${version}-${arch}.${ext}"
     },
@@ -167,20 +166,6 @@
         "libuuid1",
         "libsecret-1-0",
         "x11-utils"
-      ]
-    },
-    "pacman": {
-      "depends": [
-        "gtk3",
-        "libnotify",
-        "nss",
-        "libxss",
-        "libxtst",
-        "xdg-utils",
-        "at-spi2-core",
-        "util-linux-libs",
-        "libsecret",
-        "xorg-xprop"
       ]
     },
     "publish": [

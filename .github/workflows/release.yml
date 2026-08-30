@@ -125,7 +125,6 @@ jobs:
             release/*.AppImage
             release/*.AppImage.blockmap
             release/*.deb
-            release/*.pacman
             release/latest-linux*.yml
           if-no-files-found: error
 
