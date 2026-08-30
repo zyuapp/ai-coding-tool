@@ -24,6 +24,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}
+      desktopShortcutUnavailable={workspace.desktopShortcutUnavailable}
       onSetThemeFamily={(family) => void workspace.actions.setThemeFamily(family)}
       onSetThemeMode={(mode) => void workspace.actions.setThemeMode(mode)}
       onSetUiFont={(font) => void workspace.actions.setUiFont(font)}

@@ -2030,6 +2030,7 @@ pre {
 /** The keystroke is what the row is about, so it sits apart from the buttons that change it. */
 .setting-row.shortcut-row .setting-row-action { gap: 6px; }
 .setting-row.shortcut-row .setting-row-action > kbd, .setting-row.shortcut-row .setting-row-action > em { margin-right: 12px; }
+.setting-row p.shortcut-unavailable { color: var(--accent-soft); }
 .setting-row-action kbd.shortcut-keys { display: inline-flex; align-items: center; gap: 5px; }
 .shortcut-key {
   min-width: 30px;

@@ -46,6 +46,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     remoteChecking: false,
     shortcuts: [],
     capturingShortcut: null,
+    desktopShortcutUnavailable: null,
     onSetThemeFamily() {},
     onSetThemeMode() {},
     onSetUiFont() {},
@@ -637,6 +638,43 @@ test("computer-use setup events open settings directly", async () => {
   assert.equal(view.container.querySelector(".computer-use-card"), null);
   await act(async () => { query<HTMLButtonElement>(view.container, ".settings-back").click(); });
   assert.equal(view.container.querySelector(".settings-view"), null);
+  await view.unmount();
+});
+
+test("an unavailable desktop shortcut is explained in Settings without a startup error", async () => {
+  localStorage.clear();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  const message = "Global active-window capture is unavailable in this Wayland session. Use an X11 session.";
+
+  await act(async () => {
+    desktop.refuseShortcut({ binding: "Alt+Shift+S", reason: "unsupported", message });
+  });
+
+  assert.equal(view.container.querySelector(".storage-error"), null);
+  await openSettingsPage(view, "Shortcuts");
+  const capture = item([...view.container.querySelectorAll<HTMLElement>(".shortcut-row")]
+    .find((row) => query(row, "strong").textContent === "Grab the window you are in"));
+  assert.match(query(capture, ".shortcut-unavailable").textContent, /Wayland session.*X11 session/);
+  await act(async () => {
+    item([...capture.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Clear")).click();
+  });
+  assert.equal(capture.querySelector(".shortcut-unavailable"), null, "clearing the affected binding clears its inline status");
+  await view.unmount();
+});
+
+test("a desktop shortcut owned by another app remains an actionable error", async () => {
+  localStorage.clear();
+  const desktop = fakeDesktop();
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+
+  await act(async () => {
+    desktop.refuseShortcut({ binding: "Alt+Shift+S", reason: "taken" });
+  });
+
+  assert.match(query(view.container, ".storage-error").textContent, /Alt\+Shift\+S belongs to another app/);
   await view.unmount();
 });
 

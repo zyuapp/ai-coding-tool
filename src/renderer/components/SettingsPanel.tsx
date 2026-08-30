@@ -17,7 +17,7 @@ import { SettingFocus } from "./SettingRow";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
-import type { WorktreeSettingsView } from "../../application/workspace-state";
+import type { DesktopShortcutUnavailable, WorktreeSettingsView } from "../../application/workspace-state";
 import { WorktreeSettings } from "./WorktreeSettings";
 
 /** The list of pages. Three of them ask for a fresh read as they are opened. */
@@ -147,6 +147,7 @@ export type SettingsPanelProps = {
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
+  desktopShortcutUnavailable: DesktopShortcutUnavailable | null;
   onSetThemeFamily: (family: string) => void;
   onSetThemeMode: (mode: ThemeMode) => void;
   onSetUiFont: (font: string) => void;
@@ -199,6 +200,7 @@ export function SettingsPanel({
   engineChecking,
   shortcuts,
   capturingShortcut,
+  desktopShortcutUnavailable,
   onSetThemeFamily,
   onSetThemeMode,
   onSetUiFont,
@@ -313,7 +315,7 @@ export function SettingsPanel({
         />
       )}
 
-      {section === "shortcuts" && <ShortcutSettings shortcuts={shortcuts} capturingShortcut={capturingShortcut} onCaptureShortcut={onCaptureShortcut} onSetShortcut={onSetShortcut} onResetShortcuts={onResetShortcuts} />}
+      {section === "shortcuts" && <ShortcutSettings shortcuts={shortcuts} capturingShortcut={capturingShortcut} desktopShortcutUnavailable={desktopShortcutUnavailable} onCaptureShortcut={onCaptureShortcut} onSetShortcut={onSetShortcut} onResetShortcuts={onResetShortcuts} />}
 
       {section === "browser" && <BrowserSettings browserTools={browserTools} allowedOrigins={allowedOrigins} confirming={confirmingSignOut} confirmationRef={confirmation} clearRef={clearBrowser}
         onSetBrowserTools={onSetBrowserTools} onClearBrowserData={onClearBrowserData} onStartConfirm={() => setConfirmingSignOut(true)} onCancelConfirm={() => cancelConfirmation(true)} />}

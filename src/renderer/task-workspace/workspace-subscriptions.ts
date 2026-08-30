@@ -173,17 +173,14 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
 
   useEffect(() => {
     if (!("desktop" in window)) return;
-    /** Preferences are read before the first render, so the bindings they hold reach main from here. */
-    window.desktop.setShortcuts(host.state().shortcuts);
-    window.desktop.setCaptureOptions({ sound: host.state().captureSound, focus: host.state().captureFocus });
     const stopListening = window.desktop.onShortcut(({ action, surface }) => void host.dispatch({ type: "view.shortcut", action, surface }));
     const stopCapturing = window.desktop.onShortcutCaptured((binding) => void host.dispatch({ type: "shortcut.captured", binding }));
-    const stopRefusals = window.desktop.onDesktopShortcutRefused((refusal) => void host.dispatch({
-      type: "action.failed",
-      message: refusal.reason === "unsupported"
-        ? refusal.message
-        : `${displayShortcut(refusal.binding, MAC)} belongs to another app, so grabbing a window has no shortcut.`,
-    }));
+    const stopRefusals = window.desktop.onDesktopShortcutRefused((refusal) => void host.dispatch(refusal.reason === "unsupported"
+      ? { type: "shortcut.unavailable", refusal }
+      : { type: "action.failed", message: `${displayShortcut(refusal.binding, MAC)} belongs to another app, so grabbing a window has no shortcut.` }));
+    /** Listen before applying preferences, since claiming a desktop binding can immediately refuse it. */
+    window.desktop.setShortcuts(host.state().shortcuts);
+    window.desktop.setCaptureOptions({ sound: host.state().captureSound, focus: host.state().captureFocus });
     return () => {
       stopListening();
       stopCapturing();

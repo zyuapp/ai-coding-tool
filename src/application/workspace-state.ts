@@ -1,7 +1,7 @@
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex, orderProjects } from "./project-order.js";
 import { activitySections, backfillSortIndex, orderThreads } from "./thread-order.js";
-import type { ChangedFilesResult } from "../contracts/ipc.js";
+import type { ChangedFilesResult, DesktopShortcutRefusal } from "../contracts/ipc.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
 import type { ActiveGoal } from "../domain/goal.js";
@@ -63,6 +63,9 @@ export {
   worktreeFor,
 } from "./thread-location.js";
 export type { ThreadLocation } from "./thread-location.js";
+
+/** A desktop-wide binding whose action this session cannot safely perform on the active platform. */
+export type DesktopShortcutUnavailable = Extract<DesktopShortcutRefusal, { reason: "unsupported" }>;
 
 /**
  * A run the user or the scheduler asked for that is still resolving its workspace. It lives in state
@@ -294,6 +297,8 @@ export type WorkspaceState = {
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
   capturingShortcut: string | null;
+  /** A capability refusal belongs beside its affected setting, not in the workspace error banner. */
+  desktopShortcutUnavailable: DesktopShortcutUnavailable | null;
   /** Bumped whenever something asks for the caret, which is all the composer needs to take it. */
   composerFocus: number;
   /**
@@ -443,6 +448,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     settingsFocus: null,
     shortcuts: {},
     capturingShortcut: null,
+    desktopShortcutUnavailable: null,
     composerFocus: 0,
     dockFocus: null,
     docks: {},
@@ -818,7 +824,7 @@ export function deriveView(state: WorkspaceState) {
     browserTools: state.browserTools,
     notifications: state.notifications,
     shortcuts: shortcutSettings(state.shortcuts),
-    capturingShortcut: state.capturingShortcut,
+    capturingShortcut: state.capturingShortcut, desktopShortcutUnavailable: state.desktopShortcutUnavailable,
     composerFocus: state.composerFocus,
     /** Only the dock on screen can take the keys, so a request in another thread's dock is not drawn. */
     dockFocus: state.dockFocus?.owner === owner ? state.dockFocus : null,
