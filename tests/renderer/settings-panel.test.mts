@@ -13,6 +13,7 @@ import type { SettingsPanelProps } from "../../src/renderer/components/SettingsP
 import { engineDesktopStub, mobileDesktopStub, mobileSettingsProps } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
+import { settleFrame } from "../support/settle.mts";
 
 const { App } = await import("../../src/renderer/App.tsx");
 const { SettingsPanel } = await import("../../src/renderer/components/SettingsPanel.tsx");
@@ -575,6 +576,7 @@ test("computer-use setup events open settings directly", async () => {
   await act(async () => {
     desktop.listener({ type: "computer-use.setup-required", taskId: start.taskId, runId: start.runId, sequence: 1 });
   });
+  await settleFrame();
 
   assert.ok(view.container.querySelector(".settings-view"));
   assert.equal(view.container.querySelector(".computer-use-card"), null);
