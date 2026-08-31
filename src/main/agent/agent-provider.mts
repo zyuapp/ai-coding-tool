@@ -135,4 +135,6 @@ export interface AgentProvider {
   execute(input: ProviderRunInput): Promise<ProviderResult>;
   /** Kills one background process of the thread's session, whether or not a run is going. */
   stopProcess(taskId: string, processId: string): boolean;
+  /** Offers the thread's title to the engine's own record of it. Engines that keep none say so. */
+  labelThread(taskId: string, title: string): boolean;
 }

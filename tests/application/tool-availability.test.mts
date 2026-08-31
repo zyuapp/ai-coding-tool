@@ -69,6 +69,7 @@ class RecordingProvider implements AgentProvider {
     return { status: "succeeded" };
   }
   stopProcess() { return false; }
+  labelThread() { return false; }
   closeAll() {}
 }
 

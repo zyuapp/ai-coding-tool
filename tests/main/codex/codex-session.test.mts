@@ -709,3 +709,75 @@ test("a run that was already cancelled never reaches the server", async () => {
   assert.deepEqual(await codex.provider.execute(input({ abortController })), { status: "cancelled" });
   assert.equal(codex.clients.length, 0);
 });
+
+test("Codex is told the thread's title and where its work belongs, once the turn has a rollout to write against", async () => {
+  const codex = harness({}, { readOrigin: async () => ({ originUrl: "git@github.com:me/app.git", branch: "feature", sha: "abc123" }) });
+  const { client } = await turn(codex);
+
+  await sentBy(client, "thread/metadata/update");
+  assert.deepEqual(client.calls("thread/metadata/update"), [{ threadId, gitInfo: { originUrl: "git@github.com:me/app.git", branch: "feature", sha: "abc123" } }]);
+  assert.deepEqual(client.calls("thread/name/set"), []);
+
+  assert.equal(codex.provider.labelThread("task-1", "Inspect the app"), true);
+  await sentBy(client, "thread/name/set");
+  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }]);
+
+  codex.provider.labelThread("task-1", "Inspect the app");
+  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }], "the same title is not sent twice");
+  codex.provider.closeAll();
+});
+
+test("a title that lands before the first turn waits for the rollout instead of failing against it", async () => {
+  let letTurnStart = () => {};
+  const held = new Promise<void>((resolve) => { letTurnStart = resolve; });
+  const codex = harness({
+    "turn/start": async () => {
+      await held;
+      return { turn: { id: turnId, items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null } };
+    },
+  });
+  const running = codex.provider.execute(input());
+  const client = await opened(codex);
+  await sentBy(client, "turn/start");
+  codex.provider.labelThread("task-1", "Early title");
+  await tick();
+  assert.deepEqual(client.calls("thread/name/set"), [], "Codex has no rollout to name until the turn has begun");
+
+  letTurnStart();
+  await sentBy(client, "thread/name/set");
+  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Early title" }]);
+  completeTurn(client);
+  await running;
+  codex.provider.closeAll();
+});
+
+test("a thread archived in another Codex client is unarchived once before the run gives up on it", async () => {
+  let archived = true;
+  const codex = harness({
+    "thread/resume": (params: { threadId: string }) => {
+      if (archived) throw new AppServerError("thread/resume", -32600, `no rollout found for thread id ${params.threadId}`);
+      return { thread: { id: params.threadId }, model: "gpt-5.6-sol" };
+    },
+    "thread/unarchive": () => { archived = false; return {}; },
+  });
+  const { client, result } = await turn(codex, { continuation: { provider: "codex", value: threadId } });
+
+  assert.deepEqual(result, { status: "succeeded" });
+  assert.deepEqual(client.calls("thread/unarchive"), [{ threadId }]);
+  assert.equal(client.calls("thread/resume").length, 2, "the resume is retried once the thread is back");
+  codex.provider.closeAll();
+});
+
+test("a thread that cannot be unarchived reports the loss instead of retrying forever", async () => {
+  const emitted: ProviderEvent[] = [];
+  const codex = harness({
+    "thread/resume": () => { throw new AppServerError("thread/resume", -32600, "thread not found"); },
+    "thread/unarchive": () => { throw new AppServerError("thread/unarchive", -32600, "no rollout found"); },
+  });
+  const result = await codex.provider.execute(input({ continuation: { provider: "codex", value: threadId }, emit: (event) => emitted.push(event) }));
+
+  assert.equal(result.status, "failed");
+  assert.match(result.message ?? "", /Codex could not continue this thread/);
+  assert.deepEqual(emitted.filter((event) => event.type === "continuation-lost").length, 1);
+  assert.equal(codex.latest().calls("thread/resume").length, 1);
+});

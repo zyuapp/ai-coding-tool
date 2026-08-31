@@ -108,6 +108,10 @@ export class RunCoordinator {
     return this.provider.stopProcess(taskId, processId);
   }
 
+  labelThread(taskId: string, title: string) {
+    return this.provider.labelThread(taskId, title);
+  }
+
   decideApproval(taskId: string, runId: string, approvalId: string, allow: boolean) {
     const active = this.runs.get(taskId);
     if (!active || active.runId !== runId || active.terminal) return false;

@@ -15,6 +15,11 @@ function engine(name: string, log: string[], holds: string[] = []): EngineProvid
       log.push(`${name}:stop:${taskId}:${held}`);
       return held;
     },
+    labelThread(taskId: string, title: string) {
+      const held = holds.includes(taskId);
+      log.push(`${name}:label:${taskId}:${title}:${held}`);
+      return held;
+    },
     closeAll() {
       log.push(`${name}:closeAll`);
     },

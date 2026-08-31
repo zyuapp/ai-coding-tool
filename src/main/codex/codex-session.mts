@@ -8,6 +8,7 @@ import { skillRoots, skillTools } from "../tools/skills.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
+import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
 import type { AskForApproval } from "./protocol/v2/AskForApproval.js";
 import type { GrantedPermissionProfile } from "./protocol/v2/GrantedPermissionProfile.js";
@@ -195,6 +196,8 @@ export class CodexSession {
   private backgroundRead = 0;
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
+  /** What this app leaves in Codex's own record of the thread. */
+  private readonly record: CodexThreadRecord;
 
   constructor(
     readonly key: string,
@@ -202,7 +205,10 @@ export class CodexSession {
     private readonly host: ToolHost,
     private readonly onEnded: () => void,
     private readonly onRested: () => void,
-  ) {}
+    readOrigin: ReadOrigin = async () => ({ originUrl: null, branch: null, sha: null }),
+  ) {
+    this.record = new CodexThreadRecord(readOrigin);
+  }
 
   /** A turn is in flight, so the session owes an answer before it can take another. */
   get answering() {
@@ -273,6 +279,11 @@ export class CodexSession {
     this.onEnded();
   }
 
+  /** Names this thread in Codex's own history, so it reads there as it reads here. */
+  label(title: string) {
+    this.record.label(title);
+  }
+
   /** Stops one terminal owned by this thread, then republishes what the server still has. */
   stopProcess(processId: string) {
     const client = this.client;
@@ -331,6 +342,7 @@ export class CodexSession {
       return;
     }
     turn.turnId = started.turn.id;
+    this.record.began();
     if (this.turn !== turn) return;
     /** A run that went away while the server was starting its turn leaves nothing running behind it. */
     if (turn.interruptWanted) {
@@ -484,12 +496,15 @@ export class CodexSession {
       ? await client.request("thread/start", settings)
       : seed.forkContinuation
         ? await client.request("thread/fork", { threadId: continuation, ...settings })
-        : await client.request("thread/resume", { threadId: continuation, ...settings }).catch((error: unknown) => {
+        : await resumeThread(client, continuation, settings).catch((error: unknown) => {
           /** Only the server's own refusal says the thread is gone; a server that died may still have it. */
           if (error instanceof AppServerError) throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);
           throw error;
         });
     this.threadId = started.thread.id;
+    this.record.opened(client, this.threadId, seed.workspaceRoot);
+    /** A thread that came back from disk already has the rollout the record is written against. */
+    if (continuation !== undefined) this.record.began();
     subagents.setRootThreadId(this.threadId);
   }
 

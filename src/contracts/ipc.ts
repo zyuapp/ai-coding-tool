@@ -2,6 +2,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type Automa
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
+import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { ExternalApp } from "../domain/external-apps.js";
@@ -22,6 +23,7 @@ import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
+export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
 export type WindowTheme = {
@@ -108,30 +110,6 @@ export type WorktreeSnapshotResult = {
   ref: string | null;
 };
 
-export type ComputerUsePermissions = {
-  accessibility: boolean;
-  screenRecording: boolean;
-  /** Linux has no macOS permission switches; this reports the runtime path Settings can explain. */
-  linuxRuntime?: {
-    status: "available" | "limited" | "unavailable";
-    display: "x11" | "xwayland" | "wayland" | "none";
-    message: string;
-  };
-};
-
-export type ComputerUsePermission = "accessibility" | "screenRecording";
-
-export type ComputerUseMcp = {
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-};
-
-export type ComputerUseRunConfig =
-  | { status: "available"; mcp: ComputerUseMcp }
-  | { status: "setup-required" }
-  | { status: "unavailable"; message: string };
-
 export type InternalStartRunCommand = StartRunCommand & {
   workspaceRoot: string;
   projectless: boolean;
@@ -171,7 +149,9 @@ export type StopProcessCommand = {
   processId: string;
 };
 
-export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand;
+export type LabelThreadCommand = { type: "label"; taskId: string; title: string };
+
+export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
 
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
@@ -528,7 +508,7 @@ const MAX_ID_LENGTH = 256;
 export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 /** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
-const MAX_PROMPT_LENGTH = 1_000_000;
+const MAX_PROMPT_LENGTH = 1_000_000, MAX_TITLE_LENGTH = 64;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
@@ -616,10 +596,11 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
   if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
+  if (command.type === "label") return isString(command.taskId) && isString(command.title, MAX_TITLE_LENGTH);
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand {
+export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
   if (command.type === "start") return isStartCommand(command, true);

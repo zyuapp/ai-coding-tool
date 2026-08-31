@@ -4,6 +4,7 @@ import type { InitializeResponse } from "../../src/main/codex/protocol/Initializ
 import type { RequestId } from "../../src/main/codex/protocol/RequestId.ts";
 import { CodexAgentProvider } from "../../src/main/codex/codex-agent-provider.mts";
 import type { CodexClient } from "../../src/main/codex/codex-session.mts";
+import type { ReadOrigin } from "../../src/main/codex/codex-thread-record.mts";
 import type { ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
 import type { BoundTool, ToolResult } from "../../src/main/tools/tool-definition.mts";
 import type { ServedTools, ToolHost } from "../../src/main/tools/mcp-http-host.mts";
@@ -25,6 +26,9 @@ export const defaultScript: Script = {
   "thread/goal/get": () => ({ goal: null }),
   "thread/goal/clear": () => ({ cleared: true }),
   "thread/inject_items": () => ({}),
+  "thread/name/set": () => ({}),
+  "thread/metadata/update": () => ({}),
+  "thread/unarchive": () => ({}),
   "thread/compact/start": () => ({}),
   "thread/backgroundTerminals/list": () => ({ data: [], nextCursor: null }),
   "thread/backgroundTerminals/terminate": () => ({ terminated: true }),
@@ -182,7 +186,7 @@ export type Harness = {
 };
 
 /** A provider whose app servers are scripted fakes, one per session it opens. */
-export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; idleMs?: number } = {}): Harness {
+export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; idleMs?: number; readOrigin?: ReadOrigin } = {}): Harness {
   const clients: FakeCodexClient[] = [];
   const host = new FakeToolHost();
   const provider = new CodexAgentProvider({
@@ -193,6 +197,7 @@ export function harness(script: Script = {}, options: { handshake?: () => Promis
     },
     host,
     idleMs: options.idleMs,
+    ...(options.readOrigin ? { readOrigin: options.readOrigin } : {}),
   });
   return { provider, clients, latest: () => clients.at(-1)!, host };
 }

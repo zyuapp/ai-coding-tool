@@ -158,6 +158,11 @@ export class ClaudeAgentProvider implements AgentProvider {
   }
 
   /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
+  /** Claude keeps no record of its own to name, so the title stays the app's. */
+  labelThread() {
+    return false;
+  }
+
   stopProcess(taskId: string, processId: string) {
     const session = this.pool.liveSession(taskId);
     if (!(session instanceof ClaudeSession)) return false;

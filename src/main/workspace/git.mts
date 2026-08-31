@@ -76,6 +76,11 @@ export async function currentBranch(root: string) {
   return (await tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]))?.trim() || null;
 }
 
+/** Where this checkout pushes, or null when it has no origin. A worktree reports its repository's. */
+export async function originUrl(root: string) {
+  return (await tryGit(root, ["config", "--get", "remote.origin.url"]))?.trim() || null;
+}
+
 export async function isDirty(root: string) {
   return (await git(root, ["status", "--porcelain", "-z"])).length > 0;
 }

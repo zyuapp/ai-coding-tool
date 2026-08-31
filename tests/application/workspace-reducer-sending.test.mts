@@ -189,15 +189,20 @@ test("a new thread asks for a name, and the name the user types outlasts the sug
   assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, engine: "claude", text: "Inspect the app", attachments: [] }]);
   assert.equal(started.state.threads[0].title, "Inspect the app", "the typed message titles the thread until a suggestion lands");
 
-  const named = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" }).state;
+  const suggested = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" });
+  const named = suggested.state;
   assert.equal(named.threads[0].title, "App breakage review");
   assert.equal(named.threads[0].updatedAt, started.state.threads[0].updatedAt, "renaming is cosmetic and never reorders recents");
+  assert.deepEqual(suggested.effects, [{ type: "send-run-command", command: { type: "label", taskId, title: "App breakage review" } }], "the engine is offered the name it can keep");
 
-  const renamed = reduce(named, { type: "task.rename", taskId, title: "  Nightly audit  " }).state;
+  const renaming = reduce(named, { type: "task.rename", taskId, title: "  Nightly audit  " });
+  const renamed = renaming.state;
   assert.equal(renamed.threads[0].title, "Nightly audit");
+  assert.deepEqual(renaming.effects, [{ type: "send-run-command", command: { type: "label", taskId, title: "Nightly audit" } }]);
 
-  const late = reduce(renamed, { type: "title.suggested", taskId, title: "Something else" }).state;
-  assert.equal(late.threads[0].title, "Nightly audit");
+  const late = reduce(renamed, { type: "title.suggested", taskId, title: "Something else" });
+  assert.equal(late.state.threads[0].title, "Nightly audit");
+  assert.deepEqual(late.effects, [], "a suggestion the user has outranked reaches no engine");
   assert.equal(reduce(renamed, { type: "task.rename", taskId, title: "   " }).state, renamed, "an empty name leaves the thread alone");
 });
 
