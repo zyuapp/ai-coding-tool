@@ -62,6 +62,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
     type: "start",
     channel: "main",
     taskId,
+    title: "Work",
     runId,
     prompt: "work",
     workspaceId: projectless.id,
@@ -78,7 +79,10 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
 
   runCommand(trusted, command("concurrent-a", "run-concurrent-a"));
   runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
+  runCommand(trusted, { type: "label", taskId: "concurrent-a", title: "Renamed during startup" });
   await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0]?.messages.some((message) => message.runId === runId)));
+  assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-a")?.title, "Renamed during startup");
+  assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-b")?.title, "Work");
 
   runCommand(trusted, command("resubmitted", "run-old"));
   runCommand(trusted, command("resubmitted", "run-new"));
@@ -137,7 +141,7 @@ test("thread requests are relayed to the window and only its answers reach the a
   const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
   const workspace = await handler<(event: IpcEvent) => Promise<WorkspaceRecord>>("workspace:projectless")(trusted);
   runCommand(trusted, {
-    type: "start", channel: "main", taskId: "task-caller", runId: "run-relay",
+    type: "start", channel: "main", taskId: "task-caller", title: "Work", runId: "run-relay",
     prompt: "work", workspaceId: workspace.id, policy: "confirm", engine: "claude", model: "opus", effort: "high",
   } satisfies StartRunCommand);
   const carrying = () => agents.find((process) => process.messages.some((message) => message.runId === "run-relay"));

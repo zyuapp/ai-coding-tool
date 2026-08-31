@@ -77,6 +77,7 @@ const command = (overrides: Partial<InternalStartRunCommand> = {}): InternalStar
   type: "start",
   channel: "main",
   taskId: "task-1",
+  title: "Read the page",
   runId: "run-1",
   prompt: "read the page",
   workspaceId: "workspace-test",
@@ -117,7 +118,7 @@ test("a run the computer-use setting is off for never reaches the driver", async
   const projectless = await registered<(event: { sender: unknown }) => Promise<WorkspaceRecord>>(main.handlers, "workspace:projectless")(main.trusted);
   const runCommand = registered<(event: { sender: unknown }, payload: unknown) => void>(main.listeners, "run:command");
   const start = (runId: string, overrides: Partial<InternalStartRunCommand>) => runCommand(main.trusted, {
-    type: "start", channel: "main", taskId: runId, runId, prompt: "look around",
+    type: "start", channel: "main", taskId: runId, title: "Look around", runId, prompt: "look around",
     workspaceId: projectless.id, policy: "confirm", engine: "claude", model: "opus", effort: "high", ...overrides,
   });
 

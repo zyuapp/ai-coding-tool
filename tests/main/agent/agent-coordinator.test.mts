@@ -11,6 +11,7 @@ const base = (taskId: string, runId: string): InternalStartRunCommand => ({
   type: "start",
   channel: "main",
   taskId,
+  title: "Do the work",
   runId,
   prompt: "do the work",
   workspaceId: "workspace-test",
@@ -73,6 +74,7 @@ test("successful provider run emits correlated, ordered events and one terminal 
 
   coordinator.start(base("task-a", "run-a"));
   await tick();
+  assert.equal(provider.runs[0].input.title, "Do the work");
   provider.runs[0].resolve({ status: "succeeded" });
   await tick();
 

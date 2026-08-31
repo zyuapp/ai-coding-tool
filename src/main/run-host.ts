@@ -286,7 +286,13 @@ function handleRunCommand(host: RunHost, event: IpcMainEvent, payload: unknown) 
     return;
   }
   /** A stop or a label names the thread's session, which outlives its runs, so no run has to be live. */
-  if (payload.type === "stop-process" || payload.type === "label") return postCommand(host, payload);
+  if (payload.type === "label") {
+    for (const pending of pendingStarts.values()) {
+      if (pending.taskId === payload.taskId) pending.title = payload.title;
+    }
+    return postCommand(host, payload);
+  }
+  if (payload.type === "stop-process") return postCommand(host, payload);
   const key = runKey(payload.taskId, payload.runId);
   const pending = pendingStarts.get(key);
   if (pending && payload.type === "cancel") {

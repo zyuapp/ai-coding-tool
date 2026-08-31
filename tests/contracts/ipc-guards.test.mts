@@ -6,6 +6,7 @@ const command = {
   type: "start",
   channel: "main",
   taskId: "task-1",
+  title: "Inspect the app",
   runId: "run-1",
   prompt: "inspect",
   workspaceId: "workspace-1",
@@ -25,6 +26,14 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand({ ...command, channel: "background" }), false);
   assert.equal(isRunCommand({ ...command, channel: "side", forkContinuation: true }), false);
   assert.equal(isRunCommand({ ...command, channel: "side", continuation: { provider: "claude", value: "session" }, forkContinuation: true }), true);
+});
+
+test("start commands require a bounded thread title", () => {
+  for (const title of [undefined, null, 1, "", "x".repeat(65)]) {
+    assert.equal(isRunCommand({ ...command, title }), false);
+    assert.equal(isInternalRunCommand({ ...command, title, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), false);
+  }
+  assert.equal(isRunCommand({ ...command, title: "x".repeat(64) }), true);
 });
 
 test("start commands carry the Claude engine's settings as one object", () => {

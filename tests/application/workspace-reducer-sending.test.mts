@@ -16,6 +16,7 @@ test("a composer send waits for its workspace, then starts the run and clears th
   const [effect] = started.effects;
   assert.equal(effect.type, "start-run");
   assert.equal(effect.command.prompt, "Inspect the app");
+  assert.equal(effect.command.title, "Inspect the app");
   assert.equal(effect.command.workspaceId, "projectless");
   assert.equal(started.state.threads[0].messages[0].text, "Inspect the app");
   assert.equal(started.state.activeRuns[effect.command.taskId].runId, effect.command.runId);
@@ -212,6 +213,7 @@ test("only a thread the send just created is named, from what the user typed and
   const sending = reduce(drafted, { type: "task.send", attachments: [] });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.equal(started.effects.some((effect) => effect.type === "suggest-title"), false);
+  assert.equal(effectAt(started, "start-run").command.title, existing.title);
 
   const attached = reduce(workspace(), { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] });
   const fromImage = reduce(attached.state, { type: "run.resolved", pendingId: effectAt(attached, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });

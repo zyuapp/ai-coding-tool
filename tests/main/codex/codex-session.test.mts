@@ -54,7 +54,7 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.equal(client.command.cwd, "/tmp/project");
   assert.deepEqual(client.command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
   assert.match(client.command.executable, /codex$/);
-  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "account/read", "thread/start", "turn/start", "thread/backgroundTerminals/list"]);
+  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "account/read", "thread/start", "turn/start", "thread/name/set", "thread/backgroundTerminals/list"]);
   assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,
@@ -716,7 +716,7 @@ test("Codex is told the thread's title and where its work belongs, once the turn
 
   await sentBy(client, "thread/metadata/update");
   assert.deepEqual(client.calls("thread/metadata/update"), [{ threadId, gitInfo: { originUrl: "git@github.com:me/app.git", branch: "feature", sha: "abc123" } }]);
-  assert.deepEqual(client.calls("thread/name/set"), []);
+  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }]);
 
   assert.equal(codex.provider.labelThread("task-1", "Inspect the app"), true);
   await sentBy(client, "thread/name/set");
@@ -724,6 +724,10 @@ test("Codex is told the thread's title and where its work belongs, once the turn
 
   codex.provider.labelThread("task-1", "Inspect the app");
   assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }], "the same title is not sent twice");
+  codex.provider.labelThread("task-1", "Review the app");
+  const again = await turn(codex, { title: "Review the app", continuation: { provider: "codex", value: threadId } });
+  assert.equal(again.client, client);
+  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }, { threadId, name: "Review the app" }]);
   codex.provider.closeAll();
 });
 

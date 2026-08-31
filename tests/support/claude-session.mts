@@ -39,6 +39,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
   const base: ProviderRunInput = {
     channel: "main",
     taskId: "task-1",
+    title: "Inspect the app",
     prompt: "inspect the app",
     workspaceRoot: "/tmp/project",
     projectless: false,

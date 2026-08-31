@@ -341,6 +341,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     type: "start",
     channel: "main",
     taskId: thread.id,
+    title: thread.title,
     runId,
     prompt,
     workspaceId,

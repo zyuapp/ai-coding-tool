@@ -59,6 +59,7 @@ export type StartRunCommand = {
   type: "start";
   channel: RunChannel;
   taskId: string;
+  title: string;
   runId: string;
   prompt: string;
   workspaceId: WorkspaceId;
@@ -614,6 +615,7 @@ function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
+  if (!isString(command.title, MAX_TITLE_LENGTH)) return false;
   const operation = command.operation as Record<string, unknown> | undefined;
   const compact = operation?.type === "compact"
     && typeof operation.preTokens === "number" && Number.isFinite(operation.preTokens) && operation.preTokens >= 0

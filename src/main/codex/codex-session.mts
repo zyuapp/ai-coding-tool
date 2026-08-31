@@ -258,6 +258,7 @@ export class CodexSession {
         return;
       }
       input.abortController.signal.addEventListener("abort", interrupt, { once: true });
+      this.record.label(input.title);
       void this.begin(turn);
     });
   }
