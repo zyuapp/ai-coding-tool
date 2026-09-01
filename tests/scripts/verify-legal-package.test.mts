@@ -109,5 +109,5 @@ test("the package hook rejects a bundled Anthropic executable", async () => {
 test("the package hook rejects Anthropic SDK version drift", async () => {
   const resources = await packageFixture();
   await writeAsar(resources, undefined, "0.4.0");
-  await assert.rejects(verifyLegalPackage(resources), /notices cover 0\.3\.251/);
+  await assert.rejects(verifyLegalPackage(resources), /notices cover 0\.3\.252/);
 });
