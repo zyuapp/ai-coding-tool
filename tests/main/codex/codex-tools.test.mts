@@ -46,6 +46,8 @@ test("a session serves the run's tools under one token and points the app server
   );
   assert.ok(codex.host.served[0]!.tools.some((tool) => tool.name === "schedule"));
   assert.equal((client.calls("thread/start")[0] as { developerInstructions?: string }).developerInstructions, DEVELOPER_INSTRUCTIONS);
+  assert.match(DEVELOPER_INSTRUCTIONS, /"thread" always means an AICodingTool thread, never a Codex session or subagent/);
+  assert.match(DEVELOPER_INSTRUCTIONS, /asks to open, start, or spin up a thread, use start_thread/);
   assert.ok(DEVELOPER_INSTRUCTIONS.split(/\s+/).length < 100, "the instructions stay short");
 
   await turn(codex, { ...bridges, prompt: "again", continuation: { provider: "codex", value: "thread-1" } });
