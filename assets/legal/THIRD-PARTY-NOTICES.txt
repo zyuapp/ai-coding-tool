@@ -3,7 +3,7 @@ AI Coding Tool open source notices
 
 This directory contains the license notices for AI Coding Tool and the CUA
 software redistributed with it. The CUA notices apply to version
-0.22.2 of the driver and SDK and version 0.31.0-3 of the
+0.23.2 of the driver and SDK and version 0.31.0-3 of the
 UniFFI JavaScript runtime.
 
 AI Coding Tool
@@ -35,10 +35,10 @@ Copyright (c) 2025 Cua AI, Inc.
 
 The complete copyright and permission notice is in CUA-MIT.txt.
 
-Version: 0.22.2
-Source tag: https://github.com/trycua/cua/tree/cua-driver-rs-v0.22.2
-Source commit: https://github.com/trycua/cua/tree/d114f35fec05ecd37bf529e5587be86852205b64
-Release: https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.22.2
+Version: 0.23.2
+Source tag: https://github.com/trycua/cua/tree/cua-driver-rs-v0.23.2
+Source commit: https://github.com/trycua/cua/tree/e88e9d899ac5effaeae38619527ebaa46b26ce72
+Release: https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.23.2
 
 AI Coding Tool removes the x86_64 architecture slice from CUA's universal
 macOS executable, SDK library, and Node runtime for its arm64 distribution. It
@@ -46,7 +46,7 @@ makes no source-code changes to those components.
 
 The licenses and copyright notices for Rust libraries linked into the bundled
 macOS arm64 executable are in CUA-RUST-DEPENDENCIES.html. That report was
-generated from the CUA 0.22.2 Cargo.lock file for the cua-driver package and
+generated from the CUA 0.23.2 Cargo.lock file for the cua-driver package and
 the aarch64-apple-darwin target. Build-only and development-only dependencies
 are excluded.
 
@@ -56,7 +56,7 @@ MPL-covered UniFFI components
 The following redistributed components are governed by the Mozilla Public
 License 2.0:
 
-* @trycua/cua-driver-darwin-arm64@0.22.2/cua_driver_node_runtime.node
+* @trycua/cua-driver-darwin-arm64@0.23.2/cua_driver_node_runtime.node
 * @ubjs/core@0.31.0-3
 * @ubjs/node@0.31.0-3
 * The UniFFI 0.31.0 Rust components identified in
@@ -87,11 +87,11 @@ The cua_driver_node_runtime.node file is CUA's compatibility build of that
 runtime. Its corresponding source also includes CUA's deterministic build and
 transformation script:
 
-https://github.com/trycua/cua/blob/cua-driver-rs-v0.22.2/libs/cua-driver/scripts/build-node-runtime.mjs
+https://github.com/trycua/cua/blob/cua-driver-rs-v0.23.2/libs/cua-driver/scripts/build-node-runtime.mjs
 
 The CUA source tree pins the upstream package and records its integrity in:
 
-https://github.com/trycua/cua/blob/cua-driver-rs-v0.22.2/libs/cua-driver/typescript/package-lock.json
+https://github.com/trycua/cua/blob/cua-driver-rs-v0.23.2/libs/cua-driver/typescript/package-lock.json
 
 The Rust report links each MPL-covered Rust package and exact version to its
 source. Versioned package source is also available from crates.io, including:
@@ -122,7 +122,7 @@ The CUA cursor overlay embeds the Inter font. It is distributed under the SIL
 Open Font License 1.1. The full copyright and license notice is in
 INTER-OFL-1.1.txt. The corresponding font and license source is available at:
 
-https://github.com/trycua/cua/tree/cua-driver-rs-v0.22.2/libs/cua-driver/rust/crates/cursor-overlay/assets
+https://github.com/trycua/cua/tree/cua-driver-rs-v0.23.2/libs/cua-driver/rust/crates/cursor-overlay/assets
 
 Anthropic Claude Agent SDK
 --------------------------

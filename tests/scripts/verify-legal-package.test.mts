@@ -64,8 +64,8 @@ async function packageFixture() {
   await writeFile(driver, "driver");
   await chmod(driver, 0o755);
   const packages = [
-    ["@trycua/cua-driver", "0.22.2", "MIT"],
-    ["@trycua/cua-driver-darwin-arm64", "0.22.2", "MIT AND MPL-2.0"],
+    ["@trycua/cua-driver", "0.23.2", "MIT"],
+    ["@trycua/cua-driver-darwin-arm64", "0.23.2", "MIT AND MPL-2.0"],
     ["@ubjs/core", "0.31.0-3", "MPL-2.0"],
     ["@ubjs/node", "0.31.0-3", "MPL-2.0"],
   ];
@@ -93,9 +93,9 @@ test("the package hook rejects truncated licenses, version drift, and unexpected
   await cp(path.resolve("assets/legal/MPL-2.0.txt"), path.join(legal, "MPL-2.0.txt"));
   const manifest = path.join(resources, "cua-sdk/node_modules/@trycua/cua-driver/package.json");
   await writeFile(manifest, JSON.stringify({ name: "@trycua/cua-driver", version: "0.23.0", license: "MIT" }));
-  await assert.rejects(verifyLegalPackage(resources), /notices cover 0\.22\.2/);
+  await assert.rejects(verifyLegalPackage(resources), /notices cover 0\.23\.2/);
 
-  await writeFile(manifest, JSON.stringify({ name: "@trycua/cua-driver", version: "0.22.2", license: "MIT" }));
+  await writeFile(manifest, JSON.stringify({ name: "@trycua/cua-driver", version: "0.23.2", license: "MIT" }));
   await mkdir(path.join(resources, "cua-sdk/node_modules/@ubjs/node-darwin-arm64"));
   await assert.rejects(verifyLegalPackage(resources), /expected core, node/);
 });
