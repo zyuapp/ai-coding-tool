@@ -1,6 +1,30 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { parseTailscaleJson, reachesMobileServer } from "../../../src/main/mobile/tailscale.mts";
+import {
+  parseTailscaleJson,
+  reachesMobileServer,
+  tailscaleCommandCandidates,
+} from "../../../src/main/mobile/tailscale.mts";
+
+test("the PATH command is preferred over known Tailscale CLI entry points", () => {
+  assert.deepEqual(
+    tailscaleCommandCandidates("/custom/bin/tailscale"),
+    [
+      "/custom/bin/tailscale",
+      "/usr/local/bin/tailscale",
+      "/opt/homebrew/bin/tailscale",
+      "/Applications/Tailscale.app/Contents/MacOS/tailscale",
+    ],
+  );
+});
+
+test("a known PATH command is not tried twice", () => {
+  assert.deepEqual(tailscaleCommandCandidates("/usr/local/bin/tailscale"), [
+    "/usr/local/bin/tailscale",
+    "/opt/homebrew/bin/tailscale",
+    "/Applications/Tailscale.app/Contents/MacOS/tailscale",
+  ]);
+});
 
 test("Tailscale JSON responses are parsed", () => {
   assert.deepEqual(parseTailscaleJson('{"BackendState":"Running"}'), { BackendState: "Running" });

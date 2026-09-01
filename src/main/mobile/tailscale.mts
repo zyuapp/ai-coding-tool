@@ -14,11 +14,11 @@ const TAILSCALE_SERVE_TIMEOUT = 90_000;
 /** The fallback is only a local trip through the tailnet, so a slow answer is not a healthy route. */
 const TAILSCALE_HEALTH_TIMEOUT = 3_000;
 
-/** Where a Mac keeps the command: the app bundle first, then the two package managers. */
-const KNOWN_PATHS = [
-  "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-  "/opt/homebrew/bin/tailscale",
+/** CLI entry points used when the app's PATH does not contain Tailscale. */
+const KNOWN_CLI_PATHS = [
   "/usr/local/bin/tailscale",
+  "/opt/homebrew/bin/tailscale",
+  "/Applications/Tailscale.app/Contents/MacOS/tailscale",
 ];
 
 let cachedBinary: string | null = null;
@@ -32,24 +32,38 @@ async function executable(candidate: string) {
   }
 }
 
+/** The PATH result first, followed by known CLI entry points without duplicates. */
+export function tailscaleCommandCandidates(onPath: string | null): string[] {
+  const candidates: string[] = [];
+  if (onPath) candidates.push(onPath);
+  for (const candidate of KNOWN_CLI_PATHS) {
+    if (!candidates.includes(candidate)) candidates.push(candidate);
+  }
+  return candidates;
+}
+
+async function tailscaleOnPath(): Promise<string | null> {
+  try {
+    const { stdout } = await run("/usr/bin/which", ["tailscale"], { timeout: TAILSCALE_TIMEOUT });
+    const found = stdout.trim();
+    return found || null;
+  } catch {
+    return null;
+  }
+}
+
 /** The command, or null when this machine has no Tailscale. Remembered, because the answer rarely moves. */
 export async function findTailscale(): Promise<string | null> {
   if (cachedBinary && await executable(cachedBinary)) return cachedBinary;
   cachedBinary = null;
-  for (const candidate of KNOWN_PATHS) {
+  const onPath = await tailscaleOnPath();
+  for (const candidate of tailscaleCommandCandidates(onPath)) {
     if (await executable(candidate)) {
       cachedBinary = candidate;
       return candidate;
     }
   }
-  try {
-    const { stdout } = await run("/usr/bin/which", ["tailscale"], { timeout: TAILSCALE_TIMEOUT });
-    const found = stdout.trim();
-    if (found && await executable(found)) cachedBinary = found;
-  } catch {
-    // Not on the PATH either, which is simply a machine without Tailscale.
-  }
-  return cachedBinary;
+  return null;
 }
 
 function readable(error: unknown) {
