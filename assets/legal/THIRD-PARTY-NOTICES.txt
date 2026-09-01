@@ -15,7 +15,7 @@ AI-CODING-TOOL-MIT.txt.
 Electron runtime
 ----------------
 
-AI Coding Tool bundles Electron 43.4.1. Electron's MIT license is in
+AI Coding Tool bundles Electron 44.0.0. Electron's MIT license is in
 ELECTRON-MIT.txt. Copyright and license notices for Chromium and the other
 third-party software in that Electron release are in
 ELECTRON-THIRD-PARTY-NOTICES.html. The separate notices for the embedded
