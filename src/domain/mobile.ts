@@ -140,7 +140,7 @@ export type MobileSessionView = MobileSession & { deviceName: string };
 
 /** Whether Tailscale is on this machine, signed in, and serving HTTPS in front of the local server. */
 export type TailscaleState = {
-  status: "unknown" | "missing" | "logged-out" | "ready";
+  status: "unknown" | "missing" | "unavailable" | "logged-out" | "ready";
   /** The MagicDNS name of this machine, once Tailscale will say what it is. */
   magicDnsName: string | null;
   /**

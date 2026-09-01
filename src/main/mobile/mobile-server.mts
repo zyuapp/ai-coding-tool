@@ -29,6 +29,7 @@ import {
   type MobileSession,
   type MobileSessionView,
 } from "../../domain/mobile.js";
+import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 import type { PairingStore } from "./pairing.mjs";
 
 /** Where the phone page talks back. Pairing happens on the same socket, as its first message. */
@@ -491,6 +492,7 @@ export class MobileServer {
     if (request.method !== "GET") return plain(response, 405, "Method not allowed");
     /** The socket path is only ever an upgrade; a plain GET on it is not the page. */
     if (url.pathname === SOCKET_PATH) return plain(response, 400, "This address is a WebSocket.");
+    if (url.pathname === MOBILE_HEALTH_PATH) return plain(response, 200, MOBILE_HEALTH_RESPONSE);
     if (url.pathname === "/" || url.pathname === MOBILE_APP_PATH) {
       response.writeHead(302, { location: `${MOBILE_APP_PATH}/${url.search}`, ...SECURITY_HEADERS });
       return response.end();

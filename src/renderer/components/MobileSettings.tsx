@@ -63,6 +63,7 @@ type Step = { id: string; done: boolean; name: string; hint: string | null };
 
 function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
   const installed = tailscale.status !== "missing" && tailscale.status !== "unknown";
+  const unavailable = tailscale.status === "unavailable";
   const signedIn = tailscale.status === "ready";
   const steps: Step[] = [
     {
@@ -75,7 +76,7 @@ function tailscaleSteps(tailscale: TailscaleState, on: boolean): Step[] {
       id: "signed-in",
       done: signedIn,
       name: signedIn && tailscale.magicDnsName ? `Signed in as ${tailscale.magicDnsName}` : "Signed in",
-      hint: installed && !signedIn ? "Open Tailscale and sign in." : null,
+      hint: installed && !signedIn && !unavailable ? "Open Tailscale and sign in." : null,
     },
     {
       id: "https",

@@ -3,6 +3,7 @@ import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { promisify } from "node:util";
 import { emptyTailscaleState, type TailscaleState } from "../../domain/mobile.js";
+import { MOBILE_HEALTH_PATH, MOBILE_HEALTH_RESPONSE } from "./addresses.mjs";
 
 const run = promisify(execFile);
 
@@ -10,6 +11,8 @@ const run = promisify(execFile);
 const TAILSCALE_TIMEOUT = 10_000;
 /** Serve provisions a certificate on its first call, which is slow the way any certificate is. */
 const TAILSCALE_SERVE_TIMEOUT = 90_000;
+/** The fallback is only a local trip through the tailnet, so a slow answer is not a healthy route. */
+const TAILSCALE_HEALTH_TIMEOUT = 3_000;
 
 /** Where a Mac keeps the command: the app bundle first, then the two package managers. */
 const KNOWN_PATHS = [
@@ -80,6 +83,32 @@ function backendStatus(state: unknown): TailscaleState["status"] {
   return state === "Running" ? "ready" : "logged-out";
 }
 
+/** Tailscale can report a startup failure on stdout with a successful exit code. */
+export function parseTailscaleJson(output: string): unknown {
+  try {
+    return JSON.parse(output);
+  } catch (error) {
+    const response = output.trim().split("\n").find((line) => line.trim());
+    if (response && !response.trimStart().startsWith("{") && !response.trimStart().startsWith("[")) {
+      throw new Error(response.trim());
+    }
+    throw error;
+  }
+}
+
+/** Proves that HTTPS for the saved tailnet name still terminates at this app. */
+export async function reachesMobileServer(magicDnsName: string, request: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const response = await request(`https://${magicDnsName}${MOBILE_HEALTH_PATH}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(TAILSCALE_HEALTH_TIMEOUT),
+    });
+    return response.ok && await response.text() === MOBILE_HEALTH_RESPONSE;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Whether Serve is pointed at our port. The config names every handler it proxies, so the answer is
  * whether any of them is this server rather than something else the user set up.
@@ -109,9 +138,12 @@ export async function readTailscale(port: number | null, knownName: string | nul
   if (!binary) return { ...emptyTailscaleState(), status: "missing" };
   let status: unknown;
   try {
-    status = JSON.parse(await tailscale(binary, ["status", "--json"]));
+    status = parseTailscaleJson(await tailscale(binary, ["status", "--json"]));
   } catch (error) {
-    return { ...emptyTailscaleState(), status: "logged-out", magicDnsName: knownName, error: readable(error) };
+    if (port !== null && knownName && await reachesMobileServer(knownName)) {
+      return { status: "ready", magicDnsName: knownName, certs: true, serving: true, error: null };
+    }
+    return { ...emptyTailscaleState(), status: "unavailable", magicDnsName: knownName, error: readable(error) };
   }
   const self = (status as { Self?: unknown } | null)?.Self;
   const state: TailscaleState = {
@@ -123,9 +155,12 @@ export async function readTailscale(port: number | null, knownName: string | nul
   };
   if (state.status !== "ready" || port === null) return state;
   try {
-    const config: unknown = JSON.parse(await tailscale(binary, ["serve", "status", "--json"]) || "{}");
+    const config = parseTailscaleJson(await tailscale(binary, ["serve", "status", "--json"]) || "{}");
     return { ...state, serving: servesPort(config, port) };
   } catch {
+    if (state.magicDnsName && await reachesMobileServer(state.magicDnsName)) {
+      return { ...state, certs: true, serving: true };
+    }
     /** No serve config at all is what an unused Tailscale answers, and it is not an error to report. */
     return state;
   }

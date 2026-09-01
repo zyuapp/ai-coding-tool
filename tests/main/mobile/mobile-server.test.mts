@@ -107,6 +107,7 @@ test("the server hands out the phone page and nothing outside it", async (t) => 
   const page = await fetch(`${origin}/m/`);
   assert.equal(page.status, 200);
   assert.equal(await page.text(), PAGE);
+  assert.equal(await (await fetch(`${origin}/m/health`)).text(), "aicodingtool-mobile-v1");
   assert.equal((await fetch(`${origin}/m/threads/abc`)).status, 200, "a route the page draws is still the page");
 
   assert.equal((await fetch(`${origin}/m/../../package.json`)).status, 404);
