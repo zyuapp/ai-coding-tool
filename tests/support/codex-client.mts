@@ -18,6 +18,7 @@ export type Reply<M extends ServerRequestMethod> = { result: ServerRequestResult
 
 /** Real shapes for the handful of responses the session reads, trimmed to what it reads. */
 export const defaultScript: Script = {
+  "skills/list": () => ({ data: [{ cwd: "/tmp/project", skills: [], errors: [] }] }),
   "account/read": () => ({ account: { type: "chatgpt", email: "dev@example.com", planType: "pro" }, requiresOpenaiAuth: true }),
   "thread/start": (params: { model?: string | null }) => ({ thread: { id: "thread-1" }, model: params.model ?? "gpt-5.6-sol" }),
   "thread/resume": (params: { threadId: string }) => ({ thread: { id: params.threadId }, model: "gpt-5.6-sol" }),

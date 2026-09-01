@@ -54,7 +54,7 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.equal(client.command.cwd, "/tmp/project");
   assert.deepEqual(client.command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
   assert.match(client.command.executable, /codex$/);
-  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "account/read", "thread/start", "turn/start", "thread/name/set", "thread/backgroundTerminals/list"]);
+  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "skills/list", "account/read", "thread/start", "turn/start", "thread/name/set", "thread/backgroundTerminals/list"]);
   assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,

@@ -4,9 +4,9 @@ import { continuationOf, type ProviderResult, type ProviderRunInput } from "../a
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { runTools } from "../agent/run-tools.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
-import { skillRoots, skillTools } from "../tools/skills.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
+import { CodexSkills } from "./codex-skills.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
@@ -16,7 +16,6 @@ import type { RequestPermissionProfile } from "./protocol/v2/RequestPermissionPr
 import type { SandboxPolicy } from "./protocol/v2/SandboxPolicy.js";
 import type { ThreadItem } from "./protocol/v2/ThreadItem.js";
 import type { ThreadGoal } from "./protocol/v2/ThreadGoal.js";
-import type { UserInput } from "./protocol/v2/UserInput.js";
 
 /** What the session asks of its connection. The real client fits; a scripted one can stand in for it. */
 export type CodexClient = Pick<AppServerClient, "initialize" | "request" | "on" | "onRequest" | "close" | "exited">;
@@ -28,8 +27,8 @@ const INTERRUPT_GRACE_MS = 10_000;
 
 const SIGN_IN = "Sign in to Codex to run this thread.";
 
-/** What the thread is told beyond its prompt. Codex has no skill tool of its own, so the app's stand in. */
-export const DEVELOPER_INSTRUCTIONS = "The user keeps skills: reusable instructions for particular kinds of task. Call skills_list to see them by name and description. Before a task one covers, call skill_read with its name and follow what it says. A message that starts with /name asks for that skill. This app's own surfaces are reached only through the aicodingtool tools: its browser panel with browser_open, browser_read and browser_screenshot, its terminal with terminal_read, its other threads with list_threads and read_thread, and repeating or scheduled work with schedule.";
+/** What the thread is told beyond its prompt. */
+export const DEVELOPER_INSTRUCTIONS = "This app's own surfaces are reached only through the aicodingtool tools: its browser panel with browser_open, browser_read and browser_screenshot, its terminal with terminal_read, its other threads with list_threads and read_thread, and repeating or scheduled work with schedule.";
 
 type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
@@ -55,11 +54,6 @@ const sandboxPolicies: Record<CodexSandbox, SandboxPolicy> = {
   "workspace-write": { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false },
   "danger-full-access": { type: "dangerFullAccess" },
 };
-
-/** What a run says, as the app server takes it. */
-function text(prompt: string): UserInput {
-  return { type: "text", text: prompt, text_elements: [] };
-}
 
 function goalCommand(prompt: string) {
   const match = /^\/goal(?:\s+([\s\S]*))?$/.exec(prompt.trim());
@@ -194,6 +188,7 @@ export class CodexSession {
   private backgroundProcesses: BackgroundProcess[] = [];
   /** A newer read supersedes an older one that is still paging through the server. */
   private backgroundRead = 0;
+  private skills: CodexSkills | null = null;
   /** What Codex calls this thread. A later run resumes it by this id. */
   threadId?: string;
   /** What this app leaves in Codex's own record of the thread. */
@@ -329,9 +324,10 @@ export class CodexSession {
     const policy = codexPolicy(turn.input.policy);
     let started: { turn: { id: string } };
     try {
+      const prompt = goal?.type === "set" ? goal.objective : turn.input.prompt;
       started = await client.request("turn/start", {
         threadId,
-        input: [text(goal?.type === "set" ? goal.objective : turn.input.prompt)],
+        input: await this.skills!.input(prompt),
         model: turn.input.model,
         effort: turn.input.effort,
         approvalPolicy: policy.approvalPolicy,
@@ -432,7 +428,7 @@ export class CodexSession {
     this.reportBackground({ type: "background.changed", processes: [] });
     this.reportGoal = seed.reportGoal;
     this.reportGoal({ type: "goal.changed", goal: null });
-    const tools = [...runTools(seed).flatMap((set) => set.tools), ...skillTools(skillRoots(seed))];
+    const tools = runTools(seed).flatMap((set) => set.tools);
     if (tools.length) {
       const served = await this.host.serve(tools);
       if (this.ended) {
@@ -444,6 +440,7 @@ export class CodexSession {
     const env = this.served ? { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } : undefined;
     const client = this.connect(codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(env ? { env } : {}) }));
     this.client = client;
+    const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();
     });
@@ -461,6 +458,7 @@ export class CodexSession {
       this.goalActive = false;
       this.reportGoal({ type: "goal.changed", goal: null });
     });
+    client.on("skills/changed", () => { void skills.refresh(true); });
     client.on("item/started", (params) => {
       if (!subagents.itemStarted(params)) this.receiveStarted(params.item);
     });
@@ -488,6 +486,7 @@ export class CodexSession {
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
     await client.initialize(CLIENT_INFO);
+    await skills.refresh(true);
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
     const policy = codexPolicy(seed.policy);
@@ -544,7 +543,7 @@ export class CodexSession {
           turn.input.emit({ type: "steered", messageId: steer.messageId });
           continue;
         }
-        await client.request("turn/steer", { threadId, input: [text(steer.prompt)], expectedTurnId: turn.turnId });
+        await client.request("turn/steer", { threadId, input: await this.skills!.input(steer.prompt), expectedTurnId: turn.turnId });
         turn.input.emit({ type: "steered", messageId: steer.messageId });
       } catch {
         continue;

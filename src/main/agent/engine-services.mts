@@ -28,7 +28,7 @@ export const engineServices: Record<AgentEngine, EngineServices> = {
   },
   codex: {
     commands: async (workspace) => {
-      const { listSkills, skillRoots } = await import("../tools/skills.mjs");
+      const { listSkills, skillRoots } = await import("../codex/codex-skill-files.mjs");
       return [
         { name: "goal", description: "Set a goal — keep working until the condition is met", argumentHint: "condition" },
         ...(await listSkills(skillRoots(workspace))).map((skill) => ({ name: skill.name, description: skill.description, argumentHint: "" })),
