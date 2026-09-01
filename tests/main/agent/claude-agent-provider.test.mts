@@ -21,7 +21,7 @@ function optionsOf(capture: QueryCapture): Options {
 
 function systemAppend(options: Options): string {
   const prompt = options.systemPrompt;
-  assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt));
+  assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt) && "append" in prompt);
   return prompt.append ?? "";
 }
 
