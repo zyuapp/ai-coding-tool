@@ -65,7 +65,7 @@
     "@xterm/xterm": "^6.0.0",
     "electron": "^43.4.1",
     "electron-builder": "^26.15.3",
-    "eslint": "^10.9.0",
+    "eslint": "^10.9.1",
     "jsdom": "^30.0.1",
     "mermaid": "^11.17.0",
     "react": "^19.2.8",
