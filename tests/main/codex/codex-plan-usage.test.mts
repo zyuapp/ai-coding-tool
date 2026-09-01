@@ -27,6 +27,8 @@ const response: GetAccountRateLimitsResponse = {
   }),
   rateLimitsByLimitId: null,
   rateLimitResetCredits: null,
+  accountId: null,
+  rateLimitUpsell: null,
 };
 
 test("Codex rate limits become the same session and week windows as Claude usage", () => {
