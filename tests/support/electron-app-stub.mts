@@ -73,6 +73,9 @@ export function fakeElectron(userData: string) {
   const openedPaths: string[] = [];
   const relaunches: Array<{ args?: string[] }> = [];
   const badgeCounts: number[] = [];
+  const powerBlockerStarts: Array<{ id: number; type: "prevent-app-suspension" | "prevent-display-sleep" }> = [];
+  const powerBlockerStops: number[] = [];
+  const activePowerBlockers = new Set<number>();
   const webRequestListeners = new Map<string, Callback>();
   let quitAttempts = 0;
   let completedQuits = 0;
@@ -80,6 +83,8 @@ export function fakeElectron(userData: string) {
   const Notification = fakeNotifications();
   const { dialog, messageBoxes } = fakeDialog();
   const { Menu, applicationMenu } = fakeMenu();
+  const powerMonitor = new EventEmitter() as EventEmitter & { getSystemIdleState(idleThreshold: number): "active" };
+  powerMonitor.getSystemIdleState = () => "active";
   const browserPartition = {
     setUserAgent() {},
     webRequest: {
@@ -131,7 +136,17 @@ export function fakeElectron(userData: string) {
       getMediaAccessStatus: () => "granted",
       isTrustedAccessibilityClient: () => true,
     },
-    powerSaveBlocker: { start: () => 1, stop() {}, isStarted: () => true },
+    powerMonitor,
+    powerSaveBlocker: {
+      start: (type: "prevent-app-suspension" | "prevent-display-sleep") => {
+        const id = powerBlockerStarts.length + 1;
+        powerBlockerStarts.push({ id, type });
+        activePowerBlockers.add(id);
+        return id;
+      },
+      stop: (id: number) => { powerBlockerStops.push(id); return activePowerBlockers.delete(id); },
+      isStarted: (id: number) => activePowerBlockers.has(id),
+    },
     screen: { getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 }, size: { width: 1920, height: 1080 }, scaleFactor: 1 }] },
     dialog,
     Menu,
@@ -171,6 +186,10 @@ export function fakeElectron(userData: string) {
     globalShortcuts,
     notifications: Notification.raised,
     badgeCounts,
+    powerMonitor,
+    powerBlockerStarts,
+    powerBlockerStops,
+    activePowerBlockers,
     webRequestListeners,
   };
   return { electron, windows, appListeners, records };

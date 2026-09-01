@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, powerMonitor, powerSaveBlocker, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { readFileSync } from "node:fs";
 import { readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -26,6 +26,7 @@ import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu } from "./app-menu.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
+import { startLockAwake, type LockAwake } from "./lock-awake.js";
 import { startRunHost } from "./run-host.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
@@ -60,6 +61,7 @@ let workspaceService: WorkspaceService | null = null;
 let worktreeService: WorktreeService | null = null;
 let taskDatabase: TaskDatabase | null = null;
 let automationScheduler: AutomationScheduler | null = null;
+let lockAwake: LockAwake | null = null;
 let quitState: "running" | "stopping" | "ready" = "running";
 let restartRequested = false;
 let restartIssued = false;
@@ -322,6 +324,7 @@ function legacyWorktreesRoots(userData: string) {
 
 app.whenReady().then(async () => {
   if (!singleInstance) return;
+  if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
@@ -392,6 +395,8 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   if (quitState === "stopping") return;
   quitState = "stopping";
+  lockAwake?.stop();
+  lockAwake = null;
   automationScheduler?.stop();
   runs.clearPendingStarts();
   runs.killAgent();
@@ -409,6 +414,8 @@ app.on("before-quit", (event) => {
 });
 
 app.on("will-quit", () => {
+  lockAwake?.stop();
+  lockAwake = null;
   globalShortcut.unregisterAll();
   automationScheduler?.stop();
   taskDatabase?.close();
