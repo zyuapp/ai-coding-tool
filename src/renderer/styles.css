@@ -792,7 +792,7 @@ button, select { color: inherit; }
 .open-in { position: relative; display: flex; }
 /** The session panel sits above the topbar, so the topbar rises over it while its list is open. */
 .topbar:has(.open-in.open) { z-index: 40; }
-.open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; outline: none; }
+.open-in-popover { top: 34px; right: 0; min-width: 208px; max-height: 60vh; overflow-y: auto; outline: none; -webkit-app-region: no-drag; }
 .open-in-popover button { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 9px; height: 28px; }
 .open-in-popover button > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-in-icon { display: grid; place-items: center; color: var(--muted); }
