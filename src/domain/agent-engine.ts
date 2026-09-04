@@ -40,11 +40,12 @@ const CLAUDE_MODELS = [
   { id: "haiku", label: "Haiku", description: "Fastest for lightweight work", contextWindow: 200_000, efforts: [] },
 ] as const;
 
-/** Codex's model catalogue exposes no context window; 272k is what its GPT-5 line documents. */
+/** The default context window in Codex's model catalogue, used until the server reports its own. */
 const CODEX_CONTEXT_WINDOW = 272_000;
 
 const CODEX_MODELS = [
-  { id: "gpt-5.6-sol", label: "Sol", description: "Latest frontier agentic coding model", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
+  { id: "gpt-6-astra", label: "Astra", description: "Most capable model for complex, demanding work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
+  { id: "gpt-5.6-sol", label: "Sol", description: "Strong coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
   { id: "gpt-5.6-terra", label: "Terra", description: "Balanced agentic coding model for everyday work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_ULTRA },
   { id: "gpt-5.6-luna", label: "Luna", description: "Efficient model for lightweight work", contextWindow: CODEX_CONTEXT_WINDOW, efforts: EFFORTS_THROUGH_MAX },
 ] as const;

@@ -15,7 +15,7 @@ const modes: Choice<ExecutionPolicy>[] = [
   { value: "confirm", ...POLICIES.confirm, icon: Hand },
 ];
 
-const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-5.6-luna": Moon };
+const modelIcons: Record<AgentModel, IconType> = { fable: Sparkles, opus: Brain, sonnet: Gauge, haiku: Feather, "gpt-6-astra": Brain, "gpt-5.6-sol": Sparkles, "gpt-5.6-terra": Gauge, "gpt-5.6-luna": Moon };
 
 /** Bars for the depth ladder, and a mark of its own for the tier that works differently. */
 const effortIcons: Record<AgentEffort, IconType> = {
