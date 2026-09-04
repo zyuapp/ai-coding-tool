@@ -1,4 +1,4 @@
 // GENERATED CODE! DO NOT MODIFY BY HAND! Written by scripts/generate-codex-protocol.mts.
 
 /** The `codex --version` these bindings were generated from. */
-export const CODEX_PROTOCOL_VERSION = "0.152.0";
+export const CODEX_PROTOCOL_VERSION = "0.153.3";

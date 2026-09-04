@@ -63,7 +63,7 @@ const command = (id: string): ThreadItem => ({
   durationMs: null,
 });
 
-const message = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null });
+const message = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
 
 test("child-first traffic is buffered, both discovery paths merge, and root self-activity is rejected", () => {
   const reports: SubagentReport[] = [];

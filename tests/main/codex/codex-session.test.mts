@@ -33,7 +33,7 @@ const mcpCall = (id: string, server: string, tool: string, args: unknown): Threa
   type: "mcpToolCall", id, server, tool, status: "inProgress", arguments: args as never, appContext: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
 });
 
-const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null });
+const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
 
 /** The prompt Codex sends before an MCP tool runs, as captured from the real app server. */
 function elicitation(server: string, tool: string, params: Record<string, string>) {
