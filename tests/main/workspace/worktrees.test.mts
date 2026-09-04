@@ -407,3 +407,70 @@ test("branches report the current branch and a detached checkout", async () => {
   assert.equal(detached.current, null);
   assert.ok(detached.branches.includes("main"));
 });
+
+test("listing counts renames and untracked files, and compares detached commits without changing Git", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await git(worktree.root, "commit", "--allow-empty", "-m", "detached work");
+  await git(worktree.root, "mv", "tracked.txt", "renamed\nfile.txt");
+  await mkdir(path.join(worktree.root, "new"));
+  await writeFile(path.join(worktree.root, "new", "one.txt"), "one");
+  await writeFile(path.join(worktree.root, "new", "two.txt"), "two");
+  await writeFile(path.join(worktree.root, ".env"), "ignored");
+  const before = (await git(worktree.root, "status", "--porcelain=v1", "-z", "--untracked-files=all")).stdout;
+  const [listed] = await worktrees.list();
+  assert.equal(listed.branch, null);
+  assert.deepEqual(listed.status, { changedFiles: 3, comparison: { branch: "main", ahead: 1 } });
+  assert.equal((await git(worktree.root, "status", "--porcelain=v1", "-z", "--untracked-files=all")).stdout, before);
+});
+
+test("listing compares with the locally recorded origin default branch and reports included commits", async () => {
+  const root = await repository();
+  await git(root, "update-ref", "refs/remotes/origin/trunk", "HEAD");
+  await git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk");
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  await git(worktree.root, "checkout", "-b", "feature");
+  const [listed] = await worktrees.list();
+  assert.equal(listed.branch, "feature");
+  assert.deepEqual(listed.status, { changedFiles: 0, comparison: { branch: "origin/trunk", ahead: 0 } });
+});
+
+test("listing keeps unknown comparisons and unavailable repositories distinct from clean worktrees", async () => {
+  const root = await repository();
+  await git(root, "branch", "-m", "trunk");
+  const worktrees = await service();
+  await worktrees.create({ projectRoot: root, carryChanges: false });
+  const orphan = path.join(worktrees.testRoot, "orphan");
+  await mkdir(orphan);
+  await writeFile(path.join(orphan, "important.txt"), "preserve");
+  const listed = await worktrees.list();
+  const valid = listed.find((item) => item.repository === root);
+  assert.deepEqual(valid?.status, { changedFiles: 0, comparison: null });
+  const invalid = listed.find((item) => item.root === orphan);
+  assert.equal(invalid?.repository, null);
+  assert.deepEqual(invalid?.status, { changedFiles: null, comparison: null });
+  assert.equal(await readFile(path.join(orphan, "important.txt"), "utf8"), "preserve");
+});
+
+test("forgetting refuses a folder that exists and only drops registration after the folder is gone", async () => {
+  const root = await repository();
+  const worktrees = await service();
+  const worktree = await worktrees.create({ projectRoot: root, carryChanges: false });
+  const request = { worktreeId: worktree.id, root: worktree.root, taskId: null, title: "Missing folder", release: "deleted" as const, missingOnly: true };
+  await assert.rejects(worktrees.release(request), /folder exists again/);
+  assert.equal(await readFile(path.join(worktree.root, "tracked.txt"), "utf8"), "one\n");
+  assert.equal(worktrees.testRegistry.records.has(worktree.root), true);
+  await rm(worktree.root, { recursive: true });
+  assert.deepEqual(await worktrees.release(request), { commit: null, shortCommit: null, ref: null });
+  assert.equal(worktrees.testRegistry.records.has(worktree.root), false);
+});
+
+test("a root that cannot be listed fails the scan rather than reporting its folders missing", async () => {
+  const root = await temporaryDirectory("not-directory");
+  const file = path.join(root, "file");
+  await writeFile(file, "not a directory");
+  const worktrees = new WorktreeService({ worktreesRoot: file, workspaces: workspaces() });
+  await assert.rejects(worktrees.list(), /ENOTDIR/);
+});

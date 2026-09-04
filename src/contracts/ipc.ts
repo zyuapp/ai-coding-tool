@@ -103,6 +103,8 @@ export type ReleaseWorktreeRequest = {
   taskId: string | null;
   title: string;
   release: WorktreeRelease;
+  /** Only forget a missing folder; an existing folder must remain untouched. */
+  missingOnly?: boolean;
 };
 
 export type WorktreeSnapshotResult = {

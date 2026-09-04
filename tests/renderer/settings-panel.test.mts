@@ -9,6 +9,7 @@ import type { AgentEngine } from "../../src/domain/agent-engine.ts";
 import type { PlanUsage } from "../../src/domain/plan-usage.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
+import { deriveView, emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
 import { engineDesktopStub, mobileDesktopStub, mobileSettingsProps } from "../support/mobile-desktop.mts";
 
@@ -33,7 +34,7 @@ type SettingsTestOverrides = Partial<SettingsPanelProps> & {
 function renderSettingsPanel(overrides: SettingsTestOverrides) {
   return React.createElement(SettingsPanel, {
     onClose() {},
-    archivedThreads: [], managedWorktrees: [], worktreeManagementError: null, worktreeManagementNotice: null,
+    archivedThreads: [], worktreeSettings: deriveView(emptyWorkspaceState()).worktreeSettings, worktreeManagementError: null, worktreeManagementNotice: null,
     theme: "aicodingtool-dark",
     themeMode: "auto",
     uiFont: "system",
@@ -54,7 +55,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetReadingSize() {},
     onSetTerminalSize() {},
     onSetChromeBrowser() {}, onSetConciseReplies() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
-    onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onRevealWorktree() {}, onDeleteWorktree() {},
+    onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onWorktreeCommand() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
     onSetShortcut() {},

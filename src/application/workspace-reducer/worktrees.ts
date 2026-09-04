@@ -1,7 +1,8 @@
 /** Where a thread works: the branch it starts from, and the checkouts the app keeps. */
+import { reduceWorktreeSettings } from "./worktree-settings.js";
 import { reduceDiffs } from "./diffs.js";
 import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR, dropWorktree, leaveWorktree, now, releaseWorktrees, rereadDiff, runsInWorkspace, settled, targetId, threadBusy, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";
 import { withoutWorktreeRoot, type WorkspaceState } from "../workspace-state.js";
@@ -9,7 +10,7 @@ import { createConversationMessage } from "../../domain/conversation.js";
 import type { Worktree } from "../../domain/worktree.js";
 
 type WorktreeInput = Extract<WorkspaceInput, {
-  type: "view.move-worktree" | "task.set-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
+  type: "worktree.filter-project" | "worktree.confirm-delete" | "worktree.set-missing-open" | "worktree.set-threads-open" | "worktree.open-thread" | "view.move-worktree" | "task.set-worktree" | "task.set-branch" | "task.checkout-branch" | "worktree.refresh" | "worktree.reveal"
     | "worktree.delete" | "worktree.created" | "worktree.failed" | "worktrees.loaded" | "worktrees.failed"
     | "worktree.released" | "worktree.release-failed" | "worktree.deleted";
 }>;
@@ -19,6 +20,10 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
   if (input.type === "task.set-worktree" && state.worktreeMove) return reduceWorktrees({ ...state, worktreeMove: null }, input);
 
   switch (input.type) {
+    case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.set-missing-open":
+    case "worktree.set-threads-open": case "worktree.open-thread":
+      return reduceWorktreeSettings(state, input);
+
     /**
      * Asks before moving, but only where the answer could cost something. A thread with no checkout
      * yet, and a clean one walking back to the project, have nothing to lose, so they just go.
@@ -101,7 +106,8 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     }
 
     case "worktree.refresh":
-      return settled({ ...state, managedWorktrees: null, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
+      if (state.worktreeManagementLoading) return settled(state);
+      return settled({ ...state, worktreeManagementLoading: true, worktreeSettings: { ...state.worktreeSettings, confirming: null }, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "list-worktrees" }]);
 
     case "worktree.reveal": {
       const worktree = state.managedWorktrees?.find((item) => item.root === input.root);
@@ -121,7 +127,9 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
       if (claimants.some((claimant) => threadBusy(state, claimant.id))) return settled({ ...state, actionError: WORKTREE_RUNNING_ERROR, worktreeManagementError: WORKTREE_RUNNING_ERROR });
       /** A checkout a thread is already walking out of is on its way; asking again would remove it twice. */
       if (claimants.some((claimant) => state.releasingWorktrees.includes(claimant.id))) return settled({ ...state, worktreeManagementError: WORKTREE_RELEASING_ERROR });
-      return settled({ ...state, deletingWorktrees: [...state.deletingWorktrees, worktree.root], actionError: null, worktreeManagementError: null, worktreeManagementNotice: null }, [{ type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id }]);
+      const effect: WorkspaceEffect = { type: "delete-worktree", worktreeId: worktree.id, root: worktree.root, title: worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id };
+      if (input.missingOnly) effect.missingOnly = true;
+      return settled({ ...state, worktreeSettings: { ...state.worktreeSettings, confirming: null }, deletingWorktrees: [...state.deletingWorktrees, worktree.root], actionError: null, worktreeManagementError: null, worktreeManagementNotice: null }, [effect]);
     }
 
     case "worktree.created": {
@@ -147,10 +155,10 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     case "worktree.release-failed":
       return settled({ ...withoutReleasingWorktree(state, [input.taskId]), actionError: input.message });
 
-    case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementError: null });
+    case "worktrees.loaded": return settled({ ...state, managedWorktrees: input.worktrees, worktreeManagementLoading: false, worktreeManagementError: null });
 
     /** A failed delete leaves the checkout on the list, so only its wait and the error change. */
-    case "worktrees.failed": return settled({ ...state, ...(input.root ? { deletingWorktrees: withoutWorktreeRoot(state, input.root) } : { managedWorktrees: [] }), worktreeManagementError: input.message });
+    case "worktrees.failed": return settled({ ...state, deletingWorktrees: input.root ? withoutWorktreeRoot(state, input.root) : state.deletingWorktrees, worktreeManagementLoading: input.root ? state.worktreeManagementLoading : false, worktreeManagementError: input.message });
 
     case "worktree.released": {
       const thread = state.threads.find((item) => item.id === input.taskId);
@@ -166,9 +174,14 @@ export function reduceWorktrees(state: WorkspaceState, input: WorktreeInput): Wo
     case "worktree.deleted": {
       const worktree = state.worktrees.find((item) => item.id === input.worktreeId || item.root === input.root);
       const { commit, shortCommit, ref } = input.snapshot;
-      const text = commit ? `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.` : "Worktree deleted. Back on the project checkout.";
+      let text = "Worktree deleted. Back on the project checkout.";
+      if (input.missingOnly) text = "Missing worktree folder forgotten. Back on the project checkout.";
+      else if (commit) text = `Worktree deleted. Loose work was committed as ${shortCommit ?? commit.slice(0, 7)} first.`;
       const dropped = worktree ? dropWorktree(state, worktree.id, () => createConversationMessage("system", text, ref ? `Recover it with git show ${ref}` : undefined)) : state;
-      const notice = ref ? `Deleted ${input.root}. Recover it with git show ${ref}.` : commit ? `Deleted ${input.root}. Recover loose work with git show ${shortCommit ?? commit}.` : `Deleted ${input.root}.`;
+      let notice = `Deleted ${input.root}.`;
+      if (input.missingOnly) notice = `Forgot ${input.root}. Thread history kept.`;
+      else if (ref) notice += ` Recover it with git show ${ref}.`;
+      else if (commit) notice += ` Recover loose work with git show ${shortCommit ?? commit}.`;
       return reduceDiffs({ ...dropped, managedWorktrees: dropped.managedWorktrees?.filter((item) => item.root !== input.root) ?? null, deletingWorktrees: withoutWorktreeRoot(dropped, input.root), worktreeManagementError: null, worktreeManagementNotice: notice }, { type: "view.refresh-environment" });
     }
   }

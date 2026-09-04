@@ -78,7 +78,7 @@ test("a worktree being deleted shows the wait, refuses a repeat, and clears on f
     ...emptyWorkspaceState(),
     threads: [task("task-a", worktree.id)],
     worktrees: [worktree],
-    managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: "/repo", branch: null }],
+    managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: "/repo", branch: null, status: { changedFiles: null, comparison: null } }],
   };
 
   const deleting = reduce(state, { type: "worktree.delete", root: worktree.root });

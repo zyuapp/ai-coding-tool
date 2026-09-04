@@ -46,7 +46,7 @@ export type WorkspaceEvent =
   | { type: "worktrees.failed"; message: string; root?: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.release-failed"; taskId: string; message: string }
-  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult }
+  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
@@ -88,7 +88,7 @@ export type WorkspaceEffect =
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "list-worktrees" }
   | { type: "reveal-worktree"; root: string }
-  | { type: "delete-worktree"; worktreeId: string; root: string; title: string }
+  | { type: "delete-worktree"; worktreeId: string; root: string; title: string; missingOnly?: boolean }
   | { type: "start-run"; command: StartRunCommand }
   | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }

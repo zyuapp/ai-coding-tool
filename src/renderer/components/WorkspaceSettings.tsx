@@ -11,7 +11,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       initialSection={workspace.settingsSection ?? "general"}
       initialSetting={workspace.settingsFocus}
       archivedThreads={workspace.archivedThreads}
-      managedWorktrees={workspace.managedWorktrees} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
+      worktreeSettings={workspace.worktreeSettings} worktreeManagementError={workspace.worktreeManagementError} worktreeManagementNotice={workspace.worktreeManagementNotice}
       theme={workspace.theme}
       themeMode={workspace.themeMode}
       uiFont={workspace.uiFont}
@@ -36,7 +36,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onRestoreThread={workspace.actions.restoreThread}
       onClearArchive={workspace.actions.clearArchive}
       onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)}
-      onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onRevealWorktree={(root) => void workspace.actions.revealWorktree(root)} onDeleteWorktree={(root) => void workspace.actions.deleteManagedWorktree(root)}
+      onRefreshWorktrees={() => void workspace.actions.refreshWorktrees()} onWorktreeCommand={workspace.dispatch}
       onClearBrowserData={() => void workspace.actions.clearBrowserData()}
       onCaptureShortcut={(action) => void workspace.actions.captureShortcut(action)}
       onSetShortcut={(action, binding) => void workspace.actions.setShortcut(action, binding)}

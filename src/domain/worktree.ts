@@ -18,6 +18,13 @@ export type Worktree = {
   lastUsedAt: number;
 };
 
+export type WorktreeStatus = {
+  /** Null when Git could not read the working tree. */
+  changedFiles: number | null;
+  /** Compared with a locally available default-branch ref; no network fetch is performed. */
+  comparison: { branch: string; ahead: number } | null;
+};
+
 /** One directory under a root the app owns, read from disk for manual management in Settings. */
 export type ManagedWorktree = {
   id: string;
@@ -25,6 +32,7 @@ export type ManagedWorktree = {
   repository: string | null;
   /** Null means detached, unless `repository` is also null and the directory is no longer a Git worktree. */
   branch: string | null;
+  status: WorktreeStatus;
 };
 
 /** Why a worktree let go of its thread. A snapshot commit records this in its message. */

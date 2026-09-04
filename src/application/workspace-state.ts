@@ -53,7 +53,7 @@ import {
   worktreeClaimants,
   worktreeFor,
 } from "./thread-location.js";
-import { worktreeSettingsViews } from "./worktree-settings.js";
+import { worktreeSettingsPage, worktreeSettingsViews, type WorktreeSettingsState } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
 export {
@@ -222,6 +222,8 @@ export type WorkspaceState = {
   worktrees: Worktree[];
   /** Directories found under app-owned roots for the manual Settings list. Null until that list lands. */
   managedWorktrees: ManagedWorktree[] | null;
+  worktreeSettings: WorktreeSettingsState;
+  worktreeManagementLoading: boolean;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
   /** Threads whose checkout is being made, so nothing asks for a second one while the first lands. */
@@ -402,6 +404,8 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     projects: [],
     worktrees: [],
     managedWorktrees: null,
+    worktreeSettings: { project: null, confirming: null, missingOpen: null, expandedThreads: [] },
+    worktreeManagementLoading: false,
     worktreeManagementError: null,
     worktreeManagementNotice: null,
     creatingWorktrees: [],
@@ -739,6 +743,7 @@ export function deriveView(state: WorkspaceState) {
   const listedThreads = state.threads.filter((thread) => !forked.has(thread.id));
   const visibleThreads = listedThreads.filter((thread) => thread.archivedAt === undefined);
   const busy = busyThreadIds(state), blocked = blockedThreadIds(state);
+  const managedWorktrees = worktreeSettingsViews(state, busy);
   const lists = sidebarLists(state, state.projects, visibleThreads, busy, blocked);
   const { orderedThreads } = lists, threadsByWorktree = new Map<string, Thread[]>();
   for (const thread of orderedThreads) if (thread.worktreeId)
@@ -794,7 +799,8 @@ export function deriveView(state: WorkspaceState) {
       worktree,
       threads: threadsByWorktree.get(worktree.id) ?? [],
     })),
-    managedWorktrees: worktreeSettingsViews(state, busy),
+    managedWorktrees,
+    worktreeSettings: worktreeSettingsPage(state, managedWorktrees),
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),

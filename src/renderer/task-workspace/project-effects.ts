@@ -102,8 +102,9 @@ export async function runProjectEffect(effect: ProjectEffect, host: EffectHost):
           taskId: null,
           title: effect.title,
           release: "deleted",
+          missingOnly: effect.missingOnly,
         });
-        await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot });
+        await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot, missingOnly: effect.missingOnly });
       } catch (error) {
         await dispatch({ type: "worktrees.failed", root: effect.root, message: errorMessage(error) });
       }

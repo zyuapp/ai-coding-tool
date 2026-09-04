@@ -97,6 +97,7 @@ export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: Ip
       taskId: typeof fields.taskId === "string" ? worktreePath(fields.taskId) : null,
       title: typeof fields.title === "string" ? fields.title : "",
       release,
+      missingOnly: fields.missingOnly === true,
     } satisfies ReleaseWorktreeRequest);
   });
 

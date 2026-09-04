@@ -600,7 +600,7 @@ test("deleting a checkout from Settings tells every thread standing in it", () =
   const state = projected({
     ...inside(worktree, [task("task-a", { projectId: PROJECT.id }), task("task-b", { projectId: PROJECT.id })]),
     currentId: "task-a",
-    managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: PROJECT.root, branch: null }],
+    managedWorktrees: [{ id: worktree.id, root: worktree.root, repository: PROJECT.root, branch: null, status: { changedFiles: null, comparison: null } }],
   });
 
   const deleting = reduce(state, { type: "worktree.delete", root: worktree.root });

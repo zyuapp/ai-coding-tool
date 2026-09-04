@@ -139,8 +139,13 @@ export type ProjectCommand =
 /** Manual worktree management. Deletion snapshots loose work before removing the directory. */
 export type WorktreeCommand =
   | { type: "worktree.refresh" }
+  | { type: "worktree.filter-project"; project: string | null }
+  | { type: "worktree.confirm-delete"; root: string | null }
+  | { type: "worktree.set-missing-open"; open: boolean }
+  | { type: "worktree.set-threads-open"; root: string; open: boolean }
+  | { type: "worktree.open-thread"; taskId: string }
   | { type: "worktree.reveal"; root: string }
-  | { type: "worktree.delete"; taskId?: string; root?: string };
+  | { type: "worktree.delete"; taskId?: string; root?: string; missingOnly?: boolean };
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
