@@ -7,7 +7,7 @@ the Electron main process or bundled as font assets. CUA and UBJS notices are
 kept in the dedicated CUA files. JavaScript compiled into the desktop and
 phone interfaces has separate build-generated notice files.
 
-@anthropic-ai/claude-agent-sdk@0.3.260
+@anthropic-ai/claude-agent-sdk@0.3.261
 --------------------------------------
 
 License: SEE LICENSE IN README.md
