@@ -44,17 +44,15 @@ export function worktreeMenuView(state: WorkspaceState, current: Thread | undefi
     const checkouts = state.worktrees.filter((item) => item.projectId === project.id && item.id !== current.worktreeId).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
     for (const checkout of checkouts) {
       const record = managed.get(checkout.root);
+      if (state.managedWorktrees !== null && !record || record?.repository === null) continue;
       const environment = state.environments[checkout.workspaceId];
       const name = worktreeName(checkout);
       let branch = record ? record.branch ?? "Detached" : "Branch not loaded";
       if (environment?.status === "available") branch = environment.branch ?? "Detached";
       if (!`${name} ${branch}`.toLocaleLowerCase().includes(query)) continue;
-      const missing = state.managedWorktrees !== null && !record;
       const removing = deleting.has(checkout.root) || releasingCheckouts.has(checkout.id);
-      if (missing) branch = "Folder missing";
-      else if (record?.repository === null) branch = "Repository unavailable";
-      else if (removing) branch = "Deleting…";
-      destinations.push({ id: checkout.id, title: name, detail: branch, disabled: state.worktreeManagementLoading || missing || removing || record?.repository === null || busy.has(current.id), command: { type: "task.move-worktree", taskId: current.id, destination: { kind: "worktree", id: checkout.id } } });
+      if (removing) branch = "Deleting…";
+      destinations.push({ id: checkout.id, title: name, detail: branch, disabled: state.worktreeManagementLoading || removing || busy.has(current.id), command: { type: "task.move-worktree", taskId: current.id, destination: { kind: "worktree", id: checkout.id } } });
     }
   }
   const busyCount = worktree ? state.threads.filter((thread) => thread.worktreeId === worktree.id && busy.has(thread.id)).length : 0;

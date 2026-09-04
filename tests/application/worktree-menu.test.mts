@@ -32,6 +32,19 @@ test("shared membership includes dismissed threads, excludes archived threads, a
   assert.equal(required(deriveView(archived).worktreeMenu).count, 1);
 });
 
+test("a worktree scan offers usable destinations while retaining missing folders for Settings cleanup", () => {
+  const state = fixture();
+  const missing = heldWorktree("missing");
+  const unavailable = heldWorktree("unavailable");
+  state.worktrees.push(missing, unavailable);
+  const loaded = reduce(state, { type: "worktrees.loaded", worktrees: [...state.managedWorktrees!, { id: unavailable.id, root: unavailable.root, repository: null, branch: null, status: { changedFiles: null, comparison: null } }] }).state;
+  const view = deriveView(loaded);
+  assert.deepEqual(required(view.worktreeMenu).destinations.map(item => item.id), ["wt2"]);
+  assert.equal(required(view.worktreeMenu).destinations[0].disabled, false);
+  assert.equal(loaded.worktrees.length, 4);
+  assert.equal(view.worktreeSettings.missing[0].id, "missing");
+});
+
 for (const engine of ["claude", "codex"] as const) {
   test(`${engine} moves between existing checkouts and Local without releasing either checkout`, () => {
     const state = fixture();

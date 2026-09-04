@@ -57,7 +57,7 @@ function SubmenuPanel({ children, top, autoFocus, onLeave }: { children: ReactNo
   useEffect(() => {
     if (autoFocus) root.current?.querySelector<HTMLElement>('input, button:not(:disabled)')?.focus();
   }, [autoFocus]);
-  return <div ref={root} className="menu-popover menu-submenu" data-popover-menu style={placement ?? { top }} onKeyDown={(event) => {
+  return <div ref={root} className="menu-popover menu-submenu menu-panel-submenu" data-popover-menu style={placement ?? { top }} onKeyDown={(event) => {
     if (event.key === "Escape" || event.key === "ArrowLeft" && (event.target as HTMLElement).tagName !== "INPUT") {
       event.preventDefault();
       event.stopPropagation();

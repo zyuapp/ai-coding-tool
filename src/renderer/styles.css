@@ -584,6 +584,7 @@ button, select { color: inherit; }
 /** A list an item opened, overlapping that item the way this platform draws one. */
 .menu-submenu { top: 0; left: calc(100% - 5px); right: auto; z-index: 1; }
 .menu-submenu.menu-flipped { left: auto; right: calc(100% - 5px); }
+.menu-panel-submenu { background: var(--surface-menu); backdrop-filter: none; }
 .section-menu-popover { top: 30px; right: -6px; min-width: 224px; }
 .project-tasks { display: flex; flex-direction: column; gap: 1px; min-height: 8px; margin: 1px 0 2px; }
 .show-more,
