@@ -14,6 +14,8 @@ export type MobileBridgeHost = {
 let app: MobileBridgeHost | null = null;
 let host: typeof MobileHost | null = null;
 let awake: number | null = null;
+/** A replacement window starts its phone host only after the previous host has stopped. */
+let lifecycle: Promise<void> = Promise.resolve();
 
 /** The server lives in an ES module of its own, so `ws` is only loaded when the bridge is wired up. */
 async function loaded() {
@@ -21,15 +23,17 @@ async function loaded() {
   return host;
 }
 
-function send(request: MobileRequest) {
-  const window = app?.window();
+function send(owner: MobileBridgeHost, request: MobileRequest) {
+  if (app !== owner) return false;
+  const window = owner.window();
   if (!window || window.isDestroyed()) return false;
   window.webContents.send("mobile:request", request);
   return true;
 }
 
-function publishState(state: MobileServerState) {
-  const window = app?.window();
+function publishState(owner: MobileBridgeHost, state: MobileServerState) {
+  if (app !== owner) return;
+  const window = owner.window();
   if (window && !window.isDestroyed()) window.webContents.send("mobile:changed", state);
   keepAwake(state.sessions.length > 0);
 }
@@ -52,24 +56,34 @@ function keepAwake(needed: boolean) {
   awake = null;
 }
 
-export async function startMobileBridge(options: MobileBridgeHost) {
+export function startMobileBridge(options: MobileBridgeHost) {
   app = options;
-  const mobile = await loaded();
-  await mobile.startMobileHost({ userData: options.userData, staticRoot: options.staticRoot, send, onState: publishState });
+  lifecycle = lifecycle.catch(() => undefined).then(async () => {
+    if (app !== options) return;
+    const mobile = await loaded();
+    if (app !== options) return;
+    await mobile.startMobileHost({
+      userData: options.userData,
+      staticRoot: options.staticRoot,
+      send: (request) => send(options, request),
+      onState: (state) => publishState(options, state),
+    });
+  });
+  return lifecycle;
 }
 
-export async function stopMobileBridge() {
+export function stopMobileBridge() {
+  app = null;
   keepAwake(false);
-  await host?.stopMobileHost();
+  lifecycle = lifecycle.catch(() => undefined).then(async () => {
+    await host?.stopMobileHost();
+  });
+  return lifecycle;
 }
 
-/** Whether a phone is still counting on the window, which is why closing it only hides it. */
-export function mobileBridgeHolding() {
-  return host?.mobileBridgeHolding() ?? false;
-}
-
-export function mobileWindowGone() {
-  host?.mobileWindowGone();
+async function readyHost() {
+  await lifecycle;
+  return loaded();
 }
 
 function setting(value: unknown) {
@@ -98,11 +112,11 @@ export function serveMobileBridge(trusted: (event: IpcMainEvent | IpcMainInvokeE
   const guard = (event: IpcMainInvokeEvent) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
   };
-  ipcMain.handle("mobile:state", async (event) => { guard(event); return (await loaded()).mobileState(); });
-  ipcMain.handle("mobile:set-enabled", async (event, enabled: unknown) => { guard(event); return (await loaded()).setMobileEnabled(setting(enabled)); });
-  ipcMain.handle("mobile:pair-code", async (event) => { guard(event); return (await loaded()).createMobilePairingCode(); });
-  ipcMain.handle("mobile:revoke", async (event, id: unknown) => { guard(event); return (await loaded()).revokeMobileDevice(deviceId(id)); });
-  ipcMain.handle("mobile:tailscale-refresh", async (event) => { guard(event); return (await loaded()).refreshTailscale(); });
+  ipcMain.handle("mobile:state", async (event) => { guard(event); return (await readyHost()).mobileState(); });
+  ipcMain.handle("mobile:set-enabled", async (event, enabled: unknown) => { guard(event); return (await readyHost()).setMobileEnabled(setting(enabled)); });
+  ipcMain.handle("mobile:pair-code", async (event) => { guard(event); return (await readyHost()).createMobilePairingCode(); });
+  ipcMain.handle("mobile:revoke", async (event, id: unknown) => { guard(event); return (await readyHost()).revokeMobileDevice(deviceId(id)); });
+  ipcMain.handle("mobile:tailscale-refresh", async (event) => { guard(event); return (await readyHost()).refreshTailscale(); });
   ipcMain.on("mobile:answer", (event, response: unknown) => {
     if (!trusted(event) || !isMobileResponse(response)) return;
     host?.answerMobileRequest(response);

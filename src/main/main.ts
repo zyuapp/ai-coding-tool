@@ -34,7 +34,7 @@ import { adoptUserDataFolder } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
-import { mobileBridgeHolding, mobileWindowGone, serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
+import { serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile/bridge.js";
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
@@ -258,6 +258,7 @@ async function createWindow() {
       backgroundThrottling: false,
     },
   });
+  const createdWindow = window;
   browser.startBrowserHost(window, {
     onPage: (event: BrowserPageEvent) => {
       if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
@@ -290,19 +291,16 @@ async function createWindow() {
   });
   if (placement.maximized && !placement.fullScreen) window.maximize();
   watchWindowPlacement(window);
-  /** A phone reads the window's own state, so closing it while one is paired only puts it away. */
-  window.on("close", (event) => {
-    if (quitState !== "running" || !mobileBridgeHolding()) return;
-    event.preventDefault();
-    window?.hide();
-  });
   window.on("closed", () => {
     rendererListening = false;
-    mobileWindowGone();
+    void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
+  if (createdWindow.isDestroyed() || quitState !== "running") return;
+  void startMobileBridge({ window: () => createdWindow, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile") })
+    .catch((error) => console.error("Could not start the phone bridge:", error));
 }
 
 const updateHost: UpdateHost = {
@@ -363,14 +361,11 @@ app.whenReady().then(async () => {
     onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
   });
   await createWindow();
-  void startMobileBridge({ window: () => window, userData, staticRoot: path.join(__dirname, "../../mobile") })
-    .catch((error) => console.error("Could not start the phone bridge:", error));
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
   void checkForUpdates(updateHost).catch((error) => console.error("Update check failed:", error));
   app.on("activate", () => {
     if (queueReopen()) return;
-    /** A window a paired phone kept alive was hidden rather than destroyed, so it is shown again. */
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
     else revealWindow();
   });

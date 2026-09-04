@@ -1,4 +1,5 @@
 import { emptyMobileServerState, type MobileServerState } from "../../src/domain/mobile.js";
+import type { MobileHostOptions } from "../../src/main/mobile/mobile-host.mjs";
 
 /**
  * Stands in for the phone bridge's server module while the main process boots. The real one shells
@@ -9,12 +10,12 @@ export function fakeMobileHost() {
   let started!: () => void;
   const running = new Promise<void>((resolve) => { started = resolve; });
   const state: MobileServerState = emptyMobileServerState();
+  const starts: MobileHostOptions[] = [];
+  let stops = 0;
   const host = {
-    startMobileHost: async () => { started(); },
-    stopMobileHost: async () => {},
+    startMobileHost: async (options: MobileHostOptions) => { starts.push(options); started(); },
+    stopMobileHost: async () => { stops += 1; },
     mobileState: () => state,
-    mobileBridgeHolding: () => false,
-    mobileWindowGone: () => {},
     setMobileEnabled: async () => state,
     createMobilePairingCode: async () => null,
     revokeMobileDevice: async () => state,
@@ -22,7 +23,7 @@ export function fakeMobileHost() {
     answerMobileRequest: () => {},
     publishMobileView: () => {},
   };
-  return { running, host };
+  return { running, host, starts, stops: () => stops };
 }
 
 export type FakeMobileHost = ReturnType<typeof fakeMobileHost>["host"];
@@ -32,8 +33,6 @@ export const MOBILE_HOST_MODULE = `const h = globalThis.__aicodingtoolMobileHost
   "startMobileHost",
   "stopMobileHost",
   "mobileState",
-  "mobileBridgeHolding",
-  "mobileWindowGone",
   "setMobileEnabled",
   "createMobilePairingCode",
   "revokeMobileDevice",

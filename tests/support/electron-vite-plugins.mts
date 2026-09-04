@@ -2,7 +2,7 @@ import type { Plugin } from "vite";
 import { MOBILE_HOST_MODULE } from "./mobile-host-stub.mjs";
 
 /** Both fakes are reached through globals, so the modules under test import them like the real ones. */
-export function fakePlugins(computerUse: boolean): Plugin[] {
+export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
   const plugins: Plugin[] = [{
     name: "fake-electron",
     enforce: "pre",
@@ -20,6 +20,16 @@ export function fakePlugins(computerUse: boolean): Plugin[] {
       if (id === "\0fake-mobile-host") return MOBILE_HOST_MODULE;
     },
   }];
+  if (updater) {
+    plugins.push({
+      name: "fake-updater",
+      enforce: "pre",
+      resolveId(id) { if (id === "virtual:fake-updater") return "\0fake-updater"; },
+      load(id) {
+        if (id === "\0fake-updater") return "export default { autoUpdater: globalThis.__aicodingtoolUpdater };";
+      },
+    });
+  }
   if (computerUse) {
     plugins.push({
       name: "fake-computer-use",

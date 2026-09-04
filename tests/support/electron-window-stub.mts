@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import type { BrowserBounds } from "../../src/domain/browser.js";
 
 export type Callback = (...args: unknown[]) => unknown;
@@ -37,13 +38,12 @@ export class FakeWebContentsView {
 }
 
 /** Windows register themselves on creation, so `getAllWindows` answers from the list a test reads. */
-export function fakeWindows() {
+export function fakeWindows(onAllClosed: () => void = () => {}) {
   const windows: FakeWindow[] = [];
 
-  class FakeWindow {
+  class FakeWindow extends EventEmitter {
     static getAllWindows() { return windows; }
     declare options: ElectronOptions;
-    declare close: () => void;
     destroyed = false;
     focused = false;
     visible: boolean;
@@ -65,11 +65,20 @@ export function fakeWindows() {
       },
       removeChildView: (view: FakeWebContentsView) => { this.children = this.children.filter((child) => child !== view); },
     };
-    constructor(options: ElectronOptions) { this.options = options; this.visible = options.show !== false; windows.push(this); }
+    constructor(options: ElectronOptions) { super(); this.options = options; this.visible = options.show !== false; windows.push(this); }
+    close() {
+      if (this.destroyed) return;
+      let prevented = false;
+      this.emit("close", { preventDefault: () => { prevented = true; } });
+      if (!prevented) this.destroy();
+    }
     destroy() {
+      if (this.destroyed) return;
       this.destroyed = true;
       const at = windows.indexOf(this);
       if (at !== -1) windows.splice(at, 1);
+      this.emit("closed");
+      if (windows.length === 0) onAllClosed();
     }
     isDestroyed() { return this.destroyed === true; }
     isFocused() { return this.focused === true; }
@@ -82,7 +91,6 @@ export function fakeWindows() {
     restore() {}
     show() { this.visible = true; }
     hide() { this.visible = false; }
-    on() {}
     async loadFile() {}
   }
 

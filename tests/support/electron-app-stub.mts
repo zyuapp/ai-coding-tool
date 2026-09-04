@@ -79,7 +79,10 @@ export function fakeElectron(userData: string) {
   const webRequestListeners = new Map<string, Callback>();
   let quitAttempts = 0;
   let completedQuits = 0;
-  const { FakeWindow, windows } = fakeWindows();
+  let quitting = false;
+  const { FakeWindow, windows } = fakeWindows(() => {
+    if (!quitting) appListeners.get("window-all-closed")?.();
+  });
   const Notification = fakeNotifications();
   const { dialog, messageBoxes } = fakeDialog();
   const { Menu, applicationMenu } = fakeMenu();
@@ -99,6 +102,7 @@ export function fakeElectron(userData: string) {
 
   const electron = {
     app: {
+      isPackaged: false,
       dock: { setIcon() {} },
       setBadgeCount(count: number) { badgeCounts.push(count); },
       setName() {},
@@ -116,8 +120,13 @@ export function fakeElectron(userData: string) {
         let prevented = false;
         appListeners.get("before-quit")?.({ preventDefault: () => { prevented = true; } });
         if (!prevented) {
-          completedQuits += 1;
-          appListeners.get("will-quit")?.();
+          quitting = true;
+          for (const window of [...windows]) window.close();
+          if (windows.length === 0) {
+            completedQuits += 1;
+            appListeners.get("will-quit")?.();
+          }
+          quitting = false;
         }
       },
       relaunch: (relaunchOptions: { args?: string[] }) => { relaunches.push(relaunchOptions); },
@@ -178,6 +187,7 @@ export function fakeElectron(userData: string) {
     externalUrls,
     openedPaths,
     messageBoxes,
+    dialog,
     applicationMenu,
     relaunches,
     quitAttempts: () => quitAttempts,

@@ -10,11 +10,12 @@ import { isolatedViteServer } from "./vite-server.mjs";
 
 type RegisteredCallback = (...args: never[]) => unknown;
 type ComputerUseStub = Record<string, unknown>;
-type StartOptions = { computerUse?: ComputerUseStub };
+type StartOptions = { computerUse?: ComputerUseStub; mobileHost?: Partial<FakeMobileHost>; updater?: unknown };
 type HarnessGlobals = typeof globalThis & {
   __aicodingtoolElectron?: unknown;
   __aicodingtoolComputerUse?: ComputerUseStub;
   __aicodingtoolMobileHost?: FakeMobileHost;
+  __aicodingtoolUpdater?: unknown;
 };
 
 export function registered<T extends RegisteredCallback>(registry: Map<string, Callback>, name: string): T {
@@ -44,19 +45,23 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
   const { electron, windows, appListeners, records } = fakeElectron(userData);
   const globals = globalThis as HarnessGlobals;
   const mobileHost = fakeMobileHost();
+  Object.assign(mobileHost.host, options.mobileHost);
   globals.__aicodingtoolMobileHost = mobileHost.host;
   globals.__aicodingtoolElectron = electron;
   globalThis.__dirname = path.join(process.cwd(), "dist/main/main");
   const versions = process.versions as NodeJS.ProcessVersions & { chrome?: string };
   versions.chrome = "141.0.0.0";
 
-  const plugins = fakePlugins(options.computerUse !== undefined);
+  globals.__aicodingtoolUpdater = options.updater;
+  const plugins = fakePlugins(options.computerUse !== undefined, options.updater !== undefined);
+  const alias: Record<string, string> = { electron: "virtual:fake-electron", "@xterm/headless": "@xterm/headless/lib-headless/xterm-headless.mjs" };
+  if (options.updater !== undefined) alias["electron-updater"] = "virtual:fake-updater";
 
   const { vite, close: closeVite } = await isolatedViteServer({
     logLevel: "silent",
     appType: "custom",
     /** xterm's `module` field points at a file it does not ship, so its real ESM build is named here. */
-    resolve: { alias: { electron: "virtual:fake-electron", "@xterm/headless": "@xterm/headless/lib-headless/xterm-headless.mjs" } },
+    resolve: { alias },
     server: { middlewareMode: true },
     ssr: { external: ["@lydell/node-pty"] },
     plugins,
@@ -65,12 +70,15 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
   const dispose = async () => {
     if (disposed) return;
     disposed = true;
+    const bridge = await vite.ssrLoadModule("/src/main/mobile/bridge.ts");
+    await bridge.stopMobileBridge();
     appListeners.get("will-quit")?.();
     await closeVite();
     await rm(userData, { recursive: true, force: true });
     Reflect.deleteProperty(globals, "__aicodingtoolElectron");
     Reflect.deleteProperty(globals, "__aicodingtoolComputerUse");
     Reflect.deleteProperty(globals, "__aicodingtoolMobileHost");
+    Reflect.deleteProperty(globals, "__aicodingtoolUpdater");
     Reflect.deleteProperty(globalThis, "__dirname");
     Reflect.deleteProperty(versions, "chrome");
   };
@@ -92,6 +100,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     dispose,
     userData,
     window,
+    mobileHost,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },
     sentOn: <T = unknown,>(channel: string) => window.webContents.sent.filter((entry) => entry.channel === channel).map((entry) => entry.event as T),
