@@ -28,7 +28,11 @@ export type ExternalApp = {
 };
 
 /** A macOS bundle, named on its own so every standard folder is searched for it. */
-type BundleLocation = { bundle: string };
+type BundleLocation = {
+  bundle: string;
+  /** A bundle-specific launcher for applications that need more than a folder-open event. */
+  launch?: (bundle: string, folder: string) => AppLaunch;
+};
 
 /** A launcher, resolved on PATH by a bare name or given as an absolute path. */
 type CommandLocation = {
@@ -71,6 +75,26 @@ const APPS: CataloguedApp[] = [
       darwin: [{ bundle: "Visual Studio Code.app" }],
       win32: [{ command: "code.cmd" }],
       linux: [{ command: "code" }],
+    },
+  },
+  {
+    id: "vscode-insiders",
+    label: "Visual Studio Code Insiders",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "Visual Studio Code - Insiders.app" }],
+      win32: [{ command: "code-insiders.cmd" }],
+      linux: [{ command: "code-insiders" }],
+    },
+  },
+  {
+    id: "vscodium",
+    label: "VSCodium",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "VSCodium.app" }],
+      win32: [{ command: "codium.cmd" }],
+      linux: [{ command: "codium" }],
     },
   },
   {
@@ -120,6 +144,100 @@ const APPS: CataloguedApp[] = [
       darwin: [{ bundle: "WebStorm.app" }],
       win32: [{ command: "webstorm.bat" }],
       linux: [{ command: "webstorm" }],
+    },
+  },
+  {
+    id: "pycharm",
+    label: "PyCharm",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "PyCharm.app" }, { bundle: "PyCharm CE.app" }],
+      win32: [{ command: "pycharm64.exe" }],
+      linux: [{ command: "pycharm" }, { command: "pycharm.sh" }],
+    },
+  },
+  {
+    id: "goland",
+    label: "GoLand",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "GoLand.app" }],
+      win32: [{ command: "goland64.exe" }],
+      linux: [{ command: "goland" }, { command: "goland.sh" }],
+    },
+  },
+  {
+    id: "clion",
+    label: "CLion",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "CLion.app" }],
+      win32: [{ command: "clion64.exe" }],
+      linux: [{ command: "clion" }, { command: "clion.sh" }],
+    },
+  },
+  {
+    id: "rider",
+    label: "Rider",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "Rider.app" }],
+      win32: [{ command: "rider64.exe" }],
+      linux: [{ command: "rider" }, { command: "rider.sh" }],
+    },
+  },
+  {
+    id: "phpstorm",
+    label: "PhpStorm",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "PhpStorm.app" }],
+      win32: [{ command: "phpstorm64.exe" }],
+      linux: [{ command: "phpstorm" }, { command: "phpstorm.sh" }],
+    },
+  },
+  {
+    id: "rubymine",
+    label: "RubyMine",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "RubyMine.app" }],
+      win32: [{ command: "rubymine64.exe" }],
+      linux: [{ command: "rubymine" }, { command: "rubymine.sh" }],
+    },
+  },
+  {
+    id: "rustrover",
+    label: "RustRover",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "RustRover.app" }],
+      win32: [{ command: "rustrover64.exe" }],
+      linux: [{ command: "rustrover" }, { command: "rustrover.sh" }],
+    },
+  },
+  {
+    id: "xcode",
+    label: "Xcode",
+    kind: "editor",
+    locations: {
+      darwin: [{
+        bundle: "Xcode.app",
+        launch: (bundle, folder) => ({
+          command: `${bundle}/Contents/Developer/usr/bin/xed`,
+          args: ["--project", folder],
+        }),
+      }],
+    },
+  },
+  {
+    id: "android-studio",
+    label: "Android Studio",
+    kind: "editor",
+    locations: {
+      darwin: [{ bundle: "Android Studio.app" }],
+      win32: [{ command: "studio64.exe" }],
+      linux: [{ command: "studio" }, { command: "studio.sh" }, { command: "android-studio" }],
     },
   },
   {
@@ -202,6 +320,22 @@ const APPS: CataloguedApp[] = [
     },
   },
   {
+    id: "tabby",
+    label: "Tabby",
+    kind: "terminal",
+    locations: {
+      darwin: [{
+        bundle: "Tabby.app",
+        launch: (bundle, folder) => ({
+          command: `${bundle}/Contents/MacOS/Tabby`,
+          args: ["open", folder],
+        }),
+      }],
+      win32: [{ command: "Tabby.exe", args: (folder) => ["open", folder] }],
+      linux: [{ command: "tabby", args: (folder) => ["open", folder] }],
+    },
+  },
+  {
     id: "windows-terminal",
     label: "Windows Terminal",
     kind: "terminal",
@@ -259,13 +393,12 @@ function bundlePaths(bundle: string, home: string) {
 function candidatesFor(app: CataloguedApp, platform: Platform, home: string, folder: string): AppCandidate[] {
   return (app.locations[platform] ?? []).flatMap((location) => {
     if ("bundle" in location) {
-      return bundlePaths(location.bundle, home).map((path) => ({
-        id: app.id,
-        probe: path,
-        icon: path,
-        command: "open",
-        args: ["-a", path, folder],
-      }));
+      return bundlePaths(location.bundle, home).map((path) => {
+        const launch = location.launch
+          ? location.launch(path, folder)
+          : { command: "open", args: ["-a", path, folder] };
+        return { id: app.id, probe: path, icon: path, ...launch };
+      });
     }
     return [{
       id: app.id,

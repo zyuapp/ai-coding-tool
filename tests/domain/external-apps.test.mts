@@ -51,6 +51,27 @@ test("a launcher on PATH carries the folder in whatever form its application tak
   assert.deepEqual(args("kitty", "linux"), [["--directory", "/repo"]]);
   assert.deepEqual(args("wezterm", "linux"), [["start", "--cwd", "/repo"]]);
   assert.deepEqual(args("windows-terminal", "win32"), [["-d", "/repo"]]);
+  assert.deepEqual(args("tabby", "linux"), [["open", "/repo"]]);
+});
+
+test("bundle-specific launchers use the detected bundle and preserve the checkout path", () => {
+  const home = "/Users/Dev User";
+  const folder = "/repos/project's files $(example)";
+  for (const [id, bundle, executable, option] of [
+    ["xcode", "Xcode.app", "Contents/Developer/usr/bin/xed", "--project"],
+    ["tabby", "Tabby.app", "Contents/MacOS/Tabby", "open"],
+  ]) {
+    const candidate = appCandidates(id, "darwin", home, folder).at(-1);
+    const bundlePath = `${home}/Applications/${bundle}`;
+
+    assert.deepEqual(candidate, {
+      id,
+      probe: bundlePath,
+      icon: bundlePath,
+      command: `${bundlePath}/${executable}`,
+      args: [option, folder],
+    });
+  }
 });
 
 test("a launcher looked up on PATH has nothing to probe", () => {
