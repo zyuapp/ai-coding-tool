@@ -12,7 +12,6 @@ import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
 import type { ThreadDropTarget } from "../domain/project.js";
 import type { ReviewTarget } from "../domain/review.js";
-import type { WorktreeDestination } from "../domain/worktree.js";
 
 export type TaskDropTarget = ThreadDropTarget;
 
@@ -72,8 +71,6 @@ export type TaskCommand =
    * only made on the next send; switching back commits whatever the worktree still holds.
    */
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
-  /** Changes the thread's execution directory. Existing files and checkouts remain in place. */
-  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
   | { type: "task.set-branch"; branch: string | null; create?: boolean }
   /**
@@ -141,10 +138,6 @@ export type ProjectCommand =
 
 /** Manual worktree management. Deletion snapshots loose work before removing the directory. */
 export type WorktreeCommand =
-  | { type: "checkout.set-open"; open: boolean }
-  | { type: "checkout.set-mode"; mode: "threads" | "move" }
-  | { type: "checkout.search"; query: string }
-  | { type: "checkout.select-destination"; destination: WorktreeDestination }
   | { type: "worktree.refresh" }
   | { type: "worktree.filter-project"; project: string | null }
   | { type: "worktree.confirm-delete"; root: string | null }

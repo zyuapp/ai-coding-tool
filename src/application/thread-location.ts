@@ -73,8 +73,7 @@ export function leavingThreadIds(state: LeavingState): Set<string> {
 
 export function locationOf(state: LocationState, thread: Thread | undefined): ThreadLocation {
   if (thread && leavingThreadIds(state).has(thread.id)) return { kind: "releasing" };
-  if (thread && state.creatingWorktrees.includes(thread.id)) return { kind: "creating" };
   const worktree = worktreeFor(state, thread);
   if (worktree) return { kind: "worktree", worktree, threads: worktreeClaimants(state, worktree.id).length };
-  return { kind: "local" };
+  return thread && state.creatingWorktrees.includes(thread.id) ? { kind: "creating" } : { kind: "local" };
 }

@@ -290,7 +290,6 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     createdAt: now(),
     updatedAt: now(),
   };
-  if (created && !created.name) created.name = thread.title;
   const message = createConversationMessage("user", pending.text, undefined, pending.attachments, pending.annotations, pending.pastes, pending.files);
   /** Only a thread that was somewhere else is arriving; one already in this checkout has said so. */
   const arrival = arriving && existing?.worktreeId !== arriving.id
@@ -333,7 +332,7 @@ function startAutomationRun(state: WorkspaceState, pending: PendingRun, workspac
   if (!thread || thread.archivedAt !== undefined || state.activeRuns[taskId]) return settled(state, ack(pending, false));
   /** A quiet tick's own label counts for nothing in the thread's activity, like the rest of its run. */
   const message = { ...createConversationMessage("user", pending.text, pending.detail), ...(pending.quiet ? { withdrawn: true as const } : {}) };
-  const created = worktree && thread.projectId ? { ...worktree, name: worktree.name ?? thread.title, projectId: thread.projectId } : undefined;
+  const created = worktree && thread.projectId ? { ...worktree, projectId: thread.projectId } : undefined;
   const entered = created ?? worktreeFor(state, thread);
   const withMessage = updateThread(withUsedWorktree(state, created, entered?.id), taskId, (item) => ({
     ...item,

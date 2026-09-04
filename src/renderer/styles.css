@@ -2435,6 +2435,17 @@ pre {
 .change-counts strong { color: var(--success); }
 .change-counts em { color: var(--danger); }
 .session-note { margin: 2px 6px 0 34px; color: var(--quiet); font-size: var(--text-meta); line-height: 1.4; }
+.session-location { border-bottom: 1px solid var(--line-soft); margin-bottom: 4px; padding-bottom: 4px; }
+.session-location-row { position: relative; grid-template-columns: 22px minmax(0, 1fr) 22px; }
+/** The name, with the count of everyone else in the same checkout kept quiet beside it. */
+.session-location-name { min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+.session-location-name em { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-location-name small { flex: none; color: var(--quiet-strong); font-size: var(--text-meta); }
+.session-location-row .menu-trigger { display: grid; place-items: center; width: 22px; height: 22px; color: var(--quiet-strong); opacity: 0; }
+.session-location-row:hover .menu-trigger, .session-location-row.open .menu-trigger { opacity: 1; }
+.session-location-row .menu-trigger:hover, .session-location-row.open .menu-trigger { color: var(--ink-dim); }
+.session-menu-popover { top: 30px; right: 0; min-width: 176px; }
+.session-menu-popover button:disabled { cursor: default; }
 .session-row-action { width: 100%; border: 0; border-radius: 8px; background: none; font-family: inherit; text-align: left; cursor: pointer; }
 .session-row-action:hover { background: var(--surface-hover); }
 .session-branch { position: relative; }

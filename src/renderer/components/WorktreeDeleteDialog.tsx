@@ -32,10 +32,9 @@ export function WorktreeDeleteDialog({ worktree, dispatch }: { worktree: Worktre
           <p>Your thread history stays. Linked threads will use the project folder when you continue them.</p>
         </>}
         {worktree.available && <>
-          <p>This deletes the worktree folder. Your branch and thread history stay.</p>
-          {worktree.threads.length > 0 && <p>{worktree.threads.length} linked {worktree.threads.length === 1 ? "thread returns" : "threads return"} to the project folder.</p>}
+          <p>This deletes the worktree folder. Your branch and thread history stay, and linked threads return to the project folder.</p>
           {worktree.repository
-            ? <><p>Uncommitted changes are saved as a Git commit before deletion. Recovery details appear in Worktree settings and linked threads.</p><p>Git-ignored files are deleted with the folder.</p></>
+            ? <><p>Uncommitted changes are saved as a Git commit before deletion. Recovery details appear here and in linked threads.</p><p>Git-ignored files are deleted with the folder.</p></>
             : <p className="worktree-delete-warning">Git cannot preserve this folder’s contents because its repository is unavailable. Its files will be permanently deleted.</p>}
         </>}
         {worktree.busy && <p className="worktree-delete-warning" role="status">Wait for the active run to finish before deleting this worktree.</p>}

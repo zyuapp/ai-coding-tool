@@ -66,6 +66,8 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
     environment: { status: "available", files: [], branch: "pr-chip", baseline: null, additions: 0, deletions: 0 },
     hasProject: true,
+    location: { kind: "local" },
+    runActive: false,
     openMenu: null,
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
@@ -80,6 +82,8 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onStopProcess() {},
     onSetOpenMenu() {},
     onSetSubagentGroup() {},
+    onNewThread() {},
+    onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,
   });

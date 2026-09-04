@@ -56,9 +56,8 @@ export async function runProjectEffect(effect: ProjectEffect, host: EffectHost):
 
     case "create-worktree":
       try {
-        const worktree = await desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: !effect.move });
-        if (effect.name) worktree.name = effect.name;
-        await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree, move: effect.move, projectId: effect.projectId });
+        const worktree = await desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: true });
+        await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree });
       } catch (error) {
         await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: `Could not create the worktree: ${errorMessage(error)}` });
       }

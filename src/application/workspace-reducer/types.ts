@@ -40,7 +40,7 @@ export type WorkspaceEvent =
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
-  | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
+  | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
   | { type: "worktrees.failed"; message: string; root?: string }
@@ -84,7 +84,7 @@ export type WorkspaceEffect =
       /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
       checkout?: { workspaceId: string; branch: string };
     }
-  | { type: "create-worktree"; taskId: string; projectRoot: string; move?: boolean; name?: string; projectId?: string }
+  | { type: "create-worktree"; taskId: string; projectRoot: string }
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "list-worktrees" }
   | { type: "reveal-worktree"; root: string }

@@ -1,7 +1,6 @@
 import type { WorktreeCommand } from "../../contracts/commands.js";
 import { busyThreadIds, type WorkspaceState } from "../workspace-state.js";
 import { worktreeSettingsViews } from "../worktree-settings.js";
-import { worktreeClaimants } from "../thread-location.js";
 import { settled } from "./shared.js";
 import { reduceSettings } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
@@ -17,16 +16,8 @@ export function reduceWorktreeSettings(state: WorkspaceState, input: Input): Wor
     case "worktree.confirm-delete": {
       if (input.root === null) return settled({ ...state, worktreeSettings: { ...settings, confirming: null } });
       const worktree = worktreeSettingsViews(state, busyThreadIds(state))?.find((item) => item.root === input.root);
-      if (worktree) {
-        if (worktree.busy || worktree.deleting) return settled(state);
-        return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
-      }
-      const recorded = state.worktrees.find((item) => item.root === input.root);
-      if (!recorded || state.deletingWorktrees.includes(recorded.root)) return settled(state);
-      const busy = busyThreadIds(state);
-      if (worktreeClaimants(state, recorded.id).some((thread) => busy.has(thread.id))) return settled(state);
-      const next = { ...state, worktreeSettings: { ...settings, confirming: input.root }, worktreeManagementLoading: true, worktreeManagementError: null };
-      return settled(next, state.worktreeManagementLoading ? [] : [{ type: "list-worktrees" }]);
+      if (!worktree || worktree.busy || worktree.deleting) return settled(state);
+      return settled({ ...state, worktreeSettings: { ...settings, confirming: input.root } });
     }
     case "worktree.set-missing-open":
       return settled({ ...state, worktreeSettings: { ...settings, missingOpen: input.open } });

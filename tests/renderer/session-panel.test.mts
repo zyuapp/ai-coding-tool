@@ -24,6 +24,7 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
     environment: null,
     hasProject: false,
+    runActive: false,
     openMenu: null,
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
@@ -38,6 +39,8 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onStopProcess() {},
     onSetOpenMenu() {},
     onSetSubagentGroup() {},
+    onNewThread() {},
+    onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,
   });
@@ -75,6 +78,7 @@ const subagents: Subagent[] = [
 
 type MountView = Awaited<ReturnType<typeof mount>>;
 
+type ThreadLocation = import("../../src/application/workspace-state.ts").ThreadLocation;
 
 type FakeDesktop = DesktopAPI & {
   sent: RunCommand[];
@@ -588,13 +592,13 @@ test("the open-in button waits for a folder to hand over", async () => {
   await view.unmount();
 });
 
-test("the session panel's branch row moves the checkout onto the branch it is given", async () => {
-  window.desktop = fakeDesktop();
-  const calls: { menu: Array<string | null>; checkout: Array<{ branch: string; create: boolean }> } = { menu: [], checkout: [] };
-  const panel = (openMenu: string | null) => renderSessionPanel({
+test("the session panel's thread menu starts another thread in a worktree and offers the hand-off its location allows", async () => {
+  const calls: { threads: number; worktree: boolean[]; menu: Array<string | null> } = { threads: 0, worktree: [], menu: [] };
+  const panel = (location: ThreadLocation, openMenu: string | null, runActive = false) => renderSessionPanel({
     environment: { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 },
     hasProject: true,
-    workspaceId: "workspace-a",
+    location,
+    runActive,
     openMenu,
     subagents: [],
     backgroundProcesses: [], workflows: [],
@@ -602,6 +606,71 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
     onSelect() {},
     onOpenAutomations() {},
     onSetOpenMenu: (menu) => { calls.menu.push(menu); },
+    onNewThread: () => { calls.threads++; },
+    onSetWorktree: (worktree) => { calls.worktree.push(worktree); },
+  });
+  const items = () => [...document.querySelectorAll<HTMLElement>('.session-menu-popover [role="menuitem"]')].map((element) => element.textContent);
+
+  const view = await mount(panel({ kind: "local" }, null));
+  assert.equal(view.container.querySelector('[role="menu"]'), null, "the menu stays shut until asked for");
+  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Thread options"]').click(); });
+  assert.deepEqual(calls.menu, ["session:location"]);
+
+  await view.render(panel({ kind: "local" }, "session:location"));
+  assert.deepEqual(items(), ["Hand off to worktree"], "a local checkout starts new work from the project instead of this thread's menu");
+  assert.ok(!view.container.contains(query(document, ".session-menu-popover")), "the list hangs outside the scrolling panel, which would crop it");
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
+  assert.deepEqual(calls.worktree, [true]);
+
+  const checkout = { id: "wt1", root: "/worktrees/repo-wt1", projectId: "p", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 };
+  const worktree: ThreadLocation = { kind: "worktree", worktree: checkout, threads: 1 };
+  await view.render(panel(worktree, "session:location"));
+  assert.deepEqual(items(), ["New thread here", "Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
+  assert.match(query(view.container, ".session-location-name").textContent, /Worktree/);
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
+  assert.equal(calls.threads, 1, "a worktree can start another thread in the same checkout");
+
+  await view.render(panel(worktree, "session:location"));
+  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[1]).click(); });
+  assert.deepEqual(calls.worktree, [true, false]);
+
+  await view.render(panel({ kind: "worktree", worktree: checkout, threads: 3 }, "session:location"));
+  assert.deepEqual(items(), ["New thread here", "Return to local and leave the worktree"], "a checkout others are still in stays where it is");
+  assert.match(query(view.container, ".session-location-name").textContent, /3 threads/, "the row counts them before the user acts");
+
+  await view.render(panel(worktree, "session:location", true));
+  const runningItems = document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]');
+  assert.equal(item(runningItems[0]).disabled, false, "a running thread does not prevent starting another one beside it");
+  assert.equal(item(runningItems[1]).disabled, true, "a running thread cannot change where it works");
+
+  await view.render(panel({ kind: "creating" }, "session:location"));
+  assert.match(query(view.container, ".session-location-name").textContent, /Creating worktree/);
+  assert.ok([...document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')].every((entry) => entry.disabled), "a checkout being made is not yet a stable place for another thread");
+
+  await view.render(panel({ kind: "releasing" }, "session:location"));
+  assert.match(query(view.container, ".session-location-name").textContent, /Removing worktree/);
+  assert.equal(query(view.container, ".session-location-name .text-sweep").textContent, "Removing worktree…", "the wait reads as the same motion the app uses elsewhere");
+  assert.ok([...document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')].every((entry) => entry.disabled), "a checkout being removed is not a stable place for another thread");
+  await view.unmount();
+});
+
+test("the session panel's branch row moves the checkout onto the branch it is given", async () => {
+  window.desktop = fakeDesktop();
+  const calls: { menu: Array<string | null>; checkout: Array<{ branch: string; create: boolean }> } = { menu: [], checkout: [] };
+  const panel = (openMenu: string | null) => renderSessionPanel({
+    environment: { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 },
+    hasProject: true,
+    workspaceId: "workspace-a",
+    location: { kind: "local" },
+    runActive: false,
+    openMenu,
+    subagents: [],
+    backgroundProcesses: [], workflows: [],
+    automationCount: 0,
+    onSelect() {},
+    onOpenAutomations() {},
+    onSetOpenMenu: (menu) => { calls.menu.push(menu); },
+    onSetWorktree() {},
     onCheckoutBranch: (branch, create) => { calls.checkout.push({ branch, create }); },
   });
 
