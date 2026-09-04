@@ -14,6 +14,9 @@ export type MenuItem = {
   shortcut?: string;
   /** Opens beside the item. An item with a list of its own chooses nothing itself. */
   items?: MenuItem[];
+  /** A submenu with its own search field or virtual list. */
+  panel?: ReactNode;
+  onOpen?: () => void;
 };
 
 /** A rule between two groups of items. */
@@ -27,6 +30,40 @@ const ANCHOR_GAP = 4;
 
 function usableIndexes(entries: MenuEntry[]): number[] {
   return entries.flatMap((entry, index) => entry !== "separator" && !entry.disabled ? [index] : []);
+}
+
+function SubmenuPanel({ children, top, autoFocus, onLeave }: { children: ReactNode; top: number; autoFocus: boolean; onLeave: () => void }) {
+  const root = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (!element) return;
+    const place = () => {
+      const box = element.getBoundingClientRect();
+      const parent = element.parentElement!.getBoundingClientRect();
+      let left = parent.right - 5;
+      if (left + box.width + EDGE > innerWidth) left = parent.left - box.width + 5;
+      left = Math.max(EDGE, Math.min(left, innerWidth - box.width - EDGE)) - parent.left;
+      const placedTop = Math.max(EDGE, Math.min(parent.top + top, innerHeight - box.height - EDGE)) - parent.top;
+      setPlacement((current) => current?.left === left && current?.top === placedTop ? current : { left, top: placedTop });
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(element);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { observer.disconnect(); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [top]);
+  useEffect(() => {
+    if (autoFocus) root.current?.querySelector<HTMLElement>('input, button:not(:disabled)')?.focus();
+  }, [autoFocus]);
+  return <div ref={root} className="menu-popover menu-submenu" data-popover-menu style={placement ?? { top }} onKeyDown={(event) => {
+    if (event.key === "Escape" || event.key === "ArrowLeft" && (event.target as HTMLElement).tagName !== "INPUT") {
+      event.preventDefault();
+      event.stopPropagation();
+      onLeave();
+    }
+  }}>{children}</div>;
 }
 
 type MenuListProps = {
@@ -82,6 +119,12 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
     buttons.current[next]?.focus();
   }
 
+  function openSubmenu(index: number, focus: boolean) {
+    const entry = entries[index];
+    if (sub?.index !== index && entry !== "separator") entry?.onOpen?.();
+    setSub({ index, focus });
+  }
+
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const focused = buttons.current.findIndex((button) => button === document.activeElement);
     const entry = entries[focused];
@@ -89,10 +132,10 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
       event.preventDefault();
       event.stopPropagation();
       move(event.key === "ArrowDown" ? 1 : -1);
-    } else if (event.key === "ArrowRight" && entry && entry !== "separator" && entry.items?.length) {
+    } else if (event.key === "ArrowRight" && entry && entry !== "separator" && (entry.items?.length || entry.panel)) {
       event.preventDefault();
       event.stopPropagation();
-      setSub({ index: focused, focus: true });
+      openSubmenu(focused, true);
     } else if (event.key === "ArrowLeft" && onLeave) {
       event.preventDefault();
       event.stopPropagation();
@@ -112,7 +155,7 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
     >
       {entries.map((entry, index) => {
         if (entry === "separator") return <div key={`separator-${index}`} className="menu-separator" role="separator" />;
-        const nested = Boolean(entry.items?.length);
+        const nested = Boolean(entry.items?.length || entry.panel);
         return (
           <Fragment key={`${index}-${entry.label}`}>
             <button
@@ -126,11 +169,12 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
               disabled={entry.disabled}
               /** The pointer highlights what it is over, which is the same highlight the keyboard moves. */
               onMouseEnter={(event) => {
-                setSub(nested ? { index, focus: false } : null);
+                if (nested) openSubmenu(index, false);
+                else setSub(null);
                 event.currentTarget.focus();
               }}
               onClick={() => {
-                if (nested) return setSub({ index, focus: true });
+                if (nested) return openSubmenu(index, true);
                 onClose();
                 entry.onSelect?.();
               }}
@@ -140,7 +184,11 @@ function MenuList({ entries, onClose, className, style, menuRef, autoFocus, onLe
               {entry.shortcut && <span className="menu-shortcut">{entry.shortcut}</span>}
               {nested && <ChevronRight className="menu-chevron" size={12} aria-hidden="true" />}
             </button>
-            {nested && sub?.index === index && (
+            {entry.panel && sub?.index === index && <SubmenuPanel top={(buttons.current[index]?.offsetTop ?? 0) - 4} autoFocus={sub.focus} onLeave={() => {
+              setSub(null);
+              buttons.current[index]?.focus();
+            }}>{entry.panel}</SubmenuPanel>}
+            {!entry.panel && nested && sub?.index === index && (
               <MenuList
                 entries={entry.items!}
                 onClose={onClose}

@@ -1,0 +1,14 @@
+.worktree-menu-panel { width: 280px; max-width: calc(100vw - 32px); max-height: calc(100vh - 24px); overflow-y: auto; }
+.worktree-menu-search { padding: 4px 8px 8px; }
+.worktree-menu-search input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-input); color: var(--ink); font: inherit; font-size: var(--text-menu); }
+.worktree-menu-search input::placeholder { color: var(--quiet); }
+.worktree-menu-list { overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.worktree-menu-list .worktree-menu-choice { height: 44px; width: calc(100% - 10px); }
+.worktree-menu-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.worktree-menu-copy > span, .worktree-menu-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worktree-menu-copy small { color: var(--muted); font-size: 10px; }
+.worktree-menu-choice:hover:not(:disabled) small, .worktree-menu-choice:focus-visible small { color: var(--accent-ink); opacity: .75; }
+.worktree-menu-panel .worktree-menu-new { width: calc(100% - 10px); height: 26px; }
+.worktree-menu-note { padding: 4px 10px; margin: 4px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.worktree-menu-error { margin: 6px 10px; color: var(--danger); font-size: 11px; overflow-wrap: anywhere; }
+.worktree-menu-error p { margin: 0 0 5px; }

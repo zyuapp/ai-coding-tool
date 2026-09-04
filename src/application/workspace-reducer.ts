@@ -27,6 +27,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   const applied = apply(state, input);
   const transition = { state: prunedWorkflowPanels(prunedFind(applied.state)), effects: applied.effects };
   if (transition.state.currentId === state.currentId) return transition;
+  if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
     ? recordVisit(transition.state, transition.state.currentId)
     : transition.state;

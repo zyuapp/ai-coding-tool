@@ -1,5 +1,6 @@
 import { reduceThreadCommands } from "./thread-commands.js";
 import { reduceWorktrees } from "./worktrees.js";
+import { reduceWorktreeMenu } from "./worktree-menu.js";
 import { reduceSending } from "./sending.js";
 import { reduceProjectCommands } from "./projects.js";
 import { reduceRuns } from "./runs.js";
@@ -23,6 +24,8 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
   if (isRemoteInput(input)) return reduceRemote(state, input);
   if (isEngineInput(input)) return reduceEngine(state, input);
   switch (input.type) {
+    case "worktree.menu-open": case "worktree.menu-search":
+      return reduceWorktreeMenu(state, input);
     case "task.new": case "task.select": case "task.dismiss":
     case "task.dismiss-all": case "task.archive": case "task.restore":
     case "task.clear-archive": case "task.rename": case "title.suggested":
@@ -30,7 +33,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.set-model": case "task.set-effort":
       return reduceThreadCommands(state, input);
 
-    case "view.move-worktree": case "task.set-worktree": case "task.set-branch": case "task.checkout-branch":
+    case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":
     case "worktree.refresh": case "worktree.reveal": case "worktree.delete":
     case "worktree.filter-project": case "worktree.confirm-delete": case "worktree.set-missing-open":
     case "worktree.set-threads-open": case "worktree.open-thread":

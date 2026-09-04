@@ -1,3 +1,4 @@
+import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
@@ -223,6 +224,7 @@ export type WorkspaceState = {
   /** Directories found under app-owned roots for the manual Settings list. Null until that list lands. */
   managedWorktrees: ManagedWorktree[] | null;
   worktreeSettings: WorktreeSettingsState;
+  worktreeMenuSearch: WorktreeMenuSearch;
   worktreeManagementLoading: boolean;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
@@ -405,6 +407,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     worktrees: [],
     managedWorktrees: null,
     worktreeSettings: { project: null, confirming: null, missingOpen: null, expandedThreads: [] },
+    worktreeMenuSearch: { threads: "", destinations: "" },
     worktreeManagementLoading: false,
     worktreeManagementError: null,
     worktreeManagementNotice: null,
@@ -754,7 +757,6 @@ export function deriveView(state: WorkspaceState) {
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId)?.workspaceId : undefined);
   const environment = (workspaceId ? state.environments[workspaceId] : undefined) ?? null;
   const owner = dockOwner(state), dock = dockFor(state, owner);
-  const waitingOn = waitFor(state, currentThread);
   return {
     ...engineView(state, currentThread),
     ...unreadView(state, listedThreads),
@@ -804,7 +806,9 @@ export function deriveView(state: WorkspaceState) {
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),
-    waitingOn,
+    worktreeMenu: worktreeMenuView(state, currentThread, visibleThreads, busy, blocked),
+    worktreeDeleteConfirmation: managedWorktrees?.find((item) => item.root === state.worktreeSettings.confirming && !item.deleting) ?? null,
+    waitingOn: waitFor(state, currentThread),
     /** The checkout the current thread works in, which is what Git is read from and moved. */
     workspaceId,
     draftBranch: state.draftBranch,
