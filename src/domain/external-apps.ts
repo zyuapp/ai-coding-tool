@@ -167,6 +167,14 @@ const APPS: CataloguedApp[] = [
     },
   },
   {
+    id: "cmux",
+    label: "cmux",
+    kind: "terminal",
+    locations: {
+      darwin: [{ bundle: "cmux.app" }],
+    },
+  },
+  {
     id: "kitty",
     label: "kitty",
     kind: "terminal",
