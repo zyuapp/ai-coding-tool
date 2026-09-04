@@ -3,6 +3,7 @@ import { reduceDock } from "./dock.js";
 import { DIFF_PANEL, environmentFor, now, readDiff, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
+import { threadWorkspaceId } from "../thread-location.js";
 import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, type WorkspaceState } from "../workspace-state.js";
 import { fileFingerprint, rangeKey } from "../../domain/diff.js";
 
@@ -99,6 +100,8 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const files = input.result.files;
       const thread = state.threads.find((item) => item.id === input.taskId);
       if (!thread || sameStrings(thread.lastChangeSnapshot.files, files)) return settled(next);
+      const workspaceId = threadWorkspaceId(state, thread);
+      if (workspaceId && workspaceId !== input.workspaceId) return settled(next);
       return settled(updateThread(next, input.taskId, (currentThread) => ({ ...currentThread, lastChangeSnapshot: { files, capturedAt: now() }, updatedAt: now() })));
     }
   }

@@ -68,7 +68,7 @@ export function worktreeSettingsViews(state: WorkspaceState, busy: Set<string>):
     return {
       ...directory,
       name,
-      title: directory.branch ?? threads[0]?.title ?? name,
+      title: record?.name ?? directory.branch ?? threads[0]?.title ?? name,
       project: project ? projectName(project) : directory.repository?.split("/").filter(Boolean).at(-1) ?? "Unknown project",
       projectKey: project?.id ?? directory.repository ?? "unknown",
       available: onDisk.has(directory.root),

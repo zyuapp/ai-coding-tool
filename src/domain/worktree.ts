@@ -1,12 +1,13 @@
 /**
  * A checkout of a project that any number of threads can work in. Each of them keeps its project and
- * its place in the sidebar; only the directory its runs happen in changes. The checkout outlives any
- * one of them and goes when the last one lets go, so when a thread's session forked into it is the
- * thread's own to record, not the checkout's.
+ * its place in the sidebar; only the directory its runs happen in changes. A move can leave the
+ * checkout without any threads. Each thread records when its session forked into the checkout.
  */
 export type Worktree = {
   /** Names the directory and the ref a snapshot commit is kept alive by. */
   id: string;
+  /** A display name, independent of the directory and branch. */
+  name?: string;
   /** The project whose repository this is a checkout of, which is where the sidebar lists it. */
   projectId: string;
   root: string;
@@ -37,6 +38,11 @@ export type ManagedWorktree = {
 
 /** Why a worktree let go of its thread. A snapshot commit records this in its message. */
 export type WorktreeRelease = "returned-to-local" | "deleted";
+
+export type WorktreeDestination =
+  | { kind: "local" }
+  | { kind: "new" }
+  | { kind: "worktree"; id: string };
 
 export const SNAPSHOT_REF_NAMESPACE = "refs/aicodingtool";
 
@@ -87,6 +93,7 @@ export function isWorktree(value: unknown): value is Worktree {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const worktree = value as Record<string, unknown>;
   return nonEmptyString(worktree.id)
+    && (worktree.name === undefined || nonEmptyString(worktree.name))
     && nonEmptyString(worktree.projectId)
     && nonEmptyString(worktree.root)
     && nonEmptyString(worktree.workspaceId)
@@ -95,9 +102,9 @@ export function isWorktree(value: unknown): value is Worktree {
     && finiteNumber(worktree.lastUsedAt);
 }
 
-/** How the sidebar and the session panel name a checkout: the directory `git worktree list` shows. */
+/** A saved display name, with the directory name as the fallback for older records. */
 export function worktreeName(worktree: Worktree) {
-  return worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id;
+  return worktree.name ?? worktree.root.split("/").filter(Boolean).at(-1) ?? worktree.id;
 }
 
 function nonEmptyString(value: unknown): value is string {

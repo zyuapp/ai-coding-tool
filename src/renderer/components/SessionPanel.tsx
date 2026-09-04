@@ -1,15 +1,12 @@
-import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft, LuHouse as House } from "react-icons/lu";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { LuAlarmClock as AlarmClock, LuChevronDown as ChevronDown, LuFileDiff as FileDiff, LuGitBranch as GitBranch, LuGitMerge as GitMerge, LuGitPullRequest as GitPullRequest, LuGitPullRequestClosed as GitPullRequestClosed, LuGitPullRequestDraft as GitPullRequestDraft } from "react-icons/lu";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ChangedFilesResult } from "../../contracts/ipc";
-import type { ThreadLocation } from "../../application/thread-location";
 import type { BackgroundProcess, Subagent, SubagentGroup, SubagentGroups } from "../../domain/run";
 import type { PullRequestAnswer, PullRequestRef, PullRequestState } from "../../domain/pull-request";
 import type { Workflow } from "../../domain/workflow";
-import { worktreeHue } from "../../domain/worktree";
 import { BackgroundProcessSection } from "./BackgroundProcessList";
 import { BranchMenu, useBranches } from "./BranchMenu";
 import { useMessageLinks, WebLink } from "./MarkdownMessage";
-import { PopoverMenu } from "./PopoverMenu";
 import { useDismissibleLayer } from "../focus";
 import { orderSubagents, SubagentRow } from "./SubagentList";
 
@@ -21,8 +18,7 @@ export type SessionPanelProps = {
   /** Threads sharing a checkout share a workspace, so the pull request is read again per thread too. */
   threadId?: string;
   /** Absent until a thread exists; a draft has nowhere to move yet. */
-  location?: ThreadLocation;
-  runActive: boolean;
+  checkout?: ReactNode;
   openMenu: string | null;
   subagents: Subagent[];
   /** Which subagent groups are unfolded; this panel reads only its own list. */
@@ -39,14 +35,10 @@ export type SessionPanelProps = {
   onStopProcess: (processId: string) => void;
   onSetOpenMenu: (menu: string | null) => void;
   onSetSubagentGroup: (group: SubagentGroup, open: boolean) => void;
-  /** Starts an empty thread in the checkout named by the location row. */
-  onNewThread: () => void;
-  onSetWorktree: (worktree: boolean) => void;
   /** `create` names a branch the repository does not have yet, made at the checkout's HEAD first. */
   onCheckoutBranch: (branch: string, create: boolean) => void;
 };
 
-export const LOCATION_MENU = "session:location";
 export const BRANCH_MENU = "session:branch";
 
 /** The sidebar carries the few that want reading; the whole roster lives in the Subagents panel. */
@@ -61,64 +53,6 @@ function environmentMessage(environment: ChangedFilesResult | null, hasProject: 
   if (environment.status === "unknown") return "Workspace is no longer registered";
   if (environment.status === "unavailable") return `Workspace is ${environment.reason}`;
   return null;
-}
-
-type LocationRowProps = Required<Pick<SessionPanelProps, "location">>
-  & Pick<SessionPanelProps, "runActive" | "openMenu" | "onSetOpenMenu" | "onNewThread" | "onSetWorktree">;
-
-/** What the row says, and what its menu offers, for each place a thread can be. */
-function locationLabel(location: ThreadLocation) {
-  if (location.kind === "creating") return { text: "Creating worktree…", title: "A checkout of its own is being made" };
-  if (location.kind === "releasing") return { text: "Removing worktree…", title: "The checkout is being handed back" };
-  if (location.kind === "worktree") return { text: "Worktree", title: location.worktree.root };
-  return { text: "Local", title: "Runs in your project checkout" };
-}
-
-/**
- * What leaving the checkout does, which is the one thing the row cannot show: the last thread out
- * takes the directory with it, and any thread before that only walks out of it.
- */
-function leaveLabel(threads: number) {
-  return threads > 1 ? "Return to local and leave the worktree" : "Return to local and remove the worktree";
-}
-
-/** One entry: it says where the thread works, and its menu carries the only move it has. */
-function LocationRow({ location, runActive, openMenu, onSetOpenMenu, onNewThread, onSetWorktree }: LocationRowProps) {
-  const inWorktree = location.kind === "worktree";
-  const working = location.kind === "creating" || location.kind === "releasing";
-  const { text, title } = locationLabel(location);
-  /** Only a checkout more than one thread works in is worth counting; the rest is the row's own name. */
-  const shared = location.kind === "worktree" && location.threads > 1 ? location.threads : 0;
-
-  return (
-    <div className="session-location">
-      <PopoverMenu
-        id={LOCATION_MENU}
-        openMenu={openMenu}
-        onSetOpenMenu={onSetOpenMenu}
-        label="Thread options"
-        className="session-row session-location-row"
-        popoverClassName="session-menu-popover"
-        anchored
-        items={[
-          ...(inWorktree
-            ? [{ label: "New thread here", onSelect: onNewThread } as const, "separator" as const]
-            : []),
-          {
-            label: location.kind === "worktree" ? leaveLabel(location.threads) : "Hand off to worktree",
-            disabled: runActive || working,
-            onSelect: () => onSetWorktree(!inWorktree),
-          },
-        ]}
-      >
-        <span className={`session-row-icon${location.kind === "worktree" ? ` worktree-mark hue-${worktreeHue(location.worktree.id)}` : ""}`}>{inWorktree || working ? <FolderSymlink size={18} /> : <House size={18} />}</span>
-        <span className="session-location-name" title={title}>
-          <em className={working ? "text-sweep" : undefined}>{text}</em>
-          {shared > 0 && <small title={`${shared} threads work in this worktree`}>{shared} threads</small>}
-        </span>
-      </PopoverMenu>
-    </div>
-  );
 }
 
 type BranchRowProps = Pick<SessionPanelProps, "workspaceId" | "openMenu" | "onSetOpenMenu" | "onCheckoutBranch"> & { branch: string | null };
@@ -275,7 +209,7 @@ function InstallGitHubCliRow() {
   );
 }
 
-export function SessionPanel({ environment, hasProject, workspaceId, threadId, location, runActive, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onNewThread, onSetWorktree, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
+export function SessionPanel({ environment, hasProject, workspaceId, threadId, checkout, openMenu, subagents, subagentGroups, backgroundProcesses, workflows, automationCount, onSelect, onOpenAgents, onOpenAutomations, onOpenWorkflow, onSetOpenMenu, onSetSubagentGroup, onCheckoutBranch, onStopProcess, onToggleChanges }: SessionPanelProps) {
   const available = environment?.status === "available" ? environment : null;
   const message = environmentMessage(environment, hasProject, workspaceId);
   const working = subagents.filter((subagent) => subagent.status === "working").length;
@@ -286,7 +220,7 @@ export function SessionPanel({ environment, hasProject, workspaceId, threadId, l
     <aside className="session-panel" aria-label="Session panel">
       <div className="session-card">
         <div className="session-environment">
-          {location && hasProject && <LocationRow location={location} runActive={runActive} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onNewThread={onNewThread} onSetWorktree={onSetWorktree} />}
+          {checkout}
           <button
             className="session-row session-row-action"
             type="button"

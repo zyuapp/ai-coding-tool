@@ -352,6 +352,7 @@ export function startRunCommand(state: WorkspaceState, thread: Thread, runId: st
     ...(claude ? { claude } : {}),
     ...(state.computerUse ? {} : { computerUseTools: false as const }), ...(state.browserTools ? {} : { browserTools: false as const }),
     ...(thread.continuation ? { continuation: thread.continuation } : {}),
+    ...(thread.continuation && thread.inheritedContinuation ? { forkContinuation: true as const } : {}),
   };
 }
 
@@ -526,6 +527,7 @@ export function dropWorktree(state: WorkspaceState, worktreeId: string, note: ()
     threads: state.threads.map((thread) => {
       if (thread.worktreeId !== worktreeId) return thread;
       const { worktreeId: _gone, worktreeEnteredAt: _forked, ...local } = thread;
+      if (thread.continuation) local.inheritedContinuation = true;
       return { ...local, messages: [...thread.messages, note()], updatedAt: now() };
     }),
   };
