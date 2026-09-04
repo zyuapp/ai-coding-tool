@@ -3757,6 +3757,7 @@ button.setting-hint:hover { color: var(--ink); }
 .diff-scroll { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
 /** One scroller for the whole review, so files read top to bottom instead of each scrolling inside itself. */
 .diff-files { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; background: var(--code-surface); font-family: var(--mono); font-size: var(--text-meta); line-height: 20px; }
+.diff-files::after { content: ""; display: block; height: var(--diff-scroll-space, 0px); }
 .diff-window { position: relative; width: 100%; }
 .diff-window-row { position: absolute; top: 0; left: 0; width: 100%; }
 /** The row of the file being read, held at the top edge. A long review is drawn a screenful at a

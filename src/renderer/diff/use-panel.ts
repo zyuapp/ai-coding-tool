@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { Virtualizer } from "@tanstack/react-virtual";
 import { fileFingerprint, type DiffFileSummary, type DiffRange } from "../../domain/diff";
 import { usePatches, type PatchRequest } from "./use-patch";
@@ -143,6 +143,38 @@ export function usePanelRows(input: PanelRowsInput & { notes: string }) {
   );
 }
 
+/** Enough space below the last file to align its header with the top of the review. */
+export function useReviewScrollSpace(
+  scroller: RefObject<HTMLDivElement | null>,
+  rows: PanelRow[],
+  windowed: boolean,
+  virtualizer: Virtualizer<HTMLDivElement, Element>,
+) {
+  const lastFile = useMemo(() => rows.findLastIndex((row) => row.kind === "file"), [rows]);
+  const totalSize = windowed ? virtualizer.getTotalSize() : 0;
+  const lastFileStart = windowed ? virtualizer.measurementsCache[lastFile]?.start ?? 0 : 0;
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+    const measure = () => {
+      let space = 0;
+      if (lastFile >= 0) {
+        const header = element.children[lastFile] as HTMLElement | undefined;
+        const end = element.lastElementChild as HTMLElement | null;
+        const start = windowed ? lastFileStart : header?.offsetTop ?? 0;
+        const height = windowed ? totalSize : (end?.offsetTop ?? 0) + (end?.offsetHeight ?? 0);
+        space = Math.max(0, element.clientHeight - (height - start));
+      }
+      element.style.setProperty("--diff-scroll-space", `${space}px`);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    if (!windowed && element.lastElementChild) observer.observe(element.lastElementChild);
+    return () => observer.disconnect();
+  }, [scroller, rows, lastFile, windowed, totalSize, lastFileStart]);
+}
+
 type TickOptions = {
   scroller: RefObject<HTMLDivElement | null>;
   rows: PanelRow[];
@@ -163,7 +195,7 @@ type TickOptions = {
  */
 export function useTickThrough({ scroller, rows, windowed, virtualizer, files, viewed, searching, onSetViewed }: TickOptions) {
   const wanted = useRef<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const path = wanted.current;
     if (path === null) return;
     const index = rows.findIndex((row) => row.kind === "file" && row.path === path);
@@ -225,6 +257,6 @@ export function usePinnedFile(
     setPath(index === null ? null : rows[index]?.path ?? null);
   };
   /** Rows arriving, folding, or changing column count all move the top edge without a scroll. */
-  useEffect(sync, [rows, windowed]);
+  useLayoutEffect(sync, [rows, windowed]);
   return { pinned: path === null ? undefined : files.find((file) => file.path === path), sync };
 }

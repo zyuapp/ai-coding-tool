@@ -79,7 +79,7 @@ function diffState(): DiffState {
   };
 }
 
-function panel(): React.ReactElement {
+function panel(overrides: Partial<DiffPanelProps> = {}): React.ReactElement {
   const props: DiffPanelProps = {
     diff: diffState(),
     workspaceId: "workspace-1",
@@ -97,7 +97,7 @@ function panel(): React.ReactElement {
     openMenu: null,
     onSetOpenMenu: () => {},
   };
-  return React.createElement(DiffPanel, props);
+  return React.createElement(DiffPanel, { ...props, ...overrides });
 }
 
 /** Names are held back until a patch lands, and the first patch waits on its grammar being imported. */
@@ -143,4 +143,57 @@ test("the row held at the top echoes the one in the list rather than doubling it
     "so nothing in the echo is reachable twice",
   );
   await view.unmount();
+});
+
+test("Viewed aligns a short review's next file and the next click marks that file", async (t) => {
+  const prototype = dom.window.HTMLElement.prototype;
+  const offsets = new WeakMap<HTMLElement, number>();
+  const geometry: PropertyDescriptorMap = {
+    offsetTop: { get(this: HTMLElement) { return Math.max(0, [...(this.parentElement?.children ?? [])].indexOf(this)) * 20; } },
+    offsetHeight: { get() { return 20; } },
+    clientHeight: { get() { return 480; } },
+    scrollHeight: { get(this: HTMLElement) {
+      return this.children.length * 20 + Number.parseFloat(this.style.getPropertyValue("--diff-scroll-space") || "0");
+    } },
+    scrollTop: {
+      get(this: HTMLElement) { return offsets.get(this) ?? 0; },
+      set(this: HTMLElement, value: number) { offsets.set(this, Math.max(0, Math.min(value, this.scrollHeight - this.clientHeight))); },
+    },
+    scrollIntoView: { value(this: HTMLElement) { if (this.parentElement) this.parentElement.scrollTop = this.offsetTop; } },
+  };
+  for (const [name, descriptor] of Object.entries(geometry)) {
+    const original = Object.getOwnPropertyDescriptor(prototype, name);
+    Object.defineProperty(prototype, name, { configurable: true, ...descriptor });
+    t.onTestFinished(() => {
+      if (original) Object.defineProperty(prototype, name, original);
+      else Reflect.deleteProperty(prototype, name);
+    });
+  }
+
+  const marked: string[] = [];
+  function Review() {
+    const [diff, setDiff] = React.useState(diffState);
+    return panel({ diff, onSetViewed(path, viewed) {
+      assert.equal(viewed, true, "each click marks a new file");
+      marked.push(path);
+      setDiff((current) => ({ ...current, viewed: { ...current.viewed, [path]: "viewed" }, collapsed: [...current.collapsed, path] }));
+    } });
+  }
+
+  const view = await mount(React.createElement(Review));
+  t.onTestFinished(() => view.unmount());
+  await settled(view.container);
+  const scroller = query(view.container, ".diff-files");
+  assert.equal(scroller.scrollTop, 0);
+  const tickPinned = () => act(async () => { query<HTMLInputElement>(view.container, ".diff-file-pinned input").click(); });
+
+  await tickPinned();
+  const nextHeader = query(scroller, `[aria-label="Mark ${PATHS[1]} viewed"]`).closest(".diff-file-row")?.parentElement;
+  assert.ok(nextHeader);
+  assert.equal(scroller.scrollTop, nextHeader.offsetTop, "the short file reaches the top without a prior scroll");
+  assert.equal(query(view.container, ".diff-file-pinned .diff-file-name").textContent, PATHS[1]);
+
+  await tickPinned();
+  assert.deepEqual(marked, PATHS);
+  assert.match(query(view.container, ".diff-progress").textContent, /2 of 2 viewed/);
 });
