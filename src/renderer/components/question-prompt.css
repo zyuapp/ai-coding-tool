@@ -14,6 +14,12 @@
 .question-prompt-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .question-prompt-heading span { color: var(--muted); font-size: 12px; }
 .question-prompt p { margin: 6px 0; white-space: pre-wrap; }
-.question-prompt ul { margin: 6px 0; padding-left: 20px; }
+.question-options { display: grid; gap: 6px; margin: 10px 0; }
+.question-option { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.question-option:hover, .question-option:has(input:checked) { background: var(--accent-surface); border-color: var(--accent-line-strong); }
+.question-option:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.question-option:has(input:disabled) { opacity: 0.5; cursor: default; }
+.question-option input { flex: none; margin: 3px 0 0; accent-color: var(--accent); }
+.question-option-description { display: block; color: var(--muted); font-size: 12px; }
 .question-prompt button { margin-top: 6px; color: var(--muted); background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .question-prompt button:hover { color: var(--ink); }

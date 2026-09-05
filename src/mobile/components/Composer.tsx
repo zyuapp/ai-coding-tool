@@ -48,7 +48,7 @@ export function Composer({ running, waiting, settings, question, replyingToQuest
   return (
     <div className="composer">
       {waiting > 0 && <p className="composer-waiting">{waiting} {waiting === 1 ? "message is" : "messages are"} waiting for the line to come back.</p>}
-      {question && onQuestionReplyMode && <QuestionPrompt question={question} replying={replyingToQuestion} onReplyMode={onQuestionReplyMode} />}
+      {question && onQuestionReplyMode && <QuestionPrompt question={question} replying={replyingToQuestion} answer={draft} onAnswerChange={setDraft} onReplyMode={onQuestionReplyMode} />}
       <div className="composer-card">
         <textarea
           ref={field}

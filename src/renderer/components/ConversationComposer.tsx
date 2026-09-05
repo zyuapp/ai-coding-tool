@@ -194,7 +194,7 @@ export function ConversationComposer({
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
-      {question && <QuestionPrompt question={question} replying={replyingToQuestion} onReplyMode={onQuestionReplyMode} />}
+      {question && <QuestionPrompt question={question} replying={replyingToQuestion} answer={prompt} disabled={disabled || waiting || attachments.sending} onAnswerChange={onPromptChange} onReplyMode={onQuestionReplyMode} />}
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {reviewPicker && (
