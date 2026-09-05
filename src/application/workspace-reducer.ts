@@ -5,6 +5,7 @@ import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, thr
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from "../domain/agent-engine.js";
 
 export type { WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 export { DIFF_PANEL, WORKFLOW_PANEL, WORKSPACE_ERRORS } from "./workspace-reducer/shared.js";
@@ -99,6 +100,21 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "run.allow": return [{ type: "run.decide", allow: true }];
     case "run.deny": return [{ type: "run.decide", allow: false }];
     case "composer.focus": return [{ type: "view.focus-composer" }];
+    case "effort.increase":
+    case "effort.decrease": {
+      const chat = state.sideChats.find((item) => item.id === state.keyboardTab);
+      const thread = state.threads.find((item) => item.id === (chat?.id ?? state.currentId));
+      const engine = thread?.engine ?? state.draftEngine;
+      const model = thread ? thread.model ?? defaultModelFor(engine) : state.draftModel;
+      const effort = thread ? thread.effort ?? defaultEffortFor(engine) : state.draftEffort;
+      const choices = effortsFor(model);
+      const index = choices.findIndex((choice) => choice.id === effortForModel(model, effort));
+      const next = choices[index + (action === "effort.increase" ? -1 : 1)];
+      if (index < 0 || !next) return [];
+      const command: AppCommand = { type: "task.set-effort", engine, effort: next.id };
+      if (chat) command.taskId = chat.id;
+      return [command];
+    }
     /** The panel is a place the keystroke takes you to and back from, so the same keys close it. */
     case "thread.jump": return state.jump ? [{ type: "view.jump-close" }] : [...leaving, { type: "view.jump-open" }];
     /** A bar that is already open is the one being asked for again, so it keeps what it was searching. */

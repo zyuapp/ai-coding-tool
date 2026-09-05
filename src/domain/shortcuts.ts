@@ -226,6 +226,8 @@ export function shortcutProblem(binding: string): string | null {
  * user already runs.
  */
 export const SHORTCUT_ACTIONS: readonly ShortcutAction[] = [
+  { id: "effort.increase", group: "Threads", label: "Increase effort", description: "Use the next higher effort supported by this model", surface: "any", defaultBinding: "Mod+Shift+ArrowUp" },
+  { id: "effort.decrease", group: "Threads", label: "Decrease effort", description: "Use the next lower effort supported by this model", surface: "any", defaultBinding: "Mod+Shift+ArrowDown" },
   { id: "thread.jump", group: "Threads", label: "Jump to a thread or a setting", description: "Search your threads and every setting, and open one", surface: "any", defaultBinding: "Mod+K" },
   { id: "run.allow", group: "Threads", label: "Allow", description: "Answer the approval this thread is waiting on", surface: "any", defaultBinding: "Mod+Shift+A" },
   { id: "run.deny", group: "Threads", label: "Deny", description: "Refuse the approval this thread is waiting on", surface: "any", defaultBinding: "Mod+Shift+D" },
