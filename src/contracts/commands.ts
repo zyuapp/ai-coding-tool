@@ -156,6 +156,8 @@ export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
   /** Compacts an idle Codex thread without adding a user message to it. */
   | { type: "run.compact"; taskId?: string }
+  | { type: "question.reply-mode"; taskId: string; runId: string; replying: boolean }
+  | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string; attachments?: RunAttachment[] }
   | { type: "run.decide"; allow: boolean; taskId?: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };
@@ -274,6 +276,8 @@ export type EngineCommand =
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
+  /** A restored desktop view has installed the listeners needed by its input preferences. */
+  | { type: "view.mounted" }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,
@@ -296,6 +300,7 @@ export type ViewCommand =
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */
   | { type: "view.set-subagent-group"; group: SubagentGroup; open: boolean }
+  | { type: "view.set-model-favorite"; model: AgentModel; favorite: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
   /** The family to paint, on whichever ground the mode in effect asks for. */

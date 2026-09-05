@@ -36,6 +36,7 @@ function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["
     onCancel: () => void dispatch({ type: "run.cancel", taskId: chatId }),
     onDecide: (allow: boolean) => void dispatch({ type: "run.decide", allow, taskId: chatId }),
     onPolicyChange: (policy: ExecutionPolicy) => void dispatch({ type: "task.set-policy", taskId: chatId, policy }),
+    onModelFavorite: (model: AgentModel, favorite: boolean) => void dispatch({ type: "view.set-model-favorite", model, favorite }),
     onModelChange: (engine: AgentEngine, model: AgentModel) => void dispatch({ type: "task.set-model", taskId: chatId, engine, model }),
     onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void dispatch({ type: "task.set-effort", taskId: chatId, engine, effort }),
     onSteerQueued: (messageId: string) => void dispatch({ type: "task.steer-queued", taskId: chatId, messageId }),
@@ -47,9 +48,10 @@ function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["
  * One chat's tab. Memoized, and given only what the chat itself reads, so a run filling the main
  * thread with reports leaves it alone.
  */
-const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, engineLabel, sourceTitle, sourceContinued, project, threads, active, focusToken, find, findBar, onClose }: {
+const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, favoriteModels, engineLabel, sourceTitle, sourceContinued, project, threads, active, focusToken, find, findBar, onClose }: {
   chat: SideChatView;
   dispatch: Dispatch;
+  favoriteModels: AgentModel[];
   engineLabel: string;
   sourceTitle: string;
   /** Whether the thread this chat forks has a session to fork, which is what it starts from. */
@@ -68,7 +70,10 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, engineLa
   return (
     <div data-dock-tab={chat.id} hidden={!active}>
       <SideChat
+        onAnswerQuestion={(question, attachments) => void dispatch({ type: "question.answer", taskId: chat.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, attachments })}
+        onQuestionReplyMode={(replying) => { if (chat.question) void dispatch({ type: "question.reply-mode", taskId: chat.id, runId: chat.question.runId, replying }); }}
         chat={chat}
+        favoriteModels={favoriteModels}
         engineLabel={engineLabel}
         focusToken={focusToken}
         find={find}
@@ -105,6 +110,7 @@ export function DockSideChats({ workspace, source, activeTab, find, findBar, foc
             key={chat.id}
             chat={chat}
             dispatch={workspace.dispatch}
+            favoriteModels={workspace.favoriteModels}
             engineLabel={workspace.engineLabel}
             sourceTitle={source.title}
             sourceContinued={Boolean(source.continuation)}

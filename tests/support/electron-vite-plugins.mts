@@ -38,7 +38,7 @@ export function fakePlugins(computerUse: boolean, updater = false): Plugin[] {
         if (id === "./computer-use-host.js" && importer?.endsWith("/src/main/main.ts")) return "\0fake-computer-use";
       },
       load(id) {
-        if (id === "\0fake-computer-use") return "const c = globalThis.__aicodingtoolComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse;";
+        if (id === "\0fake-computer-use") return "const c = globalThis.__aicodingtoolComputerUse; export const computerUseForRun=c.computerUseForRun, computerUsePermissions=c.computerUsePermissions, requestComputerUsePermission=c.requestComputerUsePermission, stopComputerUse=c.stopComputerUse, resumeComputerUse=c.resumeComputerUse ?? (() => {});";
       },
     });
   }

@@ -247,7 +247,7 @@ test("a folder the aic command names is registered and handed to the window that
     await tick();
     assert.deepEqual(opened(), [], "only the window's own renderer can ask for it");
 
-    readyForProject(trusted);
+    readyForProject({ sender: main.runtimeViews[0].webContents });
     await waitFor(() => opened().length === 1);
     assert.equal(opened()[0].root, folder);
     assert.equal(opened()[0].kind, "project");
@@ -362,6 +362,7 @@ test("a page keeps bounded developer diagnostics and waits for page conditions",
 type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };
 
 test("the app menu sends help actions through the window command path", async () => {
+  listener<(event: IpcEvent) => void>("workspace-view:ready")(main.trusted);
   const menu = main.applicationMenu() as MenuEntry[] | null;
   assert.ok(menu, "the app sets its own menu");
   const appMenu = menu.find((entry) => entry.label === "AI Coding Tool");

@@ -82,12 +82,15 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
   const approval = view.approval;
   return {
     id: thread.id,
+    loading: Boolean(thread.historySummary),
     title: thread.title || "Untitled thread",
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     messages: transcript.messages,
     omitted: transcript.omitted,
     streamingTail: view.streamingTail?.text ?? null,
     status: view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.status,
+    question: view.question ?? null,
+    replyingToQuestion: view.replyingToQuestion,
     approval: approval
       ? {
         approvalId: approval.approvalId,
@@ -129,12 +132,15 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
   if (!next) return previous ? { kind: "closed" } : undefined;
   if (!previous || previous.id !== next.id) return { kind: "opened", thread: next };
   const delta: MobileThreadDelta = {};
+  if (previous.loading !== next.loading) delta.loading = next.loading;
   if (previous.title !== next.title) delta.title = next.title;
   if (previous.projectName !== next.projectName) delta.projectName = next.projectName;
   if (previous.omitted !== next.omitted) delta.omitted = next.omitted;
   if (previous.streamingTail !== next.streamingTail) delta.streamingTail = next.streamingTail;
   if (previous.status !== next.status) delta.status = next.status;
   if (previous.prompt !== next.prompt) delta.prompt = next.prompt;
+  if (!same(previous.question, next.question)) delta.question = next.question;
+  if (previous.replyingToQuestion !== next.replyingToQuestion) delta.replyingToQuestion = next.replyingToQuestion;
   if (!same(previous.approval, next.approval)) delta.approval = next.approval;
   if (!same(previous.queued, next.queued)) delta.queued = next.queued;
   if (!same(previous.settings, next.settings)) delta.settings = next.settings;

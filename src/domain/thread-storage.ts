@@ -452,6 +452,15 @@ function renamedMessageFields(value: unknown) {
   return message.withdrawn === undefined ? { ...message, withdrawn } : message;
 }
 
+/** A conversation loaded separately uses the same migrations and validation as a complete store. */
+export function parseStoredConversationMessages(values: unknown[]): ConversationMessage[] {
+  return values.map((value, index) => {
+    const message = renamedMessageFields(value);
+    if (!isConversationMessage(message)) throw new Error(`Stored message ${index + 1} is unreadable.`);
+    return message;
+  });
+}
+
 function recordedEngine(value: unknown) {
   if (!isRecord(value) || value.engine !== undefined) return value;
   return { ...value, engine: UNRECORDED_ENGINE };

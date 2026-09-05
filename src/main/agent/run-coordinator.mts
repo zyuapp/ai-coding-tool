@@ -1,3 +1,4 @@
+import { isQuestionRequest, type QuestionAnswers, type QuestionRequest } from "../../domain/agent-question.js";
 import { randomUUID } from "node:crypto";
 import type { AgentEvent, BackgroundReport, GoalReport, InternalStartRunCommand, RunEvent, WorkflowReport } from "../../contracts/ipc.js";
 import type { SubagentReport, ToolIntent } from "../../domain/run.js";
@@ -9,6 +10,12 @@ type PendingApproval = {
   resolve: (decision: ToolDecision) => void;
   /** Only an unattended run has one: the deadline after which the question is answered for it. */
   deadline?: ReturnType<typeof setTimeout>;
+};
+
+type PendingQuestions = {
+  request: QuestionRequest;
+  answers: QuestionAnswers;
+  close: (answers: QuestionAnswers | null) => void;
 };
 
 type ActiveRun = {
@@ -23,6 +30,7 @@ type ActiveRun = {
   /** Started by the scheduler with nobody present, until somebody steers into it. */
   unattended: boolean;
   approvals: Map<string, PendingApproval>;
+  questions: Map<string, PendingQuestions>;
   /** Newest streamed tail, held back until the throttle window opens. */
   pendingTail?: { messageId: string; text: string };
   tailTimer?: ReturnType<typeof setTimeout>;
@@ -77,6 +85,7 @@ export class RunCoordinator {
       terminal: false,
       unattended: command.unattended === true,
       approvals: new Map(),
+      questions: new Map(),
     };
     this.runs.set(command.taskId, active);
     this.publish(active, { type: "run.started" });
@@ -150,6 +159,7 @@ export class RunCoordinator {
         steering: active.steering,
         abortController: active.abortController,
         authorize: (intent) => this.authorize(active, intent),
+        askQuestion: (request, signal) => this.askQuestion(active, request, signal),
         emit: (event) => this.handleProviderEvent(active, event),
         reportWorkflow: (report) => this.reportWorkflow(active.taskId, report),
         reportBackground: (report) => this.reportBackground(active.taskId, report),
@@ -223,6 +233,7 @@ export class RunCoordinator {
       terminal: false,
       unattended: false,
       approvals: new Map(),
+      questions: new Map(),
     };
     this.runs.set(active.taskId, active);
     this.publish(active, { type: "run.started", agentInitiated: true });
@@ -252,6 +263,45 @@ export class RunCoordinator {
     if (!pending || active.terminal) return;
     active.pendingTail = undefined;
     this.publish(active, { type: "assistant.tail", messageId: pending.messageId, text: pending.text });
+  }
+
+  answerQuestion(taskId: string, runId: string, requestId: string, questionId: string, text: string) {
+    const active = this.runs.get(taskId);
+    if (!active || active.runId !== runId || active.terminal || !text.trim()) return false;
+    const pending = active.questions.get(requestId);
+    if (!pending || !pending.request.questions.some((question) => question.id === questionId) || Object.hasOwn(pending.answers, questionId)) return false;
+    active.unattended = false;
+    pending.answers[questionId] = text;
+    this.publish(active, { type: "question.answered", requestId, questionId, text });
+    if (pending.request.questions.every((question) => Object.hasOwn(pending.answers, question.id))) pending.close(pending.answers);
+    return true;
+  }
+
+  private askQuestion(active: ActiveRun, request: QuestionRequest, signal?: AbortSignal): Promise<QuestionAnswers | null> {
+    if (!this.isCurrent(active) || active.terminal || signal?.aborted || !isQuestionRequest(request)) return Promise.resolve(null);
+    const requestId = randomUUID();
+    return new Promise((resolve) => {
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      const abort = () => pending.close(null);
+      const pending: PendingQuestions = {
+        request,
+        answers: Object.create(null) as QuestionAnswers,
+        close: (answers) => {
+          if (!active.questions.delete(requestId)) return;
+          clearTimeout(deadline);
+          signal?.removeEventListener("abort", abort);
+          this.publish(active, { type: "question.closed", requestId });
+          resolve(answers);
+        },
+      };
+      active.questions.set(requestId, pending);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (active.unattended) {
+        deadline = setTimeout(() => { if (active.unattended) pending.close(null); }, this.options.unattendedApprovalMs ?? DEFAULT_UNATTENDED_APPROVAL_MS);
+        deadline.unref?.();
+      }
+      this.publish(active, { type: "question.requested", requestId, request });
+    });
   }
 
   private async authorize(active: ActiveRun, intent: ToolIntent): Promise<ToolDecision> {
@@ -302,6 +352,7 @@ export class RunCoordinator {
     active.pendingTail = undefined;
     active.steering.close();
     this.expireApprovals(active);
+    for (const pending of active.questions.values()) pending.close(null);
     if (this.isCurrent(active)) {
       this.publish(active, { type: "run.status", status, message });
       this.runs.delete(active.taskId);

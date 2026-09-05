@@ -9,7 +9,7 @@ import { reduceSideChats } from "./side-chats.js";
 import { reduceDiffs } from "./diffs.js";
 import { reduceStore } from "./store.js";
 import { reduceComposer } from "./composer.js";
-import { reduceSettings } from "./settings.js";
+import { reduceSettings, reduceModelFavorite } from "./settings.js";
 import { reduceDock } from "./dock.js";
 import { reduceBrowser } from "./browser.js";
 import { reduceDesktop } from "./desktop.js";
@@ -41,7 +41,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
       return reduceWorktrees(state, input);
 
-    case "task.send": case "task.steer-queued": case "task.drop-queued":
+    case "task.send": case "question.answer": case "question.reply-mode": case "task.steer-queued": case "task.drop-queued":
       return reduceSending(state, input);
 
     case "project.open": case "project.opened": case "project.edit":
@@ -68,7 +68,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "diff.set-split": case "diff.set-ignore-whitespace": case "diff.loaded": case "environment.updated":
       return reduceDiffs(state, input);
 
-    case "store.loaded": case "store.absent": case "preferences.loaded":
+    case "store.loaded": case "store.thread-loaded": case "store.absent": case "store.persisted": case "preferences.loaded":
     case "store.failed": case "action.failed":
       return reduceStore(state, input);
 
@@ -79,6 +79,8 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "file.recall": case "view.set-prompt": case "view.reading-point":
     case "view.dismiss-action-error": case "view.dismiss-hidden-tasks":
       return reduceComposer(state, input);
+
+    case "view.set-model-favorite": return reduceModelFavorite(state, input);
 
     case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
     case "view.system-scheme": case "view.set-ui-font": case "view.set-mono-font":
@@ -105,7 +107,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":
-    case "terminal.resize": case "terminal.updated":
+    case "terminal.resize": case "terminal.updated": case "view.closed": case "view.mounted":
       return reduceDesktop(state, input);
 
     case "view.set-menu": case "view.go-back": case "view.go-forward":

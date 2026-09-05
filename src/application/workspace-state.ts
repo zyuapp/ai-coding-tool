@@ -1,4 +1,6 @@
+import { sideChatView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
+import type { PendingQuestion } from "../domain/agent-question.js";
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
@@ -18,7 +20,7 @@ export {
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
-import { unreadView } from "./thread-attention.js";
+import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { findView } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
@@ -54,7 +56,7 @@ import {
   worktreeClaimants,
   worktreeFor,
 } from "./thread-location.js";
-import { worktreeSettingsPage, worktreeSettingsViews, type WorktreeSettingsState } from "./worktree-settings.js";
+import type { WorktreeSettingsState } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
 export {
@@ -157,6 +159,8 @@ export type SideChatView = SideChat & {
   streamingTail: StreamingTail | null;
   queuedMessages: QueuedMessage[];
   approval?: ApprovalView;
+  question?: PendingQuestion;
+  replyingToQuestion?: boolean;
   readingPoint: ReadingPoint;
 };
 
@@ -301,6 +305,7 @@ export type WorkspaceState = {
   settingsSection: SettingsSection | null;
   /** The control on that page to scroll to and mark, when something named one. */
   settingsFocus: string | null;
+  favoriteModels: AgentModel[];
   /** The bindings the user changed, and the action waiting for a keystroke while settings are open. */
   shortcuts: ShortcutOverrides;
   capturingShortcut: string | null;
@@ -457,6 +462,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     settingsOpen: false,
     settingsSection: null,
     settingsFocus: null,
+    favoriteModels: [],
     shortcuts: {},
     capturingShortcut: null,
     desktopShortcutUnavailable: null,
@@ -742,15 +748,8 @@ export function deriveView(state: WorkspaceState) {
   const currentProject = currentThread
     ? projectFor(state, currentThread)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-  const forked = sideChatIds(state);
-  const listedThreads = state.threads.filter((thread) => !forked.has(thread.id));
-  const visibleThreads = listedThreads.filter((thread) => thread.archivedAt === undefined);
-  const busy = busyThreadIds(state), blocked = blockedThreadIds(state);
-  const managedWorktrees = worktreeSettingsViews(state, busy);
-  const lists = sidebarLists(state, state.projects, visibleThreads, busy, blocked);
-  const { orderedThreads } = lists, threadsByWorktree = new Map<string, Thread[]>();
-  for (const thread of orderedThreads) if (thread.worktreeId)
-    threadsByWorktree.get(thread.worktreeId)?.push(thread) ?? threadsByWorktree.set(thread.worktreeId, [thread]);
+  const collections = workspaceViewCollections(state);
+  const { listedThreads, visibleThreads, busy, blocked, managedWorktrees, lists } = collections;
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const workspaceId = currentThread
     ? threadWorkspaceId(state, currentThread)
@@ -759,10 +758,11 @@ export function deriveView(state: WorkspaceState) {
   const owner = dockOwner(state), dock = dockFor(state, owner);
   return {
     ...engineView(state, currentThread),
-    ...unreadView(state, listedThreads),
+    sideChatAttention: collections.sideChatAttention,
+    unreadCount: collections.unreadCount,
     ...lists,
     threads: listedThreads,
-    archivedThreads: listedThreads.filter((thread) => thread.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
+    archivedThreads: collections.archivedThreads,
     currentThread,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
@@ -780,6 +780,8 @@ export function deriveView(state: WorkspaceState) {
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
+    question: currentRun?.questions?.[0],
+    replyingToQuestion: currentRun?.replyingToQuestion !== false,
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
     runningThreadIds: busy,
     blockedThreadIds: blocked,
@@ -790,19 +792,16 @@ export function deriveView(state: WorkspaceState) {
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     readingPoint: state.currentId ? state.readingPoints[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
-    schedules: new Map(state.automations.map((automation) => [automation.taskId, automation])),
+    schedules: collections.schedules,
     /** When a run on this thread last found something, which is what the automation panel reports. */
     lastFoundAt: currentThread?.lastFindingAt ?? null,
     /** What its last silent tick looked at, which is all a schedule that never speaks has to show. */
     lastChecked: currentThread?.lastChecked ?? null,
-    worktreeThreadIds: new Set(listedThreads.filter((thread) => thread.worktreeId).map((thread) => thread.id)),
+    worktreeThreadIds: collections.worktreeThreadIds,
     /** The checkouts a project has, each with the threads that claim it. */
-    worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({
-      worktree,
-      threads: threadsByWorktree.get(worktree.id) ?? [],
-    })),
+    worktreeGroups: collections.worktreeGroups,
     managedWorktrees,
-    worktreeSettings: worktreeSettingsPage(state, managedWorktrees),
+    worktreeSettings: collections.worktreeSettings,
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),
@@ -842,7 +841,7 @@ export function deriveView(state: WorkspaceState) {
     computerUse: state.computerUse,
     browserTools: state.browserTools,
     notifications: state.notifications,
-    shortcuts: shortcutSettings(state.shortcuts),
+    favoriteModels: state.favoriteModels, shortcuts: shortcutSettings(state.shortcuts),
     capturingShortcut: state.capturingShortcut, desktopShortcutUnavailable: state.desktopShortcutUnavailable,
     composerFocus: state.composerFocus,
     /** Only the dock on screen can take the keys, so a request in another thread's dock is not drawn. */
@@ -871,28 +870,6 @@ export function deriveView(state: WorkspaceState) {
     remoteChecking: state.remoteChecking,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
-    sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat): SideChatView[] => {
-      const thread = state.threads.find((item) => item.id === chat.id);
-      if (!thread) return [];
-      const active = state.activeRuns[chat.id];
-      const approval = active?.status === "awaiting-approval" ? state.approvals[active.runId] as ApprovalView | undefined : undefined;
-      return [{
-        ...chat,
-        title: thread.title,
-        thread,
-        prompt: state.prompts[chat.id] ?? "",
-        annotations: annotationsFor(state, chat.id),
-        pastes: pastesFor(state, chat.id),
-        images: imagesFor(state, chat.id),
-        files: filesFor(state, chat.id),
-        running: Boolean(active),
-        compacting: active?.status === "compacting",
-        status: active ? "running" : runStatusFor(state, chat.id),
-        streamingTail: state.streamingTails[chat.id] ?? null,
-        queuedMessages: state.queuedMessages[chat.id] ?? NO_QUEUED,
-        readingPoint: state.readingPoints[chat.id] ?? null,
-        ...(approval ? { approval } : {}),
-      }];
-    })),
+    sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat) => sideChatView(state, chat))),
   };
 }

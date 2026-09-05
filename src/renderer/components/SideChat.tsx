@@ -1,3 +1,4 @@
+import type { QuestionAddress } from "../../domain/agent-question";
 import { LuGitFork as GitFork, LuX as X } from "react-icons/lu";
 import { useRef, type ReactNode } from "react";
 import type { FindView, SideChatView } from "../../application/workspace-state";
@@ -12,7 +13,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionReplyMode, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -43,10 +44,14 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   /** Where this chat's transcript was left, and where its reader has moved to since. */
   readingPoint?: ReadingPoint;
   onReadingPointMove?: (point: ReadingPoint) => void;
+  onAnswerQuestion?: (question: QuestionAddress, attachments: RunAttachment[]) => void;
+  onQuestionReplyMode?: (replying: boolean) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
   onPolicyChange: (policy: ExecutionPolicy) => void;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   onSteerQueued: (messageId: string) => void;
@@ -106,6 +111,10 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         effort={chat.thread.effort ?? defaultEffortFor(chat.thread.engine)}
         {...(chat.thread.contextUsage ? { contextUsage: chat.thread.contextUsage } : {})}
         runActive={chat.running}
+        question={chat.question}
+        replyingToQuestion={chat.replyingToQuestion}
+        onAnswerQuestion={onAnswerQuestion}
+        onQuestionReplyMode={onQuestionReplyMode}
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}
@@ -127,6 +136,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         onImageRecall={onImageRecall}
         onImageRemove={onImageRemove}
         onModeChange={onPolicyChange}
+        favoriteModels={favoriteModels}
+        onModelFavorite={onModelFavorite}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}
         onSend={onSend}

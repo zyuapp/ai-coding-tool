@@ -5,7 +5,7 @@ import { isAutomation, type Automation } from "../domain/automation.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
 import type { ConversationMessage } from "../domain/conversation.js";
 import type { Project } from "../domain/project.js";
-import { validateThreadStoreData, type ThreadStoreData } from "../domain/thread-storage.js";
+import { parseStoredConversationMessages, validateThreadStoreData, type ThreadStoreData } from "../domain/thread-storage.js";
 import type { Thread } from "../domain/thread.js";
 import type { LoadedTaskStore } from "../contracts/ipc.js";
 import { isWorktree, type Worktree } from "../domain/worktree.js";
@@ -72,12 +72,53 @@ export class TaskDatabase {
       CREATE INDEX IF NOT EXISTS subagent_activity_position ON subagent_activity(task_id, subagent_id, position);
       CREATE TABLE IF NOT EXISTS automations (id TEXT PRIMARY KEY, task_id TEXT NOT NULL UNIQUE, data TEXT NOT NULL);
     `);
+    this.prepareHistoryMetadata();
     this.saveTask = this.database.prepare("INSERT INTO tasks (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data");
-    this.saveMessage = this.database.prepare("INSERT INTO messages (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
+    this.saveMessage = this.database.prepare("INSERT INTO messages (task_id, id, position, data, message_at, audible, has_attachment) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data, message_at = excluded.message_at, audible = excluded.audible, has_attachment = excluded.has_attachment");
     this.saveSubagent = this.database.prepare("INSERT INTO subagents (task_id, id, position, data) VALUES (?, ?, ?, ?) ON CONFLICT(task_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
     this.saveActivity = this.database.prepare("INSERT INTO subagent_activity (task_id, subagent_id, id, position, data) VALUES (?, ?, ?, ?, ?) ON CONFLICT(task_id, subagent_id, id) DO UPDATE SET position = excluded.position, data = excluded.data");
     this.liftEmbeddedSubagents();
     this.liftEmbeddedWorktrees();
+  }
+
+  /** Counts and indexed timestamps let the thread list load without reading conversation bodies. */
+  private prepareHistoryMetadata() {
+    const columns = this.database.prepare("PRAGMA table_info(messages)").all() as Array<{ name: string }>;
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      if (!columns.some((column) => column.name === "message_at")) {
+        this.database.exec(`
+          ALTER TABLE messages ADD COLUMN message_at REAL;
+          ALTER TABLE messages ADD COLUMN audible INTEGER NOT NULL DEFAULT 1;
+          ALTER TABLE messages ADD COLUMN has_attachment INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE tasks ADD COLUMN message_count INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE tasks ADD COLUMN attachment_count INTEGER NOT NULL DEFAULT 0;
+          UPDATE messages SET
+            message_at = CASE WHEN json_valid(data) THEN json_extract(data, '$.at') END,
+            audible = CASE WHEN json_valid(data) THEN CASE WHEN coalesce(json_extract(data, '$.withdrawn'), json_extract(data, '$.quiet'), 0) = 1 THEN 0 ELSE 1 END ELSE 1 END,
+            has_attachment = CASE WHEN json_valid(data) THEN CASE WHEN json_array_length(data, '$.attachments') > 0 THEN 1 ELSE 0 END ELSE 0 END;
+          UPDATE tasks SET
+            message_count = (SELECT count(*) FROM messages WHERE task_id = tasks.id),
+            attachment_count = (SELECT coalesce(sum(has_attachment), 0) FROM messages WHERE task_id = tasks.id);
+        `);
+      }
+      this.database.exec(`
+        CREATE INDEX IF NOT EXISTS messages_task_audible_position ON messages(task_id, audible, position);
+        CREATE TRIGGER IF NOT EXISTS messages_summary_insert AFTER INSERT ON messages BEGIN
+          UPDATE tasks SET message_count = message_count + 1, attachment_count = attachment_count + NEW.has_attachment WHERE id = NEW.task_id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS messages_summary_update AFTER UPDATE OF has_attachment ON messages BEGIN
+          UPDATE tasks SET attachment_count = attachment_count + NEW.has_attachment - OLD.has_attachment WHERE id = NEW.task_id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS messages_summary_delete AFTER DELETE ON messages BEGIN
+          UPDATE tasks SET message_count = message_count - 1, attachment_count = attachment_count - OLD.has_attachment WHERE id = OLD.task_id;
+        END;
+      `);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   /**
@@ -169,7 +210,7 @@ export class TaskDatabase {
     this.closed = true;
   }
 
-  load(): LoadedTaskStore | null {
+  load(options: { summariesOnly?: boolean } = {}): LoadedTaskStore | null {
     const taskRecords = Array.from(
       this.database.prepare("SELECT data FROM tasks").iterate() as Iterable<{ data: string }>,
       ({ data }) => JSON.parse(data) as Omit<Thread, "messages">,
@@ -182,10 +223,12 @@ export class TaskDatabase {
     if (!taskRecords.length && !projects.length && !lastFolderRow) return null;
 
     const messages = new Map<string, ConversationMessage[]>();
-    for (const row of this.database.prepare("SELECT task_id, data FROM messages ORDER BY task_id, position").iterate() as Iterable<{ task_id: string; data: string }>) {
-      const values = messages.get(row.task_id) ?? [];
-      values.push(JSON.parse(row.data) as ConversationMessage);
-      messages.set(row.task_id, values);
+    if (!options.summariesOnly) {
+      for (const row of this.database.prepare("SELECT task_id, data FROM messages ORDER BY task_id, position").iterate() as Iterable<{ task_id: string; data: string }>) {
+        const values = messages.get(row.task_id) ?? [];
+        values.push(JSON.parse(row.data) as ConversationMessage);
+        messages.set(row.task_id, values);
+      }
     }
     const subagents = new Map<string, Subagent[]>();
     for (const row of this.database.prepare("SELECT task_id, id, data FROM subagents ORDER BY task_id, position").iterate() as Iterable<{ task_id: string; data: string }>) {
@@ -213,7 +256,39 @@ export class TaskDatabase {
     };
     const validated = validateThreadStoreData(data);
     if (!validated.ok) throw new Error(validated.errors.join(" "));
-    return { ...validated.data, hiddenTasks: validated.hiddenTasks };
+    const result: LoadedTaskStore = { ...validated.data, hiddenTasks: validated.hiddenTasks };
+    if (options.summariesOnly) {
+      const summaries = new Map<string, NonNullable<Thread["historySummary"]>>();
+      const rows = this.database.prepare(`
+        SELECT id, message_count, attachment_count,
+          (SELECT message_at FROM messages WHERE task_id = tasks.id ORDER BY position LIMIT 1) AS first_at,
+          (SELECT message_at FROM messages WHERE task_id = tasks.id AND audible = 1 ORDER BY position DESC LIMIT 1) AS last_at
+        FROM tasks WHERE message_count > 0
+      `).iterate() as Iterable<{ id: string; message_count: number; attachment_count: number; first_at: number | null; last_at: number | null }>;
+      for (const row of rows) {
+        const summary: NonNullable<Thread["historySummary"]> = { messageCount: row.message_count, attachmentCount: row.attachment_count };
+        if (typeof row.first_at === "number") summary.firstMessageAt = row.first_at;
+        if (typeof row.last_at === "number") summary.lastAudibleAt = row.last_at;
+        summaries.set(row.id, summary);
+      }
+      result.unloadedTaskIds = [];
+      result.tasks = result.tasks.map((task) => {
+        const historySummary = summaries.get(task.id);
+        if (!historySummary) return task;
+        result.unloadedTaskIds!.push(task.id);
+        return { ...task, historySummary };
+      });
+    }
+    return result;
+  }
+
+  loadThreadMessages(taskId: string): ConversationMessage[] {
+    if (!this.database.prepare("SELECT 1 FROM tasks WHERE id = ?").get(taskId)) throw new Error("Thread no longer exists.");
+    const messages = Array.from(
+      this.database.prepare("SELECT data FROM messages WHERE task_id = ? ORDER BY position").iterate(taskId) as Iterable<{ data: string }>,
+      ({ data }) => JSON.parse(data) as unknown,
+    );
+    return parseStoredConversationMessages(messages);
   }
 
   /** A subagent's activity, read only when someone opens it: a session's logs never all fit in the window. */
@@ -265,7 +340,10 @@ export class TaskDatabase {
       }
       for (const change of delta.tasks) {
         this.saveTask.run(change.task.id, JSON.stringify(change.task));
-        for (const { index, message } of change.messages) this.saveMessage.run(change.task.id, message.id, index, JSON.stringify(message));
+        for (const { index, message } of change.messages) {
+          const withdrawn = message.withdrawn ?? (message as ConversationMessage & { quiet?: boolean }).quiet;
+          this.saveMessage.run(change.task.id, message.id, index, JSON.stringify(message), message.at, withdrawn ? 0 : 1, message.attachments?.length ? 1 : 0);
+        }
         for (const { index, subagent } of change.subagents ?? []) this.saveSubagent.run(change.task.id, subagent.id, index, JSON.stringify(subagent));
         for (const { subagentId, index, item } of change.activity ?? []) this.saveActivity.run(change.task.id, subagentId, item.id, index, JSON.stringify(item));
       }

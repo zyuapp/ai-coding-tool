@@ -103,7 +103,7 @@ export async function startMainProcess(t: TestContext | null, prefix: string, op
     mobileHost,
     trusted: { sender: window.webContents },
     untrusted: { sender: {} },
-    sentOn: <T = unknown,>(channel: string) => window.webContents.sent.filter((entry) => entry.channel === channel).map((entry) => entry.event as T),
+    sentOn: <T = unknown,>(channel: string) => [...window.webContents.sent, ...records.runtimeViews.flatMap((view) => view.webContents.sent)].filter((entry) => entry.channel === channel).map((entry) => entry.event as T),
   };
 }
 

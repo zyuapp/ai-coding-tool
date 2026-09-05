@@ -1,5 +1,5 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
-import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, resolveWorkspaceEffect, settled, sideChannelFor, startRunCommand, targetId, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withUsedWorktree, withoutPending, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./shared.js";
+import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, resolveWorkspaceEffect, settled, sideChannelFor, startRunCommand, targetId, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withUsedWorktree, withoutPending, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
@@ -56,17 +56,17 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       if (pending.origin === "automation") return settled(next, ack(pending, false));
       /** A side chat lives in the dock, so its failure belongs there and not in the main thread's banner. */
       if (pending.taskId && next.sideChats.some((chat) => chat.id === pending.taskId)) {
-        return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })));
+        return settled(withSideChat(next, pending.taskId, (chat) => ({ ...chat, error: input.message })), [], { ok: false, message: input.message });
       }
-      return settled({ ...next, actionError: input.message });
+      return rejected(next, input.message);
     }
 
     case "run.compact": {
       const taskId = targetId(state, input.taskId);
       const thread = state.threads.find((item) => item.id === taskId);
       if (!thread || !modelSupportsManualCompaction(thread.engine, thread.model ?? defaultModelFor(thread.engine)) || thread.continuation?.provider !== "codex" || !thread.contextUsage || threadBusy(state, thread.id)) return settled(state);
-      if (state.creatingWorktrees.includes(thread.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
-      if (leavingThreadIds(state).has(thread.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
+      if (state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
+      if (leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
       const project = projectFor(state, thread);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
@@ -131,7 +131,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const opened = opening ? beginRun(state, event.taskId, event.runId) : state;
       const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
-      const applied = applyRunEvent(opened, event);
+      let applied = applyRunEvent(opened, event);
+      if (event.type === "question.requested" && !active.questions?.length) {
+        const replyingToQuestion = !(state.prompts[event.taskId]?.trim() || state.images[event.taskId]?.length || state.files[event.taskId]?.length || state.annotations[event.taskId]?.length || state.pastes[event.taskId]?.length);
+        applied = { ...applied, activeRuns: { ...applied.activeRuns, [event.taskId]: { ...applied.activeRuns[event.taskId], replyingToQuestion } } };
+      }
       const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
       if (active.operation === "compact" && terminal) {
         const restored = restoreCompactionTestimony(applied, event.taskId, active.before);
@@ -161,9 +165,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
        * What this event puts on the desktop. A run that settles says how it ended; a run that stops
        * to ask says what it is waiting for, and only when a person is the one it waits on.
        */
-      const headline = event.type === "approval.requested" && active.origin === "composer"
-        ? `Waiting for your permission to use ${event.intent.name}`
-        : settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
+      let headline = settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
+      if (active.origin === "composer" && event.type === "approval.requested") headline = `Waiting for your permission to use ${event.intent.name}`;
+      if (active.origin === "composer" && event.type === "question.requested") headline = event.request.questions[0].question;
       const noticed = headline ? next.threads.find((thread) => thread.id === event.taskId) : undefined;
       const said = noticed && headline ? announced(next, noticed, headline) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
@@ -265,7 +269,8 @@ function startReview(state: WorkspaceState, pending: PendingRun, workspace: Work
 
 function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace: WorkspaceRecord, worktree?: CreatedWorktree): WorkspaceTransition {
   const existing = pending.taskId ? state.threads.find((item) => item.id === pending.taskId) : undefined;
-  if (pending.taskId && (!existing || state.activeRuns[pending.taskId])) return settled(state);
+  if (pending.taskId && !existing) return rejected(state, "This thread was removed before its message could be sent.");
+  if (pending.taskId && state.activeRuns[pending.taskId]) return rejected(state, "This thread started another run before its message could be sent. Send the message again.");
   /** A checkout made on the way here has no record yet; it belongs to the project the run resolved in. */
   const created = worktree && pending.projectId ? { ...worktree, projectId: pending.projectId } : undefined;
   /** A thread that does not exist yet claims whichever checkout the send named, if it named one. */
@@ -324,6 +329,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
   return settled(
     pending.draftKey ? clearedDraft(reviewing.state, pending.draftKey) : reviewing.state,
     [{ type: "start-run", command }, ...titling, ...reviewing.effects],
+    { ok: true, taskId: thread.id },
   );
 }
 

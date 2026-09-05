@@ -398,8 +398,12 @@ test("a wait is held open until the thread it names stops working", async () => 
   const running = item(workspace.get().currentThread);
   const runId = startCommand(desktop.sent.at(-1)).runId;
 
-  await act(async () => { desktop.askThreads({ type: "thread.request", requestId: "r1", taskId: running.id, op: "wait", threadId: running.id, timeoutMs: 60_000 }); });
-  assert.equal(desktop.threadAnswers.length, 0, "the wait is still open while the run goes");
+  await act(async () => {
+    for (const [index, threadId] of [running.id, running.title, running.id.slice(0, 8)].entries()) {
+      desktop.askThreads({ type: "thread.request", requestId: `wait-${index}`, taskId: running.id, op: "wait", threadId, timeoutMs: 60_000 });
+    }
+  });
+  assert.equal(desktop.threadAnswers.length, 0, "waits by ID, title, and prefix remain open while the run goes");
 
   await act(async () => {
     desktop.listener({ type: "assistant.delta", taskId: running.id, runId, sequence: 1, messageId: "reply-1", text: "Header fixed." });
@@ -408,10 +412,13 @@ test("a wait is held open until the thread it names stops working", async () => 
   await settleFrame();
   await act(async () => {});
 
-  const waited = threadWaitResult(desktop.threadAnswers.at(-1));
-  assert.equal(waited.timedOut, false);
-  assert.equal(waited.reply, "Header fixed.");
-  assert.equal(waited.thread.status, "idle");
+  assert.equal(desktop.threadAnswers.length, 3);
+  for (const response of desktop.threadAnswers) {
+    const waited = threadWaitResult(response);
+    assert.equal(waited.timedOut, false);
+    assert.equal(waited.reply, "Header fixed.");
+    assert.equal(waited.thread.status, "idle");
+  }
 
   await workspace.view.unmount();
 });

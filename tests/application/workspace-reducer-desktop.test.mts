@@ -2,6 +2,24 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
 import { dock, task, workspace, run, running, inside } from "./workspace-reducer-fixtures.mts";
+import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";
+
+test("closing the visible window releases terminal records while browser URLs reopen on mount", () => {
+  const state = workspace({ currentId: "task-1", threads: [task("task-1")], docks: {
+    "task-1": { ...EMPTY_DOCK, open: true, tab: "page", browserTabId: "page", browserTabs: [{ id: "page", url: "https://example.com/", title: "Page", loading: true, canGoBack: true, canGoForward: true, error: "stale" }], terminals: [{ id: "shell", cwd: "/repo", title: "Shell", taskId: "task-1", status: "running" }], terminalId: "shell" },
+    draft: { ...EMPTY_DOCK, open: true, tab: "draft-shell", terminals: [{ id: "draft-shell", cwd: "/repo", title: "Shell", taskId: null, status: "running" }], terminalId: "draft-shell" },
+  } });
+  const closed = reduce(state, { type: "view.closed" });
+  assert.equal(closed.state.focused, false);
+  assert.deepEqual(closed.state.docks["task-1"].terminals, []);
+  assert.equal(closed.state.docks.draft.tab, "home");
+  assert.equal(closed.state.docks.draft.terminalId, null);
+  assert.deepEqual(dock(closed.state).browserTabs, [{ id: "page", url: "https://example.com/", title: "Page", loading: false, canGoBack: false, canGoForward: false }]);
+  assert.deepEqual(closed.effects, []);
+  const mounted = reduce(closed.state, { type: "view.mounted" });
+  assert.ok(mounted.effects.some((effect) => effect.type === "browser.open" && effect.tabId === "page"));
+  assert.ok(mounted.effects.some((effect) => effect.type === "browser.show" && effect.tabId === "page"));
+});
 
 test("a terminal opens in the thread's own checkout and takes a dock tab of its own", () => {
   const state = {

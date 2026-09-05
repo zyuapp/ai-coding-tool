@@ -10,12 +10,101 @@ import type { Automation } from "../../src/domain/automation.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
+import { threadActivityAt, threadCreatedAt } from "../../src/domain/thread.ts";
 
 function loadDatabase(database: TaskDatabase): ThreadStoreData {
   const loaded = database.load();
   assert.ok(loaded);
   return loaded;
 }
+
+const summaryTask: PersistedTask = {
+  id: "summary-thread",
+  title: "Stored history",
+  engine: "codex",
+  executionPolicy: "confirm",
+  continuationStatus: "none",
+  lastChangeSnapshot: { files: [], capturedAt: 1 },
+  updatedAt: 100,
+};
+
+test("startup summaries preserve activity and counts while messages load only on demand", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-history-summary-"));
+  const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));
+  const messages: ConversationMessage[] = [
+    { id: "first", kind: "user", text: "Hello", at: 10 },
+    { id: "answer", kind: "assistant", text: "Answer", at: 20, attachments: ["picture.png"] },
+    { id: "quiet", kind: "assistant", text: "Nothing changed", at: 30, withdrawn: true },
+  ];
+  try {
+    database.persist({ tasks: [{ task: summaryTask, messages: messages.map((message, index) => ({ message, index })) }] });
+    const summary = database.load({ summariesOnly: true })!;
+    assert.deepEqual(summary.unloadedTaskIds, [summaryTask.id]);
+    assert.deepEqual(summary.tasks[0].messages, []);
+    assert.deepEqual(summary.tasks[0].historySummary, { messageCount: 3, attachmentCount: 1, firstMessageAt: 10, lastAudibleAt: 20 });
+    assert.equal(threadCreatedAt(summary.tasks[0]), 10);
+    assert.equal(threadActivityAt(summary.tasks[0]), 20);
+    assert.deepEqual(database.loadThreadMessages(summaryTask.id), messages);
+
+    database.persist({ tasks: [{ task: { ...summaryTask, title: "Renamed before opening" }, messages: [] }] });
+    assert.deepEqual(database.loadThreadMessages(summaryTask.id), messages, "a summary-only rename keeps all stored messages");
+
+    const withdrawn = { ...messages[1], withdrawn: true as const, attachments: [] };
+    database.persist({ tasks: [{ task: summaryTask, messages: [{ index: 1, message: withdrawn }] }] });
+    assert.deepEqual(database.load({ summariesOnly: true })!.tasks[0].historySummary,
+      { messageCount: 3, attachmentCount: 0, firstMessageAt: 10, lastAudibleAt: 10 }, "updating a message changes summary counts without duplicating it");
+    database.persist({ tasks: [], removedTasks: [summaryTask.id] });
+    assert.equal(database.load({ summariesOnly: true }), null);
+    assert.throws(() => database.loadThreadMessages(summaryTask.id), /no longer exists/);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("existing databases gain indexed history metadata and preserve legacy withdrawn messages", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-history-migration-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const previous = new DatabaseSync(file);
+  previous.exec(`
+    CREATE TABLE tasks (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+    CREATE TABLE messages (task_id TEXT NOT NULL, id TEXT NOT NULL, position INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (task_id, id));
+  `);
+  previous.prepare("INSERT INTO tasks VALUES (?, ?)").run(summaryTask.id, JSON.stringify(summaryTask));
+  previous.prepare("INSERT INTO messages VALUES (?, ?, ?, ?)").run(summaryTask.id, "legacy", 0, JSON.stringify({ id: "legacy", kind: "assistant", text: "Quiet reply", at: 5, quiet: true }));
+  previous.close();
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const database = new TaskDatabase(file);
+      try {
+        const summary = database.load({ summariesOnly: true })!.tasks[0];
+        assert.deepEqual(summary.historySummary, { messageCount: 1, attachmentCount: 0, firstMessageAt: 5 });
+        assert.deepEqual(database.loadThreadMessages(summaryTask.id), [{ id: "legacy", kind: "assistant", text: "Quiet reply", at: 5, withdrawn: true }]);
+      } finally {
+        database.close();
+      }
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("unreadable conversation bodies fail hydration without blocking the summary list", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-history-unreadable-"));
+  const file = path.join(directory, "tasks.sqlite");
+  const database = new TaskDatabase(file);
+  try {
+    database.persist({ tasks: [{ task: summaryTask, messages: [{ index: 0, message: { id: "broken", kind: "user", text: "Saved", at: 1 } }] }] });
+    const raw = new DatabaseSync(file);
+    raw.prepare("UPDATE messages SET data = ?").run("{broken json");
+    raw.close();
+    assert.deepEqual(database.load({ summariesOnly: true })!.unloadedTaskIds, [summaryTask.id]);
+    assert.throws(() => database.loadThreadMessages(summaryTask.id), SyntaxError);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("SQLite task storage appends and updates messages without rewriting the transcript", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-task-database-"));

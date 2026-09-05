@@ -10,6 +10,11 @@ export type SurfaceEffect = Extract<WorkspaceEffect, {
 
 export async function runSurfaceEffect(effect: SurfaceEffect, host: EffectHost): Promise<void> {
   const { desktop } = host;
+  if (window.workspace?.owner && (effect.type === "terminal.close" || effect.type === "find-in-terminal" || effect.type === "stop-find-in-terminal")) {
+    window.workspace.surface(effect);
+    if (effect.type === "terminal.close") return reportFailure(host, desktop.closeTerminal(effect.terminalId));
+    return;
+  }
   switch (effect.type) {
     case "file.open":
       return reportFailure(host, desktop.openFile(effect.roots, effect.path, effect.line));

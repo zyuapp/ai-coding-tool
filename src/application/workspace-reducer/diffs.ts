@@ -86,7 +86,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
         loading: false,
         viewed,
         ...(listed ? { collapsed: foldedOnLoad(diff, listed, input.result) } : {}),
-      }));
+      }), [], input.result.status === "error" ? { ok: false, message: input.result.message } : undefined);
     }
 
     case "environment.updated": {
@@ -94,6 +94,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const next: WorkspaceState = sameChangedFiles(previous, input.result)
         ? state
         : { ...state, environments: retainedEnvironments(state, input.workspaceId, input.result) };
+      if (input.result.status === "error") return settled(next, [], { ok: false, message: input.result.message });
       /** The checkout is worth recording whoever asked; only the thread's own snapshot is the run's. */
       if (input.runId && input.taskId && state.lastRunIds[input.taskId] !== input.runId) return settled(next);
       if (!input.taskId || input.result.status !== "available") return settled(next);

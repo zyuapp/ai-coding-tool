@@ -120,6 +120,8 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
 
+  if (currentThread?.historySummary) return <div className="empty-state" role="status">Loading conversation…</div>;
+
   if (!currentThread?.messages.length && !streamingTail) {
     return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
   }

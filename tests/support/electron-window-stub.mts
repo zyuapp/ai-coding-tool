@@ -11,8 +11,13 @@ let nextWebContentsId = 1;
 export class FakeWebContentsView {
   declare options: unknown;
   declare bounds: BrowserBounds;
+  loadedBounds?: BrowserBounds;
   declare visible: boolean;
+  destroyed = false;
   webContents = {
+    sent: [] as SentMessage[],
+    send: (channel: string, event: unknown) => { this.webContents.sent.push({ channel, event }); },
+    isDestroyed: () => this.destroyed,
     id: nextWebContentsId++,
     listeners: new Map<string, Callback>(),
     on: (name: string, listener: Callback) => { this.webContents.listeners.set(name, listener); },
@@ -22,7 +27,7 @@ export class FakeWebContentsView {
     },
     emit: (name: string, ...args: unknown[]) => this.webContents.listeners.get(name)?.(...args),
     setWindowOpenHandler(_handler: WindowOpenHandler) {},
-    close() {},
+    close: () => { this.destroyed = true; },
     reload() {},
     isLoading: () => false,
     getURL: () => "",

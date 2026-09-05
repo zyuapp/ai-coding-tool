@@ -1,3 +1,4 @@
+import type { PendingQuestion } from "../domain/agent-question.js";
 import type { AppCommand } from "./commands.js";
 import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js";
 import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
@@ -19,7 +20,7 @@ export type MobileCommand = Extract<AppCommand, {
     | "task.new" | "task.select" | "task.send" | "task.archive" | "task.restore" | "task.rename"
     | "task.dismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
     | "task.set-effort" | "task.steer-queued" | "task.drop-queued"
-    | "run.cancel" | "run.decide" | "run.stop-process"
+    | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer" | "question.reply-mode"
     | "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall"
     | "paste.add" | "paste.remove" | "paste.recall"
     | "view.set-prompt";
@@ -74,6 +75,7 @@ export type MobileThreadSettings = {
 };
 
 export type MobileThreadView = {
+  loading?: boolean;
   id: string;
   title: string;
   /** What the thread's folder is called, or null when it belongs to no project. */
@@ -85,6 +87,8 @@ export type MobileThreadView = {
   streamingTail: string | null;
   status: MobileRunStatus;
   approval: MobileApproval | null;
+  question?: PendingQuestion | null;
+  replyingToQuestion?: boolean;
   queued: MobileQueuedMessage[];
   /** The composer draft, which the phone and the desktop share. */
   prompt: string;
@@ -213,11 +217,19 @@ export function isMobileCommand(value: unknown): value is MobileCommand {
   const command = value;
   const named = command.taskId === undefined || isString(command.taskId);
   if (typeof command.type !== "string") return false;
+  if (command.type.startsWith("question.")) return isQuestionCommand(command);
   if (command.type.startsWith("task.") || command.type.startsWith("run.")) return isThreadCommand(command, named);
   if (command.type.startsWith("annotation.")) return isAnnotationCommand(command, named);
   if (command.type.startsWith("paste.")) return isPasteCommand(command, named);
   if (command.type === "view.set-prompt") return named && isBlankable(command.prompt, MAX_PROMPT_LENGTH);
   return false;
+}
+
+function isQuestionCommand(command: Record<string, unknown>) {
+  if (!isString(command.taskId) || !isString(command.runId)) return false;
+  if (command.type === "question.reply-mode") return typeof command.replying === "boolean";
+  return command.type === "question.answer" && isString(command.requestId) && isString(command.questionId)
+    && (command.text === undefined || isString(command.text, MAX_PROMPT_LENGTH)) && command.attachments === undefined;
 }
 
 function isThreadCommand(command: Record<string, unknown>, named: boolean) {

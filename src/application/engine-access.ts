@@ -1,6 +1,7 @@
 import type { EngineCommand } from "../contracts/commands.js";
 import { engineIsBlocked, engineNeedsAttention, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
 
 /** What main found out about an engine's access, on asking or after a sign-in, or why it could not. */
 export type EngineEvent =
@@ -11,7 +12,7 @@ export type EngineEffect = EngineCommand;
 
 export type EngineInput = EngineCommand | EngineEvent;
 
-export type EngineTransition = { state: WorkspaceState; effects: EngineEffect[] };
+export type EngineTransition = { state: WorkspaceState; effects: EngineEffect[]; result?: WorkspaceCommandResult };
 
 /** Everything about engine access is named `engine.`, so one test sorts the whole family out of the way. */
 export function isEngineInput(input: { type: string }): input is EngineInput {
@@ -50,7 +51,7 @@ export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineT
     return { state: { ...state, engineStatus, engineChecking: false, ...(cleared ? { actionError: null, actionErrorPage: null } : {}) }, effects: [] };
   }
 
-  if (input.type === "engine.failed") return { state: { ...state, engineChecking: false, actionError: input.message }, effects: [] };
+  if (input.type === "engine.failed") return { state: { ...state, engineChecking: false, actionError: input.message }, effects: [], result: { ok: false, message: input.message } };
 
   if (input.type === "engine.read") {
     if (state.engineChecking) return { state, effects: [] };

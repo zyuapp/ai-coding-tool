@@ -1,11 +1,12 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
-import { TAKE_KEYS, persistView, settled, stopCapture, targetId } from "./shared.js";
+import { TAKE_KEYS, persistView, settled, stopCapture, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
+import { isAgentModel } from "../../domain/agent-engine.js";
 import { isSubagentGroup } from "../../domain/run.js";
 import { isSettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
@@ -20,6 +21,14 @@ type SettingsInput = Extract<WorkspaceInput, {
     | "view.set-computer-use" | "view.set-browser-tools" | "view.set-notifications" | "view.set-session-panel-open" | "view.set-settings-open"
     | "view.set-subagent-group" | "view.set-section-open";
 }>;
+
+export function reduceModelFavorite(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): WorkspaceTransition {
+  if (!isAgentModel(input.model) || typeof input.favorite !== "boolean" || state.favoriteModels.includes(input.model) === input.favorite) return settled(state);
+  const favoriteModels = state.favoriteModels.filter((model) => model !== input.model);
+  if (input.favorite) favoriteModels.push(input.model);
+  const next = { ...state, favoriteModels };
+  return settled(next, persistView(next));
+}
 
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
   switch (input.type) {
@@ -111,7 +120,7 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     case "view.set-shortcut": {
       if (!shortcutAction(input.action)) return settled(state);
       const problem = input.binding === null ? null : shortcutProblem(input.binding);
-      if (problem) return settled({ ...state, actionError: problem, capturingShortcut: null }, stopCapture(state));
+      if (problem) return rejected({ ...state, capturingShortcut: null }, problem, stopCapture(state));
       const shortcuts = withShortcut(state.shortcuts, input.action, input.binding);
       const next = { ...state, shortcuts, capturingShortcut: null, actionError: null };
       return settled(next, [...persistView(next), { type: "apply-shortcuts", overrides: shortcuts }, ...stopCapture(state)]);

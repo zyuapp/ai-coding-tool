@@ -1,3 +1,4 @@
+import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
@@ -168,6 +169,7 @@ function reviewDescription(target: ReviewOperation["target"]) {
  * session in turn, and ends on the server's own turn/completed.
  */
 export class CodexSession {
+  private readonly questions = new CodexQuestions();
   private client: CodexClient | null = null;
   /** The app's tools as this session's process reaches them; released with the session. */
   private served: ServedTools | null = null;
@@ -460,29 +462,30 @@ export class CodexSession {
     });
     client.on("skills/changed", () => { void skills.refresh(true); });
     client.on("item/started", (params) => {
-      if (!subagents.itemStarted(params)) this.receiveStarted(params.item);
+      if (!subagents.itemStarted(params) && params.threadId === this.threadId) this.receiveStarted(params.item);
     });
     client.on("item/agentMessage/delta", (params) => {
-      if (!subagents.shouldSuppress(params.threadId)) this.receiveDelta(params.itemId, params.delta);
+      if (params.threadId === this.threadId) this.receiveDelta(params.itemId, params.delta);
     });
     client.on("item/completed", (params) => {
       const child = subagents.itemCompleted(params);
       this.receiveReviewItem(params.threadId, params.item);
-      if (!child) this.receiveCompleted(params.item);
+      if (!child && params.threadId === this.threadId) this.receiveCompleted(params.item);
       if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.backgroundProcesses.length) {
         void this.refreshBackgroundProcesses();
       }
     });
     client.on("thread/tokenUsage/updated", (params) => {
-      if (!subagents.tokenUsageUpdated(params)) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
+      if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
-      if (!subagents.error(params) && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+      if (!subagents.error(params) && params.threadId === this.threadId && this.turn && !params.willRetry) this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
-      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child) this.receiveTurnCompleted(params.turn);
+      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child && params.threadId === this.threadId) this.receiveTurnCompleted(params.turn);
     });
+    client.on("serverRequest/resolved", ({ requestId }) => this.questions.pending.get(requestId)?.abort());
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
     await client.initialize(CLIENT_INFO);
@@ -555,6 +558,7 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     this.turn = null;
+    this.questions.close();
     turn.release();
     turn.settle(turn.input.abortController.signal.aborted ? { status: "cancelled" } : result);
   }
@@ -593,6 +597,11 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     if (item.type === "agentMessage") {
+      if (item.delivery === "async" && item.questions?.length && this.client && this.threadId) {
+        void this.questions.answerAsync(item.questions, turn.input, this.client, this.threadId, () => this.turn === turn ? turn.turnId : undefined).catch((error: unknown) => {
+          if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not receive your answer: ${reasonOf(error)}` });
+        });
+      }
       const buffer = turn.streamed.get(item.id);
       /** A message that streamed is already on screen but for its tail; one that did not arrives whole. */
       if (buffer) {
@@ -779,11 +788,12 @@ export class CodexSession {
         return;
       }
       case "item/tool/requestUserInput": {
-        const { itemId, questions } = request.params;
-        void this.allowed({ toolId: itemId, name: "request_user_input", input: { questions } }).then((allow) => {
-          if (allow) request.respond({ answers: {} });
-          else request.fail({ code: -32000, message: "The user declined to answer." });
-        });
+        const { questions, threadId, turnId } = request.params;
+        const turn = this.turn;
+        if (!turn || (threadId === this.threadId && turn.turnId && turnId !== turn.turnId) || questions.some((question) => question.isSecret)) {
+          return request.fail({ code: -32000, message: "This question cannot be answered in chat." });
+        }
+        this.questions.answer(request, turn.input);
         return;
       }
       case "mcpServer/elicitation/request": {

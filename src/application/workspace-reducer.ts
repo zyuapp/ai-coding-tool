@@ -5,8 +5,9 @@ import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, thr
 import type { AppCommand } from "../contracts/commands.js";
 import type { AgentEvent } from "../contracts/ipc.js";
 import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js";
+import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from "../domain/agent-engine.js";
 
-export type { WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
+export type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 export { DIFF_PANEL, WORKFLOW_PANEL, WORKSPACE_ERRORS } from "./workspace-reducer/shared.js";
 
 /**
@@ -21,11 +22,11 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   if (input.type === "agent.events") {
     return input.events.reduce<WorkspaceTransition>((transition, event) => {
       const next = reduce(transition.state, agentEventInput(event));
-      return { state: next.state, effects: [...transition.effects, ...next.effects] };
+      return combineTransitions(transition, next);
     }, settled(state));
   }
   const applied = apply(state, input);
-  const transition = { state: prunedWorkflowPanels(prunedFind(applied.state)), effects: applied.effects };
+  const transition = { ...applied, state: prunedWorkflowPanels(prunedFind(applied.state)) };
   if (transition.state.currentId === state.currentId) return transition;
   if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
@@ -35,7 +36,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
    * The dock the thread was left in comes back as it was; only the panel's own page has to follow. The
    * keys come back to the window too, since the page they were on belongs to the thread just left.
    */
-  return { state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
+  return { ...transition, state: landed, effects: [...transition.effects, ...shownPageEffects(landed), ...(landed.focused ? TAKE_KEYS : [])] };
 }
 
 /** Which channel a report arrived on: a run's own, or the thread's, which outlives every run. */
@@ -46,8 +47,14 @@ function agentEventInput(event: AgentEvent): WorkspaceInput {
 function runCommands(state: WorkspaceState, commands: AppCommand[]): WorkspaceTransition {
   return commands.reduce<WorkspaceTransition>((transition, command) => {
     const next = reduce(transition.state, command);
-    return { state: next.state, effects: [...transition.effects, ...next.effects] };
+    return combineTransitions(transition, next);
   }, settled(state));
+}
+
+function combineTransitions(previous: WorkspaceTransition, next: WorkspaceTransition): WorkspaceTransition {
+  const combined: WorkspaceTransition = { ...next, effects: [...previous.effects, ...next.effects] };
+  if (previous.result && (previous.result.ok === false || !next.result)) combined.result = previous.result;
+  return combined;
 }
 
 /**
@@ -99,6 +106,21 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "run.allow": return [{ type: "run.decide", allow: true }];
     case "run.deny": return [{ type: "run.decide", allow: false }];
     case "composer.focus": return [{ type: "view.focus-composer" }];
+    case "effort.increase":
+    case "effort.decrease": {
+      const chat = state.sideChats.find((item) => item.id === state.keyboardTab);
+      const thread = state.threads.find((item) => item.id === (chat?.id ?? state.currentId));
+      const engine = thread?.engine ?? state.draftEngine;
+      const model = thread ? thread.model ?? defaultModelFor(engine) : state.draftModel;
+      const effort = thread ? thread.effort ?? defaultEffortFor(engine) : state.draftEffort;
+      const choices = effortsFor(model);
+      const index = choices.findIndex((choice) => choice.id === effortForModel(model, effort));
+      const next = choices[index + (action === "effort.increase" ? -1 : 1)];
+      if (index < 0 || !next) return [];
+      const command: AppCommand = { type: "task.set-effort", engine, effort: next.id };
+      if (chat) command.taskId = chat.id;
+      return [command];
+    }
     /** The panel is a place the keystroke takes you to and back from, so the same keys close it. */
     case "thread.jump": return state.jump ? [{ type: "view.jump-close" }] : [...leaving, { type: "view.jump-open" }];
     /** A bar that is already open is the one being asked for again, so it keeps what it was searching. */

@@ -1,3 +1,4 @@
+import type { PendingQuestion } from "../domain/agent-question.js";
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
@@ -5,11 +6,14 @@ import type { ActiveGoal } from "../domain/goal.js";
 import { createConversationMessage, createFailureMessage } from "../domain/conversation.js";
 import type { ThreadOutcome } from "../domain/thread-run.js";
 import type { Thread } from "../domain/thread.js";
+import { appendMessages, replaceLastMessage, withdrawMessages } from "../domain/conversation-updates.js";
 
 export type ActiveRun = RunProvenance & {
   taskId: string;
   runId: string;
   sequence: number;
+  questions?: PendingQuestion[];
+  replyingToQuestion?: boolean;
   status: "running" | "compacting" | "awaiting-approval";
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
@@ -53,7 +57,7 @@ export function withdrawRun(thread: Thread, from: number, before: ThreadMark): T
   const { runEndedAt: _stamped, outcome: _superseded, outcomeUnread: _unread, ...rest } = thread;
   return {
     ...rest,
-    messages: thread.messages.map((message, index) => index < from || message.withdrawn ? message : { ...message, withdrawn: true as const }),
+    messages: withdrawMessages(thread.messages, from),
     updatedAt: before.updatedAt,
     ...(before.runEndedAt === undefined ? {} : { runEndedAt: before.runEndedAt }),
     ...(before.outcome === undefined ? {} : { outcome: before.outcome }),
@@ -368,7 +372,7 @@ function applyRunFinished<T extends RunTransitionState>(state: T, event: Extract
       ? { ...workflow, status: "stopped" as const, finishedAt: now(), stopping: false }
       : workflow));
   }
-  if (event.status === "failed" && event.message) next = updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createFailureMessage(event.message!)], updatedAt: now() }));
+  if (event.status === "failed" && event.message) next = updateThread(next, event.taskId, (thread) => ({ ...thread, messages: appendMessages(thread.messages, [createFailureMessage(event.message!)]), updatedAt: now() }));
   return next;
 }
 
@@ -388,16 +392,38 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
     }
     return applyRunFinished(withSequence, event);
   }
+  if (event.type === "question.requested") {
+    const questions = event.request.questions.map((question) => ({ ...question, runId: event.runId, requestId: event.requestId, questionId: question.id, blocking: event.request.blocking }));
+    const next = withActiveRun(withSequence, event.taskId, { ...withSequence.activeRuns[event.taskId], questions: [...(active.questions ?? []), ...questions] });
+    const messages = questions.map((question) => {
+      let text = question.question;
+      if (question.options.length) {
+        const options = question.options.map((option) => option.description ? `- ${option.label}: ${option.description}` : `- ${option.label}`);
+        text += "\n\n" + options.join("\n");
+      }
+      return createConversationMessage("assistant", text);
+    });
+    return updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, ...messages], updatedAt: now() }));
+  }
+  if (event.type === "question.answered" || event.type === "question.closed") {
+    const questions = (active.questions ?? []).filter((question) => question.requestId !== event.requestId || (event.type === "question.answered" && question.questionId !== event.questionId));
+    const next = withActiveRun(withSequence, event.taskId, { ...withSequence.activeRuns[event.taskId], questions });
+    if (event.type === "question.closed") return next;
+    return updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createConversationMessage("user", event.text)], updatedAt: now() }));
+  }
   if (event.type === "assistant.tail") {
     return withStreamingTail(withSequence, event.taskId, event.text ? { messageId: event.messageId, text: event.text } : null);
   }
   if (event.type === "assistant.delta") {
     /** The block being committed is what the tail was showing, so it stops standing in for it. */
     return updateThread(withStreamingTail(withSequence, event.taskId, null), event.taskId, (thread) => {
-      const messages = [...thread.messages];
-      const last = messages.at(-1);
-      if (last?.kind === "assistant" && last.id === event.messageId) messages[messages.length - 1] = { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` };
-      else messages.push({ id: event.messageId, kind: "assistant", text: event.text, at: now() });
+      const last = thread.messages.at(-1);
+      let messages;
+      if (last?.kind === "assistant" && last.id === event.messageId) {
+        messages = replaceLastMessage(thread.messages, { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` });
+      } else {
+        messages = appendMessages(thread.messages, [{ id: event.messageId, kind: "assistant", text: event.text, at: now() }]);
+      }
       return { ...thread, messages, updatedAt: now() };
     });
   }
@@ -410,19 +436,19 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "context.compaction-status") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.compacting ? "compacting" : "running" });
     return event.error
-      ? updateThread(activeState, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createFailureMessage(event.error!)], updatedAt: now() }))
+      ? updateThread(activeState, event.taskId, (thread) => ({ ...thread, messages: appendMessages(thread.messages, [createFailureMessage(event.error!)]), updatedAt: now() }))
       : activeState;
   }
   if (event.type === "context.compacted") {
     const activeState = withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: "running" });
     return updateThread(activeState, event.taskId, (thread) => ({
       ...thread,
-      messages: [...thread.messages, createConversationMessage(
+      messages: appendMessages(thread.messages, [createConversationMessage(
         "system",
         event.postTokens === undefined
           ? `Context ${event.trigger}-compacted at ${event.preTokens.toLocaleString("en-US")} tokens.`
           : `Context ${event.trigger}-compacted: ${event.preTokens.toLocaleString("en-US")} → ${event.postTokens.toLocaleString("en-US")} tokens.`,
-      )],
+      )]),
       ...(thread.contextUsage && event.postTokens !== undefined
         ? { contextUsage: { ...thread.contextUsage, tokens: event.postTokens } }
         : {}),
@@ -432,7 +458,7 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   if (event.type === "tool.intent") {
     return updateThread(withSequence, event.taskId, (thread) => ({
       ...thread,
-      messages: [...thread.messages, createConversationMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))],
+      messages: appendMessages(thread.messages, [createConversationMessage("tool", event.intent.name, JSON.stringify(event.intent.input, null, 2))]),
       updatedAt: now(),
     }));
   }

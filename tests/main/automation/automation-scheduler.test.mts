@@ -62,7 +62,7 @@ function schedulerFor(
   return scheduler;
 }
 
-test("schedules are rejected before they can be stored", (t) => {
+test("schedules are rejected before they can be stored", async (t) => {
   assert.throws(() => assertSchedule("*/30 * * * * *"), /at most once a minute/);
   assert.throws(() => assertSchedule("not a schedule"), /not a valid schedule/);
   assert.throws(() => assertSchedule("2020-01-01T00:00:00Z"), /no future run/);
@@ -70,14 +70,14 @@ test("schedules are rejected before they can be stored", (t) => {
   assert.doesNotThrow(() => assertSchedule("0 8 * * *", "America/Los_Angeles"));
 });
 
-test("a task keeps exactly one automation and creating a second one replaces it", (t) => {
+test("a task keeps exactly one automation and creating a second one replaces it", async (t) => {
   const store = memoryStore();
   const clock = fixedClock();
   const scheduler = schedulerFor(t, store, async () => "succeeded", { now: clock.now });
 
-  const first = scheduler.save({ taskId: "task-1", prompt: "check the PR", schedule: HOURLY });
+  const first = await scheduler.save({ taskId: "task-1", prompt: "check the PR", schedule: HOURLY });
   clock.advance(5);
-  const second = scheduler.save({ taskId: "task-1", prompt: "check the PR again", schedule: "0 8 * * *" });
+  const second = await scheduler.save({ taskId: "task-1", prompt: "check the PR again", schedule: "0 8 * * *" });
 
   assert.equal(second.id, first.id);
   assert.equal(second.createdAt, first.createdAt);
@@ -87,14 +87,14 @@ test("a task keeps exactly one automation and creating a second one replaces it"
   assert.equal(store.rows.size, 1);
 });
 
-test("an invalid schedule leaves the stored automation untouched", (t) => {
+test("an invalid schedule leaves the stored automation untouched", async (t) => {
   const store = memoryStore();
   const scheduler = schedulerFor(t, store, async () => "succeeded");
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
 
-  assert.throws(() => scheduler.update("task-1", { schedule: "*/5 * * * * *" }), /at most once a minute/);
+  await assert.rejects(() => scheduler.update("task-1", { schedule: "*/5 * * * * *" }), /at most once a minute/);
   assert.equal(scheduler.forThread("task-1")!.schedule, HOURLY);
-  assert.throws(() => scheduler.update("task-missing", { paused: true }), /no automation/);
+  await assert.rejects(() => scheduler.update("task-missing", { paused: true }), /no automation/);
 });
 
 test("a run records its outcome, and a skipped tick is not counted as a run", async (t) => {
@@ -102,7 +102,7 @@ test("a run records its outcome, and a skipped tick is not counted as a run", as
   const clock = fixedClock();
   let outcome: AutomationRunStatus = "succeeded";
   const scheduler = schedulerFor(t, store, async () => outcome, { now: clock.now });
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
 
   clock.advance(60);
   assert.equal(await scheduler.runNow("task-1"), "succeeded");
@@ -127,7 +127,7 @@ test("a tick that never ran still timestamps its status, and a rewrite carries b
   const clock = fixedClock();
   let outcome: AutomationRunStatus = "succeeded";
   const scheduler = schedulerFor(t, memoryStore(), async () => outcome, { now: clock.now });
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
 
   clock.advance(60);
   await scheduler.runNow("task-1");
@@ -139,14 +139,14 @@ test("a tick that never ran still timestamps its status, and a rewrite carries b
   assert.equal(scheduler.forThread("task-1")!.lastRunAt, 1_060, "a skip is not a run");
   assert.equal(scheduler.forThread("task-1")!.lastStatusAt, 1_120, "but it is when the status was last true");
 
-  const rewritten = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *" });
+  const rewritten = await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *" });
   assert.equal(rewritten.lastRunAt, 1_060);
   assert.equal(rewritten.lastStatusAt, 1_120, "rewriting the schedule keeps what the automation has done");
 });
 
 test("a dispatch that throws settles the run as failed instead of wedging the automation", async (t) => {
   const scheduler = schedulerFor(t, memoryStore(), async () => { throw new Error("renderer is gone"); });
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
 
   assert.equal(await scheduler.runNow("task-1"), "failed");
   assert.equal(await scheduler.runNow("task-1"), "failed", "the automation still accepts the next tick");
@@ -155,7 +155,7 @@ test("a dispatch that throws settles the run as failed instead of wedging the au
 test("a second run is refused while the first is still in flight", async (t) => {
   const releases: ((status: AutomationRunStatus) => void)[] = [];
   const scheduler = schedulerFor(t, memoryStore(), () => new Promise<AutomationRunStatus>((resolve) => releases.push(resolve)));
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
 
   const running = scheduler.runNow("task-1");
   assert.equal(await scheduler.runNow("task-1"), "busy");
@@ -173,10 +173,10 @@ test("a second run is refused while the first is still in flight", async (t) => 
 test("a run that meets its stop condition deletes the automation and is not resurrected", async (t) => {
   const store = memoryStore();
   const scheduler = schedulerFor(t, store, async (automation) => {
-    scheduler.remove(automation.taskId);
+    await scheduler.remove(automation.taskId);
     return "succeeded";
   });
-  scheduler.save({ taskId: "task-1", prompt: "watch the PR until it is approved", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "watch the PR until it is approved", schedule: HOURLY });
 
   await scheduler.runNow("task-1");
 
@@ -196,7 +196,7 @@ test("a one-shot automation fires at its scheduled time and then retires itself"
   let fired!: () => void;
   const ran = new Promise<void>((resolve) => { fired = resolve; });
   const scheduler = schedulerFor(t, store, async () => { fired(); return "succeeded"; });
-  scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
+  await scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
   assert.equal(scheduler.forThread("task-1")!.nextRunAt, Date.parse(when));
 
   vi.advanceTimersByTime(whenAt - now);
@@ -218,7 +218,7 @@ test("a one-shot whose moment is skipped is kept and marked missed, not deleted"
   let declined!: () => void;
   const refused = new Promise<void>((resolve) => { declined = resolve; });
   const scheduler = schedulerFor(t, store, async () => { declined(); return "skipped"; });
-  scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
+  await scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
 
   vi.advanceTimersByTime(whenAt - now);
   await refused;
@@ -232,14 +232,14 @@ test("a one-shot whose moment is skipped is kept and marked missed, not deleted"
   assert.equal(store.rows.size, 1, "and it survives a restart so the user can re-arm it");
 });
 
-test("a one-shot missed while the app was closed reloads as missed rather than armed", (t) => {
+test("a one-shot missed while the app was closed reloads as missed rather than armed", async (t) => {
   const past = new Date(Date.now() - 60_000).toISOString();
   const store = memoryStore([
     { id: "gone", taskId: "task-past", prompt: "ship the release", schedule: past, paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
   ]);
   const scheduler = schedulerFor(t, store, async () => "succeeded");
 
-  scheduler.start();
+  await scheduler.start();
 
   const reloaded = scheduler.forThread("task-past");
   assert.ok(reloaded);
@@ -254,7 +254,7 @@ test("re-running a missed one-shot by hand retires it", async (t) => {
     { id: "gone", taskId: "task-past", prompt: "ship the release", schedule: past, paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
   ]);
   const scheduler = schedulerFor(t, store, async () => "succeeded");
-  scheduler.start();
+  await scheduler.start();
 
   assert.equal(await scheduler.runNow("task-past"), "succeeded");
 
@@ -266,7 +266,7 @@ test("running a one-shot early leaves it armed for its real time", async (t) => 
   const store = memoryStore();
   const when = new Date(Math.floor((Date.now() + 3_600_000) / 1_000) * 1_000).toISOString();
   const scheduler = schedulerFor(t, store, async () => "succeeded");
-  scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
+  await scheduler.save({ taskId: "task-1", prompt: "ship the release", schedule: when });
 
   await scheduler.runNow("task-1");
 
@@ -274,21 +274,21 @@ test("running a one-shot early leaves it armed for its real time", async (t) => 
   assert.equal(scheduler.forThread("task-1")!.nextRunAt, Date.parse(when));
 });
 
-test("pausing stops the countdown without discarding the automation", (t) => {
+test("pausing stops the countdown without discarding the automation", async (t) => {
   const store = memoryStore();
   const scheduler = schedulerFor(t, store, async () => "succeeded");
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
   assert.notEqual(scheduler.forThread("task-1")!.nextRunAt, null);
 
-  const paused = scheduler.update("task-1", { paused: true });
+  const paused = await scheduler.update("task-1", { paused: true });
   assert.equal(paused.paused, true);
   assert.equal(paused.nextRunAt, null);
   assert.equal(store.rows.size, 1);
 
-  assert.notEqual(scheduler.update("task-1", { paused: false }).nextRunAt, null);
+  assert.notEqual((await scheduler.update("task-1", { paused: false })).nextRunAt, null);
 });
 
-test("stored automations are rearmed on start and broadcast to the panel on every change", (t) => {
+test("stored automations are rearmed on start and broadcast to the panel on every change", async (t) => {
   const store = memoryStore([{
     id: "automation-1",
     taskId: "task-1",
@@ -302,36 +302,36 @@ test("stored automations are rearmed on start and broadcast to the panel on ever
   const broadcasts: AutomationView[][] = [];
   const scheduler = schedulerFor(t, store, async () => "succeeded", { onChange: (views) => { broadcasts.push(views); } });
 
-  scheduler.start();
+  await scheduler.start();
   assert.equal(broadcasts.length, 1);
   assert.equal(broadcasts[0][0].runCount, 4);
   assert.notEqual(broadcasts[0][0].nextRunAt, null, "a reloaded automation is armed again");
 
-  scheduler.remove("task-1");
+  await scheduler.remove("task-1");
   assert.deepEqual(broadcasts.at(-1), []);
 });
 
-test("a stored schedule this build cannot parse is skipped instead of blocking startup", (t) => {
+test("a stored schedule this build cannot parse is skipped instead of blocking startup", async (t) => {
   const store = memoryStore([
     { id: "broken", taskId: "task-broken", prompt: "poll", schedule: "nonsense", paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
     { id: "sound", taskId: "task-sound", prompt: "poll", schedule: HOURLY, paused: false, createdAt: 1, updatedAt: 1, runCount: 0 },
   ]);
   const scheduler = schedulerFor(t, store, async () => "succeeded");
 
-  assert.doesNotThrow(() => scheduler.start());
+  await assert.doesNotReject(() => scheduler.start());
 
   assert.equal(scheduler.forThread("task-broken")!.nextRunAt, null, "the broken automation is never armed");
   assert.notEqual(scheduler.forThread("task-sound")!.nextRunAt, null, "and it does not take the others down with it");
 });
 
-test("a paused automation stays paused across a restart", (t) => {
+test("a paused automation stays paused across a restart", async (t) => {
   const store = memoryStore();
   const first = schedulerFor(t, store, async () => "succeeded");
-  first.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, paused: true });
+  await first.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, paused: true });
   first.stop();
 
   const second = schedulerFor(t, store, async () => "succeeded");
-  second.start();
+  await second.start();
   assert.equal(second.forThread("task-1")!.paused, true);
   assert.equal(second.forThread("task-1")!.nextRunAt, null);
 });
@@ -339,27 +339,27 @@ test("a paused automation stays paused across a restart", (t) => {
 test("what a schedule surfaces for survives every rewrite of it, and is what makes a tick quiet", async (t) => {
   const store = memoryStore();
   const scheduler = schedulerFor(t, store, async () => "succeeded");
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "an error is the user's own." });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "an error is the user's own." });
 
-  const rewritten = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *", surfaceWhen: "an error is the user's own." });
+  const rewritten = await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: "0 8 * * *", surfaceWhen: "an error is the user's own." });
   assert.equal(rewritten.surfaceWhen, "an error is the user's own.", "an agent changing the cadence must not silently make the schedule loud");
   assert.equal(store.rows.get(rewritten.id)!.surfaceWhen, "an error is the user's own.");
 
-  assert.equal(scheduler.update("task-1", { paused: true }).surfaceWhen, "an error is the user's own.");
-  assert.equal(scheduler.update("task-1", { surfaceWhen: "" }).surfaceWhen, undefined, "an empty sentence is how the panel makes it loud again");
-  assert.equal(scheduler.update("task-1", { surfaceWhen: "anything at all." }).surfaceWhen, "anything at all.");
+  assert.equal((await scheduler.update("task-1", { paused: true })).surfaceWhen, "an error is the user's own.");
+  assert.equal((await scheduler.update("task-1", { surfaceWhen: "" })).surfaceWhen, undefined, "an empty sentence is how the panel makes it loud again");
+  assert.equal((await scheduler.update("task-1", { surfaceWhen: "anything at all." })).surfaceWhen, "anything at all.");
 });
 
 test("the button the user pressed is never a quiet tick, and neither is a one-shot", async (t) => {
   const ticks: [string, TickKind][] = [];
   const scheduler = schedulerFor(t, memoryStore(), async (automation, tick) => { ticks.push([automation.taskId, tick]); return "succeeded"; });
-  scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
+  await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY, surfaceWhen: "there is an error." });
 
   await scheduler.runNow("task-1");
   assert.deepEqual(ticks, [["task-1", { quiet: false, unattended: false }]], "the panel's button is only reachable with the user watching");
 
   const soon = new Date(Date.now() + 1_500).toISOString();
-  scheduler.save({ taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error." });
+  await scheduler.save({ taskId: "task-2", prompt: "once", schedule: soon, surfaceWhen: "there is an error." });
   await until(() => ticks.length === 2, "the one-shot never fired");
   assert.deepEqual(ticks.slice(1), [["task-2", { quiet: false, unattended: true }]], "a one-shot that vanishes when it runs must leave a trace of having run");
 });
@@ -383,10 +383,10 @@ test("a sentence to surface for is validated the way every other field of a draf
   assert.equal(isAutomation({ id: "a", taskId: "t", prompt: "p", schedule: HOURLY, paused: false, createdAt: 1, updatedAt: 1, runCount: 0, consecutiveDeclines: -1 }), false);
 });
 
-test("a tick dropped for overrunning is counted, since croner records it nowhere else", (t) => {
+test("a tick dropped for overrunning is counted, since croner records it nowhere else", async (t) => {
   const store = memoryStore();
   const scheduler = schedulerFor(t, store, async () => "succeeded");
-  const { id } = scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
+  const { id } = await scheduler.save({ taskId: "task-1", prompt: "poll", schedule: HOURLY });
   /** Croner drops the tick before the callback, and calls this hook in its place. */
   const job = (scheduler as unknown as {
     crons: Map<string, { options: { protect: (job: unknown) => void } }>;
@@ -394,8 +394,107 @@ test("a tick dropped for overrunning is counted, since croner records it nowhere
 
   job.options.protect(job);
   job.options.protect(job);
+  await scheduler.flush();
 
   assert.equal(scheduler.forThread("task-1")!.overrunCount, 2);
   assert.equal(store.rows.get(id)!.overrunCount, 2, "so a restart still knows how many ticks were lost");
   assert.equal(scheduler.forThread("task-1")!.runCount, 0, "a tick that was dropped never ran");
+});
+
+test("concurrent automation changes serialize and only publish after storage succeeds", async (t) => {
+  const store = memoryStore();
+  let release!: () => void;
+  const writes: Automation[] = [];
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const scheduler = schedulerFor(t, {
+    ...store,
+    saveAutomation: async (automation) => {
+      writes.push(automation);
+      await held;
+      store.saveAutomation(automation);
+    },
+  }, async () => "succeeded");
+  const first = scheduler.save({ taskId: "task-1", prompt: "Original", schedule: HOURLY });
+  const second = scheduler.save({ taskId: "task-1", prompt: "Rewritten", schedule: HOURLY });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(writes.length, 1);
+  assert.deepEqual(scheduler.list(), []);
+  release();
+  const [created, rewritten] = await Promise.all([first, second]);
+  assert.equal(created.id, rewritten.id);
+  assert.equal(store.rows.size, 1);
+  assert.equal(scheduler.forThread("task-1")!.prompt, "Rewritten");
+});
+
+test("a rejected automation write or delete leaves the previous schedule usable", async (t) => {
+  const store = memoryStore();
+  let fail = false;
+  const scheduler = schedulerFor(t, {
+    ...store,
+    saveAutomation: async (automation) => {
+      if (fail) throw new Error("disk full");
+      store.saveAutomation(automation);
+    },
+    deleteAutomation: async (id) => {
+      if (fail) throw new Error("disk full");
+      store.deleteAutomation(id);
+    },
+  }, async () => "succeeded");
+  const saved = await scheduler.save({ taskId: "task-1", prompt: "Original", schedule: HOURLY });
+  fail = true;
+  await assert.rejects(scheduler.update("task-1", { paused: true }), /disk full/);
+  assert.equal(scheduler.forThread("task-1")!.paused, false);
+  await assert.rejects(scheduler.remove("task-1"), /disk full/);
+  await assert.rejects(scheduler.flush(), /disk full/);
+  assert.equal(scheduler.forThread("task-1")!.id, saved.id);
+  assert.notEqual(scheduler.forThread("task-1")!.nextRunAt, null);
+  fail = false;
+  assert.equal(await scheduler.remove("task-1"), true);
+  await scheduler.flush();
+});
+
+test("shutdown drains accepted automation changes without rearming their timers", async (t) => {
+  const store = memoryStore();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let delayed = false;
+  const scheduler = schedulerFor(t, {
+    ...store,
+    saveAutomation: async (automation) => {
+      if (delayed) await held;
+      store.saveAutomation(automation);
+    },
+  }, async () => "succeeded");
+  const original = await scheduler.save({ taskId: "task-1", prompt: "Original", schedule: HOURLY });
+  delayed = true;
+  const rename = scheduler.update("task-1", { prompt: "Saved before exit" });
+  const pause = scheduler.update("task-1", { paused: true });
+  scheduler.stop();
+  release();
+  await Promise.all([rename, pause, scheduler.flush()]);
+  assert.equal(store.rows.get(original.id)!.prompt, "Saved before exit");
+  assert.equal(store.rows.get(original.id)!.paused, true);
+  assert.equal(scheduler.forThread("task-1")!.nextRunAt, null);
+});
+
+test("a manual run stays busy until its outcome is stored", async (t) => {
+  const store = memoryStore();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let delayOutcomes = false;
+  const scheduler = schedulerFor(t, {
+    ...store,
+    saveAutomation: async (automation) => {
+      if (delayOutcomes) await held;
+      store.saveAutomation(automation);
+    },
+  }, async () => "succeeded");
+  await scheduler.save({ taskId: "task-1", prompt: "Poll", schedule: HOURLY });
+  delayOutcomes = true;
+  const running = scheduler.runNow("task-1");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(await scheduler.runNow("task-1"), "busy");
+  release();
+  assert.equal(await running, "succeeded");
+  assert.equal(scheduler.forThread("task-1")!.runCount, 1);
 });

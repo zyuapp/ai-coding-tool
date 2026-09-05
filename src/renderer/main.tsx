@@ -1,18 +1,7 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import "@xterm/xterm/css/xterm.css";
-import "./styles.css";
-import { applyWindowChrome } from "./platform";
-import { applyStoredTheme } from "./theme";
-import { applyStoredTypography } from "./typography";
+if (window.workspace?.owner) {
+  void import("./workspace-runtime-entry");
+} else {
+  void import("./app-entry");
+}
 
-applyWindowChrome(window.desktop.platform);
-applyStoredTheme();
-applyStoredTypography();
-
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+export {};
