@@ -11,11 +11,32 @@ import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
 
 type SendInput = Extract<WorkspaceInput, {
-  type: "task.send" | "task.steer-queued" | "task.drop-queued";
+  type: "task.send" | "question.answer" | "question.reply-mode" | "task.steer-queued" | "task.drop-queued";
 }>;
 
 export function reduceSending(state: WorkspaceState, input: SendInput): WorkspaceTransition {
   switch (input.type) {
+    case "question.reply-mode": {
+      const active = state.activeRuns[input.taskId];
+      if (!active || active.runId !== input.runId) return settled(state);
+      return settled({ ...state, activeRuns: { ...state.activeRuns, [input.taskId]: { ...active, replyingToQuestion: input.replying } }, composerFocus: state.composerFocus + 1 });
+    }
+    case "question.answer": {
+      const active = state.activeRuns[input.taskId];
+      const question = active?.questions?.find((question) => question.requestId === input.requestId && question.questionId === input.questionId);
+      if (!active || active.runId !== input.runId || !question) return settled({ ...state, actionError: "That question is no longer waiting for an answer. Your draft has been kept." });
+      if (question.submitting) return settled(state);
+      const text = (input.text ?? state.prompts[input.taskId] ?? "").trim();
+      const pastes = input.text === undefined ? pastesFor(state, input.taskId) : [];
+      if (!text && !pastes.length) return settled(state);
+      if (input.attachments?.length || filesFor(state, input.taskId).length || annotationsFor(state, input.taskId).length || state.images[input.taskId]?.length) {
+        return settled({ ...state, actionError: "Reply with text, or send attachments as a separate message." });
+      }
+      const answer = sentPrompt(text, pastes, [], [], []);
+      const drafted = input.text === undefined ? clearedDraft(state, input.taskId) : state;
+      const next = { ...drafted, activeRuns: { ...drafted.activeRuns, [input.taskId]: { ...active, questions: active.questions?.map((pending) => pending === question ? { ...pending, submitting: true } : pending) } } };
+      return settled(withAttendedRun(next, input.taskId), [{ type: "send-run-command", command: { type: "answer-question", taskId: input.taskId, runId: input.runId, requestId: input.requestId, questionId: input.questionId, text: answer } }]);
+    }
     case "task.send": {
       const attachments = input.attachments ?? [];
       /** A send that carries its own text is not the composer's: it neither reads nor clears a draft. */

@@ -1,4 +1,6 @@
+import { sideChatView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
+import type { PendingQuestion } from "../domain/agent-question.js";
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
@@ -157,6 +159,8 @@ export type SideChatView = SideChat & {
   streamingTail: StreamingTail | null;
   queuedMessages: QueuedMessage[];
   approval?: ApprovalView;
+  question?: PendingQuestion;
+  replyingToQuestion?: boolean;
   readingPoint: ReadingPoint;
 };
 
@@ -782,6 +786,8 @@ export function deriveView(state: WorkspaceState) {
     status: currentRun ? "running" as const : runStatusFor(state, state.currentId),
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
+    question: currentRun?.questions?.[0],
+    replyingToQuestion: currentRun?.replyingToQuestion !== false,
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
     runningThreadIds: busy,
     blockedThreadIds: blocked,
@@ -873,28 +879,6 @@ export function deriveView(state: WorkspaceState) {
     remoteChecking: state.remoteChecking,
     canGoBack: reachableVisit(state, -1) !== null,
     canGoForward: reachableVisit(state, 1) !== null,
-    sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat): SideChatView[] => {
-      const thread = state.threads.find((item) => item.id === chat.id);
-      if (!thread) return [];
-      const active = state.activeRuns[chat.id];
-      const approval = active?.status === "awaiting-approval" ? state.approvals[active.runId] as ApprovalView | undefined : undefined;
-      return [{
-        ...chat,
-        title: thread.title,
-        thread,
-        prompt: state.prompts[chat.id] ?? "",
-        annotations: annotationsFor(state, chat.id),
-        pastes: pastesFor(state, chat.id),
-        images: imagesFor(state, chat.id),
-        files: filesFor(state, chat.id),
-        running: Boolean(active),
-        compacting: active?.status === "compacting",
-        status: active ? "running" : runStatusFor(state, chat.id),
-        streamingTail: state.streamingTails[chat.id] ?? null,
-        queuedMessages: state.queuedMessages[chat.id] ?? NO_QUEUED,
-        readingPoint: state.readingPoints[chat.id] ?? null,
-        ...(approval ? { approval } : {}),
-      }];
-    })),
+    sideChats: reusedSideChats(dockSideChats(state, owner).flatMap((chat) => sideChatView(state, chat))),
   };
 }

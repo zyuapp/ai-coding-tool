@@ -156,6 +156,8 @@ export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
   /** Compacts an idle Codex thread without adding a user message to it. */
   | { type: "run.compact"; taskId?: string }
+  | { type: "question.reply-mode"; taskId: string; runId: string; replying: boolean }
+  | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string; attachments?: RunAttachment[] }
   | { type: "run.decide"; allow: boolean; taskId?: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };

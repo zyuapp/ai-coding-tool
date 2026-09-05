@@ -146,6 +146,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     steering: { next: () => new Promise<null>(() => {}) },
     abortController: new AbortController(),
     authorize: async () => "allow",
+    askQuestion: async () => null,
     emit() {},
     reportWorkflow() {},
     reportBackground() {},

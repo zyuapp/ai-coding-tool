@@ -58,8 +58,9 @@ export type ComposerMenus = {
 };
 
 /** The `/` and `@` menus the prompt opens: what they hold, what is selected, and what choosing does. */
-export function useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange }: {
+export function useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, enabled = true, onPromptChange }: {
   prompt: string;
+  enabled?: boolean;
   caret: ComposerCaret;
   actions: ComposerAction[];
   threads: ThreadHandleOption[];
@@ -87,12 +88,12 @@ export function useComposerMenus({ prompt, caret, actions, threads, workspaceId,
       .map((command) => ({ ...command, aliases: command.aliases ?? [], kind: "skill" as const })),
   ];
   const matchingCommands = token === null ? [] : menuEntries.filter((entry) => commandMatches(entry, token.query));
-  const commandMenuOpen = inputFocused && token !== null && dismissedPrompt !== prompt;
+  const commandMenuOpen = enabled && inputFocused && token !== null && dismissedPrompt !== prompt;
   useDismissibleLayer(commandMenuOpen, [textareaRef, commandMenuRef], dismiss, textareaRef);
 
   const threadToken = handleTokenAt(prompt, Math.min(caret.caret, prompt.length));
   const matchingThreads = threadToken === null ? [] : rankThreadHandles(threads, threadToken.query, THREAD_MENU_LIMIT);
-  const threadMenuOpen = inputFocused && threadToken !== null && matchingThreads.length > 0 && dismissedPrompt !== prompt;
+  const threadMenuOpen = enabled && inputFocused && threadToken !== null && matchingThreads.length > 0 && dismissedPrompt !== prompt;
   useDismissibleLayer(threadMenuOpen, [textareaRef, threadMenuRef], dismiss, textareaRef);
 
   function chooseCommand(entry: MenuEntry) {

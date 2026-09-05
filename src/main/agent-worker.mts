@@ -71,6 +71,7 @@ parentPort.on("message", ({ data }) => {
   if (!isInternalRunCommand(data)) return;
   if (data.type === "start") coordinators[data.channel].start(data);
   else if (data.type === "cancel") Object.values(coordinators).some((coordinator) => coordinator.cancel(data.taskId, data.runId));
+  else if (data.type === "answer-question") Object.values(coordinators).some((coordinator) => coordinator.answerQuestion(data.taskId, data.runId, data.requestId, data.questionId, data.text));
   else if (data.type === "steer") Object.values(coordinators).some((coordinator) => coordinator.steer(data.taskId, data.runId, data.messageId, data.prompt));
   else if (data.type === "stop-process") Object.values(coordinators).some((coordinator) => coordinator.stopProcess(data.taskId, data.processId));
   else if (data.type === "label") Object.values(coordinators).some((coordinator) => coordinator.labelThread(data.taskId, data.title));

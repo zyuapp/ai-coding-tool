@@ -41,7 +41,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
       return reduceWorktrees(state, input);
 
-    case "task.send": case "task.steer-queued": case "task.drop-queued":
+    case "task.send": case "question.answer": case "question.reply-mode": case "task.steer-queued": case "task.drop-queued":
       return reduceSending(state, input);
 
     case "project.open": case "project.opened": case "project.edit":

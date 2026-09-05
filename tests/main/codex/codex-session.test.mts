@@ -495,14 +495,14 @@ test("MCP approval correlation stays inside the requesting root or child thread"
   await session.end();
 });
 
-test("permission and user-input requests go through the same gate", async () => {
-  const allowed = await asking();
+test("permissions use approvals and questions return typed answers", async () => {
+  const allowed = await asking({ askQuestion: async () => ({ q1: "Chicago" }) });
   const permissions = { network: { enabled: true }, fileSystem: null } as never;
   const granted = await allowed.client.ask("item/permissions/requestApproval", { ...at, itemId: "perm-1", environmentId: null, startedAtMs: 1, cwd: "/tmp/project", reason: "npm install", permissions });
   assert.deepEqual(granted, { result: { permissions: { network: { enabled: true } }, scope: "turn" } });
   assert.deepEqual(allowed.asked[0], { toolId: "perm-1", name: "permissions", input: { cwd: "/tmp/project", reason: "npm install", permissions } });
   const answered = await allowed.client.ask("item/tool/requestUserInput", { ...at, itemId: "ask-1", questions: [{ id: "q1", header: "Region", question: "Which region?", isOther: false, isSecret: false, options: null }], isBlocking: true, autoResolutionMs: null });
-  assert.deepEqual(answered, { result: { answers: {} } });
+  assert.deepEqual(answered, { result: { answers: { q1: { answers: ["Chicago"] } } } });
   await allowed.end();
 
   const denied = await asking({ authorize: async () => "deny" });

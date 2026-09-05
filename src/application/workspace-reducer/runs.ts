@@ -131,7 +131,11 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const opened = opening ? beginRun(state, event.taskId, event.runId) : state;
       const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
-      const applied = applyRunEvent(opened, event);
+      let applied = applyRunEvent(opened, event);
+      if (event.type === "question.requested" && !active.questions?.length) {
+        const replyingToQuestion = !(state.prompts[event.taskId]?.trim() || state.images[event.taskId]?.length || state.files[event.taskId]?.length || state.annotations[event.taskId]?.length || state.pastes[event.taskId]?.length);
+        applied = { ...applied, activeRuns: { ...applied.activeRuns, [event.taskId]: { ...applied.activeRuns[event.taskId], replyingToQuestion } } };
+      }
       const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
       if (active.operation === "compact" && terminal) {
         const restored = restoreCompactionTestimony(applied, event.taskId, active.before);
@@ -161,9 +165,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
        * What this event puts on the desktop. A run that settles says how it ended; a run that stops
        * to ask says what it is waiting for, and only when a person is the one it waits on.
        */
-      const headline = event.type === "approval.requested" && active.origin === "composer"
-        ? `Waiting for your permission to use ${event.intent.name}`
-        : settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
+      let headline = settledHeadline(surfacing, event.type === "run.status" ? event.message : undefined);
+      if (active.origin === "composer" && event.type === "approval.requested") headline = `Waiting for your permission to use ${event.intent.name}`;
+      if (active.origin === "composer" && event.type === "question.requested") headline = event.request.questions[0].question;
       const noticed = headline ? next.threads.find((thread) => thread.id === event.taskId) : undefined;
       const said = noticed && headline ? announced(next, noticed, headline) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);

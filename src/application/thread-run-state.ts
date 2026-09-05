@@ -1,3 +1,4 @@
+import type { PendingQuestion } from "../domain/agent-question.js";
 import type { BackgroundEvent, RunEvent, ThreadEvent, WorkflowEvent } from "../contracts/ipc.js";
 import type { BackgroundProcess, Subagent, SubagentReport } from "../domain/run.js";
 import type { Workflow } from "../domain/workflow.js";
@@ -10,6 +11,8 @@ export type ActiveRun = RunProvenance & {
   taskId: string;
   runId: string;
   sequence: number;
+  questions?: PendingQuestion[];
+  replyingToQuestion?: boolean;
   status: "running" | "compacting" | "awaiting-approval";
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
@@ -387,6 +390,25 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
       return withActiveRun(withSequence, event.taskId, { ...active, sequence: event.sequence, status: event.status });
     }
     return applyRunFinished(withSequence, event);
+  }
+  if (event.type === "question.requested") {
+    const questions = event.request.questions.map((question) => ({ ...question, runId: event.runId, requestId: event.requestId, questionId: question.id, blocking: event.request.blocking }));
+    const next = withActiveRun(withSequence, event.taskId, { ...withSequence.activeRuns[event.taskId], questions: [...(active.questions ?? []), ...questions] });
+    const messages = questions.map((question) => {
+      let text = question.question;
+      if (question.options.length) {
+        const options = question.options.map((option) => option.description ? `- ${option.label}: ${option.description}` : `- ${option.label}`);
+        text += "\n\n" + options.join("\n");
+      }
+      return createConversationMessage("assistant", text);
+    });
+    return updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, ...messages], updatedAt: now() }));
+  }
+  if (event.type === "question.answered" || event.type === "question.closed") {
+    const questions = (active.questions ?? []).filter((question) => question.requestId !== event.requestId || (event.type === "question.answered" && question.questionId !== event.questionId));
+    const next = withActiveRun(withSequence, event.taskId, { ...withSequence.activeRuns[event.taskId], questions });
+    if (event.type === "question.closed") return next;
+    return updateThread(next, event.taskId, (thread) => ({ ...thread, messages: [...thread.messages, createConversationMessage("user", event.text)], updatedAt: now() }));
   }
   if (event.type === "assistant.tail") {
     return withStreamingTail(withSequence, event.taskId, event.text ? { messageId: event.messageId, text: event.text } : null);

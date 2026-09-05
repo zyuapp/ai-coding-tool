@@ -1,3 +1,5 @@
+import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
+import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { Annotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
@@ -62,6 +64,10 @@ export type ConversationComposerProps = {
   effort: AgentEffort;
   contextUsage?: ContextUsage;
   runActive: boolean;
+  question?: PendingQuestion;
+  replyingToQuestion?: boolean;
+  onQuestionReplyMode?: (replying: boolean) => void;
+  onAnswerQuestion?: (question: QuestionAddress, attachments: RunAttachment[]) => void;
   goal?: ActiveGoal | null;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
@@ -127,6 +133,10 @@ export function ConversationComposer({
   effort,
   contextUsage,
   runActive,
+  question,
+  replyingToQuestion = true,
+  onQuestionReplyMode = NOTHING,
+  onAnswerQuestion = NOTHING,
   goal = null,
   queuedMessages,
   annotations = [],
@@ -163,8 +173,9 @@ export function ConversationComposer({
   onCancel,
   onGoalClear = NOTHING,
 }: ConversationComposerProps) {
+  const answering = Boolean(question && replyingToQuestion);
   const caret = useComposerCaret(focusToken);
-  const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange });
+  const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, enabled: !answering, onPromptChange });
   const stepRecall = useComposerRecall({
     prompt, annotations, pastes, files, images, history, queuedMessages, caret,
     onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall,
@@ -175,13 +186,15 @@ export function ConversationComposer({
   /** While a run is going the message joins the queue, so only steering needs the run to be active. */
   async function submit(steer = false) {
     if (attachments.sending || waiting || disabled || (steer && !runActive)) return;
-    if (nothingToSend) return;
-    await attachments.send(onSend, steer);
+    if (nothingToSend || (answering && question?.submitting)) return;
+    if (answering && question) await attachments.send((items) => onAnswerQuestion(question, items), false);
+    else await attachments.send(onSend, steer);
   }
 
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
+      {question && <QuestionPrompt question={question} replying={replyingToQuestion} onReplyMode={onQuestionReplyMode} />}
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {reviewPicker && (
@@ -211,7 +224,7 @@ export function ConversationComposer({
           onBlur={(event) => composerBlur(event, menus, caret)}
           onKeyDown={(event) => composerKeyDown(event, { menus, runActive, sending: attachments.sending, stepRecall, submit })}
           disabled={disabled}
-          placeholder={composerPlaceholder(surface, folder, disabled, engineLabel)}
+          placeholder={answering ? "Type your answer…" : composerPlaceholder(surface, folder, disabled, engineLabel)}
           aria-label={surface === "side" ? "Side chat prompt" : "Task prompt"}
           aria-autocomplete="list"
           aria-controls={reviewPicker ? "review-picker" : menuControls(menus)}
@@ -223,6 +236,7 @@ export function ConversationComposer({
           <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
+            {answering && <button className="send-button" disabled={disabled || attachments.sending || waiting || nothingToSend || question?.submitting} onClick={() => void submit()} aria-label="Send answer">↑</button>}
             <button
               className={`send-button ${runActive ? "running" : ""}`}
               disabled={!runActive && (disabled || attachments.sending || waiting || nothingToSend)}

@@ -40,6 +40,10 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       effort={workspace.effort}
       contextUsage={workspace.currentThread?.contextUsage}
       runActive={workspace.runActive}
+      question={workspace.question}
+      replyingToQuestion={workspace.replyingToQuestion}
+      onQuestionReplyMode={(replying) => { if (thread && workspace.question) void workspace.dispatch({ type: "question.reply-mode", taskId: thread.id, runId: workspace.question.runId, replying }); }}
+      onAnswerQuestion={(question, attachments) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, attachments }); }}
       goal={workspace.goal}
       waiting={workspace.waitingOn !== null}
       queuedMessages={workspace.queuedMessages}

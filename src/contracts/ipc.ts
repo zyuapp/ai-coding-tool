@@ -1,3 +1,4 @@
+import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
@@ -125,6 +126,11 @@ export type CancelRunCommand = {
   runId: string;
 };
 
+export type AnswerQuestionCommand = {
+  type: "answer-question";
+  taskId: string; runId: string; requestId: string; questionId: string; text: string;
+};
+
 export type ApprovalDecisionCommand = {
   type: "approval";
   taskId: string;
@@ -154,7 +160,7 @@ export type StopProcessCommand = {
 
 export type LabelThreadCommand = { type: "label"; taskId: string; title: string };
 
-export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
+export type RunCommand = StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
 
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
@@ -451,6 +457,9 @@ type RunEventBase = {
 };
 
 export type RunEvent =
+  | (RunEventBase & { type: "question.requested"; requestId: string; request: QuestionRequest })
+  | (RunEventBase & { type: "question.answered"; requestId: string; questionId: string; text: string })
+  | (RunEventBase & { type: "question.closed"; requestId: string })
   /** `agentInitiated` marks a turn the agent started itself, which the thread takes on a run for. */
   | (RunEventBase & { type: "run.started"; agentInitiated?: true })
   | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string })
@@ -596,6 +605,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
     return isStartCommand(command, false);
   }
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
+  if (command.type === "answer-question") return isString(command.taskId) && isString(command.runId) && isString(command.requestId) && isString(command.questionId) && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0;
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
   if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
@@ -603,7 +613,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
+export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
   if (command.type === "start") return isStartCommand(command, true);
@@ -812,6 +822,9 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
   if (!isString(event.taskId) || !isString(event.runId) || typeof event.sequence !== "number" || !Number.isSafeInteger(event.sequence) || event.sequence < 1) return false;
+  if (event.type === "question.requested") return isString(event.requestId) && isQuestionRequest(event.request);
+  if (event.type === "question.answered") return isString(event.requestId) && isString(event.questionId) && isString(event.text, MAX_PROMPT_LENGTH);
+  if (event.type === "question.closed") return isString(event.requestId);
   if (event.type === "run.started") return event.agentInitiated === undefined || event.agentInitiated === true;
   if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000));
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true);

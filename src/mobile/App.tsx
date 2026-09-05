@@ -49,7 +49,14 @@ function ThreadScreen({ thread, connection, waiting, send }: {
         running={running}
         waiting={waiting}
         settings={thread.settings}
-        onSend={(text) => send({ type: "task.send", taskId: thread.id, text })}
+        question={thread.question}
+        replyingToQuestion={thread.replyingToQuestion}
+        onQuestionReplyMode={(replying) => { if (thread.question) send({ type: "question.reply-mode", taskId: thread.id, runId: thread.question.runId, replying }); }}
+        onSend={(text) => {
+          const question = thread.question;
+          if (question && thread.replyingToQuestion !== false) send({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text });
+          else send({ type: "task.send", taskId: thread.id, text });
+        }}
         onStop={() => send({ type: "run.cancel", taskId: thread.id })}
         onOpenSettings={() => setSettingsOpen(true)}
       />
