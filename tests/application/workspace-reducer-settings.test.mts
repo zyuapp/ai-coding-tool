@@ -11,7 +11,7 @@ test("the panel and sidebar choices are persisted and survive the store loading"
   assert.equal(restored.sidebarOpen, false);
 
   const closed = reduce(restored, { type: "view.set-session-panel-open", open: false });
-  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, chromeBrowser: false, conciseReplies: false, computerUse: true, browserTools: true, notifications: true, sidebarOpen: false, sidebarMode: "projects", sections: OPEN_SIDEBAR_SECTIONS, subagentGroups: OPEN_SUBAGENT_GROUPS, shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
+  assert.deepEqual(closed.effects, [{ type: "persist-preferences", preferences: { theme: "aicodingtool-dark", themeMode: "dark", uiFont: "system", monoFont: "system", readingSize: 15, terminalSize: 12, sessionPanelOpen: false, captureSound: true, captureFocus: true, chromeBrowser: false, conciseReplies: false, computerUse: true, browserTools: true, notifications: true, sidebarOpen: false, sidebarMode: "projects", sections: OPEN_SIDEBAR_SECTIONS, subagentGroups: OPEN_SUBAGENT_GROUPS, favoriteModels: [], shortcuts: {}, browserTabs: {}, browserOrigins: [] } }]);
   assert.equal(closed.state.sessionPanelOpen, false);
 
   assert.deepEqual(reduce(closed.state, { type: "view.set-session-panel-open", open: false }).effects, [], "an unchanged choice writes nothing");
@@ -102,4 +102,15 @@ test("a folded subagent group is written down, and an unknown group is refused",
   const unknown = reduce(folded.state, { type: "view.set-subagent-group", group: "nowhere" as SubagentGroup, open: false });
   assert.deepEqual(unknown.state.subagentGroups, folded.state.subagentGroups);
   assert.deepEqual(unknown.effects, []);
+});
+
+test("model favorites persist, restore, and ignore duplicate commands", () => {
+  const pinned = reduce(workspace(), { type: "view.set-model-favorite", model: "opus", favorite: true });
+  assert.deepEqual(pinned.state.favoriteModels, ["opus"]);
+  const saved = effectAt(pinned, "persist-preferences").preferences;
+  const restored = reduce(workspace(), { type: "preferences.loaded", preferences: saved }).state;
+  assert.deepEqual(restored.favoriteModels, ["opus"]);
+  assert.deepEqual(reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: true }).effects, []);
+  const removed = reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: false });
+  assert.deepEqual(effectAt(removed, "persist-preferences").preferences.favoriteModels, []);
 });

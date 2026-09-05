@@ -92,6 +92,8 @@ export type ConversationComposerProps = {
   onImageRecall?: (paths: string[]) => void;
   onFileRemove?: (fileId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   /** Asked when the model menu opens on another engine. A surface that cannot ask leaves every engine ready. */
@@ -148,6 +150,8 @@ export function ConversationComposer({
   onFileRemove,
   onImageRemove,
   onModeChange,
+  favoriteModels,
+  onModelFavorite,
   onModelChange,
   onEffortChange,
   onEngineRead = NOTHING,
@@ -216,7 +220,7 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

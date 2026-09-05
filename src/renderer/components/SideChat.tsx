@@ -12,7 +12,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -47,6 +47,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
   onPolicyChange: (policy: ExecutionPolicy) => void;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   onSteerQueued: (messageId: string) => void;
@@ -127,6 +129,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         onImageRecall={onImageRecall}
         onImageRemove={onImageRemove}
         onModeChange={onPolicyChange}
+        favoriteModels={favoriteModels}
+        onModelFavorite={onModelFavorite}
         onModelChange={onModelChange}
         onEffortChange={onEffortChange}
         onSend={onSend}

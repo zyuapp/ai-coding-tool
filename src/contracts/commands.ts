@@ -296,6 +296,7 @@ export type ViewCommand =
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */
   | { type: "view.set-subagent-group"; group: SubagentGroup; open: boolean }
+  | { type: "view.set-model-favorite"; model: AgentModel; favorite: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
   /** The family to paint, on whichever ground the mode in effect asks for. */

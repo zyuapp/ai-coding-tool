@@ -6,6 +6,7 @@ import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
 import { dockOwner, withDock, type WorkspaceState } from "../workspace-state.js";
 import { shortcutAction, shortcutProblem, withShortcut } from "../../domain/shortcuts.js";
+import { isAgentModel } from "../../domain/agent-engine.js";
 import { isSubagentGroup } from "../../domain/run.js";
 import { isSettingsSection } from "../../domain/settings-section.js";
 import { isSidebarSection } from "../../domain/sidebar.js";
@@ -21,8 +22,17 @@ type SettingsInput = Extract<WorkspaceInput, {
     | "view.set-subagent-group" | "view.set-section-open";
 }>;
 
+export function reduceModelFavorite(state: WorkspaceState, input: Extract<WorkspaceInput, { type: "view.set-model-favorite" }>): WorkspaceTransition {
+  if (!isAgentModel(input.model) || typeof input.favorite !== "boolean" || state.favoriteModels.includes(input.model) === input.favorite) return settled(state);
+  const favoriteModels = state.favoriteModels.filter((model) => model !== input.model);
+  if (input.favorite) favoriteModels.push(input.model);
+  const next = { ...state, favoriteModels };
+  return settled(next, persistView(next));
+}
+
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
   switch (input.type) {
+
     case "view.set-theme": {
       const chosen = themeById(input.theme);
       if (!chosen) return settled(state);

@@ -9,7 +9,7 @@ import { reduceSideChats } from "./side-chats.js";
 import { reduceDiffs } from "./diffs.js";
 import { reduceStore } from "./store.js";
 import { reduceComposer } from "./composer.js";
-import { reduceSettings } from "./settings.js";
+import { reduceSettings, reduceModelFavorite } from "./settings.js";
 import { reduceDock } from "./dock.js";
 import { reduceBrowser } from "./browser.js";
 import { reduceDesktop } from "./desktop.js";
@@ -79,6 +79,8 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "file.recall": case "view.set-prompt": case "view.reading-point":
     case "view.dismiss-action-error": case "view.dismiss-hidden-tasks":
       return reduceComposer(state, input);
+
+    case "view.set-model-favorite": return reduceModelFavorite(state, input);
 
     case "view.set-theme": case "view.set-theme-family": case "view.set-theme-mode":
     case "view.system-scheme": case "view.set-ui-font": case "view.set-mono-font":

@@ -695,16 +695,15 @@ test("the composer offers model and effort choices, ordered most to least capabl
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.deepEqual(
-    [...modelMenu.querySelectorAll(".setting-group-heading")].map((item) => item.textContent),
+    [...modelMenu.querySelectorAll("[role=group]")].map((item) => item.getAttribute("aria-label")),
     ["Claude", "Codex"],
     "a draft lists every engine's models under that engine's name",
   );
   assert.deepEqual(
-    [...modelMenu.querySelectorAll(".setting-option strong")].map((item) => item.textContent),
+    [...modelMenu.querySelectorAll(".model-choice strong")].map((item) => item.textContent),
     ["Fable", "Opus", "Sonnet", "Haiku", "Astra", "Sol", "Terra", "Luna"],
   );
-  assert.equal(modelMenu.querySelectorAll(".setting-option[aria-disabled]").length, 0);
-  assert.equal(modelMenu.querySelector(".setting-rule"), null);
+  assert.equal(modelMenu.querySelectorAll(".model-choice:disabled").length, 0);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Opus");
   const effortMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[2]);
   await act(async () => { query<HTMLElement>(effortMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });

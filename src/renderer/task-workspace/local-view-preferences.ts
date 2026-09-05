@@ -27,6 +27,7 @@ export function loadViewPreferences(): ViewPreferences {
     sidebarMode: stored.sidebarMode ?? "projects",
     sections: stored.sections ?? OPEN_SIDEBAR_SECTIONS,
     subagentGroups: stored.subagentGroups ?? OPEN_SUBAGENT_GROUPS,
+    favoriteModels: stored.favoriteModels ?? [],
     shortcuts: stored.shortcuts ?? {},
     browserTabs: stored.browserTabs ?? {},
     browserOrigins: stored.browserOrigins ?? [],

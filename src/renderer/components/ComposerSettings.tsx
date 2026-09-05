@@ -1,6 +1,6 @@
 import type { IconType } from "react-icons";
-import { LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
-import { useRef, useState, type ReactNode } from "react";
+import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
@@ -30,7 +30,7 @@ const effortIcons: Record<AgentEffort, IconType> = {
 const modelsOf = byEngine((engine): Choice<AgentModel>[] => modelsFor(engine).map((spec) => ({ value: spec.id, label: spec.label, description: spec.description, icon: modelIcons[spec.id] })));
 const effortsOf = byModel((model): Choice<AgentEffort>[] => model.efforts.map((spec) => ({ value: spec.id, ...spec, icon: effortIcons[spec.id] })));
 
-/** The model list is one list, headed by engine, so choosing a model is how an engine is chosen. */
+/** Provider filters and search share the same catalog. */
 const modelGroups = AGENT_ENGINES.map((engine) => ({ engine, label: engineLabel(engine), choices: modelsOf[engine] }));
 
 export const EVERY_ENGINE_READY = byEngine((): EngineReadiness => ({ access: "ready" }));
@@ -46,12 +46,13 @@ function ReadinessHint({ notice, onOpenSettings }: { notice: EngineNotice; onOpe
   </div>;
 }
 
-function SettingMenu({ label, axis, heading, value, onOpen, children }: {
+function SettingMenu({ label, axis, heading, value, onOpen, library = false, children }: {
   label: string;
   axis: string;
   heading: string;
   value: ReactNode;
   onOpen?: () => void;
+  library?: boolean;
   /** The options, handed the menu's own close so a pick can shut it. */
   children: (close: () => void) => ReactNode;
 }) {
@@ -66,8 +67,8 @@ function SettingMenu({ label, axis, heading, value, onOpen, children }: {
       <span className="setting-axis">{axis}</span>
       <span className="setting-value">{value}</span>
     </summary>
-    {open && <div className="setting-popover" role="listbox" aria-label={heading} onKeyDown={moveListFocus}>
-      <div className="setting-heading">{heading}</div>
+    {open && <div className={`setting-popover${library ? " model-library" : ""}`} role={library ? "dialog" : "listbox"} aria-label={heading} onKeyDown={library ? undefined : moveListFocus}>
+      {!library && <div className="setting-heading">{heading}</div>}
       {children(close)}
     </div>}
   </details>;
@@ -109,43 +110,115 @@ function ChoiceMenu<T extends string>({ label, axis, heading, choices, value, on
   </SettingMenu>;
 }
 
-function ModelMenu({ engine, engineLocked, engineAccess, model, onChange, onOpen, onSignIn, onOpenEngineSettings }: {
+type ModelLibraryProps = {
   engine: AgentEngine;
   engineLocked: boolean;
   engineAccess: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onChange: (engine: AgentEngine, model: AgentModel) => void;
-  onOpen: () => void;
   onSignIn: (engine: AgentEngine) => void;
-  /** Absent on a surface with no settings of its own, which then shows the note without the way in. */
   onOpenEngineSettings?: () => void;
-}) {
-  const selected = modelsOf[engine].find((item) => item.value === model) ?? modelsOf[engine][0];
-  const offered = modelGroups.filter((group) => !engineLocked || group.engine === engine);
-  const locked = modelGroups.filter((group) => engineLocked && group.engine !== engine);
-  /** Only a menu that offers another engine needs to know whether that engine can be picked. */
-  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.label} {...(engineLocked ? {} : { onOpen })}>
-    {(close) => <>
-      {offered.map((group) => {
-        const readiness = engineAccess[group.engine];
-        const ready = readiness.access === "ready";
-        const notice = engineNotice(group.engine, readiness);
-        /** A command that names its models hides the ones it cannot run, so the list never offers a dead pick. */
-        const choices = readiness.models ? group.choices.filter((item) => readiness.models?.includes(item.value)) : group.choices;
-        return <div key={group.engine} className="setting-group" role="group" aria-label={group.label}>
-          <div className="setting-group-heading">{group.label}</div>
-          {choices.map((item) => <Option key={item.value} item={item} selected={group.engine === engine && item.value === model} disabled={!ready} {...(ready ? { onSelect: () => { onChange(group.engine, item.value); close(); } } : {})} />)}
-          {readiness.access === "signed-out" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
-          {notice && <ReadinessHint notice={notice} {...(onOpenEngineSettings ? { onOpenSettings: () => { onOpenEngineSettings(); close(); } } : {})} />}
-        </div>;
-      })}
-      {locked.length > 0 && <hr className="setting-rule" />}
-      {locked.map((group) => <div key={group.engine} className="setting-option setting-locked" role="option" aria-selected={false} aria-disabled="true">Start a new thread to use {group.label}</div>)}
-    </>}
+};
+
+function ModelLibrary({ engine, engineLocked, engineAccess, model, favoriteModels = [], onModelFavorite, onChange, onSignIn, onOpenEngineSettings, close }: ModelLibraryProps & { close: () => void }) {
+  const [filter, setFilter] = useState<AgentEngine | "favorites" | "all">(() => {
+    if (engineLocked) return engine;
+    return favoriteModels.length ? "favorites" : "all";
+  });
+  const [query, setQuery] = useState("");
+  const results = useRef<HTMLDivElement>(null);
+  const favorites = new Set(favoriteModels);
+  const search = query.trim().toLocaleLowerCase();
+  const available = modelGroups.map((group) => {
+    const readiness = engineAccess[group.engine];
+    return { ...group, choices: group.choices.filter((item) => !readiness.models || readiness.models.includes(item.value)) };
+  });
+  const groups = available.filter((group) => search || filter === "all" || filter === "favorites" || filter === group.engine).map((group) => ({
+    ...group,
+    choices: group.choices.filter((item) => {
+      if (search) return `${group.label} ${item.label} ${item.value} ${item.description}`.toLocaleLowerCase().includes(search);
+      return filter !== "favorites" || favorites.has(item.value);
+    }),
+  }));
+  const count = groups.reduce((total, group) => total + group.choices.length, 0);
+  let heading = "All models";
+  if (filter === "favorites") heading = "Favorites";
+  else if (filter !== "all") heading = engineLabel(filter);
+  if (search) heading = "Search results";
+
+  const navigate = (event: KeyboardEvent<HTMLElement>) => {
+    const buttons = [...(results.current?.querySelectorAll<HTMLButtonElement>(".model-choice:not(:disabled)") ?? [])];
+    if (!buttons.length) return;
+    if (event.key === "Enter" && event.target instanceof HTMLElement && event.target.tagName === "INPUT") {
+      event.preventDefault();
+      buttons[0].click();
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    let next = index + (event.key === "ArrowDown" ? 1 : -1);
+    if (index === -1) next = event.key === "ArrowDown" ? 0 : buttons.length - 1;
+    buttons[(next + buttons.length) % buttons.length].focus();
+  };
+
+  return <>
+    <div className="model-search" onKeyDown={navigate}>
+      <Search size={17} aria-hidden="true" />
+      <input autoFocus aria-label="Find a model or provider" placeholder="Find a model or provider…" value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
+      <button type="button" aria-label="Close model picker" onClick={close}><X size={15} /></button>
+    </div>
+    <div className="model-library-body">
+      <nav className="model-provider-rail" aria-label="Filter models">
+        <button type="button" aria-pressed={!search && filter === "favorites"} onClick={() => { setFilter("favorites"); setQuery(""); }}><Star size={15} />Favorites<span>{available.reduce((total, group) => total + group.choices.filter((item) => favorites.has(item.value)).length, 0)}</span></button>
+        <button type="button" aria-pressed={!search && filter === "all"} onClick={() => { setFilter("all"); setQuery(""); }}><Grid size={15} />All models<span>{available.reduce((total, group) => total + group.choices.length, 0)}</span></button>
+        <hr />
+        {available.map((group) => <button key={group.engine} type="button" aria-pressed={!search && filter === group.engine} onClick={() => { setFilter(group.engine); setQuery(""); }}><span className="model-provider-initial" aria-hidden="true">{group.label[0]}</span>{group.label}<span>{group.choices.length}</span></button>)}
+      </nav>
+      <div className="model-results" ref={results} onKeyDown={navigate}>
+        <div className="model-results-heading"><span>{heading}</span><span aria-live="polite">{count} models</span></div>
+        {groups.map((group) => {
+          const readiness = engineAccess[group.engine];
+          const locked = engineLocked && group.engine !== engine;
+          const ready = readiness.access === "ready" && !locked;
+          const notice = engineNotice(group.engine, readiness);
+          if (!group.choices.length && (search || filter === "favorites")) return null;
+          return <div key={group.engine} role="group" aria-label={group.label}>
+            {group.choices.map((item) => {
+              const selected = group.engine === engine && item.value === model;
+              const favorite = favorites.has(item.value);
+              const Icon = item.icon;
+              return <div key={item.value} className={`model-row${selected ? " selected" : ""}`}>
+                <button type="button" className="model-choice" aria-pressed={selected} disabled={!ready} onClick={() => { onChange(group.engine, item.value); close(); }} title={item.description}>
+                  <span className="model-row-icon" aria-hidden="true"><Icon size={18} /></span>
+                  <span className="model-row-label"><strong>{item.label}</strong><small>{group.label} · {item.description}</small></span>
+                  {selected && <Check size={16} className="model-selected-check" aria-hidden="true" />}
+                </button>
+                {onModelFavorite && <button type="button" className="model-favorite" aria-label={`${favorite ? "Unpin" : "Pin"} ${item.label}`} aria-pressed={favorite} onClick={() => onModelFavorite(item.value, !favorite)}><Star size={15} fill={favorite ? "currentColor" : "none"} /></button>}
+              </div>;
+            })}
+            {locked && <p className="setting-hint">Start a new thread to use {group.label}</p>}
+            {!locked && readiness.access === "signed-out" && <button type="button" className="setting-hint" onClick={() => { onSignIn(group.engine); close(); }}>Sign in to use {group.label}</button>}
+            {!locked && notice && <ReadinessHint notice={notice} onOpenSettings={onOpenEngineSettings ? () => { onOpenEngineSettings(); close(); } : undefined} />}
+          </div>;
+        })}
+        {count === 0 && <p className="model-empty">{search ? "No models found. Try another name or provider." : filter === "favorites" ? "Pin models from All models to keep them here." : "No models available."}</p>}
+      </div>
+    </div>
+    <div className="model-library-footer">{engineLocked ? `This thread uses ${engineLabel(engine)}.` : "↑ ↓ navigate · Enter select"}<span><Star size={12} /> Pin your go-to models</span></div>
+  </>;
+}
+
+function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => void }) {
+  const selected = modelsOf[props.engine].find((item) => item.value === props.model) ?? modelsOf[props.engine][0];
+  return <SettingMenu label="Model" axis="Model" heading="Choose a model" value={selected.label} library onOpen={props.engineLocked ? undefined : onOpen}>
+    {(close) => <ModelLibrary {...props} close={close} />}
   </SettingMenu>;
 }
 
-export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
+export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
   mode: ExecutionPolicy;
   engine: AgentEngine;
   engineLabel: string;
@@ -155,6 +228,8 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
   model: AgentModel;
   effort: AgentEffort;
   onModeChange: (mode: ExecutionPolicy) => void;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   /** Asked when the model menu opens on another engine, so the menu can say whether it can be picked. */
@@ -166,7 +241,7 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
   return (
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
-      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+      <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
       {effortsOf[model].length > 0 && <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={(choice) => onEffortChange(engine, choice)} />}
     </div>
   );
