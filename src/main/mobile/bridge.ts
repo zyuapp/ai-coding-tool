@@ -5,7 +5,7 @@ import type * as MobileHost from "./mobile-host.mjs" with { "resolution-mode": "
 
 /** What the bridge needs from the app: the window that holds workspace state, and where files live. */
 export type MobileBridgeHost = {
-  window: () => BrowserWindow | null;
+  window: () => Pick<BrowserWindow, "webContents" | "isDestroyed"> | null;
   userData: string;
   /** The built phone page. */
   staticRoot: string;

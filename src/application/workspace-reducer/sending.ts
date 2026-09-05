@@ -1,5 +1,5 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
-import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued } from "./shared.js";
+import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
 import { threadHandleOptions } from "../thread-projection.js";
@@ -24,13 +24,13 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
     case "question.answer": {
       const active = state.activeRuns[input.taskId];
       const question = active?.questions?.find((question) => question.requestId === input.requestId && question.questionId === input.questionId);
-      if (!active || active.runId !== input.runId || !question) return settled({ ...state, actionError: "That question is no longer waiting for an answer. Your draft has been kept." });
+      if (!active || active.runId !== input.runId || !question) return rejected(state, "That question is no longer waiting for an answer. Your draft has been kept.");
       if (question.submitting) return settled(state);
       const text = (input.text ?? state.prompts[input.taskId] ?? "").trim();
       const pastes = input.text === undefined ? pastesFor(state, input.taskId) : [];
       if (!text && !pastes.length) return settled(state);
       if (input.attachments?.length || filesFor(state, input.taskId).length || annotationsFor(state, input.taskId).length || state.images[input.taskId]?.length) {
-        return settled({ ...state, actionError: "Reply with text, or send attachments as a separate message." });
+        return rejected(state, "Reply with text, or send attachments as a separate message.");
       }
       const answer = sentPrompt(text, pastes, [], [], []);
       const drafted = input.text === undefined ? clearedDraft(state, input.taskId) : state;
@@ -56,16 +56,16 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       /** Only the composer's own send falls back to the current thread; a send with its own text starts a thread. */
       const thread = state.threads.find((item) => item.id === (input.taskId ?? (draftKey === undefined ? null : state.currentId)));
       /** A thread halfway into a checkout of its own has nowhere settled to run, so the send waits for the user. */
-      if (thread && state.creatingWorktrees.includes(thread.id)) return settled({ ...state, actionError: WORKTREE_CREATING_ERROR });
+      if (thread && state.creatingWorktrees.includes(thread.id)) return rejected(state, WORKTREE_CREATING_ERROR);
       /** A checkout on its way out is the same: the folder a run would start in is about to go. */
-      if (thread && leavingThreadIds(state).has(thread.id)) return settled({ ...state, actionError: WORKTREE_RELEASING_ERROR });
+      if (thread && leavingThreadIds(state).has(thread.id)) return rejected(state, WORKTREE_RELEASING_ERROR);
       /** The engine is a command on this machine, so a missing or too old one is said before a run starts. */
       const engine = thread?.engine ?? state.draftEngine;
       const blocked = engineBlocker(engine, engineReadinessOf(state, engine));
       if (blocked) {
         /** The user may have fixed it since the app last looked, so the refusal also asks again. */
         const asked = refreshEngines({ ...state, actionError: blocked, actionErrorPage: "engines" });
-        return settled(asked.state, asked.effects);
+        return rejected(asked.state, blocked, asked.effects);
       }
       if (thread && state.activeRuns[thread.id]) {
         const queued: QueuedMessage = {
@@ -88,15 +88,15 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
        */
       const namedWorktreeId = thread ? undefined : (input.worktreeId ?? (draftKey === undefined ? undefined : state.draftWorktreeId ?? undefined));
       const namedWorktree = namedWorktreeId ? worktreeById(state, namedWorktreeId) : undefined;
-      if (namedWorktreeId && !namedWorktree) return settled({ ...state, actionError: WORKTREE_MISSING_ERROR });
+      if (namedWorktreeId && !namedWorktree) return rejected(state, WORKTREE_MISSING_ERROR);
       const named = input.project === undefined ? undefined : findProject(state.projects, input.project);
-      if (named && "error" in named) return settled({ ...state, actionError: named.error });
+      if (named && "error" in named) return rejected(state, named.error);
       if (namedWorktree && named && named.project.id !== namedWorktree.projectId) {
-        return settled({ ...state, actionError: WORKTREE_ELSEWHERE_ERROR });
+        return rejected(state, WORKTREE_ELSEWHERE_ERROR);
       }
       const projectId = thread?.projectId ?? namedWorktree?.projectId ?? named?.project.id ?? (draftKey === undefined ? null : state.draftProjectId);
       const project = projectId ? state.projects.find((item) => item.id === projectId) : undefined;
-      if (projectId && !project) return settled({ ...state, actionError: MISSING_PROJECT_ERROR });
+      if (projectId && !project) return rejected(state, MISSING_PROJECT_ERROR);
       const pending: PendingRun = {
         id: crypto.randomUUID(),
         runId: crypto.randomUUID(),
@@ -120,7 +120,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const branch = thread ? null : state.draftBranch;
       /** Starting from a branch without a checkout of its own moves the project, so nothing may be running in it. */
       if (branch && !wantsWorktree && project && runsInWorkspace(state, project.workspaceId)) {
-        return settled({ ...state, actionError: CHECKOUT_RUNNING_ERROR });
+        return rejected(state, CHECKOUT_RUNNING_ERROR);
       }
       const resolving = resolveWorkspaceEffect(pending.id, thread, project, namedWorktree ?? worktreeFor(state, thread), wantsWorktree, branch);
       return settled(withPending(state, { ...pending, ...(resolving.createWorktree ? { creatingWorktree: true } : {}) }), [resolving]);

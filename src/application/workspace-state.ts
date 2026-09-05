@@ -20,7 +20,7 @@ export {
 export type { ThreadDock } from "./workspace-dock.js";
 import { diffFor, type DiffState } from "./workspace-diff.js";
 import { jumpView } from "./workspace-jump.js";
-import { unreadView } from "./thread-attention.js";
+import { workspaceViewCollections } from "./workspace-view-collections.js";
 import { findView } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
@@ -56,7 +56,7 @@ import {
   worktreeClaimants,
   worktreeFor,
 } from "./thread-location.js";
-import { worktreeSettingsPage, worktreeSettingsViews, type WorktreeSettingsState } from "./worktree-settings.js";
+import type { WorktreeSettingsState } from "./worktree-settings.js";
 import { heldViews } from "./view-reuse.js";
 export type { WorktreeSettingsView } from "./worktree-settings.js";
 export {
@@ -748,15 +748,8 @@ export function deriveView(state: WorkspaceState) {
   const currentProject = currentThread
     ? projectFor(state, currentThread)
     : (state.draftProjectId ? state.projects.find((project) => project.id === state.draftProjectId) : undefined);
-  const forked = sideChatIds(state);
-  const listedThreads = state.threads.filter((thread) => !forked.has(thread.id));
-  const visibleThreads = listedThreads.filter((thread) => thread.archivedAt === undefined);
-  const busy = busyThreadIds(state), blocked = blockedThreadIds(state);
-  const managedWorktrees = worktreeSettingsViews(state, busy);
-  const lists = sidebarLists(state, state.projects, visibleThreads, busy, blocked);
-  const { orderedThreads } = lists, threadsByWorktree = new Map<string, Thread[]>();
-  for (const thread of orderedThreads) if (thread.worktreeId)
-    threadsByWorktree.get(thread.worktreeId)?.push(thread) ?? threadsByWorktree.set(thread.worktreeId, [thread]);
+  const collections = workspaceViewCollections(state);
+  const { listedThreads, visibleThreads, busy, blocked, managedWorktrees, lists } = collections;
   const currentRun = state.currentId ? state.activeRuns[state.currentId] : undefined;
   const workspaceId = currentThread
     ? threadWorkspaceId(state, currentThread)
@@ -765,10 +758,11 @@ export function deriveView(state: WorkspaceState) {
   const owner = dockOwner(state), dock = dockFor(state, owner);
   return {
     ...engineView(state, currentThread),
-    ...unreadView(state, listedThreads),
+    sideChatAttention: collections.sideChatAttention,
+    unreadCount: collections.unreadCount,
     ...lists,
     threads: listedThreads,
-    archivedThreads: listedThreads.filter((thread) => thread.archivedAt !== undefined).sort((a, b) => b.archivedAt! - a.archivedAt!),
+    archivedThreads: collections.archivedThreads,
     currentThread,
     goal: state.currentId ? state.goals[state.currentId] ?? null : null,
     currentProject,
@@ -798,19 +792,16 @@ export function deriveView(state: WorkspaceState) {
     streamingTail: state.currentId ? state.streamingTails[state.currentId] ?? null : null,
     readingPoint: state.currentId ? state.readingPoints[state.currentId] ?? null : null,
     automation: state.automations.find((item) => item.taskId === state.currentId) ?? null,
-    schedules: new Map(state.automations.map((automation) => [automation.taskId, automation])),
+    schedules: collections.schedules,
     /** When a run on this thread last found something, which is what the automation panel reports. */
     lastFoundAt: currentThread?.lastFindingAt ?? null,
     /** What its last silent tick looked at, which is all a schedule that never speaks has to show. */
     lastChecked: currentThread?.lastChecked ?? null,
-    worktreeThreadIds: new Set(listedThreads.filter((thread) => thread.worktreeId).map((thread) => thread.id)),
+    worktreeThreadIds: collections.worktreeThreadIds,
     /** The checkouts a project has, each with the threads that claim it. */
-    worktreeGroups: state.worktrees.map((worktree): WorktreeGroup => ({
-      worktree,
-      threads: threadsByWorktree.get(worktree.id) ?? [],
-    })),
+    worktreeGroups: collections.worktreeGroups,
     managedWorktrees,
-    worktreeSettings: worktreeSettingsPage(state, managedWorktrees),
+    worktreeSettings: collections.worktreeSettings,
     worktreeManagementError: state.worktreeManagementError,
     worktreeManagementNotice: state.worktreeManagementNotice,
     location: locationOf(state, currentThread),

@@ -19,6 +19,7 @@ import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { AutomationPanelProps } from "../../src/renderer/components/AutomationPanel.tsx";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
 import type { ThreadRequestHost } from "../../src/renderer/task-workspace/thread-requests.ts";
+import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 
 const { AutomationPanel, automationMeta, lastRunLabel } = await import("../../src/renderer/components/AutomationPanel.tsx");
 const { answerThreadRequest } = await import("../../src/renderer/task-workspace/thread-requests.ts");
@@ -356,6 +357,11 @@ function toolHost(initial: WorkspaceState): ToolHost {
   return {
     state: () => state,
     dispatch: (input: WorkspaceInput) => { state = reduce(state, input).state; },
+    execute: (input) => executeWorkspaceInput(input, {
+      state: () => state,
+      commit: (next) => { state = next; },
+      perform: async () => {},
+    }),
     waiters: { current: [] },
     task: () => state.threads[0],
     run: () => state.activeRuns["task-a"],

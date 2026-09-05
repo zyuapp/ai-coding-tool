@@ -1,34 +1,20 @@
 import { useEffect } from "react";
-import type { WorkspaceState } from "../../application/workspace-state";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
-import type { AgentEvent } from "../../contracts/ipc";
 import { displayShortcut } from "../../domain/shortcuts";
 import { MAC } from "../platform";
-import { subscribeToDesktop } from "./desktop-subscriptions";
-import { errorMessage } from "./errors";
-import { subscribeToMobile } from "./mobile-bridge";
 import { onTerminalFindResults, onTerminalResize } from "./terminal-views";
-import { answerThreadRequest, type ThreadWaiterList } from "./thread-requests";
-import { hasPersistenceDelta, persistenceDelta, persistenceState, storeBackfill, type PersistenceQueue } from "./workspace-persistence";
 
-/** How long a report waits for a frame that may never come, in a window nothing is drawing. */
-const FLUSH_FALLBACK_MS = 32;
-
-/** The window's state, its door into the reducer, and the two holders a first load writes. */
 export type SubscriptionHost = {
-  state: () => WorkspaceState;
+  restored: boolean;
   dispatch: (input: WorkspaceInput) => Promise<void>;
-  waiters: ThreadWaiterList;
-  persistence: { current: PersistenceQueue };
-  persistenceReady: { current: boolean };
 };
 
-/** The store the window loads once, and everything main says about runs, threads and phones. */
-function useDesktopSubscriptions(host: SubscriptionHost) {
+/** DOM focus and terminal views belong to the window displaying the workspace. */
+export function useWorkspaceSubscriptions(host: SubscriptionHost) {
   useEffect(() => {
     const onFocus = () => void host.dispatch({ type: "view.set-focused", focused: true });
     const onBlur = () => void host.dispatch({ type: "view.set-focused", focused: false });
-    if (typeof document !== "undefined" && !document.hasFocus()) onBlur();
+    if (typeof document !== "undefined") void host.dispatch({ type: "view.set-focused", focused: document.hasFocus() });
     window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
     return () => {
@@ -36,111 +22,6 @@ function useDesktopSubscriptions(host: SubscriptionHost) {
       window.removeEventListener("blur", onBlur);
     };
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    void window.desktop.loadTaskStore().then(async (data) => {
-      if (cancelled) return;
-      if (data) {
-        await host.dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks });
-        const current = persistenceState(host.state());
-        const backfill = storeBackfill(data, current);
-        if (hasPersistenceDelta(backfill)) await window.desktop.persistTaskStore(backfill);
-      } else {
-        await host.dispatch({ type: "store.absent" });
-        await window.desktop.persistTaskStore(persistenceDelta(null, persistenceState(host.state())));
-      }
-      host.persistence.current.persisted = persistenceState(host.state());
-      host.persistenceReady.current = true;
-    }).catch((error) => {
-      if (cancelled) return;
-      void host.dispatch({ type: "store.failed", message: errorMessage(error) });
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  /**
-   * The engines are commands on this machine, so the window asks about them on the way up rather
-   * than waiting for a model menu to open. A first send then knows whether it can start at all.
-   */
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    void host.dispatch({ type: "engine.read" });
-  }, []);
-
-  /**
-   * A run reports on every tool call and every helper agent it starts, which is faster than the
-   * window can usefully redraw. A frame's reports are folded into one change, so a busy thread costs
-   * one redraw a frame rather than one per report. The timer is what keeps that true when the window
-   * is behind another and the display never asks for a frame.
-   */
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    let waiting: AgentEvent[] = [];
-    let scheduled = false;
-    let frame = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    function flush() {
-      cancelAnimationFrame(frame);
-      clearTimeout(timer);
-      scheduled = false;
-      if (!waiting.length) return;
-      const events = waiting;
-      waiting = [];
-      void host.dispatch({ type: "agent.events", events });
-    }
-    const stopListening = window.desktop.onAgentEvent((event) => {
-      waiting.push(event);
-      if (scheduled) return;
-      scheduled = true;
-      frame = requestAnimationFrame(flush);
-      timer = setTimeout(flush, FLUSH_FALLBACK_MS);
-    });
-    return () => {
-      stopListening();
-      flush();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    const stopListening = window.desktop.onThreadRequest((request) => {
-      void answerThreadRequest(host, request).then((response) => window.desktop.answerThreadRequest(response));
-    });
-    return () => {
-      stopListening();
-      for (const waiter of host.waiters.current) window.clearTimeout(waiter.timer);
-      host.waiters.current = [];
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    return subscribeToMobile(host, window.desktop);
-  }, []);
-}
-
-/** The panels' own events, the keystrokes main matches, and the schedules that fire without one. */
-function useSurfaceSubscriptions(host: SubscriptionHost) {
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    return window.desktop.onBrowserEvent((page) => void host.dispatch({ type: "browser.updated", page }));
-  }, []);
-
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    return window.desktop.onTerminalEvent((update) => void host.dispatch({ type: "terminal.updated", update }));
-  }, []);
-
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    return window.desktop.onBrowserFind(({ tabId, matches, index }) => void host.dispatch({
-      type: "find.results",
-      target: { kind: "browser", tabId },
-      results: { matches, index },
-    }));
-  }, []);
-
   useEffect(() => {
     const stopReporting = onTerminalFindResults((terminalId, results) => void host.dispatch({ type: "find.results", target: { kind: "terminal", terminalId }, results }));
     const stopSizing = onTerminalResize((terminalId, cols, rows) => void host.dispatch({ type: "terminal.resize", terminalId, cols, rows }));
@@ -149,11 +30,6 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
       stopSizing();
     };
   }, []);
-
-  /**
-   * Which dock tab the keyboard is in, read from where the caret actually is: focus moving out of one
-   * view and into another fires twice, so the answer is settled once a frame from `document.activeElement`.
-   */
   useEffect(() => {
     let frame = 0;
     const look = () => {
@@ -170,7 +46,6 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
       cancelAnimationFrame(frame);
     };
   }, []);
-
   useEffect(() => {
     if (!("desktop" in window)) return;
     const stopListening = window.desktop.onShortcut(({ action, surface }) => void host.dispatch({ type: "view.shortcut", action, surface }));
@@ -178,17 +53,15 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
     const stopRefusals = window.desktop.onDesktopShortcutRefused((refusal) => void host.dispatch(refusal.reason === "unsupported"
       ? { type: "shortcut.unavailable", refusal }
       : { type: "action.failed", message: `${displayShortcut(refusal.binding, MAC)} belongs to another app, so grabbing a window has no shortcut.` }));
-    /** Listen before applying preferences, since claiming a desktop binding can immediately refuse it. */
-    window.desktop.setShortcuts(host.state().shortcuts);
-    window.desktop.setCaptureOptions({ sound: host.state().captureSound, focus: host.state().captureFocus });
     return () => {
       stopListening();
       stopCapturing();
       stopRefusals();
     };
   }, []);
-
-  /** The two side buttons on a mouse mean what the back and forward keystrokes mean. */
+  useEffect(() => {
+    if (host.restored) void host.dispatch({ type: "view.mounted" });
+  }, [host.restored]);
   useEffect(() => {
     function navigate(event: MouseEvent) {
       if (event.button !== 3 && event.button !== 4) return;
@@ -204,28 +77,11 @@ function useSurfaceSubscriptions(host: SubscriptionHost) {
       window.removeEventListener("mouseup", navigate);
     };
   }, []);
-
   useEffect(() => {
-    if (!("desktop" in window)) return;
-    return subscribeToDesktop((input) => void host.dispatch(input));
+    const stops = [
+      window.desktop.onWindowScreenshot((shot) => void host.dispatch({ type: "image.add", path: shot.path, label: shot.title ? `${shot.app} — ${shot.title}` : shot.app })),
+      window.desktop.onOpenThread((taskId) => void host.dispatch({ type: "task.select", taskId })),
+    ];
+    return () => { for (const stop of stops) stop(); };
   }, []);
-
-  useEffect(() => {
-    if (!("desktop" in window)) return;
-    void window.desktop.listAutomations()
-      .then((automations) => host.dispatch({ type: "automations.changed", automations }))
-      .catch((error) => host.dispatch({ type: "action.failed", message: errorMessage(error) }));
-    const stopWatching = window.desktop.onAutomationsChanged((automations) => void host.dispatch({ type: "automations.changed", automations }));
-    const stopFiring = window.desktop.onAutomationFire((fire) => void host.dispatch({ type: "automation.fired", fire }));
-    return () => {
-      stopWatching();
-      stopFiring();
-    };
-  }, []);
-}
-
-/** Everything the window listens to for as long as it is open, opened in one place and in one order. */
-export function useWorkspaceSubscriptions(host: SubscriptionHost) {
-  useDesktopSubscriptions(host);
-  useSurfaceSubscriptions(host);
 }

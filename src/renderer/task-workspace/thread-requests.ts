@@ -1,8 +1,10 @@
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
-import { resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
+import { findThread, resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { isNews, unreadFindings } from "../../domain/attention";
 import { scheduledRun } from "../../application/run-testimony";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
+import type { WorkspaceExecution } from "../../application/workspace-execution";
+import type { AppCommand } from "../../contracts/commands";
 import type { FindingReport, FindingResult, ThreadRequest, ThreadResponse } from "../../contracts/threads";
 import { terminalLineLimit } from "../../domain/terminal";
 import { errorMessage } from "./errors";
@@ -20,10 +22,11 @@ export type ThreadWaiter = {
 
 export type ThreadWaiterList = { current: ThreadWaiter[] };
 
-/** The window's own state and door into the reducer, which is all answering a request takes. */
+/** The runtime state and the command execution that answers each tool request. */
 export type ThreadRequestHost = {
   state: () => WorkspaceState;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
+  execute: (command: AppCommand) => WorkspaceExecution;
   waiters: ThreadWaiterList;
 };
 
@@ -46,8 +49,7 @@ export function releaseThreadWaiters(waiters: ThreadWaiterList, state: Workspace
 }
 
 /**
- * The window is the only holder of workspace state, so it answers thread requests itself: reads
- * come from the projection, and writes go through the same reducer the UI dispatches into.
+ * Reads come from the runtime projection, and writes use the shared command execution path.
  */
 export async function answerThreadRequest(host: ThreadRequestHost, request: ThreadRequest): Promise<ThreadResponse> {
   const requestId = request.requestId;
@@ -71,16 +73,18 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       return transcript ? ok(transcript) : failed(`No thread has the ID ${request.threadId}.`);
     }
     if (request.op === "wait") {
-      const waited = threadWaitResult(host.state(), request.threadId, false);
-      if (!waited) return failed(`No thread has the ID ${request.threadId}.`);
-      if (!threadBusy(host.state(), request.threadId)) return ok(waited);
+      const thread = findThread(host.state(), request.threadId);
+      if (!thread) return failed(`No thread has the ID ${request.threadId}.`);
+      const threadId = thread.id;
+      const waited = threadWaitResult(host.state(), threadId, false);
+      if (!threadBusy(host.state(), threadId)) return ok(waited);
       return new Promise<ThreadResponse>((resolve) => {
         const waiter: ThreadWaiter = {
-          threadId: request.threadId,
-          settle: (state) => resolve(ok(threadWaitResult(state, request.threadId, false))),
+          threadId,
+          settle: (state) => resolve(ok(threadWaitResult(state, threadId, false))),
           timer: window.setTimeout(() => {
             host.waiters.current = host.waiters.current.filter((item) => item !== waiter);
-            resolve(ok(threadWaitResult(host.state(), request.threadId, true)));
+            resolve(ok(threadWaitResult(host.state(), threadId, true)));
           }, request.timeoutMs),
         };
         host.waiters.current.push(waiter);
@@ -126,9 +130,8 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const before = host.state();
     /** A browser command acts on a tab rather than a thread, so it answers with the panel's own error. */
     if (command.type.startsWith("browser.")) {
-      await host.dispatch(command);
-      const acted = host.state();
-      return acted.actionError && acted.actionError !== before.actionError ? failed(acted.actionError) : ok({ thread: null });
+      const result = await host.execute(command).completed;
+      return result.ok ? ok({ thread: null }) : failed(result.message);
     }
     if (command.taskId !== undefined && !before.threads.some((thread) => thread.id === command.taskId)) {
       return failed(`No thread has the ID ${command.taskId}.`);
@@ -153,13 +156,11 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
     const targeted = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
       ? { ...selected.command, project: callerProjectId }
       : selected.command;
-    const known = command.taskId === undefined ? new Set(before.threads.map((thread) => thread.id)) : null;
-    await host.dispatch(targeted);
+    const result = await host.execute(targeted).completed;
+    if (!result.ok) return failed(result.message);
     const after = host.state();
-    const thread = command.taskId
-      ? after.threads.find((thread) => thread.id === command.taskId)
-      : after.threads.find((thread) => !known!.has(thread.id));
-    if (!thread && after.actionError && after.actionError !== before.actionError) return failed(after.actionError);
+    const taskId = result.taskId ?? command.taskId;
+    const thread = after.threads.find((thread) => thread.id === taskId);
     return ok({ thread: thread ? threadSummary(after, thread) : null });
   } catch (error) {
     return failed(errorMessage(error));

@@ -13,12 +13,12 @@ import { CLI_URL_SCHEME, projectPathFromArgv, projectPathFromUrl } from "../doma
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolution-mode": "import" };
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
-import type { TaskDatabase } from "./task-database.mjs" with { "resolution-mode": "import" };
+import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
 import { attachmentsDirectory, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
-import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, stopComputerUse } from "./computer-use-host.js";
+import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
 import { serveBadgeCount, serveThreadNotices, type NoticeHost } from "./desktop-notice.js";
 import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
@@ -27,6 +27,7 @@ import { installAppMenu } from "./app-menu.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
 import { startLockAwake, type LockAwake } from "./lock-awake.js";
+import { createWorkspaceRuntimeHost } from "./workspace-runtime-host.js";
 import { startRunHost } from "./run-host.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
@@ -59,7 +60,7 @@ const icon = path.join(app.getAppPath(), "assets", "icon.png");
 let window: BrowserWindow | null = null;
 let workspaceService: WorkspaceService | null = null;
 let worktreeService: WorktreeService | null = null;
-let taskDatabase: TaskDatabase | null = null;
+let taskDatabase: TaskDatabaseService | null = null;
 let automationScheduler: AutomationScheduler | null = null;
 let lockAwake: LockAwake | null = null;
 let quitState: "running" | "stopping" | "ready" = "running";
@@ -71,9 +72,12 @@ let reopenArgs: string[] | null = null;
 const pendingProjectOpens: string[] = [];
 const pendingMenuCommands: string[] = [];
 let rendererListening = false;
+let runtimeListening = false;
+
+const workspaceRuntime = createWorkspaceRuntimeHost(() => window);
 
 function trustedSender(event: IpcMainEvent | IpcMainInvokeEvent) {
-  return Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
+  return workspaceRuntime.trusted(event) || Boolean(window && !window.isDestroyed() && event.sender === window.webContents);
 }
 
 function getAutomationScheduler() {
@@ -92,7 +96,7 @@ function getWorktreeService() {
 }
 
 const runs = startRunHost({
-  window: () => window,
+  window: workspaceRuntime.owner,
   running: () => quitState === "running",
   workspaces: getWorkspaceService,
   scheduler: getAutomationScheduler,
@@ -186,14 +190,14 @@ function argsForReopen(url: string) {
   return [...process.argv.slice(1).filter((argument) => !argument.startsWith(`${CLI_URL_SCHEME}://`)), url];
 }
 
-/** Registers each folder the CLI named and hands it to the window, which is the only writer of state. */
+/** Registers each folder the CLI named and hands it to the workspace runtime. */
 async function flushProjectOpens() {
-  if (!rendererListening || !workspaceService || !pendingProjectOpens.length) return;
+  if (!runtimeListening || !workspaceService || !pendingProjectOpens.length) return;
   while (pendingProjectOpens.length) {
     const root = pendingProjectOpens.shift()!;
     try {
       const registration = await getWorkspaceService().registerProject(root);
-      if (window && !window.isDestroyed()) window.webContents.send("workspace:open-project", registration.workspace);
+      workspaceRuntime.owner()?.webContents.send("workspace:open-project", registration.workspace);
     } catch (error) {
       console.error("Could not open the folder the aic command named:", error);
     }
@@ -210,7 +214,6 @@ function flushMenuCommands() {
 function sendMenuCommand(action: string) {
   pendingMenuCommands.push(action);
   if (!window || window.isDestroyed()) {
-    rendererListening = false;
     void createWindow().then(revealWindow).catch((error) => console.error("Could not reopen the app window:", error));
     return;
   }
@@ -254,17 +257,17 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      /** A phone reads this renderer's state while the window is hidden, so it is never throttled. */
+      /** Hidden terminal views still consume output while their dock is closed. */
       backgroundThrottling: false,
     },
   });
   const createdWindow = window;
   browser.startBrowserHost(window, {
     onPage: (event: BrowserPageEvent) => {
-      if (window && !window.isDestroyed()) window.webContents.send("browser:event", event);
+      workspaceRuntime.owner()?.webContents.send("browser:event", event);
     },
     onFind: (tabId, results) => {
-      if (window && !window.isDestroyed()) window.webContents.send("browser:find", { tabId, ...results });
+      workspaceRuntime.owner()?.webContents.send("browser:find", { tabId, ...results });
     },
     onKey: (input) => keyboard.handleKey(input, "browser"),
   });
@@ -273,7 +276,7 @@ async function createWindow() {
       if (window && !window.isDestroyed()) window.webContents.send("terminal:data", event);
     },
     onUpdate: (update) => {
-      if (window && !window.isDestroyed()) window.webContents.send("terminal:event", update);
+      workspaceRuntime.owner()?.webContents.send("terminal:event", update);
     },
   });
   /** The window owns no menu shortcut the app wants back; preventing it here is what frees ⌘W. */
@@ -296,10 +299,14 @@ async function createWindow() {
     void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
     browser.stopBrowserHost();
     terminal.stopTerminalHost();
+    if (quitState === "running") {
+      void workspaceRuntime.dispatch({ type: "view.closed" })
+        .catch((error) => console.error("Could not release closed window panels:", error));
+    }
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
   if (createdWindow.isDestroyed() || quitState !== "running") return;
-  void startMobileBridge({ window: () => createdWindow, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile") })
+  await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile") })
     .catch((error) => console.error("Could not start the phone bridge:", error));
 }
 
@@ -339,15 +346,18 @@ app.whenReady().then(async () => {
   });
   const { WorktreeService: WorktreeServiceConstructor } = await import("./workspace/worktrees.mjs");
   worktreeService = new WorktreeServiceConstructor({ worktreesRoot: WORKTREES_ROOT, legacyRoots: legacyWorktreesRoots(userData), workspaces: workspaceService });
-  const { TaskDatabase: TaskDatabaseConstructor } = await import("./task-database.mjs");
-  taskDatabase = new TaskDatabaseConstructor(path.join(userData, "tasks.v3.sqlite"), { worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)] });
+  const { TaskDatabaseService } = await import("./task-database-service.mjs");
+  taskDatabase = await TaskDatabaseService.open(path.join(userData, "tasks.v3.sqlite"), {
+    worktreesRoots: [WORKTREES_ROOT, ...legacyWorktreesRoots(userData)],
+    workerURL: pathToFileURL(path.join(__dirname, "task-database-worker.mjs")),
+  });
   const { AutomationScheduler: AutomationSchedulerConstructor } = await import("./automation/automation-scheduler.mjs");
   automationScheduler = new AutomationSchedulerConstructor(taskDatabase, runs.dispatchAutomation, {
     onChange: (automations) => {
-      if (window && !window.isDestroyed()) window.webContents.send("automation:changed", automations);
+      workspaceRuntime.owner()?.webContents.send("automation:changed", automations);
     },
   });
-  automationScheduler.start();
+  await automationScheduler.start();
   protocol.handle(ATTACHMENT_SCHEME, async (request) => {
     const name = attachmentName(decodeURIComponent(new URL(request.url).pathname));
     if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
@@ -360,6 +370,7 @@ app.whenReady().then(async () => {
     onCheckForUpdates: () => sendMenuCommand("app.check-for-updates"),
     onOpenSourceLicenses: () => sendMenuCommand("app.open-source-licenses"),
   });
+  await workspaceRuntime.start();
   await createWindow();
   const launchPath = projectPathFromArgv(process.argv);
   if (launchPath) openProjectPath(launchPath);
@@ -378,7 +389,7 @@ app.on("window-all-closed", () => {
 /**
  * How long the quit Electron runs is given before the process leaves anyway. A quit that arrived as
  * a signal rather than from the menu never reaches `will-quit` on its own, so the app would sit
- * there with no window; everything worth keeping is already on disk by the time this starts.
+ * there with no window. Persistence is drained before this final exit is scheduled.
  */
 const QUIT_GRACE = 500;
 
@@ -390,30 +401,54 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   if (quitState === "stopping") return;
   quitState = "stopping";
-  lockAwake?.stop();
-  lockAwake = null;
-  automationScheduler?.stop();
-  runs.clearPendingStarts();
-  runs.killAgent();
-  void stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
   if (window && !window.isDestroyed()) window.hide();
-  void stopComputerUse()
-    .catch((error) => console.error("Could not stop computer use:", error))
-    .finally(() => {
-      quitState = "ready";
-      taskDatabase?.close();
-      if (restartRequested) scheduleRestart(reopenArgs?.length ? reopenArgs : undefined);
-      app.quit();
-      setTimeout(() => app.exit(0), QUIT_GRACE).unref();
-    });
+  void finishShutdown();
 });
+
+async function finishShutdown() {
+  let servicesStopped = false;
+  try {
+    await workspaceRuntime.flush();
+    servicesStopped = true;
+    lockAwake?.stop();
+    lockAwake = null;
+    automationScheduler?.stop();
+    runs.clearPendingStarts();
+    runs.killAgent();
+    await stopMobileBridge().catch((error) => console.error("Could not stop the phone bridge:", error));
+    await stopComputerUse().catch((error) => console.error("Could not stop computer use:", error));
+    await workspaceRuntime.flush();
+    await themeWritten;
+    await automationScheduler?.flush();
+    await taskDatabase?.close();
+    quitState = "ready";
+    workspaceRuntime.close();
+    if (restartRequested) scheduleRestart(reopenArgs?.length ? reopenArgs : undefined);
+    app.quit();
+    setTimeout(() => app.exit(0), QUIT_GRACE).unref();
+  } catch (error) {
+    quitState = "running";
+    if (servicesStopped) {
+      resumeComputerUse();
+      if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
+      await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
+      if (window && !window.isDestroyed()) {
+        await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile") })
+          .catch((failure) => console.error("Could not restart the phone bridge:", failure));
+      }
+    }
+    revealWindow();
+    dialog.showErrorBox("Could not save the workspace", error instanceof Error ? error.message : String(error));
+  }
+}
 
 app.on("will-quit", () => {
   lockAwake?.stop();
   lockAwake = null;
   globalShortcut.unregisterAll();
   automationScheduler?.stop();
-  taskDatabase?.close();
+  void taskDatabase?.close().catch((error) => console.error("Could not close task storage:", error));
+  workspaceRuntime.close();
 });
 
 ipcMain.handle("workspace:open", async (event) => {
@@ -445,9 +480,14 @@ ipcMain.handle("workspace:projectless", async (event) => {
 
 /** The window says when it can take a folder, so one the CLI named before it was up is not lost. */
 ipcMain.on("workspace:open-project-ready", (event) => {
+  if (!workspaceRuntime.trusted(event)) return;
+  runtimeListening = true;
+  void flushProjectOpens();
+});
+
+ipcMain.on("workspace-view:ready", (event) => {
   if (!trustedSender(event)) return;
   rendererListening = true;
-  void flushProjectOpens();
   flushMenuCommands();
 });
 
@@ -555,13 +595,20 @@ ipcMain.on("computer-use:restart", (event) => {
 ipcMain.handle("task-store:load", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (!taskDatabase) throw new Error("Task database is not ready.");
-  return taskDatabase.load();
+  return taskDatabase.loadSummaries();
+});
+
+ipcMain.handle("task-store:messages", (event, taskId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  if (!taskDatabase) throw new Error("Task database is not ready.");
+  if (typeof taskId !== "string" || !taskId || taskId.length > 256) throw new Error("Invalid thread ID.");
+  return taskDatabase.loadThreadMessages(taskId);
 });
 
 ipcMain.handle("task-store:persist", (event, delta) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (!taskDatabase) throw new Error("Task database is not ready.");
-  taskDatabase.persist(delta);
+  return taskDatabase.persist(delta);
 });
 
 ipcMain.handle("subagent-activity:load", (event, taskId: string, subagentId: string) => {

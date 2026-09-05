@@ -1,5 +1,5 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
-import { TAKE_KEYS, persistView, settled, stopCapture, targetId } from "./shared.js";
+import { TAKE_KEYS, persistView, settled, stopCapture, targetId, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { withSubagents } from "../thread-run-state.js";
@@ -32,7 +32,6 @@ export function reduceModelFavorite(state: WorkspaceState, input: Extract<Worksp
 
 export function reduceSettings(state: WorkspaceState, input: SettingsInput): WorkspaceTransition {
   switch (input.type) {
-
     case "view.set-theme": {
       const chosen = themeById(input.theme);
       if (!chosen) return settled(state);
@@ -121,7 +120,7 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
     case "view.set-shortcut": {
       if (!shortcutAction(input.action)) return settled(state);
       const problem = input.binding === null ? null : shortcutProblem(input.binding);
-      if (problem) return settled({ ...state, actionError: problem, capturingShortcut: null }, stopCapture(state));
+      if (problem) return rejected({ ...state, capturingShortcut: null }, problem, stopCapture(state));
       const shortcuts = withShortcut(state.shortcuts, input.action, input.binding);
       const next = { ...state, shortcuts, capturingShortcut: null, actionError: null };
       return settled(next, [...persistView(next), { type: "apply-shortcuts", overrides: shortcuts }, ...stopCapture(state)]);

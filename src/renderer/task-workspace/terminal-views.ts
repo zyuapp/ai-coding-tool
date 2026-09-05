@@ -2,6 +2,7 @@ import type { FitAddon } from "@xterm/addon-fit";
 import type { SearchAddon } from "@xterm/addon-search";
 import type { Terminal } from "@xterm/xterm";
 import type { FindResults } from "../../domain/find.js";
+import { TerminalOutput } from "./terminal-output.js";
 
 /**
  * The views the terminal panel draws into. They live outside React because a shell outlives the panel:
@@ -18,8 +19,7 @@ type TerminalView = {
   terminal: Terminal | null;
   fit: FitAddon | null;
   search: SearchAddon | null;
-  /** What arrived before xterm finished loading, written in order once it has. */
-  pending: string[];
+  output: TerminalOutput;
   opened: boolean;
 };
 
@@ -44,7 +44,7 @@ function loadXterm() {
  * A module that failed to load stays failed for the life of the window however often it is asked for,
  * so it is fetched while the app is idle rather than at the moment a terminal is opened.
  */
-if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+if (typeof window !== "undefined" && !window.workspace?.owner && "requestIdleCallback" in window) {
   window.requestIdleCallback(() => void loadXterm().catch(() => undefined));
 }
 
@@ -152,18 +152,27 @@ function terminalRecord(terminalId: string): TerminalView {
   if (existing) return existing;
   const container = document.createElement("div");
   container.className = "terminal-surface";
-  const view: TerminalView = { container, terminal: null, fit: null, search: null, pending: [], opened: false };
+  const output = new TerminalOutput(
+    () => window.desktop.terminalSnapshot(terminalId),
+    (snapshot) => {
+      view.terminal?.resize(snapshot.cols, snapshot.rows);
+      view.terminal?.write(snapshot.data);
+    },
+    (data) => view.terminal?.write(data),
+  );
+  const view: TerminalView = { container, terminal: null, fit: null, search: null, output, opened: false };
   views.set(terminalId, view);
   return view;
 }
 
 async function terminalView(terminalId: string): Promise<TerminalView> {
   const view = terminalRecord(terminalId);
-  if (view.terminal) return view;
+  if (view.terminal) { await view.output.start(); return view; }
   const { Terminal, FitAddon, SearchAddon } = await loadXterm();
   const font = terminalFont();
   /** Another caller may have raced ahead, or the terminal may be gone by now. */
-  if (view.terminal || views.get(terminalId) !== view) return view;
+  if (views.get(terminalId) !== view) return view;
+  if (view.terminal) { await view.output.start(); return view; }
   const terminal = new Terminal({
     allowProposedApi: true,
     scrollback: SCROLLBACK_LINES,
@@ -180,7 +189,7 @@ async function terminalView(terminalId: string): Promise<TerminalView> {
   view.terminal = terminal;
   view.fit = fit;
   view.search = search;
-  for (const data of view.pending.splice(0)) terminal.write(data);
+  await view.output.start();
   return view;
 }
 
@@ -239,20 +248,18 @@ export function disposeTerminalView(terminalId: string) {
   const view = views.get(terminalId);
   if (!view) return;
   views.delete(terminalId);
+  view.output.dispose();
   view.container.remove();
   view.terminal?.dispose();
 }
 
 /** Output goes to every view, shown or not, so switching tabs never shows a terminal missing lines. */
 if (typeof window !== "undefined" && "desktop" in window) {
-  window.desktop.onTerminalData(({ terminalId, data }) => {
+  window.desktop.onTerminalData((event) => {
+    const { terminalId } = event;
     const view = terminalRecord(terminalId);
-    if (view.terminal) {
-      view.terminal.write(data);
-      return;
-    }
-    view.pending.push(data);
-    /** Output waits in `pending` if xterm cannot be loaded; the panel is where that is reported. */
+    view.output.push(event);
+    /** A failed import or snapshot is retried when the panel is next shown. */
     void terminalView(terminalId).catch(() => undefined);
   });
 }

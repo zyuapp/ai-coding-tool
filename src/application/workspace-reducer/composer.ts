@@ -26,7 +26,7 @@ export function reduceComposer(state: WorkspaceState, input: ComposerInput): Wor
     case "file.attach":
     case "file.detach":
     case "file.recall":
-      return settled(composerDraft(state, input, input.taskId ?? promptKey(state)));
+      return composerDraft(state, input, input.taskId ?? promptKey(state));
 
     case "view.set-prompt":
       return settled(withPrompt(state, input.taskId ?? promptKey(state), input.prompt));

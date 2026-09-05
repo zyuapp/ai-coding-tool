@@ -23,6 +23,8 @@ import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/workt
 import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
+import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
+export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
 export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 
@@ -266,6 +268,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   checkForUpdates(): void;
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;
+  loadThreadMessages(taskId: string): Promise<import("../domain/conversation.js").ConversationMessage[]>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
@@ -318,6 +321,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   closeTerminal(terminalId: string): Promise<void>;
   /** The lines the terminal holds, cooked to plain text. Null when that terminal is gone. */
   readTerminal(terminalId: string, options: TerminalReadOptions): Promise<TerminalText | null>;
+  terminalSnapshot(terminalId: string): Promise<TerminalScreenSnapshot | null>;
   /** Output, coalesced and delivered straight to the view. It is never workspace state. */
   onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
@@ -387,22 +391,6 @@ export function isShortcutOverrides(value: unknown): value is ShortcutOverrides 
   return entries.every(([action, binding]) => Boolean(shortcutAction(action))
     && (binding === null || (typeof binding === "string" && !shortcutProblem(binding))));
 }
-
-export type TerminalStartOptions = { cwd: string };
-
-export type TerminalReadOptions = { lines: number; match?: string };
-
-/** What main holds for a terminal: its lines, with no escape sequences left in them. The record is the window's. */
-export type TerminalText = {
-  lines: string[];
-  /** How many lines the terminal holds that the limit left out. */
-  omitted: number;
-  /** Set when a filter was applied, counting the lines it kept. */
-  matched?: number;
-};
-
-/** A flush of everything the shell printed since the last one. */
-export type TerminalDataEvent = { terminalId: string; data: string };
 
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
 export type BrowserPageEvent = {

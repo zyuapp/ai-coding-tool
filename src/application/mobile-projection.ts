@@ -82,6 +82,7 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
   const approval = view.approval;
   return {
     id: thread.id,
+    loading: Boolean(thread.historySummary),
     title: thread.title || "Untitled thread",
     projectName: view.currentProject ? projectName(view.currentProject) : null,
     messages: transcript.messages,
@@ -131,6 +132,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
   if (!next) return previous ? { kind: "closed" } : undefined;
   if (!previous || previous.id !== next.id) return { kind: "opened", thread: next };
   const delta: MobileThreadDelta = {};
+  if (previous.loading !== next.loading) delta.loading = next.loading;
   if (previous.title !== next.title) delta.title = next.title;
   if (previous.projectName !== next.projectName) delta.projectName = next.projectName;
   if (previous.omitted !== next.omitted) delta.omitted = next.omitted;

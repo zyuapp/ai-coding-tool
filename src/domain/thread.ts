@@ -18,6 +18,13 @@ export type Thread = {
   effort?: AgentEffort;
   contextUsage?: ContextUsage;
   messages: ConversationMessage[];
+  /** Present while the persisted conversation has yet to be loaded. */
+  historySummary?: {
+    messageCount: number;
+    attachmentCount: number;
+    firstMessageAt?: number;
+    lastAudibleAt?: number;
+  };
   continuation?: Continuation;
   continuationStatus: ContinuationStatus;
   lastChangeSnapshot: ChangeSnapshot;
@@ -88,7 +95,7 @@ export function forkTitle(title: string, taken: Iterable<string>): string {
 }
 
 export function threadCreatedAt(thread: Thread): number {
-  return thread.createdAt ?? thread.messages[0]?.at ?? thread.updatedAt;
+  return thread.createdAt ?? thread.historySummary?.firstMessageAt ?? thread.messages[0]?.at ?? thread.updatedAt;
 }
 
 /**
@@ -101,6 +108,7 @@ export function threadActivityAt(thread: Thread): number {
 }
 
 function lastAudibleAt(thread: Thread): number {
+  if (thread.historySummary) return thread.historySummary.lastAudibleAt ?? 0;
   for (let index = thread.messages.length - 1; index >= 0; index -= 1) {
     const message = thread.messages[index]!;
     if (!message.withdrawn) return message.at;

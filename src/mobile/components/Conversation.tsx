@@ -87,6 +87,7 @@ export function Conversation({ thread }: { thread: MobileThreadView }) {
 
   return (
     <div className="transcript" ref={scroller} onScroll={onScroll}>
+      {thread.loading && <p className="notice" role="status">Loading conversation…</p>}
       {thread.omitted > 0 && <p className="omitted">{thread.omitted} earlier {thread.omitted === 1 ? "message" : "messages"} are only on the computer.</p>}
       {blocks.map((block) => (block.kind === "tools"
         ? <ToolRun key={block.key} engine={thread.settings.engine} calls={block.calls} />

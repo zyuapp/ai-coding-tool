@@ -25,6 +25,7 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
     : [];
   return (
     <ConversationComposer
+      disabled={!workspace.restored && !thread}
       focusToken={workspace.composerFocus}
       images={workspace.images}
       onImageRemove={(imageId) => void workspace.dispatch({ type: "image.remove", imageId })}

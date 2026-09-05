@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test, afterAll, beforeAll } from "vitest";
-import { closeTerminal, readTerminal, startTerminal, startTerminalHost, stopTerminalHost, writeTerminal } from "../../src/main/terminal-host.ts";
+import { closeTerminal, readTerminal, startTerminal, startTerminalHost, stopTerminalHost, terminalSnapshot, writeTerminal } from "../../src/main/terminal-host.ts";
 import type { TerminalDataEvent, TerminalText } from "../../src/contracts/ipc.ts";
 import type { TerminalUpdate } from "../../src/domain/terminal.ts";
+import { Terminal } from "@xterm/headless";
 
 const loginShell = process.env.SHELL;
 beforeAll(() => { if (process.platform !== "win32") process.env.SHELL = "/bin/sh"; });
@@ -29,6 +30,36 @@ const lines = (snapshot: TerminalText | null) => {
   assert.ok(snapshot);
   return snapshot.lines.join("\n");
 };
+
+test("a terminal reload snapshot includes earlier output and marks where the live stream resumes", async (t) => {
+  const { data } = host();
+  t.onTestFinished(() => stopTerminalHost());
+  startTerminal("snapshot", process.cwd());
+  writeTerminal("snapshot", "printf 'before-%s\\n' reload\r");
+  await until(async () => lines(await readTerminal("snapshot", { lines: 100 })).includes("before-reload"), "the shell never printed");
+  const snapshot = await terminalSnapshot("snapshot");
+  assert.ok(snapshot);
+  assert.equal(snapshot.sequence, data.at(-1)?.sequence);
+  const restored = new Terminal({ cols: snapshot.cols, rows: snapshot.rows, allowProposedApi: true });
+  try {
+    await new Promise<void>((resolve) => restored.write(snapshot.data, resolve));
+    const buffer = restored.buffer.active;
+    assert.match(Array.from({ length: buffer.length }, (_, row) => buffer.getLine(row)?.translateToString(true)).join("\n"), /before-reload/);
+    writeTerminal("snapshot", "printf 'after-%s\\n' reload\r");
+    await until(async () => lines(await readTerminal("snapshot", { lines: 100 })).includes("after-reload"), "the shell never printed again");
+    const later = data.filter((event) => event.sequence > snapshot.sequence);
+    assert.match(later.map((event) => event.data).join(""), /after-reload/);
+  } finally { restored.dispose(); }
+});
+
+test("closing a terminal settles a pending reload snapshot", async () => {
+  host();
+  startTerminal("closing-snapshot", process.cwd());
+  const pending = terminalSnapshot("closing-snapshot");
+  closeTerminal("closing-snapshot");
+  assert.equal(await pending, null);
+  assert.equal(await terminalSnapshot("closing-snapshot"), null);
+});
 
 test("a shell runs what the user types, and a read returns it as plain text", async (t) => {
   const { updates } = host();

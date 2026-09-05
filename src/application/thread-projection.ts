@@ -72,7 +72,7 @@ function projectThreadSummary(state: WorkspaceState, thread: Thread, activity: n
     archived: thread.archivedAt !== undefined,
     createdAt: threadCreatedAt(thread),
     lastActivityAt: activity,
-    messageCount: thread.messages.length,
+    messageCount: thread.historySummary?.messageCount ?? thread.messages.length,
     attachmentCount: attachments ?? countAttachments(thread),
   };
 }
@@ -196,6 +196,7 @@ function carriesAttachment(message: Thread["messages"][number]) {
 }
 
 function countAttachments(thread: Thread) {
+  if (thread.historySummary) return thread.historySummary.attachmentCount;
   let count = 0;
   for (const message of thread.messages) if (carriesAttachment(message)) count += 1;
   return count;

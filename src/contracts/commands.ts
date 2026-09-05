@@ -276,6 +276,8 @@ export type EngineCommand =
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
+  /** A restored desktop view has installed the listeners needed by its input preferences. */
+  | { type: "view.mounted" }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,

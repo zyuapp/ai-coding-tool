@@ -1,5 +1,5 @@
 /** What the handlers in this folder share: the state helpers, and the errors they report. */
-import type { WorkspaceEffect, WorkspaceTransition } from "./types.js";
+import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceTransition } from "./types.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerDraft, filesFor, focusedTab, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
@@ -84,8 +84,15 @@ export function sameChangedFiles(left: ChangedFilesResult | null, right: Changed
   return false;
 }
 
-export function settled(state: WorkspaceState, effects: WorkspaceEffect[] = []): WorkspaceTransition {
-  return { state, effects };
+export function settled(state: WorkspaceState, effects: WorkspaceEffect[] = [], result?: WorkspaceCommandResult): WorkspaceTransition {
+  const transition: WorkspaceTransition = { state, effects };
+  if (result) transition.result = result;
+  return transition;
+}
+
+/** A refusal belongs to this transition even when the same message is already on screen. */
+export function rejected(state: WorkspaceState, message: string, effects: WorkspaceEffect[] = []): WorkspaceTransition {
+  return { state: { ...state, actionError: message }, effects, result: { ok: false, message } };
 }
 
 /** A named thread has to exist; an unnamed command falls back to the one the user is looking at. */
@@ -422,7 +429,7 @@ export function drainQueue(state: WorkspaceState, taskId: string, status: RunSta
     const files = [...queued.flatMap((message) => message.files ?? []), ...filesFor(state, taskId)];
     const images = queued.flatMap((message) => message.attachments);
     const handed = withFiles(withPastes(withAnnotations(withPrompt(withQueued(state, taskId, []), taskId, text), taskId, annotations), taskId, pastes), taskId, files);
-    return settled(images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : handed);
+    return images.length ? composerDraft(handed, { type: "image.recall", taskId, paths: [...images, ...imagesFor(state, taskId).map((image) => image.path)] }, taskId) : settled(handed);
   }
   const thread = state.threads.find((item) => item.id === taskId);
   if (!thread) return settled(withQueued(state, taskId, []));

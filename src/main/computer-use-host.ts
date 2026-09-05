@@ -150,3 +150,8 @@ export async function stopComputerUse() {
     current.uniffiDestroy();
   }
 }
+
+/** A canceled app shutdown permits the next run to create a fresh driver host. */
+export function resumeComputerUse() {
+  acceptingRuns = true;
+}

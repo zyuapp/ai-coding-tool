@@ -16,6 +16,11 @@ function terminalDimension(value: unknown) {
 }
 
 export function registerTerminalIpc(trusted: (event: IpcMainInvokeEvent) => boolean) {
+  ipcMain.handle("terminal:snapshot", (event, id: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    return terminal.terminalSnapshot(terminalId(id));
+  });
+
   ipcMain.handle("terminal:start", (event, id: unknown, options: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     const cwd = (options as { cwd?: unknown } | null)?.cwd;

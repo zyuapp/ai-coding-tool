@@ -75,6 +75,7 @@ export type MobileThreadSettings = {
 };
 
 export type MobileThreadView = {
+  loading?: boolean;
   id: string;
   title: string;
   /** What the thread's folder is called, or null when it belongs to no project. */

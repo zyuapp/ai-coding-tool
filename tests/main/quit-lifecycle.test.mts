@@ -72,7 +72,7 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
 
   main.app.quit();
   assert.equal(main.window.isVisible(), false, "Cmd-Q removes the window before cleanup finishes");
-  assert.equal(stopCalls, 1);
+  await waitFor(() => stopCalls === 1);
   assert.equal(main.completedQuits(), 0);
   const loadStore = registered<(event: IpcEvent) => unknown>(main.handlers, "task-store:load");
   const runCommand = registered<(event: IpcEvent, payload: unknown) => void>(main.listeners, "run:command");
@@ -95,6 +95,7 @@ test("quit hides immediately, finishes cleanup once, and reopens only after exit
   assert.equal(main.relaunches.length, 0, "reopen waits while the old process still owns its resources");
   assert.equal(main.window.isVisible(), false);
 
+  await waitFor(() => typeof finishStop === "function");
   finishStop();
   await waitFor(() => main.completedQuits() === 1);
   assert.equal(main.quitAttempts(), 3);
@@ -118,6 +119,7 @@ test("a requested computer-use restart accepts a project URL before it relaunche
   registered<(event: { preventDefault(): void }, url: string) => void>(main.appListeners, "open-url")({ preventDefault() {} }, url);
   assert.equal(main.relaunches.length, 0);
 
+  await waitFor(() => typeof finishStop === "function");
   finishStop();
   await waitFor(() => main.completedQuits() === 1);
   assert.equal(main.relaunches.length, 1);

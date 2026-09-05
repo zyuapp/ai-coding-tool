@@ -57,6 +57,7 @@ const api: DesktopAPI = {
   checkForUpdates: () => ipcRenderer.send("updates:check"),
   openSourceLicenses: () => ipcRenderer.invoke("licenses:open"),
   loadTaskStore: () => ipcRenderer.invoke("task-store:load"),
+  loadThreadMessages: (taskId) => ipcRenderer.invoke("task-store:messages", taskId),
   persistTaskStore: (delta) => ipcRenderer.invoke("task-store:persist", delta),
   loadSubagentActivity: (taskId: string, subagentId: string) => ipcRenderer.invoke("subagent-activity:load", taskId, subagentId),
   listAutomations: () => ipcRenderer.invoke("automation:list"),
@@ -131,6 +132,7 @@ const api: DesktopAPI = {
   resizeTerminal: (terminalId: string, cols: number, rows: number) => ipcRenderer.invoke("terminal:resize", terminalId, cols, rows),
   closeTerminal: (terminalId: string) => ipcRenderer.invoke("terminal:close", terminalId),
   readTerminal: (terminalId: string, options: TerminalReadOptions) => ipcRenderer.invoke("terminal:read", terminalId, options),
+  terminalSnapshot: (terminalId: string) => ipcRenderer.invoke("terminal:snapshot", terminalId),
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: TerminalDataEvent) => listener(payload);
     ipcRenderer.on("terminal:data", handler);
@@ -177,3 +179,31 @@ const api: DesktopAPI = {
 };
 
 contextBridge.exposeInMainWorld("desktop", api);
+
+const workspace: import("./contracts/workspace-runtime").WorkspaceBridge = {
+  owner: process.argv.includes("--workspace-runtime"),
+  request: (input) => {
+    if (input === undefined) ipcRenderer.send("workspace-view:ready");
+    return ipcRenderer.invoke("workspace-runtime:request", input);
+  },
+  onUpdate: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, update: import("./contracts/workspace-runtime").WorkspaceUpdate) => listener(update);
+    ipcRenderer.on("workspace-runtime:update", handler);
+    return () => ipcRenderer.removeListener("workspace-runtime:update", handler);
+  },
+  onRequest: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, request: import("./contracts/workspace-runtime").WorkspaceRequest) => listener(request);
+    ipcRenderer.on("workspace-runtime:request", handler);
+    return () => ipcRenderer.removeListener("workspace-runtime:request", handler);
+  },
+  respond: (response) => ipcRenderer.send("workspace-runtime:response", response),
+  publish: (update) => ipcRenderer.send("workspace-runtime:update", update),
+  ready: () => ipcRenderer.send("workspace-runtime:ready"),
+  surface: (effect) => ipcRenderer.send("workspace-runtime:surface", effect),
+  onSurface: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, effect: import("./contracts/workspace-runtime").WorkspaceSurfaceEffect) => listener(effect);
+    ipcRenderer.on("workspace-runtime:surface", handler);
+    return () => ipcRenderer.removeListener("workspace-runtime:surface", handler);
+  },
+};
+contextBridge.exposeInMainWorld("workspace", workspace);

@@ -5,6 +5,7 @@
  */
 import { clampQuote } from "./annotations.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 import type { AnnotationCommand, FileCommand, ImageCommand, PasteCommand } from "../contracts/commands.js";
 import { MAX_ATTACHED_FILES, MAX_ATTACHMENTS, type Annotation, type AttachedFile, type AttachedFileDraft, type PastedText, type StagedImage } from "../domain/conversation.js";
 
@@ -97,12 +98,15 @@ export type ComposerDraftCommand =
   | Extract<FileCommand, { type: "file.attach" | "file.detach" | "file.recall" }>;
 
 /** Every change to one composer's drafts. `key` is the composer: a thread's id, or the draft's. */
-export function composerDraft(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
+export function composerDraft(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceTransition {
   const drafted = draftedComposer(state, input, key);
-  return drafted === state ? state : focusAfter(drafted, input, key);
+  if ("error" in drafted) {
+    return { state: { ...drafted.state, actionError: drafted.error }, effects: [], result: { ok: false, message: drafted.error } };
+  }
+  return { state: drafted === state ? state : focusAfter(drafted, input, key), effects: [] };
 }
 
-function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState {
+function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key: string): WorkspaceState | { state: WorkspaceState; error: string } {
   switch (input.type) {
     case "annotation.add": {
       const quote = clampQuote(input.quote);
@@ -134,7 +138,7 @@ function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key
       if (!input.path) return state;
       /** The same file dropped twice is the same one image, however many copies of it the app holds. */
       if (input.source && held.some((image) => image.source === input.source)) return state;
-      if (held.length >= MAX_ATTACHMENTS) return { ...state, actionError: TOO_MANY_IMAGES_ERROR };
+      if (held.length >= MAX_ATTACHMENTS) return { state, error: TOO_MANY_IMAGES_ERROR };
       /** An image only ever arrives to be captioned, so the caret goes where the caption is typed. */
       return focusComposer(withImages(state, key, [...held, { id: crypto.randomUUID(), path: input.path, label: input.label, ...(input.source ? { source: input.source } : {}) }]));
     }
@@ -150,9 +154,9 @@ function draftedComposer(state: WorkspaceState, input: ComposerDraftCommand, key
       const fresh = freshFiles(held, input.files);
       if (fresh.length === 0) return state;
       const room = MAX_ATTACHED_FILES - held.length;
-      if (room <= 0) return { ...state, actionError: TOO_MANY_FILES_ERROR };
+      if (room <= 0) return { state, error: TOO_MANY_FILES_ERROR };
       const attached = withFiles(state, key, [...held, ...fresh.slice(0, room).map((file) => ({ id: crypto.randomUUID(), ...file }))]);
-      if (fresh.length > room) return { ...attached, actionError: TOO_MANY_FILES_ERROR };
+      if (fresh.length > room) return { state: attached, error: TOO_MANY_FILES_ERROR };
       /** A file only ever arrives to be asked about, so the caret goes where the question is typed. */
       return focusComposer(attached);
     }

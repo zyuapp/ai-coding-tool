@@ -9,6 +9,7 @@ import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
+import type { ConversationMessage } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
 import type { SubagentActivity } from "../../domain/run.js";
@@ -20,9 +21,12 @@ import type { ManagedWorktree } from "../../domain/worktree.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
+  | { type: "view.closed" }
   | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number }
+  | { type: "store.thread-loaded"; taskId: string; messages: ConversationMessage[] }
   /** The store has nothing to hand over: a first run, with no threads to restore. */
   | { type: "store.absent" }
+  | { type: "store.persisted" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
@@ -149,4 +153,10 @@ export type WorkspaceEffect =
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
-export type WorkspaceTransition = { state: WorkspaceState; effects: WorkspaceEffect[] };
+export type WorkspaceCommandResult = { ok: true; taskId?: string } | { ok: false; message: string };
+
+export type WorkspaceTransition = {
+  state: WorkspaceState;
+  effects: WorkspaceEffect[];
+  result?: WorkspaceCommandResult;
+};

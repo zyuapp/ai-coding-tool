@@ -1,27 +1,50 @@
 /** The machine around the thread: its shells, its files, and the applications that open them. */
-import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR, focusDockTab, settled, showDockTab } from "./shared.js";
+import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR, focusDockTab, settled, showDockTab, shownPageEffects, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadFileRoots } from "../thread-location.js";
 import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal, withDock, type WorkspaceState } from "../workspace-state.js";
 import { isAbsoluteFilePath } from "../../domain/markdown-links.js";
 import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
+import { DOCK_PICKER } from "../workspace-dock.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
   type: "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
-    | "terminal.input" | "terminal.resize" | "terminal.updated";
+    | "terminal.input" | "terminal.resize" | "terminal.updated" | "view.closed" | "view.mounted";
 }>;
 
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
   switch (input.type) {
+    case "view.mounted":
+      return settled(state, [
+        { type: "apply-shortcuts", overrides: state.shortcuts },
+        { type: "apply-capture-options", options: { sound: state.captureSound, focus: state.captureFocus } },
+        ...shownPageEffects(state),
+      ]);
+
+    case "view.closed": {
+      const docks = { ...state.docks };
+      for (const [owner, dock] of Object.entries(docks)) {
+        const tab = dock.terminals.some((terminal) => terminal.id === dock.tab) ? DOCK_PICKER : dock.tab;
+        docks[owner] = {
+          ...dock,
+          tab,
+          terminals: [],
+          terminalId: null,
+          browserTabs: dock.browserTabs.map(({ error: _error, ...page }) => ({ ...page, loading: false, canGoBack: false, canGoForward: false })),
+        };
+      }
+      return settled({ ...state, docks, focused: false, keyboardTab: null });
+    }
+
     case "file.open": {
       const roots = threadFileRoots(state, state.threads.find((item) => item.id === (input.taskId ?? state.currentId)));
-      if (!roots.length && !isAbsoluteFilePath(input.path)) return settled({ ...state, actionError: FILE_FOLDER_ERROR });
+      if (!roots.length && !isAbsoluteFilePath(input.path)) return rejected(state, FILE_FOLDER_ERROR);
       return settled({ ...state, actionError: null }, [{ type: "file.open", roots, path: input.path, line: input.line ?? null }]);
     }
 
     case "app.open-folder": {
       const root = currentFolder(state);
-      if (!root) return settled({ ...state, actionError: APP_FOLDER_ERROR });
+      if (!root) return rejected(state, APP_FOLDER_ERROR);
       return settled({ ...state, actionError: null, openMenu: null }, [{ type: "app.open-folder", root, appId: input.appId }]);
     }
 
@@ -34,7 +57,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
     case "terminal.open": {
       const owner = dockOwner(state);
       const cwd = input.cwd ?? currentFolder(state);
-      if (!cwd) return settled({ ...state, actionError: TERMINAL_FOLDER_ERROR });
+      if (!cwd) return rejected(state, TERMINAL_FOLDER_ERROR);
       const terminal: TerminalSession = {
         id: crypto.randomUUID(),
         title: terminalTitle(cwd),
