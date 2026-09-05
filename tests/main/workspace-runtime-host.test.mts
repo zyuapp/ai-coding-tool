@@ -29,8 +29,8 @@ test("an accepted command can outlive the readiness deadline and returns its act
     await vi.advanceTimersByTimeAsync(31_000);
     assert.equal(settled, false, "a running effect must not be reported failed while it can still complete");
     assert.equal(requests.length, 1);
-    respond({ sender: runtime.webContents }, { id: requests[0].id, result: { ok: false, message: "Operation refused" } });
-    assert.deepEqual(await result, { ok: false, message: "Operation refused" });
+    respond({ sender: runtime.webContents }, { id: requests[0].id, result: { ok: false, message: "Operation refused", revision: 0 } });
+    assert.deepEqual(await result, { ok: false, message: "Operation refused", revision: 0 });
   } finally {
     vi.useRealTimers();
     runtime.webContents.send = send;
@@ -49,7 +49,7 @@ test("runtime loss settles outstanding commands and refuses new work until ready
   await assert.rejects(request(main.trusted, { type: "view.set-prompt", prompt: "After failure" }), /stopped unexpectedly/);
   runtime.webContents.send = send;
   registered<(event: IpcEvent) => void>(main.listeners, "workspace-runtime:ready")({ sender: runtime.webContents });
-  assert.deepEqual(await request(main.trusted, { type: "view.set-prompt", prompt: "Recovered" }), { ok: true });
+  assert.deepEqual(await request(main.trusted, { type: "view.set-prompt", prompt: "Recovered" }), { ok: true, revision: 0 });
 });
 
 test("closing the runtime settles its outstanding requests immediately", async (t) => {

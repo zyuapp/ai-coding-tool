@@ -78,7 +78,7 @@ function fakeRuntimeViews(listeners: Map<string, Callback>) {
         send(channel, event);
         if (channel === "workspace-runtime:request") {
           const request = event as { id: string };
-          queueMicrotask(() => listeners.get("workspace-runtime:response")?.({ sender: this.webContents }, { id: request.id, result: { ok: true } }));
+          queueMicrotask(() => listeners.get("workspace-runtime:response")?.({ sender: this.webContents }, { id: request.id, result: { ok: true, revision: 0 } }));
         }
       };
     }

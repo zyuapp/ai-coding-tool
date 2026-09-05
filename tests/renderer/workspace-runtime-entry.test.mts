@@ -46,7 +46,7 @@ test("runtime transport forwards command refusal and batches synchronous state p
   assert.deepEqual(updates[0], { revision: 1, patches: [{ path: ["actionError"], value: "second" }] });
   receive({ id: "refused", input: { type: "task.move-worktree", destination: { kind: "local" } } });
   await vi.waitFor(() => assert.equal(responses.length, 1));
-  assert.deepEqual(responses[0], { id: "refused", result: refused });
+  assert.deepEqual(responses[0], { id: "refused", result: { ...refused, revision: 1 } });
   receive({ id: "snapshot" });
   await vi.waitFor(() => assert.equal(responses.length, 2));
   assert.deepEqual(updates.at(-1), { revision: 1, state });
@@ -57,7 +57,7 @@ test("runtime transport forwards command refusal and batches synchronous state p
   publish();
   flushed.resolve();
   await vi.waitFor(() => assert.equal(responses.length, 3));
-  assert.deepEqual(responses[2], { id: "flush", result: { ok: true } });
+  assert.deepEqual(responses[2], { id: "flush", result: { ok: true, revision: 2 } });
   assert.deepEqual(updates.at(-1), { revision: 2, patches: [{ path: ["actionError"], value: "saved before exit" }] });
 });
 

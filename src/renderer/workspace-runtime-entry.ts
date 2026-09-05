@@ -28,15 +28,16 @@ bridge.onRequest((request) => {
       if (request.input) {
         const result = await runtime.execute(request.input).completed;
         publishPending();
-        bridge.respond({ id: request.id, result });
+        bridge.respond({ id: request.id, result: { ...result, revision } });
         return;
       }
       if (request.flush) await runtime.flush();
       publishPending();
       if (!request.flush) bridge.publish({ revision, state: runtime.getState() });
-      bridge.respond({ id: request.id, result: { ok: true } });
+      bridge.respond({ id: request.id, result: { ok: true, revision } });
     } catch (error) {
-      bridge.respond({ id: request.id, result: { ok: false, message: errorMessage(error) } });
+      publishPending();
+      bridge.respond({ id: request.id, result: { ok: false, message: errorMessage(error), revision } });
     }
   })();
 });

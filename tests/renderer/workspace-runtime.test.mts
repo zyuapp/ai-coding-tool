@@ -57,6 +57,58 @@ test("starting the runtime twice shares its load and subscriptions", async () =>
   }
 });
 
+test("draft text survives a restart, cleared drafts stay cleared, and side chats stay temporary", async () => {
+  let runtime = createWorkspaceRuntime();
+  try {
+    await runtime.start();
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "Unsent text" });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "draft:", prompt: "New task draft" });
+    await runtime.dispatch({ type: "side-chat.open", chatId: "temporary" });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "temporary", prompt: "Private side draft" });
+    await runtime.flush();
+    assert.deepEqual(JSON.parse(localStorage.getItem("aicodingtool.draft-prompts.v1")!), { selected: "Unsent text", "draft:": "New task draft" });
+    runtime.dispose();
+    runtime = createWorkspaceRuntime();
+    await runtime.start();
+    assert.deepEqual(runtime.getState().prompts, { selected: "Unsent text", "draft:": "New task draft" });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "" });
+    await runtime.flush();
+    runtime.dispose();
+    runtime = createWorkspaceRuntime();
+    await runtime.start();
+    assert.deepEqual(runtime.getState().prompts, { "draft:": "New task draft" });
+  } finally {
+    runtime.dispose();
+  }
+});
+
+test("draft writes are coalesced and a refused write keeps text available for a quit retry", async () => {
+  const runtime = createWorkspaceRuntime();
+  const write = vi.spyOn(Object.getPrototypeOf(localStorage) as Storage, "setItem");
+  try {
+    await runtime.start();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "first" });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "latest" });
+    assert.equal(write.mock.calls.length, 0);
+    await vi.advanceTimersByTimeAsync(250);
+    assert.equal(write.mock.calls.length, 1);
+    write.mockImplementation(() => { throw new Error("Draft storage full"); });
+    await runtime.dispatch({ type: "view.set-prompt", taskId: "selected", prompt: "retained" });
+    await vi.advanceTimersByTimeAsync(250);
+    assert.match(runtime.getState().actionError!, /Draft storage full/);
+    await assert.rejects(runtime.flush(), /Draft storage full/);
+    assert.equal(runtime.getState().prompts.selected, "retained");
+    write.mockRestore();
+    await runtime.flush();
+    assert.equal(JSON.parse(localStorage.getItem("aicodingtool.draft-prompts.v1")!).selected, "retained");
+  } finally {
+    runtime.dispose();
+    write.mockRestore();
+    vi.useRealTimers();
+  }
+});
+
 test("a phone waits for hydrated command acceptance and receives the reducer's refusal", async () => {
   const loaded = Promise.withResolvers<ConversationMessage[]>();
   window.desktop.loadThreadMessages = () => loaded.promise;

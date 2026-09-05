@@ -30,7 +30,7 @@ test.skipIf(process.platform !== "darwin")("closing a view clears its surfaces w
   assert.deepEqual(main.runtimeViews, [runtime]);
   assert.throws(() => request(oldSender, { type: "view.mounted" }), /Untrusted/);
 
-  assert.deepEqual(await request({ sender: reopened.webContents }, { type: "view.mounted" }), { ok: true });
+  assert.deepEqual(await request({ sender: reopened.webContents }, { type: "view.mounted" }), { ok: true, revision: 0 });
   const inputs = runtime.webContents.sent.filter((entry) => entry.channel === "workspace-runtime:request")
     .map((entry) => (entry.event as WorkspaceRequest).input?.type);
   assert.ok(inputs.indexOf("view.closed") < inputs.lastIndexOf("view.mounted"));

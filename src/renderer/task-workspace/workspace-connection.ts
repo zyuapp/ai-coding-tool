@@ -8,7 +8,7 @@ import { errorMessage } from "./errors";
 import { sameFindTarget, type FindTarget } from "../../domain/find";
 
 type TextInput = Extract<WorkspaceInput, { type: "view.set-prompt" | "task.rename" | "worktree.menu-search" | "view.find-query" | "view.jump-query" | "annotation.note" }>;
-type TextEdit = { key: string; input: TextInput; findTarget?: FindTarget };
+type TextEdit = { key: string; input: TextInput; findTarget?: FindTarget; revision?: number };
 
 /** Text edits name the field visible when they were typed, even if selection changes in transit. */
 function localTextEdit(state: WorkspaceState, input: WorkspaceInput): TextEdit | null {
@@ -49,6 +49,11 @@ export function createWorkspaceConnection() {
   function rebase(error?: string) {
     let next = state;
     for (const edit of edits.values()) {
+      // Command replies and state patches can arrive in either order across Electron IPC.
+      if (edit.revision !== undefined && edit.revision <= revision) {
+        edits.delete(edit.key);
+        continue;
+      }
       if (edit.findTarget && (!next.find || !sameFindTarget(edit.findTarget, next.find.target))) continue;
       next = reduce(next, edit.input).state;
     }
@@ -91,8 +96,12 @@ export function createWorkspaceConnection() {
         rebase();
       }
       try {
-        await bridge.request(edit?.input ?? input);
-        if (requestedGeneration === generation && finishEdit(edit)) rebase();
+        const result = await bridge.request(edit?.input ?? input);
+        if (requestedGeneration === generation && edit && edits.get(edit.key) === edit) {
+          edit.revision = result.revision;
+          if (!result.ok) finishEdit(edit);
+          rebase();
+        }
       } catch (error) {
         if (requestedGeneration === generation) {
           finishEdit(edit);

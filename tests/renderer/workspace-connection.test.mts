@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, test, vi } from "vitest";
 import "../support/renderer-dom.mts";
 import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
-import type { WorkspaceBridge, WorkspaceUpdate } from "../../src/contracts/workspace-runtime.ts";
-import type { WorkspaceCommandResult } from "../../src/application/workspace-reducer.ts";
+import type { WorkspaceBridge, WorkspaceUpdate, WorkspaceResponse } from "../../src/contracts/workspace-runtime.ts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 
 vi.mock("../../src/renderer/task-workspace/workspace-runtime.ts", () => ({ createWorkspaceRuntime: vi.fn() }));
@@ -12,7 +11,7 @@ const { createWorkspaceConnection } = await import("../../src/renderer/task-work
 
 function transport() {
   const listeners = new Set<(update: WorkspaceUpdate) => void>();
-  const request = vi.fn<WorkspaceBridge["request"]>(async () => ({ ok: true }));
+  const request = vi.fn<WorkspaceBridge["request"]>(async () => ({ ok: true, revision: 0 }));
   window.workspace = {
     owner: false,
     request,
@@ -26,7 +25,7 @@ afterEach(() => { delete window.workspace; });
 
 test("a connection waits for one complete snapshot and ignores duplicate patches", async () => {
   const bridge = transport();
-  const pending = Promise.withResolvers<{ ok: true }>();
+  const pending = Promise.withResolvers<WorkspaceResponse["result"]>();
   bridge.request.mockReturnValue(pending.promise);
   const connection = createWorkspaceConnection();
   try {
@@ -38,7 +37,7 @@ test("a connection waits for one complete snapshot and ignores duplicate patches
     assert.equal(connection.getState().actionError, null);
     const state = emptyWorkspaceState();
     bridge.emit({ revision: 20, state });
-    pending.resolve({ ok: true });
+    pending.resolve({ ok: true, revision: 0 });
     await started;
     bridge.emit({ revision: 20, patches: [{ path: ["actionError"], value: "duplicate" }] });
     assert.equal(connection.getState(), state);
@@ -55,7 +54,7 @@ test("a reopened connection accepts a restarted runtime's lower revision snapsho
   const connection = createWorkspaceConnection();
   let revision = 100;
   let state = { ...emptyWorkspaceState(), actionError: "old runtime" };
-  bridge.request.mockImplementation(async () => { bridge.emit({ revision, state }); return { ok: true }; });
+  bridge.request.mockImplementation(async () => { bridge.emit({ revision, state }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
     assert.equal(connection.getState().actionError, "old runtime");
@@ -75,17 +74,17 @@ test("missed revisions request one replacement snapshot while updates keep arriv
   const bridge = transport();
   const connection = createWorkspaceConnection();
   const initial = emptyWorkspaceState();
-  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 4, state: initial }); return { ok: true }; });
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 4, state: initial }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
-    const pending = Promise.withResolvers<{ ok: true }>();
+    const pending = Promise.withResolvers<WorkspaceResponse["result"]>();
     bridge.request.mockReturnValue(pending.promise);
     for (let revision = 6; revision < 15; revision += 1) bridge.emit({ revision, patches: [] });
     await Promise.resolve();
     assert.equal(bridge.request.mock.calls.length, 2);
     assert.equal(connection.getState(), initial);
     bridge.emit({ revision: 15, state: { ...initial, actionError: "caught up" } });
-    pending.resolve({ ok: true });
+    pending.resolve({ ok: true, revision: 0 });
     bridge.emit({ revision: 16, patches: [{ path: ["actionError"], value: null }] });
     assert.equal(connection.getState().actionError, null);
   } finally {
@@ -96,10 +95,10 @@ test("missed revisions request one replacement snapshot while updates keep arriv
 test("transport failures are displayed and command refusals preserve their existing presentation", async () => {
   const bridge = transport();
   const connection = createWorkspaceConnection();
-  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: emptyWorkspaceState() }); return { ok: true }; });
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: emptyWorkspaceState() }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
-    bridge.request.mockResolvedValueOnce({ ok: false, message: "Thread unavailable" });
+    bridge.request.mockResolvedValueOnce({ ok: false, revision: 0, message: "Thread unavailable" });
     await assert.doesNotReject(connection.dispatch({ type: "task.select", taskId: "gone" }));
     assert.equal(connection.getState().actionError, null, "command errors are already projected by the runtime in the relevant panel");
     bridge.request.mockRejectedValueOnce(new Error("Runtime disconnected"));
@@ -117,10 +116,10 @@ test("rapid typing stays synchronous while older patches and acknowledgements ar
   const bridge = transport();
   const connection = createWorkspaceConnection();
   const initial = { ...emptyWorkspaceState(), currentId: "thread", threads: [task("thread")] };
-  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true }; });
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
-    const pending = Array.from({ length: 3 }, () => Promise.withResolvers<WorkspaceCommandResult>());
+    const pending = Array.from({ length: 3 }, () => Promise.withResolvers<WorkspaceResponse["result"]>());
     for (const request of pending) bridge.request.mockReturnValueOnce(request.promise);
     const first = connection.dispatch({ type: "view.set-prompt", prompt: "h" });
     assert.equal(connection.getState().prompts.thread, "h");
@@ -135,20 +134,47 @@ test("rapid typing stays synchronous while older patches and acknowledgements ar
     ]);
 
     bridge.emit({ revision: 1, patches: [{ path: ["prompts", "thread"], value: "h" }] });
-    pending[0].resolve({ ok: true });
+    pending[0].resolve({ ok: true, revision: 0 });
     await first;
     assert.equal(connection.getState().prompts.thread, "hey");
     bridge.emit({ revision: 2, patches: [{ path: ["prompts", "thread"], value: "he" }] });
     assert.equal(connection.getState().prompts.thread, "hey");
     bridge.emit({ revision: 3, patches: [{ path: ["prompts", "thread"], value: "hey" }] });
-    pending[2].resolve({ ok: true });
+    pending[2].resolve({ ok: true, revision: 0 });
     await third;
     assert.equal(connection.getState().prompts.thread, "hey");
-    pending[1].resolve({ ok: true });
+    pending[1].resolve({ ok: true, revision: 0 });
     await second;
     assert.equal(connection.getState().prompts.thread, "hey", "an older reply cannot restore a superseded edit");
     bridge.emit({ revision: 4, patches: [{ path: ["prompts", "thread"], value: "Updated elsewhere" }] });
     assert.equal(connection.getState().prompts.thread, "Updated elsewhere", "acknowledged text no longer overlays authoritative updates");
+  } finally {
+    connection.dispose();
+  }
+});
+
+test("acknowledged typing stays visible until its revision arrives, including superseded edits and snapshots", async () => {
+  const bridge = transport();
+  const connection = createWorkspaceConnection();
+  const initial = emptyWorkspaceState();
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
+  try {
+    await connection.start();
+    bridge.request.mockResolvedValueOnce({ ok: true, revision: 1 });
+    await connection.dispatch({ type: "view.set-prompt", prompt: "abcd" });
+    assert.equal(connection.getState().prompts["draft:"], "abcd");
+    bridge.request.mockResolvedValueOnce({ ok: true, revision: 2 });
+    await connection.dispatch({ type: "view.set-prompt", prompt: "abcdef" });
+    bridge.emit({ revision: 1, patches: [{ path: ["prompts", "draft:"], value: "abcd" }] });
+    assert.equal(connection.getState().prompts["draft:"], "abcdef");
+    bridge.emit({ revision: 2, patches: [{ path: ["prompts", "draft:"], value: "abcdef" }] });
+    assert.equal(connection.getState().prompts["draft:"], "abcdef");
+    bridge.emit({ revision: 3, patches: [{ path: ["prompts", "draft:"], remove: true }] });
+    assert.equal(connection.getState().prompts["draft:"], undefined, "sending can clear an acknowledged draft");
+    bridge.request.mockResolvedValueOnce({ ok: true, revision: 5 });
+    await connection.dispatch({ type: "view.set-prompt", prompt: "snapshot" });
+    bridge.emit({ revision: 6, state: { ...initial, prompts: { "draft:": "updated elsewhere" } } });
+    assert.equal(connection.getState().prompts["draft:"], "updated elsewhere", "a newer snapshot releases the edit too");
   } finally {
     connection.dispose();
   }
@@ -162,11 +188,11 @@ test("prompt and annotation edits keep the composer they were typed in across se
     projects: [{ id: "project", root: "/project" }], threads: [task("other")],
     annotations: { "draft:project": [{ id: "annotation", quote: "selected text", note: "" }] },
   };
-  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true }; });
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
-    const prompted = Promise.withResolvers<WorkspaceCommandResult>();
-    const annotated = Promise.withResolvers<WorkspaceCommandResult>();
+    const prompted = Promise.withResolvers<WorkspaceResponse["result"]>();
+    const annotated = Promise.withResolvers<WorkspaceResponse["result"]>();
     bridge.request.mockReturnValueOnce(prompted.promise).mockReturnValueOnce(annotated.promise);
     const prompt = connection.dispatch({ type: "view.set-prompt", prompt: "Draft text" });
     const note = connection.dispatch({ type: "annotation.note", annotationId: "annotation", note: "Draft note" });
@@ -176,11 +202,11 @@ test("prompt and annotation edits keep the composer they were typed in across se
     assert.equal(connection.getState().prompts["draft:project"], "Draft text");
     assert.equal(connection.getState().prompts.other, undefined);
     assert.deepEqual(bridge.request.mock.calls[2][0], { type: "annotation.note", taskId: "draft:project", annotationId: "annotation", note: "Draft note" });
-    prompted.resolve({ ok: false, message: "Rejected" });
+    prompted.resolve({ ok: false, revision: 0, message: "Rejected" });
     await prompt;
     assert.equal(connection.getState().prompts["draft:project"], undefined);
     assert.equal(connection.getState().annotations["draft:project"][0].note, "Draft note", "settling one text field leaves the other pending edit visible");
-    annotated.resolve({ ok: false, message: "Rejected" });
+    annotated.resolve({ ok: false, revision: 0, message: "Rejected" });
     await note;
     assert.equal(connection.getState().annotations["draft:project"][0].note, "");
     assert.equal(connection.getState().actionError, null);
@@ -193,11 +219,11 @@ test("failed and abandoned text requests cannot erase newer edits or contaminate
   const bridge = transport();
   const connection = createWorkspaceConnection();
   const initial = { ...emptyWorkspaceState(), prompts: { "draft:": "Saved" } };
-  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true }; });
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
-    const old = Promise.withResolvers<WorkspaceCommandResult>();
-    const recent = Promise.withResolvers<WorkspaceCommandResult>();
+    const old = Promise.withResolvers<WorkspaceResponse["result"]>();
+    const recent = Promise.withResolvers<WorkspaceResponse["result"]>();
     bridge.request.mockReturnValueOnce(old.promise).mockReturnValueOnce(recent.promise);
     const first = connection.dispatch({ type: "view.set-prompt", prompt: "Older" });
     const second = connection.dispatch({ type: "view.set-prompt", prompt: "Newest" });
@@ -206,7 +232,7 @@ test("failed and abandoned text requests cannot erase newer edits or contaminate
     assert.equal(connection.getState().prompts["draft:"], "Newest");
     assert.equal(connection.getState().actionError, "Old request lost");
     connection.dispose();
-    bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true }; });
+    bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
     await connection.start();
     assert.equal(connection.getState().prompts["draft:"], "Saved");
     recent.reject(new Error("Abandoned connection"));
@@ -225,10 +251,10 @@ test("only supported text edits are projected locally and search edits stay with
     ...emptyWorkspaceState(), currentId: "thread", threads: [task("thread"), task("other")],
     jump: { query: "", index: 0 }, find: { target: { kind: "thread" as const, taskId: "thread" }, query: "", index: 0, focus: 0 },
   };
-  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true }; });
+  bridge.request.mockImplementationOnce(async () => { bridge.emit({ revision: 0, state: initial }); return { ok: true, revision: 0 }; });
   try {
     await connection.start();
-    const pending = Promise.withResolvers<WorkspaceCommandResult>();
+    const pending = Promise.withResolvers<WorkspaceResponse["result"]>();
     bridge.request.mockReturnValue(pending.promise);
     const requests = [
       connection.dispatch({ type: "task.rename", taskId: "thread", title: "Renamed" }),
@@ -249,7 +275,7 @@ test("only supported text edits are projected locally and search edits stay with
       { path: ["find"], value: { target: { kind: "thread", taskId: "other" }, query: "other query", index: 0, focus: 0 } },
     ] });
     assert.equal(connection.getState().find!.query, "other query");
-    pending.resolve({ ok: false, message: "Refused" });
+    pending.resolve({ ok: false, revision: 0, message: "Refused" });
     await Promise.all(requests);
   } finally {
     connection.dispose();

@@ -2,7 +2,7 @@ import { emptyWorkspaceState, sideChatIds, stateFromData, type WorkspaceState } 
 import { unreadView } from "../../application/thread-attention";
 import { reduce, type WorkspaceInput } from "../../application/workspace-reducer";
 import { executeWorkspaceInput, type WorkspaceExecution } from "../../application/workspace-execution";
-import { createLocalTaskStore } from "./local-task-store";
+import { createLocalTaskStore, createDraftPersistence } from "./local-task-store";
 import { loadViewPreferences } from "./local-view-preferences";
 import { createRuntimeInputs } from "./runtime-inputs";
 import { createRuntimeHistory } from "./runtime-history";
@@ -39,6 +39,7 @@ export function createWorkspaceRuntime() {
   const waiters = { current: [] as ThreadWaiter[] };
   const environmentRefreshes = { current: new Map<string, EnvironmentRefreshEffect | null>() };
   const mobileView = noMobileView();
+  const drafts = createDraftPersistence(() => state, dispatch);
   const history = createRuntimeHistory({ state: () => state, load: (taskId) => window.desktop.loadThreadMessages(taskId), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
   const inputs = createRuntimeInputs({
     generation: () => generation,
@@ -55,6 +56,7 @@ export function createWorkspaceRuntime() {
     if (disposed || next === state) return;
     const previous = state;
     state = next;
+    if (next.prompts !== previous.prompts) drafts.changed();
     releaseThreadWaiters(waiters, next);
     if (badgeCount === -1 || next.threads !== previous.threads || next.sideChats !== previous.sideChats) {
       const forked = sideChatIds(next);
@@ -118,6 +120,7 @@ export function createWorkspaceRuntime() {
       persistence.persisted = data ? persistedStoreState(data) : null;
       if (data) await dispatch({ type: "store.loaded", data, hiddenTasks: data.hiddenTasks });
       else await dispatch({ type: "store.absent" });
+      await drafts.restore();
       if (state.currentId) await history.hydrate(state.currentId).catch((error) => rawExecute({ type: "action.failed", message: errorMessage(error) }).completed);
       if (disposed || generation !== currentGeneration) return;
       persistence.pending = persistenceState(state);
@@ -146,6 +149,7 @@ export function createWorkspaceRuntime() {
       subscriptions?.flush();
       await inputs.settled();
       while (effectsInFlight.size) await Promise.all([...effectsInFlight]);
+      drafts.flush();
       if (state.storageError) {
         if (!persistence.pending) throw new Error(state.storageError);
         persistence.pending = persistenceState(state);
@@ -161,6 +165,7 @@ export function createWorkspaceRuntime() {
       subscriptions?.stop();
       subscriptions = null;
       if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+      drafts.dispose();
       started = null;
       generation += 1;
       history.invalidate();

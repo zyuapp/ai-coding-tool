@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import type { WorkspaceCommandResult } from "../../src/application/workspace-reducer.ts";
 import type { LoadedTaskStore, PersistedTask, TaskStoreDelta } from "../../src/contracts/task-store.ts";
 import type { WorkspaceRequest, WorkspaceResponse } from "../../src/contracts/workspace-runtime.ts";
 import type { AutomationView } from "../../src/domain/automation.ts";
@@ -25,9 +26,9 @@ function holdRuntimeFlushes(main: MainHarness) {
   return {
     runtime,
     requests,
-    acknowledge: (index: number, result: WorkspaceResponse["result"] = { ok: true }) => {
+    acknowledge: (index: number, result: WorkspaceCommandResult = { ok: true }) => {
       assert.ok(requests[index]);
-      respond({ sender: runtime.webContents }, { id: requests[index].id, result });
+      respond({ sender: runtime.webContents }, { id: requests[index].id, result: { ...result, revision: 0 } });
     },
   };
 }
