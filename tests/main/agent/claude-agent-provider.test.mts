@@ -10,7 +10,6 @@ import type { GoalReport } from "../../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../../src/domain/agent-engine.ts";
 import type { ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";
 import type { AutomationBridge, ProviderEvent, ProviderRunInput, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
-import { SIDE_CHAT_INSTRUCTIONS } from "../../../src/main/agent/side-chat-instructions.mts";
 import { SessionPool } from "../../../src/main/agent/session-pool.mts";
 import { input, liveQueryFactory, liveTurn, poolQueryFactory, poolTurn, queryFactory, tick, turn, type LiveQueryCapture, type PoolCapture, type QueryCapture } from "../../support/claude-session.mjs";
 
@@ -330,7 +329,6 @@ test("side chat forks the main continuation and keeps the tools of its own polic
 
   assert.equal(optionsOf(capture).resume, "main-session");
   assert.equal(optionsOf(capture).forkSession, true);
-  assert.ok(systemAppend(optionsOf(capture)).includes(SIDE_CHAT_INSTRUCTIONS));
   assert.equal(optionsOf(capture).permissionMode, "auto");
   assert.equal(optionsOf(capture).tools, undefined, "a side chat is limited by its policy, not by a tool list");
 });

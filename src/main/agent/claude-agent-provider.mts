@@ -7,7 +7,6 @@ import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { runTools } from "./run-tools.mjs";
 import { SessionPool } from "./session-pool.mjs";
-import { channelInstructions } from "./side-chat-instructions.mjs";
 
 type QueryFactory = typeof query;
 const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
@@ -182,7 +181,6 @@ export class ClaudeAgentProvider implements AgentProvider {
       mcpServers["cua-driver"] = { type: "stdio" as const, ...input.computerUse.mcp };
     }
     for (const { server, tools } of runTools(input)) mcpServers[server] = claudeMcpServer(server, tools);
-    const instructions = [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : [])];
     return {
       prompt,
       options: {
@@ -198,7 +196,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: channelInstructions(instructions.join("\n\n"), input.channel) },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,
