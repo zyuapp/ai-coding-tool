@@ -461,28 +461,28 @@ export class CodexSession {
     });
     client.on("skills/changed", () => { void skills.refresh(true); });
     client.on("item/started", (params) => {
-      if (!subagents.itemStarted(params)) this.receiveStarted(params.item);
+      if (!subagents.itemStarted(params) && params.threadId === this.threadId) this.receiveStarted(params.item);
     });
     client.on("item/agentMessage/delta", (params) => {
-      if (!subagents.shouldSuppress(params.threadId)) this.receiveDelta(params.itemId, params.delta);
+      if (params.threadId === this.threadId) this.receiveDelta(params.itemId, params.delta);
     });
     client.on("item/completed", (params) => {
       const child = subagents.itemCompleted(params);
       this.receiveReviewItem(params.threadId, params.item);
-      if (!child) this.receiveCompleted(params.item);
+      if (!child && params.threadId === this.threadId) this.receiveCompleted(params.item);
       if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.backgroundProcesses.length) {
         void this.refreshBackgroundProcesses();
       }
     });
     client.on("thread/tokenUsage/updated", (params) => {
-      if (!subagents.tokenUsageUpdated(params)) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
+      if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
-      if (!subagents.error(params) && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+      if (!subagents.error(params) && params.threadId === this.threadId && this.turn && !params.willRetry) this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
-      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child) this.receiveTurnCompleted(params.turn);
+      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child && params.threadId === this.threadId) this.receiveTurnCompleted(params.turn);
     });
     client.on("serverRequest/resolved", ({ requestId }) => this.questions.pending.get(requestId)?.abort());
     client.onRequest((request) => this.answer(request));

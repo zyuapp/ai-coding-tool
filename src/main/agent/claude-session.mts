@@ -347,6 +347,10 @@ export class ClaudeSession {
    * for is given a run of its own rather than dropped.
    */
   private streamFor(message: SDKMessage): Stream | null {
+    if ((message.type === "assistant" || message.type === "stream_event") && message.parent_tool_use_id) {
+      const stream = this.turn?.stream ?? this.agentTurn?.stream;
+      return stream?.subagentByToolUse.has(message.parent_tool_use_id) ? stream : null;
+    }
     if (this.turn) return this.turn.stream;
     if (this.agentTurn) return this.agentTurn.stream;
     if (message.type !== "assistant" && message.type !== "stream_event") return null;
