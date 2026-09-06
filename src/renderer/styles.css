@@ -207,6 +207,7 @@
   --terminal-text: 12px;
   --row-slot: 22px;
   --row-slots: 4;
+  --row-inset: 8px;
   /**
    * The height every pane's top strip takes, so the line each one draws under it lands on the same
    * row across the window. The sidebar has no line of its own, so its window strip and its new task
@@ -396,17 +397,16 @@ button, select { color: inherit; }
 .sidebar-scroll { min-height: 0; flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 .section-heading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 35px 35px;
+  grid-template-columns: minmax(0, 1fr) repeat(2, var(--row-slot));
   align-items: center;
   min-height: 34px;
-  padding: 0 7px 0 10px;
+  padding: 0 var(--row-inset) 0 10px;
   color: var(--quiet-soft);
 }
-.projects-heading { grid-template-columns: minmax(0, 1fr) 31px; padding-right: 0; margin-top: 8px; }
-.projects-heading .section-action { width: 31px; }
+.projects-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); margin-top: 8px; }
 .recents-heading { margin-top: 12px; }
 /** Activity mode's three headings share one shape: label, fold, and at most one action. */
-.activity-heading { grid-template-columns: minmax(0, 1fr) 35px; padding-right: 3px; }
+.activity-heading { grid-template-columns: minmax(0, 1fr) var(--row-slot); }
 .activity-group + .activity-group .activity-heading { margin-top: 12px; }
 .section-toggle,
 .section-action,
@@ -447,13 +447,14 @@ button, select { color: inherit; }
 .section-heading:focus-within .section-action,
 .section-menu.open { opacity: 1; }
 .section-menu > .menu-trigger {
-  width: 35px;
+  width: var(--row-slot);
   height: 34px;
+  padding: 0;
   display: grid;
   place-items: center;
   list-style: none;
 }
-.section-action { width: 35px; height: 34px; display: grid; place-items: center; }
+.section-action { width: var(--row-slot); height: 34px; padding: 0; display: grid; place-items: center; }
 .add-project { font-size: 20px; font-weight: 300; line-height: 1; }
 .section-action:hover, .section-menu > .menu-trigger:hover { color: var(--muted); }
 .folder-button {
@@ -477,9 +478,10 @@ button, select { color: inherit; }
 .project-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 31px 31px;
+  grid-template-columns: minmax(0, 1fr) repeat(2, var(--row-slot));
   min-height: 32px;
   align-items: center;
+  padding-right: var(--row-inset);
   border-radius: 10px;
   color: var(--ink-faint);
 }
@@ -513,12 +515,13 @@ button, select { color: inherit; }
 .project-row:hover .project-new,
 .project-row:hover .project-menu,
 .project-menu.open { opacity: 1; }
-.project-new { width: 31px; height: 32px; display: grid; place-items: center; color: var(--muted-soft); }
+.project-new { width: var(--row-slot); height: 32px; padding: 0; display: grid; place-items: center; color: var(--muted-soft); }
 .project-new:hover, .project-menu > .menu-trigger:hover { color: var(--ink-dim); }
 .project-menu { position: relative; height: 32px; }
 .project-menu > .menu-trigger {
-  width: 31px;
+  width: var(--row-slot);
   height: 32px;
+  padding: 0;
   display: grid;
   place-items: center;
   color: var(--muted-soft);
@@ -657,7 +660,7 @@ button, select { color: inherit; }
   align-items: center;
   gap: 10px;
   border-radius: 10px;
-  padding: 0 8px 0 36px;
+  padding: 0 var(--row-inset) 0 36px;
   color: var(--muted-strong);
   text-align: left;
   font-size: var(--text-control);
@@ -722,7 +725,7 @@ button, select { color: inherit; }
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  padding: 6px 8px 6px 12px;
+  padding: 6px var(--row-inset) 6px 12px;
   border-radius: 10px;
   color: var(--muted-strong);
 }
