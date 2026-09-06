@@ -159,7 +159,6 @@ export type SideChatView = SideChat & {
   queuedMessages: QueuedMessage[];
   approval?: ApprovalView;
   question?: PendingQuestion;
-  replyingToQuestion?: boolean;
   readingPoint: ReadingPoint;
 };
 
@@ -778,7 +777,6 @@ export function deriveView(state: WorkspaceState) {
     compacting: currentRun?.status === "compacting",
     runActive: Boolean(currentRun),
     question: currentRun?.questions?.[0],
-    replyingToQuestion: currentRun?.replyingToQuestion !== false,
     queuedMessages: (state.currentId ? state.queuedMessages[state.currentId] : undefined) ?? NO_QUEUED,
     runningThreadIds: busy,
     blockedThreadIds: blocked,

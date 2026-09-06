@@ -90,7 +90,6 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
     streamingTail: view.streamingTail?.text ?? null,
     status: view.blockedThreadIds.has(thread.id) ? "awaiting-approval" : view.status,
     question: view.question ?? null,
-    replyingToQuestion: view.replyingToQuestion,
     approval: approval
       ? {
         approvalId: approval.approvalId,
@@ -140,7 +139,6 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
   if (previous.status !== next.status) delta.status = next.status;
   if (previous.prompt !== next.prompt) delta.prompt = next.prompt;
   if (!same(previous.question, next.question)) delta.question = next.question;
-  if (previous.replyingToQuestion !== next.replyingToQuestion) delta.replyingToQuestion = next.replyingToQuestion;
   if (!same(previous.approval, next.approval)) delta.approval = next.approval;
   if (!same(previous.queued, next.queued)) delta.queued = next.queued;
   if (!same(previous.settings, next.settings)) delta.settings = next.settings;

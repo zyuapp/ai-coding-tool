@@ -131,11 +131,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const opened = opening ? beginRun(state, event.taskId, event.runId) : state;
       const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
-      let applied = applyRunEvent(opened, event);
-      if (event.type === "question.requested" && !active.questions?.length) {
-        const replyingToQuestion = !(state.prompts[event.taskId]?.trim() || state.images[event.taskId]?.length || state.files[event.taskId]?.length || state.annotations[event.taskId]?.length || state.pastes[event.taskId]?.length);
-        applied = { ...applied, activeRuns: { ...applied.activeRuns, [event.taskId]: { ...applied.activeRuns[event.taskId], replyingToQuestion } } };
-      }
+      const applied = applyRunEvent(opened, event);
       const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
       if (active.operation === "compact" && terminal) {
         const restored = restoreCompactionTestimony(applied, event.taskId, active.before);

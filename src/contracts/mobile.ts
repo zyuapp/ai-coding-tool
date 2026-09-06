@@ -20,7 +20,7 @@ export type MobileCommand = Extract<AppCommand, {
     | "task.new" | "task.select" | "task.send" | "task.archive" | "task.restore" | "task.rename"
     | "task.dismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
     | "task.set-effort" | "task.steer-queued" | "task.drop-queued"
-    | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer" | "question.reply-mode"
+    | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer"
     | "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall"
     | "paste.add" | "paste.remove" | "paste.recall"
     | "view.set-prompt";
@@ -88,7 +88,6 @@ export type MobileThreadView = {
   status: MobileRunStatus;
   approval: MobileApproval | null;
   question?: PendingQuestion | null;
-  replyingToQuestion?: boolean;
   queued: MobileQueuedMessage[];
   /** The composer draft, which the phone and the desktop share. */
   prompt: string;
@@ -227,7 +226,6 @@ export function isMobileCommand(value: unknown): value is MobileCommand {
 
 function isQuestionCommand(command: Record<string, unknown>) {
   if (!isString(command.taskId) || !isString(command.runId)) return false;
-  if (command.type === "question.reply-mode") return typeof command.replying === "boolean";
   return command.type === "question.answer" && isString(command.requestId) && isString(command.questionId)
     && (command.text === undefined || isString(command.text, MAX_PROMPT_LENGTH)) && command.attachments === undefined;
 }

@@ -42,9 +42,8 @@ export function WorkspaceComposer({ workspace, actions }: { workspace: Workspace
       contextUsage={workspace.currentThread?.contextUsage}
       runActive={workspace.runActive}
       question={workspace.question}
-      replyingToQuestion={workspace.replyingToQuestion}
-      onQuestionReplyMode={(replying) => { if (thread && workspace.question) void workspace.dispatch({ type: "question.reply-mode", taskId: thread.id, runId: workspace.question.runId, replying }); }}
-      onAnswerQuestion={(question, attachments) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, attachments }); }}
+      onQuestionAnswerChange={(question, text) => { if (thread) void workspace.dispatch({ type: "question.set-answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text }); }}
+      onAnswerQuestion={(question) => { if (thread) void workspace.dispatch({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId }); }}
       goal={workspace.goal}
       waiting={workspace.waitingOn !== null}
       queuedMessages={workspace.queuedMessages}

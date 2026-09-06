@@ -13,7 +13,6 @@ export type ActiveRun = RunProvenance & {
   runId: string;
   sequence: number;
   questions?: PendingQuestion[];
-  replyingToQuestion?: boolean;
   status: "running" | "compacting" | "awaiting-approval";
   /** Whether this run has said it found something worth surfacing. */
   notified: boolean;
