@@ -8,6 +8,7 @@ import type { AutomationPatch, AutomationView } from "../../src/domain/automatio
 import type { Thread } from "../../src/domain/thread.ts";
 import type { StoredThread } from "../../src/domain/thread-storage.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
+import { task } from "../application/workspace-reducer-fixtures.mts";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 import { dom, item, mount, query } from "../support/renderer-dom.mts";
 
@@ -291,6 +292,39 @@ test("workspace hook runs a projectless task and scopes events, approvals, and c
 
   await workspace.view.unmount();
   assert.equal(desktop.unsubscribed, true);
+});
+
+test.each(["claude", "codex"] as const)("%s streaming keeps every draft's thread handles while the visible response advances", async (engine) => {
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({
+    version: 2, hiddenTasks: 0, projects: [], worktrees: [], lastFolder: null,
+    tasks: [task("current", { engine }), task("other", { engine })],
+  }) });
+  const workspace = await mountWorkspace(desktop);
+  try {
+    await act(async () => { await workspace.get().actions.selectThread("current"); });
+    await act(async () => { await workspace.get().actions.setPrompt("Inspect performance"); });
+    await act(async () => { await workspace.get().actions.sendPrompt(); });
+    const start = startCommand(desktop.sent[0]);
+    const currentHandles = workspace.get().threadHandles;
+    const otherHandles = workspace.get().threadHandlesFor("other");
+    assert.equal(item(otherHandles.find((option) => option.id === "current")).running, true);
+
+    for (let sequence = 1; sequence <= 2; sequence += 1) {
+      const text = `Streaming response ${sequence}`;
+      await act(async () => { desktop.listener({ type: "assistant.tail", taskId: start.taskId, runId: start.runId, sequence, messageId: "reply", text }); });
+      await settleFrame();
+      assert.equal(workspace.get().streamingTail?.text, text);
+      assert.equal(workspace.get().threadHandles, currentHandles);
+      assert.equal(workspace.get().threadHandlesFor("other"), otherHandles);
+    }
+    await act(async () => { desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 3, status: "awaiting-approval" }); });
+    await settleFrame();
+    assert.ok(workspace.get().blockedThreadIds.has(start.taskId));
+    assert.equal(workspace.get().threadHandles, currentHandles);
+    assert.equal(workspace.get().threadHandlesFor("other"), otherHandles);
+  } finally {
+    await workspace.view.unmount();
+  }
 });
 
 const BRANCH_PROJECT = { id: "project-1", root: "/project", workspaceId: "workspace-1" };

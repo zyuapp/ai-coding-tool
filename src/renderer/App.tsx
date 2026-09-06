@@ -75,9 +75,9 @@ export function App() {
     void workspace.actions.openDockPanel(id);
   }
 
-  function openSettings() {
+  const openSettings = useCallback(() => {
     void workspace.actions.setSettingsOpen(true);
-  }
+  }, [workspace.actions]);
 
   function closeSettings() {
     void workspace.actions.setSettingsOpen(false);

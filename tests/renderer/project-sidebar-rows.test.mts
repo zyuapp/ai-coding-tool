@@ -9,8 +9,8 @@ import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
-import { dom, item, mount, query } from "../support/renderer-dom.mts";
-import { settleFrame } from "../support/settle.mts";
+import { dom, item, mount, query, rowHeights } from "../support/renderer-dom.mts";
+import { settleFrame, settleUntil } from "../support/settle.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");
@@ -432,6 +432,74 @@ test("sidebar rows hold their position no matter how recently a task ran", async
   const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
   assert.deepEqual(titles(), ["Pinned to the top", "Busiest task", "Quietest task"]);
   await view.unmount();
+});
+
+test("typing and streaming leave sidebar rows alone while sidebar changes still render", async (t) => {
+  const quietAt = 123_456;
+  seedProjectTasks([
+    { id: "streaming", title: "Streaming task", sortIndex: 0, updatedAt: 2, createdAt: 2 },
+    { id: "quiet", title: "Quiet task", sortIndex: 1, updatedAt: quietAt, createdAt: quietAt },
+  ]);
+  const heights = rowHeights((element) => element.classList.contains("conversation") ? 900 : 0);
+  t.onTestFinished(() => heights.restore());
+  const desktop = fakeDesktop({ openFolder: async () => ({ id: "project-1", kind: "project", root: "/project" }) });
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  /** Count a quiet row's displayed date, so unchanged DOM cannot hide repeated rendering work. */
+  let quietFormats = 0;
+  const originalFormat = item(Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, "format"));
+  Object.defineProperty(Intl.DateTimeFormat.prototype, "format", {
+    ...originalFormat,
+    get(this: Intl.DateTimeFormat) {
+      const format = item(originalFormat.get).call(this) as Intl.DateTimeFormat["format"];
+      return (value?: number | Date) => { if (value === quietAt) quietFormats += 1; return format(value); };
+    },
+  });
+  try {
+    const row = (title: string) => query<HTMLElement>(view.container, `.task-row[title="${title}"]`);
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
+    await act(async () => { row("Streaming task").click(); });
+    await settleFrame();
+    assert.ok(quietFormats > 0, "the quiet row was rendered before the measurement");
+
+    const beforeTyping = quietFormats;
+    const textarea = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');
+    const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+    await act(async () => {
+      textarea.focus();
+      item(setValue).call(textarea, "Inspect the app");
+      textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
+      textarea.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const send = query<HTMLButtonElement>(view.container, '[aria-label="Send task"]');
+    assert.equal(send.disabled, false, "typing reached the workspace");
+    assert.equal(quietFormats, beforeTyping, "typing does not revisit the sidebar rows");
+
+    await act(async () => { send.click(); });
+    await settleUntil(() => desktop.sent.some((command) => command.type === "start"), "the run did not start");
+    const start = startCommand(desktop.sent.find((command) => command.type === "start"));
+    assert.equal(start.taskId, "streaming");
+    assert.ok(query(view.container, 'nav[aria-label="Running"] .task-spinner'), "starting a run updates its sidebar status");
+    await settleFrame();
+    const beforeStreaming = quietFormats;
+    for (const [index, text] of ["An answer", "An answer is", "An answer is streaming"].entries()) {
+      await act(async () => { desktop.listener({ type: "assistant.tail", taskId: start.taskId, runId: start.runId, sequence: index + 1, messageId: "answer", text }); });
+      await settleFrame();
+      assert.equal(quietFormats, beforeStreaming, "streaming does not revisit the sidebar rows");
+    }
+    assert.match(query(view.container, ".timeline").textContent, /An answer is streaming/, "the streamed text still updates");
+
+    await act(async () => { desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 4, status: "succeeded" }); });
+    await settleFrame();
+    assert.equal(view.container.querySelector(".task-spinner"), null, "finishing removes the running mark");
+    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row[title="Streaming task"]'));
+    assert.ok(quietFormats > beforeStreaming, "a changed sidebar is rendered again");
+    await act(async () => { row("Quiet task").click(); });
+    assert.ok(row("Quiet task").classList.contains("active"), "selection updates after streaming");
+  } finally {
+    Object.defineProperty(Intl.DateTimeFormat.prototype, "format", originalFormat);
+    await view.unmount();
+  }
 });
 
 test("the sidebar switches to activity mode, and dismissing there takes the dot off for good", async () => {

@@ -12,6 +12,11 @@ import { createWorkspaceConnection } from "./workspace-connection";
 
 export type { ApprovalView } from "../../application/thread-run-state";
 
+function sameKeys(previous: object, next: object) {
+  const keys = Object.keys(next);
+  return keys.length === Object.keys(previous).length && keys.every((key) => Object.hasOwn(previous, key));
+}
+
 /** A view subscribes to the application runtime and sends it commands. */
 export function useTaskWorkspace() {
   const held = useRef<ReturnType<typeof createWorkspaceConnection> | null>(null);
@@ -32,12 +37,15 @@ export function useTaskWorkspace() {
    * cache outlives one state so a menu whose threads did not move is handed back the same list, and
    * a surface holding that list is not redrawn by a change it never reads.
    */
-  const handleCache = useRef<{ inputs: readonly unknown[]; byDraft: Map<string, ThreadHandleOption[]> }>({ inputs: [], byDraft: new Map() });
+  const handleCache = useRef<{ inputs: readonly unknown[]; activeRuns: object; byDraft: Map<string, ThreadHandleOption[]> }>({ inputs: [], activeRuns: {}, byDraft: new Map() });
   const threadHandlesFor = useCallback((draftKey: string) => {
     const current = runtime.getState();
-    const inputs = [current.threads, current.projects, current.sideChats, current.activeRuns, current.pendingRuns, current.queuedMessages, current.draftProjectId] as const;
+    const inputs = [current.threads, current.projects, current.sideChats, current.pendingRuns, current.queuedMessages, current.draftProjectId] as const;
     const cache = handleCache.current;
-    if (inputs.some((value, index) => cache.inputs[index] !== value)) {
+    /** Handles read which threads are running, never a run's sequence or status. */
+    const runsChanged = cache.activeRuns !== current.activeRuns && !sameKeys(cache.activeRuns, current.activeRuns);
+    cache.activeRuns = current.activeRuns;
+    if (runsChanged || inputs.some((value, index) => cache.inputs[index] !== value)) {
       cache.inputs = inputs;
       cache.byDraft = new Map();
     }
