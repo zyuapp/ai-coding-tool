@@ -97,7 +97,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
     listManagedWorktrees: async () => [], revealWorktree: async () => {}, releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
     saveAttachment: async () => "/tmp/aicodingtool-attachments/pasted.png",
-    readAttachment: async () => "iVBORw0KGgo=",
+    readAttachment: async () => "iVBORw0KGgo=", preserveMessageImages: async () => undefined,
     pathForFile: () => "", describeFiles: async () => [],
     suggestTaskTitle: async () => null,
     checkForUpdates: () => {},

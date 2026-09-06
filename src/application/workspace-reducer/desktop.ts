@@ -8,12 +8,16 @@ import { terminalTitle, type TerminalSession } from "../../domain/terminal.js";
 import { DOCK_PICKER } from "../workspace-dock.js";
 
 type DesktopInput = Extract<WorkspaceInput, {
-  type: "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
+  type: "image.open" | "image.close" | "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "terminal.open" | "terminal.select" | "terminal.close"
     | "terminal.input" | "terminal.resize" | "terminal.updated" | "view.closed" | "view.mounted";
 }>;
 
 export function reduceDesktop(state: WorkspaceState, input: DesktopInput): WorkspaceTransition {
   switch (input.type) {
+    case "image.open":
+      return settled({ ...state, viewingImage: input.source });
+    case "image.close":
+      return settled({ ...state, viewingImage: null });
     case "view.mounted":
       return settled(state, [
         { type: "apply-shortcuts", overrides: state.shortcuts },
@@ -33,7 +37,7 @@ export function reduceDesktop(state: WorkspaceState, input: DesktopInput): Works
           browserTabs: dock.browserTabs.map(({ error: _error, ...page }) => ({ ...page, loading: false, canGoBack: false, canGoForward: false })),
         };
       }
-      return settled({ ...state, docks, focused: false, keyboardTab: null });
+      return settled({ ...state, docks, focused: false, keyboardTab: null, viewingImage: null });
     }
 
     case "file.open": {

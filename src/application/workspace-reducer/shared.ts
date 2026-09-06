@@ -710,6 +710,7 @@ export function retainedEnvironments(state: WorkspaceState, workspaceId: string,
  * an origin to measure from there is nothing but the working tree, which is what it falls back to.
  */
 export function initialRange(state: WorkspaceState, diff: DiffState): DiffRange {
+  if (diff.range.kind === "commit") return diff.range;
   if (diff.result !== null) return diff.range;
   const counted = environmentFor(state, currentWorkspaceId(state));
   const baseline = counted?.status === "available" ? counted.baseline : null;
@@ -733,7 +734,8 @@ export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: 
 
 /** The same, for the thread the user is looking at. */
 export function readDiff(state: WorkspaceState, owner: string, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
-  return readDiffFrom(state, owner, currentWorkspaceId(state), range, patch);
+  const workspaceId = range.kind === "commit" ? diffFor(state, owner).workspaceId ?? currentWorkspaceId(state) : currentWorkspaceId(state);
+  return readDiffFrom(state, owner, workspaceId, range, patch);
 }
 
 /**

@@ -95,6 +95,42 @@ function thread(id: string, title: string): Thread {
   };
 }
 
+test("a commit link opens its repository in the Changes panel and keeps that repository on refresh", () => {
+  const current = thread("current", "Current");
+  const linked = { ...thread("linked", "Linked"), projectId: "project-b" };
+  const state = workspace({ currentId: current.id, threads: [current, linked], projects: [PROJECT, { id: "project-b", root: "/other", workspaceId: "workspace-b" }] });
+  const opened = reduce(state, { type: "diff.open-commit", taskId: linked.id, commit: "60cceb8" });
+  const dock = dockFor(opened.state, current.id);
+  assert.equal(dock.open, true);
+  assert.equal(dock.tab, DIFF_PANEL);
+  assert.ok(dock.panels.includes(DIFF_PANEL));
+  const effect = readDiffEffect(opened.effects);
+  assert.equal(effect.workspaceId, "workspace-b");
+  assert.deepEqual(effect.range, { kind: "commit", commit: "60cceb8" });
+  const refreshed = reduce(opened.state, { type: "diff.refresh" });
+  assert.equal(readDiffEffect(refreshed.effects).workspaceId, "workspace-b");
+});
+
+test("committed image links are preserved even when another thread is on screen", () => {
+  const linked = thread("linked", "Linked");
+  const state = workspace({ currentId: "current", threads: [thread("current", "Current"), linked], activeRuns: { linked: activeRun("linked", "run-image") } });
+  const text = "Verified [Screenshot](/tmp/old-shot.png).";
+  const next = reduce(state, { type: "run.event", event: { type: "assistant.delta", taskId: linked.id, runId: "run-image", sequence: 1, messageId: "image-message", text } });
+  assert.deepEqual(next.effects, [{ type: "preserve-message-images", text, root: "/repo", messageId: "image-message" }]);
+  assert.equal(next.state.threads.find((item) => item.id === linked.id)?.messages[0].text, text);
+});
+
+test("Escape closes an enlarged image before reaching the active run", () => {
+  const state = workspace({ currentId: "current", threads: [thread("current", "Current")], activeRuns: { current: activeRun("current", "run") } });
+  const source = "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply";
+  const opened = reduce(state, { type: "image.open", source });
+  assert.equal(deriveView(opened.state).viewingImage, source);
+  const closed = reduce(opened.state, { type: "view.escape" });
+  assert.equal(closed.state.viewingImage, null);
+  assert.equal(closed.state.activeRuns, state.activeRuns);
+  assert.deepEqual(closed.effects, []);
+});
+
 /** Opens the review and answers the read it asks for, which is what the renderer would do. */
 function reviewing(state: WorkspaceState, files: DiffFileSummary[]): WorkspaceState {
   const opened = reduce(state, { type: "diff.toggle" });

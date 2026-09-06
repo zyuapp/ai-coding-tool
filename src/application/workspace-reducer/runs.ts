@@ -9,7 +9,7 @@ import { outcomeFor, settledHeadline, whyRunSurfaces, withSettledTick } from "..
 import { nextSortIndex } from "../thread-order.js";
 import { applyRunEvent, applyThreadEvent, ATTENDED_RUN, threadMark, updateThread, withBackgroundProcesses, withWorkflows, type ThreadMark } from "../thread-run-state.js";
 import { threadOnScreen } from "../thread-attention.js";
-import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeById, worktreeFor } from "../thread-location.js";
+import { leavingThreadIds, projectFor, threadWorkspaceId, threadWorkspaceRoot, worktreeById, worktreeFor } from "../thread-location.js";
 import { DRAFT_DOCK, type PendingRun, type WorkspaceState } from "../workspace-state.js";
 import type { CreatedWorktree } from "../../contracts/ipc.js";
 import { defaultEffortFor, defaultModelFor, effortForModel, engineForModel, engineHasEffort, modelSupportsManualCompaction } from "../../domain/agent-engine.js";
@@ -132,6 +132,14 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const active = opened.activeRuns[event.taskId];
       if (!active || event.runId !== active.runId || event.sequence <= active.sequence) return settled(state);
       const applied = applyRunEvent(opened, event);
+      if (event.type === "assistant.delta") {
+        const thread = applied.threads.find((item) => item.id === event.taskId);
+        const message = thread?.messages.find((item) => item.id === event.messageId);
+        return settled(applied, message && /\.(?:png|jpe?g|gif|webp)\b/i.test(event.text) ? [{
+          type: "preserve-message-images", text: message.text,
+          root: threadWorkspaceRoot(applied, thread) ?? "", messageId: event.messageId,
+        }] : []);
+      }
       const terminal = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed" || event.status === "cancelled");
       if (active.operation === "compact" && terminal) {
         const restored = restoreCompactionTestimony(applied, event.taskId, active.before);

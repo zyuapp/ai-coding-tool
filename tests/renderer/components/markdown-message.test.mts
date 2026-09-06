@@ -5,7 +5,7 @@ import type { MessageLinkActions } from "../../../src/renderer/components/Markdo
 
 import { dom, mount, query } from "../../support/renderer-dom.mts";
 
-const { MarkdownMessage, MessageLinkProvider } = await import("../../../src/renderer/components/MarkdownMessage.tsx");
+const { MarkdownMessage, MessageLinkProvider, MessageArtifactScope } = await import("../../../src/renderer/components/MarkdownMessage.tsx");
 
 test("assistant markdown renders GFM without executing raw HTML", async () => {
   const view = await mount(React.createElement(MarkdownMessage, null, "## Heading\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n- [x] Done\n\n```typescript\nconst first = 1;\n\nconst second = 2;\n```\n\n<script>bad()</script>"));
@@ -86,5 +86,39 @@ test("a web link opens externally by default and offers the browser panel on rig
   assert.equal(menuItem.textContent, "Open in AI Coding Tool");
   await act(async () => { menuItem.click(); });
   assert.deepEqual(opened, ["https://example.com/docs"]);
+  await view.unmount();
+});
+
+test("an old reply previews image links, preserves its text, and enlarges in the app", async () => {
+  const opened: string[] = [];
+  const text = "Verified. [Screenshot](</tmp/old shot.png>)\n\n[Another][shot]\n\n[shot]: /tmp/second.png";
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { openImage: (source) => opened.push(source) },
+    children: React.createElement(MarkdownMessage, { messageId: "old-message", children: text }) }));
+  const images = [...view.container.querySelectorAll("img")];
+  assert.equal(images.length, 2);
+  const thumbnail = new URL(images[0].src);
+  assert.equal(thumbnail.searchParams.get("path"), "/tmp/old shot.png");
+  assert.equal(thumbnail.searchParams.get("message"), "old-message");
+  assert.equal(thumbnail.searchParams.get("thumbnail"), "1");
+  assert.equal(images[0].getAttribute("loading"), "lazy");
+  await act(async () => query<HTMLButtonElement>(view.container, '[aria-label="Enlarge Screenshot"]').click());
+  assert.equal(new URL(opened[0]).searchParams.has("thumbnail"), false);
+  await act(async () => query<HTMLAnchorElement>(view.container, "a").click());
+  assert.equal(opened[1], opened[0]);
+  await act(async () => images[1].dispatchEvent(new dom.window.Event("error")));
+  assert.match(view.container.textContent, /Another · Preview unavailable/);
+  assert.equal(view.container.querySelectorAll("a").length, 2, "a missing preview keeps the original links");
+  await view.unmount();
+});
+
+test("commit hashes in inline code open that transcript's commit, while fenced code stays code", async () => {
+  const opened: Array<[string, string | undefined]> = [];
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { openCommit: (hash, taskId) => opened.push([hash, taskId]) },
+    children: React.createElement(MessageArtifactScope.Provider, { value: { root: "/repo", taskId: "old-thread" } },
+      React.createElement(MarkdownMessage, { children: "Committed as `60cceb8`.\n\n```\n60cceb8\n```" })) }));
+  assert.equal(view.container.querySelectorAll(".message-commit").length, 1);
+  await act(async () => query<HTMLButtonElement>(view.container, ".message-commit").click());
+  assert.deepEqual(opened, [["60cceb8", "old-thread"]]);
+  assert.equal(view.container.querySelector("pre code")?.textContent, "60cceb8\n");
   await view.unmount();
 });

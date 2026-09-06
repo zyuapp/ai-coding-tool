@@ -5,6 +5,8 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
+import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
+import { messageImageResponse, preserveMessageImages } from "./message-image-store.js";
 import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -48,6 +50,7 @@ app.setPath("sessionData", profile.userData);
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: MESSAGE_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 /** The `aic` command opens a folder in the app that is already running, never a second one. */
@@ -368,6 +371,7 @@ app.whenReady().then(async () => {
     if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
     return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
   });
+  protocol.handle(MESSAGE_IMAGE_SCHEME, (request) => messageImageResponse(request.url));
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
@@ -729,6 +733,11 @@ ipcMain.handle("attachment:read", async (event, file: unknown) => {
   const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
   if (!saved) throw new Error("That image is not one this app is keeping.");
   return (await readFile(saved)).toString("base64");
+});
+
+ipcMain.handle("message-images:preserve", async (event, files: unknown, root: unknown, messageId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  await preserveMessageImages(files, root, messageId);
 });
 
 /** How many paths one drop may name, and how long each may be. */

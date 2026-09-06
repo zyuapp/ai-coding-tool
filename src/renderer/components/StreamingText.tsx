@@ -17,21 +17,22 @@ function useCompleteBlocks(text: string) {
  * cut is repaired so half-written markup is held back rather than shown as literal markers. Words in
  * the live part fade in as they mount. `streaming` says more text may still arrive.
  */
-export function StreamingText({ committed, tail = "", streaming = false }: {
+export function StreamingText({ committed, tail = "", streaming = false, messageId }: {
   committed: string;
   tail?: string;
   streaming?: boolean;
+  messageId?: string;
 }) {
   const full = committed + tail;
   const blocks = useCompleteBlocks(full);
   /** Nothing more is coming, so the whole answer renders as one document. */
-  if (!streaming) return <MarkdownMessage>{full}</MarkdownMessage>;
+  if (!streaming) return <MarkdownMessage messageId={messageId}>{full}</MarkdownMessage>;
   const settled = full.slice(0, blocks);
   const live = repairCut(full.slice(blocks));
   return (
     <>
-      {settled && <MarkdownMessage>{settled}</MarkdownMessage>}
-      {live && <MarkdownMessage animate>{live}</MarkdownMessage>}
+      {settled && <MarkdownMessage messageId={messageId}>{settled}</MarkdownMessage>}
+      {live && <MarkdownMessage messageId={messageId} animate>{live}</MarkdownMessage>}
     </>
   );
 }

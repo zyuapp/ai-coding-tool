@@ -357,6 +357,7 @@ export type WorkspaceState = {
   /** `hiddenThreads` counts the threads on disk this build cannot read, which stay there untouched. */
   storageError: string | null; hiddenThreads: number;
   actionError: string | null;
+  viewingImage: string | null;
   /** The settings page that clears the error above, when one does. */
   actionErrorPage: SettingsSection | null;
   writable: boolean;
@@ -497,6 +498,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     subagents: {},
     storageError, hiddenThreads: 0,
     actionError: null,
+    viewingImage: null,
     actionErrorPage: null,
     writable: storageError === null,
     restored: false,
@@ -813,6 +815,7 @@ export function deriveView(state: WorkspaceState) {
     environment,
     storageError: state.storageError, hiddenThreads: state.hiddenThreads,
     actionError: state.actionError,
+    viewingImage: state.viewingImage,
     actionErrorPage: state.actionErrorPage,
     restored: state.restored,
     computerUseSetup: state.computerUseSetup,

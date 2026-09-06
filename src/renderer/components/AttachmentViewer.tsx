@@ -9,6 +9,7 @@ export function AttachmentViewer({ source, onClose }: { source: string; onClose:
   const pressedOn = useRef<EventTarget | null>(null);
   /** A picture reports its own size only once it has loaded, and nothing is fitted before then. */
   const [size, setSize] = useState<Sized | null>(null);
+  const [failed, setFailed] = useState(false);
   const zoom = useZoom(size);
   useModalFocus(dialog);
   useEffect(() => {
@@ -39,13 +40,14 @@ export function AttachmentViewer({ source, onClose }: { source: string; onClose:
       {size ? <ZoomControls zoom={zoom} /> : null}
       <button type="button" className="viewer-close" onClick={onClose} aria-label="Close screenshot"><X size={16} /></button>
       <div ref={zoom.stage} className="viewer-stage">
-        <img
+        {failed ? <p role="status">This image is no longer available.</p> : <img
           src={source}
           alt="Attached screenshot"
           style={drawn}
           onLoad={(event) => setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
+          onError={() => setFailed(true)}
           onClick={(event) => event.stopPropagation()}
-        />
+        />}
       </div>
     </div>,
     document.body,

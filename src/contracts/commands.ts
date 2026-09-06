@@ -28,13 +28,14 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
   /** Opens the panel, or closes it when it is already the tab in front. */
   | { type: "diff.toggle" }
   | { type: "diff.refresh" }
+  | { type: "diff.open-commit"; commit: string; taskId?: string }
   | { type: "diff.set-range"; range: DiffRange }
   /** Folds one file shut, or opens it again. Every file starts open. */
   | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
@@ -126,6 +127,9 @@ export type ImageCommand =
   | { type: "image.remove"; taskId?: string; imageId: string }
   /** Images offered back with a sent message, named by where the app keeps them. */
   | { type: "image.recall"; taskId?: string; paths: string[] };
+
+/** Enlarges a picture without changing a composer's attachments. */
+export type ImageViewCommand = { type: "image.open"; source: string } | { type: "image.close" };
 
 export type ProjectCommand =
   | { type: "project.open" }

@@ -254,6 +254,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   saveAttachment(data: string): Promise<string>;
   /** Reads one back as base64 PNG bytes. Only files this app wrote are readable. */
   readAttachment(file: string): Promise<string>;
+  preserveMessageImages(files: string[], root: string, messageId: string): Promise<void>;
   /** Where a dropped or pasted file sits on this machine. Empty for anything that is not a file on disk. */
   pathForFile(file: File): string;
   /** What each of those paths is. A path that is neither a file nor a folder is left out. */

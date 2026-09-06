@@ -49,6 +49,7 @@ const api: DesktopAPI = {
   releaseWorktree: (request: ReleaseWorktreeRequest) => ipcRenderer.invoke("worktree:release", request),
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
   readAttachment: (file: string) => ipcRenderer.invoke("attachment:read", file),
+  preserveMessageImages: (files: string[], root: string, messageId: string) => ipcRenderer.invoke("message-images:preserve", files, root, messageId),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   describeFiles: (paths: string[]) => ipcRenderer.invoke("file:describe", paths),
   suggestTaskTitle: (text: string, attachments: string[], engine: AgentEngine) => ipcRenderer.invoke("task-title:suggest", text, attachments, engine),

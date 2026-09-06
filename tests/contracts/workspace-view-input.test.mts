@@ -24,6 +24,10 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "automation.save", draft: { prompt: "Check status", schedule: "0 * * * *", paused: false } },
     { type: "automation.update", patch: { surfaceWhen: "", paused: true } },
     { type: "review.start", target: { type: "commit", sha: "abc", title: null } },
+    { type: "diff.open-commit", taskId: "thread", commit: "60cceb8" },
+    { type: "diff.set-range", range: { kind: "commit", commit: "60cceb8" } },
+    { type: "image.open", source: "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply" },
+    { type: "image.close" },
     { type: "find.results", target: { kind: "terminal", terminalId: "terminal" }, results: { matches: 0, index: 0, counting: false } },
     { type: "shortcut.captured", binding: null },
     { type: "shortcut.unavailable", refusal: { reason: "unsupported", binding: "Meta+Shift+P", message: "Not available" } },
@@ -72,4 +76,11 @@ test("large valid composer content remains within the view contract", () => {
   const text = "x".repeat(2_000_000);
   assert.equal(isWorkspaceViewInput({ type: "paste.add", text }), true);
   assert.equal(isWorkspaceViewInput({ type: "task.send", text, attachments: Array.from({ length: 6 }, (_, index) => ({ path: `/tmp/${index}.png`, labels: [] })) }), true);
+});
+
+test("image and commit actions validate their targets at the view boundary", () => {
+  assert.equal(isWorkspaceViewInput({ type: "image.open", source: "file:///etc/passwd" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "image.open", source: "https://example.com/image.png" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "diff.open-commit", commit: "--output=/tmp/file" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "diff.set-range", range: { kind: "commit", commit: "HEAD;touch x" } }), false);
 });

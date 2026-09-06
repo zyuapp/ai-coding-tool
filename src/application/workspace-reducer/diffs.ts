@@ -1,19 +1,32 @@
 /** The review: which comparison a dock holds, and what Git answers about it. */
 import { reduceDock } from "./dock.js";
-import { DIFF_PANEL, environmentFor, now, readDiff, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled } from "./shared.js";
+import { DIFF_PANEL, environmentFor, now, readDiff, readDiffFrom, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled, rejected, focusDockTab, showDockTab, browserEffectsForTab } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, type WorkspaceState } from "../workspace-state.js";
+import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
 import { fileFingerprint, rangeKey } from "../../domain/diff.js";
+import { isCommitHash } from "../../domain/message-artifacts.js";
 
 type DiffInput = Extract<WorkspaceInput, {
-  type: "view.refresh-environment" | "diff.toggle" | "diff.refresh" | "diff.set-range" | "diff.set-collapsed"
+  type: "view.refresh-environment" | "diff.toggle" | "diff.refresh" | "diff.open-commit" | "diff.set-range" | "diff.set-collapsed"
     | "diff.set-viewed" | "diff.set-split" | "diff.set-ignore-whitespace" | "diff.loaded" | "environment.updated";
 }>;
 
 export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceTransition {
   switch (input.type) {
+    case "diff.open-commit": {
+      if (!isCommitHash(input.commit)) return rejected(state, "Invalid commit hash.");
+      const thread = state.threads.find((item) => item.id === (input.taskId ?? state.currentId));
+      const workspaceId = threadWorkspaceId(state, thread);
+      if (!workspaceId) return rejected(state, "Open this thread's project to inspect the commit.");
+      const owner = dockOwner(state);
+      const dock = dockFor(state, owner);
+      const opened = withDock(state, owner, { panels: dock.panels.includes(DIFF_PANEL) ? dock.panels : [...dock.panels, DIFF_PANEL] });
+      const shown = focusDockTab(showDockTab(opened, owner, DIFF_PANEL), owner, DIFF_PANEL);
+      const read = readDiffFrom(shown.state, owner, workspaceId, { kind: "commit", commit: input.commit }, { result: null, collapsed: [], viewed: {} });
+      return { ...read, effects: [...shown.effects, ...browserEffectsForTab(read.state, owner, DIFF_PANEL), ...read.effects] };
+    }
     /** A thread with no checkout has nothing to read; what other checkouts said is still theirs. */
     case "view.refresh-environment":
       return settled(state, refreshEnvironment(state));

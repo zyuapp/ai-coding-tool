@@ -6,6 +6,7 @@ import { isAutomationDraft, isAutomationPatch, type AutomationDraft } from "../d
 import { isCaptureOptions } from "../domain/capture.js";
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
 import { isDiffRange } from "../domain/diff.js";
+import { isCommitHash, isImageSource } from "../domain/message-artifacts.js";
 import type { FindTarget } from "../domain/find.js";
 import { isReviewTarget } from "../domain/review.js";
 import { isSubagentGroup } from "../domain/run.js";
@@ -191,6 +192,9 @@ const shapes = {
   "browser.decide": { allow: boolean },
   "browser.clear-data": {  },
   "file.open": { taskId: optionalText, path: text, line: optional(number) },
+  "image.open": { source: isImageSource },
+  "image.close": {},
+  "diff.open-commit": { commit: isCommitHash, taskId: optionalText },
   "file.attach": { taskId: optionalText, files: array(attachedFileDraft) },
   "file.detach": { taskId: optionalText, fileId: text },
   "file.recall": { taskId: optionalText, files: array(attachedFile) },

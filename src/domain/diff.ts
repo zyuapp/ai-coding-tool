@@ -246,11 +246,13 @@ export function foldedForSize(files: DiffFileSummary[]): Set<string> {
  */
 export type DiffRange =
   | { kind: "uncommitted" }
+  | { kind: "commit"; commit: string }
   | { kind: "branches"; base: string; compare: string | null };
 
 export const UNCOMMITTED: DiffRange = { kind: "uncommitted" };
 
 export function rangeKey(range: DiffRange) {
+  if (range.kind === "commit") return `commit:${range.commit}`;
   return range.kind === "uncommitted" ? "uncommitted" : `branches:${range.base}:${range.compare ?? ""}`;
 }
 
@@ -258,6 +260,7 @@ export function isDiffRange(value: unknown): value is DiffRange {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   if (candidate.kind === "uncommitted") return true;
+  if (candidate.kind === "commit") return typeof candidate.commit === "string" && /^[a-f\d]{7,40}$/i.test(candidate.commit);
   return candidate.kind === "branches"
     && typeof candidate.base === "string"
     && candidate.base.length > 0
