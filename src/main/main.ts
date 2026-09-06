@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, powerMonitor, powerSaveBlocker, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -31,7 +31,7 @@ import { createWorkspaceRuntimeHost } from "./workspace-runtime-host.js";
 import { startRunHost } from "./run-host.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
-import { adoptUserDataFolder } from "./user-data.js";
+import { appProfile } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
@@ -39,9 +39,12 @@ import { serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
-app.setName("AI Coding Tool");
-/** Ahead of the lock, which writes its own files into the folder and would leave nothing to move onto. */
-app.setPath("userData", adoptUserDataFolder(app.getPath("appData"), app.getName()));
+const profile = appProfile(app.getPath("appData"), homedir(), app.isPackaged);
+app.setName(profile.name);
+/** Select and create the profile before Chromium's session and single-instance lock use it. */
+mkdirSync(profile.userData, { recursive: true });
+app.setPath("userData", profile.userData);
+app.setPath("sessionData", profile.userData);
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -50,7 +53,7 @@ protocol.registerSchemesAsPrivileged([
 /** The `aic` command opens a folder in the app that is already running, never a second one. */
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
-  console.log("AI Coding Tool is already running. Bringing that window forward instead of starting a second one.");
+  console.log(`${profile.name} is already running. Bringing that window forward instead of starting a second one.`);
   app.exit(0);
 }
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
@@ -320,7 +323,7 @@ const updateHost: UpdateHost = {
  * over, no retired brand for the user to read in `git worktree list`, and multi-gigabyte checkouts
  * stay out of the backups app data is swept into.
  */
-const WORKTREES_ROOT = path.join(homedir(), ".aicodingtool", "worktrees");
+const WORKTREES_ROOT = profile.worktreesRoot;
 
 /** Where the app kept worktrees before, still its own: listed and manually removable, never created in. */
 function legacyWorktreesRoots(userData: string) {

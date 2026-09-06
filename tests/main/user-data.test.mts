@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test, vi } from "vitest";
-import { adoptUserDataFolder } from "../../src/main/user-data.ts";
+import { adoptUserDataFolder, appProfile } from "../../src/main/user-data.ts";
 
 const NAME = "AI Coding Tool";
 
@@ -19,6 +19,31 @@ async function seedLegacy(root: string, registry?: unknown) {
   if (registry) await writeFile(path.join(legacy, "workspaces.v1.json"), JSON.stringify(registry, null, 2));
   return legacy;
 }
+
+test("development uses its own persistent profile while production adopts legacy data", async () => {
+  const root = await appData();
+  const legacy = await seedLegacy(root);
+  const home = path.join(root, "home");
+  const development = appProfile(root, home, false);
+  assert.deepEqual(development, {
+    name: "AI Coding Tool Dev",
+    userData: path.join(root, "AI Coding Tool Dev"),
+    worktreesRoot: path.join(home, ".aicodingtool-dev", "worktrees"),
+  });
+  assert.equal(await readFile(path.join(legacy, "tasks.v3.sqlite"), "utf8"), "store");
+  await mkdir(development.userData);
+  await writeFile(path.join(development.userData, "tasks.v3.sqlite"), "dev store");
+
+  const production = appProfile(root, home, true);
+  assert.deepEqual(production, {
+    name: NAME,
+    userData: path.join(root, NAME),
+    worktreesRoot: path.join(home, ".aicodingtool", "worktrees"),
+  });
+  assert.equal(await readFile(path.join(production.userData, "tasks.v3.sqlite"), "utf8"), "store");
+  assert.deepEqual(appProfile(root, home, false), development);
+  assert.equal(await readFile(path.join(development.userData, "tasks.v3.sqlite"), "utf8"), "dev store");
+});
 
 test("the folder the app first shipped with is moved onto the name the app has now", async () => {
   const root = await appData();
