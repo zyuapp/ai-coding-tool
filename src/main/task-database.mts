@@ -204,6 +204,27 @@ export class TaskDatabase {
     this.database.prepare("DELETE FROM automations WHERE id = ?").run(id);
   }
 
+  /** One clean cutover: discard app records tied to the old home, never Codex's original sessions. */
+  cutOverCodexThreads() {
+    const marker = "privateCodexHome.v2";
+    if (this.database.prepare("SELECT 1 FROM settings WHERE key = ?").get(marker)) return;
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const old = "SELECT id FROM tasks WHERE json_valid(data) AND json_extract(data, '$.engine') = 'codex'";
+      for (const table of ["automations", "messages", "subagent_activity", "subagents"]) {
+        this.database.exec(`DELETE FROM ${table} WHERE task_id IN (${old})`);
+      }
+      this.database.exec(`DELETE FROM tasks WHERE id IN (${old})`);
+      // A thread currently using Claude can still carry an older Codex continuation.
+      this.database.exec("UPDATE tasks SET data = json_set(json_remove(data, '$.continuation'), '$.continuationStatus', 'none') WHERE json_valid(data) AND json_extract(data, '$.continuation.provider') = 'codex'");
+      this.database.prepare("INSERT INTO settings (key, value) VALUES (?, '1')").run(marker);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   close() {
     if (this.closed) return;
     this.database.close();

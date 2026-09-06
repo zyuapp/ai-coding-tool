@@ -28,6 +28,30 @@ const summaryTask: PersistedTask = {
   updatedAt: 100,
 };
 
+test("Codex storage cutover preserves Claude data and new Codex history across restarts", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "codex-cutover-"));
+  const file = path.join(directory, "tasks.sqlite");
+  let database = new TaskDatabase(file);
+  const claude = { ...summaryTask, id: "claude", engine: "claude" as const, continuation: { provider: "codex" as const, value: "old-shared-id" }, continuationStatus: "available" as const };
+  const message: ConversationMessage = { id: "kept", kind: "user", text: "Claude history", at: 10 };
+  try {
+    database.persist({ tasks: [{ task: summaryTask, messages: [] }, { task: claude, messages: [{ message, index: 0 }] }] });
+    database.cutOverCodexThreads();
+    const kept = loadDatabase(database).tasks;
+    assert.deepEqual(kept.map(({ id }) => id), ["claude"]);
+    assert.deepEqual(kept[0].messages, [message]);
+    assert.equal(kept[0].continuationStatus, "none");
+    database.persist({ tasks: [{ task: { ...summaryTask, id: "private-codex" }, messages: [] }] });
+    database.close();
+    database = new TaskDatabase(file);
+    database.cutOverCodexThreads();
+    assert.deepEqual(loadDatabase(database).tasks.map(({ id }) => id).sort(), ["claude", "private-codex"]);
+  } finally {
+    database.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("startup summaries preserve activity and counts while messages load only on demand", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "aicodingtool-history-summary-"));
   const database = new TaskDatabase(path.join(directory, "tasks.sqlite"));

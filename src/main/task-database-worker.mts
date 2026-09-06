@@ -1,11 +1,13 @@
 import { parentPort, workerData } from "node:worker_threads";
 import { TaskDatabase } from "./task-database.mjs";
+import { PRIVATE_CODEX_HOME_ENV } from "./codex/codex-home.mjs";
 import type { TaskDatabaseRequest, TaskDatabaseResponse } from "./task-database-protocol.mjs";
 
 if (!parentPort) throw new Error("Task database must run inside its worker.");
 const port = parentPort;
 const { file, worktreesRoots } = workerData as { file: string; worktreesRoots?: string[] };
 const database = new TaskDatabase(file, { worktreesRoots });
+if (process.env[PRIVATE_CODEX_HOME_ENV]) database.cutOverCodexThreads();
 
 port.on("message", (request: TaskDatabaseRequest) => {
   let response: TaskDatabaseResponse;

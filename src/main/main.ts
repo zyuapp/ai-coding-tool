@@ -333,6 +333,8 @@ app.whenReady().then(async () => {
   /** Started before the app spawns anything, and awaited before the first thing that needs it. */
   const searchPath = adoptLoginShellPath();
   const userData = app.getPath("userData");
+  const { PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
+  process.env[PRIVATE_CODEX_HOME_ENV] = path.join(userData, "codex-private");
   if (process.platform === "linux" && app.isPackaged && process.env.APPIMAGE) {
     void registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
       .catch((error) => console.error("Could not register the AppImage URL handler:", error));

@@ -439,9 +439,9 @@ export class CodexSession {
       }
       this.served = served;
     }
-    const env = this.served ? { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } : undefined;
-    const client = this.connect(codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(env ? { env } : {}) }));
-    this.client = client;
+    const command = await codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
+    if (this.ended) throw new OpenFailure("The Codex session ended before the run could start.");
+    const client = this.client = this.connect(command);
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();

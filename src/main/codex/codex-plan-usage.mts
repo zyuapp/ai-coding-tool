@@ -89,7 +89,7 @@ export function toCodexPlanUsage(response: GetAccountRateLimitsResponse, account
 export async function readCodexPlanUsage(connect: UsageConnect = connectAppServer, timeoutMs = READ_TIMEOUT_MS): Promise<PlanUsage> {
   let client: UsageClient;
   try {
-    client = connect(codexAppServer());
+    client = connect(await codexAppServer([], { sharedHome: true }));
   } catch (cause) {
     return { status: "unavailable", message: describe(cause) };
   }

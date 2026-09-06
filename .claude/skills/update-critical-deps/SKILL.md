@@ -53,6 +53,16 @@ All three packages are pre-1.0, so a patch bump can still break. Never judge fro
    - Codex: pack the matching `@openai/codex@<version>-darwin-arm64` package into a temp dir, unpack it, run its `vendor/aarch64-apple-darwin/bin/codex app-server generate-ts --out <temp-output>`, and diff that output against `src/main/codex/protocol`. Ignore `version.ts`, which this repo adds after generation.
 3. Read every hit against the repo's own call sites listed above.
 
+For Codex, protocol compatibility is not enough: `src/main/codex/codex-home.mts` shares selected configuration/auth inputs with symlinks while `app-server-client.mts` isolates sessions, SQLite, and logs; account/sign-in/usage operations keep the original home. Read these files and run the real-binary compatibility test against the unpacked candidate **before installing it**:
+
+```sh
+CODEX_COMPAT_BINARY=/absolute/path/to/candidate/codex npx vitest run tests/main/codex/codex-home-compatibility.test.mts
+```
+
+The test uses temporary homes, synthetic credentials, and a localhost Responses/OAuth server; it never needs a real login or paid model request. Do not replace it with mocked app-server assertions or skip it because the generated types match. It checks storage isolation despite inherited path overrides, shared instructions/skills, config writes, OAuth refresh across processes, auth-link repair, and durable resume/fork/title/goal/archive behavior. Treat a failure or an unverified candidate as an incomplete compatibility assessment, not a safe update.
+
+Also inspect the candidate's config/auth/storage changes for new home-relative inputs, keychain identity changes, renamed storage flags, symlink replacement, and login/logout behavior; the fixture cannot detect every new input or platform-specific credential backend. Keep the shared-input allowlist explicit: never share the whole home, sessions, databases, logs, or other activity state to make a check pass. Do not switch credential backends, copy real tokens, silently fall back to shared history, or edit real Codex settings during validation. If compatibility requires runtime changes, report the breakage and proposed fix under the breaking-change rule below; once that migration is authorized, fix it and rerun the candidate probe and repository checks before committing.
+
 Breaking means an export a production call site uses was removed, renamed, or changed incompatibly; a default changed in a way that changes behaviour; or a new required config or permission step. A generated response gaining a required nullable field is not breaking when production code only receives or ignores that field. Update typed test fixtures mechanically and continue. Do not change runtime behaviour solely to satisfy a fixture.
 
 **If it breaks, stop.** Change nothing. Report the dependency, version, breakage, affected call sites, and required migration. The user decides whether to take it on.
@@ -112,6 +122,8 @@ cat vendor/cua-driver/version
 ## 4. Verify
 
 Run `npm run check:licenses` and then `npm test`. The first command gives notice drift a clear failure before the broader suite runs. If `tests/renderer.test.mts` needs isolation, re-run it with `npx vitest run tests/renderer.test.mts --testTimeout=30000` before calling it a failure.
+
+For Codex, `npm test` runs the same offline compatibility fixture against the newly installed development pin. Also run it with `CODEX_COMPAT_BINARY="$(command -v codex)"` when the user's installed CLI differs, since that is the executable the shipped app uses; report which versions were exercised. A missing binary or blocked localhost listener is a verification gap, not a passing check. Reuse the existing Codex-home and task-database tests for launcher/link and clean-cutover changes.
 
 Before committing, run `git diff --check` and inspect `git diff --name-only`. A dependency update is incomplete if `npm run prepare:cua` changed a legal file and that file is missing from the commit.
 

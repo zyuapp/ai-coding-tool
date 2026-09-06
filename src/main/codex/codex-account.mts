@@ -20,7 +20,7 @@ async function accountAccess(client: AccountClient): Promise<EngineAccess> {
 export async function readCodexAccess(connect: AccountConnect = connectAppServer): Promise<EngineAccess> {
   let client: AccountClient;
   try {
-    client = connect(codexAppServer());
+    client = connect(await codexAppServer([], { sharedHome: true }));
   } catch {
     return "unavailable";
   }
@@ -39,7 +39,7 @@ export async function readCodexAccess(connect: AccountConnect = connectAppServer
  * come back to it. The server has to outlive the round trip, since it is what the browser returns to.
  */
 export async function signInToCodex(openUrl: (url: string) => Promise<void>, connect: AccountConnect = connectAppServer): Promise<EngineAccess> {
-  const client = connect(codexAppServer());
+  const client = connect(await codexAppServer([], { sharedHome: true }));
   let timer: NodeJS.Timeout | undefined;
   try {
     const completed = new Promise<NotificationParams<"account/login/completed">>((resolve) => client.on("account/login/completed", resolve));
