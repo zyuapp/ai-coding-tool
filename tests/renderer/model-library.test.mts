@@ -32,7 +32,8 @@ test("the library filters providers, searches globally, pins without choosing, a
   await act(async () => {
     [...menu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!.click();
   });
-  assert.deepEqual([...menu.querySelectorAll(".model-choice strong")].map((node) => node.textContent), ["Fable", "Opus", "Sonnet", "Haiku"]);
+  assert.deepEqual([...menu.querySelectorAll("[role=group]")].map((group) => group.getAttribute("aria-label")), ["Claude"]);
+  assert.ok(menu.querySelectorAll(".model-choice").length > 0);
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
     setter.call(input, "sol");

@@ -1,23 +1,12 @@
+import { dom, mount, query } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
+import { test, onTestFinished } from "vitest";
+
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+
 import type { DiffPanelProps } from "../../../src/renderer/components/DiffPanel.tsx";
 import type { DiffState } from "../../../src/application/workspace-state.ts";
 import type { DesktopAPI } from "../../../src/contracts/ipc.ts";
-
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "KeyboardEvent", "navigator"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-/** jsdom has no ResizeObserver, and the panel measures its own width through one. */
-class ResizeObserverStub {
-  observe() {}
-  disconnect() {}
-}
-Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: ResizeObserverStub });
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 
 /** Named as the file it is, because a patch's own path is what picks the grammar that colours it. */
 const PATCH = [
@@ -37,25 +26,6 @@ Object.defineProperty(window, "desktop", { value: {
 } satisfies Pick<DesktopAPI, "diffPatch" | "branches"> });
 
 const { DiffPanel } = await import("../../../src/renderer/components/DiffPanel.tsx");
-
-afterAll(() => { dom.window.close(); });
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
-function query<E extends Element = HTMLElement>(root: ParentNode, selector: string): E {
-  const element = root.querySelector<E>(selector);
-  assert.ok(element, `Missing ${selector}`);
-  return element;
-}
 
 const PATHS = ["src/app.ts", "src/deep/nested/second.ts"];
 
@@ -181,7 +151,7 @@ test("Viewed aligns a short review's next file and the next click marks that fil
   }
 
   const view = await mount(React.createElement(Review));
-  t.onTestFinished(() => view.unmount());
+  onTestFinished(() => view.unmount());
   await settled(view.container);
   const scroller = query(view.container, ".diff-files");
   assert.equal(scroller.scrollTop, 0);
@@ -196,4 +166,32 @@ test("Viewed aligns a short review's next file and the next click marks that fil
   await tickPinned();
   assert.deepEqual(marked, PATHS);
   assert.match(query(view.container, ".diff-progress").textContent, /2 of 2 viewed/);
+});
+
+test.each([false, true])("a patch opens with line numbers and syntax colours (split=%s)", async (split) => {
+  function Review() {
+    const [diff, setDiff] = React.useState(() => ({ ...diffState(), split }));
+    return panel({ diff, onSetCollapsed(path, collapsed) {
+      setDiff((current) => ({ ...current, collapsed: collapsed ? [...current.collapsed, path] : current.collapsed.filter((item) => item !== path) }));
+    } });
+  }
+  const view = await mount(React.createElement(Review));
+  onTestFinished(() => view.unmount());
+  await settled(view.container);
+
+  if (!split) {
+    const lines = [...view.container.querySelectorAll(".diff-line")].slice(0, 5);
+    assert.equal(lines[0].className, "diff-line hunk", "the patch is already on screen");
+    assert.deepEqual(lines.slice(1).map((line) => [...line.querySelectorAll(".diff-gutter span")].map((cell) => cell.textContent)),
+      [["1", "1"], ["2", ""], ["", "2"], ["", "3"]]);
+    assert.deepEqual(lines.slice(1).map((line) => line.className.replace("diff-line ", "")), ["context", "delete", "add", "add"]);
+  }
+  const coloured = [...view.container.querySelectorAll<HTMLElement>(split ? ".diff-split-cell code span" : ".diff-line code span")];
+  assert.ok(coloured.length > 0, "the grammar produced tokens");
+  assert.ok(coloured.every((token) => token.style.color.startsWith("var(--syntax") || token.style.color.startsWith("var(--code")), "every colour comes from a token");
+  assert.ok(coloured.some((token) => token.textContent === "const" && token.style.color === "var(--syntax-keyword)"));
+  for (const button of view.container.querySelectorAll<HTMLButtonElement>(".diff-files .diff-file-open")) {
+    await act(async () => { button.click(); });
+  }
+  assert.equal(view.container.querySelectorAll(".diff-line, .diff-split-row").length, 0, "the headers fold the patches away");
 });

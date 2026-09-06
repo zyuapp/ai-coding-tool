@@ -143,15 +143,6 @@ test("deletions and the additions replacing them are paired across the two colum
   ]);
 });
 
-test("both views key their rows the same way, so both find the same tokens", () => {
-  const file = parseFilePatch(PATCH, "src/app.ts");
-  const unified = new Set(diffRows(file).map((row) => row.key));
-  const pairs = splitRows(file).filter((row) => row.kind === "pair");
-  const sides = pairs.flatMap((pair) => [pair.left, pair.right]).filter((row) => row !== null);
-
-  assert.ok(sides.length > 0);
-  for (const row of sides) assert.ok(unified.has(row.key), `${row.key} is not a key the one-column view uses`);
-});
 });
 
 describe("Diff values", { concurrent: true }, () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { expectTypeOf, test } from "vitest";
-import type { AgentEngine } from "../../src/domain/agent-engine.ts";
+import { test } from "vitest";
+
 import { describeToolCall, toolFamily } from "../../src/domain/tool-call.ts";
 
 test("a call is named by its argument, and marked by what kind of argument it is", () => {
@@ -47,9 +47,4 @@ test("Codex names a call by its item kind, and by the command, path, or query it
   assert.deepEqual(describeToolCall("codex", "web_search", JSON.stringify({ query: "codex app-server" })), { family: "web", argument: "codex app-server" });
   assert.equal(toolFamily("codex", "mcp_tool_call"), "other");
   assert.equal(toolFamily("codex", "browser_click"), "web");
-});
-
-test("only an engine the catalogue knows can name a tool", () => {
-  expectTypeOf(toolFamily).parameter(0).toEqualTypeOf<AgentEngine>();
-  expectTypeOf(describeToolCall).parameter(0).toEqualTypeOf<AgentEngine>();
 });

@@ -1,3 +1,4 @@
+import { type TimelineProps, transcript, timelineView } from "../support/timeline.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
@@ -6,36 +7,6 @@ import { fireResizeObservers, mount, query } from "../support/renderer-dom.mts";
 
 const { ConversationTimeline, groupTimeline } = await import("../../src/renderer/components/ConversationTimeline.tsx");
 const { StreamingText } = await import("../../src/renderer/components/StreamingText.tsx");
-
-type TimelineProps = React.ComponentProps<typeof ConversationTimeline>;
-type TimelineMessage = Thread["messages"][number];
-type TimelineMessageSeed = Omit<TimelineMessage, "id" | "at">;
-
-function transcript(...messages: TimelineMessageSeed[]): TimelineMessage[] {
-  return messages.map((message, index) => ({ id: `m${index}`, at: index * 1000, ...message }));
-}
-
-function timelineView(
-  messages: TimelineMessage[],
-  status: TimelineProps["status"],
-  streamingTail: TimelineProps["streamingTail"] = undefined,
-  runEndedAt?: number,
-  find: TimelineProps["find"] = undefined,
-  waitingOn: TimelineProps["waitingOn"] = null,
-) {
-  const scroller = document.createElement("div");
-  Object.defineProperty(scroller, "offsetWidth", { value: 860 });
-  Object.defineProperty(scroller, "offsetHeight", { value: 900 });
-  document.body.append(scroller);
-  const task: Thread = {
-    id: "t1", title: "T", engine: "claude", executionPolicy: "confirm", messages,
-    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
-    ...(runEndedAt === undefined ? {} : { runEndedAt }),
-  };
-  return React.createElement(ConversationTimeline, {
-    currentThread: task, engine: "claude", engineLabel: "Claude", folder: "/p", status, compacting: false, waitingOn, streamingTail, scrollContainerRef: { current: scroller }, find,
-  });
-}
 
 function streaming(props: React.ComponentProps<typeof StreamingText>) {
   return React.createElement(StreamingText, { streaming: true, ...props });

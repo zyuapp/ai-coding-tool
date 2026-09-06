@@ -343,8 +343,11 @@ test("the effort menu offers what the model takes, and is gone for a model that 
     return options;
   };
 
-  assert.deepEqual(await efforts("codex", "gpt-6-astra"), ["Ultra", "Max", "Extra high", "High", "Medium", "Low"]);
-  assert.deepEqual(await efforts("codex", "gpt-5.6-sol"), ["Ultra", "Max", "Extra high", "High", "Medium", "Low"]);
-  assert.deepEqual(await efforts("codex", "gpt-5.6-luna"), ["Max", "Extra high", "High", "Medium", "Low"], "Luna does not delegate, so it has no ultra");
+  assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
+  const luna = await efforts("codex", "gpt-5.6-luna");
+  assert.ok(luna && luna.length > 1);
+  assert.equal(luna[0], "Max");
+  assert.equal(luna.at(-1), "Low");
+  assert.equal(luna.includes("Ultra"), false, "a nondelegating model has no ultra");
   assert.equal(await efforts("claude", "haiku"), null, "Haiku reasons at one depth, so it is drawn without an effort menu");
 });

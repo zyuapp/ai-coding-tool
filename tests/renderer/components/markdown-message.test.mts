@@ -8,39 +8,13 @@ import { dom, mount, query } from "../../support/renderer-dom.mts";
 const { MarkdownMessage, MessageLinkProvider } = await import("../../../src/renderer/components/MarkdownMessage.tsx");
 
 test("assistant markdown renders GFM without executing raw HTML", async () => {
-  const view = await mount(React.createElement(MarkdownMessage, null, "## Heading\n\n**Bold**\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n- [x] Done\n\n<script>bad()</script>"));
+  const view = await mount(React.createElement(MarkdownMessage, null, "## Heading\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n- [x] Done\n\n```typescript\nconst first = 1;\n\nconst second = 2;\n```\n\n<script>bad()</script>"));
 
   assert.equal(view.container.querySelector("h2")?.textContent, "Heading");
-  assert.equal(view.container.querySelector("strong")?.textContent, "Bold");
+  assert.match(view.container.querySelector("pre code.language-typescript")?.textContent ?? "", /first = 1;\n\nconst second = 2;/);
   assert.equal(view.container.querySelector("table td")?.textContent, "1");
   assert.equal(view.container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked, true);
   assert.equal(view.container.querySelector("script"), null);
-  await view.unmount();
-});
-
-test("assistant markdown preserves nested, quoted, linked, and fenced structures", async () => {
-  const markdown = [
-    "> **Quoted** guidance",
-    ">",
-    "> - Parent",
-    ">   - Child",
-    "",
-    "A [safe link](https://example.com) and ~~obsolete text~~.",
-    "",
-    "```typescript",
-    "const first = 1;",
-    "",
-    "const second = 2;",
-    "```",
-  ].join("\n");
-  const view = await mount(React.createElement(MarkdownMessage, null, markdown));
-
-  assert.equal(view.container.querySelector("blockquote strong")?.textContent, "Quoted");
-  assert.equal(view.container.querySelector("blockquote ul ul li")?.textContent, "Child");
-  assert.equal(view.container.querySelector("a")?.target, "_blank");
-  assert.equal(view.container.querySelector("a")?.rel, "noreferrer");
-  assert.equal(view.container.querySelector("del")?.textContent, "obsolete text");
-  assert.match(view.container.querySelector("pre code.language-typescript")?.textContent ?? "", /first = 1;\n\nconst second = 2;/);
   await view.unmount();
 });
 

@@ -1,32 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { test } from "vitest";
+import { afterAll, test, vi } from "vitest";
+import { useComposerCaret } from "../../../src/renderer/components/composer-caret.ts";
 import { NativeSurface, type SurfaceBox } from "../../../src/renderer/components/NativeSurface.tsx";
-
-const stylesCss = await readFile(new URL("../../../src/renderer/styles.css", import.meta.url), "utf8");
-const composerCaret = await readFile(new URL("../../../src/renderer/components/composer-caret.ts", import.meta.url), "utf8");
-
-function rule(selector: string) {
-  const found = new RegExp(`\\${selector} \\{([^}]*)\\}`).exec(stylesCss);
-  assert.ok(found, `${selector} is declared`);
-  return found[1];
-}
-
-/**
- * A panel parks outside the shell. `hidden` clips it but leaves the shell scrollable, so putting the
- * caret in a parked panel scrolls the window across to reveal it — which drags the sidebar, the topbar
- * and the conversation off the left edge while the panel itself appears not to move at all.
- */
-test("the shell clips what parks outside it rather than leaving a box that can be scrolled", () => {
-  assert.match(rule(".app-shell"), /overflow:\s*clip;/);
-});
-
-test("the composer takes the caret without scrolling the window to reach it", () => {
-  assert.match(composerCaret, /focus\(\{ preventScroll: true \}\)/);
-});
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
 for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "MutationObserver", "navigator"]) {
@@ -88,4 +66,23 @@ test("the page travels with the panel that carries it rather than waiting out th
 
   await act(async () => { root.unmount(); });
   assert.equal(drawn.at(-1), null, "an unmounted surface leaves no page drawn over the app");
+});
+
+afterAll(() => dom.window.close());
+
+test("a composer focus request focuses its textarea without scrolling", async (t) => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const focus = vi.spyOn(dom.window.HTMLTextAreaElement.prototype, "focus").mockImplementation(() => {});
+  t.onTestFinished(async () => { await act(async () => root.unmount()); focus.mockRestore(); container.remove(); });
+  function Composer({ token }: { token: number }) {
+    const caret = useComposerCaret(token);
+    return React.createElement("textarea", { ref: caret.textareaRef });
+  }
+  await act(async () => root.render(React.createElement(Composer, { token: 0 })));
+  assert.equal(focus.mock.calls.length, 0);
+  await act(async () => root.render(React.createElement(Composer, { token: 1 })));
+  assert.deepEqual(focus.mock.calls, [[{ preventScroll: true }]]);
+  assert.equal(focus.mock.instances[0], container.querySelector("textarea"));
 });

@@ -1,12 +1,14 @@
+import { mount, query } from "../support/renderer-dom.mts";
+import { task, workspace } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
+import { test } from "vitest";
+
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+
 import { whyTickCannotRun } from "../../src/application/findings.ts";
 import { whyRunSurfaces } from "../../src/application/run-testimony.ts";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
-import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { activitySections } from "../../src/application/thread-order.ts";
 import { automationRunPrompt, type ActiveRun } from "../../src/application/thread-run-state.ts";
 import type { AutomationFire, RunEvent } from "../../src/contracts/ipc.ts";
@@ -24,24 +26,6 @@ import { executeWorkspaceInput } from "../../src/application/workspace-execution
 const { AutomationPanel, automationMeta, lastRunLabel } = await import("../../src/renderer/components/AutomationPanel.tsx");
 const { answerThreadRequest } = await import("../../src/renderer/task-workspace/thread-requests.ts");
 const { ProjectSidebar } = await import("../../src/renderer/components/ProjectSidebar.tsx");
-
-function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-    ...overrides,
-  };
-}
-
-function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
-  return { ...emptyWorkspaceState(), ...overrides };
-}
 
 function activeRun(overrides: Partial<ActiveRun> = {}): ActiveRun {
   return {
@@ -676,26 +660,6 @@ test("what the scheduler counts about declines is reset by a run that actually h
   assert.equal(automationAfterRun(once, "missed", 30).consecutiveDeclines, 1, "a one-shot whose moment passed was never turned away");
 });
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "innerWidth", "innerHeight"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(dom.window.Element.prototype, "getAnimations", { configurable: true, value: () => [] });
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-afterAll(() => dom.window.close());
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async render(next: React.ReactNode) { await act(async () => { root.render(next); }); },
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
 function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
   return React.createElement(ProjectSidebar, {
     open: true,
@@ -726,12 +690,6 @@ function sidebar(overrides: Partial<ProjectSidebarProps> = {}) {
     onMoveThread() {}, onForkThread() {}, onMoveProject() {}, onOpenSettings() {},
     ...overrides,
   });
-}
-
-function query<E extends Element = HTMLElement>(container: ParentNode, selector: string): E {
-  const element = container.querySelector<E>(selector);
-  assert.ok(element, `Expected ${selector}`);
-  return element;
 }
 
 test("a priority row says what was found rather than where it lives and when it last moved", async () => {

@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -49,7 +50,7 @@ test("the packed formats an icns also holds are skipped", () => {
 
 /** Builds a bundle on disk: the property list, the resources folder, and the icon it names. */
 async function bundle(options: { plist: string; icons: Record<string, Buffer> }) {
-  const root = await mkdtemp(path.join(tmpdir(), "aicodingtool-bundle-"));
+  const root = await temporaryDirectory(path.join(tmpdir(), "aicodingtool-bundle-"));
   const app = path.join(root, "Example.app");
   await mkdir(path.join(app, "Contents", "Resources"), { recursive: true });
   await writeFile(path.join(app, "Contents", "Info.plist"), options.plist);

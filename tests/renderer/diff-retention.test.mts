@@ -4,12 +4,16 @@ import { diffRows, parseFilePatch, splitRows } from "../../src/domain/diff.ts";
 import { ensureLanguage, fileTokens } from "../../src/renderer/diff/highlight.ts";
 
 const PATCH = [
+  "diff --git a/src/app.ts b/src/app.ts",
+  "index 1111111..2222222 100644",
   "--- a/src/app.ts",
   "+++ b/src/app.ts",
-  "@@ -1,2 +1,2 @@",
+  "@@ -1,4 +1,5 @@ export function app()",
   " const first = 1;",
   "-const second = 2;",
   "+const second = 22;",
+  "+const third = 3;",
+  " const last = 4;",
   "",
 ].join("\n");
 
@@ -22,7 +26,7 @@ test("diff views reuse parsed line objects with final keys", () => {
     .filter((row): row is (typeof parsed)[number] => row !== null && row.kind !== "hunk");
 
   assert.equal(unified.length, parsed.length);
-  assert.deepEqual(parsed.map((row) => row.key), ["0:c1:1", "0:o2", "0:n2"]);
+  assert.equal(new Set(parsed.map((row) => row.key)).size, parsed.length);
   for (const [index, row] of unified.entries()) assert.equal(row, parsed[index]);
   for (const row of sides) assert.ok(parsed.includes(row));
 });

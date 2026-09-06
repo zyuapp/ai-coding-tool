@@ -1,9 +1,10 @@
+import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { query, type Options, type PermissionMode, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { ClaudeAgentProvider, claudeExecutable, discoverClaudeCommands, discoverClaudeModels } from "../../../src/main/agent/claude-agent-provider.mts";
 import type { WorkflowReport } from "../../../src/contracts/ipc.ts";
 import type { GoalReport } from "../../../src/contracts/ipc.ts";
@@ -36,7 +37,7 @@ async function useTool(canUseTool: NonNullable<Options["canUseTool"]>, name: str
 }
 
 test("the app runs the Claude Code the user installed, and finds none when it is not on the path", async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-path-"));
+  const folder = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-path-"));
   const executable = path.join(folder, "claude");
   await writeFile(executable, "");
   await chmod(executable, 0o755);
@@ -552,7 +553,6 @@ test("a run ends on its turn's result even though its input stream stays open", 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
 });
 
-
 test("a second turn keeps the session the first one warmed, and takes its settings as changes", async () => {
   const capture = liveCapture();
   const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
@@ -703,8 +703,6 @@ test("a background process is stopped through the thread's session, after its ru
   provider.closeAll();
 });
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 /** The level the agent process reports its live tasks as: the whole set, every time it changes. */
 const running = (...ids: string[]) => ({
   type: "system",
@@ -712,18 +710,18 @@ const running = (...ids: string[]) => ({
   tasks: ids.map((id) => ({ task_id: id, task_type: "local_workflow", description: "Review changed files" })),
 });
 
-
-
-test("a session with work still running outlives the idle deadline, and is let go once the work stops", async () => {
+test("a session with work still running outlives the idle deadline, and is let go once the work stops", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   const capture = poolCapture();
   const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
 
   const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, false, "the workflow the turn left running is not on the turn's clock");
 
   session.emit(running());
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, true, "the session is handed back once nothing is running under it");
 });
 
@@ -741,7 +739,9 @@ test("a session with work still running is passed over when the pool has to let 
   provider.closeAll();
 });
 
-test("work outstanding when a run is cancelled holds the session no longer than the work does", async () => {
+test("work outstanding when a run is cancelled holds the session no longer than the work does", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   const capture = poolCapture();
   const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
   const abortController = new AbortController();
@@ -756,10 +756,10 @@ test("work outstanding when a run is cancelled holds the session no longer than 
   session.emit({ type: "result", subtype: "success", is_error: false, result: "stopped" });
   assert.deepEqual(await cancelled, { status: "cancelled" });
 
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, false, "cancelling the turn does not cancel what it left running");
   session.emit(running());
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, true, "and the session is not pinned once that work stops");
 });
 

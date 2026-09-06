@@ -1,11 +1,7 @@
+import { run } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test, describe } from "vitest";
-import {
-  DIFF_PANEL,
-  reduce,
-  type WorkspaceEffect,
-  type WorkspaceInput,
-} from "../../src/application/workspace-reducer.ts";
+import { DIFF_PANEL, reduce, type WorkspaceEffect } from "../../src/application/workspace-reducer.ts";
 import type { ActiveRun } from "../../src/application/thread-run-state.ts";
 import {
   deriveView,
@@ -28,10 +24,6 @@ type StartRunEffect = Extract<WorkspaceEffect, { type: "start-run" }>;
 
 function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
   return { ...emptyWorkspaceState(), projects: [PROJECT], draftProjectId: PROJECT.id, ...overrides };
-}
-
-function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
-  return inputs.reduce((current, input) => reduce(current, input).state, state);
 }
 
 function diff(state: WorkspaceState): DiffState {
