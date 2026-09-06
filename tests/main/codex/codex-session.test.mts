@@ -2,12 +2,14 @@ import { contextWindowLimit } from "../../../src/domain/agent-engine.ts";
 import assert from "node:assert/strict";
 import { test, expect, vi } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
-import { codexPolicy, DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
+import { codexPolicy } from "../../../src/main/codex/codex-session.mts";
+import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import type { ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
 import type { BackgroundReport, GoalReport } from "../../../src/contracts/ipc.ts";
 import type { ToolIntent } from "../../../src/domain/run.ts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
 import { SteerChannel } from "../../../src/main/agent/steer-channel.mts";
+import { SIDE_CHAT_INSTRUCTIONS } from "../../../src/main/agent/side-chat-instructions.mts";
 import { completeTurn, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
 
 const threadId = "thread-1";
@@ -153,7 +155,7 @@ test("a thread the run continues is resumed, and a side chat forks it instead", 
   const emitted: ProviderEvent[] = [];
   const forked = harness();
   const fork = await turn(forked, { channel: "side", continuation: { provider: "codex", value: "thread-9" }, forkContinuation: true, emit: (event) => emitted.push(event) });
-  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
   assert.deepEqual(emitted[0], { type: "continuation", continuation: { provider: "codex", value: "thread-fork" } }, "the fork's own id is what the side chat keeps");
   forked.provider.closeAll();
 
@@ -161,6 +163,26 @@ test("a thread the run continues is resumed, and a side chat forks it instead", 
   const other = await turn(foreign, { continuation: { provider: "claude", value: "session-1" } });
   assert.equal(other.client.calls("thread/start").length, 1, "another engine's continuation means nothing here");
   foreign.provider.closeAll();
+});
+
+test("side chat task boundaries also reach fresh and resumed sessions without changing the user's request", async () => {
+  const prompt = "so you do self review without me putting it in prompt?";
+  for (const method of ["thread/start", "thread/resume"] as const) {
+    const codex = harness();
+    try {
+      const { client } = await turn(codex, {
+        channel: "side",
+        prompt,
+        ...(method === "thread/resume" ? { continuation: { provider: "codex" as const, value: "side-thread" } } : {}),
+      });
+      const settings = client.calls(method)[0] as { developerInstructions: string };
+      assert.equal(settings.developerInstructions, `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}`);
+      const started = client.calls("turn/start")[0] as { input: unknown };
+      assert.deepEqual(started.input, [{ type: "text", text: prompt, text_elements: [] }]);
+    } finally {
+      codex.provider.closeAll();
+    }
+  }
 });
 
 test("a server that dies while resuming fails the run without giving up the continuation", async () => {
