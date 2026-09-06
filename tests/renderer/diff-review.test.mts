@@ -98,7 +98,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
     pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
+    diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
     createBranch: async () => {},
@@ -257,7 +257,7 @@ async function showSession(view: MountView) {
 /** A desktop whose comparison holds one changed file with a patch to draw. */
 function reviewableDesktop() {
   return fakeDesktop({
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({
+    diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({
       status: "available",
       range,
       ignoreWhitespace,
@@ -380,7 +380,7 @@ test("ticking a file off folds its patch away and empties the tab's count", asyn
 /** A comparison of three files, so a review has somewhere to go when one of them is ticked off. */
 function threeFileDesktop() {
   return fakeDesktop({
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({
+    diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({
       status: "available",
       range,
       ignoreWhitespace,
@@ -487,7 +487,7 @@ test("a review hides the lines that only moved, and showing them reads the compa
   seedReviewableProject();
   const asked: boolean[] = [];
   window.desktop = fakeDesktop({
-    diffSummary: async (workspaceId, range, ignoreWhitespace = true) => {
+    diffSummary: async (_workspaceId, range, ignoreWhitespace = true) => {
       asked.push(ignoreWhitespace);
       return {
         status: "available",

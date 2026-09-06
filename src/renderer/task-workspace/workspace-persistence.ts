@@ -151,11 +151,6 @@ export function persistedStoreState(stored: ThreadStoreData): PersistenceState {
   };
 }
 
-/** Writes anything created before the durable store finished loading, including worktree records. */
-export function storeBackfill(stored: ThreadStoreData, current: PersistenceState) {
-  return persistenceDelta(persistedStoreState(stored), current);
-}
-
 export function hasPersistenceDelta(delta: TaskStoreDelta) {
   return Boolean(delta.tasks.length || delta.removedTasks || delta.projects || delta.worktrees || "lastFolder" in delta);
 }

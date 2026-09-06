@@ -33,7 +33,6 @@ for (const platform of ["darwin", "linux"] as const) {
       await waitFor(() => main.mobileHost.starts.length === 2);
       assert.equal(main.windows.length, 1);
       assert.notEqual(main.windows[0], main.window);
-      const replacement = main.windows[0];
       assert.equal(main.mobileHost.starts[1].send({ type: "mobile.request", requestId: "reopened", sessionId: "phone", op: "snapshot" }), true);
       assert.equal(main.runtimeViews[0].webContents.sent.at(-1)?.channel, "mobile:request");
     }

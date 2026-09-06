@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
-import { dock, task, workspace, run, running, inside } from "./workspace-reducer-fixtures.mts";
+import { dock, task, workspace } from "./workspace-reducer-fixtures.mts";
 import { EMPTY_DOCK } from "../../src/application/workspace-dock.ts";
 
 test("closing the visible window releases terminal records while browser URLs reopen on mount", () => {

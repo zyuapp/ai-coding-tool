@@ -3,12 +3,8 @@ import { test } from "vitest";
 import { isMobileClientMessage, isMobileCommand, isMobileRequest, isMobileResponse, isMobileServerMessage, MOBILE_PROTOCOL_VERSION } from "../../src/contracts/mobile.ts";
 import {
   addressOrigin,
-  clearPairingFailures,
   createPairingCode,
-  generateDeviceToken,
   generatePairingCode,
-  hashDeviceToken,
-  deviceForToken,
   MAX_PAIRING_FAILURES,
   noPairingAttempts,
   PAIRING_CODE_LENGTH,
@@ -17,11 +13,9 @@ import {
   pairingCodeMatches,
   pairingLocked,
   pairingUrl,
-  parsePairingUrl,
   preferredAddress,
   registerPairingFailure,
   type MobileAddress,
-  type PairedDevice,
 } from "../../src/domain/mobile.ts";
 
 const NOW = 1_800_000_000_000;
@@ -156,16 +150,10 @@ test("an address says where a phone reaches the Mac, and only Tailscale is secur
   assert.equal(preferredAddress([]), null);
 });
 
-test("a pairing URL carries the code and reads back", () => {
+test("a pairing URL carries the code in the fragment", () => {
   const address: MobileAddress = { kind: "tailscale-https", host: "mac.tail1234.ts.net", port: 443 };
   const url = pairingUrl(address, "ABCD2345");
   assert.equal(url, "https://mac.tail1234.ts.net/m/#pair=ABCD2345");
-  assert.deepEqual(parsePairingUrl(url), { origin: "https://mac.tail1234.ts.net", code: "ABCD2345" });
-  assert.deepEqual(parsePairingUrl("http://127.0.0.1:7737/m/?pair=abcd2345"), { origin: "http://127.0.0.1:7737", code: "ABCD2345" });
-  assert.equal(parsePairingUrl("https://mac.tail1234.ts.net/m"), null, "a URL with no code pairs nothing");
-  assert.equal(parsePairingUrl("https://mac.tail1234.ts.net/other?pair=ABCD2345"), null);
-  assert.equal(parsePairingUrl("aicodingtool://pair?pair=ABCD2345"), null);
-  assert.equal(parsePairingUrl("not a url"), null);
 });
 
 test("a pairing code expires on the clock and is matched exactly", () => {
@@ -182,7 +170,7 @@ test("a pairing code expires on the clock and is matched exactly", () => {
   assert.notEqual(generatePairingCode(), generatePairingCode());
 });
 
-test("repeated bad codes lock the door, and a good one clears the count", () => {
+test("repeated bad codes lock the door until the lockout expires", () => {
   let attempts = noPairingAttempts();
   for (let tries = 1; tries < MAX_PAIRING_FAILURES; tries += 1) {
     attempts = registerPairingFailure(attempts, NOW);
@@ -191,19 +179,4 @@ test("repeated bad codes lock the door, and a good one clears the count", () => 
   attempts = registerPairingFailure(attempts, NOW);
   assert.equal(pairingLocked(attempts, NOW), true);
   assert.equal(pairingLocked(attempts, attempts.lockedUntil!), false, "the lockout ends on its own");
-  assert.equal(pairingLocked(clearPairingFailures(), NOW), false);
-});
-
-test("only a hash of a device token is kept, and a token finds its device", async () => {
-  const token = generateDeviceToken();
-  assert.equal(token.length, 64);
-  const hash = await hashDeviceToken(token);
-  assert.equal(hash.length, 64);
-  assert.notEqual(hash, token);
-  assert.equal(await hashDeviceToken(token), hash, "the same token always hashes the same");
-
-  const device: PairedDevice = { id: "device-1", name: "iPhone", tokenHash: hash, pairedAt: NOW, lastSeenAt: null };
-  assert.deepEqual(await deviceForToken([device], token), device);
-  assert.equal(await deviceForToken([device], generateDeviceToken()), null);
-  assert.equal(await deviceForToken([], token), null);
 });

@@ -8,7 +8,6 @@ import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type Subag
 import type { Thread } from "../../src/domain/thread.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
-import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
 import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
@@ -18,7 +17,6 @@ const { SubagentInspector } = await import("../../src/renderer/components/Subage
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 const { OpenInMenu } = await import("../../src/renderer/components/OpenInMenu.tsx");
-const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
 
 function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
@@ -43,38 +41,12 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   });
 }
 
-
-function renderConversationComposer(overrides: Partial<ConversationComposerProps>) {
-  return React.createElement(ConversationComposer, {
-    prompt: "",
-    folder: "",
-    mode: "confirm",
-    engine: "claude", engineLabel: "Claude",
-    model: "opus",
-    effort: "high",
-    runActive: false,
-    queuedMessages: [],
-    onPromptChange() {},
-    onModeChange() {},
-    onModelChange() {},
-    onEffortChange() {},
-    onSend() {},
-    onSteerQueued() {},
-    onDropQueued() {},
-    onCancel() {},
-    ...overrides,
-  });
-}
-
 const subagents: Subagent[] = [
   { id: "working", description: "Working agent", status: "working", lastToolName: "Read", totalTokens: 321, startedAt: 1, activity: [] },
   { id: "complete", description: "Complete agent", status: "completed", summary: "Done", startedAt: 1, finishedAt: 2, activity: [] },
   { id: "failed", description: "Failed agent", status: "failed", startedAt: 1, finishedAt: 2, activity: [] },
   { id: "stopped", description: "Stopped agent", status: "stopped", startedAt: 1, finishedAt: 2, activity: [] },
 ];
-
-type MountView = Awaited<ReturnType<typeof mount>>;
-
 
 type FakeDesktop = DesktopAPI & {
   sent: RunCommand[];
@@ -146,7 +118,7 @@ function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
     pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
+    diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
     checkoutBranch: async () => {},
     createBranch: async () => {},

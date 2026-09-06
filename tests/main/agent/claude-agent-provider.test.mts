@@ -5,7 +5,7 @@ import path from "node:path";
 import { query, type Options, type PermissionMode, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { test } from "vitest";
 import { ClaudeAgentProvider, claudeExecutable, discoverClaudeCommands, discoverClaudeModels } from "../../../src/main/agent/claude-agent-provider.mts";
-import type { BackgroundReport, WorkflowReport } from "../../../src/contracts/ipc.ts";
+import type { WorkflowReport } from "../../../src/contracts/ipc.ts";
 import type { GoalReport } from "../../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../../src/domain/agent-engine.ts";
 import type { ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";

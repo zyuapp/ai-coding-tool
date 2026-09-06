@@ -4,8 +4,7 @@ import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reduce
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { Project } from "../../src/domain/project.ts";
 import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
-import type { Worktree } from "../../src/domain/worktree.ts";
-import { task, workspace, activeRun, effectAt, required, run, running, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
 
 test("asking for a worktree from the panel moves the thread there and then", () => {
   const state = projected({ threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a" });

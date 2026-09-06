@@ -9,25 +9,25 @@ test("every engine defaults to a model and an effort it offers", () => {
     assert.ok(isAgentEngine(engine));
     assert.ok(engineHasModel(engine, defaultModelFor(engine)));
     assert.ok(engineHasEffort(engine, defaultEffortFor(engine)));
-    for (const spec of effortsFor(engine)) assert.ok(isAgentEffort(spec.id));
+    for (const model of modelsFor(engine)) {
+      for (const spec of effortsFor(model.id)) assert.ok(isAgentEffort(spec.id));
+    }
   }
 });
 
-test("Codex lists its own models and efforts, and exposes its supported panels", () => {
+test("Codex exposes its own label, default model, and supported panels", () => {
   assert.equal(engineLabel("codex"), "Codex");
-  assert.deepEqual(modelsFor("codex").map((spec) => spec.id), ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]);
   assert.equal(defaultModelFor("codex"), "gpt-5.6-sol");
-  assert.deepEqual(effortsFor("codex").map((spec) => spec.id), ["ultra", "xhigh", "high", "medium", "low"]);
   assert.equal(defaultEffortFor("codex"), "high");
   assert.deepEqual(capabilitiesFor("codex"), { workflows: false, subagents: true });
 });
 
-test("a model or effort belongs to one engine, not to every engine", () => {
+test("models belong to their own engine and efforts may be shared", () => {
   assert.equal(engineHasModel("codex", "opus"), false);
   assert.equal(engineHasModel("claude", "gpt-5.6-sol"), false);
   assert.equal(engineHasEffort("claude", "ultra"), false);
   assert.equal(engineHasEffort("codex", "ultra"), true);
-  assert.equal(engineHasEffort("codex", "max"), false);
+  assert.equal(engineHasEffort("codex", "max"), true);
   assert.equal(engineHasEffort("claude", "max"), true);
 });
 

@@ -6,7 +6,7 @@ import path from "node:path";
 import { test, afterAll, describe } from "vitest";
 import { promisify } from "node:util";
 import { WorktreeService } from "../../../src/main/workspace/worktrees.mts";
-import { checkoutBranch, createBranch, isDetached, listBranches, listWorktrees } from "../../../src/main/workspace/git.mts";
+import { checkoutBranch, createBranch, isDetached, listBranches } from "../../../src/main/workspace/git.mts";
 import type { WorkspaceRecord } from "../../../src/domain/workspace.ts";
 
 const execFileAsync = promisify(execFile);
@@ -30,6 +30,11 @@ afterAll(async () => {
 
 async function git(root: string, ...args: string[]) {
   return execFileAsync("git", args, { cwd: root });
+}
+
+async function listWorktrees(root: string) {
+  const { stdout } = await git(root, "worktree", "list", "--porcelain");
+  return stdout.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
 }
 
 async function repository() {

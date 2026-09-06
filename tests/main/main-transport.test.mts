@@ -6,7 +6,7 @@ import { runInNewContext } from "node:vm";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 import type { AgentEvent, ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
-import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.js";
+import type { ThreadRequest } from "../../src/contracts/threads.js";
 import type { BrowserBounds, BrowserInspectionResult, BrowserSnapshot } from "../../src/domain/browser.js";
 import { cliConfiguration, type CliStatus } from "../../src/domain/cli.js";
 import type { KeyInput } from "../../src/domain/shortcuts.js";
@@ -38,7 +38,7 @@ test("the main window sends ordinary web links to the default browser", async ()
 });
 
 test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async () => {
-  const { userData, agents, window, trusted, untrusted } = main;
+  const { userData, agents, trusted, untrusted } = main;
 
   const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
   const forkedBefore = agents.length;

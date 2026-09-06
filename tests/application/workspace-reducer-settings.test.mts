@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { workspace, preferences, effectAt, run, running } from "./workspace-reducer-fixtures.mts";
+import { workspace, preferences, effectAt, run } from "./workspace-reducer-fixtures.mts";
 import { OPEN_SUBAGENT_GROUPS, type SubagentGroup } from "../../src/domain/run.ts";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarSection } from "../../src/domain/sidebar.ts";
 

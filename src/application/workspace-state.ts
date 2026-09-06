@@ -4,7 +4,7 @@ import type { PendingQuestion } from "../domain/agent-question.js";
 import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
-import { backfillSortIndex, orderThreads } from "./thread-order.js";
+import { backfillSortIndex } from "./thread-order.js";
 import type { ChangedFilesResult, DesktopShortcutRefusal } from "../contracts/ipc.js";
 import type { ReadingPoint } from "../contracts/commands.js";
 import type { ReviewTarget } from "../domain/review.js";
@@ -25,11 +25,10 @@ import { findView } from "./workspace-find.js";
 export type { FindView } from "./workspace-find.js";
 export { EMPTY_DIFF, diffFor, diffMatches, foldedOnLoad, retainedViews, withDiff } from "./workspace-diff.js";
 export type { DiffState } from "./workspace-diff.js";
-import type { ViewPreferences } from "../contracts/preferences.js";
 import type { AutomationView } from "../domain/automation.js";
 import { emptyMobileServerState, type MobileServerState } from "../domain/mobile.js";
 import type { BrowserApproval } from "../domain/browser.js";
-import { memoizedFindHits, searchesItself, type FindHit, type FindResults, type FindTarget } from "../domain/find.js";
+import type { FindResults, FindTarget } from "../domain/find.js";
 import { shortcutSettings, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
 import type { SettingsSection } from "../domain/settings-section.js";
 import { OPEN_SIDEBAR_SECTIONS, type SidebarMode, type SidebarSections } from "../domain/sidebar.js";
@@ -44,7 +43,7 @@ import type { Annotation, AttachedFile, PastedText, StagedImage } from "../domai
 import { legacyProjectId, projectName, type Project } from "../domain/project.js";
 import { retainedThreads } from "../domain/thread-retention.js";
 import type { ThreadStoreData } from "../domain/thread-storage.js";
-import { threadActivityAt, type Thread } from "../domain/thread.js";
+import type { Thread } from "../domain/thread.js";
 import { worktreeName, type ManagedWorktree, type Worktree } from "../domain/worktree.js";
 import {
   leavingThreadIds,
@@ -728,8 +727,6 @@ function engineView(state: WorkspaceState, currentThread: Thread | undefined) {
     ...engineFeeds(capabilities, state, currentThread),
   };
 }
-
-export type WorkspaceView = ReturnType<typeof deriveView>;
 
 /**
  * The threads ⌘1 through ⌘9 reach, read straight from state so each keystroke follows the current

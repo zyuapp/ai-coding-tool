@@ -5,7 +5,6 @@ import type { Thread } from "../../src/domain/thread.ts";
 import { appendMessages, replaceLastMessage, withdrawMessages } from "../../src/domain/conversation-updates.ts";
 import {
   drainLatestPersistence,
-  storeBackfill,
   persistedStoreState,
   persistenceDelta,
   hasPersistenceChanges,
@@ -65,7 +64,7 @@ test("startup backfill preserves a worktree created before the store finished lo
     createdAt: 1,
     lastUsedAt: 1,
   }];
-  const delta = storeBackfill({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }, current);
+  const delta = persistenceDelta(persistedStoreState({ version: 2, tasks: [], projects: [], worktrees: [], lastFolder: null }), current);
 
   assert.deepEqual(delta.worktrees, current.worktrees);
   assert.equal(delta.tasks[0]?.task.id, "task-1");

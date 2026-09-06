@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
-import { task, workspace, activeRun, automation, effectAt, required, run, running, queueMessage, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, effectAt, required, run, running, queueMessage } from "./workspace-reducer-fixtures.mts";
 
 test("a composer send waits for its workspace, then starts the run and clears the draft", () => {
   const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);

@@ -62,7 +62,7 @@ function schedulerFor(
   return scheduler;
 }
 
-test("schedules are rejected before they can be stored", async (t) => {
+test("schedules are rejected before they can be stored", () => {
   assert.throws(() => assertSchedule("*/30 * * * * *"), /at most once a minute/);
   assert.throws(() => assertSchedule("not a schedule"), /not a valid schedule/);
   assert.throws(() => assertSchedule("2020-01-01T00:00:00Z"), /no future run/);

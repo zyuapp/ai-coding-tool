@@ -14,8 +14,6 @@ import { runWorkspaceEffect } from "./workspace-effects";
 import { subscribeWorkspaceRuntime } from "./runtime-subscriptions";
 import { drainLatestPersistence, hasPersistenceChanges, persistedStoreState, persistenceState, type PersistenceQueue } from "./workspace-persistence";
 
-export type WorkspaceRuntime = ReturnType<typeof createWorkspaceRuntime>;
-
 function initialState(): WorkspaceState {
   const loaded = createLocalTaskStore().load();
   const state = loaded.ok ? stateFromData(loaded.data) : emptyWorkspaceState(loaded.errors.join(" "));
