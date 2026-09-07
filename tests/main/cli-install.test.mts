@@ -23,7 +23,7 @@ test("Linux CLI status, install, conflict detection, and uninstall use a user-wr
   assert.deepEqual(await installer.status(), { state: "missing", path: configuration.installPath, onPath: true });
 
   assert.deepEqual(await installer.install(), { state: "installed", path: configuration.installPath, onPath: true });
-  assert.match(await readFile(configuration.installPath, "utf8"), /exec xdg-open/);
+  assert.equal(await readFile(configuration.installPath, "utf8"), configuration.script);
   assert.equal((await stat(configuration.installPath)).mode & 0o777, 0o755);
 
   await writeFile(configuration.installPath, "#!/bin/sh\necho somebody-else\n", "utf8");

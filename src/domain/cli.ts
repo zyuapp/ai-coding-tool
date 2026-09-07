@@ -38,8 +38,9 @@ export const CLI_SCRIPT = cliScript([`exec open "${CLI_URL_SCHEME}://open?path=$
 
 export const LINUX_CLI_SCRIPT = cliScript([
   `url="${CLI_URL_SCHEME}://open?path=$encoded"`,
-  'if command -v xdg-open >/dev/null 2>&1; then exec xdg-open "$url"; fi',
+  // Generic xdg-open can misread quoted desktop Exec paths and fall back to a browser.
   'if command -v gio >/dev/null 2>&1; then exec gio open "$url"; fi',
+  'if command -v xdg-open >/dev/null 2>&1; then exec xdg-open "$url"; fi',
   `printf '${CLI_COMMAND}: could not find xdg-open or gio to open AI Coding Tool.\\n' >&2`,
   "exit 1",
 ]);
