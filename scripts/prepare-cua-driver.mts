@@ -18,14 +18,14 @@ const targets = {
   },
   "linux-x64": {
     archiveName: `cua-driver-rs-${version}-linux-x86_64-binary.tar.gz`,
-    archiveHash: "01bf8339ec129cc00f4b4b2c6056ef1a7c5b52df39ff83ad17c9b16818aec500",
+    archiveHash: CUA_RELEASE.linuxX64ArchiveSha256,
     archiveEntry: "cua-driver",
     sdkPackage: "@trycua/cua-driver-linux-x64-gnu",
     thin: false,
   },
   "linux-arm64": {
     archiveName: `cua-driver-rs-${version}-linux-arm64-binary.tar.gz`,
-    archiveHash: "be22768a207796a4bc1de50c52f32f9ef680b5e86e58c059e02eec2caba2e7bb",
+    archiveHash: CUA_RELEASE.linuxArm64ArchiveSha256,
     archiveEntry: "cua-driver",
     sdkPackage: "@trycua/cua-driver-linux-arm64-gnu",
     thin: false,
