@@ -6,11 +6,10 @@ import { registered, startMainProcess, waitFor } from "../support/electron-harne
 type MenuEntry = { label?: string; submenu?: MenuEntry[]; click?: () => void };
 type IpcEvent = { sender: unknown };
 
-test("a macOS help-menu command reopens a window and waits until its renderer is listening", async (context) => {
+test("a help-menu command reopens a window and waits until its renderer is listening", async (context) => {
   const main = await startMainProcess(context, "aicodingtool-menu-lifecycle-");
   const menu = main.applicationMenu() as MenuEntry[] | null;
-  const appMenu = menu?.find((entry) => entry.label === "AI Coding Tool");
-  const licenses = appMenu?.submenu?.find((entry) => entry.label === "Open Source Licenses…");
+  const licenses = menu?.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Open Source Licenses…");
   assert.ok(licenses?.click);
 
   main.window.destroy();
