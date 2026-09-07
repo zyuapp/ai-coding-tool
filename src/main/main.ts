@@ -1,10 +1,12 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, nativeTheme, net, powerMonitor, powerSaveBlocker, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
+import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
+import { messageImageResponse, preserveMessageImages } from "./message-image-store.js";
 import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -31,7 +33,7 @@ import { createWorkspaceRuntimeHost } from "./workspace-runtime-host.js";
 import { startRunHost } from "./run-host.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
-import { adoptUserDataFolder } from "./user-data.js";
+import { appProfile } from "./user-data.js";
 import { rememberedPlacement, watchWindowPlacement } from "./window-placement.js";
 import { windowFrameOptions } from "./platform-capabilities.js";
 import { registerWorkspaceIpc } from "./workspace-ipc.js";
@@ -39,18 +41,22 @@ import { serveMobileBridge, startMobileBridge, stopMobileBridge } from "./mobile
 import * as browser from "./browser-host.js";
 import * as terminal from "./terminal-host.js";
 
-app.setName("AI Coding Tool");
-/** Ahead of the lock, which writes its own files into the folder and would leave nothing to move onto. */
-app.setPath("userData", adoptUserDataFolder(app.getPath("appData"), app.getName()));
+const profile = appProfile(app.getPath("appData"), homedir(), app.isPackaged);
+app.setName(profile.name);
+/** Select and create the profile before Chromium's session and single-instance lock use it. */
+mkdirSync(profile.userData, { recursive: true });
+app.setPath("userData", profile.userData);
+app.setPath("sessionData", profile.userData);
 
 protocol.registerSchemesAsPrivileged([
   { scheme: ATTACHMENT_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  { scheme: MESSAGE_IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } },
 ]);
 
 /** The `aic` command opens a folder in the app that is already running, never a second one. */
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) {
-  console.log("AI Coding Tool is already running. Bringing that window forward instead of starting a second one.");
+  console.log(`${profile.name} is already running. Bringing that window forward instead of starting a second one.`);
   app.exit(0);
 }
 /** Only the installed app claims the scheme; a run from source would hand it to the bare Electron binary. */
@@ -320,7 +326,7 @@ const updateHost: UpdateHost = {
  * over, no retired brand for the user to read in `git worktree list`, and multi-gigabyte checkouts
  * stay out of the backups app data is swept into.
  */
-const WORKTREES_ROOT = path.join(homedir(), ".aicodingtool", "worktrees");
+const WORKTREES_ROOT = profile.worktreesRoot;
 
 /** Where the app kept worktrees before, still its own: listed and manually removable, never created in. */
 function legacyWorktreesRoots(userData: string) {
@@ -365,6 +371,7 @@ app.whenReady().then(async () => {
     if (!/^[A-Za-z0-9-]+\.png$/.test(name)) return new Response("Not found", { status: 404 });
     return net.fetch(pathToFileURL(path.join(attachmentsDirectory(), name)).toString());
   });
+  protocol.handle(MESSAGE_IMAGE_SCHEME, (request) => messageImageResponse(request.url));
   if (!app.isPackaged) app.dock?.setIcon(icon);
   keyboard.claimDesktopShortcut();
   await searchPath;
@@ -726,6 +733,11 @@ ipcMain.handle("attachment:read", async (event, file: unknown) => {
   const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
   if (!saved) throw new Error("That image is not one this app is keeping.");
   return (await readFile(saved)).toString("base64");
+});
+
+ipcMain.handle("message-images:preserve", async (event, files: unknown, root: unknown, messageId: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  await preserveMessageImages(files, root, messageId);
 });
 
 /** How many paths one drop may name, and how long each may be. */

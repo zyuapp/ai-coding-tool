@@ -13,7 +13,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionReplyMode, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -44,8 +44,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   /** Where this chat's transcript was left, and where its reader has moved to since. */
   readingPoint?: ReadingPoint;
   onReadingPointMove?: (point: ReadingPoint) => void;
-  onAnswerQuestion?: (question: QuestionAddress, attachments: RunAttachment[]) => void;
-  onQuestionReplyMode?: (replying: boolean) => void;
+  onAnswerQuestion?: (question: QuestionAddress) => void;
+  onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
   onDecide: (allow: boolean) => void;
@@ -112,9 +112,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         {...(chat.thread.contextUsage ? { contextUsage: chat.thread.contextUsage } : {})}
         runActive={chat.running}
         question={chat.question}
-        replyingToQuestion={chat.replyingToQuestion}
         onAnswerQuestion={onAnswerQuestion}
-        onQuestionReplyMode={onQuestionReplyMode}
+        onQuestionAnswerChange={onQuestionAnswerChange}
         queuedMessages={chat.queuedMessages}
         annotations={chat.annotations}
         pastes={chat.pastes}

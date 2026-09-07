@@ -71,7 +71,7 @@ export function TimelineRow({ engine, group, index, offset, measure, streamingTa
           {group.live
             ? <TurnSegments engine={engine} segments={toSegments(timeSteps(group.steps, null))} tail={streamingTail} live />
             : group.steps.length > 0 && <SettledSteps engine={engine} steps={group.steps} endsAt={group.endsAt} />}
-          {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} /></div>}
+          {group.final && <div data-message-id={group.final.id} className="message-text markdown-body"><StreamingText committed={group.final.text} messageId={group.final.id} /></div>}
           {/* Outside the answer, so neither a search nor a selection of it picks the button up. */}
           {group.final && (
             <div className="answer-actions">

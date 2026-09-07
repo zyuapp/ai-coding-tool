@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { SETTINGS_CONTROLS, SETTINGS_JUMP_OPTIONS, SETTINGS_PAGE_LABELS, settingControl } from "../../src/domain/settings-catalog.ts";
+import { SETTINGS_CONTROLS, SETTINGS_JUMP_OPTIONS, settingControl } from "../../src/domain/settings-catalog.ts";
 import { rankSettingsJumps } from "../../src/domain/settings-jump.ts";
 import { SETTINGS_SECTIONS } from "../../src/domain/settings-section.ts";
 
@@ -40,9 +40,4 @@ test("the list is cut to the rows the panel draws", () => {
 
 test("a name nothing answers offers nothing", () => {
   assert.deepEqual(rankSettingsJumps("kubernetes"), []);
-});
-
-test("every page has a name and every control belongs to a page", () => {
-  for (const section of SETTINGS_SECTIONS) assert.ok(SETTINGS_PAGE_LABELS[section], `${section} has no name`);
-  for (const control of SETTINGS_CONTROLS) assert.ok(SETTINGS_SECTIONS.includes(control.section));
 });

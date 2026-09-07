@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -9,7 +10,7 @@ import { engineBinaryPath, installCommand, installedEngine } from "../../../src/
 
 /** A stand-in command that prints a version, so no real engine is spawned. */
 async function fakeEngine(command: string, version: string) {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "engine-path-"));
+  const folder = await temporaryDirectory(path.join(os.tmpdir(), "engine-path-"));
   const executable = path.join(folder, command);
   await writeFile(executable, `#!/bin/sh\necho "${command}-cli ${version}"\n`);
   await chmod(executable, 0o755);
@@ -50,7 +51,7 @@ test("an engine is the command on the user's path, read for its version", async 
 });
 
 test("an engine that is nowhere on the path is absent, and the app can say how to install it", async () => {
-  const empty = await mkdtemp(path.join(os.tmpdir(), "engine-empty-"));
+  const empty = await temporaryDirectory(path.join(os.tmpdir(), "engine-empty-"));
   assert.equal(await onPath(empty, async () => engineBinaryPath("claude")), undefined);
   assert.equal(await onPath(empty, () => installedEngine("claude")), undefined);
   assert.equal(installCommand("codex"), "brew install --cask codex");
@@ -58,7 +59,7 @@ test("an engine that is nowhere on the path is absent, and the app can say how t
 });
 
 test("the upgrade command follows the launcher to the real file, so a cask upgrades through Homebrew", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "engine-brew-"));
+  const root = await temporaryDirectory(path.join(os.tmpdir(), "engine-brew-"));
   const cask = path.join(root, "Caskroom", "codex", "0.150.1");
   await mkdir(cask, { recursive: true });
   const real = path.join(cask, "codex");

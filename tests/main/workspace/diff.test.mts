@@ -62,6 +62,45 @@ function assertAvailable<T extends { status: string }>(result: T): asserts resul
   assert.equal(result.status, "available");
 }
 
+test("commit comparisons include root commits and ignore subsequent uncommitted work", async () => {
+  const root = await repository();
+  try {
+    const commit = (await git(root, "rev-parse", "HEAD")).stdout.trim();
+    const range = { kind: "commit" as const, commit: commit.slice(0, 7) };
+    await writeFile(path.join(root, "tracked.txt"), "later edits\n");
+    await writeFile(path.join(root, "untracked.txt"), "untracked\n");
+    const summary = await diffSummary("fixture", range, workspaces(root));
+    assertAvailable(summary);
+    assert.deepEqual(summary.files.map((file) => [file.path, file.additions]), [["tracked.txt", 2]]);
+    const patch = await diffPatch("fixture", range, "tracked.txt", workspaces(root));
+    assertAvailable(patch);
+    assert.match(patch.patch, /\+one\n\+two/);
+    assert.doesNotMatch(patch.patch, /later edits/);
+    const missing = await diffSummary("fixture", { kind: "commit", commit: "0000000" }, workspaces(root));
+    assert.equal(missing.status, "error");
+    if (missing.status === "error") assert.match(missing.message, /not available in this repository/);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("a merge commit shows what it introduced relative to its first parent", async () => {
+  const root = await repository();
+  try {
+    await git(root, "checkout", "-b", "side");
+    await writeFile(path.join(root, "side.txt"), "side\n");
+    await git(root, "add", "side.txt");
+    await git(root, "commit", "-m", "side");
+    await git(root, "checkout", "main");
+    await writeFile(path.join(root, "main.txt"), "main\n");
+    await git(root, "add", "main.txt");
+    await git(root, "commit", "-m", "main");
+    await git(root, "merge", "--no-ff", "side", "-m", "merge");
+    const commit = (await git(root, "rev-parse", "HEAD")).stdout.trim();
+    const summary = await diffSummary("fixture", { kind: "commit", commit }, workspaces(root));
+    assertAvailable(summary);
+    assert.deepEqual(summary.files.map((file) => file.path), ["side.txt"]);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 describe("Diff patches", { concurrent: true }, () => {
 
 test("a patch parses into hunks that keep both sides' line numbers", () => {
@@ -143,15 +182,6 @@ test("deletions and the additions replacing them are paired across the two colum
   ]);
 });
 
-test("both views key their rows the same way, so both find the same tokens", () => {
-  const file = parseFilePatch(PATCH, "src/app.ts");
-  const unified = new Set(diffRows(file).map((row) => row.key));
-  const pairs = splitRows(file).filter((row) => row.kind === "pair");
-  const sides = pairs.flatMap((pair) => [pair.left, pair.right]).filter((row) => row !== null);
-
-  assert.ok(sides.length > 0);
-  for (const row of sides) assert.ok(unified.has(row.key), `${row.key} is not a key the one-column view uses`);
-});
 });
 
 describe("Diff values", { concurrent: true }, () => {

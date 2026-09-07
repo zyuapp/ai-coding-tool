@@ -100,6 +100,7 @@ export type WorkspaceEffect =
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; engine: AgentEngine; text: string; attachments: string[] }
+  | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }

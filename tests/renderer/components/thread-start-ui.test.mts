@@ -1,51 +1,14 @@
+import { dom, mount, query, item } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
-import React, { act } from "react";
-import { createRoot } from "react-dom/client";
-import type { BranchesResult } from "../../../src/contracts/ipc.ts";
+import { test } from "vitest";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "KeyboardEvent", "navigator"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-/** jsdom lays nothing out, so a frame is only ever the next turn of the loop. */
-Object.defineProperty(globalThis, "requestAnimationFrame", { configurable: true, value: (fn: FrameRequestCallback) => setTimeout(() => fn(0), 0) as unknown as number });
-Object.defineProperty(globalThis, "cancelAnimationFrame", { configurable: true, value: (id: number) => clearTimeout(id) });
-/** React watches the focused field through the event methods only IE ever had, which jsdom has not. */
-Object.defineProperties(dom.window.HTMLInputElement.prototype, { attachEvent: { value() {} }, detachEvent: { value() {} } });
+import React, { act } from "react";
+
+import type { BranchesResult } from "../../../src/contracts/ipc.ts";
 
 const branches: BranchesResult = { status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" };
 function fakeDesktop() {
   return { branches: async () => branches } as unknown as typeof window.desktop;
-}
-
-afterAll(async () => {
-  dom.window.close();
-});
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async render(next: React.ReactNode) { await act(async () => { root.render(next); }); },
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
-function query<E extends Element = HTMLElement>(root: ParentNode, selector: string): E {
-  const element = root.querySelector<E>(selector);
-  assert.ok(element, `Missing ${selector}`);
-  return element;
-}
-
-function item<T>(value: T | null | undefined): T {
-  assert.ok(value !== null && value !== undefined);
-  return value;
 }
 
 test("the start options say where a thread begins, and searching narrows the branches", async () => {

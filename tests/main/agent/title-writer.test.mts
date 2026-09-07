@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { query, type Options, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -64,7 +65,7 @@ test("a thread keeps the title it already has when naming produces nothing", asy
 });
 
 test("a screenshot reaches the namer as bytes, and an unreadable one is left out", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "title-writer-"));
+  const directory = await temporaryDirectory(path.join(os.tmpdir(), "title-writer-"));
   const shot = path.join(directory, "shot.png");
   await writeFile(shot, Buffer.from("screenshot bytes"));
 
@@ -84,7 +85,7 @@ test("a screenshot reaches the namer as bytes, and an unreadable one is left out
 });
 
 test("a message with no screenshot that can be read stays a plain string prompt", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "title-writer-large-"));
+  const directory = await temporaryDirectory(path.join(os.tmpdir(), "title-writer-large-"));
   const oversized = path.join(directory, "large.png");
   await writeFile(oversized, Buffer.alloc(1024 * 1024 + 1));
   const capture: QueryCapture = {};

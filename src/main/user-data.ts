@@ -3,6 +3,16 @@ import path from "node:path";
 
 const FIRST_NAME = "Threadline";
 
+/** Source launches own a fresh profile and must never adopt the installed app's legacy data. */
+export function appProfile(appData: string, home: string, isPackaged: boolean) {
+  const name = isPackaged ? "AI Coding Tool" : "AI Coding Tool Dev";
+  return {
+    name,
+    userData: isPackaged ? adoptUserDataFolder(appData, name) : path.join(appData, name),
+    worktreesRoot: path.join(home, isPackaged ? ".aicodingtool" : ".aicodingtool-dev", "worktrees"),
+  };
+}
+
 /** What a folder can hold and still count as empty: Chromium's lock, and the Finder's leavings. */
 const DISPOSABLE = new Set(["SingletonLock", "SingletonCookie", "SingletonSocket", ".DS_Store"]);
 

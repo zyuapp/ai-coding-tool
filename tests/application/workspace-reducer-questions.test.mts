@@ -11,44 +11,62 @@ const request = { type: "question.requested" as const, taskId: "task-a", runId: 
   { id: "color", header: "Color", question: "Which color?", options: [] },
 ] } };
 const answer = { type: "question.answer" as const, taskId: "task-a", runId: "run-a", requestId: "request", questionId: "region" };
+const draft = { ...answer, type: "question.set-answer" as const, text: "Chicago" };
 
 function asked() { return reduce(running(), { type: "run.event", event: request }).state; }
 
-test("typing an answer sends a question command and the acknowledgement advances to the next question", () => {
-  let state = asked();
+test("question answers preserve the separate message draft and attachments while advancing to the next question", () => {
+  const original = running("task-a", "run-a", {
+    prompts: { "task-a": "Keep working on the layout" },
+    images: { "task-a": [{ id: "image", path: "/tmp/screenshot.png", label: "Screenshot" }] },
+    pastes: { "task-a": [{ id: "paste", text: "Some pasted notes" }] },
+    files: { "task-a": [{ id: "file", path: "/tmp/notes.txt", name: "notes.txt" }] },
+    annotations: { "task-a": [{ id: "annotation", quote: "Some text", note: "Keep this" }] },
+  });
+  let state = reduce(original, { type: "run.event", event: request }).state;
   assert.equal(deriveView(state).question?.question, "Which region?");
   assert.equal(deriveView(state).runActive, true);
-  state = reduce(state, { type: "view.set-prompt", prompt: "Chicago" }).state;
+  state = reduce(state, draft).state;
   const sent = reduce(state, answer);
   assert.deepEqual(effectAt(sent, "send-run-command").command, { type: "answer-question", taskId: "task-a", runId: "run-a", requestId: "request", questionId: "region", text: "Chicago" });
-  assert.equal(sent.state.prompts["task-a"], undefined);
-  assert.deepEqual(sent.state.queuedMessages, {});
+  for (const key of ["prompts", "images", "pastes", "files", "annotations", "queuedMessages"] as const) assert.equal(sent.state[key], original[key], key);
+  assert.equal(deriveView(sent.state).question?.submitting, true);
+  assert.equal(reduce(sent.state, { ...draft, text: "duplicate" }).state, sent.state);
   assert.deepEqual(reduce(sent.state, { ...answer, text: "duplicate" }).effects, []);
   const received = reduce(sent.state, { type: "run.event", event: { type: "question.answered", taskId: "task-a", runId: "run-a", requestId: "request", questionId: "region", text: "Chicago", sequence: 2 } }).state;
   assert.equal(deriveView(received).question?.id, "color");
+  assert.equal(deriveView(received).question?.answer ?? "", "");
   assert.equal(received.threads[0].messages.at(-1)?.text, "Chicago");
+  assert.equal(deriveView(received).prompt, "Keep working on the layout");
 });
 
-test("question replies keep stale drafts and normal messages can still steer", () => {
-  let state = asked();
-  state = reduce(state, { type: "view.set-prompt", prompt: "Keep this" }).state;
-  const stale = reduce(state, { ...answer, runId: "old" });
-  assert.deepEqual(stale.effects, []);
-  assert.equal(stale.state.prompts["task-a"], "Keep this");
-  state = reduce(state, { type: "question.reply-mode", taskId: "task-a", runId: "run-a", replying: false }).state;
-  assert.equal(deriveView(state).replyingToQuestion, false);
-  const steered = reduce(state, { type: "task.send", steer: true });
+test("messages queue and steer independently while a question answer is drafted", () => {
+  let state = reduce(asked(), draft).state;
+  state = reduce(state, { type: "view.set-prompt", prompt: "Change direction" }).state;
+  const queued = reduce(state, { type: "task.send" });
+  assert.equal(queued.state.queuedMessages["task-a"][0].text, "Change direction");
+  assert.equal(deriveView(queued.state).question?.answer, "Chicago");
+  const steered = reduce(queued.state, { type: "task.steer-queued", taskId: "task-a", messageId: queued.state.queuedMessages["task-a"][0].id });
   assert.equal(effectAt(steered, "send-run-command").command.type, "steer");
-  assert.equal(deriveView(steered.state).question?.id, "region");
+  assert.equal(deriveView(steered.state).question?.answer, "Chicago");
+});
+
+test("question drafts are addressed independently and stale submissions preserve current drafts", () => {
+  let state = reduce(asked(), draft).state;
+  state = reduce(state, { ...draft, questionId: "color", text: "Blue" }).state;
+  state = reduce(state, { type: "view.set-prompt", prompt: "Keep this" }).state;
+  for (const address of [{ runId: "old" }, { requestId: "old" }, { questionId: "old" }]) {
+    assert.equal(reduce(state, { ...draft, ...address, text: "Stale" }).state, state);
+    assert.deepEqual(reduce(state, { ...answer, ...address }).effects, []);
+  }
+  assert.equal(state.prompts["task-a"], "Keep this");
+  assert.deepEqual(state.activeRuns["task-a"].questions?.map((question) => question.answer), ["Chicago", "Blue"]);
+  const cleared = reduce(state, { ...draft, text: "" }).state;
+  assert.deepEqual(reduce(cleared, answer).effects, []);
+  assert.equal(deriveView(cleared).prompt, "Keep this");
   const ended = reduce(state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 3, status: "succeeded" } }).state;
   assert.equal(deriveView(ended).question, undefined);
-});
-
-test("a question arriving while a message is drafted leaves the composer in message mode", () => {
-  const drafted = reduce(running(), { type: "view.set-prompt", prompt: "Change direction" }).state;
-  const state = reduce(drafted, { type: "run.event", event: request }).state;
-  assert.equal(deriveView(state).replyingToQuestion, false);
-  assert.equal(deriveView(state).prompt, "Change direction");
+  assert.equal(deriveView(ended).prompt, "Keep this");
 });
 
 test("question events and external answers validate their addresses and content", () => {

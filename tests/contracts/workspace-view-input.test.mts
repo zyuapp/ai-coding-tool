@@ -9,6 +9,7 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "task.set-effort", engine: "codex", effort: "xhigh" },
     { type: "task.set-effort", engine: "claude", effort: "max" },
     { type: "question.answer", taskId: "thread", runId: "run", requestId: "request", questionId: "question", text: "Use the first choice" },
+    { type: "question.set-answer", taskId: "thread", runId: "run", requestId: "request", questionId: "question", text: "" },
     { type: "annotation.add", quote: "text", anchor: { kind: "message", messageId: "message", start: 0, end: 4 } },
     { type: "annotation.recall", annotations: [{ id: "annotation", quote: "text", note: "", anchor: { kind: "diff", comparison: "working", path: "src/app.ts", start: "1", end: "2", side: "new" } }] },
     { type: "file.attach", files: [{ path: "/repo/src", name: "src", folder: true }] },
@@ -23,6 +24,10 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "automation.save", draft: { prompt: "Check status", schedule: "0 * * * *", paused: false } },
     { type: "automation.update", patch: { surfaceWhen: "", paused: true } },
     { type: "review.start", target: { type: "commit", sha: "abc", title: null } },
+    { type: "diff.open-commit", taskId: "thread", commit: "60cceb8" },
+    { type: "diff.set-range", range: { kind: "commit", commit: "60cceb8" } },
+    { type: "image.open", source: "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply" },
+    { type: "image.close" },
     { type: "find.results", target: { kind: "terminal", terminalId: "terminal" }, results: { matches: 0, index: 0, counting: false } },
     { type: "shortcut.captured", binding: null },
     { type: "shortcut.unavailable", refusal: { reason: "unsupported", binding: "Meta+Shift+P", message: "Not available" } },
@@ -47,7 +52,7 @@ test("malformed fields and nested values are rejected before reaching the reduce
     { type: "task.send", attachments: [{ path: "/image", labels: [1] }] },
     { type: "task.send", attachments: new Array(2) },
     { type: "question.answer", taskId: "thread", runId: "run", requestId: "request" },
-    { type: "question.reply-mode", taskId: "thread", runId: "run", replying: "yes" },
+    { type: "question.set-answer", taskId: "thread", runId: "run", requestId: "request", questionId: "question", text: null },
     { type: "task.set-model", engine: "codex", model: "invented" },
     { type: "task.set-effort", engine: "claude", effort: "invented" },
     { type: "task.set-policy", policy: "unrestricted" },
@@ -71,4 +76,11 @@ test("large valid composer content remains within the view contract", () => {
   const text = "x".repeat(2_000_000);
   assert.equal(isWorkspaceViewInput({ type: "paste.add", text }), true);
   assert.equal(isWorkspaceViewInput({ type: "task.send", text, attachments: Array.from({ length: 6 }, (_, index) => ({ path: `/tmp/${index}.png`, labels: [] })) }), true);
+});
+
+test("image and commit actions validate their targets at the view boundary", () => {
+  assert.equal(isWorkspaceViewInput({ type: "image.open", source: "file:///etc/passwd" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "image.open", source: "https://example.com/image.png" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "diff.open-commit", commit: "--output=/tmp/file" }), false);
+  assert.equal(isWorkspaceViewInput({ type: "diff.set-range", range: { kind: "commit", commit: "HEAD;touch x" } }), false);
 });

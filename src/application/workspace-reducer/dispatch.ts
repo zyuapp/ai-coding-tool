@@ -41,7 +41,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "worktrees.failed": case "worktree.released": case "worktree.release-failed": case "worktree.deleted":
       return reduceWorktrees(state, input);
 
-    case "task.send": case "question.answer": case "question.reply-mode": case "task.steer-queued": case "task.drop-queued":
+    case "task.send": case "question.answer": case "question.set-answer": case "task.steer-queued": case "task.drop-queued":
       return reduceSending(state, input);
 
     case "project.open": case "project.opened": case "project.edit":
@@ -63,7 +63,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "side-chat.open": case "side-chat.close":
       return reduceSideChats(state, input);
 
-    case "view.refresh-environment": case "diff.toggle": case "diff.refresh":
+    case "view.refresh-environment": case "diff.toggle": case "diff.refresh": case "diff.open-commit":
     case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":
     case "diff.set-split": case "diff.set-ignore-whitespace": case "diff.loaded": case "environment.updated":
       return reduceDiffs(state, input);
@@ -105,7 +105,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "browser.updated":
       return reduceBrowser(state, input);
 
-    case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
+    case "image.open": case "image.close": case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "terminal.open":
     case "terminal.select": case "terminal.close": case "terminal.input":
     case "terminal.resize": case "terminal.updated": case "view.closed": case "view.mounted":
       return reduceDesktop(state, input);

@@ -70,8 +70,8 @@ const DockSideChatTab = memo(function DockSideChatTab({ chat, dispatch, favorite
   return (
     <div data-dock-tab={chat.id} hidden={!active}>
       <SideChat
-        onAnswerQuestion={(question, attachments) => void dispatch({ type: "question.answer", taskId: chat.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, attachments })}
-        onQuestionReplyMode={(replying) => { if (chat.question) void dispatch({ type: "question.reply-mode", taskId: chat.id, runId: chat.question.runId, replying }); }}
+        onAnswerQuestion={(question) => void dispatch({ type: "question.answer", taskId: chat.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId })}
+        onQuestionAnswerChange={(question, text) => void dispatch({ type: "question.set-answer", taskId: chat.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text })}
         chat={chat}
         favoriteModels={favoriteModels}
         engineLabel={engineLabel}

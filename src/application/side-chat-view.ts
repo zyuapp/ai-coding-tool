@@ -21,7 +21,6 @@ export function sideChatView(state: WorkspaceState, chat: SideChat): SideChatVie
     files: filesFor(state, chat.id),
     running: Boolean(active),
     question: active?.questions?.[0],
-    replyingToQuestion: active?.replyingToQuestion !== false,
     compacting: active?.status === "compacting",
     status: active ? "running" : runStatusFor(state, chat.id),
     streamingTail: state.streamingTails[chat.id] ?? null,

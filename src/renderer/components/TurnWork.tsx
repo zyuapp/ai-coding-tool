@@ -138,14 +138,14 @@ export function TurnSegments({ engine, segments, tail, live = false }: { engine:
     : (
       <div key={segment.id} data-message-id={segment.message.id} className="message-text markdown-body work-note">
         {segment.message.id === streamingId
-          ? <StreamingText committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
-          : <MarkdownMessage>{segment.message.text}</MarkdownMessage>}
+          ? <StreamingText messageId={segment.message.id} committed={segment.message.text} tail={tail?.messageId === segment.message.id ? tail.text : ""} streaming />
+          : <MarkdownMessage messageId={segment.message.id}>{segment.message.text}</MarkdownMessage>}
       </div>
     ));
   if (streamingId && !segments.some((segment) => segment.kind === "note" && segment.message.id === streamingId)) {
     nodes.push(
       <div key={streamingId} data-message-id={streamingId} className="message-text markdown-body work-note">
-        <StreamingText committed="" tail={tail?.text ?? ""} streaming />
+        <StreamingText messageId={streamingId} committed="" tail={tail?.text ?? ""} streaming />
       </div>,
     );
   }

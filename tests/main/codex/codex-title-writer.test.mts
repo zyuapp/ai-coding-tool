@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -54,7 +55,7 @@ test("nothing usable comes back as no title, so the thread keeps the name it has
 });
 
 test("screenshots ride along as images, skipping ones that are missing or too big", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-title-"));
+  const directory = await temporaryDirectory(path.join(os.tmpdir(), "codex-title-"));
   const shot = path.join(directory, "shot.png");
   await writeFile(shot, Buffer.from("png"));
   const oversized = path.join(directory, "big.png");

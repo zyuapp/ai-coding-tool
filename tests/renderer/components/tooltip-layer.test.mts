@@ -1,40 +1,26 @@
+import { dom, mount as mountElement } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, describe, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
-import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+import { test, describe, beforeEach, afterEach, vi } from "vitest";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
+import React, { act } from "react";
 
 const { TooltipLayer } = await import("../../../src/renderer/components/TooltipLayer.tsx");
 
-/** The layer waits before it speaks, so a test has to wait with it. */
+beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+afterEach(() => vi.useRealTimers());
 const DELAY_MS = 400;
 
 async function rest(ms = DELAY_MS + 20) {
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 }
 
 async function mount() {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => {
-    root.render(React.createElement(React.Fragment, null,
+  return mountElement(React.createElement(React.Fragment, null,
       React.createElement("button", { type: "button", "data-tip": "Read the comparison again" },
         React.createElement("span", { className: "icon" }, "↻")),
       React.createElement("button", { type: "button", id: "plain" }, "plain"),
       React.createElement(TooltipLayer),
-    ));
-  });
-  return {
-    container,
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
+  ));
 }
 
 function tooltip() {
@@ -44,8 +30,6 @@ function tooltip() {
 function hover(element: Element) {
   element.dispatchEvent(new dom.window.MouseEvent("mouseover", { bubbles: true }));
 }
-
-afterAll(() => { dom.window.close(); });
 
 describe("The one tooltip", () => {
 

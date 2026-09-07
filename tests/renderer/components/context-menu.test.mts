@@ -1,16 +1,10 @@
+import { dom, mount } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
-import React, { act } from "react";
-import { createRoot } from "react-dom/client";
-import { ContextMenu, type MenuEntry } from "../../../src/renderer/components/PopoverMenu.tsx";
+import { test } from "vitest";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "innerWidth", "innerHeight"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-Object.defineProperty(globalThis, "requestAnimationFrame", { configurable: true, value: (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0) as unknown as number });
+import React, { act } from "react";
+
+import { ContextMenu, type MenuEntry } from "../../../src/renderer/components/PopoverMenu.tsx";
 
 /** jsdom measures nothing, so a menu is given a size to be placed against the window's edges. */
 function sized(width: number, height: number) {
@@ -23,19 +17,9 @@ function sized(width: number, height: number) {
   return () => { dom.window.Element.prototype.getBoundingClientRect = original; };
 }
 
-async function mount(element: React.ReactElement) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return { container, unmount: async () => { await act(async () => { root.unmount(); }); container.remove(); } };
-}
-
 function items(root: ParentNode, selector = ".context-menu-popover > button") {
   return [...root.querySelectorAll<HTMLButtonElement>(selector)];
 }
-
-afterAll(() => dom.window.close());
 
 const ENTRIES: MenuEntry[] = [
   { label: "Rename" },

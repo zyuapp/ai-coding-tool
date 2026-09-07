@@ -1,16 +1,21 @@
 .question-prompt {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 860px;
   padding: 12px 14px;
-  margin-bottom: 8px;
+  margin: 0 auto 8px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   color: var(--ink);
   font-size: 13px;
   line-height: 1.5;
-  max-height: min(32vh, 260px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  max-height: min(46vh, 400px);
   overflow-wrap: anywhere;
 }
+.question-prompt-content { min-height: 0; overflow-y: auto; }
 .question-prompt-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .question-prompt-heading span { color: var(--muted); font-size: 12px; }
 .question-prompt p { margin: 6px 0; white-space: pre-wrap; }
@@ -21,5 +26,12 @@
 .question-option:has(input:disabled) { opacity: 0.5; cursor: default; }
 .question-option input { flex: none; margin: 3px 0 0; accent-color: var(--accent); }
 .question-option-description { display: block; color: var(--muted); font-size: 12px; }
-.question-prompt button { margin-top: 6px; color: var(--muted); background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.question-prompt button:hover { color: var(--ink); }
+.question-answer { display: grid; gap: 8px; flex: none; padding-top: 10px; }
+.question-answer label { font-size: 12px; color: var(--muted); }
+.question-answer textarea { box-sizing: border-box; width: 100%; min-height: 64px; max-height: 120px; resize: vertical; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); color: var(--ink); font: inherit; line-height: 1.5; }
+.question-answer textarea::placeholder { color: var(--muted); }
+.question-answer textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.question-answer button { justify-self: end; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; background: var(--ink); color: var(--canvas); font: inherit; font-weight: 600; cursor: pointer; }
+.question-answer button:hover:not(:disabled) { opacity: 0.85; }
+.question-answer button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.question-answer button:disabled { opacity: 0.4; cursor: default; }

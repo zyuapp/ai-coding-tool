@@ -1,20 +1,11 @@
+import { dom, mount as mountElement } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
+import { test } from "vitest";
+
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+
 import { ThreadJump } from "../../../src/renderer/components/ThreadJump.tsx";
 import type { JumpView } from "../../../src/application/workspace-jump.ts";
-
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-Object.defineProperty(globalThis, "requestAnimationFrame", { configurable: true, value: (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0) as unknown as number });
-dom.window.Element.prototype.scrollIntoView = () => {};
-
-afterAll(() => dom.window.close());
 
 const JUMP: JumpView = {
   query: "pa",
@@ -31,11 +22,7 @@ type Calls = { queries: string[]; steps: number[]; chosen: string[]; settings: s
 
 async function mount(jump: JumpView) {
   const calls: Calls = { queries: [], steps: [], chosen: [], settings: [], closed: 0 };
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => {
-    root.render(React.createElement(ThreadJump, {
+  const view = await mountElement(React.createElement(ThreadJump, {
       jump,
       actions: {
         setJumpQuery: (query: string) => calls.queries.push(query),
@@ -44,9 +31,8 @@ async function mount(jump: JumpView) {
         chooseJumpSetting: (section: string, settingId: string | null) => calls.settings.push(`${section}/${settingId ?? ""}`),
         closeJump: () => { calls.closed += 1; },
       },
-    }));
-  });
-  return { calls, unmount: async () => { await act(async () => { root.unmount(); }); container.remove(); } };
+  }));
+  return { ...view, calls };
 }
 
 function rows() {

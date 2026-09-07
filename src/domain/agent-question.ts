@@ -19,6 +19,7 @@ export type QuestionAddress = {
 
 export type PendingQuestion = AgentQuestion & QuestionAddress & {
   blocking: boolean;
+  answer?: string;
   submitting?: boolean;
 };
 

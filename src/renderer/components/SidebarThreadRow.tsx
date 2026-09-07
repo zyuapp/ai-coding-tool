@@ -150,9 +150,8 @@ export function useThreadRows({
     return `task-worktree${worktree ? ` worktree-mark hue-${worktreeHue(worktree.id)}` : ""}`;
   };
 
-  /** What a thread is: its engine, checkout, schedule, and what it is doing now. */
+  /** The engine stays at the right edge, with status beside it, whatever other marks a row carries. */
   const rowMarks = (thread: Thread): React.ReactNode[] => [
-    <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
     worktreeThreadIds.has(thread.id) && <FolderSymlink key="worktree" className={worktreeMark(thread.id)} size={13} aria-label={worktreeLabel(thread.id)} />,
     schedules.has(thread.id) && <AlarmClock key="automation" className="task-automation" size={13} aria-label={scheduleLabel(schedules.get(thread.id)!)} />,
     blockedThreadIds.has(thread.id)
@@ -160,6 +159,7 @@ export function useThreadRows({
       : runningThreadIds.has(thread.id)
         ? <ThreadSpinner key="status" />
         : attentionMark(thread, sideChatAttention.has(thread.id)),
+    <ThreadEngineIcon key="engine" engine={thread.engine} className="task-engine" size={13} />,
   ].filter(Boolean);
 
   /**
