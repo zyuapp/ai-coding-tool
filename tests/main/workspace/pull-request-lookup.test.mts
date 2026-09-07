@@ -1,6 +1,7 @@
+import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -15,14 +16,14 @@ async function git(root: string, ...args: string[]) {
 
 /** A search path with `git` on it and nothing else, so `gh` is missing however the machine is set up. */
 async function pathWithoutGh() {
-  const bin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-bin-"));
+  const bin = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-bin-"));
   const found = (await execFileAsync("/bin/sh", ["-c", "command -v git"])).stdout.trim();
   await symlink(found, path.join(bin, "git"));
   return bin;
 }
 
 async function repository(remote: string | null) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-pr-"));
+  const root = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-pr-"));
   await git(root, "init", "-b", "main");
   await git(root, "config", "user.email", "tests@example.com");
   await git(root, "config", "user.name", "AI Coding Tool Tests");

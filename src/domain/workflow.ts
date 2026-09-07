@@ -96,10 +96,6 @@ export function workflowAgentsDone(workflow: Workflow) {
   return workflowAgentCounts(workflow).done;
 }
 
-export function workflowAgentsFailed(workflow: Workflow) {
-  return workflowAgentCounts(workflow).failed;
-}
-
 export function workflowAgentCounts(workflow: Workflow) {
   let done = 0;
   let failed = 0;

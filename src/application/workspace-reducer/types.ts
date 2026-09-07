@@ -3,12 +3,13 @@ import type { RemoteEffect, RemoteEvent } from "../remote-commands.js";
 import type { EngineEffect, EngineEvent } from "../engine-access.js";
 import type { DesktopShortcutUnavailable, WorkspaceState } from "../workspace-state.js";
 import type { AppCommand } from "../../contracts/commands.js";
-import type { AgentEvent, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
+import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, AutomationAck, AutomationFire, BrowserPageEvent, CancelRunCommand, ChangedFilesResult, CreatedWorktree, DiffSummaryResult, LabelThreadCommand, RunEvent, StartRunCommand, SteerRunCommand, StopProcessCommand, ThreadEvent, ThreadNotice, WorktreeSnapshotResult } from "../../contracts/ipc.js";
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
 import type { BrowserAction } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
+import type { ConversationMessage } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
 import type { SubagentActivity } from "../../domain/run.js";
@@ -20,9 +21,12 @@ import type { ManagedWorktree } from "../../domain/worktree.js";
 
 /** Things that happened: replies to effects, and pushes from the main process. */
 export type WorkspaceEvent =
+  | { type: "view.closed" }
   | { type: "store.loaded"; data: ThreadStoreData; hiddenTasks?: number }
+  | { type: "store.thread-loaded"; taskId: string; messages: ConversationMessage[] }
   /** The store has nothing to hand over: a first run, with no threads to restore. */
   | { type: "store.absent" }
+  | { type: "store.persisted" }
   | { type: "preferences.loaded"; preferences: ViewPreferences }
   | { type: "store.failed"; message: string }
   | { type: "action.failed"; message: string }
@@ -40,13 +44,13 @@ export type WorkspaceEvent =
   | { type: "automation.fired"; fire: AutomationFire }
   | { type: "automations.changed"; automations: AutomationView[] }
   | { type: "title.suggested"; taskId: string; title: string }
-  | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree }
+  | { type: "worktree.created"; taskId: string; worktree: CreatedWorktree; move?: boolean; projectId?: string }
   | { type: "worktree.failed"; taskId: string; message: string }
   | { type: "worktrees.loaded"; worktrees: ManagedWorktree[] }
   | { type: "worktrees.failed"; message: string; root?: string }
   | { type: "worktree.released"; taskId: string; snapshot: WorktreeSnapshotResult }
   | { type: "worktree.release-failed"; taskId: string; message: string }
-  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult }
+  | { type: "worktree.deleted"; worktreeId: string; root: string; snapshot: WorktreeSnapshotResult; missingOnly?: boolean }
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
@@ -84,18 +88,19 @@ export type WorkspaceEffect =
       /** Moves the project checkout onto a branch first, for a thread that is not getting its own. */
       checkout?: { workspaceId: string; branch: string };
     }
-  | { type: "create-worktree"; taskId: string; projectRoot: string }
+  | { type: "create-worktree"; taskId: string; projectRoot: string; move?: boolean; name?: string; projectId?: string }
   | { type: "release-worktree"; taskId: string; worktreeId: string; root: string; title: string }
   | { type: "list-worktrees" }
   | { type: "reveal-worktree"; root: string }
-  | { type: "delete-worktree"; worktreeId: string; root: string; title: string }
+  | { type: "delete-worktree"; worktreeId: string; root: string; title: string; missingOnly?: boolean }
   | { type: "start-run"; command: StartRunCommand }
-  | { type: "send-run-command"; command: CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
+  | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; engine: AgentEngine; text: string; attachments: string[] }
+  | { type: "preserve-message-images"; text: string; root: string; messageId: string }
   | { type: "load-subagent-activity"; taskId: string; subagentId: string }
   | { type: "automation.save"; draft: AutomationDraft }
   | { type: "automation.update"; taskId: string; patch: AutomationPatch }
@@ -149,4 +154,10 @@ export type WorkspaceEffect =
 
 export type WorkspaceInput = AppCommand | WorkspaceEvent;
 
-export type WorkspaceTransition = { state: WorkspaceState; effects: WorkspaceEffect[] };
+export type WorkspaceCommandResult = { ok: true; taskId?: string } | { ok: false; message: string };
+
+export type WorkspaceTransition = {
+  state: WorkspaceState;
+  effects: WorkspaceEffect[];
+  result?: WorkspaceCommandResult;
+};

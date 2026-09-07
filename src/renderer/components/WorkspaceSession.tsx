@@ -1,4 +1,5 @@
 import { SessionPanel } from "./SessionPanel";
+import { SessionLocationMenu } from "./SessionLocationMenu";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
 type Workspace = ReturnType<typeof useTaskWorkspace>;
@@ -15,8 +16,8 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       environment={workspace.environment}
       hasProject={Boolean(workspace.folder)}
       {...(workspace.workspaceId ? { workspaceId: workspace.workspaceId } : {})}
-      {...(workspace.currentThread ? { threadId: workspace.currentThread.id, location: workspace.location } : {})}
-      runActive={workspace.runActive}
+      {...(workspace.currentThread ? { threadId: workspace.currentThread.id } : {})}
+      locationRow={workspace.worktreeMenu && <SessionLocationMenu view={workspace.worktreeMenu} openMenu={workspace.openMenu} dispatch={workspace.dispatch} />}
       openMenu={workspace.openMenu}
       onSetOpenMenu={workspace.actions.setOpenMenu}
       subagents={workspace.subagents}
@@ -35,11 +36,6 @@ export function WorkspaceSession({ workspace, onInspectSubagent, onOpenPanel, on
       onOpenWorkflow={onOpenWorkflow}
       onStopProcess={workspace.actions.stopBackgroundProcess}
       onCheckoutBranch={(branch, create) => void workspace.actions.checkoutBranch(branch, create)}
-      onNewThread={() => {
-        const thread = workspace.currentThread;
-        if (thread) void workspace.actions.newThread(thread.projectId, thread.worktreeId);
-      }}
-      onSetWorktree={workspace.actions.moveWorktree}
     />
   );
 }

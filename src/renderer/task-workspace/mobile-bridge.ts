@@ -1,6 +1,8 @@
 import { diffMobileView, projectMobileView } from "../../application/mobile-projection";
 import type { WorkspaceState } from "../../application/workspace-state";
+import type { WorkspaceExecution } from "../../application/workspace-execution";
 import type { WorkspaceEffect, WorkspaceInput } from "../../application/workspace-reducer";
+import type { AppCommand } from "../../contracts/commands";
 import { isMobileCommand, isMobileRequest, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../../contracts/mobile";
 import type { DesktopAPI } from "../../contracts/ipc";
 import type { MobileServerState } from "../../domain/mobile";
@@ -9,17 +11,16 @@ import { errorMessage } from "./errors";
 /** What a phone is refused with when it sends something outside the surface open to it. */
 export const MOBILE_REFUSED = "That command is not one a phone may send.";
 
-/** The window's own state and door into the reducer, which is all answering a phone takes. */
+/** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
   state: () => WorkspaceState;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
+  execute: (command: AppCommand) => WorkspaceExecution;
 };
 
 /**
- * The window is the only holder of workspace state, so it answers a phone itself: every read is the
- * phone-shaped projection of that state, and every write goes through the same reducer the desktop
- * UI dispatches into. A command is validated here even though the channel validated it, because this
- * is the last place before the reducer and the reducer trusts what reaches it.
+ * Each phone reads a projection of runtime state and writes through the shared command path.
+ * Commands are validated at this boundary before reaching the reducer.
  */
 export async function answerMobileRequest(host: MobileBridgeHost, request: MobileRequest): Promise<MobileResponse> {
   const requestId = request.requestId;
@@ -28,17 +29,14 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
   try {
     if (request.op === "snapshot") return ok(projectMobileView(host.state(), Date.now()));
     if (!isMobileCommand(request.command)) return failed(MOBILE_REFUSED);
-    const before = host.state();
-    /**
-     * The reducer writes before it hands its effects back, so the answer is what it decided, not what
-     * the work it described later finished. Waiting for the effects would leave a `task.send` unacked
-     * for the length of the whole run, and the phone would be told a message it sent had failed.
-     */
-    const working = host.dispatch(request.command);
-    const after = host.state();
-    void Promise.resolve(working).catch(() => undefined);
-    if (after.actionError && after.actionError !== before.actionError) return failed(after.actionError);
-    return ok(projectMobileView(after, Date.now()));
+    const taskId = "taskId" in request.command ? request.command.taskId : undefined;
+    if (taskId !== undefined && !host.state().threads.some((thread) => thread.id === taskId)) {
+      return failed(`No thread has the ID ${taskId}.`);
+    }
+    const execution = host.execute(request.command);
+    const accepted = execution.accepted instanceof Promise ? await execution.accepted : execution.accepted;
+    if (!accepted.ok) return failed(accepted.message);
+    return ok(projectMobileView(host.state(), Date.now()));
   } catch (error) {
     return failed(errorMessage(error));
   }

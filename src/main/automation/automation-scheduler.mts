@@ -15,9 +15,9 @@ import {
 } from "../../domain/automation.js";
 
 export type AutomationStore = {
-  listAutomations(): Automation[];
-  saveAutomation(automation: Automation): void;
-  deleteAutomation(id: string): void;
+  listAutomations(): Automation[] | Promise<Automation[]>;
+  saveAutomation(automation: Automation): void | Promise<void>;
+  deleteAutomation(id: string): void | Promise<void>;
 };
 
 /** Resolves when the scheduled run reaches a terminal state, so overrun protection can hold the next tick. */
@@ -34,6 +34,8 @@ export class AutomationScheduler {
   /** Guards manual runs the way croner's `protect` guards scheduled ticks: one run per automation at a time. */
   private readonly firing = new Set<string>();
   private readonly now: () => number;
+  private changes: Promise<void> = Promise.resolve();
+  private stopped = false;
 
   constructor(
     private readonly store: AutomationStore,
@@ -44,19 +46,26 @@ export class AutomationScheduler {
   }
 
   /** Rebuilds the in-memory timers from storage. Ticks missed while the app was closed are not replayed. */
-  start() {
-    for (const automation of this.store.listAutomations()) {
+  async start() {
+    await this.changes.catch(() => {});
+    this.stopped = false;
+    const automations = await this.store.listAutomations();
+    if (this.stopped) return;
+    this.automations.clear();
+    for (const automation of automations) {
       this.automations.set(automation.id, automation);
-      if (!this.arm(automation)) this.markMissed(automation.id);
+      if (!this.arm(automation)) await this.markMissed(automation.id);
     }
     this.notify();
   }
 
   stop() {
+    this.stopped = true;
     for (const cron of this.crons.values()) cron.stop();
     this.crons.clear();
-    this.automations.clear();
   }
+
+  flush(): Promise<void> { return this.changes; }
 
   list(): AutomationView[] {
     return [...this.automations.values()]
@@ -70,7 +79,11 @@ export class AutomationScheduler {
   }
 
   /** One automation per thread: creating a second one replaces the first. */
-  save(draft: AutomationDraft): AutomationView {
+  save(draft: AutomationDraft): Promise<AutomationView> {
+    return this.change(() => this.saveDraft(draft));
+  }
+
+  private async saveDraft(draft: AutomationDraft): Promise<AutomationView> {
     assertSchedule(draft.schedule, draft.timezone);
     const existing = this.find(draft.taskId);
     const at = this.now();
@@ -94,11 +107,15 @@ export class AutomationScheduler {
       ...(existing?.consecutiveDeclines === undefined ? {} : { consecutiveDeclines: existing.consecutiveDeclines }),
       ...(existing?.overrunCount === undefined ? {} : { overrunCount: existing.overrunCount }),
     };
-    this.commit(automation);
+    await this.commit(automation);
     return this.view(automation);
   }
 
-  update(taskId: string, patch: AutomationPatch): AutomationView {
+  update(taskId: string, patch: AutomationPatch): Promise<AutomationView> {
+    return this.change(() => this.updateDraft(taskId, patch));
+  }
+
+  private async updateDraft(taskId: string, patch: AutomationPatch): Promise<AutomationView> {
     const existing = this.find(taskId);
     if (!existing) throw new Error("This task has no automation.");
     const schedule = patch.schedule ?? existing.schedule;
@@ -116,16 +133,20 @@ export class AutomationScheduler {
       ...(patch.paused === undefined ? {} : { paused: patch.paused }),
       updatedAt: this.now(),
     };
-    this.commit(automation);
+    await this.commit(automation);
     return this.view(automation);
   }
 
-  remove(taskId: string): boolean {
+  remove(taskId: string): Promise<boolean> {
+    return this.change(() => this.removeStored(taskId));
+  }
+
+  private async removeStored(taskId: string): Promise<boolean> {
     const existing = this.find(taskId);
     if (!existing) return false;
+    await this.store.deleteAutomation(existing.id);
     this.disarm(existing.id);
     this.automations.delete(existing.id);
-    this.store.deleteAutomation(existing.id);
     this.notify();
     return true;
   }
@@ -148,9 +169,10 @@ export class AutomationScheduler {
     return undefined;
   }
 
-  private commit(automation: Automation) {
+  private async commit(automation: Automation) {
+    await this.store.saveAutomation(automation);
     this.automations.set(automation.id, automation);
-    this.store.saveAutomation(automation);
+    if (this.stopped) return;
     this.arm(automation);
     this.notify();
   }
@@ -162,10 +184,10 @@ export class AutomationScheduler {
     try {
       cron = new Cron(automation.schedule, {
         /** A tick dropped for overrunning is recorded nowhere else: croner never calls the callback. */
-        protect: () => this.countOverrun(automation.id),
+        protect: () => { void this.countOverrun(automation.id).catch((error) => console.error("Could not record automation overrun:", error)); },
         paused: automation.paused,
         ...(automation.timezone === undefined ? {} : { timezone: automation.timezone }),
-        catch: true,
+        catch: (error) => console.error("Could not record automation result:", error),
       }, async () => { await this.fire(automation.id, false); });
     } catch {
       return false;
@@ -185,36 +207,45 @@ export class AutomationScheduler {
 
   private async fire(id: string, manual: boolean): Promise<AutomationRunStatus> {
     const automation = this.automations.get(id);
-    if (!automation || this.firing.has(id)) return "skipped";
+    if (!automation || this.stopped || this.firing.has(id)) return "skipped";
     this.firing.add(id);
-    let status: AutomationRunStatus;
     try {
-      status = await this.dispatch(automation, { quiet: quietTick(automation, manual), unattended: !manual });
-    } catch {
-      status = "failed";
+      let status: AutomationRunStatus;
+      try {
+        status = await this.dispatch(automation, { quiet: quietTick(automation, manual), unattended: !manual });
+      } catch {
+        status = "failed";
+      }
+      if (this.stopped) return status;
+      await this.change(async () => {
+        const current = this.automations.get(id);
+        // The run itself may have deleted the automation once its stop condition was met.
+        if (!current) return;
+        const updated = automationAfterRun(current, status, this.now());
+        await this.store.saveAutomation(updated);
+        this.automations.set(id, updated);
+        if (this.stopped) return;
+        // A spent schedule is only finished if this tick actually ran; otherwise the moment was missed.
+        if (this.canFireAgain(id)) this.notify();
+        else if (didRun(status)) await this.removeStored(updated.taskId);
+        else await this.markMissed(id);
+      });
+      return status;
     } finally {
       this.firing.delete(id);
     }
-    const current = this.automations.get(id);
-    // The run itself may have deleted the automation once its stop condition was met.
-    if (!current) return status;
-    const updated = automationAfterRun(current, status, this.now());
-    this.automations.set(id, updated);
-    this.store.saveAutomation(updated);
-    // A spent schedule is only finished if this tick actually ran; otherwise the moment was missed.
-    if (this.canFireAgain(id)) this.notify();
-    else if (didRun(status)) this.remove(updated.taskId);
-    else this.markMissed(id);
-    return status;
   }
 
   private countOverrun(id: string) {
-    const automation = this.automations.get(id);
-    if (!automation) return;
-    const counted = { ...automation, overrunCount: (automation.overrunCount ?? 0) + 1, updatedAt: this.now() };
-    this.automations.set(id, counted);
-    this.store.saveAutomation(counted);
-    this.notify();
+    return this.change(async () => {
+      const automation = this.automations.get(id);
+      if (!automation) return;
+      const counted = { ...automation, overrunCount: (automation.overrunCount ?? 0) + 1, updatedAt: this.now() };
+      await this.store.saveAutomation(counted);
+      this.automations.set(id, counted);
+      if (this.stopped) return;
+      this.notify();
+    });
   }
 
   private canFireAgain(id: string) {
@@ -223,12 +254,13 @@ export class AutomationScheduler {
   }
 
   /** Keeps a one-shot that can no longer fire, plainly marked, so it never disappears unrun. */
-  private markMissed(id: string) {
+  private async markMissed(id: string) {
     const automation = this.automations.get(id);
     if (!automation || automation.lastStatus === "missed") return;
     const missed = automationAfterRun(automation, "missed", this.now());
+    await this.store.saveAutomation(missed);
     this.automations.set(id, missed);
-    this.store.saveAutomation(missed);
+    if (this.stopped) return;
     this.notify();
   }
 
@@ -239,6 +271,14 @@ export class AutomationScheduler {
 
   private notify() {
     this.options.onChange?.(this.list());
+  }
+
+  /** Store mutations settle in order so concurrent requests cannot replace each other's updates. */
+  private change<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.changes.catch(() => {}).then(operation);
+    this.changes = result.then(() => {});
+    void this.changes.catch(() => {});
+    return result;
   }
 }
 

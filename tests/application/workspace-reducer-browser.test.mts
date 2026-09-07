@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import { dock, task, workspace, preferences, effectAt, effectOf, required, run, inside } from "./workspace-reducer-fixtures.mts";
+import { dock, task, workspace, effectAt, effectOf, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("the user's own page visit opens a dock tab of its own and allows that origin from then on", () => {
   const opened = reduce(workspace(), { type: "browser.open", url: "github.com/zyuapp/ai-coding-tool" });

@@ -1,3 +1,4 @@
+import { WorktreeDeleteDialog } from "./WorktreeDeleteDialog";
 import { ProjectEditDialog } from "./ProjectEditDialog";
 import { WorktreeMoveDialog } from "./WorktreeMoveDialog";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
@@ -9,6 +10,7 @@ export function WorkspaceDialogs({ workspace }: { workspace: Workspace }) {
   const { worktreeMove, projectEditor, actions } = workspace;
   return (
     <>
+      {!workspace.settingsOpen && workspace.worktreeDeleteConfirmation && <WorktreeDeleteDialog worktree={workspace.worktreeDeleteConfirmation} dispatch={workspace.dispatch} />}
       {worktreeMove && (
         <WorktreeMoveDialog
           move={worktreeMove}

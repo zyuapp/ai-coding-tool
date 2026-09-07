@@ -612,3 +612,45 @@ test("a turn the agent starts itself can be steered into, and hands what it is s
   agentTurn.end({ status: "succeeded" });
   assert.equal(await agentTurn.steering.next(), null, "a turn that is over stops waiting for more");
 });
+
+
+test("questions collect answers independently of approvals and reject stale or duplicate answers", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+  coordinator.start(base("task", "run"));
+  const request = { blocking: false, questions: [
+    { id: "region", header: "Region", question: "Which region?", options: [] },
+    { id: "color", header: "Color", question: "Which color?", options: [] },
+  ] };
+  const result = provider.runs[0].input.askQuestion(request);
+  const asked = events.find((event) => event.type === "question.requested");
+  assert.ok(asked?.type === "question.requested");
+  assert.equal(coordinator.answerQuestion("task", "old", asked.requestId, "region", "Chicago"), false);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "missing", "Chicago"), false);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "region", "Chicago"), true);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "region", "London"), false);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "color", "Blue"), true);
+  assert.deepEqual({ ...await result }, { region: "Chicago", color: "Blue" });
+  assert.deepEqual(statuses(events, "run"), ["running"]);
+  coordinator.cancel("task", "run");
+});
+
+test("withdrawal, cancellation, and unattended deadlines close outstanding questions", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event), { unattendedApprovalMs: 5 });
+  const request = { blocking: true, questions: [{ id: "q", header: "", question: "Continue?", options: [] }] };
+  coordinator.start(base("task", "run"));
+  const abort = new AbortController();
+  const withdrawn = provider.runs[0].input.askQuestion(request, abort.signal);
+  abort.abort();
+  assert.equal(await withdrawn, null);
+  const cancelled = provider.runs[0].input.askQuestion(request);
+  coordinator.cancel("task", "run");
+  assert.equal(await cancelled, null);
+  coordinator.start({ ...base("task", "next"), unattended: true });
+  assert.equal(await provider.runs[1].input.askQuestion(request), null);
+  assert.equal(events.filter((event) => event.type === "question.closed").length, 3);
+  coordinator.cancel("task", "next");
+});

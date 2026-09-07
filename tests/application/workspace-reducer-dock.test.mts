@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, dockFor, dockOwner } from "../../src/application/workspace-state.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
-import { dock, task, workspace, preferences, required, run, running } from "./workspace-reducer-fixtures.mts";
+import { dock, task, workspace, preferences, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("every thread keeps a dock of its own, panels, pages and shells alike", () => {
   const state = { ...workspace(), lastFolder: "/repo", threads: [task("task-1"), task("task-2")], currentId: "task-1", history: ["task-1"], historyIndex: 0 };

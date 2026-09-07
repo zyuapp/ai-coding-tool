@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { markPrefix, promptWithAttachments, threadTitleFor } from "../../src/application/attachments.ts";
+import { promptWithAttachments, threadTitleFor } from "../../src/application/attachments.ts";
 
 test("prompt is unchanged when nothing is attached", () => {
   assert.equal(promptWithAttachments("Fix the header", []), "Fix the header");
@@ -12,10 +12,6 @@ test("attachment paths and labels are appended with matching box numbers", () =>
   ]);
   assert.match(prompt, /^Fix the header\n\n/);
   assert.match(prompt, /\/tmp\/a\.png\n {2}1\. button overlaps\n {2}3\. text is clipped$/);
-});
-
-test("a lone screenshot's marks carry no letter", () => {
-  assert.equal(markPrefix(0, 1), "");
 });
 
 test("marks are lettered by screenshot so the same number on two of them stays apart", () => {

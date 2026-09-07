@@ -1,3 +1,4 @@
+import { isAgentModel } from "../domain/agent-engine.js";
 import type { KeyValueStorage } from "./task-store.js";
 import { DRAFT_DOCK, type WorkspaceState } from "./workspace-state.js";
 import type { ViewPreferences } from "../contracts/preferences.js";
@@ -77,7 +78,9 @@ export function readViewPreferences(storage: KeyValueStorage): Partial<ViewPrefe
     const folds = sidebarSections(value.sections);
     const reading = sizeById(READING_SIZE, value.readingSize);
     const terminal = sizeById(TERMINAL_SIZE, value.terminalSize);
+    const favoriteModels = Array.isArray(value.favoriteModels) ? [...new Set(value.favoriteModels.filter(isAgentModel))] : [];
     return {
+      favoriteModels,
       ...(themeById(value.theme) ? { theme: value.theme as string } : {}),
       ...(isThemeMode(value.themeMode) ? { themeMode: value.themeMode } : {}),
       ...(uiFontById(value.uiFont) ? { uiFont: value.uiFont as string } : {}),
@@ -142,6 +145,7 @@ export function viewPreferences(state: WorkspaceState): ViewPreferences {
     sidebarMode: state.sidebarMode,
     sections: state.sections,
     subagentGroups: state.subagentGroups,
+    favoriteModels: state.favoriteModels,
     shortcuts: state.shortcuts,
     browserTabs,
     browserOrigins: state.browserOrigins,
@@ -169,6 +173,7 @@ export function viewPreferenceState(preferences: ViewPreferences) {
     sidebarMode: preferences.sidebarMode,
     sections: preferences.sections ?? OPEN_SIDEBAR_SECTIONS,
     subagentGroups: preferences.subagentGroups ?? OPEN_SUBAGENT_GROUPS,
+    favoriteModels: preferences.favoriteModels ?? [],
     shortcuts: preferences.shortcuts ?? {},
     browserOrigins: preferences.browserOrigins ?? [],
   };

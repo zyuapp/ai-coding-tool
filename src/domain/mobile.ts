@@ -216,11 +216,6 @@ export function pairingAttemptsStale(attempts: PairingAttempts, at: number): boo
   return !pairingLocked(attempts, at) && at - attempts.lastFailureAt >= PAIRING_LOCKOUT_MS;
 }
 
-/** A code that is spent or accepted clears the count, so an honest phone never inherits a lockout. */
-export function clearPairingFailures(): PairingAttempts {
-  return noPairingAttempts();
-}
-
 function randomBytes(count: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(count));
 }
@@ -254,28 +249,6 @@ export function constantTimeEquals(left: string, right: string): boolean {
   return difference === 0;
 }
 
-/** 256 bits of hex. The phone keeps it; the Mac keeps only {@link hashDeviceToken} of it. */
-export function generateDeviceToken(): string {
-  return toHex(randomBytes(32));
-}
-
-export async function hashDeviceToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  return toHex(new Uint8Array(digest));
-}
-
-/** The device a token belongs to, or null when no stored hash matches it. */
-export async function deviceForToken(devices: PairedDevice[], token: string): Promise<PairedDevice | null> {
-  const hash = await hashDeviceToken(token);
-  return devices.find((device) => constantTimeEquals(device.tokenHash, hash)) ?? null;
-}
-
-function toHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");
-  return hex;
-}
-
 /**
  * What the QR encodes: where to reach the Mac, and the code to trade once the page loads. The code
  * rides the fragment, which no proxy in front of the server ever sees, and the path ends in a slash
@@ -287,20 +260,4 @@ export function pairingUrl(address: MobileAddress, code: string): string {
 
 export function pairingOffer(address: MobileAddress, pairing: PairingCode): MobilePairingOffer {
   return { code: pairing.code, expiresAt: pairing.expiresAt, address, url: pairingUrl(address, pairing.code) };
-}
-
-/** The other half of {@link pairingUrl}. Null for anything that is not one of ours. */
-export function parsePairingUrl(url: string): { origin: string; code: string } | null {
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
-  if (parsed.pathname.replace(/\/$/, "") !== MOBILE_APP_PATH) return null;
-  const fragment = new URLSearchParams(parsed.hash.replace(/^#/, ""));
-  const code = fragment.get("pair") ?? parsed.searchParams.get("pair");
-  if (!code || code.length > PAIRING_CODE_LENGTH * 4) return null;
-  return { origin: parsed.origin, code: code.toUpperCase() };
 }

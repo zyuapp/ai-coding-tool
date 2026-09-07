@@ -1,5 +1,5 @@
 /** The project folders the app is open on. */
-import { PROJECT_WORKTREES_ERROR, RUNNING_PROJECT_ERROR, now, retireAutomations, settled } from "./shared.js";
+import { PROJECT_WORKTREES_ERROR, RUNNING_PROJECT_ERROR, now, retireAutomations, settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceProjects } from "../project-commands.js";
 import type { WorkspaceState } from "../workspace-state.js";
@@ -25,10 +25,10 @@ export function reduceProjectCommands(state: WorkspaceState, input: ProjectInput
 
     case "project.remove": {
       if (state.threads.some((thread) => thread.projectId === input.projectId && state.activeRuns[thread.id])) {
-        return settled({ ...state, actionError: RUNNING_PROJECT_ERROR });
+        return rejected(state, RUNNING_PROJECT_ERROR);
       }
       if (state.worktrees.some((worktree) => worktree.projectId === input.projectId)) {
-        return settled({ ...state, actionError: PROJECT_WORKTREES_ERROR });
+        return rejected(state, PROJECT_WORKTREES_ERROR);
       }
       const leaving = state.threads.filter((thread) => thread.projectId === input.projectId);
       const effects = retireAutomations(state, leaving.map((thread) => thread.id));

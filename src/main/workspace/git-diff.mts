@@ -73,6 +73,7 @@ async function hasCommits(root: string) {
 }
 
 async function resolveBase(root: string, range: DiffRange) {
+  if (range.kind === "commit") throw new Error("Commit comparisons resolve both revisions together.");
   if (range.kind === "uncommitted") return await hasCommits(root) ? "HEAD" : EMPTY_TREE;
   const head = range.compare ?? "HEAD";
   try {
@@ -86,9 +87,33 @@ async function resolveBase(root: string, range: DiffRange) {
 
 /** Where each comparison starts, kept so a review of many files asks Git once rather than once a file. */
 const bases = new Map<string, Promise<string>>();
+const commits = new Map<string, Promise<string[]>>();
+
+async function commitRevisions(root: string, hash: string) {
+  if (!/^[a-f\d]{7,40}$/i.test(hash)) throw new Error("Invalid commit hash.");
+  let commit: string;
+  try {
+    commit = (await run(root, ["rev-parse", "--verify", `${hash}^{commit}`])).trim();
+  } catch { throw new Error(`Commit ${hash} is not available in this repository.`); }
+  const parents = (await run(root, ["rev-list", "--parents", "-n", "1", commit])).trim().split(/\s+/);
+  /** A merge is shown against its first parent, and a root commit against the empty tree. */
+  return [parents[1] ?? EMPTY_TREE, commit];
+}
 
 /** The revisions a `git diff` for this range takes, with the working tree left as the absent side. */
 async function revisions(root: string, range: DiffRange) {
+  if (range.kind === "commit") {
+    const key = `${root}\u0000${range.commit}`;
+    let resolved = commits.get(key);
+    if (!resolved) {
+      resolved = commitRevisions(root, range.commit);
+      commits.set(key, resolved);
+      /** The summary and every patch share one resolution, including overlapping reads. */
+      setTimeout(() => commits.delete(key), BASE_TTL_MS).unref?.();
+      void resolved.catch(() => commits.delete(key));
+    }
+    return resolved;
+  }
   const key = `${root}\u0000${rangeKey(range)}`;
   let base = bases.get(key);
   if (!base) {
@@ -209,7 +234,7 @@ export async function diffSummary(workspaceId: string, range: DiffRange, workspa
       run(root, ["diff", "--numstat", "-z", "--relative", "--find-renames", ...space, ...revs, "--"]),
       run(root, ["diff", "--name-status", "-z", "--relative", "--find-renames", ...space, ...revs, "--"]),
       /** Only a comparison that ends at the working tree can have files Git has never seen. */
-      range.kind === "uncommitted" || range.compare === null ? untrackedFiles(root) : Promise.resolve([]),
+      range.kind === "uncommitted" || (range.kind === "branches" && range.compare === null) ? untrackedFiles(root) : Promise.resolve([]),
     ]);
     const tracked = readNumstat(numstat, readNameStatus(nameStatus));
     const fresh = (await measureUntracked(root, untracked)).filter((file): file is DiffFileSummary => file !== null);
@@ -249,6 +274,7 @@ export async function diffPatch(workspaceId: string, range: DiffRange, filePath:
     const patch = await run(root, ["diff", `-U${CONTEXT}`, "--relative", "--find-renames", ...space, ...revs, "--", ...paths]);
     /** Nothing tracked answers for a file Git has never seen, so it is diffed against emptiness. */
     if (patch.trim()) return { status: "available", patch };
+    if (range.kind === "commit" || (range.kind === "branches" && range.compare !== null)) return { status: "available", patch: "" };
     const fresh = await runAllowingDifferences(root, ["diff", `-U${CONTEXT}`, ...space, "--no-index", "--", "/dev/null", filePath]);
     return { status: "available", patch: fresh };
   } catch (error) {

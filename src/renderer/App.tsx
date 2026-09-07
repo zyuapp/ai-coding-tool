@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { LuX as X } from "react-icons/lu";
 import { MessageLinkProvider } from "./components/MarkdownMessage";
+import { AttachmentViewer } from "./components/AttachmentViewer";
 import { DiagramViewerHost } from "./components/MermaidBlock";
 import { FindBar } from "./components/FindBar";
 import { TooltipLayer } from "./components/TooltipLayer";
@@ -75,9 +76,9 @@ export function App() {
     void workspace.actions.openDockPanel(id);
   }
 
-  function openSettings() {
+  const openSettings = useCallback(() => {
     void workspace.actions.setSettingsOpen(true);
-  }
+  }, [workspace.actions]);
 
   function closeSettings() {
     void workspace.actions.setSettingsOpen(false);
@@ -130,6 +131,7 @@ export function App() {
 
   return (
     <MessageLinkProvider actions={messageLinks}>
+    {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} />}
     <DiagramViewerHost>
     <main className="app-shell">
       <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />

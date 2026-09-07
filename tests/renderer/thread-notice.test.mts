@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import React from "react";
 import { test, afterAll, beforeAll } from "vitest";
 import { isBadgeCount, isThreadNotice, type DesktopAPI, type ThreadNotice } from "../../src/contracts/ipc.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { registered, startMainProcess, type MainHarness } from "../support/electron-harness.mjs";
+import { mount } from "../support/renderer-dom.mts";
+
+const { useWorkspaceSubscriptions } = await import("../../src/renderer/task-workspace/workspace-subscriptions.ts");
 
 let main: MainHarness;
 beforeAll(async () => { main = await startMainProcess(null, "aicodingtool-notice-"); });
@@ -84,36 +88,42 @@ test("a notice is a thread, a name to show it under, and a line", () => {
 test("the window answers a clicked notification by selecting that thread", async () => {
   const listeners = new Map<string, unknown>();
   let openThread: Parameters<DesktopAPI["onOpenThread"]>[0] | undefined;
+  function listen<T>(name: string, listener: T) {
+    listeners.set(name, listener);
+    return () => { listeners.delete(name); };
+  }
   const desktop = {
-    onOpenProject(listener: Parameters<DesktopAPI["onOpenProject"]>[0]) {
-      listeners.set("onOpenProject", listener);
-      return () => { listeners.delete("onOpenProject"); };
-    },
-    onWindowScreenshot(listener: Parameters<DesktopAPI["onWindowScreenshot"]>[0]) {
-      listeners.set("onWindowScreenshot", listener);
-      return () => { listeners.delete("onWindowScreenshot"); };
-    },
+    onShortcut: (listener) => listen("onShortcut", listener),
+    onShortcutCaptured: (listener) => listen("onShortcutCaptured", listener),
+    onDesktopShortcutRefused: (listener) => listen("onDesktopShortcutRefused", listener),
+    onWindowScreenshot: (listener) => listen("onWindowScreenshot", listener),
     onOpenThread(listener: Parameters<DesktopAPI["onOpenThread"]>[0]) {
       listeners.set("onOpenThread", listener);
       openThread = listener;
       return () => { listeners.delete("onOpenThread"); openThread = undefined; };
     },
-  } satisfies Pick<DesktopAPI, "onOpenProject" | "onWindowScreenshot" | "onOpenThread">;
-  Object.defineProperty(globalThis, "window", { configurable: true, value: { desktop } });
+  } satisfies Pick<DesktopAPI, "onShortcut" | "onShortcutCaptured" | "onDesktopShortcutRefused" | "onWindowScreenshot" | "onOpenThread">;
+  const previous = Object.getOwnPropertyDescriptor(window, "desktop");
+  Object.defineProperty(window, "desktop", { configurable: true, value: desktop });
+  let view: Awaited<ReturnType<typeof mount>> | undefined;
   try {
-    const { subscribeToDesktop } = await import("../../src/renderer/task-workspace/desktop-subscriptions.ts");
     const dispatched: WorkspaceInput[] = [];
-    const stop = subscribeToDesktop((input) => { dispatched.push(input); });
+    function Harness() {
+      useWorkspaceSubscriptions({ restored: false, dispatch: async (input) => { dispatched.push(input); } });
+      return null;
+    }
+    view = await mount(React.createElement(Harness));
+    dispatched.length = 0;
 
     assert.ok(openThread);
     openThread("task-datadog");
     assert.deepEqual(dispatched, [{ type: "task.select", taskId: "task-datadog" }]);
-
-    stop();
-    assert.equal(listeners.size, 0, "the window drops every subscription at once");
   } finally {
-    Reflect.deleteProperty(globalThis, "window");
+    await view?.unmount();
+    if (previous) Object.defineProperty(window, "desktop", previous);
+    else Reflect.deleteProperty(window, "desktop");
   }
+  assert.equal(listeners.size, 0, "the window drops every subscription at once");
 });
 
 test("the app icon carries the count of threads the user has not seen", () => {

@@ -1,37 +1,12 @@
+import { task, workspace } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
-import {
-  browserTarget,
-  dockFor,
-  dockOwner,
-  emptyWorkspaceState,
-  type ThreadDock,
-  type WorkspaceState,
-} from "../../src/application/workspace-state.ts";
-import type { Thread } from "../../src/domain/thread.js";
+import { browserTarget, dockFor, dockOwner, type ThreadDock, type WorkspaceState } from "../../src/application/workspace-state.ts";
 
 /** The dock a thread was left in: the one on screen unless a thread is named. */
 function dock(state: WorkspaceState, owner?: string): ThreadDock {
   return dockFor(state, owner ?? dockOwner(state));
-}
-
-function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-    ...overrides,
-  };
-}
-
-function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
-  return { ...emptyWorkspaceState(), ...overrides };
 }
 
 test("a run drives its own thread's dock, whichever thread the user is looking at", () => {

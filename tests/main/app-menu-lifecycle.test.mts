@@ -19,7 +19,7 @@ test("a macOS help-menu command reopens a window and waits until its renderer is
   const reopened = main.windows[0];
   assert.equal(reopened.webContents.sent.length, 0, "the command does not race the renderer subscription");
 
-  const ready = registered<(event: IpcEvent) => void>(main.listeners, "workspace:open-project-ready");
+  const ready = registered<(event: IpcEvent) => void>(main.listeners, "workspace-view:ready");
   ready({ sender: reopened.webContents });
   await waitFor(() => reopened.webContents.sent.some((entry) => entry.channel === "window:shortcut"), "queued menu command");
   assert.deepEqual(

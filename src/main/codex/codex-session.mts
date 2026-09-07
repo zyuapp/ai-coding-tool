@@ -1,3 +1,4 @@
+import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
@@ -6,6 +7,7 @@ import { runTools } from "../agent/run-tools.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
+import { codexInstructions } from "./codex-instructions.mjs";
 import { CodexSkills } from "./codex-skills.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
@@ -26,9 +28,6 @@ export type CodexConnect = (command: AppServerCommand) => CodexClient;
 const INTERRUPT_GRACE_MS = 10_000;
 
 const SIGN_IN = "Sign in to Codex to run this thread.";
-
-/** What the thread is told beyond its prompt. */
-export const DEVELOPER_INSTRUCTIONS = "In AICodingTool, \"thread\" always means an AICodingTool thread, never a Codex session or subagent. Use the aicodingtool thread tools for every thread operation. When the user asks to open, start, or spin up a thread, use start_thread. This app's own surfaces are reached only through the aicodingtool tools: its browser panel with browser_open, browser_read and browser_screenshot, its terminal with terminal_read, its other threads with list_threads and read_thread, and repeating or scheduled work with schedule.";
 
 type CodexSandbox = "read-only" | "workspace-write" | "danger-full-access";
 
@@ -168,6 +167,7 @@ function reviewDescription(target: ReviewOperation["target"]) {
  * session in turn, and ends on the server's own turn/completed.
  */
 export class CodexSession {
+  private readonly questions = new CodexQuestions();
   private client: CodexClient | null = null;
   /** The app's tools as this session's process reaches them; released with the session. */
   private served: ServedTools | null = null;
@@ -437,9 +437,9 @@ export class CodexSession {
       }
       this.served = served;
     }
-    const env = this.served ? { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } : undefined;
-    const client = this.connect(codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(env ? { env } : {}) }));
-    this.client = client;
+    const command = await codexAppServer(codexConfig(seed, this.served ?? undefined), { cwd: seed.workspaceRoot, ...(this.served ? { env: { ...process.env, [TOOL_TOKEN_ENV]: this.served.token } } : {}) });
+    if (this.ended) throw new OpenFailure("The Codex session ended before the run could start.");
+    const client = this.client = this.connect(command);
     const skills = this.skills = new CodexSkills(client, seed.workspaceRoot);
     const subagents = this.subagents = new CodexSubagents(seed.reportSubagent, (busy) => {
       if (!busy && !this.answering) this.onRested();
@@ -460,29 +460,30 @@ export class CodexSession {
     });
     client.on("skills/changed", () => { void skills.refresh(true); });
     client.on("item/started", (params) => {
-      if (!subagents.itemStarted(params)) this.receiveStarted(params.item);
+      if (!subagents.itemStarted(params) && params.threadId === this.threadId) this.receiveStarted(params.item);
     });
     client.on("item/agentMessage/delta", (params) => {
-      if (!subagents.shouldSuppress(params.threadId)) this.receiveDelta(params.itemId, params.delta);
+      if (params.threadId === this.threadId) this.receiveDelta(params.itemId, params.delta);
     });
     client.on("item/completed", (params) => {
       const child = subagents.itemCompleted(params);
       this.receiveReviewItem(params.threadId, params.item);
-      if (!child) this.receiveCompleted(params.item);
+      if (!child && params.threadId === this.threadId) this.receiveCompleted(params.item);
       if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.backgroundProcesses.length) {
         void this.refreshBackgroundProcesses();
       }
     });
     client.on("thread/tokenUsage/updated", (params) => {
-      if (!subagents.tokenUsageUpdated(params)) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
+      if (!subagents.tokenUsageUpdated(params) && params.threadId === this.threadId) this.receiveUsage(params.tokenUsage.last.totalTokens, params.tokenUsage.modelContextWindow);
     });
     client.on("error", (params) => {
-      if (!subagents.error(params) && this.turn && !params.willRetry) this.turn.failure = params.error.message;
+      if (!subagents.error(params) && params.threadId === this.threadId && this.turn && !params.willRetry) this.turn.failure = params.error.message;
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
-      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child) this.receiveTurnCompleted(params.turn);
+      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child && params.threadId === this.threadId) this.receiveTurnCompleted(params.turn);
     });
+    client.on("serverRequest/resolved", ({ requestId }) => this.questions.pending.get(requestId)?.abort());
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
     await client.initialize(CLIENT_INFO);
@@ -490,7 +491,7 @@ export class CodexSession {
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);
     const policy = codexPolicy(seed.policy);
-    const settings = { cwd: seed.workspaceRoot, model: seed.model, approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: DEVELOPER_INSTRUCTIONS };
+    const settings = { cwd: seed.workspaceRoot, model: seed.model, approvalPolicy: policy.approvalPolicy, sandbox: policy.sandbox, approvalsReviewer: policy.approvalsReviewer, config: { model_reasoning_effort: seed.effort }, developerInstructions: codexInstructions(seed.channel) };
     const continuation = continuationOf(seed);
     const started = continuation === undefined
       ? await client.request("thread/start", settings)
@@ -555,6 +556,7 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     this.turn = null;
+    this.questions.close();
     turn.release();
     turn.settle(turn.input.abortController.signal.aborted ? { status: "cancelled" } : result);
   }
@@ -593,6 +595,11 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     if (item.type === "agentMessage") {
+      if (item.delivery === "async" && item.questions?.length && this.client && this.threadId) {
+        void this.questions.answerAsync(item.questions, turn.input, this.client, this.threadId, () => this.turn === turn ? turn.turnId : undefined).catch((error: unknown) => {
+          if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not receive your answer: ${reasonOf(error)}` });
+        });
+      }
       const buffer = turn.streamed.get(item.id);
       /** A message that streamed is already on screen but for its tail; one that did not arrives whole. */
       if (buffer) {
@@ -779,11 +786,12 @@ export class CodexSession {
         return;
       }
       case "item/tool/requestUserInput": {
-        const { itemId, questions } = request.params;
-        void this.allowed({ toolId: itemId, name: "request_user_input", input: { questions } }).then((allow) => {
-          if (allow) request.respond({ answers: {} });
-          else request.fail({ code: -32000, message: "The user declined to answer." });
-        });
+        const { questions, threadId, turnId } = request.params;
+        const turn = this.turn;
+        if (!turn || (threadId === this.threadId && turn.turnId && turnId !== turn.turnId) || questions.some((question) => question.isSecret)) {
+          return request.fail({ code: -32000, message: "This question cannot be answered in chat." });
+        }
+        this.questions.answer(request, turn.input);
         return;
       }
       case "mcpServer/elicitation/request": {

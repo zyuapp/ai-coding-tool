@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, vi } from "vitest";
+import { PRIVATE_CODEX_HOME_ENV } from "../../src/main/codex/codex-home.mts";
 import type { AppServerCommand, ClientMethod, ClientParams, ClientResult, ExitStatus, IncomingRequest, JsonRpcError, NotificationMethod, NotificationParams, ServerRequestMethod, ServerRequestParams, ServerRequestResult } from "../../src/main/codex/app-server-client.mts";
 import type { ClientInfo } from "../../src/main/codex/protocol/ClientInfo.ts";
 import type { InitializeResponse } from "../../src/main/codex/protocol/InitializeResponse.ts";
@@ -8,6 +10,10 @@ import type { ReadOrigin } from "../../src/main/codex/codex-thread-record.mts";
 import type { ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
 import type { BoundTool, ToolResult } from "../../src/main/tools/tool-definition.mts";
 import type { ServedTools, ToolHost } from "../../src/main/tools/mcp-http-host.mts";
+
+/** Fake servers must not prepare the launching app's private storage; codex-home tests cover that. */
+beforeEach(() => { vi.stubEnv(PRIVATE_CODEX_HOME_ENV, undefined); });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 export type Sent = { method: string; params: unknown };
 
@@ -146,6 +152,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     steering: { next: () => new Promise<null>(() => {}) },
     abortController: new AbortController(),
     authorize: async () => "allow",
+    askQuestion: async () => null,
     emit() {},
     reportWorkflow() {},
     reportBackground() {},

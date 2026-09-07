@@ -1,23 +1,12 @@
+import { dom, mount, query } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
+import { test, onTestFinished } from "vitest";
+
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
+
 import type { DiffPanelProps } from "../../../src/renderer/components/DiffPanel.tsx";
 import type { DiffState } from "../../../src/application/workspace-state.ts";
 import type { DesktopAPI } from "../../../src/contracts/ipc.ts";
-
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "KeyboardEvent", "navigator"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-/** jsdom has no ResizeObserver, and the panel measures its own width through one. */
-class ResizeObserverStub {
-  observe() {}
-  disconnect() {}
-}
-Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: ResizeObserverStub });
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
 
 /** Named as the file it is, because a patch's own path is what picks the grammar that colours it. */
 const PATCH = [
@@ -37,25 +26,6 @@ Object.defineProperty(window, "desktop", { value: {
 } satisfies Pick<DesktopAPI, "diffPatch" | "branches"> });
 
 const { DiffPanel } = await import("../../../src/renderer/components/DiffPanel.tsx");
-
-afterAll(() => { dom.window.close(); });
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
-function query<E extends Element = HTMLElement>(root: ParentNode, selector: string): E {
-  const element = root.querySelector<E>(selector);
-  assert.ok(element, `Missing ${selector}`);
-  return element;
-}
 
 const PATHS = ["src/app.ts", "src/deep/nested/second.ts"];
 
@@ -79,7 +49,7 @@ function diffState(): DiffState {
   };
 }
 
-function panel(): React.ReactElement {
+function panel(overrides: Partial<DiffPanelProps> = {}): React.ReactElement {
   const props: DiffPanelProps = {
     diff: diffState(),
     workspaceId: "workspace-1",
@@ -97,7 +67,7 @@ function panel(): React.ReactElement {
     openMenu: null,
     onSetOpenMenu: () => {},
   };
-  return React.createElement(DiffPanel, props);
+  return React.createElement(DiffPanel, { ...props, ...overrides });
 }
 
 /** Names are held back until a patch lands, and the first patch waits on its grammar being imported. */
@@ -143,4 +113,85 @@ test("the row held at the top echoes the one in the list rather than doubling it
     "so nothing in the echo is reachable twice",
   );
   await view.unmount();
+});
+
+test("Viewed aligns a short review's next file and the next click marks that file", async (t) => {
+  const prototype = dom.window.HTMLElement.prototype;
+  const offsets = new WeakMap<HTMLElement, number>();
+  const geometry: PropertyDescriptorMap = {
+    offsetTop: { get(this: HTMLElement) { return Math.max(0, [...(this.parentElement?.children ?? [])].indexOf(this)) * 20; } },
+    offsetHeight: { get() { return 20; } },
+    clientHeight: { get() { return 480; } },
+    scrollHeight: { get(this: HTMLElement) {
+      return this.children.length * 20 + Number.parseFloat(this.style.getPropertyValue("--diff-scroll-space") || "0");
+    } },
+    scrollTop: {
+      get(this: HTMLElement) { return offsets.get(this) ?? 0; },
+      set(this: HTMLElement, value: number) { offsets.set(this, Math.max(0, Math.min(value, this.scrollHeight - this.clientHeight))); },
+    },
+    scrollIntoView: { value(this: HTMLElement) { if (this.parentElement) this.parentElement.scrollTop = this.offsetTop; } },
+  };
+  for (const [name, descriptor] of Object.entries(geometry)) {
+    const original = Object.getOwnPropertyDescriptor(prototype, name);
+    Object.defineProperty(prototype, name, { configurable: true, ...descriptor });
+    t.onTestFinished(() => {
+      if (original) Object.defineProperty(prototype, name, original);
+      else Reflect.deleteProperty(prototype, name);
+    });
+  }
+
+  const marked: string[] = [];
+  function Review() {
+    const [diff, setDiff] = React.useState(diffState);
+    return panel({ diff, onSetViewed(path, viewed) {
+      assert.equal(viewed, true, "each click marks a new file");
+      marked.push(path);
+      setDiff((current) => ({ ...current, viewed: { ...current.viewed, [path]: "viewed" }, collapsed: [...current.collapsed, path] }));
+    } });
+  }
+
+  const view = await mount(React.createElement(Review));
+  onTestFinished(() => view.unmount());
+  await settled(view.container);
+  const scroller = query(view.container, ".diff-files");
+  assert.equal(scroller.scrollTop, 0);
+  const tickPinned = () => act(async () => { query<HTMLInputElement>(view.container, ".diff-file-pinned input").click(); });
+
+  await tickPinned();
+  const nextHeader = query(scroller, `[aria-label="Mark ${PATHS[1]} viewed"]`).closest(".diff-file-row")?.parentElement;
+  assert.ok(nextHeader);
+  assert.equal(scroller.scrollTop, nextHeader.offsetTop, "the short file reaches the top without a prior scroll");
+  assert.equal(query(view.container, ".diff-file-pinned .diff-file-name").textContent, PATHS[1]);
+
+  await tickPinned();
+  assert.deepEqual(marked, PATHS);
+  assert.match(query(view.container, ".diff-progress").textContent, /2 of 2 viewed/);
+});
+
+test.each([false, true])("a patch opens with line numbers and syntax colours (split=%s)", async (split) => {
+  function Review() {
+    const [diff, setDiff] = React.useState(() => ({ ...diffState(), split }));
+    return panel({ diff, onSetCollapsed(path, collapsed) {
+      setDiff((current) => ({ ...current, collapsed: collapsed ? [...current.collapsed, path] : current.collapsed.filter((item) => item !== path) }));
+    } });
+  }
+  const view = await mount(React.createElement(Review));
+  onTestFinished(() => view.unmount());
+  await settled(view.container);
+
+  if (!split) {
+    const lines = [...view.container.querySelectorAll(".diff-line")].slice(0, 5);
+    assert.equal(lines[0].className, "diff-line hunk", "the patch is already on screen");
+    assert.deepEqual(lines.slice(1).map((line) => [...line.querySelectorAll(".diff-gutter span")].map((cell) => cell.textContent)),
+      [["1", "1"], ["2", ""], ["", "2"], ["", "3"]]);
+    assert.deepEqual(lines.slice(1).map((line) => line.className.replace("diff-line ", "")), ["context", "delete", "add", "add"]);
+  }
+  const coloured = [...view.container.querySelectorAll<HTMLElement>(split ? ".diff-split-cell code span" : ".diff-line code span")];
+  assert.ok(coloured.length > 0, "the grammar produced tokens");
+  assert.ok(coloured.every((token) => token.style.color.startsWith("var(--syntax") || token.style.color.startsWith("var(--code")), "every colour comes from a token");
+  assert.ok(coloured.some((token) => token.textContent === "const" && token.style.color === "var(--syntax-keyword)"));
+  for (const button of view.container.querySelectorAll<HTMLButtonElement>(".diff-files .diff-file-open")) {
+    await act(async () => { button.click(); });
+  }
+  assert.equal(view.container.querySelectorAll(".diff-line, .diff-split-row").length, 0, "the headers fold the patches away");
 });

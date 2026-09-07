@@ -163,6 +163,29 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.deepEqual(lastCommand(line), { type: "task.set-policy", taskId: "t1", policy: "autonomous" });
 });
 
+test("the phone selects an answer without sending until Send answer is pressed", () => {
+  const line = openPhone({ paired: true });
+  act(() => line.onopen?.());
+  const asked = view();
+  asked.thread = { ...asked.thread!, approval: null, status: "running", question: {
+    id: "q", questionId: "q", runId: "r1", requestId: "request", header: "Marker", question: "Which marker?",
+    options: [{ label: "ALPHA", description: "First" }, { label: "BETA", description: "Second" }], blocking: false,
+  } };
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s1", build: BUILD, view: asked }) }));
+  click(".thread-row");
+  typeInto('.composer-card textarea', "Keep my message");
+  click('input[value="BETA"]');
+  assert.equal((document.querySelector(".question-answer textarea") as HTMLTextAreaElement).value, "BETA");
+  assert.equal((document.querySelector(".composer-card textarea") as HTMLTextAreaElement).value, "Keep my message");
+  assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+  typeInto(".question-answer textarea", "GAMMA custom");
+  click(".question-answer button");
+  assert.deepEqual(lastCommand(line), { type: "question.answer", taskId: "t1", runId: "r1", requestId: "request", questionId: "q", text: "GAMMA custom" });
+  assert.equal((document.querySelector(".composer-card textarea") as HTMLTextAreaElement).value, "Keep my message");
+  click('button[aria-label="Send message"]');
+  assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "Keep my message" });
+});
+
 test("the phone shows the thread the Mac actually has open, and says what went wrong", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());

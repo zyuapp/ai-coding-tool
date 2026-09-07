@@ -98,11 +98,6 @@ export async function removeWorktree(repositoryPath: string, worktreePath: strin
   await tryGit(repositoryPath, ["worktree", "prune"]);
 }
 
-export async function listWorktrees(repositoryPath: string) {
-  const output = await git(repositoryPath, ["worktree", "list", "--porcelain"]);
-  return output.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
-}
-
 /**
  * Branches newest first, with the one the checkout is on. Local ones are what a thread can start from
  * or move onto; the remote ones are only ever compared against, so they are listed apart. A detached

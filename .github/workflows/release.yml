@@ -52,19 +52,37 @@ jobs:
         shell: bash
         env:
           MAC_CERTIFICATE_P12: ${{ secrets.MAC_CERTIFICATE_P12 }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           umask 077
           printf '%s' "$MAC_CERTIFICATE_P12" | base64 -D > "$RUNNER_TEMP/aicodingtool.p12"
           printf '%s' "$APPLE_API_KEY_P8" | base64 -D > "$RUNNER_TEMP/apple.p8"
+          SIGNING_KEYCHAIN="$RUNNER_TEMP/aicodingtool-signing.keychain-db"
+          SIGNING_KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$SIGNING_KEYCHAIN_PASSWORD"
+          security create-keychain -p "$SIGNING_KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$SIGNING_KEYCHAIN"
+          security unlock-keychain -p "$SIGNING_KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN"
+          security import "$RUNNER_TEMP/aicodingtool.p12" -k "$SIGNING_KEYCHAIN" -P "$MAC_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$SIGNING_KEYCHAIN_PASSWORD" "$SIGNING_KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$SIGNING_KEYCHAIN" "$HOME/Library/Keychains/login.keychain-db"
       - name: Build, sign, and notarize
         env:
-          CSC_LINK: ${{ runner.temp }}/aicodingtool.p12
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          CSC_KEYCHAIN: ${{ runner.temp }}/aicodingtool-signing.keychain-db
           APPLE_API_KEY: ${{ runner.temp }}/apple.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
-        run: npm run package:mac
+        run: npm run package:mac -- --config.forceCodeSigning=true
+      - name: Remove signing credentials
+        if: always()
+        shell: bash
+        run: |
+          SIGNING_KEYCHAIN="$RUNNER_TEMP/aicodingtool-signing.keychain-db"
+          if [ -f "$SIGNING_KEYCHAIN" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN"
+          fi
+          rm -f "$RUNNER_TEMP/aicodingtool.p12" "$RUNNER_TEMP/apple.p8"
       - name: Save release source
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

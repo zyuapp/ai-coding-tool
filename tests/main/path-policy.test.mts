@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
+import { mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -13,8 +14,8 @@ test("file edits stay inside the selected project", () => {
 });
 
 test("canonical write targets stay inside the selected project", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-path-policy-"));
-  const outside = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-path-policy-outside-"));
+  const root = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-path-policy-"));
+  const outside = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-path-policy-outside-"));
   const inside = path.join(root, "src");
   const outsideFile = path.join(outside, "outside.txt");
   const targetLink = path.join(root, "target-link");
@@ -43,7 +44,7 @@ test("canonical write targets stay inside the selected project", async () => {
 });
 
 test("a file a message named is looked for in every checkout the thread can reach", async () => {
-  const home = await realpath(await mkdtemp(path.join(os.tmpdir(), "aicodingtool-file-link-")));
+  const home = await realpath(await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-file-link-")));
   const project = path.join(home, "repo");
   const worktree = path.join(home, "repo-w1");
   const outside = path.join(home, "notes");

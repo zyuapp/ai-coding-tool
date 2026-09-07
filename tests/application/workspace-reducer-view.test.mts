@@ -6,7 +6,7 @@ import { capabilitiesFor } from "../../src/domain/agent-engine.ts";
 import type { FindTarget } from "../../src/domain/find.ts";
 import type { Subagent } from "../../src/domain/run.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
-import { task, workspace, effectAt, PROJECT, required, run, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, effectAt, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("visiting threads builds a trail that back and forward walk without extending it", () => {
   const state = run(workspace({ threads: [task("task-a"), task("task-b"), task("task-c")] }), [

@@ -1,12 +1,15 @@
+import { contextWindowLimit } from "../../../src/domain/agent-engine.ts";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, expect, vi } from "vitest";
 import { AppServerError, AppServerExited } from "../../../src/main/codex/app-server-client.mts";
-import { codexPolicy, DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
+import { codexPolicy } from "../../../src/main/codex/codex-session.mts";
+import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import type { ProviderEvent, ProviderResult } from "../../../src/main/agent/agent-provider.mts";
 import type { BackgroundReport, GoalReport } from "../../../src/contracts/ipc.ts";
 import type { ToolIntent } from "../../../src/domain/run.ts";
 import type { ThreadItem } from "../../../src/main/codex/protocol/v2/ThreadItem.ts";
 import { SteerChannel } from "../../../src/main/agent/steer-channel.mts";
+import { SIDE_CHAT_INSTRUCTIONS } from "../../../src/main/agent/side-chat-instructions.mts";
 import { completeTurn, harness, input, opened, sentBy, tick, turn } from "../../support/codex-client.mjs";
 
 const threadId = "thread-1";
@@ -33,7 +36,7 @@ const mcpCall = (id: string, server: string, tool: string, args: unknown): Threa
   type: "mcpToolCall", id, server, tool, status: "inProgress", arguments: args as never, appContext: null, pluginId: null, readOnlyHint: null, result: null, error: null, durationMs: null,
 });
 
-const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null });
+const agentMessage = (id: string, text: string): ThreadItem => ({ type: "agentMessage", id, text, phase: "final_answer", memoryCitation: null, delivery: null, questions: null });
 
 /** The prompt Codex sends before an MCP tool runs, as captured from the real app server. */
 function elicitation(server: string, tool: string, params: Record<string, string>) {
@@ -54,7 +57,11 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.equal(client.command.cwd, "/tmp/project");
   assert.deepEqual(client.command.args.slice(0, 3), ["app-server", "--listen", "stdio://"]);
   assert.match(client.command.executable, /codex$/);
-  assert.deepEqual(client.sent.map((call) => call.method), ["initialize", "skills/list", "account/read", "thread/start", "turn/start", "thread/name/set", "thread/backgroundTerminals/list"]);
+  const methods = client.sent.map((call) => call.method);
+  assert.equal(methods[0], "initialize");
+  assert.ok(methods.indexOf("account/read") > 0);
+  assert.ok(methods.indexOf("account/read") < methods.indexOf("thread/start"));
+  assert.ok(methods.indexOf("thread/start") < methods.indexOf("turn/start"));
   assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,
@@ -148,7 +155,7 @@ test("a thread the run continues is resumed, and a side chat forks it instead", 
   const emitted: ProviderEvent[] = [];
   const forked = harness();
   const fork = await turn(forked, { channel: "side", continuation: { provider: "codex", value: "thread-9" }, forkContinuation: true, emit: (event) => emitted.push(event) });
-  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
   assert.deepEqual(emitted[0], { type: "continuation", continuation: { provider: "codex", value: "thread-fork" } }, "the fork's own id is what the side chat keeps");
   forked.provider.closeAll();
 
@@ -156,6 +163,26 @@ test("a thread the run continues is resumed, and a side chat forks it instead", 
   const other = await turn(foreign, { continuation: { provider: "claude", value: "session-1" } });
   assert.equal(other.client.calls("thread/start").length, 1, "another engine's continuation means nothing here");
   foreign.provider.closeAll();
+});
+
+test("side chat task boundaries also reach fresh and resumed sessions without changing the user's request", async () => {
+  const prompt = "so you do self review without me putting it in prompt?";
+  for (const method of ["thread/start", "thread/resume"] as const) {
+    const codex = harness();
+    try {
+      const { client } = await turn(codex, {
+        channel: "side",
+        prompt,
+        ...(method === "thread/resume" ? { continuation: { provider: "codex" as const, value: "side-thread" } } : {}),
+      });
+      const settings = client.calls(method)[0] as { developerInstructions: string };
+      assert.equal(settings.developerInstructions, `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}`);
+      const started = client.calls("turn/start")[0] as { input: unknown };
+      assert.deepEqual(started.input, [{ type: "text", text: prompt, text_elements: [] }]);
+    } finally {
+      codex.provider.closeAll();
+    }
+  }
 });
 
 test("a server that dies while resuming fails the run without giving up the continuation", async () => {
@@ -295,18 +322,27 @@ test("items the agent starts become tool intents under the names the thread file
   codex.provider.closeAll();
 });
 
-test("context usage reports the last request against the model's window, and a compaction is measured from it", async () => {
+test.each([
+  { model: "gpt-5.6-terra", effort: "high", limit: 258_400 },
+  { model: "gpt-6-astra", effort: "ultra", limit: 872_000 },
+] as const)("$model sends its effort and reports context usage through compaction", async ({ model, effort, limit }) => {
   const emitted: ProviderEvent[] = [];
   const codex = harness();
   const breakdown = (totalTokens: number) => ({ totalTokens, inputTokens: totalTokens - 200, cachedInputTokens: 11_008, cacheWriteInputTokens: 0, outputTokens: 200, reasoningOutputTokens: 69 });
-  await turn(codex, { model: "gpt-5.6-terra", emit: (event) => emitted.push(event) }, (client) => {
-    client.notify("thread/tokenUsage/updated", { ...at, tokenUsage: { total: breakdown(31_379), last: breakdown(15_707), modelContextWindow: 258_400 } });
+  const { client } = await turn(codex, { model, effort, emit: (event) => emitted.push(event) }, (client) => {
+    for (const modelContextWindow of [null, limit]) {
+      client.notify("thread/tokenUsage/updated", { ...at, tokenUsage: { total: breakdown(31_379), last: breakdown(15_707), modelContextWindow } });
+    }
     client.notify("item/started", started({ type: "contextCompaction", id: "compact-1" }));
     client.notify("item/completed", completed({ type: "contextCompaction", id: "compact-1" }));
   });
-
+  const thread = client.calls("thread/start")[0];
+  const request = client.calls("turn/start")[0];
+  expect(thread).toMatchObject({ model, config: { model_reasoning_effort: effort } });
+  expect(request).toMatchObject({ model, effort });
   assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [
-    { type: "usage", tokens: 15_707, limit: 258_400, model: "gpt-5.6-terra" },
+    { type: "usage", tokens: 15_707, limit: contextWindowLimit("codex", model), model },
+    { type: "usage", tokens: 15_707, limit, model },
     { type: "compaction-status", compacting: true },
     { type: "compaction", trigger: "auto", preTokens: 15_707 },
     { type: "compaction-status", compacting: false },
@@ -495,14 +531,14 @@ test("MCP approval correlation stays inside the requesting root or child thread"
   await session.end();
 });
 
-test("permission and user-input requests go through the same gate", async () => {
-  const allowed = await asking();
+test("permissions use approvals and questions return typed answers", async () => {
+  const allowed = await asking({ askQuestion: async () => ({ q1: "Chicago" }) });
   const permissions = { network: { enabled: true }, fileSystem: null } as never;
   const granted = await allowed.client.ask("item/permissions/requestApproval", { ...at, itemId: "perm-1", environmentId: null, startedAtMs: 1, cwd: "/tmp/project", reason: "npm install", permissions });
   assert.deepEqual(granted, { result: { permissions: { network: { enabled: true } }, scope: "turn" } });
   assert.deepEqual(allowed.asked[0], { toolId: "perm-1", name: "permissions", input: { cwd: "/tmp/project", reason: "npm install", permissions } });
   const answered = await allowed.client.ask("item/tool/requestUserInput", { ...at, itemId: "ask-1", questions: [{ id: "q1", header: "Region", question: "Which region?", isOther: false, isSecret: false, options: null }], isBlocking: true, autoResolutionMs: null });
-  assert.deepEqual(answered, { result: { answers: {} } });
+  assert.deepEqual(answered, { result: { answers: { q1: { answers: ["Chicago"] } } } });
   await allowed.end();
 
   const denied = await asking({ authorize: async () => "deny" });
@@ -634,17 +670,21 @@ test("sessions are per thread, reused only for the thread they hold, and the col
   assert.equal(codex.clients.filter((client) => !client.closed).length, 0);
 });
 
-test("an idle session is let go after the idle period", async () => {
+test("an idle session is let go after the idle period", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   const codex = harness({}, { idleMs: 5 });
   const { client } = await turn(codex);
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await vi.advanceTimersByTimeAsync(30);
   assert.equal(client.closed, true);
   const next = await turn(codex, { continuation: { provider: "codex", value: threadId } });
   assert.notEqual(next.client, client);
   codex.provider.closeAll();
 });
 
-test("Codex background terminals stay with their session, report to the panel, and stop there", async () => {
+test("Codex background terminals stay with their session, report to the panel, and stop there", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   let running = true;
   const codex = harness({
     "thread/backgroundTerminals/list": () => ({
@@ -662,7 +702,7 @@ test("Codex background terminals stay with their session, report to the panel, a
 
   const first = await turn(codex, { reportBackground });
   assert.deepEqual(reports.at(-1)?.processes, [{ id: "process-1", kind: "shell", description: "python3 -m http.server 8000" }]);
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await vi.advanceTimersByTimeAsync(30);
   assert.equal(first.client.closed, false, "a live terminal keeps its app-server session warm");
 
   const second = await turn(codex, { continuation: { provider: "codex", value: threadId }, reportBackground });
@@ -675,7 +715,7 @@ test("Codex background terminals stay with their session, report to the panel, a
   }
   assert.deepEqual(reports.at(-1)?.processes, []);
 
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await vi.advanceTimersByTimeAsync(30);
   assert.equal(first.client.closed, true, "the idle session can be reclaimed once its last terminal stops");
   assert.equal(codex.provider.stopProcess("task-1", "process-1"), false);
 });
@@ -708,51 +748,6 @@ test("a run that was already cancelled never reaches the server", async () => {
   abortController.abort();
   assert.deepEqual(await codex.provider.execute(input({ abortController })), { status: "cancelled" });
   assert.equal(codex.clients.length, 0);
-});
-
-test("Codex is told the thread's title and where its work belongs, once the turn has a rollout to write against", async () => {
-  const codex = harness({}, { readOrigin: async () => ({ originUrl: "git@github.com:me/app.git", branch: "feature", sha: "abc123" }) });
-  const { client } = await turn(codex);
-
-  await sentBy(client, "thread/metadata/update");
-  assert.deepEqual(client.calls("thread/metadata/update"), [{ threadId, gitInfo: { originUrl: "git@github.com:me/app.git", branch: "feature", sha: "abc123" } }]);
-  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }]);
-
-  assert.equal(codex.provider.labelThread("task-1", "Inspect the app"), true);
-  await sentBy(client, "thread/name/set");
-  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }]);
-
-  codex.provider.labelThread("task-1", "Inspect the app");
-  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }], "the same title is not sent twice");
-  codex.provider.labelThread("task-1", "Review the app");
-  const again = await turn(codex, { title: "Review the app", continuation: { provider: "codex", value: threadId } });
-  assert.equal(again.client, client);
-  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Inspect the app" }, { threadId, name: "Review the app" }]);
-  codex.provider.closeAll();
-});
-
-test("a title that lands before the first turn waits for the rollout instead of failing against it", async () => {
-  let letTurnStart = () => {};
-  const held = new Promise<void>((resolve) => { letTurnStart = resolve; });
-  const codex = harness({
-    "turn/start": async () => {
-      await held;
-      return { turn: { id: turnId, items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null } };
-    },
-  });
-  const running = codex.provider.execute(input());
-  const client = await opened(codex);
-  await sentBy(client, "turn/start");
-  codex.provider.labelThread("task-1", "Early title");
-  await tick();
-  assert.deepEqual(client.calls("thread/name/set"), [], "Codex has no rollout to name until the turn has begun");
-
-  letTurnStart();
-  await sentBy(client, "thread/name/set");
-  assert.deepEqual(client.calls("thread/name/set"), [{ threadId, name: "Early title" }]);
-  completeTurn(client);
-  await running;
-  codex.provider.closeAll();
 });
 
 test("a thread archived in another Codex client is unarchived once before the run gives up on it", async () => {

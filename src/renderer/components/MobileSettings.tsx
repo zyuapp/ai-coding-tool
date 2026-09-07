@@ -203,7 +203,7 @@ function DeviceSection({ devices, sessions, onRevokeDevice }: { devices: PairedD
       <div className="settings-group-heading">
         <div>
           <h3 id="phone-devices-heading">Phones</h3>
-          <p>A connected phone keeps this computer awake, and closing this window hides it rather than quitting. Removing a phone cuts it off at once.</p>
+          <p>A connected phone keeps this computer awake. Closing this window stops phone access. Removing a phone cuts it off at once.</p>
         </div>
         <div className="settings-group-action"><span>{devices.length === 0 ? "None paired" : `${connected} of ${devices.length} connected`}</span></div>
       </div>

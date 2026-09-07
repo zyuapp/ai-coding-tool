@@ -1,4 +1,3 @@
-import { LuCheck as Check } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import type { ComputerUsePermission, ComputerUsePermissions } from "../../contracts/ipc";
 import { AvailabilitySection } from "./AvailabilitySection";

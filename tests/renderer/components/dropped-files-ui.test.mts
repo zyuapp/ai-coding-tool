@@ -1,20 +1,13 @@
+import { composer } from "../../support/composer.mts";
+import { dom, mount, query } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { test, afterAll } from "vitest";
-import { JSDOM } from "jsdom";
+import { test } from "vitest";
+
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
-import type { ConversationComposerProps } from "../../../src/renderer/components/ConversationComposer.tsx";
+
 import type { AttachedFile } from "../../../src/domain/conversation.ts";
 import type { DesktopAPI } from "../../../src/contracts/ipc.ts";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "Element", "Node", "HTMLElement", "Event", "KeyboardEvent", "navigator"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-/** React watches the focused field through the event methods only IE ever had, which jsdom has not. */
-Object.defineProperties(dom.window.HTMLTextAreaElement.prototype, { attachEvent: { value() {} }, detachEvent: { value() {} } });
-Object.defineProperty(dom.window.HTMLElement.prototype, "scrollIntoView", { value() {} });
 Object.defineProperty(window, "desktop", { value: {
   commands: async () => ({ status: "error", message: "unavailable" } as const),
   projectlessWorkspace: async () => ({ id: "workspace-1", kind: "projectless", root: "/project" } as const),
@@ -22,51 +15,6 @@ Object.defineProperty(window, "desktop", { value: {
 
 const { ConversationComposer } = await import("../../../src/renderer/components/ConversationComposer.tsx");
 const { useFileDrop } = await import("../../../src/renderer/file-drop.ts");
-
-afterAll(async () => {
-  dom.window.close();
-});
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async render(next: React.ReactNode) { await act(async () => { root.render(next); }); },
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
-function query<E extends Element = HTMLElement>(root: ParentNode, selector: string): E {
-  const element = root.querySelector<E>(selector);
-  assert.ok(element, `Missing ${selector}`);
-  return element;
-}
-
-function composer(props: Partial<ConversationComposerProps>) {
-  return React.createElement(ConversationComposer, {
-    prompt: "",
-    folder: "/project",
-    workspaceId: "workspace-1",
-    mode: "confirm",
-    engine: "claude", engineLabel: "Claude",
-    model: "opus",
-    effort: "medium",
-    runActive: false,
-    queuedMessages: [],
-    onPromptChange() {},
-    onModeChange() {},
-    onModelChange() {},
-    onEffortChange() {},
-    onSend() {},
-    onSteerQueued() {},
-    onDropQueued() {},
-    onCancel() {},
-    ...props,
-  });
-}
 
 const files: AttachedFile[] = [
   { id: "f1", path: "/Users/me/report.pdf", name: "report.pdf" },

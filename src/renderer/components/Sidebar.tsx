@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { ProjectSidebar } from "./ProjectSidebar";
 import type { useTaskWorkspace } from "../task-workspace/useTaskWorkspace";
 
@@ -8,6 +9,10 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
   settingsVisible: boolean;
   onOpenSettings: () => void;
 }) {
+  const renameProject = useCallback((projectId: string, name: string) => {
+    void workspace.actions.editProject(projectId, { name });
+  }, [workspace.actions]);
+
   return (
     <ProjectSidebar
       open={open}
@@ -31,12 +36,12 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       settingsOpen={settingsVisible}
       canGoBack={workspace.canGoBack}
       canGoForward={workspace.canGoForward}
-      onGoBack={() => void workspace.actions.goBack()}
-      onGoForward={() => void workspace.actions.goForward()}
+      onGoBack={workspace.actions.goBack}
+      onGoForward={workspace.actions.goForward}
       onNewThread={workspace.actions.newThread}
       onOpenFolder={workspace.actions.openFolder}
       onToggleProject={workspace.actions.toggleProject}
-      onRenameProject={(projectId, name) => void workspace.actions.editProject(projectId, { name })}
+      onRenameProject={renameProject}
       onEditProject={workspace.actions.editProjectOpen}
       onRemoveProject={workspace.actions.removeProject}
       onMoveProject={workspace.actions.moveProject}

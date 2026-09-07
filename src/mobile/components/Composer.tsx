@@ -1,3 +1,6 @@
+import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
+import { QuestionPrompt } from "../../renderer/components/QuestionPrompt";
+import { useQuestionAnswer } from "../client/useQuestionAnswer";
 import { LuArrowUp as ArrowUp } from "react-icons/lu";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
@@ -11,8 +14,10 @@ const MAX_ROWS_PX = 168;
  * newline the way every other phone keyboard does; sending is the button, which is where a thumb
  * already is.
  */
-export function Composer({ running, waiting, settings, onSend, onStop, onOpenSettings }: {
+export function Composer({ running, waiting, settings, question, onAnswerQuestion, onSend, onStop, onOpenSettings }: {
   running: boolean;
+  question?: PendingQuestion | null;
+  onAnswerQuestion?: (question: QuestionAddress, text: string) => void;
   /** Commands the phone is holding until the line comes back. */
   waiting: number;
   settings: MobileThreadSettings;
@@ -21,6 +26,7 @@ export function Composer({ running, waiting, settings, onSend, onStop, onOpenSet
   onStop?: () => void;
   onOpenSettings: () => void;
 }) {
+  const answer = useQuestionAnswer(question, onAnswerQuestion);
   const [draft, setDraft] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const { mode, model, effort } = settingsSummary(settings);
@@ -42,12 +48,14 @@ export function Composer({ running, waiting, settings, onSend, onStop, onOpenSet
   return (
     <div className="composer">
       {waiting > 0 && <p className="composer-waiting">{waiting} {waiting === 1 ? "message is" : "messages are"} waiting for the line to come back.</p>}
+      {question && <QuestionPrompt question={question} answer={answer.answer} disabled={answer.submitting} submitOnEnter={false} onAnswerChange={answer.change} onSubmit={answer.submit} />}
       <div className="composer-card">
         <textarea
           ref={field}
           rows={1}
           value={draft}
           placeholder={`Ask ${engineLabel(settings.engine)} to work on anything`}
+          aria-label="Message"
           enterKeyHint="enter"
           autoCapitalize="sentences"
           onInput={(event) => setDraft(event.currentTarget.value)}
@@ -58,6 +66,7 @@ export function Composer({ running, waiting, settings, onSend, onStop, onOpenSet
             <span className="setting-axis">Model</span><span className="setting-value">{model}</span>
             {effort && <><span className="setting-axis">Effort</span><span className="setting-value">{effort}</span></>}
           </button>
+          {running && question && <button type="button" className="send-button" onClick={send} disabled={!draft.trim()} aria-label="Send message"><ArrowUp size={18} /></button>}
           {running
             ? <button type="button" className="send-button running" onClick={onStop} aria-label="Stop this run"><span className="stop-glyph" /></button>
             : <button type="button" className="send-button" onClick={send} disabled={!draft.trim()} aria-label="Send"><ArrowUp size={18} strokeWidth={2.4} /></button>}

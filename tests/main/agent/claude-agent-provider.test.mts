@@ -1,16 +1,18 @@
+import { temporaryDirectory } from "../../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { query, type Options, type PermissionMode, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { ClaudeAgentProvider, claudeExecutable, discoverClaudeCommands, discoverClaudeModels } from "../../../src/main/agent/claude-agent-provider.mts";
-import type { BackgroundReport, WorkflowReport } from "../../../src/contracts/ipc.ts";
+import type { WorkflowReport } from "../../../src/contracts/ipc.ts";
 import type { GoalReport } from "../../../src/contracts/ipc.ts";
 import type { AgentModel } from "../../../src/domain/agent-engine.ts";
 import type { ExecutionPolicy, ToolIntent } from "../../../src/domain/run.ts";
 import type { AutomationBridge, ProviderEvent, ProviderRunInput, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { SessionPool } from "../../../src/main/agent/session-pool.mts";
+import { SIDE_CHAT_INSTRUCTIONS } from "../../../src/main/agent/side-chat-instructions.mts";
 import { input, liveQueryFactory, liveTurn, poolQueryFactory, poolTurn, queryFactory, tick, turn, type LiveQueryCapture, type PoolCapture, type QueryCapture } from "../../support/claude-session.mjs";
 
 function optionsOf(capture: QueryCapture): Options {
@@ -36,7 +38,7 @@ async function useTool(canUseTool: NonNullable<Options["canUseTool"]>, name: str
 }
 
 test("the app runs the Claude Code the user installed, and finds none when it is not on the path", async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-path-"));
+  const folder = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-path-"));
   const executable = path.join(folder, "claude");
   await writeFile(executable, "");
   await chmod(executable, 0o755);
@@ -130,6 +132,7 @@ test("Claude query options follow run policy and workspace settings", async () =
   assert.equal(options.forwardSubagentText, true);
   assert.equal(options.includePartialMessages, true);
   assert.match(systemAppend(options), /workspace files as \[label\]\(\/absolute\/path:line\)/);
+  assert.ok(!systemAppend(options).includes(SIDE_CHAT_INSTRUCTIONS), "main threads keep their existing task scope");
   assert.equal(options.settings, undefined, "a run with no style named leaves the user's own settings alone");
 });
 
@@ -317,20 +320,24 @@ test("the channel tool table is the only thing a side chat is short of", async (
   );
 });
 
-test("side chat forks the main continuation and keeps the tools of its own policy", async () => {
-  const capture: QueryCapture = {};
-  const provider = new ClaudeAgentProvider(queryFactory([], capture));
-  await provider.execute(input({
-    channel: "side",
-    policy: "autonomous",
-    continuation: { provider: "claude", value: "main-session" },
-    forkContinuation: true,
-  }));
+test("side chats receive their own task boundary on start, fork, and resume while keeping their policy and tools", async () => {
+  const cases: Partial<ProviderRunInput>[] = [
+    {},
+    { continuation: { provider: "claude", value: "main-session" }, forkContinuation: true },
+    { continuation: { provider: "claude", value: "side-session" } },
+  ];
+  for (const continuation of cases) {
+    const capture: QueryCapture = {};
+    const provider = new ClaudeAgentProvider(queryFactory([], capture));
+    await provider.execute(input({ channel: "side", policy: "autonomous", ...continuation }));
 
-  assert.equal(optionsOf(capture).resume, "main-session");
-  assert.equal(optionsOf(capture).forkSession, true);
-  assert.equal(optionsOf(capture).permissionMode, "auto");
-  assert.equal(optionsOf(capture).tools, undefined, "a side chat is limited by its policy, not by a tool list");
+    const options = optionsOf(capture);
+    assert.equal(options.resume, continuation.continuation?.value);
+    assert.equal(options.forkSession, continuation.forkContinuation);
+    assert.ok(systemAppend(options).includes(SIDE_CHAT_INSTRUCTIONS));
+    assert.equal(options.permissionMode, "auto");
+    assert.equal(options.tools, undefined, "a side chat is limited by its policy, not by a tool list");
+  }
 });
 
 test("Claude receives bundled computer-use MCP or the internal setup tool", async () => {
@@ -552,7 +559,6 @@ test("a run ends on its turn's result even though its input stream stays open", 
   assert.deepEqual(await provider.execute(input()), { status: "succeeded" });
 });
 
-
 test("a second turn keeps the session the first one warmed, and takes its settings as changes", async () => {
   const capture = liveCapture();
   const provider = new ClaudeAgentProvider(liveQueryFactory(capture));
@@ -703,8 +709,6 @@ test("a background process is stopped through the thread's session, after its ru
   provider.closeAll();
 });
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 /** The level the agent process reports its live tasks as: the whole set, every time it changes. */
 const running = (...ids: string[]) => ({
   type: "system",
@@ -712,18 +716,18 @@ const running = (...ids: string[]) => ({
   tasks: ids.map((id) => ({ task_id: id, task_type: "local_workflow", description: "Review changed files" })),
 });
 
-
-
-test("a session with work still running outlives the idle deadline, and is let go once the work stops", async () => {
+test("a session with work still running outlives the idle deadline, and is let go once the work stops", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   const capture = poolCapture();
   const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
 
   const { session } = await poolTurn(provider, capture, {}, running("wf-1"));
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, false, "the workflow the turn left running is not on the turn's clock");
 
   session.emit(running());
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, true, "the session is handed back once nothing is running under it");
 });
 
@@ -741,7 +745,9 @@ test("a session with work still running is passed over when the pool has to let 
   provider.closeAll();
 });
 
-test("work outstanding when a run is cancelled holds the session no longer than the work does", async () => {
+test("work outstanding when a run is cancelled holds the session no longer than the work does", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   const capture = poolCapture();
   const provider = new ClaudeAgentProvider(poolQueryFactory(capture), new SessionPool(5));
   const abortController = new AbortController();
@@ -756,10 +762,10 @@ test("work outstanding when a run is cancelled holds the session no longer than 
   session.emit({ type: "result", subtype: "success", is_error: false, result: "stopped" });
   assert.deepEqual(await cancelled, { status: "cancelled" });
 
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, false, "cancelling the turn does not cancel what it left running");
   session.emit(running());
-  await delay(60);
+  await vi.advanceTimersByTimeAsync(60);
   assert.equal(session.closed, true, "and the session is not pinned once that work stops");
 });
 

@@ -1,21 +1,8 @@
+import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { activitySections, backfillSortIndex, moveThread, nextSortIndex, orderThreads } from "../../src/application/thread-order.ts";
 import type { Thread } from "../../src/domain/thread.ts";
-
-function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-    ...overrides,
-  };
-}
 
 function ids(threads: Thread[]) {
   return orderThreads(threads.filter((item) => item.archivedAt === undefined)).map((item) => item.id);

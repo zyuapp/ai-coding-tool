@@ -1,29 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { showUnreadCount } from "../../src/renderer/task-workspace/app-badge.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
-import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { Thread } from "../../src/domain/thread.ts";
 import { task, workspace } from "../application/workspace-reducer-fixtures.mts";
 
 const finding = { id: "finding-1", headline: "5xx on checkout", at: 2 };
-
-/** The window the count is sent through, kept to the one call the icon needs. */
-function fakeWindow() {
-  const counts: number[] = [];
-  const desktop = { setBadgeCount: (count: number) => { counts.push(count); } } satisfies Pick<DesktopAPI, "setBadgeCount">;
-  Object.defineProperty(globalThis, "window", { configurable: true, value: { desktop } });
-  return counts;
-}
-
-function withWindow(run: (counts: number[]) => void) {
-  const counts = fakeWindow();
-  try {
-    run(counts);
-  } finally {
-    Reflect.deleteProperty(globalThis, "window");
-  }
-}
 
 function countOf(tasks: Thread[], sideChats: { id: string; sourceThreadId: string; error: null }[] = []) {
   return deriveView(workspace({ threads: tasks, sideChats })).unreadCount;
@@ -54,12 +35,4 @@ test("a side chat counts once, under the thread whose dock holds it", () => {
     { id: "chat-2", sourceThreadId: "main-task", error: null },
   ];
   assert.equal(countOf(tasks, chats), 1);
-});
-
-test("the icon carries whatever count it is handed", () => {
-  withWindow((counts) => {
-    showUnreadCount(3);
-    showUnreadCount(0);
-    assert.deepEqual(counts, [3, 0]);
-  });
 });

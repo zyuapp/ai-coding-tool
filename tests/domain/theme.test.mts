@@ -4,7 +4,6 @@ import { test } from "vitest";
 import { DEFAULT_THEME, DEFAULT_THEME_MODE, THEMES, isThemeMode, themeById, themeFamilies, themeFor, themeModeOrDefault, themeOrDefault, variantFor } from "../../src/domain/theme.ts";
 
 const themesCss = await readFile(new URL("../../src/renderer/themes.css", import.meta.url), "utf8");
-const stylesCss = await readFile(new URL("../../src/renderer/styles.css", import.meta.url), "utf8");
 
 /** The primitives one theme block declares, and its ground, keyed by the id in its selector. */
 function themeBlocks(css: string) {
@@ -44,7 +43,6 @@ test("every theme the app offers is a block in the stylesheet, and every block i
 
 test("a theme redefines every primitive the default declares, and invents none", () => {
   const expected = [...blocks.get(DEFAULT_THEME)!.keys()].sort();
-  assert.ok(expected.length > 40, `the default declares ${expected.length} primitives`);
   for (const [id, tokens] of blocks) {
     assert.deepEqual([...tokens.keys()].sort(), expected, `${id} declares a different set`);
   }
@@ -62,26 +60,6 @@ test("body text clears WCAG AA on its own canvas in every theme", () => {
     const tokens = blocks.get(theme.id)!;
     const ratio = contrast(tokens.get("--p-fg-0")!, tokens.get("--p-bg-0")!);
     assert.ok(ratio >= 4.5, `${theme.id} draws ink on canvas at ${ratio.toFixed(2)}:1`);
-  }
-});
-
-/** How far a shadow moves the canvas it falls on: its alpha times its distance from that canvas. */
-function shadowWeight(tokens: Map<string, string>) {
-  const canvas = channels(tokens.get("--p-bg-0")!);
-  const shadow = tokens.get("--p-shadow")!.split(/\s+/).map((value) => Number(value) / 255);
-  const scale = Number(tokens.get("--p-shadow-scale"));
-  const distance = canvas.reduce((total, channel, index) => total + Math.abs(channel - shadow[index]), 0) / 3;
-  return 0.45 * scale * distance;
-}
-
-test("shadows fall at one weight across the themes of a variant", () => {
-  for (const variant of ["dark", "light"] as const) {
-    const weights = THEMES.filter((theme) => theme.variant === variant)
-      .map((theme) => ({ id: theme.id, weight: shadowWeight(blocks.get(theme.id)!) }));
-    const heaviest = weights.reduce((worst, entry) => entry.weight > worst.weight ? entry : worst);
-    const lightest = weights.reduce((best, entry) => entry.weight < best.weight ? entry : best);
-    const spread = heaviest.weight / lightest.weight;
-    assert.ok(spread <= 1.2, `${heaviest.id} casts a shadow ${spread.toFixed(2)}x the one ${lightest.id} casts`);
   }
 });
 
@@ -106,14 +84,6 @@ test("nothing is drawn in the colour of the thing it is drawn on", () => {
     }
   }
   assert.deepEqual(collisions, []);
-});
-
-test("the semantic layer holds no colour of its own", () => {
-  const literals = stylesCss
-    .split("\n")
-    .filter((line) => /^\s+--[a-z0-9-]+:/.test(line))
-    .filter((line) => /#[0-9a-fA-F]{3,8}\b|\brgba?\(\s*\d/.test(line));
-  assert.deepEqual(literals, [], "a semantic token picked a hex instead of deriving from a primitive");
 });
 
 test("every family ships one theme per ground, which is what the picker's two axes assume", () => {

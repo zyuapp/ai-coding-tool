@@ -1,10 +1,12 @@
-import { Children, createContext, isValidElement, memo, useContext, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform, type ExtraProps } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseFileHref, parseThreadHref } from "../../domain/markdown-links";
 import { Copyable } from "./CopyButton";
 import { MermaidBlock } from "./MermaidBlock";
 import { ContextMenu } from "./PopoverMenu";
+import { isCommitHash, messageImagePath, messageImageUrl } from "../../domain/message-artifacts";
+import { messageImages, type MessageImage } from "../message-images";
 
 const APP_HREF = /^aicodingtool:/i;
 const WEB_HREF = /^https?:/i;
@@ -14,7 +16,13 @@ export type MessageLinkActions = {
   selectThread?: (threadId: string) => void;
   openFile?: (path: string, line: number | null) => void;
   openUrlInApp?: (url: string) => void;
+  openImage?: (source: string) => void;
+  openCommit?: (commit: string, taskId?: string) => void;
 };
+
+export const MessageArtifactScope = createContext<{ root: string; taskId?: string }>({ root: "" });
+const MessageId = createContext("");
+const CodeBlock = createContext(false);
 
 const MessageLinks = createContext<MessageLinkActions>({});
 
@@ -57,7 +65,7 @@ function MarkdownPre({ children, node, ...props }: ComponentProps<"pre"> & Extra
   }
   return (
     <Copyable text={copied} label="Copy the code">
-      <pre {...props}>{children}</pre>
+      <CodeBlock.Provider value><pre {...props}>{children}</pre></CodeBlock.Provider>
     </Copyable>
   );
 }
@@ -101,17 +109,53 @@ export function WebLink({ children, openInApp, ...props }: ComponentProps<"a"> &
 
 function MarkdownLink({ children, ...props }: ComponentProps<"a">) {
   const actions = useContext(MessageLinks);
+  const scope = useContext(MessageArtifactScope);
+  const messageId = useContext(MessageId);
   const href = props.href ?? "";
   const threadId = parseThreadHref(href);
   if (threadId && actions.selectThread) return <a {...props} onClick={(event) => { event.preventDefault(); actions.selectThread!(threadId); }}>{children}</a>;
   /** Anything else under the scheme is text, never a live link. */
   if (APP_HREF.test(href)) return <>{children}</>;
+  const image = messageImagePath(href);
+  if (image && messageId && actions.openImage) return <a {...props} onClick={(event) => {
+    event.preventDefault();
+    actions.openImage!(messageImageUrl(image, scope.root, messageId));
+  }}>{children}</a>;
   const file = parseFileHref(href);
   if (file) return actions.openFile
     ? <a {...props} onClick={(event) => { event.preventDefault(); actions.openFile!(file.file, file.line); }}>{children}</a>
     : <>{children}</>;
   if (WEB_HREF.test(href)) return <WebLink {...props} openInApp={actions.openUrlInApp && (() => actions.openUrlInApp!(href))}>{children}</WebLink>;
   return <a {...props} target="_blank" rel="noreferrer">{children}</a>;
+}
+
+function MarkdownCode({ children, ...props }: ComponentProps<"code">) {
+  const actions = useContext(MessageLinks);
+  const scope = useContext(MessageArtifactScope);
+  const block = useContext(CodeBlock);
+  const hash = typeof children === "string" ? children : "";
+  return !block && isCommitHash(hash) && actions.openCommit
+    ? <button type="button" className="message-commit" aria-label={`View commit ${hash}`} onClick={() => actions.openCommit!(hash, scope.taskId)}><code {...props}>{children}</code></button>
+    : <code {...props}>{children}</code>;
+}
+
+function MessageImagePreview({ image: linked, messageId }: { image: MessageImage; messageId: string }) {
+  const scope = useContext(MessageArtifactScope);
+  const actions = useContext(MessageLinks);
+  const [failed, setFailed] = useState(false);
+  const source = messageImageUrl(linked.path, scope.root, messageId);
+  return <div className="message-image-preview">
+    {failed ? <span className="message-image-unavailable">{linked.label} · Preview unavailable</span> :
+      <button type="button" aria-label={`Enlarge ${linked.label}`} onClick={() => actions.openImage?.(source)}>
+        <img src={messageImageUrl(linked.path, scope.root, messageId, true)} alt={linked.label} loading="lazy" decoding="async" onError={() => setFailed(true)} />
+      </button>}
+  </div>;
+}
+
+/** Local Markdown images use the same bounded preview gallery as links, rather than a file: URL. */
+function MarkdownImage({ src, alt, ...props }: ComponentProps<"img">) {
+  if (typeof src === "string" && messageImagePath(src)) return <span>{alt}</span>;
+  return <img {...props} src={src} alt={alt} loading="lazy" />;
 }
 
 type HastNode = { type: string; tagName?: string; value?: string; children?: HastNode[] };
@@ -136,8 +180,11 @@ function wordSpans() {
   return walk;
 }
 
-export const MarkdownMessage = memo(function MarkdownMessage({ children, animate }: { children: string; animate?: boolean }) {
+export const MarkdownMessage = memo(function MarkdownMessage({ children, animate, messageId = "" }: { children: string; animate?: boolean; messageId?: string }) {
+  const actions = useContext(MessageLinks);
+  const images = useMemo(() => !animate && messageId && actions.openImage ? messageImages(children) : [], [children, animate, messageId, actions.openImage]);
   return (
+    <MessageId.Provider value={messageId}>
     <Unsettled.Provider value={!!animate}>
       <Source.Provider value={children}>
         <ReactMarkdown
@@ -145,11 +192,13 @@ export const MarkdownMessage = memo(function MarkdownMessage({ children, animate
           rehypePlugins={animate ? [wordSpans] : []}
           skipHtml
           urlTransform={(url) => (APP_HREF.test(url) ? url : defaultUrlTransform(url))}
-          components={{ pre: MarkdownPre, table: MarkdownTable, a: MarkdownLink }}
+          components={{ pre: MarkdownPre, table: MarkdownTable, a: MarkdownLink, code: MarkdownCode, img: MarkdownImage }}
         >
           {children}
         </ReactMarkdown>
+        {images.length > 0 && <div className="message-image-previews">{images.map((linked) => <MessageImagePreview key={`${messageId}:${linked.path}`} image={linked} messageId={messageId} />)}</div>}
       </Source.Provider>
     </Unsettled.Provider>
+    </MessageId.Provider>
   );
 });

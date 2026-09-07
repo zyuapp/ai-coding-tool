@@ -3,7 +3,7 @@ import { test } from "vitest";
 import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import { codexConfig, toml } from "../../../src/main/codex/codex-config.mts";
-import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
+import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import { harness, input, turn } from "../../support/codex-client.mjs";
 
 const automations = { list: async () => [], read: async () => null, save: async () => ({}), update: async () => ({}), remove: async () => true } as unknown as AutomationBridge;
@@ -138,7 +138,7 @@ test("config values are written as TOML the app server parses", () => {
   assert.equal(toml([{ name: "a:b", enabled: false }]), "[{ \"name\" = \"a:b\", \"enabled\" = false }]");
   assert.deepEqual(
     codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, undefined),
-    ["--disable", "plugins", "--enable", "goals"],
+    ["--disable", "plugins", "--enable", "goals", "--enable", "default_mode_request_user_input"],
     "Codex's desktop-app plugins stay off while its native goal feature is enabled",
   );
 });

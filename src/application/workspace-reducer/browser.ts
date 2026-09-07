@@ -1,5 +1,5 @@
 /** The browser panel's pages, and what they report back. */
-import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR, askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, focusDockTab, loadBrowserPage, patchBrowserTab, persistView, settled, showDockTab, withBlankTab } from "./shared.js";
+import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR, askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, focusDockTab, loadBrowserPage, patchBrowserTab, persistView, settled, showDockTab, withBlankTab, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, withDock, type WorkspaceState } from "../workspace-state.js";
 import { browserOrigin, browserUrl } from "../../domain/browser.js";
@@ -14,7 +14,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Works
     case "browser.open": {
       const owner = dockOwner(state, input.taskId);
       const url = browserUrl(input.url);
-      if (!url) return settled({ ...state, actionError: BROWSER_URL_ERROR });
+      if (!url) return rejected(state, BROWSER_URL_ERROR);
       const byUser = input.taskId === undefined;
       if (!byUser && !browserAllowed(state, input.taskId!, url)) return askToBrowse(state, owner, url, input.taskId!, input.tabId, input.newTab === true);
       return loadBrowserPage(state, owner, url, input.tabId, input.newTab === true, byUser);
@@ -53,7 +53,7 @@ export function reduceBrowser(state: WorkspaceState, input: BrowserInput): Works
     case "browser.act": {
       const owner = (input.tabId ? ownerOfBrowserTab(state, input.tabId) : undefined) ?? dockOwner(state, input.taskId);
       const target = browserTarget(dockFor(state, owner), input.tabId);
-      if (!target) return settled({ ...state, actionError: BROWSER_TAB_ERROR });
+      if (!target) return rejected(state, BROWSER_TAB_ERROR);
       if (input.type === "browser.act") return settled(state, [{ type: "browser.act", tabId: target.id, action: input.action }]);
       const effect: WorkspaceEffect = input.type === "browser.go"
         ? { type: "browser.history", tabId: target.id, delta: input.delta }

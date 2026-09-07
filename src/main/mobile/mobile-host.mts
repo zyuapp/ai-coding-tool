@@ -69,6 +69,7 @@ let relay: MobileRelay | null = null;
 let server: MobileServer | null = null;
 let tailscale: TailscaleState = emptyTailscaleState();
 let starting = false;
+let stopping = false;
 let failure: string | null = null;
 /**
  * Starting and stopping the server are awaited by IPC handlers the user can hammer, so they run one
@@ -187,7 +188,7 @@ function makeServer() {
 }
 
 async function startServer() {
-  if (server || !settings.enabled) return;
+  if (stopping || server || !settings.enabled) return;
   starting = true;
   failure = null;
   announce();
@@ -245,6 +246,7 @@ function scheduleServe(delayMs: number) {
  * the background, because a machine without it must not slow the app's own launch.
  */
 export async function startMobileHost(hooks: MobileHostOptions): Promise<void> {
+  stopping = false;
   options = hooks;
   settings = readSettings();
   tailscale = { ...emptyTailscaleState(), magicDnsName: settings.magicDnsName };
@@ -255,8 +257,7 @@ export async function startMobileHost(hooks: MobileHostOptions): Promise<void> {
 }
 
 export async function stopMobileHost(): Promise<void> {
-  /** Not written back: this only stops a start still queued behind the stop from taking effect. */
-  settings = { ...settings, enabled: false };
+  stopping = true;
   await inTurn(() => stopServer({ unserve: false }));
   await tailscaleWork;
   options = null;
@@ -333,7 +334,7 @@ export async function refreshTailscale(): Promise<MobileServerState> {
 async function serveIfReady() {
   const listening = server;
   const port = listening?.port ?? null;
-  if (!listening || port === null || !settings.enabled) return;
+  if (stopping || !listening || port === null || !settings.enabled) return;
   await refreshTailscaleState();
   if (server !== listening) return;
   if (tailscale.serving) {
@@ -362,14 +363,4 @@ export function publishMobileView(update: MobileViewUpdate): void {
 
 export function answerMobileRequest(response: MobileResponse): void {
   relay?.answer(response);
-}
-
-/** The window went. Everything waiting on it gives up rather than holding a phone on a dead line. */
-export function mobileWindowGone(): void {
-  relay?.failAll("The AI Coding Tool window is not open.");
-}
-
-/** Whether closing the window should hide it: a paired phone still needs the renderer's state. */
-export function mobileBridgeHolding(): boolean {
-  return settings.enabled && server !== null && (devices?.list().length ?? 0) > 0;
 }
