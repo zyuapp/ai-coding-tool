@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { desktopCapturer, systemPreferences } from "electron";
 import type { WindowFrame } from "./capture-flash.js";
-import { windowCaptureCapability } from "./platform-capabilities.js";
+import { linuxWindowCaptureBackend, windowCaptureCapability } from "./platform-capabilities.js";
+import { captureFrontmostHyprlandWindow } from "./hyprland-window-capture.js";
 
 /** macOS's own screenshot shutter, which is the sound the gesture already means to everyone. */
 const SHUTTER = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Grab.aif";
@@ -190,8 +191,6 @@ export async function captureFrontmostWindow(sound: boolean): Promise<WindowShot
   const capability = windowCaptureCapability();
   if (capability.status === "unsupported") return capability;
   if (process.platform === "darwin") return captureFrontmostMacWindow(sound);
-  if (capability.display !== "x11") {
-    return { status: "unsupported", message: "The active Linux display does not expose a safe global window-capture path." };
-  }
+  if (linuxWindowCaptureBackend() === "hyprland") return captureFrontmostHyprlandWindow();
   return captureFrontmostX11Window();
 }

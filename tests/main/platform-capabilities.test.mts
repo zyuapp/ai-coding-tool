@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { automaticUpdatesAvailable, computerUseCapability, linuxDisplayServer, loginShellSessionOptions, manualUpdateRecovery, windowCaptureCapability, windowFrameOptions } from "../../src/main/platform-capabilities.ts";
+import { automaticUpdatesAvailable, computerUseCapability, linuxDisplayServer, linuxWindowCaptureBackend, loginShellSessionOptions, manualUpdateRecovery, windowCaptureCapability, windowFrameOptions } from "../../src/main/platform-capabilities.ts";
 
 test("Linux display capability distinguishes X11, XWayland, native Wayland, and headless sessions", () => {
   assert.equal(linuxDisplayServer({ DISPLAY: ":0" }), "x11");
@@ -21,16 +21,26 @@ test("computer use admits X11 and explicit native Wayland, and explains unavaila
   assert.deepEqual(computerUseCapability("darwin", {}), { status: "available", display: "macos" });
 });
 
-test("global capture admits X11 paths but fails closed on native Wayland", () => {
+test("global capture leaves unimplemented Wayland compositors unavailable", () => {
   assert.deepEqual(windowCaptureCapability("linux", { DISPLAY: ":1" }), { status: "available", display: "x11" });
   const xwayland = windowCaptureCapability("linux", { DISPLAY: ":1", WAYLAND_DISPLAY: "wayland-1" });
   assert.equal(xwayland.status, "unsupported");
-  if (xwayland.status === "unsupported") assert.match(xwayland.message, /capture portal.*cannot identify.*X11\/XWayland/i);
+  if (xwayland.status === "unsupported") assert.match(xwayland.message, /not available.*Wayland.*Hyprland and X11/i);
   const sessionType = windowCaptureCapability("linux", { DISPLAY: ":1", XDG_SESSION_TYPE: "wayland" });
   assert.equal(sessionType.status, "unsupported", "the session type still fails closed when WAYLAND_DISPLAY was not inherited");
   const wayland = windowCaptureCapability("linux", { WAYLAND_DISPLAY: "wayland-1" });
   assert.equal(wayland.status, "unsupported");
-  if (wayland.status === "unsupported") assert.match(wayland.message, /compositor.*safe global active-window capture/i);
+  if (wayland.status === "unsupported") assert.match(wayland.message, /not available.*Wayland/i);
+});
+
+test("Hyprland capture uses its compositor for both native Wayland and XWayland apps", () => {
+  const environment = { WAYLAND_DISPLAY: "wayland-1", HYPRLAND_INSTANCE_SIGNATURE: "hyprland-test", XDG_SESSION_TYPE: "wayland" };
+  assert.equal(linuxWindowCaptureBackend(environment), "hyprland");
+  assert.deepEqual(windowCaptureCapability("linux", environment), { status: "available", display: "wayland" });
+  assert.equal(linuxWindowCaptureBackend({ ...environment, DISPLAY: ":0" }), "hyprland");
+  assert.deepEqual(windowCaptureCapability("linux", { ...environment, DISPLAY: ":0" }), { status: "available", display: "xwayland" });
+  assert.equal(linuxWindowCaptureBackend({ ...environment, WAYLAND_DISPLAY: undefined, DISPLAY: ":0" }), null);
+  assert.equal(linuxWindowCaptureBackend({ WAYLAND_DISPLAY: "wayland-1", XDG_CURRENT_DESKTOP: "Hyprland" }), null, "a desktop label alone is not a compositor connection");
 });
 
 test("manual update recovery keeps the macOS location and names the Linux artifact", () => {
