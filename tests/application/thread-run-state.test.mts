@@ -1,3 +1,4 @@
+import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
@@ -9,19 +10,6 @@ import {
 import type { SubagentEvent } from "../../src/contracts/ipc.js";
 import type { Subagent } from "../../src/domain/run.js";
 import type { Thread } from "../../src/domain/thread.js";
-
-function task(id: string): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-  };
-}
 
 function activeRun(taskId = "task-a", runId = "run-a"): ActiveRun {
   return {

@@ -1,32 +1,11 @@
+import { task, workspace, run } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { reduce, type WorkspaceEffect, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
-import { emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { reduce, type WorkspaceEffect, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
+import { type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { orderThreads } from "../../src/application/thread-order.ts";
-import { forkTitle, type Thread } from "../../src/domain/thread.ts";
+import { forkTitle } from "../../src/domain/thread.ts";
 import { activeRun } from "./workspace-reducer-fixtures.mts";
-
-function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-    ...overrides,
-  };
-}
-
-function workspace(overrides: Partial<WorkspaceState> = {}): WorkspaceState {
-  return { ...emptyWorkspaceState(), ...overrides };
-}
-
-function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
-  return inputs.reduce((current, input) => reduce(current, input).state, state);
-}
 
 function effectOf<Type extends WorkspaceEffect["type"]>(transition: WorkspaceTransition, type: Type): Extract<WorkspaceEffect, { type: Type }> {
   const effect = transition.effects.find((candidate) => candidate.type === type);

@@ -3,7 +3,7 @@ import { test } from "vitest";
 import type { AutomationBridge, BrowserBridge, FindingBridge, ProviderEvent, TerminalBridge, ThreadBridge } from "../../../src/main/agent/agent-provider.mts";
 import { runTools } from "../../../src/main/agent/run-tools.mts";
 import { codexConfig, toml } from "../../../src/main/codex/codex-config.mts";
-import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-session.mts";
+import { DEVELOPER_INSTRUCTIONS } from "../../../src/main/codex/codex-instructions.mts";
 import { harness, input, turn } from "../../support/codex-client.mjs";
 
 const automations = { list: async () => [], read: async () => null, save: async () => ({}), update: async () => ({}), remove: async () => true } as unknown as AutomationBridge;
@@ -42,10 +42,12 @@ test("a session serves the run's tools under one token and points the app server
   assert.equal(codex.host.served.length, 1);
   assert.deepEqual(
     codex.host.served[0]!.tools.map((tool) => tool.name).sort(),
-    [...runTools(input(bridges)).flatMap((set) => set.tools.map((tool) => tool.name)), "skills_list", "skill_read"].sort(),
+    runTools(input(bridges)).flatMap((set) => set.tools.map((tool) => tool.name)).sort(),
   );
   assert.ok(codex.host.served[0]!.tools.some((tool) => tool.name === "schedule"));
   assert.equal((client.calls("thread/start")[0] as { developerInstructions?: string }).developerInstructions, DEVELOPER_INSTRUCTIONS);
+  assert.match(DEVELOPER_INSTRUCTIONS, /"thread" always means an AICodingTool thread, never a Codex session or subagent/);
+  assert.match(DEVELOPER_INSTRUCTIONS, /asks to open, start, or spin up a thread, use start_thread/);
   assert.ok(DEVELOPER_INSTRUCTIONS.split(/\s+/).length < 100, "the instructions stay short");
 
   await turn(codex, { ...bridges, prompt: "again", continuation: { provider: "codex", value: "thread-1" } });
@@ -78,7 +80,7 @@ test("a side chat is served the tools its channel allows, and a run with no brid
   const bare = harness();
   const { client: plain } = await turn(bare);
   assert.deepEqual(overrides(plain.command.args)["mcp_servers.cua-driver.command"], undefined);
-  assert.deepEqual(bare.host.served[0]!.tools.map((tool) => tool.name), ["skills_list", "skill_read"], "the user's skills are served on every run");
+  assert.equal(bare.host.served.length, 0, "Codex reads its own skills without an app tool server");
   bare.provider.closeAll();
 });
 
@@ -119,7 +121,7 @@ test("while computer use still needs setup, the served setup tool asks the app t
   const codex = harness();
   await turn(codex, { computerUse: { status: "setup-required" }, emit: (event) => emitted.push(event) });
   const served = codex.host.served[0]!;
-  assert.deepEqual(served.tools.map((tool) => tool.name), ["request_setup", "skills_list", "skill_read"]);
+  assert.deepEqual(served.tools.map((tool) => tool.name), ["request_setup"]);
   const result = await served.call("request_setup", {});
   assert.deepEqual(emitted.filter((event) => event.type === "computer-use.setup-required"), [{ type: "computer-use.setup-required" }]);
   assert.match(result.content[0]!.text, /Settings → Computer use/);
@@ -136,7 +138,7 @@ test("config values are written as TOML the app server parses", () => {
   assert.equal(toml([{ name: "a:b", enabled: false }]), "[{ \"name\" = \"a:b\", \"enabled\" = false }]");
   assert.deepEqual(
     codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, undefined),
-    ["--disable", "plugins", "--enable", "goals"],
+    ["--disable", "plugins", "--enable", "goals", "--enable", "default_mode_request_user_input"],
     "Codex's desktop-app plugins stay off while its native goal feature is enabled",
   );
 });

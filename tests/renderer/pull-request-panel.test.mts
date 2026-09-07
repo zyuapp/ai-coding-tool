@@ -1,56 +1,16 @@
+import { dom, mount, query, item } from "../support/renderer-dom.mts";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
-import { afterAll, test } from "vitest";
+
+import { test } from "vitest";
 import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { PullRequestAnswer } from "../../src/domain/pull-request.ts";
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
 import { OPEN_SUBAGENT_GROUPS } from "../../src/domain/run.ts";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost" });
-for (const name of ["window", "document", "localStorage", "Element", "Node", "HTMLElement", "Event", "MouseEvent", "KeyboardEvent", "navigator", "innerWidth", "innerHeight"]) {
-  Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] });
-}
-Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
-/** jsdom has no animation frames, and the focus a closing menu puts back is queued on one. */
-const frames = {
-  requestAnimationFrame: (fn: FrameRequestCallback) => setTimeout(() => fn(0), 0) as unknown as number,
-  cancelAnimationFrame: (id: number) => clearTimeout(id as unknown as NodeJS.Timeout),
-};
-for (const target of [globalThis, dom.window]) {
-  for (const [name, value] of Object.entries(frames)) Object.defineProperty(target, name, { configurable: true, value });
-}
-
 const { MessageLinkProvider } = await import("../../src/renderer/components/MarkdownMessage.tsx");
 const { SessionPanel } = await import("../../src/renderer/components/SessionPanel.tsx");
-
-afterAll(() => {
-  dom.window.close();
-});
-
-async function mount(element: React.ReactNode) {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  await act(async () => { root.render(element); });
-  return {
-    container,
-    async render(next: React.ReactNode) { await act(async () => { root.render(next); }); },
-    async unmount() { await act(async () => { root.unmount(); }); container.remove(); },
-  };
-}
-
-function item<T>(value: T | null | undefined): T {
-  assert.ok(value !== null && value !== undefined);
-  return value;
-}
-
-function query<E extends Element = HTMLElement>(root: ParentNode, selector: string): E {
-  const element = root.querySelector<E>(selector);
-  assert.ok(element, `Expected ${selector}`);
-  return element;
-}
 
 /** The two answers the panel asks for. Everything else it draws comes in as a property. */
 function fakeDesktop() {
@@ -66,8 +26,6 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
     environment: { status: "available", files: [], branch: "pr-chip", baseline: null, additions: 0, deletions: 0 },
     hasProject: true,
-    location: { kind: "local" },
-    runActive: false,
     openMenu: null,
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
@@ -82,8 +40,6 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onStopProcess() {},
     onSetOpenMenu() {},
     onSetSubagentGroup() {},
-    onNewThread() {},
-    onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,
   });

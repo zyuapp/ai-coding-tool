@@ -195,7 +195,7 @@ test("automations survive a restart of the app", async (t) => {
   const database = new TaskDatabase(`${main.userData}/tasks.v3.sqlite`);
   const scheduler = new AutomationScheduler(database, async () => "succeeded");
   t.onTestFinished(() => { scheduler.stop(); database.close(); });
-  scheduler.start();
+  await scheduler.start();
 
   const reloaded = scheduler.forThread("task-restart");
   assert.ok(reloaded);

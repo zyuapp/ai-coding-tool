@@ -1,7 +1,7 @@
 /** Threads themselves: making one, choosing it, and what the list can do to it. */
 import { reduceWorktrees } from "./worktrees.js";
 import { TAKE_KEYS, closeSideChats, disposeDocks, focusDockTab, now, retireAutomations, settled, showDockTab, targetId } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { forkedThreads } from "../thread-fork.js";
 import { activitySections, moveThread as moveThreadInList } from "../thread-order.js";
@@ -18,6 +18,11 @@ type ThreadCommandInput = Extract<WorkspaceInput, {
     | "task.restore" | "task.clear-archive" | "task.rename" | "title.suggested" | "task.fork"
     | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort";
 }>;
+
+/** Offers the title to the engine's own record of the thread; an engine that keeps none ignores it. */
+function labelThread(taskId: string, title: string): WorkspaceEffect {
+  return { type: "send-run-command", command: { type: "label", taskId, title } };
+}
 
 /** Puts the user on a thread: what it holds becomes read, and the app follows it to its folder. */
 function landOnThread(state: WorkspaceState, taskId: string): WorkspaceState {
@@ -138,7 +143,10 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
     case "task.rename": {
       const title = clampTitle(input.title);
       if (!title || !state.threads.some((thread) => thread.id === input.taskId)) return settled(state);
-      return settled(updateThread(state, input.taskId, (thread) => ({ ...thread, title, titleByUser: true, updatedAt: now() })));
+      return {
+        state: updateThread(state, input.taskId, (thread) => ({ ...thread, title, titleByUser: true, updatedAt: now() })),
+        effects: [labelThread(input.taskId, title)],
+      };
     }
 
     /** A name the user typed outranks a suggested one, whenever the suggestion lands. */
@@ -146,7 +154,7 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const thread = state.threads.find((item) => item.id === input.taskId);
       const title = clampTitle(input.title);
       if (!thread || thread.titleByUser || !title || title === thread.title) return settled(state);
-      return settled(updateThread(state, input.taskId, (item) => ({ ...item, title })));
+      return { state: updateThread(state, input.taskId, (item) => ({ ...item, title })), effects: [labelThread(input.taskId, title)] };
     }
 
     /** The copy is opened the way any thread is opened, and asks for a checkout the way any thread asks. */

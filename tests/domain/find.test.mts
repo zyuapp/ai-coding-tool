@@ -314,7 +314,7 @@ test("a scanned file is not read again when another patch lands beside it", () =
 });
 
 test("a review cannot build more matches than anyone would step through", () => {
-  const many = Array.from({ length: 200 }, (unused, index) => READ(`file-${index}.ts`, ["add", "e e e e e"]));
+  const many = Array.from({ length: 200 }, (_, index) => READ(`file-${index}.ts`, ["add", "e e e e e"]));
 
   const found = reviewHits(many, "e", new Map());
 

@@ -882,6 +882,8 @@ button {
   color: var(--quiet-soft);
 }
 
+.composer .question-answer textarea { font-size: 16px; }
+
 .composer-bar {
   display: flex;
   align-items: center;

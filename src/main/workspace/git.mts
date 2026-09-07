@@ -76,6 +76,11 @@ export async function currentBranch(root: string) {
   return (await tryGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]))?.trim() || null;
 }
 
+/** Where this checkout pushes, or null when it has no origin. A worktree reports its repository's. */
+export async function originUrl(root: string) {
+  return (await tryGit(root, ["config", "--get", "remote.origin.url"]))?.trim() || null;
+}
+
 export async function isDirty(root: string) {
   return (await git(root, ["status", "--porcelain", "-z"])).length > 0;
 }
@@ -91,11 +96,6 @@ export async function addWorktree(repositoryPath: string, worktreePath: string, 
 export async function removeWorktree(repositoryPath: string, worktreePath: string) {
   await tryGit(repositoryPath, ["worktree", "remove", "--force", worktreePath], LONG_TIMEOUT_MS);
   await tryGit(repositoryPath, ["worktree", "prune"]);
-}
-
-export async function listWorktrees(repositoryPath: string) {
-  const output = await git(repositoryPath, ["worktree", "list", "--porcelain"]);
-  return output.split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
 }
 
 /**

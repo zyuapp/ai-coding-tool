@@ -30,6 +30,16 @@ const releases = {
     libffiVersion: "3.5.2",
     libffiSysVersion: "4.1.0",
   },
+  "0.23.2": {
+    sourceCommit: "e88e9d899ac5effaeae38619527ebaa46b26ce72",
+    archiveSha256: "c606a0410eb1bf59ee81d697f6fbf8b7126b2e9a3f802272a34807b45b6ecd6f",
+    ubjsVersion: "0.31.0-3",
+    ubjsCommit: "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+    uniffiVersion: "0.31.0",
+    uniffiCommit: "309762f55db3f0548194a9ceba3027fa64b18a93",
+    libffiVersion: "3.5.2",
+    libffiSysVersion: "4.1.0",
+  },
 };
 
 export const CUA_RELEASE = releases[CUA_DRIVER_VERSION];

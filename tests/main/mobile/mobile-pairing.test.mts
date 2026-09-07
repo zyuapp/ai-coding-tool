@@ -123,6 +123,9 @@ test("a phone that pairs clears whatever the failures before it counted", async 
   devices.redeem("WRONGTWO", "iPhone", PHONE, AT);
 
   assert.equal(devices.redeem(code.code, "iPhone", PHONE, AT).ok, true);
+  devices.mint(AT);
   for (let attempt = 0; attempt < MAX_PAIRING_FAILURES - 1; attempt += 1) devices.redeem("WRONGONE", "iPhone", PHONE, AT);
   assert.equal(devices.locked(PHONE, AT), false, "the count started again from the phone that got in");
+  devices.redeem("WRONGONE", "iPhone", PHONE, AT);
+  assert.equal(devices.locked(PHONE, AT), true, "the fresh code starts a full allowance of guesses");
 });

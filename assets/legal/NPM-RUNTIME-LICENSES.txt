@@ -7,7 +7,7 @@ the Electron main process or bundled as font assets. CUA and UBJS notices are
 kept in the dedicated CUA files. JavaScript compiled into the desktop and
 phone interfaces has separate build-generated notice files.
 
-@anthropic-ai/claude-agent-sdk@0.3.251
+@anthropic-ai/claude-agent-sdk@0.3.261
 --------------------------------------
 
 License: SEE LICENSE IN README.md
@@ -2120,7 +2120,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-fast-uri@3.1.5
+fast-uri@3.1.7
 --------------
 
 License: BSD-3-Clause
@@ -3512,7 +3512,7 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-qs@6.15.3
+qs@6.16.0
 ---------
 
 License: BSD-3-Clause

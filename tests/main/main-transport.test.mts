@@ -6,7 +6,7 @@ import { runInNewContext } from "node:vm";
 import { test, afterAll, beforeAll } from "vitest";
 import { registered, startMainProcess, tick, waitFor, type MainHarness } from "../support/electron-harness.mjs";
 import type { AgentEvent, ChangedFilesResult, RunEvent, ShortcutInvocation, StartRunCommand } from "../../src/contracts/ipc.js";
-import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.js";
+import type { ThreadRequest } from "../../src/contracts/threads.js";
 import type { BrowserBounds, BrowserInspectionResult, BrowserSnapshot } from "../../src/domain/browser.js";
 import { cliConfiguration, type CliStatus } from "../../src/domain/cli.js";
 import type { KeyInput } from "../../src/domain/shortcuts.js";
@@ -38,7 +38,7 @@ test("the main window sends ordinary web links to the default browser", async ()
 });
 
 test("main transport validates, correlates, cancels, supersedes per task, and fails runs", async () => {
-  const { userData, agents, window, trusted, untrusted } = main;
+  const { userData, agents, trusted, untrusted } = main;
 
   const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
   const forkedBefore = agents.length;
@@ -62,6 +62,7 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
     type: "start",
     channel: "main",
     taskId,
+    title: "Work",
     runId,
     prompt: "work",
     workspaceId: projectless.id,
@@ -78,7 +79,10 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
 
   runCommand(trusted, command("concurrent-a", "run-concurrent-a"));
   runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
+  runCommand(trusted, { type: "label", taskId: "concurrent-a", title: "Renamed during startup" });
   await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0]?.messages.some((message) => message.runId === runId)));
+  assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-a")?.title, "Renamed during startup");
+  assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-b")?.title, "Work");
 
   runCommand(trusted, command("resubmitted", "run-old"));
   runCommand(trusted, command("resubmitted", "run-new"));
@@ -137,7 +141,7 @@ test("thread requests are relayed to the window and only its answers reach the a
   const runCommand = listener<(event: IpcEvent, payload: unknown) => void>("run:command");
   const workspace = await handler<(event: IpcEvent) => Promise<WorkspaceRecord>>("workspace:projectless")(trusted);
   runCommand(trusted, {
-    type: "start", channel: "main", taskId: "task-caller", runId: "run-relay",
+    type: "start", channel: "main", taskId: "task-caller", title: "Work", runId: "run-relay",
     prompt: "work", workspaceId: workspace.id, policy: "confirm", engine: "claude", model: "opus", effort: "high",
   } satisfies StartRunCommand);
   const carrying = () => agents.find((process) => process.messages.some((message) => message.runId === "run-relay"));
@@ -243,7 +247,7 @@ test("a folder the aic command names is registered and handed to the window that
     await tick();
     assert.deepEqual(opened(), [], "only the window's own renderer can ask for it");
 
-    readyForProject(trusted);
+    readyForProject({ sender: main.runtimeViews[0].webContents });
     await waitFor(() => opened().length === 1);
     assert.equal(opened()[0].root, folder);
     assert.equal(opened()[0].kind, "project");
@@ -358,6 +362,7 @@ test("a page keeps bounded developer diagnostics and waits for page conditions",
 type MenuEntry = { label?: string; role?: string; type?: string; submenu?: MenuEntry[]; click?: () => void };
 
 test("the app menu sends help actions through the window command path", async () => {
+  listener<(event: IpcEvent) => void>("workspace-view:ready")(main.trusted);
   const menu = main.applicationMenu() as MenuEntry[] | null;
   assert.ok(menu, "the app sets its own menu");
   const appMenu = menu.find((entry) => entry.label === "AI Coding Tool");

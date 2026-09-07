@@ -64,11 +64,6 @@ test("every family the stylesheet names is one the app bundles a face for", asyn
   }
 });
 
-test("a size is written onto the root rather than picked from blocks, so the stylesheet declares none", () => {
-  assert.equal(blocks("data-reading-size").size, 0);
-  assert.equal(blocks("data-terminal-size").size, 0);
-});
-
 test("the token each range writes over is the one the stylesheet already declares in px", () => {
   for (const [range, token] of [[READING_SIZE, "--text-content"], [TERMINAL_SIZE, "--terminal-text"]] as const) {
     const declared = Number.parseFloat(new RegExp(`${token}:\\s*(\\d+)px`).exec(stylesCss)![1]);

@@ -145,6 +145,33 @@ test("going back with a keystroke moves the cursor rather than recording a visit
   assert.equal(reduce(state, { type: "view.shortcut", action: "nav.forward", surface: "any" }).state.currentId, "b");
 });
 
+test("effort shortcuts step through the model's levels and stop at its limits", () => {
+  const bindings = resolveShortcuts({});
+  const up = shortcutFor(bindings, parseShortcut("Mod+Shift+ArrowUp")!, "any")!.action;
+  const down = shortcutFor(bindings, parseShortcut("Mod+Shift+ArrowDown")!, "any")!.action;
+  const step = (state: WorkspaceState, action: string) => reduce(state, { type: "view.shortcut", action, surface: "any" }).state;
+  const draft = workspace({ draftEngine: "codex", draftModel: "gpt-6-astra", draftEffort: "high" });
+  assert.equal(step(draft, up).draftEffort, "xhigh");
+  assert.equal(step(draft, down).draftEffort, "medium");
+  assert.equal(step({ ...draft, draftEffort: "ultra" }, up).draftEffort, "ultra");
+  assert.equal(step({ ...draft, draftEffort: "low" }, down).draftEffort, "low");
+  const main = workspace({ currentId: "a", threads: [thread("a", { model: "opus", effort: "high" })] });
+  assert.equal(step(main, up).threads[0].effort, "xhigh");
+  const haiku = { ...main, threads: [thread("a", { model: "haiku", effort: "high" })] };
+  assert.equal(step(haiku, up), haiku);
+  assert.equal(step(haiku, down), haiku);
+  const chat = {
+    ...main,
+    keyboardTab: "chat",
+    threads: [...main.threads, thread("chat", { engine: "codex", model: "gpt-5.6-luna", effort: "ultra" })],
+    sideChats: [{ id: "chat", sourceThreadId: "a", error: null }],
+  };
+  const lowered = step(chat, down);
+  assert.equal(lowered.threads[1].effort, "xhigh");
+  assert.equal(lowered.threads[0].effort, "high");
+  assert.equal(lowered.draftEffort, chat.draftEffort);
+});
+
 test("a keystroke that moves the user somewhere leaves the settings sheet behind", () => {
   const state = workspace({ threads: [thread("a"), thread("b")], currentId: "a", settingsOpen: true, history: ["a"], historyIndex: 0 });
 

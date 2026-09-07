@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { codexExecutable } from "./codex-executable.mjs";
+import { toml } from "./codex-config.mjs";
+import { codexChildEnvironment, PRIVATE_CODEX_HOME_ENV } from "./codex-home.mjs";
 import type { ClientInfo } from "./protocol/ClientInfo.js";
 import type { ClientRequest } from "./protocol/ClientRequest.js";
 import type { InitializeCapabilities } from "./protocol/InitializeCapabilities.js";
@@ -15,6 +17,7 @@ import type { LoginAccountResponse } from "./protocol/v2/LoginAccountResponse.js
 import type { McpServerElicitationRequestResponse } from "./protocol/v2/McpServerElicitationRequestResponse.js";
 import type { PermissionsRequestApprovalResponse } from "./protocol/v2/PermissionsRequestApprovalResponse.js";
 import type { ReviewStartResponse } from "./protocol/v2/ReviewStartResponse.js";
+import type { SkillsListResponse } from "./protocol/v2/SkillsListResponse.js";
 import type { ThreadForkResponse } from "./protocol/v2/ThreadForkResponse.js";
 import type { ThreadGoalClearResponse } from "./protocol/v2/ThreadGoalClearResponse.js";
 import type { ThreadGoalGetResponse } from "./protocol/v2/ThreadGoalGetResponse.js";
@@ -61,6 +64,7 @@ export interface ClientResponses {
   "thread/backgroundTerminals/list": { data: BackgroundTerminal[]; nextCursor: string | null };
   "thread/backgroundTerminals/terminate": { terminated: boolean };
   "review/start": ReviewStartResponse;
+  "skills/list": SkillsListResponse;
   "account/read": GetAccountResponse;
   "account/rateLimits/read": GetAccountRateLimitsResponse;
   "account/login/start": LoginAccountResponse;
@@ -135,9 +139,15 @@ type Pending = { method: string; resolve(result: unknown): void; reject(error: E
 /** How the app introduces itself to the server. */
 export const CLIENT_INFO: ClientInfo = { name: "aicodingtool", title: "AICodingTool", version: "1" };
 
-/** The bundled `codex app-server` over stdio. */
-export function codexAppServer(args: readonly string[] = [], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): AppServerCommand {
-  return { executable: codexExecutable(), args: ["app-server", "--listen", "stdio://", ...args], ...options };
+/** Account operations keep the user's home; conversation processes use the app's private state. */
+export async function codexAppServer(args: readonly string[] = [], options: { cwd?: string; env?: NodeJS.ProcessEnv; sharedHome?: boolean } = {}): Promise<AppServerCommand> {
+  const environment = options.env ?? process.env;
+  const env = options.sharedHome ? environment : await codexChildEnvironment(environment);
+  const storage = !options.sharedHome && environment[PRIVATE_CODEX_HOME_ENV] ? [
+    "-c", `sqlite_home=${toml(env.CODEX_HOME!)}`,
+    "-c", `log_dir=${toml(`${env.CODEX_HOME}/log`)}`,
+  ] : [];
+  return { executable: codexExecutable(), args: ["app-server", "--listen", "stdio://", ...args, ...storage], cwd: options.cwd, env };
 }
 
 /** Keeps the newest bytes a stream produced, dropping whole chunks from the front. */

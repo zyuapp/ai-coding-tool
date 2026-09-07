@@ -49,6 +49,8 @@ function ThreadScreen({ thread, connection, waiting, send }: {
         running={running}
         waiting={waiting}
         settings={thread.settings}
+        question={thread.question}
+        onAnswerQuestion={(question, text) => send({ type: "question.answer", taskId: thread.id, runId: question.runId, requestId: question.requestId, questionId: question.questionId, text })}
         onSend={(text) => send({ type: "task.send", taskId: thread.id, text })}
         onStop={() => send({ type: "run.cancel", taskId: thread.id })}
         onOpenSettings={() => setSettingsOpen(true)}

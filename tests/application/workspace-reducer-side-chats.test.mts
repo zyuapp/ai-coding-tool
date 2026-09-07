@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { threadSummaries } from "../../src/application/thread-projection.ts";
-import { activeRun, dock, task, workspace, automation, effectAt, required, run, running, send } from "./workspace-reducer-fixtures.mts";
+import { activeRun, dock, task, workspace, effectAt, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("a side chat forks the source thread once, then continues on its own branch", () => {
   const source = task("main-task", { executionPolicy: "autonomous", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
@@ -78,7 +78,6 @@ test("a side chat is a thread in every way but being saved or listed", () => {
   const sending = reduce(opened, { type: "task.send", taskId: "chat-1", attachments: [{ path: "/tmp/shot.png", labels: ["here"] }] });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   const start = effectAt(started, "start-run");
-  const { runId } = start.command;
   assert.match(start.command.prompt, /shot\.png/, "a side chat sends its attachments");
   assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [], "a side chat keeps the name the dock gave it");
 

@@ -1,7 +1,7 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { LuPlus as Plus, LuSettings as Settings } from "react-icons/lu";
-import { projectName, type Project, type ThreadDropTarget } from "../../domain/project";
+import type { Project, ThreadDropTarget } from "../../domain/project";
 import { hasUnreadAttention } from "../../domain/attention";
 import type { Thread } from "../../domain/thread";
 import type { SidebarMode, SidebarSection, SidebarSections } from "../../domain/sidebar";
@@ -74,7 +74,7 @@ function groupedBy<T>(items: T[], keyFor: (item: T) => string | undefined): Map<
   return grouped;
 }
 
-export function ProjectSidebar({
+export const ProjectSidebar = memo(function ProjectSidebar({
   open,
   inactive,
   projects,
@@ -231,4 +231,4 @@ export function ProjectSidebar({
     </aside>
     </DragDropContext>
   );
-}
+});

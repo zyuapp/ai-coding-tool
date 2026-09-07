@@ -21,7 +21,7 @@ function started(state: WorkspaceState) {
 
 function systemAppend(options: QueryCapture["options"]) {
   const prompt = options?.options?.systemPrompt;
-  assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt));
+  assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt) && "append" in prompt);
   return prompt.append ?? "";
 }
 

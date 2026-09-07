@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -8,7 +9,7 @@ import { DEFAULT_PLACEMENT, fitPlacement, loadWindowPlacement, rememberWindowPla
 const SCREEN = { x: 0, y: 0, width: 1920, height: 1080 };
 
 async function placementFile() {
-  return path.join(await mkdtemp(path.join(tmpdir(), "placement-")), "window-placement.v1.json");
+  return path.join(await temporaryDirectory(path.join(tmpdir(), "placement-")), "window-placement.v1.json");
 }
 
 test("the window opens where it was left", async () => {

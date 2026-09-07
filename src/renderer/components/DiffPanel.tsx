@@ -14,7 +14,7 @@ import {
   type DiffComment,
   type Selection,
 } from "../diff/panel-rows";
-import { useDrawnFiles, usePanelRows, usePinnedFile, useRoomForTwo, useSelectionSpan, useTickThrough } from "../diff/use-panel";
+import { useDrawnFiles, usePanelRows, usePinnedFile, useReviewScrollSpace, useRoomForTwo, useSelectionSpan, useTickThrough } from "../diff/use-panel";
 import { useReadWholeReview, useReviewFind } from "../diff/use-review-find";
 import { useLazyColours } from "../diff/use-colours";
 import { DiffToolbar } from "./DiffToolbar";
@@ -150,10 +150,11 @@ export function DiffPanel({
     initialRect: { width: 420, height: 720 },
   });
 
-  const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
+  useReviewScrollSpace(scrollRef, rows, windowed, virtualizer);
   const setViewed = useTickThrough({
     scroller: scrollRef, rows, windowed, virtualizer, files, viewed: diff.viewed, searching: Boolean(find?.query), onSetViewed,
   });
+  const { pinned, sync: syncPinned } = usePinnedFile(scrollRef, rows, files, windowed, virtualizer);
 
   useLazyColours(rows.length, windowed ? virtualizer : null, (index) => colourRow(rows[index], drawn));
 

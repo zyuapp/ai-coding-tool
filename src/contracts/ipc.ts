@@ -1,7 +1,9 @@
+import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
 import type { BrowserAction, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
+import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
 import type { DiffFileSummary, DiffRange } from "../domain/diff.js";
 import type { ExternalApp } from "../domain/external-apps.js";
@@ -11,7 +13,7 @@ import type { TerminalUpdate } from "../domain/terminal.js";
 import type { AttachedFileDraft } from "../domain/conversation.js";
 import { MAX_DETAIL, MAX_FINDING_KEY, MAX_HEADLINE } from "../domain/finding.js";
 import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, modelSupportsManualCompaction, type AgentEngine, type AgentModel, type EngineStatus } from "../domain/agent-engine.js";
-import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, Subagent, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
+import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, Continuation, ExecutionPolicy, RunStatus, SubagentActivity, SubagentReport, ToolIntent } from "../domain/run.js";
 import type { PlanUsage } from "../domain/plan-usage.js";
 import type { PullRequestAnswer } from "../domain/pull-request.js";
 import { shortcutAction, shortcutProblem, type ShortcutOverrides, type ShortcutSurface } from "../domain/shortcuts.js";
@@ -21,7 +23,10 @@ import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/workt
 import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
+import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
+export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { LoadedTaskStore, PersistedSubagent, PersistedTask, TaskStoreDelta } from "./task-store.js";
+export type { ComputerUseMcp, ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 
 /** What the window needs of a theme: the ground its frame is drawn on, and the colour it paints bare. */
 export type WindowTheme = {
@@ -57,6 +62,7 @@ export type StartRunCommand = {
   type: "start";
   channel: RunChannel;
   taskId: string;
+  title: string;
   runId: string;
   prompt: string;
   workspaceId: WorkspaceId;
@@ -100,6 +106,8 @@ export type ReleaseWorktreeRequest = {
   taskId: string | null;
   title: string;
   release: WorktreeRelease;
+  /** Only forget a missing folder; an existing folder must remain untouched. */
+  missingOnly?: boolean;
 };
 
 export type WorktreeSnapshotResult = {
@@ -107,30 +115,6 @@ export type WorktreeSnapshotResult = {
   shortCommit: string | null;
   ref: string | null;
 };
-
-export type ComputerUsePermissions = {
-  accessibility: boolean;
-  screenRecording: boolean;
-  /** Linux has no macOS permission switches; this reports the runtime path Settings can explain. */
-  linuxRuntime?: {
-    status: "available" | "limited" | "unavailable";
-    display: "x11" | "xwayland" | "wayland" | "none";
-    message: string;
-  };
-};
-
-export type ComputerUsePermission = "accessibility" | "screenRecording";
-
-export type ComputerUseMcp = {
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-};
-
-export type ComputerUseRunConfig =
-  | { status: "available"; mcp: ComputerUseMcp }
-  | { status: "setup-required" }
-  | { status: "unavailable"; message: string };
 
 export type InternalStartRunCommand = StartRunCommand & {
   workspaceRoot: string;
@@ -142,6 +126,11 @@ export type CancelRunCommand = {
   type: "cancel";
   taskId: string;
   runId: string;
+};
+
+export type AnswerQuestionCommand = {
+  type: "answer-question";
+  taskId: string; runId: string; requestId: string; questionId: string; text: string;
 };
 
 export type ApprovalDecisionCommand = {
@@ -171,7 +160,9 @@ export type StopProcessCommand = {
   processId: string;
 };
 
-export type RunCommand = StartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand;
+export type LabelThreadCommand = { type: "label"; taskId: string; title: string };
+
+export type RunCommand = StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
 
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
@@ -263,6 +254,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   saveAttachment(data: string): Promise<string>;
   /** Reads one back as base64 PNG bytes. Only files this app wrote are readable. */
   readAttachment(file: string): Promise<string>;
+  preserveMessageImages(files: string[], root: string, messageId: string): Promise<void>;
   /** Where a dropped or pasted file sits on this machine. Empty for anything that is not a file on disk. */
   pathForFile(file: File): string;
   /** What each of those paths is. A path that is neither a file nor a folder is left out. */
@@ -277,6 +269,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   checkForUpdates(): void;
   openSourceLicenses(): Promise<void>;
   loadTaskStore(): Promise<LoadedTaskStore | null>;
+  loadThreadMessages(taskId: string): Promise<import("../domain/conversation.js").ConversationMessage[]>;
   persistTaskStore(delta: TaskStoreDelta): Promise<void>;
   /** A stored subagent's activity, which the store leaves behind until someone opens that subagent. */
   loadSubagentActivity(taskId: string, subagentId: string): Promise<SubagentActivity[]>;
@@ -329,6 +322,7 @@ export type DesktopAPI = MobileDesktopAPI & {
   closeTerminal(terminalId: string): Promise<void>;
   /** The lines the terminal holds, cooked to plain text. Null when that terminal is gone. */
   readTerminal(terminalId: string, options: TerminalReadOptions): Promise<TerminalText | null>;
+  terminalSnapshot(terminalId: string): Promise<TerminalScreenSnapshot | null>;
   /** Output, coalesced and delivered straight to the view. It is never workspace state. */
   onTerminalData(listener: (event: TerminalDataEvent) => void): () => void;
   onTerminalEvent(listener: (update: TerminalUpdate) => void): () => void;
@@ -399,22 +393,6 @@ export function isShortcutOverrides(value: unknown): value is ShortcutOverrides 
     && (binding === null || (typeof binding === "string" && !shortcutProblem(binding))));
 }
 
-export type TerminalStartOptions = { cwd: string };
-
-export type TerminalReadOptions = { lines: number; match?: string };
-
-/** What main holds for a terminal: its lines, with no escape sequences left in them. The record is the window's. */
-export type TerminalText = {
-  lines: string[];
-  /** How many lines the terminal holds that the limit left out. */
-  omitted: number;
-  /** Set when a filter was applied, counting the lines it kept. */
-  matched?: number;
-};
-
-/** A flush of everything the shell printed since the last one. */
-export type TerminalDataEvent = { terminalId: string; data: string };
-
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
 export type BrowserPageEvent = {
   tabId: string;
@@ -468,6 +446,9 @@ type RunEventBase = {
 };
 
 export type RunEvent =
+  | (RunEventBase & { type: "question.requested"; requestId: string; request: QuestionRequest })
+  | (RunEventBase & { type: "question.answered"; requestId: string; questionId: string; text: string })
+  | (RunEventBase & { type: "question.closed"; requestId: string })
   /** `agentInitiated` marks a turn the agent started itself, which the thread takes on a run for. */
   | (RunEventBase & { type: "run.started"; agentInitiated?: true })
   | (RunEventBase & { type: "run.status"; status: RunStatus; message?: string })
@@ -528,7 +509,7 @@ const MAX_ID_LENGTH = 256;
 export const MAX_THREAD_WAIT_MS = 15 * 60 * 1_000;
 /** A page read waits for the tab to settle, which a slow site must not stretch without limit. */
 export const MAX_BROWSER_WAIT_MS = 2 * 60 * 1_000;
-const MAX_PROMPT_LENGTH = 1_000_000;
+const MAX_PROMPT_LENGTH = 1_000_000, MAX_TITLE_LENGTH = 64;
 
 function isString(value: unknown, maxLength = MAX_ID_LENGTH): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxLength;
@@ -613,13 +594,15 @@ export function isRunCommand(value: unknown): value is RunCommand {
     return isStartCommand(command, false);
   }
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
+  if (command.type === "answer-question") return isString(command.taskId) && isString(command.runId) && isString(command.requestId) && isString(command.questionId) && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0;
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
   if (command.type === "steer") return isString(command.taskId) && isString(command.runId) && isString(command.messageId) && isString(command.prompt, MAX_PROMPT_LENGTH);
   if (command.type === "stop-process") return isString(command.taskId) && isString(command.processId);
+  if (command.type === "label") return isString(command.taskId) && isString(command.title, MAX_TITLE_LENGTH);
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand {
+export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
   if (command.type === "start") return isStartCommand(command, true);
@@ -633,6 +616,7 @@ function isClaudeRunSettings(value: unknown): value is ClaudeRunSettings {
 }
 
 function isStartCommand(command: Record<string, unknown>, internal: boolean) {
+  if (!isString(command.title, MAX_TITLE_LENGTH)) return false;
   const operation = command.operation as Record<string, unknown> | undefined;
   const compact = operation?.type === "compact"
     && typeof operation.preTokens === "number" && Number.isFinite(operation.preTokens) && operation.preTokens >= 0
@@ -827,6 +811,9 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Record<string, unknown>;
   if (!isString(event.taskId) || !isString(event.runId) || typeof event.sequence !== "number" || !Number.isSafeInteger(event.sequence) || event.sequence < 1) return false;
+  if (event.type === "question.requested") return isString(event.requestId) && isQuestionRequest(event.request);
+  if (event.type === "question.answered") return isString(event.requestId) && isString(event.questionId) && isString(event.text, MAX_PROMPT_LENGTH);
+  if (event.type === "question.closed") return isString(event.requestId);
   if (event.type === "run.started") return event.agentInitiated === undefined || event.agentInitiated === true;
   if (event.type === "run.status") return (event.status === "running" || event.status === "awaiting-approval" || event.status === "succeeded" || event.status === "failed" || event.status === "cancelled") && (event.message === undefined || isString(event.message, 100_000));
   if (event.type === "assistant.delta") return isString(event.messageId) && typeof event.text === "string" && (event.append === undefined || event.append === true);

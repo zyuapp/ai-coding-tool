@@ -3,6 +3,7 @@ import { SessionPool } from "../agent/session-pool.mjs";
 import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { connectAppServer } from "./app-server-client.mjs";
 import { CodexSession, type CodexConnect } from "./codex-session.mjs";
+import type { ReadOrigin } from "./codex-thread-record.mjs";
 
 /**
  * Everything a session is built with. A run that disagrees with any of it needs a session of its
@@ -25,8 +26,21 @@ function sessionKey(input: ProviderRunInput) {
   ]);
 }
 
+/** Where a thread's work belongs, read from the checkout it runs in. */
+const readOrigin: ReadOrigin = async (root) => {
+  const { currentBranch, headCommit, originUrl } = await import("../workspace/git.mjs");
+  const [origin, branch, sha] = await Promise.all([
+    originUrl(root).catch(() => null),
+    currentBranch(root).catch(() => null),
+    headCommit(root).catch(() => null),
+  ]);
+  return { originUrl: origin, branch, sha };
+};
+
 export type CodexProviderOptions = {
   connect?: CodexConnect;
+  /** Reads the checkout a thread runs in; a test hands it an answer instead of a repository. */
+  readOrigin?: ReadOrigin;
   /** Serves the app's tools to every session; shared across providers in one process. */
   host?: ToolHost;
   /** The sessions this engine's threads keep warm; shared with the other engines of its channel. */
@@ -38,16 +52,18 @@ export class CodexAgentProvider implements AgentProvider {
   private readonly connect: CodexConnect;
   private readonly host: ToolHost;
   private readonly pool: SessionPool;
+  private readonly readOrigin: ReadOrigin;
 
   constructor(options: CodexProviderOptions = {}) {
     this.connect = options.connect ?? connectAppServer;
+    this.readOrigin = options.readOrigin ?? readOrigin;
     this.host = options.host ?? new McpHttpHost();
     this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
     const key = sessionKey(input);
-    return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested) });
+    return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin) });
   }
 
   /** Reaches the thread's own session, so work that outlived the turn that started it can still be stopped. */
@@ -55,6 +71,14 @@ export class CodexAgentProvider implements AgentProvider {
     const session = this.pool.liveSession(taskId);
     if (!(session instanceof CodexSession)) return false;
     session.stopProcess(processId);
+    return true;
+  }
+
+  /** Names the thread in Codex's own history, so it reads there as it reads here. */
+  labelThread(taskId: string, title: string) {
+    const session = this.pool.liveSession(taskId);
+    if (!(session instanceof CodexSession)) return false;
+    session.label(title);
     return true;
   }
 

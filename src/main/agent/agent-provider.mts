@@ -1,3 +1,4 @@
+import type { QuestionAnswers, QuestionRequest } from "../../domain/agent-question.js";
 import type { BackgroundReport, ClaudeRunSettings, ComputerUseRunConfig, RunChannel, RunOperation, WorkflowReport } from "../../contracts/ipc.js";
 import type { BrowserRead, BrowserReadResult, BrowserWrite, ExternalCommand, FindingReport, FindingResult, TerminalRead, TerminalReadResult, ThreadCommandResult, ThreadListQuery, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../../contracts/threads.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
@@ -83,9 +84,12 @@ export type AgentTurn = {
 export type ToolDecision = "allow" | "deny" | { deny: string };
 
 export type ProviderRunInput = {
+  /** Null means the request expired; aborting the signal withdraws its unanswered questions. */
+  askQuestion: (request: QuestionRequest, signal?: AbortSignal) => Promise<QuestionAnswers | null>;
   channel: RunChannel;
   /** Which thread is asking, which is what a warm session belongs to. */
   taskId: string;
+  title: string;
   prompt: string;
   workspaceRoot: string;
   projectless: boolean;
@@ -135,4 +139,6 @@ export interface AgentProvider {
   execute(input: ProviderRunInput): Promise<ProviderResult>;
   /** Kills one background process of the thread's session, whether or not a run is going. */
   stopProcess(taskId: string, processId: string): boolean;
+  /** Offers the thread's title to the engine's own record of it. Engines that keep none say so. */
+  labelThread(taskId: string, title: string): boolean;
 }

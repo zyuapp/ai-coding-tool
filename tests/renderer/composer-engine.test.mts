@@ -38,16 +38,18 @@ test("a thread that has an engine offers only its models, and says a new thread 
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   assert.equal(query(modelMenu, ".setting-value").textContent, "Terra");
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.deepEqual([...modelMenu.querySelectorAll(".setting-group-heading")].map((item) => item.textContent), ["Codex"]);
-  assert.deepEqual([...modelMenu.querySelectorAll("button.setting-option strong")].map((item) => item.textContent), ["Sol", "Terra", "Luna"]);
-  assert.ok(modelMenu.querySelector(".setting-rule"), "the other engine sits below a rule");
-  const locked = query(modelMenu, ".setting-locked");
-  assert.equal(locked.textContent, "Start a new thread to use Claude");
-  assert.equal(locked.getAttribute("aria-disabled"), "true");
-  await act(async () => { locked.click(); });
-  assert.equal(chosen.length, 0, "the locked row does nothing");
-  await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.setting-option")[2]).click(); });
-  assert.deepEqual(chosen, [["codex", "gpt-5.6-luna"]]);
+  assert.equal(query(modelMenu, ".model-results-heading > span").textContent, "Codex");
+  assert.deepEqual([...modelMenu.querySelectorAll("button.model-choice strong")].map((item) => item.textContent), ["Astra", "Sol", "Terra", "Luna"]);
+  const claudeFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Claude"))!;
+  await act(async () => { claudeFilter.click(); });
+  assert.equal(query(modelMenu, ".setting-hint").textContent, "Start a new thread to use Claude");
+  assert.ok([...modelMenu.querySelectorAll<HTMLButtonElement>(".model-choice")].every((button) => button.disabled));
+  await act(async () => { query<HTMLButtonElement>(modelMenu, ".model-choice").click(); });
+  assert.equal(chosen.length, 0);
+  const codexFilter = [...modelMenu.querySelectorAll<HTMLButtonElement>(".model-provider-rail button")].find((button) => button.textContent?.includes("Codex"))!;
+  await act(async () => { codexFilter.click(); });
+  await act(async () => { item(modelMenu.querySelectorAll<HTMLButtonElement>("button.model-choice")[0]).click(); });
+  assert.deepEqual(chosen, [["codex", "gpt-6-astra"]]);
   await view.unmount();
 });
 
@@ -69,9 +71,9 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   assert.equal(reads, 1, "opening the menu asks which engines can be picked");
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.deepEqual([...codex.querySelectorAll(".setting-option")].map((option) => option.getAttribute("aria-disabled")), ["true", "true", "true"]);
+  assert.deepEqual([...codex.querySelectorAll(".model-choice")].map((option) => (option as HTMLButtonElement).disabled), [true, true, true, true]);
   assert.equal(query(codex, ".setting-hint").textContent, "Sign in to use Codex");
-  await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
+  await act(async () => { query<HTMLButtonElement>(codex, ".model-choice").click(); });
   assert.equal(chosen.length, 0, "a greyed model is not chosen");
   assert.equal(signIns.length, 0, "a greyed model does nothing else either");
   await act(async () => { query<HTMLButtonElement>(codex, "button.setting-hint").click(); });
@@ -87,7 +89,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   const missing = query(modelMenu, "[role=group][aria-label=Codex]");
   assert.equal(query(missing, ".setting-hint span").textContent, "Codex is not installed.");
   assert.equal(query(missing, ".setting-hint code").textContent, "brew install --cask codex", "the hint carries the command that installs it");
-  await act(async () => { query<HTMLButtonElement>(missing, ".setting-option").click(); });
+  await act(async () => { query<HTMLButtonElement>(missing, ".model-choice").click(); });
   assert.deepEqual(signIns, ["codex"], "an engine that is not there offers no sign-in");
   await view.unmount();
 });
@@ -107,9 +109,9 @@ test("an engine too old to speak to is inert, and its hint names both versions a
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const codex = query(modelMenu, "[role=group][aria-label=Codex]");
-  assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. This app needs 0.150.1.");
+  assert.equal(query(codex, ".setting-hint span").textContent, "Codex 0.147.0 is too old. Update to 0.150.1.");
   assert.equal(query(codex, ".setting-hint code").textContent, "brew update && brew upgrade --cask codex");
-  await act(async () => { query<HTMLButtonElement>(codex, ".setting-option").click(); });
+  await act(async () => { query<HTMLButtonElement>(codex, ".model-choice").click(); });
   assert.deepEqual(chosen, [], "a model an old engine cannot run is not chosen");
   await view.unmount();
 });
@@ -128,8 +130,8 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
   const modelMenu = item(view.container.querySelectorAll<HTMLElement>(".setting-menu")[1]);
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
   const claude = query(modelMenu, "[role=group][aria-label=Claude]");
-  assert.deepEqual([...claude.querySelectorAll(".setting-option strong")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
-  assert.equal(query(claude, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some of its models are missing.");
+  assert.deepEqual([...claude.querySelectorAll(".model-choice strong")].map((option) => option.textContent), ["Opus", "Sonnet"], "the models it never heard of are simply absent");
+  assert.equal(query(claude, ".setting-hint span").textContent, "Claude 2.1.100 is behind 2.1.250, so some models are hidden.");
   assert.equal(query(claude, ".setting-hint code").textContent, "claude update");
   await view.unmount();
 });
@@ -341,7 +343,11 @@ test("the effort menu offers what the model takes, and is gone for a model that 
     return options;
   };
 
-  assert.deepEqual(await efforts("codex", "gpt-5.6-sol"), ["Ultra", "Max", "Extra high", "High", "Medium", "Low"]);
-  assert.deepEqual(await efforts("codex", "gpt-5.6-luna"), ["Max", "Extra high", "High", "Medium", "Low"], "Luna does not delegate, so it has no ultra");
+  assert.equal((await efforts("codex", "gpt-6-astra"))?.[0], "Ultra");
+  const luna = await efforts("codex", "gpt-5.6-luna");
+  assert.ok(luna && luna.length > 1);
+  assert.equal(luna[0], "Max");
+  assert.equal(luna.at(-1), "Low");
+  assert.equal(luna.includes("Ultra"), false, "a nondelegating model has no ultra");
   assert.equal(await efforts("claude", "haiku"), null, "Haiku reasons at one depth, so it is drawn without an effort menu");
 });

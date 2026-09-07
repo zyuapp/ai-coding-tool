@@ -1,29 +1,11 @@
+import { task, run } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { pasteRidesAsPill, pasteSummary, pasteTitle, promptWithPastes } from "../../src/application/pastes.ts";
-import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import type { Thread } from "../../src/domain/thread.ts";
 
 const LONG = Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\n");
-
-function task(id: string, overrides: Partial<Thread> = {}): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-    ...overrides,
-  };
-}
-
-function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
-  return inputs.reduce((current, input) => reduce(current, input).state, state);
-}
 
 function currentWorkspace(): WorkspaceState {
   return { ...emptyWorkspaceState(), threads: [task("task-1")], currentId: "task-1" };

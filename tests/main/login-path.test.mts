@@ -1,5 +1,6 @@
+import { temporaryDirectory } from "../support/temporary-directory.mts";
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -26,7 +27,7 @@ test("merging keeps the first mention of each folder, in the order it was first 
 });
 
 test("the process takes the search path its login shell has, and keeps the one it started with", async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-path-"));
+  const folder = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-path-"));
   const started = process.env.PATH;
   const shell = process.env.SHELL;
   try {
@@ -44,7 +45,7 @@ test("the process takes the search path its login shell has, and keeps the one i
 });
 
 test.skipIf(process.platform !== "linux")("the Linux login shell has no share in the launching terminal's job control", async () => {
-  const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-shell-session-"));
+  const folder = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-shell-session-"));
   const shell = path.join(folder, "probe");
   await writeFile(shell, `#!/bin/sh
 read pid comm state ppid pgrp session tty rest < /proc/$$/stat
@@ -68,7 +69,7 @@ printf '${MARK}PATH=p%s:s%s:t%s\n${MARK}' "$pid" "$session" "$tty"
 });
 
 test("a shell that cannot be run leaves the process able to find its tools anyway", async () => {
-  const bin = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-bin-"));
+  const bin = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-bin-"));
   const started = process.env.PATH;
   const shell = process.env.SHELL;
   try {
@@ -84,7 +85,7 @@ test("a shell that cannot be run leaves the process able to find its tools anywa
 });
 
 test("a folder tools are installed in is added when it is really there, and never when it is not", async () => {
-  const home = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-home-"));
+  const home = await temporaryDirectory(path.join(os.tmpdir(), "aicodingtool-home-"));
   const local = path.join(home, ".local", "bin");
   await mkdir(local, { recursive: true });
   const started = process.env.PATH;

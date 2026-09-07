@@ -1,8 +1,8 @@
-import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "./agent-engine.js";
+import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine } from "./agent-engine.js";
 import type { Annotation, AttachedFile, ConversationMessage, ConversationMessageKind, PastedText } from "./conversation.js";
 import type { AutomationFinding } from "./finding.js";
 import { isProject, legacyProjectId, normalizeProjectRoot, type Project } from "./project.js";
-import type { AgentEffort, Continuation, ExecutionPolicy, Subagent } from "./run.js";
+import type { Continuation, ExecutionPolicy, Subagent } from "./run.js";
 import type { ContextUsage, ContinuationStatus, ThreadOutcome } from "./thread-run.js";
 import type { Thread } from "./thread.js";
 import { isWorktree, type Worktree } from "./worktree.js";
@@ -450,6 +450,15 @@ function renamedMessageFields(value: unknown) {
   if (!isRecord(value) || value.quiet === undefined) return value;
   const { quiet: withdrawn, ...message } = value;
   return message.withdrawn === undefined ? { ...message, withdrawn } : message;
+}
+
+/** A conversation loaded separately uses the same migrations and validation as a complete store. */
+export function parseStoredConversationMessages(values: unknown[]): ConversationMessage[] {
+  return values.map((value, index) => {
+    const message = renamedMessageFields(value);
+    if (!isConversationMessage(message)) throw new Error(`Stored message ${index + 1} is unreadable.`);
+    return message;
+  });
 }
 
 function recordedEngine(value: unknown) {

@@ -10,7 +10,7 @@ import { acceptRunEvent, automationFire, AUTOMATION_SETTLE_TIMEOUT, failedEvents
 
 /** What the agent process needs from main: the window it reports to, and the services a run resolves against. */
 export type RunHost = {
-  window: () => BrowserWindow | null;
+  window: () => Pick<BrowserWindow, "webContents" | "isDestroyed"> | null;
   running: () => boolean;
   workspaces: () => WorkspaceService;
   scheduler: () => AutomationScheduler;
@@ -142,7 +142,7 @@ async function handleAutomationRequest(host: RunHost, request: AutomationRequest
   let response: AutomationResponse;
   try {
     const scheduler = host.scheduler();
-    const result = request.op === "read"
+    const result = await (request.op === "read"
       ? scheduler.forThread(request.taskId)
       : request.op === "list"
         ? scheduler.list()
@@ -150,7 +150,7 @@ async function handleAutomationRequest(host: RunHost, request: AutomationRequest
           ? scheduler.save({ ...request.draft, taskId: request.taskId })
           : request.op === "update"
             ? scheduler.update(request.taskId, request.patch)
-            : scheduler.remove(request.taskId);
+            : scheduler.remove(request.taskId));
     response = { type: "automation.response", requestId: request.requestId, ok: true, result };
   } catch (error) {
     response = { type: "automation.response", requestId: request.requestId, ok: false, message: error instanceof Error ? error.message : String(error) };
@@ -249,8 +249,8 @@ function postCommand(host: RunHost, command: RunCommand) {
     if (!agent) throw new Error("Agent process is unavailable.");
     agent.postMessage(command);
   } catch (error) {
-    /** A stop belongs to no run, so a failure to send it has no run to report against. */
-    if (command.type === "stop-process") return;
+    /** A stop or a label belongs to no run, so a failure to send it has no run to report against. */
+    if (command.type === "stop-process" || command.type === "label") return;
     const state = runStates.get(runKey(command.taskId, command.runId));
     const message = error instanceof Error ? error.message : String(error);
     if (state && !state.terminal) {
@@ -285,7 +285,13 @@ function handleRunCommand(host: RunHost, event: IpcMainEvent, payload: unknown) 
     void dispatchStart(host, payload);
     return;
   }
-  /** A stop names the thread's session, which outlives its runs, so no run has to be live to send it. */
+  /** A stop or a label names the thread's session, which outlives its runs, so no run has to be live. */
+  if (payload.type === "label") {
+    for (const pending of pendingStarts.values()) {
+      if (pending.taskId === payload.taskId) pending.title = payload.title;
+    }
+    return postCommand(host, payload);
+  }
   if (payload.type === "stop-process") return postCommand(host, payload);
   const key = runKey(payload.taskId, payload.runId);
   const pending = pendingStarts.get(key);

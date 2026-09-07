@@ -4,7 +4,7 @@ import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import type { ChangedFilesResult } from "../../src/contracts/ipc.ts";
 import type { ThreadStoreData } from "../../src/domain/thread-storage.ts";
-import { task, workspace, activeRun, automation, effectAt, heldWorktree, inside, PROJECT, required, run, running, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, automation, effectAt, heldWorktree, inside, PROJECT, required, run } from "./workspace-reducer-fixtures.mts";
 
 test("archiving a thread retires its automation and cancels a run still going", () => {
   const state = workspace({

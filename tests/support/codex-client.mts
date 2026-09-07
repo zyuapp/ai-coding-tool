@@ -1,12 +1,19 @@
+import { afterEach, beforeEach, vi } from "vitest";
+import { PRIVATE_CODEX_HOME_ENV } from "../../src/main/codex/codex-home.mts";
 import type { AppServerCommand, ClientMethod, ClientParams, ClientResult, ExitStatus, IncomingRequest, JsonRpcError, NotificationMethod, NotificationParams, ServerRequestMethod, ServerRequestParams, ServerRequestResult } from "../../src/main/codex/app-server-client.mts";
 import type { ClientInfo } from "../../src/main/codex/protocol/ClientInfo.ts";
 import type { InitializeResponse } from "../../src/main/codex/protocol/InitializeResponse.ts";
 import type { RequestId } from "../../src/main/codex/protocol/RequestId.ts";
 import { CodexAgentProvider } from "../../src/main/codex/codex-agent-provider.mts";
 import type { CodexClient } from "../../src/main/codex/codex-session.mts";
+import type { ReadOrigin } from "../../src/main/codex/codex-thread-record.mts";
 import type { ProviderRunInput } from "../../src/main/agent/agent-provider.mts";
 import type { BoundTool, ToolResult } from "../../src/main/tools/tool-definition.mts";
 import type { ServedTools, ToolHost } from "../../src/main/tools/mcp-http-host.mts";
+
+/** Fake servers must not prepare the launching app's private storage; codex-home tests cover that. */
+beforeEach(() => { vi.stubEnv(PRIVATE_CODEX_HOME_ENV, undefined); });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 export type Sent = { method: string; params: unknown };
 
@@ -17,6 +24,7 @@ export type Reply<M extends ServerRequestMethod> = { result: ServerRequestResult
 
 /** Real shapes for the handful of responses the session reads, trimmed to what it reads. */
 export const defaultScript: Script = {
+  "skills/list": () => ({ data: [{ cwd: "/tmp/project", skills: [], errors: [] }] }),
   "account/read": () => ({ account: { type: "chatgpt", email: "dev@example.com", planType: "pro" }, requiresOpenaiAuth: true }),
   "thread/start": (params: { model?: string | null }) => ({ thread: { id: "thread-1" }, model: params.model ?? "gpt-5.6-sol" }),
   "thread/resume": (params: { threadId: string }) => ({ thread: { id: params.threadId }, model: "gpt-5.6-sol" }),
@@ -25,6 +33,9 @@ export const defaultScript: Script = {
   "thread/goal/get": () => ({ goal: null }),
   "thread/goal/clear": () => ({ cleared: true }),
   "thread/inject_items": () => ({}),
+  "thread/name/set": () => ({}),
+  "thread/metadata/update": () => ({}),
+  "thread/unarchive": () => ({}),
   "thread/compact/start": () => ({}),
   "thread/backgroundTerminals/list": () => ({ data: [], nextCursor: null }),
   "thread/backgroundTerminals/terminate": () => ({ terminated: true }),
@@ -129,6 +140,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
   const base: ProviderRunInput = {
     channel: "main",
     taskId: "task-1",
+    title: "Inspect the app",
     prompt: "inspect the app",
     workspaceRoot: "/tmp/project",
     projectless: false,
@@ -140,6 +152,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     steering: { next: () => new Promise<null>(() => {}) },
     abortController: new AbortController(),
     authorize: async () => "allow",
+    askQuestion: async () => null,
     emit() {},
     reportWorkflow() {},
     reportBackground() {},
@@ -182,7 +195,7 @@ export type Harness = {
 };
 
 /** A provider whose app servers are scripted fakes, one per session it opens. */
-export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; idleMs?: number } = {}): Harness {
+export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; idleMs?: number; readOrigin?: ReadOrigin } = {}): Harness {
   const clients: FakeCodexClient[] = [];
   const host = new FakeToolHost();
   const provider = new CodexAgentProvider({
@@ -193,6 +206,7 @@ export function harness(script: Script = {}, options: { handshake?: () => Promis
     },
     host,
     idleMs: options.idleMs,
+    ...(options.readOrigin ? { readOrigin: options.readOrigin } : {}),
   });
   return { provider, clients, latest: () => clients.at(-1)!, host };
 }

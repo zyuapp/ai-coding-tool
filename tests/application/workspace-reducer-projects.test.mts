@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, WORKSPACE_ERRORS } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
-import { task, workspace, activeRun, automation, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, effectAt, required, run, PROJECT, projected, madeWorktree, heldWorktree, inside, send } from "./workspace-reducer-fixtures.mts";
 
 test("a project with no workspace of its own adopts the one the picker opened for it", () => {
   const state = projected({ projects: [{ ...PROJECT, workspaceId: undefined }], threads: [task("task-a", { projectId: PROJECT.id })], currentId: "task-a", prompts: { "task-a": "Go" } });

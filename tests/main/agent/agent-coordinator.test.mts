@@ -11,6 +11,7 @@ const base = (taskId: string, runId: string): InternalStartRunCommand => ({
   type: "start",
   channel: "main",
   taskId,
+  title: "Do the work",
   runId,
   prompt: "do the work",
   workspaceId: "workspace-test",
@@ -33,6 +34,7 @@ type PendingRun = {
 class FakeProvider implements AgentProvider {
   runs: PendingRun[] = [];
   stopped: Array<[string, string]> = [];
+  labelled: Array<[string, string]> = [];
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
     return new Promise((resolve) => this.runs.push({ input, resolve }));
@@ -41,6 +43,12 @@ class FakeProvider implements AgentProvider {
   stopProcess(taskId: string, processId: string) {
     if (!this.runs.some((run) => run.input.taskId === taskId)) return false;
     this.stopped.push([taskId, processId]);
+    return true;
+  }
+
+  labelThread(taskId: string, title: string) {
+    if (!this.runs.some((run) => run.input.taskId === taskId)) return false;
+    this.labelled.push([taskId, title]);
     return true;
   }
 }
@@ -66,6 +74,7 @@ test("successful provider run emits correlated, ordered events and one terminal 
 
   coordinator.start(base("task-a", "run-a"));
   await tick();
+  assert.equal(provider.runs[0].input.title, "Do the work");
   provider.runs[0].resolve({ status: "succeeded" });
   await tick();
 
@@ -205,7 +214,7 @@ test("cancelling an approval expires it and rejects a late decision", async () =
       decision = await input.authorize({ toolId: "tool-2", name: "Edit", input: {}, writePath: "/tmp/project/file.txt" });
       return { status: decision === "allow" ? "succeeded" : "failed" };
     },
-    stopProcess: () => false,
+    stopProcess: () => false, labelThread: () => false,
   };
   const coordinator = new RunCoordinator(provider, (event) => events.push(event), {
     isWritePathInside: () => true,
@@ -264,7 +273,7 @@ test("write-path policy denies outside paths before creating an approval", async
       const decision = await input.authorize({ toolId: "tool-3", name: "Write", input: {}, writePath: "/tmp/elsewhere/file.txt" });
       return { status: decision === "deny" ? "failed" : "succeeded", message: "outside path" };
     },
-    stopProcess: () => false,
+    stopProcess: () => false, labelThread: () => false,
   };
   const coordinator = new RunCoordinator(provider, (event) => events.push(event), {
     isWritePathInside: (root, candidate) => root === "/tmp/project" && candidate.startsWith(`${root}/`),
@@ -367,7 +376,7 @@ test("coordinator forwards every provider event with one ordered sequence", asyn
   const provider: AgentProvider = { execute: async (input: ProviderRunInput) => {
     for (const event of providerEvents) input.emit(event);
     return { status: "succeeded" };
-  }, stopProcess: () => false };
+  }, stopProcess: () => false, labelThread: () => false };
   const coordinator = new RunCoordinator(provider, (event) => events.push(event));
 
   coordinator.start(base("task-events", "run-events"));
@@ -382,7 +391,7 @@ test("coordinator forwards every provider event with one ordered sequence", asyn
 
 test("coordinator converts a thrown provider error into one failure", async () => {
   const events: AgentEvent[] = [];
-  const coordinator = new RunCoordinator({ execute: async () => { throw new Error("provider exploded"); }, stopProcess: () => false }, (event) => events.push(event));
+  const coordinator = new RunCoordinator({ execute: async () => { throw new Error("provider exploded"); }, stopProcess: () => false, labelThread: () => false }, (event) => events.push(event));
 
   coordinator.start(base("task-throw", "run-throw"));
   await tick();
@@ -602,4 +611,46 @@ test("a turn the agent starts itself can be steered into, and hands what it is s
 
   agentTurn.end({ status: "succeeded" });
   assert.equal(await agentTurn.steering.next(), null, "a turn that is over stops waiting for more");
+});
+
+
+test("questions collect answers independently of approvals and reject stale or duplicate answers", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event));
+  coordinator.start(base("task", "run"));
+  const request = { blocking: false, questions: [
+    { id: "region", header: "Region", question: "Which region?", options: [] },
+    { id: "color", header: "Color", question: "Which color?", options: [] },
+  ] };
+  const result = provider.runs[0].input.askQuestion(request);
+  const asked = events.find((event) => event.type === "question.requested");
+  assert.ok(asked?.type === "question.requested");
+  assert.equal(coordinator.answerQuestion("task", "old", asked.requestId, "region", "Chicago"), false);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "missing", "Chicago"), false);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "region", "Chicago"), true);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "region", "London"), false);
+  assert.equal(coordinator.answerQuestion("task", "run", asked.requestId, "color", "Blue"), true);
+  assert.deepEqual({ ...await result }, { region: "Chicago", color: "Blue" });
+  assert.deepEqual(statuses(events, "run"), ["running"]);
+  coordinator.cancel("task", "run");
+});
+
+test("withdrawal, cancellation, and unattended deadlines close outstanding questions", async () => {
+  const provider = new FakeProvider();
+  const events: AgentEvent[] = [];
+  const coordinator = new RunCoordinator(provider, (event) => events.push(event), { unattendedApprovalMs: 5 });
+  const request = { blocking: true, questions: [{ id: "q", header: "", question: "Continue?", options: [] }] };
+  coordinator.start(base("task", "run"));
+  const abort = new AbortController();
+  const withdrawn = provider.runs[0].input.askQuestion(request, abort.signal);
+  abort.abort();
+  assert.equal(await withdrawn, null);
+  const cancelled = provider.runs[0].input.askQuestion(request);
+  coordinator.cancel("task", "run");
+  assert.equal(await cancelled, null);
+  coordinator.start({ ...base("task", "next"), unattended: true });
+  assert.equal(await provider.runs[1].input.askQuestion(request), null);
+  assert.equal(events.filter((event) => event.type === "question.closed").length, 3);
+  coordinator.cancel("task", "next");
 });

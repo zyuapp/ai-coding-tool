@@ -6,6 +6,7 @@ const command = {
   type: "start",
   channel: "main",
   taskId: "task-1",
+  title: "Inspect the app",
   runId: "run-1",
   prompt: "inspect",
   workspaceId: "workspace-1",
@@ -25,6 +26,14 @@ test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand({ ...command, channel: "background" }), false);
   assert.equal(isRunCommand({ ...command, channel: "side", forkContinuation: true }), false);
   assert.equal(isRunCommand({ ...command, channel: "side", continuation: { provider: "claude", value: "session" }, forkContinuation: true }), true);
+});
+
+test("start commands require a bounded thread title", () => {
+  for (const title of [undefined, null, 1, "", "x".repeat(65)]) {
+    assert.equal(isRunCommand({ ...command, title }), false);
+    assert.equal(isInternalRunCommand({ ...command, title, workspaceRoot: "/tmp/project", projectless: false, computerUse: { status: "setup-required" } }), false);
+  }
+  assert.equal(isRunCommand({ ...command, title: "x".repeat(64) }), true);
 });
 
 test("start commands carry the Claude engine's settings as one object", () => {
@@ -194,6 +203,10 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunCommand({ ...command, effort: "insane" }), false);
   assert.equal(isRunCommand({ ...command, effort: "ultra" }), false, "ultra belongs to Codex");
   assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-5.6-sol", effort: "ultra" }), true);
+  for (const effort of ["low", "medium", "high", "xhigh", "max", "ultra"]) {
+    assert.equal(isRunCommand({ ...command, engine: "codex", model: "gpt-6-astra", effort }), true);
+  }
+  assert.equal(isRunCommand({ ...command, model: "gpt-6-astra" }), false);
   assert.equal(isRunCommand({ ...command, effort: undefined }), false);
   assert.equal(isRunCommand({ ...command, continuation: { provider: "", value: "session" } }), false);
 
@@ -244,6 +257,7 @@ test("the external command surface covers reading and writing threads, and nothi
 
   assert.equal(isExternalCommand({ type: "task.send", text: "Start here", worktreeId: "wt1" }), true);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", model: "sonnet", effort: "max" }), true);
+  assert.equal(isExternalCommand({ type: "task.send", text: "Use Astra", model: "gpt-6-astra", effort: "ultra" }), true);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use mystery", model: "unknown" }), false);
   assert.equal(isExternalCommand({ type: "task.send", text: "Use Claude", effort: "impossible" }), false);
   assert.equal(isExternalCommand({ type: "task.send", taskId: "task-1", text: "Carry on", model: "sonnet" }), false, "a tool cannot change an existing thread's model while messaging it");

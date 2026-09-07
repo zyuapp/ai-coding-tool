@@ -8,6 +8,7 @@ import { allowedOrigins, reachableAddresses } from "../../../src/main/mobile/add
 import { servesPort } from "../../../src/main/mobile/tailscale.mts";
 import { MOBILE_PROTOCOL_VERSION, type MobileRequest } from "../../../src/contracts/mobile.ts";
 import type { MobileServerState } from "../../../src/domain/mobile.ts";
+import type { MobileHostOptions } from "../../../src/main/mobile/mobile-host.mts";
 
 test("the addresses are the loopback bind and the tailnet name while Tailscale serves it", () => {
   const quiet = reachableAddresses({ port: 7737, magicDnsName: null });
@@ -52,7 +53,7 @@ async function bridge(t: { onTestFinished(callback: () => void | Promise<void>):
   const folder = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-host-"));
   const states: MobileServerState[] = [];
   const requests: MobileRequest[] = [];
-  await host.startMobileHost({
+  const options: MobileHostOptions = {
     userData: folder,
     staticRoot: folder,
     tailscale: noTailscale(),
@@ -60,12 +61,13 @@ async function bridge(t: { onTestFinished(callback: () => void | Promise<void>):
     port: 0,
     send: (request) => { requests.push(request); return true; },
     onState: (state) => { states.push(state); },
-  });
+  };
+  await host.startMobileHost(options);
   t.onTestFinished(async () => {
     await host.stopMobileHost();
     await rm(folder, { recursive: true, force: true });
   });
-  return { host, folder, states, requests };
+  return { host, folder, states, requests, options };
 }
 
 test("the bridge starts off, comes up on the loopback, and goes back down promptly", async (t) => {
@@ -130,6 +132,56 @@ test("a phone paired through the host reaches the window, and revoking it drops 
   const after = await host.revokeMobileDevice(devices[0]!.id);
   assert.deepEqual(after.devices, []);
   assert.deepEqual(after.sessions, []);
+});
+
+test("stopping phone access disconnects the phone and reopening preserves its pairing and enabled setting", async (t) => {
+  const { host, folder, options } = await bridge(t);
+  const on = await host.setMobileEnabled(true);
+  const offer = await host.createMobilePairingCode();
+  const socket = new WebSocket(`ws://127.0.0.1:${on.port}/m/socket`);
+  t.onTestFinished(() => socket.close());
+  const heard: Array<Record<string, unknown>> = [];
+  socket.on("message", (data) => heard.push(JSON.parse(String(data))));
+  await new Promise<void>((resolve, reject) => { socket.on("open", resolve); socket.on("error", reject); });
+  socket.send(JSON.stringify({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: offer.code, deviceName: "Phone" }));
+  await until(() => heard.some((message) => message.kind === "paired"), "the phone never paired");
+  const paired = heard.find((message) => message.kind === "paired")!;
+
+  await host.stopMobileHost();
+  await until(() => socket.readyState === WebSocket.CLOSED, "the phone stayed connected after shutdown");
+  await assert.rejects(fetch(`http://127.0.0.1:${on.port}/m/`));
+  assert.equal(JSON.parse(await readFile(path.join(folder, "mobile.v1.json"), "utf8")).enabled, true);
+
+  await host.startMobileHost(options);
+  const reopened = host.mobileState();
+  assert.equal(reopened.status, "listening");
+  assert.equal(reopened.enabled, true);
+  assert.equal(reopened.devices[0]?.id, paired.deviceId);
+  const returning = new WebSocket(`ws://127.0.0.1:${reopened.port}/m/socket`);
+  t.onTestFinished(() => returning.close());
+  await new Promise<void>((resolve, reject) => { returning.on("open", resolve); returning.on("error", reject); });
+  returning.send(JSON.stringify({ kind: "resume", version: MOBILE_PROTOCOL_VERSION, token: paired.token, lastSequence: 0 }));
+  await until(() => host.mobileState().sessions.length === 1, "the paired phone could not reconnect");
+  assert.equal(host.mobileState().sessions[0].deviceId, paired.deviceId);
+});
+
+test("a late Tailscale result during shutdown preserves the saved phone setting", async (t) => {
+  const { host, folder, options } = await bridge(t);
+  await host.setMobileEnabled(true);
+  let finishRead!: () => void;
+  options.tailscale = {
+    ...noTailscale(),
+    read: () => new Promise((resolve) => {
+      finishRead = () => resolve({ status: "missing", magicDnsName: "computer.tail.test", certs: false, serving: false, error: null });
+    }),
+  };
+  const refreshing = host.refreshTailscale();
+  await until(() => Boolean(finishRead), "Tailscale did not start its check");
+  const stopping = host.stopMobileHost();
+  finishRead();
+  await Promise.all([refreshing, stopping]);
+  const saved = JSON.parse(await readFile(path.join(folder, "mobile.v1.json"), "utf8"));
+  assert.equal(saved.enabled, true);
 });
 
 async function until(check: () => boolean, message: string) {

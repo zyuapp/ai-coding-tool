@@ -17,7 +17,9 @@ import { SettingFocus } from "./SettingRow";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { UsageSettings } from "./UsageSettings";
 import { useFocusReturn } from "../focus";
-import type { DesktopShortcutUnavailable, WorktreeSettingsView } from "../../application/workspace-state";
+import type { DesktopShortcutUnavailable } from "../../application/workspace-state";
+import type { WorktreeSettingsPage } from "../../application/worktree-settings";
+import type { WorktreeCommand } from "../../contracts/commands";
 import { WorktreeSettings } from "./WorktreeSettings";
 
 /** The list of pages. Three of them ask for a fresh read as they are opened. */
@@ -117,7 +119,7 @@ export type SettingsPanelProps = {
   /** The control on that page to scroll to and mark, when something named one. */
   initialSetting?: string | null;
   archivedThreads: Thread[];
-  managedWorktrees: WorktreeSettingsView[] | null;
+  worktreeSettings: WorktreeSettingsPage;
   worktreeManagementError: string | null;
   worktreeManagementNotice: string | null;
   /** The theme in effect, by id, and the ground the user asked for. */
@@ -165,8 +167,7 @@ export type SettingsPanelProps = {
   onRefreshEngines: () => void;
   onSignInEngine: (engine: AgentEngine) => void;
   onRefreshWorktrees: () => void;
-  onRevealWorktree: (root: string) => void;
-  onDeleteWorktree: (root: string) => void;
+  onWorktreeCommand: (command: WorktreeCommand) => void;
   onClearBrowserData: () => void;
   onCaptureShortcut: (action: string | null) => void;
   onSetShortcut: (action: string, binding: string | null) => void;
@@ -182,7 +183,7 @@ export function SettingsPanel({
   initialSection = "general",
   initialSetting = null,
   archivedThreads,
-  managedWorktrees,
+  worktreeSettings,
   worktreeManagementError,
   worktreeManagementNotice,
   theme,
@@ -218,8 +219,7 @@ export function SettingsPanel({
   onRefreshEngines,
   onSignInEngine,
   onRefreshWorktrees,
-  onRevealWorktree,
-  onDeleteWorktree,
+  onWorktreeCommand,
   onClearBrowserData,
   onCaptureShortcut,
   onSetShortcut,
@@ -308,12 +308,10 @@ export function SettingsPanel({
 
       {section === "worktrees" && (
         <WorktreeSettings
-          worktrees={managedWorktrees}
+          page={worktreeSettings}
           error={worktreeManagementError}
           notice={worktreeManagementNotice}
-          onRefresh={onRefreshWorktrees}
-          onReveal={onRevealWorktree}
-          onDelete={onDeleteWorktree}
+          dispatch={onWorktreeCommand}
         />
       )}
 

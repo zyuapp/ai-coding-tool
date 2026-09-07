@@ -1,8 +1,6 @@
 import { open, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
-import { z } from "zod";
-import { bindTools, defineTool, type ToolDefinition } from "./tool-definition.mjs";
 
 /** One skill on disk: a `<root>/<name>/SKILL.md` whose frontmatter names and describes it. */
 export type Skill = { name: string; description: string; path: string };
@@ -15,13 +13,10 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 /** How much of a SKILL.md is read to find its frontmatter; one that runs longer is read whole. */
 const FRONTMATTER_BYTES = 8 * 1024;
 
-/**
- * Where the user keeps skills in Claude's layout: the workspace's own first, then the user's,
- * which honours `CLAUDE_CONFIG_DIR` the way Claude does.
- */
-export function skillRoots(workspace: { workspaceRoot: string; projectless: boolean }, env: NodeJS.ProcessEnv = process.env, home = homedir()): SkillRoots {
-  const user = path.join(env.CLAUDE_CONFIG_DIR || path.join(home, ".claude"), "skills");
-  return workspace.projectless ? [user] : [path.join(workspace.workspaceRoot, ".claude", "skills"), user];
+/** Where Codex keeps shared skills: the workspace's own first, then the user's. */
+export function skillRoots(workspace: { workspaceRoot: string; projectless: boolean }, home = homedir()): SkillRoots {
+  const user = path.join(home, ".agents", "skills");
+  return workspace.projectless ? [user] : [path.join(workspace.workspaceRoot, ".agents", "skills"), user];
 }
 
 /** The frontmatter and body of a SKILL.md; a file without frontmatter is all body. */
@@ -92,56 +87,4 @@ export async function listSkills(roots: SkillRoots): Promise<Skill[]> {
     for (const skill of skills) if (!byName.has(skill.name)) byName.set(skill.name, skill);
   }
   return [...byName.values()];
-}
-
-/**
- * One skill by name. The directory of that name is tried first, root by root, and the whole list
- * read only when no directory answers; a name that is a path names nothing.
- */
-export async function findSkill(roots: SkillRoots, name: string): Promise<Skill | undefined> {
-  if (path.basename(name) === name && name !== "." && name !== "..") {
-    for (const [index, root] of roots.entries()) {
-      const skill = await skillIn(root, name);
-      if (skill?.name !== name) continue;
-      /** An earlier root's skill of that name hides this one, whichever directory it sits in. */
-      const earlier = (await Promise.all(roots.slice(0, index).map(skillsIn))).flat().find((candidate) => candidate.name === name);
-      return earlier ?? skill;
-    }
-  }
-  return (await listSkills(roots)).find((skill) => skill.name === name);
-}
-
-function text(value: string) {
-  return { content: [{ type: "text" as const, text: value }] };
-}
-
-/** Read-only both: they only ever look at SKILL.md files the user wrote. */
-export const SKILL_TOOLS: readonly ToolDefinition<SkillRoots>[] = [
-  defineTool({
-    name: "skills_list",
-    description: "List the user's skills: reusable instructions for particular kinds of task, each named with what it covers. Read one with skill_read before doing a task it covers.",
-    input: {},
-    readOnly: true,
-    run: async (roots) => {
-      const skills = await listSkills(roots);
-      if (!skills.length) return text("The user has no skills.");
-      return text(skills.map((skill) => `${skill.name}: ${skill.description || "(no description)"}`).join("\n"));
-    },
-  }),
-  defineTool({
-    name: "skill_read",
-    description: "Read one skill's instructions in full. Follow them for the task at hand; paths inside are relative to the skill's directory.",
-    input: { name: z.string().min(1).describe("The skill's name, as skills_list reports it.") },
-    readOnly: true,
-    run: async (roots, args) => {
-      const skill = await findSkill(roots, args.name);
-      if (!skill) return { ...text(`No skill is named "${args.name}". Call skills_list to see the names.`), isError: true };
-      const { body } = parseSkillFile(await readFile(skill.path, "utf8"));
-      return text(`Skill directory: ${path.dirname(skill.path)}\n\n${body.trim()}`);
-    },
-  }),
-];
-
-export function skillTools(roots: SkillRoots) {
-  return bindTools(roots, SKILL_TOOLS);
 }

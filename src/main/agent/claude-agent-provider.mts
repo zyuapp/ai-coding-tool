@@ -7,6 +7,7 @@ import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { runTools } from "./run-tools.mjs";
 import { SessionPool } from "./session-pool.mjs";
+import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
 
 type QueryFactory = typeof query;
 const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
@@ -158,6 +159,11 @@ export class ClaudeAgentProvider implements AgentProvider {
   }
 
   /** Reaches the thread's own session, so work that outlived the run that started it can still be stopped. */
+  /** Claude keeps no record of its own to name, so the title stays the app's. */
+  labelThread() {
+    return false;
+  }
+
   stopProcess(taskId: string, processId: string) {
     const session = this.pool.liveSession(taskId);
     if (!(session instanceof ClaudeSession)) return false;
@@ -191,7 +197,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         betas: ["context-1m-2025-08-07" as const],
         ...(input.claude?.chromeBrowser ? { extraArgs: { chrome: null } } : {}),
         ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
-        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : [])].join("\n\n") },
+        systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: [...(input.computerUse.status === "unavailable" ? [] : [computerUseInstructions]), linkInstructions, ...(input.automations ? [automationInstructions] : []), ...(input.threads ? [threadInstructions] : []), ...(input.browser ? [browserInstructions] : []), ...(input.claude?.chromeBrowser ? [chromeInstructions] : []), ...(input.claude?.conciseReplies ? [conciseInstructions] : []), ...(input.channel === "side" ? [SIDE_CHAT_INSTRUCTIONS] : [])].join("\n\n") },
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,

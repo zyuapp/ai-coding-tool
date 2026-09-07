@@ -6,11 +6,11 @@ import type { ThreadStoreData } from "../domain/thread-storage.js";
 import type { Subagent, SubagentActivity } from "../domain/run.js";
 import type { Worktree } from "../domain/worktree.js";
 
-export type PersistedTask = Omit<Thread, "messages">;
+export type PersistedTask = Omit<Thread, "messages" | "historySummary">;
 export type PersistedSubagent = Omit<Subagent, "activity">;
 
 /** The stored workspace, plus the count of threads this build could not read and left on disk. */
-export type LoadedTaskStore = ThreadStoreData & { hiddenTasks: number };
+export type LoadedTaskStore = ThreadStoreData & { hiddenTasks: number; unloadedTaskIds?: string[] };
 
 export type TaskStoreDelta = {
   tasks: Array<{

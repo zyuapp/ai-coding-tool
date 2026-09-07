@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { TITLE_INSTRUCTIONS, cleanTitle, readableImages, titleQuestion } from "../agent/title-text.mjs";
 import { codexExecutable } from "./codex-executable.mjs";
+import { codexChildEnvironment } from "./codex-home.mjs";
 
 /** Runs the Codex binary once with `args`, feeding `input` on stdin, and resolves when it has exited. */
 export type CodexExec = (args: readonly string[], input: string, cwd: string) => Promise<void>;
@@ -32,13 +33,16 @@ export function codexTitleArgs(schemaFile: string, outputFile: string, images: s
   ];
 }
 
-const execCodex: CodexExec = (args, input, cwd) => new Promise((resolve, reject) => {
-  const child = spawn(codexExecutable(), args, { cwd, stdio: ["pipe", "ignore", "ignore"], timeout: EXEC_TIMEOUT_MS, killSignal: "SIGKILL" });
-  child.on("error", reject);
-  child.on("close", () => resolve());
-  child.stdin.on("error", () => {});
-  child.stdin.end(input);
-});
+const execCodex: CodexExec = async (args, input, cwd) => {
+  const env = await codexChildEnvironment();
+  return new Promise((resolve, reject) => {
+    const child = spawn(codexExecutable(), args, { cwd, env, stdio: ["pipe", "ignore", "ignore"], timeout: EXEC_TIMEOUT_MS, killSignal: "SIGKILL" });
+    child.on("error", reject);
+    child.on("close", () => resolve());
+    child.stdin.on("error", () => {});
+    child.stdin.end(input);
+  });
+};
 
 function titleOf(lastMessage: string) {
   try {

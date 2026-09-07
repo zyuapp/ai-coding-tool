@@ -5,7 +5,7 @@ import { deriveView } from "../../src/application/workspace-state.ts";
 import type { AutomationFire } from "../../src/contracts/ipc.ts";
 import { sentPrompts } from "../../src/domain/conversation.ts";
 import type { Workflow } from "../../src/domain/workflow.ts";
-import { task, workspace, activeRun, automation, effectAt, required, correlatedRunEvent, run, running, send, type RunEventPayload } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, effectAt, required, correlatedRunEvent, run, running, type RunEventPayload } from "./workspace-reducer-fixtures.mts";
 
 test("a scheduled run declines when the task is archived, gone, or already running", () => {
   const fire = { automationId: "automation-1", taskId: "task-a", runId: "run-1", prompt: "Poll", runNumber: 2 };

@@ -17,6 +17,7 @@ import { AttachmentViewer } from "./AttachmentViewer";
 import { TimelineEmptyState } from "./TimelineEmptyState";
 import { TimelineRow } from "./TimelineRow";
 import { RevealedMessage } from "./TurnWork";
+import { MessageArtifactScope } from "./MarkdownMessage";
 
 export { groupTimeline } from "../timeline/grouping";
 export { formatElapsed } from "./TurnWork";
@@ -66,6 +67,7 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
 
 export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
+  const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
@@ -120,12 +122,15 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   useSelectionCapture({ timelineRef, scrollContainerRef, threadId: currentThread?.id, onAnnotateAdd, setSelection: annotate.setSelection, dismissNote: annotate.dismissNote });
   const markers = useAnnotationMarkers({ timelineRef, annotations, rendered, messageCount: messages.length });
 
+  if (currentThread?.historySummary) return <div className="empty-state" role="status">Loading conversation…</div>;
+
   if (!currentThread?.messages.length && !streamingTail) {
     return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
   }
 
   return (
     <RevealedMessage.Provider value={hit?.messageId ?? null}>
+    <MessageArtifactScope.Provider value={artifactScope}>
     <div className="timeline" ref={timelineRef}>
       <div className="timeline-items" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((item) => (
@@ -191,6 +196,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         />
       )}
     </div>
+    </MessageArtifactScope.Provider>
     </RevealedMessage.Provider>
   );
 }

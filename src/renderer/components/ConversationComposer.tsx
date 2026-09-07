@@ -1,3 +1,5 @@
+import type { PendingQuestion, QuestionAddress } from "../../domain/agent-question";
+import { QuestionPrompt } from "./QuestionPrompt";
 import type { QueuedMessage, ReviewPicker as ReviewPickerState } from "../../application/workspace-state";
 import type { Annotation, AttachedFile, PastedText, RecalledMessage, RunAttachment, StagedImage } from "../../domain/conversation";
 import { AnnotationRow } from "./AnnotationRow";
@@ -62,6 +64,9 @@ export type ConversationComposerProps = {
   effort: AgentEffort;
   contextUsage?: ContextUsage;
   runActive: boolean;
+  question?: PendingQuestion;
+  onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
+  onAnswerQuestion?: (question: QuestionAddress) => void;
   goal?: ActiveGoal | null;
   queuedMessages: QueuedMessage[];
   /** Annotations waiting to ride the next send, drafted from selections in the transcript. */
@@ -92,6 +97,8 @@ export type ConversationComposerProps = {
   onImageRecall?: (paths: string[]) => void;
   onFileRemove?: (fileId: string) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
+  favoriteModels?: AgentModel[];
+  onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   /** Asked when the model menu opens on another engine. A surface that cannot ask leaves every engine ready. */
@@ -125,6 +132,9 @@ export function ConversationComposer({
   effort,
   contextUsage,
   runActive,
+  question,
+  onQuestionAnswerChange = NOTHING,
+  onAnswerQuestion = NOTHING,
   goal = null,
   queuedMessages,
   annotations = [],
@@ -148,6 +158,8 @@ export function ConversationComposer({
   onFileRemove,
   onImageRemove,
   onModeChange,
+  favoriteModels,
+  onModelFavorite,
   onModelChange,
   onEffortChange,
   onEngineRead = NOTHING,
@@ -160,7 +172,7 @@ export function ConversationComposer({
   onGoalClear = NOTHING,
 }: ConversationComposerProps) {
   const caret = useComposerCaret(focusToken);
-  const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, onPromptChange });
+  const menus = useComposerMenus({ prompt, caret, actions, threads, workspaceId, engine, enabled: true, onPromptChange });
   const stepRecall = useComposerRecall({
     prompt, annotations, pastes, files, images, history, queuedMessages, caret,
     onPromptChange, onAnnotationRecall, onPasteRecall, onFileRecall, onImageRecall,
@@ -178,6 +190,7 @@ export function ConversationComposer({
   return (
     <footer className={`composer-wrap ${surface}`}>
       {surface === "main" && goal && <GoalBar goal={goal} onClear={onGoalClear} />}
+      {question && <QuestionPrompt question={question} answer={question.answer ?? ""} disabled={disabled || waiting} onAnswerChange={(text) => onQuestionAnswerChange(question, text)} onSubmit={() => onAnswerQuestion(question)} />}
       <QueuedRow messages={queuedMessages} surface={surface} onSteer={onSteerQueued} onDrop={onDropQueued} />
       <div className="composer">
         {reviewPicker && (
@@ -216,7 +229,7 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

@@ -19,6 +19,7 @@ import {
   untrackedPaths,
   updateRef,
 } from "./git.mjs";
+import { readWorktreeStatus } from "./worktree-status.mjs";
 import type { WorkspaceService } from "./workspace-service.mjs";
 import { snapshotMessage, worktreeDirectoryName, worktreeIdFromDirectoryName, worktreeRef, type ManagedWorktree, type Worktree, type WorktreeRelease } from "../../domain/worktree.js";
 
@@ -49,6 +50,8 @@ export type ReleaseWorktreeRequest = {
   taskId: string | null;
   title: string;
   release: WorktreeRelease;
+  /** Only forget a missing folder; an existing folder must remain untouched. */
+  missingOnly?: boolean;
 };
 
 /** What a released worktree left behind, so the thread can say where its work went. */
@@ -96,21 +99,30 @@ export class WorktreeService {
   /** Reads every directory the app owns without changing it, including roots used by older builds. */
   async list(): Promise<ManagedWorktree[]> {
     const roots = (await Promise.all(this.ownedRoots.map(async (base) =>
-      (await readdir(base, { withFileTypes: true }).catch(() => []))
+      (await readdir(base, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return [];
+        throw error;
+      }))
         .filter((entry) => entry.isDirectory())
         .map((entry) => path.join(base, entry.name)),
     ))).flat();
-    const worktrees = await Promise.all(roots.map(async (root): Promise<ManagedWorktree> => {
-      const canonical = await canonicalPath(root);
-      const repository = await parentRepository(canonical);
-      return {
-        id: worktreeIdFromDirectoryName(path.basename(canonical)),
-        root: canonical,
-        repository,
-        branch: repository ? await currentBranch(canonical) : null,
-      };
-    }));
-    return worktrees.sort((left, right) => left.root.localeCompare(right.root));
+    const worktrees: ManagedWorktree[] = [];
+    let cursor = 0;
+    const read = async () => {
+      while (cursor < roots.length) {
+        const root = roots[cursor++];
+        const canonical = await canonicalPath(root);
+        const repository = await parentRepository(canonical);
+        const [branch, status] = await Promise.all([
+          repository ? currentBranch(canonical) : null,
+          repository ? readWorktreeStatus(canonical) : { changedFiles: null, comparison: null },
+        ]);
+        worktrees.push({ id: worktreeIdFromDirectoryName(path.basename(canonical)), root: canonical, repository, branch, status });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, roots.length) }, read));
+    return [...new Map(worktrees.map((worktree) => [worktree.root, worktree])).values()]
+      .sort((left, right) => left.root.localeCompare(right.root));
   }
 
   /** Resolves a caller-supplied path only after proving it sits under a root the app owns. */
@@ -128,6 +140,15 @@ export class WorktreeService {
    */
   async release(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshot> {
     await this.assertOwned(request.root);
+    if (request.missingOnly) {
+      const exists = await lstat(request.root).then(() => true, (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return false;
+        throw error;
+      });
+      if (exists) throw new Error("This folder exists again. Refresh the worktree list before deleting it.");
+      await this.workspaces.forgetWorktree(await canonicalPath(request.root));
+      return { commit: null, shortCommit: null, ref: null };
+    }
     const snapshot = await this.snapshot(request);
     await this.delete(request.root);
     return snapshot;

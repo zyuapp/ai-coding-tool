@@ -39,6 +39,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
   const base: ProviderRunInput = {
     channel: "main",
     taskId: "task-1",
+    title: "Inspect the app",
     prompt: "inspect the app",
     workspaceRoot: "/tmp/project",
     projectless: false,
@@ -50,6 +51,7 @@ export function input(overrides: Partial<ProviderRunInput> = {}): ProviderRunInp
     steering: { next: () => new Promise<null>(() => {}) },
     abortController: new AbortController(),
     authorize: async () => "allow",
+    askQuestion: async () => null,
     emit() {},
     reportWorkflow() {},
     reportBackground() {},

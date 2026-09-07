@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { acceptRunEvent, AUTOMATION_SETTLE_TIMEOUT, failedEventsForTransportLoss, settledWithin, supersedePendingStarts } from "../../src/main/run-routing.ts";
 
 test("new start supersedes every older pending start and keeps the new one", () => {
@@ -45,12 +45,14 @@ test("transport loss creates correlated failures only for non-terminal runs", ()
   }]);
 });
 
-test("a scheduled run that never reports back is called failed instead of holding the schedule", async () => {
+test("a scheduled run that never reports back is called failed instead of holding the schedule", async (t) => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  t.onTestFinished(() => { vi.useRealTimers(); });
   assert.equal(await settledWithin(Promise.resolve("succeeded"), 10_000), "succeeded");
   assert.equal(await settledWithin(Promise.resolve("cancelled"), 10_000), "cancelled");
   assert.ok(AUTOMATION_SETTLE_TIMEOUT >= 60 * 60_000, "the bound is far longer than an honest run");
 
   const bounded = settledWithin(new Promise(() => {}), 5);
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await vi.advanceTimersByTimeAsync(5);
   assert.equal(await bounded, "failed");
 });

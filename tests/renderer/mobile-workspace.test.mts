@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
+import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { answerMobileRequest, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/renderer/task-workspace/mobile-bridge.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
@@ -51,6 +52,11 @@ function host(initial: WorkspaceState) {
       inputs.push(input);
       state = reduce(state, input).state;
     },
+    execute: (input) => executeWorkspaceInput(input, {
+      state: () => state,
+      commit: (next) => { inputs.push(input); state = next; },
+      perform: async () => {},
+    }),
   };
   return { bridge, inputs, current: () => state };
 }
@@ -68,9 +74,12 @@ test("a phone is answered as soon as the reducer has decided, not when the run e
     dispatch: (input) => {
       inputs.push(input);
       state = reduce(state, input).state;
-      /** The run a `task.send` starts outlives the request by far; the ack may not wait for it. */
-      return new Promise<void>((resolve) => { finishRun = resolve; });
     },
+    execute: (input) => executeWorkspaceInput(input, {
+      state: () => state,
+      commit: (next) => { inputs.push(input); state = next; },
+      perform: () => new Promise<void>((resolve) => { finishRun = resolve; }),
+    }),
   };
 
   const answered = answerMobileRequest(bridge, request({
@@ -185,6 +194,12 @@ test("a command the reducer refuses answers with what the window said about it",
   }));
   assert.equal(response.ok, false);
   assert.match((response as { message: string }).message, /nowhere/);
+  const repeated = await answerMobileRequest(driver.bridge, request({
+    type: "mobile.request", requestId: "req-5", sessionId: "session-1", op: "command",
+    command: { type: "task.send", text: "go", project: "nowhere" },
+  }));
+  assert.equal(repeated.ok, false);
+  assert.match((repeated as { message: string }).message, /nowhere/);
 });
 
 test("nothing is published while no phone holds a session, and the first change after one does is whole", () => {

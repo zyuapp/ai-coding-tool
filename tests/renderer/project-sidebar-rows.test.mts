@@ -1,16 +1,15 @@
+import { renderProjectSidebar, seedProjectTasks } from "../support/sidebar.mts";
+import { mountWorkspace } from "../support/workspace-renderer.mts";
+import { automationView, fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
-import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
-import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
-import type { Thread } from "../../src/domain/thread.ts";
-import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
-import type { ProjectSidebarProps } from "../../src/renderer/components/ProjectSidebar.tsx";
-import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
+import type { RunCommand } from "../../src/contracts/ipc.ts";
 
-import { dom, item, mount, query } from "../support/renderer-dom.mts";
-import { settleFrame } from "../support/settle.mts";
+import type { Thread } from "../../src/domain/thread.ts";
+
+import { dom, item, mount, query, rowHeights } from "../support/renderer-dom.mts";
+import { settleFrame, settleUntil } from "../support/settle.mts";
 
 const { useTaskWorkspace } = await import("../../src/renderer/task-workspace/useTaskWorkspace.ts");
 const { App } = await import("../../src/renderer/App.tsx");
@@ -20,280 +19,6 @@ function startCommand(command: RunCommand | undefined): Extract<RunCommand, { ty
   assert.equal(command?.type, "start");
   return command;
 }
-
-type TaskWorkspace = ReturnType<typeof useTaskWorkspace>;
-
-async function mountWorkspace(desktop: DesktopAPI) {
-  localStorage.clear();
-  window.desktop = desktop;
-  let latest: TaskWorkspace | undefined;
-  function Harness() {
-    latest = useTaskWorkspace();
-    return null;
-  }
-  const view = await mount(React.createElement(Harness));
-  return { view, get: () => item(latest) };
-}
-
-function renderProjectSidebar(overrides: Partial<ProjectSidebarProps>) {
-  return React.createElement(ProjectSidebar, {
-    open: true,
-    inactive: false,
-    projects: [],
-    orderedThreads: [],
-    recentThreads: [],
-    currentId: null,
-    draftProjectId: null,
-    expandedProjects: new Set<string>(),
-    runningThreadIds: new Set<string>(),
-    blockedThreadIds: new Set<string>(),
-    sideChatAttention: new Set<string>(),
-    schedules: new Map<string, AutomationView>(),
-    worktreeGroups: [],
-    worktreeThreadIds: new Set<string>(),
-    activityThreads: { priority: [], running: [], threads: [] },
-    mode: "projects",
-    sections: { projects: true, recents: true, priority: true, running: true, threads: true },
-    openMenu: null,
-    settingsOpen: false,
-    canGoBack: false,
-    canGoForward: false,
-    onGoBack() {},
-    onGoForward() {},
-    onNewThread() {},
-    onOpenFolder() {},
-    onToggleProject() {},
-    onRenameProject() {},
-    onEditProject() {},
-    onRemoveProject() {},
-    onSetMode() {},
-    onSetSectionOpen() {},
-    onSetOpenMenu() {},
-    onSelectThread() {},
-    onArchiveThread() {},
-    onDismissThread() {},
-    onDismissAll() {},
-    onRenameThread() {},
-    onMoveThread() {}, onForkThread() {},
-    onMoveProject() {},
-    onOpenSettings() {},
-    ...overrides,
-  });
-}
-
-const automationView = (overrides: Partial<AutomationView> = {}): AutomationView => ({
-  id: "automation-1",
-  taskId: "task-1",
-  prompt: "Check whether the PR is approved",
-  schedule: "*/5 * * * *",
-  paused: false,
-  createdAt: 1,
-  updatedAt: 1,
-  runCount: 2,
-  lastRunAt: Date.parse("2026-08-17T09:30:00Z"),
-  lastStatus: "succeeded",
-  nextRunAt: Date.now() + 120_000,
-  ...overrides,
-});
-
-
-type FakeDesktop = DesktopAPI & {
-  sent: RunCommand[];
-  persisted: TaskStoreDelta[];
-  acknowledged: Array<Parameters<DesktopAPI["acknowledgeAutomation"]>[0]>;
-  automationChanges: Array<{ taskId: string; patch?: AutomationPatch; deleted?: true }>;
-  listener: Parameters<DesktopAPI["onAgentEvent"]>[0];
-  automationsChanged: Parameters<DesktopAPI["onAutomationsChanged"]>[0];
-  fireAutomation: Parameters<DesktopAPI["onAutomationFire"]>[0];
-  grabWindow: Parameters<DesktopAPI["onWindowScreenshot"]>[0];
-  refuseShortcut: Parameters<DesktopAPI["onDesktopShortcutRefused"]>[0];
-  threadAnswers: ThreadResponse[];
-  askThreads: (request: ThreadRequest) => void;
-  openProjectFromCli: (workspace: WorkspaceRecord) => void;
-  unsubscribed: boolean;
-  browserCalls: unknown[][];
-  browserEvent: Parameters<DesktopAPI["onBrowserEvent"]>[0];
-  terminalCalls: unknown[][];
-  terminalEvent: Parameters<DesktopAPI["onTerminalEvent"]>[0];
-  shortcuts: Array<Parameters<DesktopAPI["setShortcuts"]>[0]>;
-  themes: Array<Parameters<DesktopAPI["setTheme"]>[0]>;
-  captures: boolean[];
-  captureOptions: Array<Parameters<DesktopAPI["setCaptureOptions"]>[0]>;
-  appCalls: unknown[][];
-  pressShortcut: (action: string, surface?: Parameters<Parameters<DesktopAPI["onShortcut"]>[0]>[0]["surface"]) => void;
-  captureShortcut: (binding: string | null) => void;
-};
-
-function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
-  const sent: RunCommand[] = [];
-  const persisted: TaskStoreDelta[] = [];
-  const acknowledged: Array<Parameters<DesktopAPI["acknowledgeAutomation"]>[0]> = [];
-  const automationChanges: Array<{ taskId: string; patch?: AutomationPatch; deleted?: true }> = [];
-  const browserCalls: unknown[][] = [];
-  const terminalCalls: unknown[][] = [];
-  const shortcuts: Array<Parameters<DesktopAPI["setShortcuts"]>[0]> = [];
-  const themes: Array<Parameters<DesktopAPI["setTheme"]>[0]> = [];
-  const captures: boolean[] = [];
-  const captureOptions: Array<Parameters<DesktopAPI["setCaptureOptions"]>[0]> = [];
-  const appCalls: unknown[][] = [];
-  let browserEvent: Parameters<DesktopAPI["onBrowserEvent"]>[0] | undefined;
-  let terminalEvent: Parameters<DesktopAPI["onTerminalEvent"]>[0] | undefined;
-  let shortcutPressed: Parameters<DesktopAPI["onShortcut"]>[0] | undefined;
-  let shortcutCaptured: Parameters<DesktopAPI["onShortcutCaptured"]>[0] | undefined;
-  let windowGrabbed: Parameters<DesktopAPI["onWindowScreenshot"]>[0] | undefined;
-  let shortcutRefused: Parameters<DesktopAPI["onDesktopShortcutRefused"]>[0] | undefined;
-  let listener: Parameters<DesktopAPI["onAgentEvent"]>[0] | undefined;
-  let automationsChanged: Parameters<DesktopAPI["onAutomationsChanged"]>[0] | undefined;
-  let fireAutomation: Parameters<DesktopAPI["onAutomationFire"]>[0] | undefined;
-  let threadRequested: Parameters<DesktopAPI["onThreadRequest"]>[0] | undefined;
-  let openProject: Parameters<DesktopAPI["onOpenProject"]>[0] | undefined;
-  let openThread: Parameters<DesktopAPI["onOpenThread"]>[0] | undefined;
-  const threadAnswers: ThreadResponse[] = [];
-  let unsubscribed = false;
-  const api: DesktopAPI = {
-    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
-    registerProject: async (root) => ({ id: root, kind: "project", root }),
-    onOpenProject: (next) => { openProject = next; return () => {}; },
-    onOpenThread: (next) => { openThread = next; return () => {}; },
-    cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
-    installCli: async () => ({ state: "installed", path: "/usr/local/bin/aic" }),
-    uninstallCli: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
-    projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
-    commands: async () => ({ status: "available", commands: [] }),
-    computerUsePermissions: async () => ({ accessibility: true, screenRecording: true }),
-    planUsage: async () => ({ status: "not-applicable" }),
-    enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
-    restartForComputerUse() {},
-    changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
-    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
-    pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
-    diffPatch: async () => ({ status: "available", patch: "" }),
-    checkoutBranch: async () => {},
-    createBranch: async () => {},
-    createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
-    listManagedWorktrees: async () => [], revealWorktree: async () => {}, releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
-    saveAttachment: async () => "/tmp/aicodingtool-attachments/pasted.png",
-    readAttachment: async () => "iVBORw0KGgo=",
-    pathForFile: () => "", describeFiles: async () => [],
-    suggestTaskTitle: async () => null,
-    checkForUpdates: () => {},
-    loadTaskStore: async () => null,
-    loadSubagentActivity: async () => [],
-    persistTaskStore: async (delta) => { persisted.push(delta); },
-    send: (command) => sent.push(command),
-    onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },
-    listAutomations: async () => [],
-    saveAutomation: async (draft) => ({ ...draft, id: "automation-1", paused: false, createdAt: 1, updatedAt: 1, runCount: 0, nextRunAt: 2 }),
-    updateAutomation: async (taskId, patch) => { automationChanges.push({ taskId, patch }); return automationView({ taskId, ...patch, updatedAt: 2 }); },
-    deleteAutomation: async (taskId) => { automationChanges.push({ taskId, deleted: true }); return true; },
-    runAutomationNow: async () => "succeeded",
-    onAutomationsChanged: (next) => { automationsChanged = next; return () => {}; },
-    onAutomationFire: (next) => { fireAutomation = next; return () => {}; },
-    acknowledgeAutomation: (ack) => acknowledged.push(ack),
-    onThreadRequest: (next) => { threadRequested = next; return () => {}; },
-    answerThreadRequest: (response) => threadAnswers.push(response),
-    openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
-    navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
-    browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },
-    reloadBrowser: async (tabId) => { browserCalls.push(["reload", tabId]); },
-    closeBrowserTab: async (tabId) => { browserCalls.push(["close", tabId]); },
-    showBrowserTab: async (tabId) => { browserCalls.push(["show", tabId]); },
-    setBrowserBounds: async (bounds) => { browserCalls.push(["bounds", bounds]); },
-    actInBrowser: async (tabId, action) => { browserCalls.push(["act", tabId, action]); return "Clicked"; },
-    readBrowserPage: async (tabId, textLimit, timeoutMs) => {
-      browserCalls.push(["read", tabId, textLimit, timeoutMs]);
-      return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
-    },
-    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
-    clearBrowserData: async () => { browserCalls.push(["clear"]); },
-    findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
-    stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
-    focusBrowserTab: async (tabId) => { browserCalls.push(["focus", tabId]); },
-    onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
-    onBrowserFind: () => () => {},
-    openFile: async (root, path, line) => { browserCalls.push(["open-file", root, path, line]); },
-    listApps: async () => [
-      { id: "cursor", label: "Cursor", kind: "editor", icon: "data:image/png;base64,AAA" },
-      { id: "terminal", label: "Terminal", kind: "terminal", icon: null },
-      { id: "finder", label: "Finder", kind: "files", icon: null },
-    ],
-    openFolderInApp: async (appId, root) => { appCalls.push([appId, root]); },
-    startTerminal: async (terminalId, options) => { terminalCalls.push(["start", terminalId, options]); },
-    writeTerminal: async (terminalId, data) => { terminalCalls.push(["write", terminalId, data]); },
-    resizeTerminal: async (terminalId, cols, rows) => { terminalCalls.push(["resize", terminalId, cols, rows]); },
-    closeTerminal: async (terminalId) => { terminalCalls.push(["close", terminalId]); },
-    readTerminal: async (terminalId, options) => {
-      terminalCalls.push(["read", terminalId, options]);
-      return { lines: ["ready in 412 ms"], omitted: 0 };
-    },
-    onTerminalData: () => () => {},
-    onTerminalEvent: (next) => { terminalEvent = next; return () => {}; },
-    setShortcuts: (next) => { shortcuts.push(next); },
-    setCaptureOptions: (options) => { captureOptions.push(options); },
-    setTheme: (theme) => { themes.push(theme); },
-    setShortcutCapture: (capturing) => { captures.push(capturing); },
-    onShortcut: (next) => { shortcutPressed = next; return () => {}; },
-    onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
-    onWindowScreenshot: (next) => { windowGrabbed = next; return () => {}; },
-    onDesktopShortcutRefused: (next) => { shortcutRefused = next; return () => {}; },
-    closeWindow: () => { browserCalls.push(["close-window"]); }, focusWindow: () => { browserCalls.push(["focus-window"]); },
-    announceThread: () => {},
-    setBadgeCount: () => {},
-    ...overrides,
-  };
-  const desktop = api as FakeDesktop;
-  Object.assign(desktop, {
-    sent,
-    persisted,
-    acknowledged,
-    automationChanges,
-    threadAnswers,
-    browserCalls,
-    terminalCalls,
-    shortcuts,
-    themes,
-    captures,
-    captureOptions,
-    appCalls,
-    askThreads(request: ThreadRequest) { assert.ok(threadRequested); return threadRequested(request); },
-    openProjectFromCli(workspace: WorkspaceRecord) { assert.ok(openProject); return openProject(workspace); },
-    pressShortcut(action: string, surface: Parameters<Parameters<DesktopAPI["onShortcut"]>[0]>[0]["surface"] = "any") { assert.ok(shortcutPressed); shortcutPressed({ action, surface }); },
-    captureShortcut(binding: string | null) { assert.ok(shortcutCaptured); shortcutCaptured(binding); },
-  });
-  Object.defineProperties(desktop, {
-    listener: { get() { assert.ok(listener); return listener; } },
-    automationsChanged: { get() { assert.ok(automationsChanged); return automationsChanged; } },
-    fireAutomation: { get() { assert.ok(fireAutomation); return fireAutomation; } },
-    grabWindow: { get() { assert.ok(windowGrabbed); return windowGrabbed; } },
-    refuseShortcut: { get() { assert.ok(shortcutRefused); return shortcutRefused; } },
-    browserEvent: { get() { assert.ok(browserEvent); return browserEvent; } },
-    terminalEvent: { get() { assert.ok(terminalEvent); return terminalEvent; } },
-    unsubscribed: { get() { return unsubscribed; } },
-  });
-  void openThread;
-  return desktop;
-}
-
-type SeedProjectThread = Pick<Thread, "id" | "title" | "updatedAt"> & Partial<Thread>;
-
-function seedProjectTasks(tasks: SeedProjectThread[]) {
-  localStorage.clear();
-  localStorage.setItem("aicodingtool.store.v2", JSON.stringify({
-    tasks: JSON.stringify({ version: 2, value: tasks.map((task) => ({
-      engine: "claude",
-      executionPolicy: "confirm",
-      messages: [],
-      continuationStatus: "none",
-      lastChangeSnapshot: { files: [], capturedAt: 1 },
-      projectId: "project-1",
-      ...task,
-    })) }),
-    projects: JSON.stringify({ version: 2, value: [{ id: "project-1", root: "/project" }] }),
-    lastFolder: JSON.stringify({ version: 2, value: "/project" }),
-  }));
-}
-
 
 test("activity mode ranks threads into priority, running, and the rest, and only priority dismisses", async () => {
   const thread = (id: string, overrides: Partial<Thread> = {}): Thread => ({
@@ -419,7 +144,6 @@ test("only the priority heading offers to dismiss every dot at once", async () =
   await view.unmount();
 });
 
-
 test("sidebar rows hold their position no matter how recently a task ran", async () => {
   seedProjectTasks([
     { id: "top", title: "Pinned to the top", sortIndex: 0, updatedAt: 10 },
@@ -432,6 +156,74 @@ test("sidebar rows hold their position no matter how recently a task ran", async
   const titles = () => [...view.container.querySelectorAll(".project-task-row > span:first-child")].map((row) => row.textContent);
   assert.deepEqual(titles(), ["Pinned to the top", "Busiest task", "Quietest task"]);
   await view.unmount();
+});
+
+test("typing and streaming leave sidebar rows alone while sidebar changes still render", async (t) => {
+  const quietAt = 123_456;
+  seedProjectTasks([
+    { id: "streaming", title: "Streaming task", sortIndex: 0, updatedAt: 2, createdAt: 2 },
+    { id: "quiet", title: "Quiet task", sortIndex: 1, updatedAt: quietAt, createdAt: quietAt },
+  ]);
+  const heights = rowHeights((element) => element.classList.contains("conversation") ? 900 : 0);
+  t.onTestFinished(() => heights.restore());
+  const desktop = fakeDesktop({ openFolder: async () => ({ id: "project-1", kind: "project", root: "/project" }) });
+  window.desktop = desktop;
+  const view = await mount(React.createElement(App));
+  /** Count a quiet row's displayed date, so unchanged DOM cannot hide repeated rendering work. */
+  let quietFormats = 0;
+  const originalFormat = item(Object.getOwnPropertyDescriptor(Intl.DateTimeFormat.prototype, "format"));
+  Object.defineProperty(Intl.DateTimeFormat.prototype, "format", {
+    ...originalFormat,
+    get(this: Intl.DateTimeFormat) {
+      const format = item(originalFormat.get).call(this) as Intl.DateTimeFormat["format"];
+      return (value?: number | Date) => { if (value === quietAt) quietFormats += 1; return format(value); };
+    },
+  });
+  try {
+    const row = (title: string) => query<HTMLElement>(view.container, `.task-row[title="${title}"]`);
+    await act(async () => { query<HTMLButtonElement>(view.container, '[aria-label="Rank threads by activity"]').click(); });
+    await act(async () => { row("Streaming task").click(); });
+    await settleFrame();
+    assert.ok(quietFormats > 0, "the quiet row was rendered before the measurement");
+
+    const beforeTyping = quietFormats;
+    const textarea = query<HTMLTextAreaElement>(view.container, 'textarea[aria-label="Task prompt"]');
+    const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, "value")).set;
+    await act(async () => {
+      textarea.focus();
+      item(setValue).call(textarea, "Inspect the app");
+      textarea.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true, inputType: "insertText" }));
+      textarea.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const send = query<HTMLButtonElement>(view.container, '[aria-label="Send task"]');
+    assert.equal(send.disabled, false, "typing reached the workspace");
+    assert.equal(quietFormats, beforeTyping, "typing does not revisit the sidebar rows");
+
+    await act(async () => { send.click(); });
+    await settleUntil(() => desktop.sent.some((command) => command.type === "start"), "the run did not start");
+    const start = startCommand(desktop.sent.find((command) => command.type === "start"));
+    assert.equal(start.taskId, "streaming");
+    assert.ok(query(view.container, 'nav[aria-label="Running"] .task-spinner'), "starting a run updates its sidebar status");
+    await settleFrame();
+    const beforeStreaming = quietFormats;
+    for (const [index, text] of ["An answer", "An answer is", "An answer is streaming"].entries()) {
+      await act(async () => { desktop.listener({ type: "assistant.tail", taskId: start.taskId, runId: start.runId, sequence: index + 1, messageId: "answer", text }); });
+      await settleFrame();
+      assert.equal(quietFormats, beforeStreaming, "streaming does not revisit the sidebar rows");
+    }
+    assert.match(query(view.container, ".timeline").textContent, /An answer is streaming/, "the streamed text still updates");
+
+    await act(async () => { desktop.listener({ type: "run.status", taskId: start.taskId, runId: start.runId, sequence: 4, status: "succeeded" }); });
+    await settleFrame();
+    assert.equal(view.container.querySelector(".task-spinner"), null, "finishing removes the running mark");
+    assert.ok(query(view.container, 'nav[aria-label="Priority"] .task-row[title="Streaming task"]'));
+    assert.ok(quietFormats > beforeStreaming, "a changed sidebar is rendered again");
+    await act(async () => { row("Quiet task").click(); });
+    assert.ok(row("Quiet task").classList.contains("active"), "selection updates after streaming");
+  } finally {
+    Object.defineProperty(Intl.DateTimeFormat.prototype, "format", originalFormat);
+    await view.unmount();
+  }
 });
 
 test("the sidebar switches to activity mode, and dismissing there takes the dot off for good", async () => {

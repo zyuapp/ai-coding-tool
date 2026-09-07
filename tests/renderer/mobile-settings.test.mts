@@ -138,6 +138,23 @@ test("a machine without Tailscale is told to install it, and nothing to scan is 
   assert.equal(calls.refreshes, 1);
 });
 
+test("a Tailscale command failure is not described as signed out", () => {
+  draw(served({
+    addresses: [LOOPBACK],
+    primary: LOOPBACK,
+    tailscale: {
+      status: "unavailable",
+      magicDnsName: TAILNET.host,
+      serving: false,
+      certs: false,
+      error: "The Tailscale CLI failed to start: Failed to load preferences.",
+    },
+  }));
+  assert.equal(document.querySelector("[data-step='installed']")?.classList.contains("waiting"), false);
+  assert.doesNotMatch(document.querySelector("[data-step='signed-in']")?.textContent ?? "", /Open Tailscale and sign in/);
+  assert.match(document.querySelector("[role='alert']")?.textContent ?? "", /Failed to load preferences/);
+});
+
 test("a tailnet that issues no certificate says where to turn it on", () => {
   draw(served({
     addresses: [LOOPBACK],

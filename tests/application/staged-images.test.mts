@@ -1,26 +1,9 @@
+import { task, run } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import { MAX_ATTACHMENTS } from "../../src/domain/conversation.ts";
-import type { Thread } from "../../src/domain/thread.ts";
-
-function task(id: string): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-  };
-}
-
-function run(state: WorkspaceState, inputs: WorkspaceInput[]): WorkspaceState {
-  return inputs.reduce((current, input) => reduce(current, input).state, state);
-}
 
 function workspaceWithTasks(): WorkspaceState {
   return { ...emptyWorkspaceState(), threads: [task("task-1"), task("task-2")], currentId: "task-1" };

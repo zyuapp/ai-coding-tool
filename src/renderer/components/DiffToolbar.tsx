@@ -91,8 +91,8 @@ export type DiffToolbarProps = {
 
 /** What is being compared, in how many columns, and the way to read it again. */
 export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespace, workspaceId, openMenu, onSetOpenMenu, onSetRange, onToggleSplit, onToggleWhitespace, onRefresh }: DiffToolbarProps) {
-  const base = range.kind === "uncommitted" ? HEAD_SIDE.value : range.base;
-  const compare = range.kind === "uncommitted" ? WORKING_SIDE.value : range.compare ?? WORKING_SIDE.value;
+  const base = range.kind === "commit" ? `${range.commit}^` : range.kind === "uncommitted" ? HEAD_SIDE.value : range.base;
+  const compare = range.kind === "commit" ? range.commit : range.kind === "uncommitted" ? WORKING_SIDE.value : range.compare ?? WORKING_SIDE.value;
   const rangeFrom = (nextBase: string, nextCompare: string): DiffRange =>
     nextBase === HEAD_SIDE.value && nextCompare === WORKING_SIDE.value
       ? UNCOMMITTED
@@ -101,6 +101,7 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
   return (
     <header className="diff-toolbar">
       <div className="diff-compare">
+        {range.kind === "commit" ? <div className="diff-commit-heading"><span>Commit</span><code title={range.commit}>{range.commit.slice(0, 12)}</code><button type="button" onClick={() => onSetRange(UNCOMMITTED)}>Working tree</button></div> : <>
         <SidePicker
           id={BASE_MENU}
           label="Base"
@@ -124,6 +125,7 @@ export function DiffToolbar({ range, loading, split, roomForTwo, ignoreWhitespac
           onSetOpenMenu={onSetOpenMenu}
           onPick={(picked) => onSetRange(rangeFrom(base, picked))}
         />
+        </>}
       </div>
       <div className="diff-toolbar-actions">
         <button

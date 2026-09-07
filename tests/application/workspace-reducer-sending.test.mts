@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
-import { task, workspace, activeRun, automation, effectAt, required, run, running, queueMessage, send } from "./workspace-reducer-fixtures.mts";
+import { task, workspace, activeRun, effectAt, required, run, running, queueMessage } from "./workspace-reducer-fixtures.mts";
 
 test("a composer send waits for its workspace, then starts the run and clears the draft", () => {
   const drafted = run(workspace(), [{ type: "view.set-prompt", prompt: "Inspect the app" }]);
@@ -16,6 +16,7 @@ test("a composer send waits for its workspace, then starts the run and clears th
   const [effect] = started.effects;
   assert.equal(effect.type, "start-run");
   assert.equal(effect.command.prompt, "Inspect the app");
+  assert.equal(effect.command.title, "Inspect the app");
   assert.equal(effect.command.workspaceId, "projectless");
   assert.equal(started.state.threads[0].messages[0].text, "Inspect the app");
   assert.equal(started.state.activeRuns[effect.command.taskId].runId, effect.command.runId);
@@ -189,15 +190,20 @@ test("a new thread asks for a name, and the name the user types outlasts the sug
   assert.deepEqual(started.effects.filter((effect) => effect.type === "suggest-title"), [{ type: "suggest-title", taskId, engine: "claude", text: "Inspect the app", attachments: [] }]);
   assert.equal(started.state.threads[0].title, "Inspect the app", "the typed message titles the thread until a suggestion lands");
 
-  const named = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" }).state;
+  const suggested = reduce(started.state, { type: "title.suggested", taskId, title: "App breakage review" });
+  const named = suggested.state;
   assert.equal(named.threads[0].title, "App breakage review");
   assert.equal(named.threads[0].updatedAt, started.state.threads[0].updatedAt, "renaming is cosmetic and never reorders recents");
+  assert.deepEqual(suggested.effects, [{ type: "send-run-command", command: { type: "label", taskId, title: "App breakage review" } }], "the engine is offered the name it can keep");
 
-  const renamed = reduce(named, { type: "task.rename", taskId, title: "  Nightly audit  " }).state;
+  const renaming = reduce(named, { type: "task.rename", taskId, title: "  Nightly audit  " });
+  const renamed = renaming.state;
   assert.equal(renamed.threads[0].title, "Nightly audit");
+  assert.deepEqual(renaming.effects, [{ type: "send-run-command", command: { type: "label", taskId, title: "Nightly audit" } }]);
 
-  const late = reduce(renamed, { type: "title.suggested", taskId, title: "Something else" }).state;
-  assert.equal(late.threads[0].title, "Nightly audit");
+  const late = reduce(renamed, { type: "title.suggested", taskId, title: "Something else" });
+  assert.equal(late.state.threads[0].title, "Nightly audit");
+  assert.deepEqual(late.effects, [], "a suggestion the user has outranked reaches no engine");
   assert.equal(reduce(renamed, { type: "task.rename", taskId, title: "   " }).state, renamed, "an empty name leaves the thread alone");
 });
 
@@ -207,6 +213,7 @@ test("only a thread the send just created is named, from what the user typed and
   const sending = reduce(drafted, { type: "task.send", attachments: [] });
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
   assert.equal(started.effects.some((effect) => effect.type === "suggest-title"), false);
+  assert.equal(effectAt(started, "start-run").command.title, existing.title);
 
   const attached = reduce(workspace(), { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] });
   const fromImage = reduce(attached.state, { type: "run.resolved", pendingId: effectAt(attached, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
@@ -253,7 +260,7 @@ test("a send is refused with the command that fixes it when the engine is missin
   });
   assert.equal(
     required(reduce(old, { type: "task.send", attachments: [] }).state.actionError),
-    "Codex 0.147.0 is too old. This app needs 0.150.1. Run `brew update && brew upgrade --cask codex` to fix it.",
+    "Codex 0.147.0 is too old. Update to 0.150.1. Run `brew update && brew upgrade --cask codex` to fix it.",
   );
 });
 

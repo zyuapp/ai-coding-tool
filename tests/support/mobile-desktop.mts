@@ -4,8 +4,10 @@ import type { DesktopAPI } from "../../src/contracts/ipc.ts";
 import type { SettingsPanelProps } from "../../src/renderer/components/SettingsPanel.tsx";
 
 /** The phone bridge as a window that never runs one: off, with nothing paired and nothing connected. */
-export const mobileDesktopStub: MobileDesktopAPI & Pick<DesktopAPI, "platform"> = {
+export const mobileDesktopStub: MobileDesktopAPI & Pick<DesktopAPI, "platform" | "loadThreadMessages" | "terminalSnapshot"> = {
   platform: "macos",
+  loadThreadMessages: async () => [],
+  terminalSnapshot: async () => null,
   mobileState: async () => emptyMobileServerState(),
   setMobileEnabled: async () => emptyMobileServerState(),
   createMobilePairingCode: async () => ({

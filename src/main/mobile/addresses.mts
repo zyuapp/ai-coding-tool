@@ -1,7 +1,11 @@
-import { addressOrigin, type MobileAddress } from "../../domain/mobile.js";
+import { addressOrigin, MOBILE_APP_PATH, type MobileAddress } from "../../domain/mobile.js";
 
 /** The server binds only here: a phone reaches it through Tailscale Serve, never over the LAN. */
 export const BIND_HOST = "127.0.0.1";
+
+/** A private probe that proves Tailscale Serve reaches this app rather than another local service. */
+export const MOBILE_HEALTH_PATH = `${MOBILE_APP_PATH}/health`;
+export const MOBILE_HEALTH_RESPONSE = "aicodingtool-mobile-v1";
 
 export function loopbackAddress(port: number): MobileAddress {
   return { kind: "loopback", host: BIND_HOST, port };

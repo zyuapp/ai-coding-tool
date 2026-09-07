@@ -3,6 +3,7 @@ import { legacyProjectId, sameRoot } from "../domain/project.js";
 import type { WorkspaceRecord } from "../domain/workspace.js";
 import { moveProject as moveProjectInList, nameProject, nextProjectSortIndex } from "./project-order.js";
 import type { WorkspaceState } from "./workspace-state.js";
+import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
 
 /** What opening a folder answered with, which is the only thing that ever moves a project into one. */
 export type ProjectEvent =
@@ -20,7 +21,7 @@ export type ProjectInput =
   | Extract<ViewCommand, { type: "view.edit-project" } | { type: "view.toggle-project" }>
   | ProjectEvent;
 
-type ProjectTransition = { state: WorkspaceState; effects: RegisterProjectEffect[] };
+type ProjectTransition = { state: WorkspaceState; effects: RegisterProjectEffect[]; result?: WorkspaceCommandResult };
 
 function settled(state: WorkspaceState, effects: RegisterProjectEffect[] = []): ProjectTransition {
   return { state, effects };
@@ -76,9 +77,11 @@ export function reduceProjects(state: WorkspaceState, input: ProjectInput): Proj
       });
     }
 
-    case "project.register-failed":
-      if (state.projectEdit?.projectId !== input.projectId) return settled({ ...state, actionError: input.message });
-      return settled({ ...state, projectEdit: { ...state.projectEdit, saving: false, error: input.message } });
+    case "project.register-failed": {
+      const result: WorkspaceCommandResult = { ok: false, message: input.message };
+      if (state.projectEdit?.projectId !== input.projectId) return { state: { ...state, actionError: input.message }, effects: [], result };
+      return { state: { ...state, projectEdit: { ...state.projectEdit, saving: false, error: input.message } }, effects: [], result };
+    }
 
     case "project.move": {
       const projects = moveProjectInList(state.projects, input.projectId, input.index);

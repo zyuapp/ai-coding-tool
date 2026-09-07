@@ -1,24 +1,10 @@
+import { task } from "./workspace-reducer-fixtures.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { pruneDeletedThreads } from "../../src/application/thread-pruning.ts";
 import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import type { ActiveRun } from "../../src/application/thread-run-state.ts";
-import type { Thread } from "../../src/domain/thread.ts";
-
-function task(id: string, archived = false): Thread {
-  return {
-    id,
-    title: id,
-    engine: "claude",
-    executionPolicy: "confirm",
-    messages: [],
-    continuationStatus: "none",
-    lastChangeSnapshot: { files: [], capturedAt: 1 },
-    updatedAt: 1,
-    ...(archived ? { archivedAt: 5 } : {}),
-  };
-}
 
 function activeRun(taskId: string): ActiveRun {
   return {
@@ -41,7 +27,7 @@ test("permanently deleted threads leave no session data behind", () => {
   const payload = "held data";
   const state = {
     ...emptyWorkspaceState(),
-    threads: [task("kept"), task(gone, true)],
+    threads: [task("kept"), task(gone, { archivedAt: 5 })],
     currentId: "kept",
     history: [gone, "kept"],
     historyIndex: 1,

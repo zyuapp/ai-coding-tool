@@ -1,6 +1,7 @@
 import { spawn, type IPty } from "@lydell/node-pty";
 import { Terminal } from "@xterm/headless";
-import type { TerminalDataEvent, TerminalReadOptions, TerminalText } from "../contracts/ipc.js";
+import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalText } from "../contracts/ipc.js";
+import { serializeTerminal } from "./terminal-snapshot.js";
 import { terminalTitle, withinReadBudget, type TerminalUpdate } from "../domain/terminal.js";
 
 /**
@@ -27,6 +28,8 @@ type Session = {
   screen: Terminal;
   pending: string;
   timer: NodeJS.Timeout | null;
+  sequence: number;
+  snapshotReaders: Set<(snapshot: TerminalScreenSnapshot | null) => void>;
 };
 
 const sessions = new Map<string, Session>();
@@ -70,7 +73,7 @@ function flush(session: Session) {
     ? `\r\n… ${Math.round(dropped / 1024).toLocaleString()} KB of output dropped\r\n${pending.slice(dropped)}`
     : pending;
   session.screen.write(data);
-  publishData({ terminalId: session.id, data });
+  publishData({ terminalId: session.id, data, sequence: ++session.sequence });
 }
 
 function schedule(session: Session, chunk: string) {
@@ -84,7 +87,7 @@ function schedule(session: Session, chunk: string) {
 export function startTerminal(terminalId: string, cwd: string) {
   if (sessions.get(terminalId)) return;
   const screen = new Terminal({ cols: DEFAULT_COLS, rows: DEFAULT_ROWS, scrollback: SCROLLBACK_LINES, allowProposedApi: true });
-  const session: Session = { id: terminalId, cwd, pty: null, screen, pending: "", timer: null };
+  const session: Session = { id: terminalId, cwd, pty: null, screen, pending: "", timer: null, sequence: 0, snapshotReaders: new Set() };
   sessions.set(terminalId, session);
   screen.onTitleChange((title) => publishUpdate({ terminalId, title: title || terminalTitle(cwd) }));
   const { file, args } = shellCommand();
@@ -100,8 +103,9 @@ export function startTerminal(terminalId: string, cwd: string) {
     publishUpdate({ terminalId, status: "exited", error: error instanceof Error ? error.message : String(error) });
     return;
   }
-  session.pty.onData((chunk) => schedule(session, chunk));
+  session.pty.onData((chunk) => { if (sessions.get(terminalId) === session) schedule(session, chunk); });
   session.pty.onExit(({ exitCode }) => {
+    if (sessions.get(terminalId) !== session) return;
     flush(session);
     session.pty = null;
     publishUpdate({ terminalId, status: "exited", exitCode });
@@ -123,9 +127,26 @@ export function closeTerminal(terminalId: string) {
   const session = sessions.get(terminalId);
   if (!session) return;
   sessions.delete(terminalId);
+  for (const resolve of session.snapshotReaders) resolve(null);
+  session.snapshotReaders.clear();
   if (session.timer) clearTimeout(session.timer);
   session.pty?.kill();
   session.screen.dispose();
+}
+
+export function terminalSnapshot(terminalId: string): Promise<TerminalScreenSnapshot | null> {
+  const session = sessions.get(terminalId);
+  if (!session) return Promise.resolve(null);
+  flush(session);
+  const sequence = session.sequence;
+  return new Promise((resolve) => {
+    session.snapshotReaders.add(resolve);
+    session.screen.write("", () => {
+      session.snapshotReaders.delete(resolve);
+      if (sessions.get(terminalId) !== session) { resolve(null); return; }
+      resolve({ sequence, cols: session.screen.cols, rows: session.screen.rows, data: serializeTerminal(session.screen) });
+    });
+  });
 }
 
 /** Everything the terminal holds, oldest first, with the trailing blank lines a screen always has removed. */

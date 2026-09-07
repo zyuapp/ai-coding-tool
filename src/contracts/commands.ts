@@ -12,6 +12,7 @@ import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../domain/run.
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
 import type { ThreadDropTarget } from "../domain/project.js";
 import type { ReviewTarget } from "../domain/review.js";
+import type { WorktreeDestination } from "../domain/worktree.js";
 
 export type TaskDropTarget = ThreadDropTarget;
 
@@ -27,13 +28,14 @@ export type ReadingPoint = { anchor: string; depth: number } | null;
  * through the same door. Anything that reaches {@link AppCommand} from outside the window has to be
  * validated at that boundary first, the way `isRunCommand` guards the run channel.
  */
-export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
+export type AppCommand = TaskCommand | AnnotationCommand | PasteCommand | ImageCommand | ImageViewCommand | ProjectCommand | RunControlCommand | ReviewCommand | WorktreeCommand | SideChatCommand | AutomationCommand | BrowserCommand | DiffCommand | FileCommand | ExternalAppCommand | TerminalCommand | RemoteCommand | EngineCommand | ViewCommand;
 
 /** The diff panel. Which comparison it shows, which file is open, and which files are ticked off. */
 export type DiffCommand =
   /** Opens the panel, or closes it when it is already the tab in front. */
   | { type: "diff.toggle" }
   | { type: "diff.refresh" }
+  | { type: "diff.open-commit"; commit: string; taskId?: string }
   | { type: "diff.set-range"; range: DiffRange }
   /** Folds one file shut, or opens it again. Every file starts open. */
   | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
@@ -71,6 +73,8 @@ export type TaskCommand =
    * only made on the next send; switching back commits whatever the worktree still holds.
    */
   | { type: "task.set-worktree"; taskId?: string; worktree: boolean }
+  /** Moves the thread while leaving existing files and checkouts in place. */
+  | { type: "task.move-worktree"; taskId?: string; destination: WorktreeDestination }
   /** The branch a thread starts from. Only a thread that does not exist yet can be told. */
   | { type: "task.set-branch"; branch: string | null; create?: boolean }
   /**
@@ -124,6 +128,9 @@ export type ImageCommand =
   /** Images offered back with a sent message, named by where the app keeps them. */
   | { type: "image.recall"; taskId?: string; paths: string[] };
 
+/** Enlarges a picture without changing a composer's attachments. */
+export type ImageViewCommand = { type: "image.open"; source: string } | { type: "image.close" };
+
 export type ProjectCommand =
   | { type: "project.open" }
   /** `index` counts the folders in the sidebar with the moved one already taken out. */
@@ -138,14 +145,23 @@ export type ProjectCommand =
 
 /** Manual worktree management. Deletion snapshots loose work before removing the directory. */
 export type WorktreeCommand =
+  | { type: "worktree.menu-open"; list: "threads" | "destinations" }
+  | { type: "worktree.menu-search"; list: "threads" | "destinations"; query: string }
   | { type: "worktree.refresh" }
+  | { type: "worktree.filter-project"; project: string | null }
+  | { type: "worktree.confirm-delete"; root: string | null }
+  | { type: "worktree.set-missing-open"; open: boolean }
+  | { type: "worktree.set-threads-open"; root: string; open: boolean }
+  | { type: "worktree.open-thread"; taskId: string }
   | { type: "worktree.reveal"; root: string }
-  | { type: "worktree.delete"; taskId?: string; root?: string };
+  | { type: "worktree.delete"; taskId?: string; root?: string; missingOnly?: boolean };
 
 export type RunControlCommand =
   | { type: "run.cancel"; taskId?: string }
   /** Compacts an idle Codex thread without adding a user message to it. */
   | { type: "run.compact"; taskId?: string }
+  | { type: "question.set-answer"; taskId: string; runId: string; requestId: string; questionId: string; text: string }
+  | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string }
   | { type: "run.decide"; allow: boolean; taskId?: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };
@@ -264,6 +280,8 @@ export type EngineCommand =
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
+  /** A restored desktop view has installed the listeners needed by its input preferences. */
+  | { type: "view.mounted" }
   | { type: "view.set-prompt"; taskId?: string; prompt: string }
   /**
    * Where a thread was left reading: the message held at the top of its view and how far into it,
@@ -286,6 +304,7 @@ export type ViewCommand =
   | { type: "view.set-section-open"; section: SidebarSection; open: boolean }
   /** Folds the sidebar's subagent list, or one status heading in the Subagents panel. */
   | { type: "view.set-subagent-group"; group: SubagentGroup; open: boolean }
+  | { type: "view.set-model-favorite"; model: AgentModel; favorite: boolean }
   /** The theme the window paints in. An id the app does not ship is ignored. */
   | { type: "view.set-theme"; theme: string }
   /** The family to paint, on whichever ground the mode in effect asks for. */

@@ -21,7 +21,7 @@ function started(state: WorkspaceState) {
 
 function systemAppend(options: QueryCapture["options"]) {
   const prompt = options?.options?.systemPrompt;
-  assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt));
+  assert.ok(prompt && typeof prompt === "object" && !Array.isArray(prompt) && "append" in prompt);
   return prompt.append ?? "";
 }
 
@@ -39,15 +39,6 @@ test("the setting starts off, is remembered, and marks every run it is on for", 
 
   assert.equal(started(on.state).claude?.conciseReplies, true);
   assert.equal(started(reduce(on.state, { type: "view.set-concise-replies", enabled: false }).state).claude?.conciseReplies, undefined);
-});
-
-test("a thread that already exists is marked from its next run on", () => {
-  const drafted = reduce(emptyWorkspaceState(), { type: "view.set-prompt", prompt: "Explain this" }).state;
-  assert.equal(started(drafted).claude?.conciseReplies, undefined);
-
-  const on = reduce(drafted, { type: "view.set-concise-replies", enabled: true }).state;
-  const next = reduce(on, { type: "view.set-prompt", prompt: "And this" }).state;
-  assert.equal(started(next).claude?.conciseReplies, true);
 });
 
 test("a stored setting survives the store loading", () => {

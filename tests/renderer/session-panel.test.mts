@@ -1,15 +1,13 @@
+import { subagents } from "../support/subagents.mts";
+import { fakeDesktop } from "../support/desktop-api.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import React, { act } from "react";
-import type { DesktopAPI, RunCommand, TaskStoreDelta } from "../../src/contracts/ipc.ts";
-import type { ThreadRequest, ThreadResponse } from "../../src/contracts/threads.ts";
-import type { AutomationPatch, AutomationView } from "../../src/domain/automation.ts";
+
 import { OPEN_SUBAGENT_GROUPS, type BackgroundProcess, type Subagent, type SubagentActivity } from "../../src/domain/run.ts";
 import type { Thread } from "../../src/domain/thread.ts";
-import type { WorkspaceRecord } from "../../src/domain/workspace.ts";
+
 import type { SessionPanelProps } from "../../src/renderer/components/SessionPanel.tsx";
-import type { ConversationComposerProps } from "../../src/renderer/components/ConversationComposer.tsx";
-import { engineDesktopStub, mobileDesktopStub } from "../support/mobile-desktop.mts";
 
 import { dom, item, mount, pumpResizeObservers, query, rowHeights, sizeOf } from "../support/renderer-dom.mts";
 
@@ -18,13 +16,11 @@ const { SubagentInspector } = await import("../../src/renderer/components/Subage
 const { AgentsPanel, matchSubagents } = await import("../../src/renderer/components/SubagentList.tsx");
 const { WorkspaceHeader } = await import("../../src/renderer/components/WorkspaceHeader.tsx");
 const { OpenInMenu } = await import("../../src/renderer/components/OpenInMenu.tsx");
-const { ConversationComposer } = await import("../../src/renderer/components/ConversationComposer.tsx");
 
 function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
   return React.createElement(SessionPanel, {
     environment: null,
     hasProject: false,
-    runActive: false,
     openMenu: null,
     subagents: [],
     subagentGroups: OPEN_SUBAGENT_GROUPS,
@@ -39,239 +35,10 @@ function renderSessionPanel(overrides: Partial<SessionPanelProps>) {
     onStopProcess() {},
     onSetOpenMenu() {},
     onSetSubagentGroup() {},
-    onNewThread() {},
-    onSetWorktree() {},
     onCheckoutBranch() {},
     ...overrides,
   });
 }
-
-
-function renderConversationComposer(overrides: Partial<ConversationComposerProps>) {
-  return React.createElement(ConversationComposer, {
-    prompt: "",
-    folder: "",
-    mode: "confirm",
-    engine: "claude", engineLabel: "Claude",
-    model: "opus",
-    effort: "high",
-    runActive: false,
-    queuedMessages: [],
-    onPromptChange() {},
-    onModeChange() {},
-    onModelChange() {},
-    onEffortChange() {},
-    onSend() {},
-    onSteerQueued() {},
-    onDropQueued() {},
-    onCancel() {},
-    ...overrides,
-  });
-}
-
-const subagents: Subagent[] = [
-  { id: "working", description: "Working agent", status: "working", lastToolName: "Read", totalTokens: 321, startedAt: 1, activity: [] },
-  { id: "complete", description: "Complete agent", status: "completed", summary: "Done", startedAt: 1, finishedAt: 2, activity: [] },
-  { id: "failed", description: "Failed agent", status: "failed", startedAt: 1, finishedAt: 2, activity: [] },
-  { id: "stopped", description: "Stopped agent", status: "stopped", startedAt: 1, finishedAt: 2, activity: [] },
-];
-
-type MountView = Awaited<ReturnType<typeof mount>>;
-
-type ThreadLocation = import("../../src/application/workspace-state.ts").ThreadLocation;
-
-type FakeDesktop = DesktopAPI & {
-  sent: RunCommand[];
-  persisted: TaskStoreDelta[];
-  acknowledged: Array<Parameters<DesktopAPI["acknowledgeAutomation"]>[0]>;
-  automationChanges: Array<{ taskId: string; patch?: AutomationPatch; deleted?: true }>;
-  listener: Parameters<DesktopAPI["onAgentEvent"]>[0];
-  automationsChanged: Parameters<DesktopAPI["onAutomationsChanged"]>[0];
-  fireAutomation: Parameters<DesktopAPI["onAutomationFire"]>[0];
-  grabWindow: Parameters<DesktopAPI["onWindowScreenshot"]>[0];
-  refuseShortcut: Parameters<DesktopAPI["onDesktopShortcutRefused"]>[0];
-  threadAnswers: ThreadResponse[];
-  askThreads: (request: ThreadRequest) => void;
-  openProjectFromCli: (workspace: WorkspaceRecord) => void;
-  unsubscribed: boolean;
-  browserCalls: unknown[][];
-  browserEvent: Parameters<DesktopAPI["onBrowserEvent"]>[0];
-  terminalCalls: unknown[][];
-  terminalEvent: Parameters<DesktopAPI["onTerminalEvent"]>[0];
-  shortcuts: Array<Parameters<DesktopAPI["setShortcuts"]>[0]>;
-  themes: Array<Parameters<DesktopAPI["setTheme"]>[0]>;
-  captures: boolean[];
-  captureOptions: Array<Parameters<DesktopAPI["setCaptureOptions"]>[0]>;
-  appCalls: unknown[][];
-  pressShortcut: (action: string, surface?: Parameters<Parameters<DesktopAPI["onShortcut"]>[0]>[0]["surface"]) => void;
-  captureShortcut: (binding: string | null) => void;
-};
-
-function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
-  const sent: RunCommand[] = [];
-  const persisted: TaskStoreDelta[] = [];
-  const acknowledged: Array<Parameters<DesktopAPI["acknowledgeAutomation"]>[0]> = [];
-  const automationChanges: Array<{ taskId: string; patch?: AutomationPatch; deleted?: true }> = [];
-  const browserCalls: unknown[][] = [];
-  const terminalCalls: unknown[][] = [];
-  const shortcuts: Array<Parameters<DesktopAPI["setShortcuts"]>[0]> = [];
-  const themes: Array<Parameters<DesktopAPI["setTheme"]>[0]> = [];
-  const captures: boolean[] = [];
-  const captureOptions: Array<Parameters<DesktopAPI["setCaptureOptions"]>[0]> = [];
-  const appCalls: unknown[][] = [];
-  let browserEvent: Parameters<DesktopAPI["onBrowserEvent"]>[0] | undefined;
-  let terminalEvent: Parameters<DesktopAPI["onTerminalEvent"]>[0] | undefined;
-  let shortcutPressed: Parameters<DesktopAPI["onShortcut"]>[0] | undefined;
-  let shortcutCaptured: Parameters<DesktopAPI["onShortcutCaptured"]>[0] | undefined;
-  let windowGrabbed: Parameters<DesktopAPI["onWindowScreenshot"]>[0] | undefined;
-  let shortcutRefused: Parameters<DesktopAPI["onDesktopShortcutRefused"]>[0] | undefined;
-  let listener: Parameters<DesktopAPI["onAgentEvent"]>[0] | undefined;
-  let automationsChanged: Parameters<DesktopAPI["onAutomationsChanged"]>[0] | undefined;
-  let fireAutomation: Parameters<DesktopAPI["onAutomationFire"]>[0] | undefined;
-  let threadRequested: Parameters<DesktopAPI["onThreadRequest"]>[0] | undefined;
-  let openProject: Parameters<DesktopAPI["onOpenProject"]>[0] | undefined;
-  let openThread: Parameters<DesktopAPI["onOpenThread"]>[0] | undefined;
-  const threadAnswers: ThreadResponse[] = [];
-  let unsubscribed = false;
-  const api: DesktopAPI = {
-    ...mobileDesktopStub, ...engineDesktopStub, openFolder: async () => null,
-    registerProject: async (root) => ({ id: root, kind: "project", root }),
-    onOpenProject: (next) => { openProject = next; return () => {}; },
-    onOpenThread: (next) => { openThread = next; return () => {}; },
-    cliStatus: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
-    installCli: async () => ({ state: "installed", path: "/usr/local/bin/aic" }),
-    uninstallCli: async () => ({ state: "missing", path: "/usr/local/bin/aic" }),
-    projectlessWorkspace: async () => ({ id: "projectless", kind: "projectless", root: "/scratch" }),
-    commands: async () => ({ status: "available", commands: [] }),
-    computerUsePermissions: async () => ({ accessibility: true, screenRecording: true }),
-    planUsage: async () => ({ status: "not-applicable" }),
-    enableComputerUse: async () => ({ accessibility: false, screenRecording: false }),
-    restartForComputerUse() {},
-    changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
-    branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
-    pullRequest: async () => ({ status: "none" }) as const,
-    diffSummary: async (workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
-    diffPatch: async () => ({ status: "available", patch: "" }),
-    checkoutBranch: async () => {},
-    createBranch: async () => {},
-    createWorktree: async () => ({ id: "wt1", root: "/worktrees/repo-wt1", workspaceId: "worktree-1", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 }),
-    listManagedWorktrees: async () => [], revealWorktree: async () => {}, releaseWorktree: async () => ({ commit: null, shortCommit: null, ref: null }),
-    saveAttachment: async () => "/tmp/aicodingtool-attachments/pasted.png",
-    readAttachment: async () => "iVBORw0KGgo=",
-    pathForFile: () => "", describeFiles: async () => [],
-    suggestTaskTitle: async () => null,
-    checkForUpdates: () => {},
-    loadTaskStore: async () => null,
-    loadSubagentActivity: async () => [],
-    persistTaskStore: async (delta) => { persisted.push(delta); },
-    send: (command) => sent.push(command),
-    onAgentEvent: (next) => { listener = next; return () => { unsubscribed = true; }; },
-    listAutomations: async () => [],
-    saveAutomation: async (draft) => ({ ...draft, id: "automation-1", paused: false, createdAt: 1, updatedAt: 1, runCount: 0, nextRunAt: 2 }),
-    updateAutomation: async (taskId, patch) => { automationChanges.push({ taskId, patch }); return automationView({ taskId, ...patch, updatedAt: 2 }); },
-    deleteAutomation: async (taskId) => { automationChanges.push({ taskId, deleted: true }); return true; },
-    runAutomationNow: async () => "succeeded",
-    onAutomationsChanged: (next) => { automationsChanged = next; return () => {}; },
-    onAutomationFire: (next) => { fireAutomation = next; return () => {}; },
-    acknowledgeAutomation: (ack) => acknowledged.push(ack),
-    onThreadRequest: (next) => { threadRequested = next; return () => {}; },
-    answerThreadRequest: (response) => threadAnswers.push(response),
-    openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
-    navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
-    browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },
-    reloadBrowser: async (tabId) => { browserCalls.push(["reload", tabId]); },
-    closeBrowserTab: async (tabId) => { browserCalls.push(["close", tabId]); },
-    showBrowserTab: async (tabId) => { browserCalls.push(["show", tabId]); },
-    setBrowserBounds: async (bounds) => { browserCalls.push(["bounds", bounds]); },
-    actInBrowser: async (tabId, action) => { browserCalls.push(["act", tabId, action]); return "Clicked"; },
-    readBrowserPage: async (tabId, textLimit, timeoutMs) => {
-      browserCalls.push(["read", tabId, textLimit, timeoutMs]);
-      return { tabId, url: "https://example.com/", title: "Example", loading: false, text: "Hello", elements: [{ ref: "1", role: "button", name: "Go" }] };
-    },
-    captureBrowserPage: async (tabId, fullPage, timeoutMs) => { browserCalls.push(["capture", tabId, fullPage, timeoutMs]); return { tabId, url: "https://example.com/", title: "Example", path: "/tmp/shot.png", width: 1_200, height: 800 }; },
-    clearBrowserData: async () => { browserCalls.push(["clear"]); },
-    findInPage: async (tabId, query, forward, findNext) => { browserCalls.push(["find", tabId, query, forward, findNext]); },
-    stopFindInPage: async (tabId) => { browserCalls.push(["stop-find", tabId]); },
-    focusBrowserTab: async (tabId) => { browserCalls.push(["focus", tabId]); },
-    onBrowserEvent: (next) => { browserEvent = next; return () => {}; },
-    onBrowserFind: () => () => {},
-    openFile: async (root, path, line) => { browserCalls.push(["open-file", root, path, line]); },
-    listApps: async () => [
-      { id: "cursor", label: "Cursor", kind: "editor", icon: "data:image/png;base64,AAA" },
-      { id: "terminal", label: "Terminal", kind: "terminal", icon: null },
-      { id: "finder", label: "Finder", kind: "files", icon: null },
-    ],
-    openFolderInApp: async (appId, root) => { appCalls.push([appId, root]); },
-    startTerminal: async (terminalId, options) => { terminalCalls.push(["start", terminalId, options]); },
-    writeTerminal: async (terminalId, data) => { terminalCalls.push(["write", terminalId, data]); },
-    resizeTerminal: async (terminalId, cols, rows) => { terminalCalls.push(["resize", terminalId, cols, rows]); },
-    closeTerminal: async (terminalId) => { terminalCalls.push(["close", terminalId]); },
-    readTerminal: async (terminalId, options) => {
-      terminalCalls.push(["read", terminalId, options]);
-      return { lines: ["ready in 412 ms"], omitted: 0 };
-    },
-    onTerminalData: () => () => {},
-    onTerminalEvent: (next) => { terminalEvent = next; return () => {}; },
-    setShortcuts: (next) => { shortcuts.push(next); },
-    setCaptureOptions: (options) => { captureOptions.push(options); },
-    setTheme: (theme) => { themes.push(theme); },
-    setShortcutCapture: (capturing) => { captures.push(capturing); },
-    onShortcut: (next) => { shortcutPressed = next; return () => {}; },
-    onShortcutCaptured: (next) => { shortcutCaptured = next; return () => {}; },
-    onWindowScreenshot: (next) => { windowGrabbed = next; return () => {}; },
-    onDesktopShortcutRefused: (next) => { shortcutRefused = next; return () => {}; },
-    closeWindow: () => { browserCalls.push(["close-window"]); }, focusWindow: () => { browserCalls.push(["focus-window"]); },
-    announceThread: () => {},
-    setBadgeCount: () => {},
-    ...overrides,
-  };
-  const desktop = api as FakeDesktop;
-  Object.assign(desktop, {
-    sent,
-    persisted,
-    acknowledged,
-    automationChanges,
-    threadAnswers,
-    browserCalls,
-    terminalCalls,
-    shortcuts,
-    themes,
-    captures,
-    captureOptions,
-    appCalls,
-    askThreads(request: ThreadRequest) { assert.ok(threadRequested); return threadRequested(request); },
-    openProjectFromCli(workspace: WorkspaceRecord) { assert.ok(openProject); return openProject(workspace); },
-    pressShortcut(action: string, surface: Parameters<Parameters<DesktopAPI["onShortcut"]>[0]>[0]["surface"] = "any") { assert.ok(shortcutPressed); shortcutPressed({ action, surface }); },
-    captureShortcut(binding: string | null) { assert.ok(shortcutCaptured); shortcutCaptured(binding); },
-  });
-  Object.defineProperties(desktop, {
-    listener: { get() { assert.ok(listener); return listener; } },
-    automationsChanged: { get() { assert.ok(automationsChanged); return automationsChanged; } },
-    fireAutomation: { get() { assert.ok(fireAutomation); return fireAutomation; } },
-    grabWindow: { get() { assert.ok(windowGrabbed); return windowGrabbed; } },
-    refuseShortcut: { get() { assert.ok(shortcutRefused); return shortcutRefused; } },
-    browserEvent: { get() { assert.ok(browserEvent); return browserEvent; } },
-    terminalEvent: { get() { assert.ok(terminalEvent); return terminalEvent; } },
-    unsubscribed: { get() { return unsubscribed; } },
-  });
-  void openThread;
-  return desktop;
-}
-
-const automationView = (overrides: Partial<AutomationView> = {}): AutomationView => ({
-  id: "automation-1",
-  taskId: "task-1",
-  prompt: "Check whether the PR is approved",
-  schedule: "*/5 * * * *",
-  paused: false,
-  createdAt: 1,
-  updatedAt: 1,
-  runCount: 2,
-  lastRunAt: Date.parse("2026-08-17T09:30:00Z"),
-  lastStatus: "succeeded",
-  nextRunAt: Date.now() + 120_000,
-  ...overrides,
-});
 
 /** A workflow still going is drawn against the clock, so its fixture starts where a live one would. */
 const workflowStart = Date.now() - 92_000;
@@ -535,7 +302,6 @@ test("workspace header keeps session summary and right panel controls separate",
 
   assert.equal(query(view.container, 'button[aria-label="Hide right panel"]').getAttribute("aria-pressed"), "true");
   assert.equal(query(view.container, 'button[aria-label="Hide session summary"]').getAttribute("aria-pressed"), "true");
-  assert.equal(view.container.querySelector(".heading-engine"), null, "the title says which thread it is, so the engine mark adds nothing");
   assert.match(view.container.textContent, /2/);
   await act(async () => {
     query<HTMLButtonElement>(view.container, 'button[aria-label="Show sidebar"]').click();
@@ -592,68 +358,6 @@ test("the open-in button waits for a folder to hand over", async () => {
   await view.unmount();
 });
 
-test("the session panel's thread menu starts another thread in a worktree and offers the hand-off its location allows", async () => {
-  const calls: { threads: number; worktree: boolean[]; menu: Array<string | null> } = { threads: 0, worktree: [], menu: [] };
-  const panel = (location: ThreadLocation, openMenu: string | null, runActive = false) => renderSessionPanel({
-    environment: { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 },
-    hasProject: true,
-    location,
-    runActive,
-    openMenu,
-    subagents: [],
-    backgroundProcesses: [], workflows: [],
-    automationCount: 0,
-    onSelect() {},
-    onOpenAutomations() {},
-    onSetOpenMenu: (menu) => { calls.menu.push(menu); },
-    onNewThread: () => { calls.threads++; },
-    onSetWorktree: (worktree) => { calls.worktree.push(worktree); },
-  });
-  const items = () => [...document.querySelectorAll<HTMLElement>('.session-menu-popover [role="menuitem"]')].map((element) => element.textContent);
-
-  const view = await mount(panel({ kind: "local" }, null));
-  assert.equal(view.container.querySelector('[role="menu"]'), null, "the menu stays shut until asked for");
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Thread options"]').click(); });
-  assert.deepEqual(calls.menu, ["session:location"]);
-
-  await view.render(panel({ kind: "local" }, "session:location"));
-  assert.deepEqual(items(), ["Hand off to worktree"], "a local checkout starts new work from the project instead of this thread's menu");
-  assert.ok(!view.container.contains(query(document, ".session-menu-popover")), "the list hangs outside the scrolling panel, which would crop it");
-  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
-  assert.deepEqual(calls.worktree, [true]);
-
-  const checkout = { id: "wt1", root: "/worktrees/repo-wt1", projectId: "p", workspaceId: "w", baseCommit: "abc1234", createdAt: 1, lastUsedAt: 1 };
-  const worktree: ThreadLocation = { kind: "worktree", worktree: checkout, threads: 1 };
-  await view.render(panel(worktree, "session:location"));
-  assert.deepEqual(items(), ["New thread here", "Return to local and remove the worktree"], "the last thread out takes the checkout with it, and the menu says so");
-  assert.match(query(view.container, ".session-location-name").textContent, /Worktree/);
-  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[0]).click(); });
-  assert.equal(calls.threads, 1, "a worktree can start another thread in the same checkout");
-
-  await view.render(panel(worktree, "session:location"));
-  await act(async () => { item(document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')[1]).click(); });
-  assert.deepEqual(calls.worktree, [true, false]);
-
-  await view.render(panel({ kind: "worktree", worktree: checkout, threads: 3 }, "session:location"));
-  assert.deepEqual(items(), ["New thread here", "Return to local and leave the worktree"], "a checkout others are still in stays where it is");
-  assert.match(query(view.container, ".session-location-name").textContent, /3 threads/, "the row counts them before the user acts");
-
-  await view.render(panel(worktree, "session:location", true));
-  const runningItems = document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]');
-  assert.equal(item(runningItems[0]).disabled, false, "a running thread does not prevent starting another one beside it");
-  assert.equal(item(runningItems[1]).disabled, true, "a running thread cannot change where it works");
-
-  await view.render(panel({ kind: "creating" }, "session:location"));
-  assert.match(query(view.container, ".session-location-name").textContent, /Creating worktree/);
-  assert.ok([...document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')].every((entry) => entry.disabled), "a checkout being made is not yet a stable place for another thread");
-
-  await view.render(panel({ kind: "releasing" }, "session:location"));
-  assert.match(query(view.container, ".session-location-name").textContent, /Removing worktree/);
-  assert.equal(query(view.container, ".session-location-name .text-sweep").textContent, "Removing worktree…", "the wait reads as the same motion the app uses elsewhere");
-  assert.ok([...document.querySelectorAll<HTMLButtonElement>('.session-menu-popover [role="menuitem"]')].every((entry) => entry.disabled), "a checkout being removed is not a stable place for another thread");
-  await view.unmount();
-});
-
 test("the session panel's branch row moves the checkout onto the branch it is given", async () => {
   window.desktop = fakeDesktop();
   const calls: { menu: Array<string | null>; checkout: Array<{ branch: string; create: boolean }> } = { menu: [], checkout: [] };
@@ -661,8 +365,6 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
     environment: { status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 },
     hasProject: true,
     workspaceId: "workspace-a",
-    location: { kind: "local" },
-    runActive: false,
     openMenu,
     subagents: [],
     backgroundProcesses: [], workflows: [],
@@ -670,7 +372,6 @@ test("the session panel's branch row moves the checkout onto the branch it is gi
     onSelect() {},
     onOpenAutomations() {},
     onSetOpenMenu: (menu) => { calls.menu.push(menu); },
-    onSetWorktree() {},
     onCheckoutBranch: (branch, create) => { calls.checkout.push({ branch, create }); },
   });
 

@@ -87,5 +87,7 @@ export function useMessageLinks(dispatchRef: RefObject<Dispatch>) {
     selectThread: (threadId: string) => void dispatchRef.current({ type: "task.select", taskId: threadId }),
     openFile: (path: string, line: number | null) => void dispatchRef.current({ type: "file.open", path, line: line ?? undefined }),
     openUrlInApp: (url: string) => void dispatchRef.current({ type: "browser.open", url, newTab: true }),
+    openImage: (source: string) => void dispatchRef.current({ type: "image.open", source }),
+    openCommit: (commit: string, taskId?: string) => void dispatchRef.current({ type: "diff.open-commit", commit, taskId }),
   }), []);
 }

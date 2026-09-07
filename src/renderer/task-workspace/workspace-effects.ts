@@ -4,6 +4,7 @@ import { runRunEffect } from "./run-effects";
 import { runSurfaceEffect } from "./surface-effects";
 import { runSystemEffect } from "./system-effects";
 import type { EffectHost } from "./effect-host";
+import { messageImages } from "../message-images";
 
 /**
  * Performs one effect the reducer described. Nothing here decides anything: each effect is carried out
@@ -11,6 +12,11 @@ import type { EffectHost } from "./effect-host";
  */
 export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHost): Promise<void> {
   switch (effect.type) {
+    case "preserve-message-images": {
+      const files = messageImages(effect.text).map((image) => image.path);
+      if (files.length) await host.desktop.preserveMessageImages(files, effect.root, effect.messageId);
+      return;
+    }
     case "persist-preferences": case "load-subagent-activity": case "resolve-run-workspace":
     case "start-run": case "send-run-command": case "suggest-title":
       return runRunEffect(effect, host);
