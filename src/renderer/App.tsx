@@ -72,10 +72,6 @@ export function App() {
     void workspace.dispatch({ type: "annotation.add", taskId: chatId, quote });
   }
 
-  function openRightTab(id: string) {
-    void workspace.actions.openDockPanel(id);
-  }
-
   const openSettings = useCallback(() => {
     void workspace.actions.setSettingsOpen(true);
   }, [workspace.actions]);
@@ -95,7 +91,7 @@ export function App() {
     unreviewedFiles,
     onInspectSubagent: inspector.inspect,
     onCloseInspector: inspector.close,
-    onOpenPanel: openRightTab,
+    onOpenPanel: workspace.actions.openDockPanel,
     onAddSideChat: addSideChat,
   });
 
@@ -154,6 +150,9 @@ export function App() {
           canOpenFolder={Boolean(workspace.folder) && workspace.location?.kind !== "creating"}
           onSetOpenMenu={workspace.actions.setOpenMenu}
           onOpenInApp={(appId) => void workspace.actions.openFolderInApp(appId)}
+          onRenameThread={workspace.actions.renameThread}
+          onForkThread={workspace.actions.forkThread}
+          onArchiveThread={workspace.actions.archiveThread}
           onToggleSidebar={() => void workspace.actions.setSidebarOpen(!sidebarOpen)}
           onToggleSessionPanel={() => {
             void workspace.actions.setDockOpen(false);
@@ -186,7 +185,7 @@ export function App() {
           <WorkspaceSession
             workspace={workspace}
             onInspectSubagent={inspector.inspect}
-            onOpenPanel={openRightTab}
+            onOpenPanel={workspace.actions.openDockPanel}
             onOpenWorkflow={openWorkflow}
           />
         )}

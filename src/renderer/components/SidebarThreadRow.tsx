@@ -8,8 +8,8 @@ import type { ThreadOutcome } from "../../domain/thread-run";
 import { worktreeHue, worktreeName } from "../../domain/worktree";
 import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
-import { ContextMenu, type MenuEntry } from "./PopoverMenu";
-import { threadLink } from "../../domain/thread-handles";
+import { ContextMenu } from "./PopoverMenu";
+import { threadMenuEntries } from "./thread-menu";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
@@ -71,27 +71,6 @@ function ThreadSpinner() {
     return () => element.removeEventListener("animationstart", anchor);
   }, []);
   return <span ref={ref} className="task-spinner" aria-label="Working" />;
-}
-
-/**
- * What a thread offers on a right-click, grouped the way a menu on this platform is: naming it,
- * taking a reference to it, copying it, then putting it away.
- */
-function threadMenuEntries(thread: Thread, actions: {
-  onRename: () => void;
-  onFork: (worktree: boolean) => void;
-  onArchive: () => void;
-}): MenuEntry[] {
-  return [
-    { label: "Rename", onSelect: actions.onRename },
-    "separator",
-    { label: "Copy link", onSelect: () => void navigator.clipboard?.writeText(threadLink(thread.id)) },
-    "separator",
-    { label: "Fork", onSelect: () => actions.onFork(false) },
-    { label: "Fork into a new worktree", onSelect: () => actions.onFork(true) },
-    "separator",
-    { label: "Archive", danger: true, onSelect: actions.onArchive },
-  ];
 }
 
 export type ThreadRowsOptions = {

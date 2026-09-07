@@ -843,6 +843,23 @@ button, select { color: inherit; }
 }
 .task-heading { min-width: 0; display: flex; align-items: center; gap: 12px; }
 .task-heading > div { min-width: 0; }
+.thread-heading-line { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.thread-heading-menu { flex: none; -webkit-app-region: no-drag; }
+.thread-heading-menu > .menu-trigger {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--quiet);
+  cursor: pointer;
+}
+.thread-heading-menu > .menu-trigger:hover,
+.thread-heading-menu.open > .menu-trigger { background: var(--surface-hover); color: var(--muted-strong); }
+.task-rename.heading-rename { width: 28ch; min-width: 6ch; height: 28px; font: inherit; -webkit-app-region: no-drag; }
 .task-heading h1 {
   max-width: min(720px, 58vw);
   min-width: 0;
