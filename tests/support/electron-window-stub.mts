@@ -52,6 +52,8 @@ export function fakeWindows(onAllClosed: () => void = () => {}) {
     destroyed = false;
     focused = false;
     visible: boolean;
+    menuBarVisible = true;
+    menuBarAutoHide = false;
     webContents = {
       sent: [] as SentMessage[],
       listeners: new Map<string, Callback>(),
@@ -96,6 +98,8 @@ export function fakeWindows(onAllClosed: () => void = () => {}) {
     restore() {}
     show() { this.visible = true; }
     hide() { this.visible = false; }
+    setAutoHideMenuBar(autoHide: boolean) { this.menuBarAutoHide = autoHide; }
+    setMenuBarVisibility(visible: boolean) { this.menuBarVisible = visible; }
     async loadFile() {}
   }
 

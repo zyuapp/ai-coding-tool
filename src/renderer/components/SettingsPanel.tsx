@@ -164,6 +164,8 @@ export type SettingsPanelProps = {
   onSetComputerUse: (enabled: boolean) => void;
   onSetBrowserTools: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
+  onCheckForUpdates: () => void;
+  onOpenSourceLicenses: () => void;
   onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
   onRefreshEngines: () => void;
@@ -217,6 +219,8 @@ export function SettingsPanel({
   onSetComputerUse,
   onSetBrowserTools,
   onSetNotifications,
+  onCheckForUpdates,
+  onOpenSourceLicenses,
   onRestoreThread,
   onClearArchive,
   onRefreshEngines,
@@ -292,7 +296,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} />
+        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 

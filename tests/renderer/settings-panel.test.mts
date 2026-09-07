@@ -56,6 +56,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetReadingSize() {},
     onSetTerminalSize() {},
     onSetChromeBrowser() {}, onSetConciseReplies() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
+    onCheckForUpdates() {}, onOpenSourceLicenses() {},
     onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onWorktreeCommand() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
@@ -72,6 +73,20 @@ async function openSettingsPage(view: MountView, name: string) {
   await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-settings").click(); });
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === name)).click(); });
 }
+
+test("General Settings keeps updates and licenses reachable without the app menu", async () => {
+  const calls: string[] = [];
+  window.desktop = fakeDesktop({
+    checkForUpdates: () => { calls.push("updates"); },
+    openSourceLicenses: async () => { calls.push("licenses"); },
+  });
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "General");
+  await act(async () => { query<HTMLButtonElement>(view.container, '[data-setting="general.updates"] button').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, '[data-setting="general.licenses"] button').click(); });
+  assert.deepEqual(calls, ["updates", "licenses"]);
+  await view.unmount();
+});
 
 test("the general section installs the aic command and takes it back", async () => {
   const calls: string[] = [];

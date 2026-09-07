@@ -34,6 +34,8 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       onSetTerminalSize={(size) => void workspace.actions.setTerminalSize(size)}
       onSetChromeBrowser={(enabled) => void workspace.actions.setChromeBrowser(enabled)} onSetConciseReplies={(enabled) => void workspace.actions.setConciseReplies(enabled)} onSetComputerUse={(enabled) => void workspace.actions.setComputerUse(enabled)} onSetBrowserTools={(enabled) => void workspace.actions.setBrowserTools(enabled)}
       onSetNotifications={(enabled) => void workspace.actions.setNotifications(enabled)}
+      onCheckForUpdates={() => void workspace.actions.checkForUpdates()}
+      onOpenSourceLicenses={() => void workspace.dispatch({ type: "app.open-source-licenses" })}
       onRestoreThread={workspace.actions.restoreThread}
       onClearArchive={workspace.actions.clearArchive}
       onRefreshEngines={() => void workspace.actions.refreshEngineStatus()} onSignInEngine={(engine) => void workspace.actions.signInEngine(engine)}

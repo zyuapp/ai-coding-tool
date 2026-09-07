@@ -268,6 +268,11 @@ async function createWindow() {
     },
   });
   const createdWindow = window;
+  if (process.platform === "linux") {
+    /** Keep native accelerators, but never reveal a menu strip (including on Alt). */
+    window.setAutoHideMenuBar(false);
+    window.setMenuBarVisibility(false);
+  }
   browser.startBrowserHost(window, {
     onPage: (event: BrowserPageEvent) => {
       workspaceRuntime.owner()?.webContents.send("browser:event", event);

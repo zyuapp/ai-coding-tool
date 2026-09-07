@@ -8,6 +8,8 @@ type IpcEvent = { sender: unknown };
 
 test("a help-menu command reopens a window and waits until its renderer is listening", async (context) => {
   const main = await startMainProcess(context, "aicodingtool-menu-lifecycle-");
+  assert.equal(main.window.menuBarVisible, process.platform !== "linux");
+  assert.equal(main.window.menuBarAutoHide, false, "Alt cannot bring back the Linux menu strip");
   const menu = main.applicationMenu() as MenuEntry[] | null;
   const licenses = menu?.flatMap((entry) => entry.submenu ?? []).find((entry) => entry.label === "Open Source Licenses…");
   assert.ok(licenses?.click);
@@ -16,6 +18,8 @@ test("a help-menu command reopens a window and waits until its renderer is liste
   licenses.click();
   await waitFor(() => main.windows.length === 1, "replacement app window");
   const reopened = main.windows[0];
+  assert.equal(reopened.menuBarVisible, process.platform !== "linux");
+  assert.equal(reopened.menuBarAutoHide, false);
   assert.equal(reopened.webContents.sent.length, 0, "the command does not race the renderer subscription");
 
   const ready = registered<(event: IpcEvent) => void>(main.listeners, "workspace-view:ready");
