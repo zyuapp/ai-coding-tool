@@ -21,6 +21,7 @@ export function WorkspaceSettings({ workspace, onClose }: { workspace: Workspace
       allowedOrigins={workspace.browserOrigins}
       chromeBrowser={workspace.chromeBrowser} conciseReplies={workspace.conciseReplies} computerUse={workspace.computerUse} browserTools={workspace.browserTools}
       notifications={workspace.notifications} remote={workspace.remote} remoteChecking={workspace.remoteChecking}
+      agentSettingsReload={workspace.agentSettingsReload} onReloadAgentSettings={() => void workspace.actions.reloadAgentSettings()}
       engineAccess={workspace.engineAccess} engineChecking={workspace.engineChecking}
       shortcuts={workspace.shortcuts}
       capturingShortcut={workspace.capturingShortcut}

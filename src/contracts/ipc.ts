@@ -1,3 +1,6 @@
+import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
+export { isAgentSettingsReloadEvent } from "./agent-settings.js";
+export type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
@@ -162,7 +165,7 @@ export type StopProcessCommand = {
 
 export type LabelThreadCommand = { type: "label"; taskId: string; title: string };
 
-export type RunCommand = StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
+export type RunCommand = ReloadAgentSettingsCommand | StartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand;
 
 /** The scheduler owns the run ID so it can correlate the renderer's run back to the tick that asked for it. */
 export type AutomationFire = {
@@ -502,7 +505,7 @@ export type GoalEvent = GoalReport & { taskId: string };
 export type ThreadEvent = WorkflowEvent | BackgroundEvent | SubagentEvent | GoalEvent;
 
 /** Everything the agent process pushes back, on one channel so a workflow cannot overtake its own run. */
-export type AgentEvent = RunEvent | ThreadEvent;
+export type AgentEvent = RunEvent | ThreadEvent | AgentSettingsReloadEvent;
 
 const MAX_ID_LENGTH = 256;
 /** A wait holds a tool call open, so it is bounded rather than left to the caller. */
@@ -593,6 +596,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   if (command.type === "start") {
     return isStartCommand(command, false);
   }
+  if (command.type === "reload-settings") return true;
   if (command.type === "cancel") return isString(command.taskId) && isString(command.runId);
   if (command.type === "answer-question") return isString(command.taskId) && isString(command.runId) && isString(command.requestId) && isString(command.questionId) && isString(command.text, MAX_PROMPT_LENGTH) && command.text.trim().length > 0;
   if (command.type === "approval") return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
@@ -602,7 +606,7 @@ export function isRunCommand(value: unknown): value is RunCommand {
   return false;
 }
 
-export function isInternalRunCommand(value: unknown): value is InternalStartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
+export function isInternalRunCommand(value: unknown): value is ReloadAgentSettingsCommand | InternalStartRunCommand | CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand {
   if (!value || typeof value !== "object") return false;
   const command = value as Record<string, unknown>;
   if (command.type === "start") return isStartCommand(command, true);

@@ -1,5 +1,6 @@
 import { LuRefreshCw as RefreshCw } from "react-icons/lu";
 import { AGENT_ENGINES, engineLabel, engineNotice, type AgentEngine, type EngineReadiness } from "../../domain/agent-engine";
+import type { WorkspaceState } from "../../application/workspace-state";
 import { CopyButton } from "./CopyButton";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
@@ -7,6 +8,8 @@ export type EngineSettingsProps = {
   engineAccess: Record<AgentEngine, EngineReadiness>;
   /** True while the app is running the engine commands, which the button says out loud. */
   checking: boolean;
+  reloadStatus: WorkspaceState["agentSettingsReload"];
+  onReload: () => void;
   onRefresh: () => void;
   onSignIn: (engine: AgentEngine) => void;
 };
@@ -28,7 +31,7 @@ function statusLine(engine: AgentEngine, readiness: EngineReadiness) {
   return readiness.version ? `Version ${readiness.version}` : "Installed and ready.";
 }
 
-export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn }: EngineSettingsProps) {
+export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn, reloadStatus, onReload }: EngineSettingsProps) {
   return (
     <main className="settings-main">
       <div className="settings-page-heading">
@@ -74,6 +77,20 @@ export function EngineSettings({ engineAccess, checking, onRefresh, onSignIn }: 
             </div>
           );
         })}
+      </section>
+      <section className="settings-group" aria-labelledby="agent-settings-heading">
+        <div className="settings-group-heading">
+          <div>
+            <h3 id="agent-settings-heading">Agent settings</h3>
+            <p>Apply changes to Claude Code and Codex settings. Busy agents reload when their work finishes.</p>
+            <p role="status">{reloadStatus === "idle" ? "" : reloadStatus === "reloading" ? "Reloading…" : reloadStatus === "pending" ? "Reload pending" : reloadStatus === "reloaded" ? "Settings reloaded" : "Could not reload settings. Try again."}</p>
+          </div>
+          <div className="settings-group-action">
+            <button type="button" onClick={onReload} disabled={reloadStatus === "reloading" || reloadStatus === "pending"}>
+              <RefreshCw size={13} aria-hidden="true" />Reload agent settings
+            </button>
+          </div>
+        </div>
       </section>
     </main>
   );

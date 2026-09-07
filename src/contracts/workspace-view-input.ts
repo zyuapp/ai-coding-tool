@@ -211,6 +211,7 @@ const shapes = {
   "remote.revoke-device": { deviceId: text },
   "remote.refresh": {  },
   "engine.read": { refresh: optionalBoolean },
+  "engine.reload-settings": {},
   "engine.sign-in": { engine: isAgentEngine },
   "view.set-prompt": { taskId: optionalText, prompt: text },
   "view.reading-point": { taskId: text, point: readingPoint },

@@ -16,6 +16,7 @@ class FakeSession implements PooledSession {
   async run(run: ProviderRunInput): Promise<ProviderResult> {
     return { status: "succeeded", message: `${this.engine}:${run.taskId}` };
   }
+  rest() { this.hooks.rested(); }
   close() {
     this.live = false;
     this.hooks.ended();
@@ -66,4 +67,71 @@ test("the pool runs a session's start once it holds the session, so a session th
   });
   assert.deepEqual(seen, [true, undefined]);
   assert.equal(result.status, "succeeded");
+});
+
+for (const name of ["claude", "codex"] as const) {
+  test(`${name} reload releases idle sessions and resumes the same conversation on a fresh session`, async () => {
+    const pool = new SessionPool();
+    const opened: FakeSession[] = [];
+    const run = engine(name, pool, opened);
+    await run(input({ taskId: "reload" }));
+    opened[0].continuation = "existing-conversation";
+    await pool.reloadSettings();
+    assert.equal(opened[0].live, false);
+    let resumed: string | undefined;
+    await pool.execute(input({ engine: name, taskId: "reload", continuation: { provider: name, value: "existing-conversation" } }), `${name}-key`, {
+      open: (hooks) => {
+        const session = new FakeSession(`${name}-key`, name, hooks);
+        session.run = async (next) => { resumed = next.continuation?.value; return { status: "succeeded" }; };
+        return session;
+      },
+    });
+    assert.equal(resumed, "existing-conversation");
+    pool.closeAll();
+  });
+}
+
+test("reload waits for an active run and its background work, while new sessions remain warm", async () => {
+  const pool = new SessionPool();
+  const opened: FakeSession[] = [];
+  let finish!: (result: ProviderResult) => void;
+  const running = pool.execute(input({ taskId: "busy" }), "codex-key", {
+    open: (hooks) => {
+      const session = new FakeSession("codex-key", "codex", hooks);
+      session.busy = true;
+      session.answering = true;
+      session.run = () => new Promise((resolve) => { finish = resolve; });
+      opened.push(session);
+      return session;
+    },
+  });
+  let reloaded = false;
+  const reload = pool.reloadSettings().then(() => { reloaded = true; });
+  await Promise.resolve();
+  assert.equal(reloaded, false);
+  assert.equal(opened[0].live, true);
+  opened[0].answering = false;
+  finish({ status: "succeeded" });
+  assert.equal((await running).status, "succeeded");
+  assert.equal(reloaded, false, "background work still owns the session");
+  await engine("claude", pool, opened)(input({ taskId: "new" }));
+  opened[0].busy = false;
+  opened[0].rest();
+  await reload;
+  assert.equal(opened[0].live, false);
+  assert.equal(opened[1].live, true, "a session launched after reload already has fresh settings");
+  pool.closeAll();
+});
+
+test("repeated reloads wait for the same busy session and settle if it exits", async () => {
+  const pool = new SessionPool();
+  const opened: FakeSession[] = [];
+  await engine("codex", pool, opened)(input({ taskId: "busy" }));
+  opened[0].busy = true;
+  const first = pool.reloadSettings();
+  const second = pool.reloadSettings();
+  opened[0].close();
+  await Promise.all([first, second]);
+  assert.equal(pool.liveSession("busy"), undefined);
+  await pool.reloadSettings();
 });

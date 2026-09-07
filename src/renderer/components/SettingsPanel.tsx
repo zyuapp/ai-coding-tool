@@ -7,7 +7,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
 import { BrowserSettings } from "./BrowserSettings";
 import { ComputerUseSettings, useComputerUsePermissions } from "./ComputerUseSettings";
-import { EngineSettings } from "./EngineSettings";
+import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
@@ -147,6 +147,8 @@ export type SettingsPanelProps = {
   /** Where each engine stands on this machine, and whether the app is asking about them now. */
   engineAccess: Record<AgentEngine, EngineReadiness>;
   engineChecking: boolean;
+  agentSettingsReload: EngineSettingsProps["reloadStatus"];
+  onReloadAgentSettings: () => void;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
@@ -202,6 +204,7 @@ export function SettingsPanel({
   remoteChecking,
   engineAccess,
   engineChecking,
+  agentSettingsReload, onReloadAgentSettings,
   shortcuts, capturingShortcut, desktopShortcutUnavailable,
   onSetThemeFamily,
   onSetThemeMode,
@@ -304,7 +307,7 @@ export function SettingsPanel({
       </main>
       )}
 
-      {section === "engines" && <EngineSettings engineAccess={engineAccess} checking={engineChecking} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} />}
+      {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} />}
 
       {section === "worktrees" && (
         <WorktreeSettings

@@ -1,3 +1,4 @@
+import type { AgentSettingsReloadEvent } from "../contracts/ipc.js";
 import type { EngineCommand } from "../contracts/commands.js";
 import { engineIsBlocked, engineNeedsAttention, type AgentEngine, type EngineAccess, type EngineReadiness, type EngineStatus } from "../domain/agent-engine.js";
 import type { WorkspaceState } from "./workspace-state.js";
@@ -5,6 +6,7 @@ import type { WorkspaceCommandResult } from "./workspace-reducer/types.js";
 
 /** What main found out about an engine's access, on asking or after a sign-in, or why it could not. */
 export type EngineEvent =
+  | AgentSettingsReloadEvent
   | { type: "engine.status"; status: EngineStatus }
   | { type: "engine.failed"; message: string };
 
@@ -44,6 +46,14 @@ function nothingBlocked(status: EngineStatus) {
 }
 
 export function reduceEngine(state: WorkspaceState, input: EngineInput): EngineTransition {
+  if (input.type === "engine.reload-settings") {
+    if (state.agentSettingsReload === "reloading" || state.agentSettingsReload === "pending") return { state, effects: [] };
+    const clearError = state.agentSettingsReload === "failed" && state.actionErrorPage === "engines";
+    return { state: { ...state, agentSettingsReload: "reloading", ...(clearError ? { actionError: null, actionErrorPage: null } : {}) }, effects: [input] };
+  }
+  if (input.type === "engine.settings-reload-status") {
+    return { state: { ...state, agentSettingsReload: input.status, ...(input.status === "failed" ? { actionError: input.message ?? "Could not reload agent settings.", actionErrorPage: "engines" as const } : {}) }, effects: [] };
+  }
   if (input.type === "engine.status") {
     const engineStatus = { ...state.engineStatus, ...input.status };
     /** The error under the composer named an engine, so an answer that clears the engine clears it too. */

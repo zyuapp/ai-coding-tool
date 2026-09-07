@@ -4,6 +4,7 @@ import { isWorkspaceViewInput, type WorkspaceViewInput } from "../../src/contrac
 
 test("the view can send provider commands, attachments, and presentation reports", () => {
   const inputs: WorkspaceViewInput[] = [
+    { type: "engine.reload-settings" },
     { type: "task.send", taskId: "thread", text: "Review the screenshot", attachments: [{ path: "/tmp/screenshot.png", labels: ["button", ""] }], steer: true },
     { type: "task.set-policy", policy: "autonomous" },
     { type: "task.set-effort", engine: "codex", effort: "xhigh" },

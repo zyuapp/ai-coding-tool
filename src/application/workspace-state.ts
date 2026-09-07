@@ -256,6 +256,7 @@ export type WorkspaceState = {
   engineStatus: EngineStatus | null;
   /** True while main is running the engine commands, which the Engines page says out loud. */
   engineChecking: boolean;
+  agentSettingsReload: "idle" | "reloading" | "pending" | "reloaded" | "failed";
   prompts: Record<string, string>;
   /** Annotations waiting in each composer, keyed the way `prompts` is. */
   annotations: Record<string, Annotation[]>;
@@ -432,6 +433,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftEffort: DEFAULT_EFFORT,
     engineStatus: null,
     engineChecking: false,
+    agentSettingsReload: "idle",
     prompts: {},
     annotations: {},
     pastes: {},
@@ -849,6 +851,7 @@ export function deriveView(state: WorkspaceState) {
     settingsSection: state.computerUseSetup ? "computer-use" : state.settingsSection,
     settingsFocus: state.computerUseSetup ? null : state.settingsFocus,
     engineChecking: state.engineChecking,
+    agentSettingsReload: state.agentSettingsReload,
     dockOpen: dock.open,
     dockExpanded: dock.expanded,
     dockPanels: dock.panels,

@@ -91,7 +91,7 @@ export function createRuntimeHistory(host: HistoryHost) {
         if (state.find?.target.kind === "thread") add(state.find.target.taskId);
         break;
       case "agent.events":
-        for (const event of input.events) add(event.taskId);
+        for (const event of input.events) if ("taskId" in event) add(event.taskId);
         break;
       case "run.event":
         add(input.event.taskId);

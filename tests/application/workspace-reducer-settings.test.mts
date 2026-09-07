@@ -114,3 +114,21 @@ test("model favorites persist, restore, and ignore duplicate commands", () => {
   const removed = reduce(restored, { type: "view.set-model-favorite", model: "opus", favorite: false });
   assert.deepEqual(effectAt(removed, "persist-preferences").preferences.favoriteModels, []);
 });
+
+test("agent settings reload is transient, waits for the worker, and can be retried after failure", () => {
+  const initial = workspace();
+  const asked = reduce(initial, { type: "engine.reload-settings" });
+  assert.deepEqual(asked.effects, [{ type: "engine.reload-settings" }]);
+  assert.equal(asked.state.agentSettingsReload, "reloading");
+  assert.deepEqual(reduce(asked.state, { type: "engine.reload-settings" }).effects, []);
+  const pending = reduce(asked.state, { type: "agent.events", events: [{ type: "engine.settings-reload-status", status: "pending" }] });
+  assert.equal(pending.state.agentSettingsReload, "pending");
+  assert.deepEqual(reduce(pending.state, { type: "engine.reload-settings" }).effects, []);
+  const done = reduce(pending.state, { type: "agent.events", events: [{ type: "engine.settings-reload-status", status: "reloaded" }] });
+  assert.equal(done.state.agentSettingsReload, "reloaded");
+  assert.equal(done.state.threads, initial.threads);
+  assert.deepEqual(done.effects, []);
+  const failed = reduce(asked.state, { type: "engine.settings-reload-status", status: "failed", message: "Worker unavailable" });
+  assert.equal(failed.state.actionError, "Worker unavailable");
+  assert.deepEqual(reduce(failed.state, { type: "engine.reload-settings" }).effects, [{ type: "engine.reload-settings" }]);
+});

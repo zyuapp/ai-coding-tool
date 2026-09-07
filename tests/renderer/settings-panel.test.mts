@@ -43,6 +43,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     terminalSize: 13,
     allowedOrigins: [],
     chromeBrowser: false, conciseReplies: false, computerUse: true, browserTools: true, notifications: true,
+    agentSettingsReload: "idle", onReloadAgentSettings() {},
     engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false,
     remoteChecking: false,
     shortcuts: [],
@@ -554,4 +555,21 @@ test("a switch that is off says so and offers to turn it back on", async () => {
   assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-checked"), "false");
   assert.equal(capabilitySwitch(view.container, "computer-use-availability").textContent, "Turn on");
   await view.unmount();
+});
+
+test("Engines offers a reload and shows when it is waiting or complete", async () => {
+  window.desktop = fakeDesktop({});
+  let reloads = 0;
+  for (const status of ["idle", "reloading", "pending", "reloaded", "failed"] as const) {
+    const view = await mount(renderSettingsPanel({ initialSection: "engines", agentSettingsReload: status, onReloadAgentSettings: () => { reloads++; } }));
+    const section = query<HTMLElement>(view.container, '[aria-labelledby="agent-settings-heading"]');
+    const button = query<HTMLButtonElement>(section, "button");
+    assert.equal(button.textContent, "Reload agent settings");
+    assert.equal(button.disabled, status === "reloading" || status === "pending");
+    if (status === "pending") assert.match(section.textContent, /Reload pending/);
+    if (status === "reloaded") assert.match(section.textContent, /Settings reloaded/);
+    await act(async () => { button.click(); });
+    await view.unmount();
+  }
+  assert.equal(reloads, 3);
 });

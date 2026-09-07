@@ -40,7 +40,8 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
 }
 
 /** Which channel a report arrived on: a run's own, or the thread's, which outlives every run. */
-function agentEventInput(event: AgentEvent): WorkspaceInput {
+export function agentEventInput(event: AgentEvent): WorkspaceInput {
+  if (event.type === "engine.settings-reload-status") return event;
   return "runId" in event ? { type: "run.event", event } : { type: "thread.event", event };
 }
 
