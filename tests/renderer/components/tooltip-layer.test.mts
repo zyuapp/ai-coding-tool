@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test, describe, beforeEach, afterEach, vi } from "vitest";
 
 import React, { act } from "react";
+import { installFocusAppearance } from "../../../src/renderer/focus-appearance.ts";
 
 const { TooltipLayer } = await import("../../../src/renderer/components/TooltipLayer.tsx");
 
@@ -69,6 +70,39 @@ test("a control with nothing to say says nothing", async () => {
 
   assert.equal(tooltip(), null);
   await view.unmount();
+});
+
+test("keyboard tooltips follow navigation but stay closed after Alt and window return", async () => {
+  const stop = installFocusAppearance();
+  window.dispatchEvent(new Event("focus"));
+  const view = await mount();
+  try {
+    const button = view.container.querySelector("button")!;
+    const plain = view.container.querySelector<HTMLButtonElement>("#plain")!;
+    plain.addEventListener("keydown", () => button.focus());
+    await act(async () => {
+      plain.focus();
+      plain.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+    });
+    await rest(1);
+    assert.ok(tooltip());
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true, bubbles: true }));
+      window.dispatchEvent(new Event("blur"));
+      plain.focus();
+      window.dispatchEvent(new Event("focus"));
+      button.focus();
+    });
+    await rest(1);
+    assert.equal(tooltip(), null);
+    await act(async () => {
+      plain.focus();
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift", shiftKey: true, bubbles: true }));
+      button.focus();
+    });
+    await rest(1);
+    assert.equal(tooltip(), null);
+  } finally { await view.unmount(); stop(); }
 });
 
 });

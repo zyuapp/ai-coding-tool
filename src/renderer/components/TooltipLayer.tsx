@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { keyboardFocusVisible } from "../focus-appearance";
 
 /**
  * One tooltip for the whole window, moved to whatever the pointer is resting on. Controls opt in with
@@ -27,8 +28,6 @@ export function TooltipLayer() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showing = useRef<HTMLElement | null>(null);
   const open = useRef(false);
-  /** Whether the last thing the user did was type, which is what makes focus worth explaining. */
-  const typing = useRef(false);
 
   useEffect(() => {
     const hide = () => {
@@ -61,24 +60,14 @@ export function TooltipLayer() {
     const focus = (event: FocusEvent) => {
       const element = tipped(event.target);
       /** Focus reached by keyboard explains itself; a click already said what the control does. */
-      if (element && typing.current) show(element, 0);
+      if (element && keyboardFocusVisible()) show(element, 0);
       else hide();
-    };
-
-    const pressed = () => {
-      typing.current = true;
-      hide();
-    };
-
-    const clicked = () => {
-      typing.current = false;
-      hide();
     };
 
     document.addEventListener("mouseover", over);
     document.addEventListener("focusin", focus);
-    document.addEventListener("mousedown", clicked);
-    document.addEventListener("keydown", pressed);
+    document.addEventListener("pointerdown", hide, true);
+    document.addEventListener("keydown", hide, true);
     /** A tooltip names a place on screen, so anything that moves that place takes it away. */
     document.addEventListener("scroll", hide, true);
     window.addEventListener("blur", hide);
@@ -86,8 +75,8 @@ export function TooltipLayer() {
     return () => {
       document.removeEventListener("mouseover", over);
       document.removeEventListener("focusin", focus);
-      document.removeEventListener("mousedown", clicked);
-      document.removeEventListener("keydown", pressed);
+      document.removeEventListener("pointerdown", hide, true);
+      document.removeEventListener("keydown", hide, true);
       document.removeEventListener("scroll", hide, true);
       window.removeEventListener("blur", hide);
       window.removeEventListener("resize", hide);
