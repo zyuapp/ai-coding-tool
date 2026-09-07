@@ -408,5 +408,12 @@ test("the app menu sends help actions through the window command path", async ()
   const openLicenses = handler<(event: IpcEvent) => Promise<void>>("licenses:open");
   await assert.rejects(openLicenses(main.untrusted));
   await openLicenses(main.trusted);
-  assert.equal(main.openedPaths.at(-1), path.join(process.cwd(), "assets", "legal", "THIRD-PARTY-NOTICES.txt"));
+  const viewer = main.windows.find((window) => window.loadedURL === "aicodingtool-licenses://notices/");
+  assert.ok(viewer, "licenses open inside the app without an external text editor");
+  assert.equal(viewer.visible, true);
+  assert.equal(viewer.menuBarVisible, false);
+  await openLicenses({ sender: main.runtimeViews[0].webContents });
+  assert.equal(main.windows.filter((window) => window.loadedURL === viewer.loadedURL).length, 1);
+  assert.equal(viewer.focused, true, "another click brings the existing reader forward");
+  viewer.close();
 });
