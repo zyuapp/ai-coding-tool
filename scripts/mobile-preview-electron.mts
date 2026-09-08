@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { constants } from "node:fs";
-import { access, cp, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -15,7 +15,7 @@ export async function previewElectron(root: string): Promise<string> {
   if (process.platform !== "darwin") return executable;
   const version: string = require("electron/package.json").version;
   const cache = path.join(root, "node_modules/.cache/mobile-preview");
-  const target = path.join(cache, `${version}-1`);
+  const target = path.join(cache, `${version}-2`);
   const ready = path.join(target, "ready");
   const binary = path.join(target, "Mobile Preview.app/Contents/MacOS/Electron");
   if (await access(ready).then(() => true, () => false)) return binary;
@@ -32,6 +32,15 @@ export async function previewElectron(root: string): Promise<string> {
     const plist = path.join(bundle, "Contents/Info.plist");
     await run("/usr/libexec/PlistBuddy", ["-c", "Set :CFBundleIdentifier com.zyuapp.aicodingtool.mobile-preview", plist]);
     await run("/usr/libexec/PlistBuddy", ["-c", "Set :CFBundleName Mobile Preview", plist]);
+    // ICNS supports a PNG record directly; the shared app artwork is 256 × 256.
+    const png = await readFile(path.join(root, "assets/icon.png"));
+    const header = Buffer.alloc(16);
+    header.write("icns", 0);
+    header.writeUInt32BE(png.length + 16, 4);
+    header.write("ic08", 8);
+    header.writeUInt32BE(png.length + 8, 12);
+    await writeFile(path.join(bundle, "Contents/Resources/mobile-preview.icns"), Buffer.concat([header, png]));
+    await run("/usr/libexec/PlistBuddy", ["-c", "Set :CFBundleIconFile mobile-preview.icns", plist]);
     await run("/usr/bin/codesign", ["--force", "--deep", "--sign", "-", bundle]);
     await writeFile(path.join(staging, "ready"), version);
     try {

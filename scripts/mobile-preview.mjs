@@ -6,6 +6,7 @@ import { emulatePhone, phoneLayout } from "./mobile-preview-layout.mjs";
 
 // Screen is a native module that is available only after app.whenReady().
 const { app, BrowserWindow, Menu } = electron;
+const icon = path.resolve(import.meta.dirname, "../assets/icon.png");
 
 app.setName("Mobile Preview");
 const profile = path.join(app.getPath("appData"), "AI Coding Tool Mobile Preview");
@@ -70,8 +71,11 @@ async function start() {
   }
   await app.whenReady();
   if (quitting) return;
+  app.dock?.setIcon(icon);
+  app.setAboutPanelOptions({ applicationName: "Mobile Preview", iconPath: icon });
   window = new BrowserWindow({
     title: "Mobile Preview",
+    icon,
     width: 390,
     height: 844,
     useContentSize: true,
