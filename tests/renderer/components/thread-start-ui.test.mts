@@ -20,7 +20,11 @@ test("the start options say where a thread begins, and searching narrows the bra
     branch: Array<string | null | { name: string | null; create: true }>;
     worktree: boolean[];
   } = { project: [], branch: [], worktree: [] };
-  const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
+  const projects = [
+    { id: "project-a", root: "/repo/ai-coding-tool" },
+    ...["just-play", "skills", "BOSS", "just-sing"].map((name) => ({ id: name, root: `/repo/${name}` })),
+    { id: "project-b", root: "/repo/just-speak" },
+  ];
   const options = (branch: StartOptionsProps["branch"], worktree: boolean) => React.createElement(ThreadStartOptions, {
     projects,
     projectId: "project-a",
@@ -36,21 +40,18 @@ test("the start options say where a thread begins, and searching narrows the bra
   const project = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
   assert.match(project.textContent, /ai-coding-tool/, "the project the thread starts in is filled in already");
   assert.match(query(view.container, 'button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
-  const worktreeToggle = query<HTMLButtonElement>(view.container, ".thread-start-toggle");
-  assert.equal(worktreeToggle.textContent, "Worktree");
-  assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
   assert.equal(view.container.querySelector(".thread-mode"), null, "the mode is asked for above these, not among them");
 
   await act(async () => { project.click(); });
   const projectSearch = query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
   assert.equal(document.activeElement, projectSearch, "the project search takes focus when it opens");
-  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["ai-coding-tool", "just-speak"]);
+  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["ai-coding-tool", "just-play", "skills", "BOSS", "just-sing"], "the initial list keeps five projects in their existing order");
   await act(async () => {
     item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set!.call(projectSearch, "speak");
     projectSearch.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
   });
   const projectOptions = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
-  assert.deepEqual(projectOptions.map((option) => option.textContent), ["just-speak"], "searching narrows the projects");
+  assert.deepEqual(projectOptions.map((option) => option.textContent), ["just-speak"], "searching reaches projects beyond the initial five");
   await act(async () => { item(projectOptions[0]).click(); });
   assert.deepEqual([...chosen.project], ["project-b"]);
 
@@ -69,8 +70,23 @@ test("the start options say where a thread begins, and searching narrows the bra
   await view.render(options({ name: "fix-loader", create: false }, false));
   const branchTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
   assert.match(branchTrigger.textContent, /fix-loader/);
-  await act(async () => { query<HTMLButtonElement>(view.container, ".thread-start-toggle").click(); });
+  await act(async () => { branchTrigger.click(); });
+  const worktreeToggle = query<HTMLButtonElement>(view.container, '.branch-menu-footer button');
+  assert.equal(worktreeToggle.textContent, "Create worktree");
+  assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false");
+  await act(async () => {
+    query(view.container, 'input[aria-label="Search branches"]').dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" }));
+  });
+  assert.equal(document.activeElement, worktreeToggle, "the worktree action is reachable with the menu's arrow keys");
+  await act(async () => { worktreeToggle.click(); });
   assert.deepEqual(chosen.worktree, [true]);
+  await view.render(options({ name: "fix-loader", create: false }, true));
+  assert.match(branchTrigger.textContent, /Worktree/, "the closed control keeps the enabled checkout mode visible");
+  await act(async () => { branchTrigger.click(); });
+  const enabledToggle = query<HTMLButtonElement>(view.container, '.branch-menu-footer button');
+  assert.equal(enabledToggle.getAttribute("aria-pressed"), "true");
+  await act(async () => { enabledToggle.click(); });
+  assert.deepEqual(chosen.worktree, [true, false], "the same menu action can turn the worktree off");
 
   await act(async () => { branchTrigger.click(); });
   const branchSearch = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');

@@ -1,5 +1,5 @@
 import { LuCheck as Check, LuPlus as Plus, LuSearch as Search } from "react-icons/lu";
-import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus } from "../focus";
@@ -97,10 +97,12 @@ export type BranchMenuProps = {
   extra?: { label: string; value: string };
   /** Names what is being chosen, for a list that is one of several a view opens. */
   title?: string;
+  /** Related checkout controls, outside the list of selectable branches. */
+  footer?: ReactNode;
 };
 
 /** The list a branch is chosen from: the branches, narrowed by search, and the name to make. */
-export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra, title }: BranchMenuProps) {
+export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra, title, footer }: BranchMenuProps) {
   const [query, setQuery] = useState("");
   const anchored = useAnchoredStyle(anchor);
   const available = branches?.status === "available" ? branches : null;
@@ -135,6 +137,8 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       ref={menuRef}
       className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
       data-popover-menu
+      role={footer ? "dialog" : undefined}
+      aria-label={footer ? "Branch and worktree" : undefined}
       style={anchored ?? undefined}
       onKeyDown={moveListFocus}
     >
@@ -171,6 +175,7 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
           </Fragment>
         ))}
       </div>
+      {footer && <div className="branch-menu-footer">{footer}</div>}
     </div>
   );
 

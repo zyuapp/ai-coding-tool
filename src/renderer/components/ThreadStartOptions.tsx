@@ -68,7 +68,10 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   useDismissibleLayer(projectsOpen, [projectRef], () => setProjectsOpen(false), projectTrigger);
   useDismissibleLayer(branchesOpen, [branchRef, branchMenu], () => setBranchesOpen(false), branchTrigger);
   const project = projects.find((item) => item.id === projectId);
-  const matched = matchProjects(projects, projectQuery);
+  // Keep the chosen project visible while preserving the user's project order.
+  const initialProjects = projects.slice(0, 5);
+  if (project && !initialProjects.includes(project)) initialProjects.splice(4, 1, project);
+  const matched = projectQuery.trim() ? matchProjects(projects, projectQuery) : initialProjects;
   const branches = useBranches(workspaceId);
 
   const current = branches?.status === "available" ? branches.current : null;
@@ -80,8 +83,8 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
 
   return (
     <div className="thread-start" aria-label="How this thread starts">
-      <div className={`thread-start-field ${projectsOpen ? "open" : ""}`} ref={projectRef}>
-        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
+      <div className={`thread-start-field thread-start-project ${projectsOpen ? "open" : ""}`} ref={projectRef}>
+        <button ref={projectTrigger} type="button" aria-label="Project" aria-haspopup="listbox" aria-expanded={projectsOpen} onClick={() => { setBranchesOpen(false); setProjectQuery(""); setProjectsOpen(!projectsOpen); }}>
           <FolderGit2 size={14} />
           <span>{projectName(project)}</span>
           <ChevronDown size={14} />
@@ -128,11 +131,12 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
           <button type="button" aria-label={`Leave ${startsInWorktree}`} onClick={() => onSetWorktree(false)}><X size={13} /></button>
         </div>
       ) : (<>
-      <div className={`thread-start-field ${branchesOpen ? "open" : ""}`} ref={branchRef}>
-        <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="listbox" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => setBranchesOpen(!branchesOpen)}>
+      <div className={`thread-start-field thread-start-branch ${branchesOpen ? "open" : ""}`} ref={branchRef}>
+        <button ref={branchTrigger} type="button" aria-label="Starting branch" aria-haspopup="dialog" aria-expanded={branchesOpen} disabled={!workspaceId} onClick={() => { setProjectsOpen(false); setBranchesOpen(!branchesOpen); }}>
           <GitBranch size={14} />
           <span>{selected ?? (branches?.status === "error" ? "No branches" : "Current branch")}</span>
           {branch?.create && <small>new</small>}
+          {worktree && <span className="thread-start-worktree-indicator"><FolderSymlink size={13} />Worktree</span>}
           <ChevronDown size={14} />
         </button>
         {branchesOpen && (
@@ -140,6 +144,16 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
             menuRef={branchMenu}
             branches={branches}
             selected={selected}
+            footer={
+              <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => {
+                onSetWorktree(!worktree);
+                setBranchesOpen(false);
+              }}>
+                <FolderSymlink size={14} />
+                <span>Create worktree</span>
+                {worktree && <Check size={14} />}
+              </button>
+            }
             onPick={(name, create) => {
               setBranchesOpen(false);
               /** The branch the checkout is already on asks for nothing, so nothing is moved onto it. */
@@ -148,11 +162,6 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
           />
         )}
       </div>
-
-      <button type="button" className="thread-start-toggle" aria-pressed={worktree} onClick={() => onSetWorktree(!worktree)}>
-        <FolderSymlink size={14} />
-        <span>Worktree</span>
-      </button>
       </>)}
     </div>
   );

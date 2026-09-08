@@ -1213,31 +1213,17 @@ button, select { color: inherit; }
 .conversation > .empty-state .empty-glyph svg { width: 21px; height: 21px; }
 .conversation > .empty-state h2 { margin: 20px 0 7px; color: var(--ink); font-size: var(--text-hero); letter-spacing: -0.03em; }
 .conversation > .empty-state p { max-width: 372px; color: var(--muted-soft); font-size: var(--text-control); line-height: 1.6; }
-/** Project, branch and checkout are one decision, so they sit in one track rather than three apart. */
+/** The project leads; its starting branch is a quieter, separate choice. */
 .thread-start {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 0;
+  gap: 8px 16px;
+  max-width: 100%;
   margin-top: 26px;
-  border: 1px solid var(--line-soft);
-  border-radius: 999px;
-  padding: 3px;
-  background: var(--surface-input);
 }
-.thread-start > * { position: relative; }
-.thread-start > * + *::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: -1px;
-  width: 1px;
-  background: var(--line);
-}
-/** A hairline beside the control under the pointer would cut across its hover pill. */
-.thread-start > *:hover::before,
-.thread-start > *:hover + *::before { background: transparent; }
-.thread-start-field { position: relative; }
+.thread-start-field { position: relative; min-width: 0; max-width: 100%; }
 /** The empty state gives its buttons a filled pill; these controls carry only a hover wash. */
 .empty-state .thread-start button {
   margin: 0;
@@ -1256,14 +1242,16 @@ button, select { color: inherit; }
 }
 .empty-state .thread-start button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-soft); }
 .empty-state .thread-start button:disabled { opacity: 0.45; cursor: default; }
-/** A checkout of its own is a switch on the branch, so it presses in rather than carrying a box. */
-.empty-state .thread-start .thread-start-toggle { color: var(--quiet-strong); }
-.empty-state .thread-start .thread-start-toggle[aria-pressed="true"],
-.empty-state .thread-start .thread-start-toggle[aria-pressed="true"]:hover {
-  background: var(--chip);
-  color: var(--ink-soft);
+.empty-state .thread-start-project > button {
+  min-height: 36px;
+  max-width: min(260px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-input);
+  color: var(--ink-dim);
 }
-.thread-start-toggle > svg { flex: none; color: inherit; }
+.empty-state .thread-start-branch > button { min-height: 36px; max-width: min(320px, 100%); padding: 0 8px; border-radius: 8px; color: var(--muted); }
+.thread-start-field > button > .thread-start-worktree-indicator { display: flex; flex: none; align-items: center; gap: 5px; color: var(--muted); font-size: var(--text-meta); }
 .thread-start-field > button > span {
   min-width: 0;
   overflow: hidden;
@@ -1285,7 +1273,7 @@ button, select { color: inherit; }
 .thread-start-popover {
   position: absolute;
   z-index: 20;
-  top: 36px;
+  top: calc(100% + 6px);
   left: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
@@ -1300,7 +1288,8 @@ button, select { color: inherit; }
   box-shadow: var(--shadow-popover);
   text-align: left;
 }
-.empty-state .thread-start-popover button {
+.empty-state .thread-start-popover button,
+.empty-state .thread-start .branch-menu button {
   width: 100%;
   max-width: none;
   justify-content: space-between;
@@ -1309,6 +1298,11 @@ button, select { color: inherit; }
   background: transparent;
   font-weight: 450;
 }
+.empty-state .thread-start .branch-menu button { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; min-height: 32px; padding: 0 8px; }
+.empty-state .thread-start .branch-menu button:hover { background: var(--surface-menu-hover); }
+.branch-menu-footer { position: sticky; bottom: -5px; margin-top: 5px; border-top: 1px solid var(--line); padding-top: 5px; background: var(--surface-menu); }
+.empty-state .thread-start .branch-menu .thread-start-toggle { grid-template-columns: 16px minmax(0, 1fr) 14px; }
+.empty-state .thread-start .thread-start-toggle[aria-pressed="true"] { color: var(--ink); }
 /** A name too long for the list is cut off; it is never worth a second line. */
 .thread-start-popover button > span {
   min-width: 0;
@@ -1367,8 +1361,8 @@ button, select { color: inherit; }
 /** Placed against a row it does not sit inside, so a panel that scrolls or crops cannot clip it. */
 .branch-menu.anchored { position: fixed; z-index: 1000; }
 .thread-start-field .branch-menu {
-  top: 43px;
-  left: 0;
+  top: calc(100% + 6px);
+  right: 0;
   /** The field it hangs off is narrow, so the list takes its own width rather than wrapping names. */
   width: max-content;
   min-width: 220px;
