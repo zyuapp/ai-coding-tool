@@ -13,11 +13,10 @@ import { drawnMatches, paintMatches } from "../find/paint";
 import { useAnnotationMarkers, useAnnotationSelection, useSelectionCapture } from "../timeline/use-annotations";
 import { useReadingView } from "../timeline/use-reading-view";
 import { AnnotatePopover, AnnotationMarkers, NoteEditor } from "./AnnotateLayer";
-import { AttachmentViewer } from "./AttachmentViewer";
 import { TimelineEmptyState } from "./TimelineEmptyState";
 import { TimelineRow } from "./TimelineRow";
 import { RevealedMessage } from "./TurnWork";
-import { MessageArtifactScope } from "./MarkdownMessage";
+import { MessageArtifactScope, useMessageLinks } from "./MarkdownMessage";
 
 export { groupTimeline } from "../timeline/grouping";
 export { formatElapsed } from "./TurnWork";
@@ -69,7 +68,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const [viewing, setViewing] = useState<string | null>(null);
+  const links = useMessageLinks();
   const annotate = useAnnotationSelection({ onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide });
   const lastMessage = messages.at(-1);
   /** The answer being read out, whether it is still streaming or has already finished. */
@@ -142,7 +141,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
             offset={item.start - scrollMargin}
             measure={virtualizer.measureElement}
             streamingTail={streamingTail}
-            onViewAttachment={setViewing}
+            onViewAttachment={(source) => links.openImage?.(source)}
           />
         ))}
       </div>
@@ -175,7 +174,6 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
         </button>
         </div>
       )}
-      {viewing && <AttachmentViewer source={viewing} onClose={() => setViewing(null)} />}
       {annotate.selection && !annotate.noting && onAnnotateAdd && (
         <AnnotatePopover
           selection={annotate.selection}

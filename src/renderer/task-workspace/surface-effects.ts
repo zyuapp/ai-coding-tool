@@ -4,7 +4,7 @@ import { reportFailure, type EffectHost } from "./effect-host";
 
 /** The panels that hold something of their own: pages, shells, and the files opened out of them. */
 export type SurfaceEffect = Extract<WorkspaceEffect, {
-  type: `browser.${string}` | `terminal.${string}` | "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "find-in-page"
+  type: `browser.${string}` | `terminal.${string}` | "image.download" | "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "find-in-page"
     | "stop-find-in-page" | "focus-browser" | "find-in-terminal" | "stop-find-in-terminal";
 }>;
 
@@ -16,6 +16,9 @@ export async function runSurfaceEffect(effect: SurfaceEffect, host: EffectHost):
     return;
   }
   switch (effect.type) {
+    case "image.download":
+      return reportFailure(host, desktop.downloadImage(effect.source));
+
     case "file.open":
       return reportFailure(host, desktop.openFile(effect.roots, effect.path, effect.line));
 

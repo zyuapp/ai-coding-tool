@@ -127,7 +127,7 @@ export function App() {
 
   return (
     <MessageLinkProvider actions={messageLinks}>
-    {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} />}
+    {workspace.viewingImage && <AttachmentViewer key={workspace.viewingImage} source={workspace.viewingImage} onClose={() => void workspace.dispatch({ type: "image.close" })} onDownload={() => void workspace.dispatch({ type: "image.download" })} />}
     <DiagramViewerHost>
     <main className="app-shell">
       <Sidebar workspace={workspace} open={sidebarOpen} settingsVisible={settingsVisible} onOpenSettings={openSettings} />

@@ -44,6 +44,9 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   const forkedBefore = agents.length;
   const saveAttachment = handler<(event: IpcEvent, data: unknown) => Promise<string>>("attachment:save");
   const saved = await saveAttachment(trusted, Buffer.from([1, 2, 3]).toString("base64"));
+  const downloadImage = handler<(event: IpcEvent, source: unknown) => Promise<void>>("image:download");
+  await assert.rejects(downloadImage(untrusted, "attachment://file/image.png"), /Untrusted/);
+  await assert.rejects(downloadImage(trusted, "file:///etc/passwd"), /Invalid image reference/);
   assert.equal(path.dirname(saved), path.join(userData, "attachments"));
   await assert.rejects(saveAttachment(untrusted, "AQID"));
   await assert.rejects(saveAttachment(trusted, "not base64!"));

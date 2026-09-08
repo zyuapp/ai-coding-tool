@@ -194,6 +194,7 @@ const shapes = {
   "file.open": { taskId: optionalText, path: text, line: optional(number) },
   "image.open": { source: isImageSource },
   "image.close": {},
+  "image.download": {},
   "diff.open-commit": { commit: isCommitHash, taskId: optionalText },
   "file.attach": { taskId: optionalText, files: array(attachedFileDraft) },
   "file.detach": { taskId: optionalText, fileId: text },

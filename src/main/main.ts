@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { ATTACHMENT_SCHEME, attachmentName } from "../application/attachments.js";
 import { MESSAGE_IMAGE_SCHEME } from "../domain/message-artifacts.js";
 import { messageImageResponse, preserveMessageImages } from "./message-image-store.js";
+import { downloadImage } from "./image-download.js";
 import { isAutomationAck, isShortcutOverrides, isThreadResponse, isWindowTheme, type AvailableCommand, type BrowserPageEvent, type ComputerUsePermission, type WindowTheme } from "../contracts/ipc.js";
 import { isAutomationDraft, isAutomationPatch } from "../domain/automation.js";
 import { isAgentEngine, type AgentEngine } from "../domain/agent-engine.js";
@@ -740,6 +741,11 @@ ipcMain.handle("attachment:read", async (event, file: unknown) => {
 ipcMain.handle("message-images:preserve", async (event, files: unknown, root: unknown, messageId: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   await preserveMessageImages(files, root, messageId);
+});
+
+ipcMain.handle("image:download", async (event, source: unknown) => {
+  if (!trustedSender(event) || !window) throw new Error("Untrusted IPC sender.");
+  await downloadImage(window, source);
 });
 
 /** How many paths one drop may name, and how long each may be. */

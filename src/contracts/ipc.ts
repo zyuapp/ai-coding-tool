@@ -25,6 +25,7 @@ import type { WorkspaceRecord } from "../domain/workspace.js";
 import type { ManagedWorktree, Worktree, WorktreeRelease } from "../domain/worktree.js";
 import { isReviewTarget, type ReviewTarget } from "../domain/review.js";
 import type { MobileDesktopAPI } from "./mobile.js";
+import type { ImageDesktopAPI } from "./images.js";
 import type { LoadedTaskStore, TaskStoreDelta } from "./task-store.js";
 import type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
 export type { TerminalDataEvent, TerminalReadOptions, TerminalScreenSnapshot, TerminalStartOptions, TerminalText } from "./terminal.js";
@@ -209,7 +210,7 @@ export type AutomationResponse = {
 
 export type DesktopPlatform = "macos" | "linux" | "other";
 
-export type DesktopAPI = MobileDesktopAPI & {
+export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   /** Static renderer-facing platform identity; runtime capabilities still come from main. */
   readonly platform: DesktopPlatform;
   openFolder(): Promise<WorkspaceRecord | null>;
@@ -253,11 +254,6 @@ export type DesktopAPI = MobileDesktopAPI & {
   revealWorktree(root: string): Promise<void>;
   /** Force-commits what the worktree still holds so the thread can leave it without losing work. */
   releaseWorktree(request: ReleaseWorktreeRequest): Promise<WorktreeSnapshotResult>;
-  /** Writes base64 PNG bytes into the attachments directory and resolves with the absolute path. */
-  saveAttachment(data: string): Promise<string>;
-  /** Reads one back as base64 PNG bytes. Only files this app wrote are readable. */
-  readAttachment(file: string): Promise<string>;
-  preserveMessageImages(files: string[], root: string, messageId: string): Promise<void>;
   /** Where a dropped or pasted file sits on this machine. Empty for anything that is not a file on disk. */
   pathForFile(file: File): string;
   /** What each of those paths is. A path that is neither a file nor a folder is left out. */

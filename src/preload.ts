@@ -50,6 +50,7 @@ const api: DesktopAPI = {
   saveAttachment: (data: string) => ipcRenderer.invoke("attachment:save", data),
   readAttachment: (file: string) => ipcRenderer.invoke("attachment:read", file),
   preserveMessageImages: (files: string[], root: string, messageId: string) => ipcRenderer.invoke("message-images:preserve", files, root, messageId),
+  downloadImage: (source: string) => ipcRenderer.invoke("image:download", source),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   describeFiles: (paths: string[]) => ipcRenderer.invoke("file:describe", paths),
   suggestTaskTitle: (text: string, attachments: string[], engine: AgentEngine) => ipcRenderer.invoke("task-title:suggest", text, attachments, engine),

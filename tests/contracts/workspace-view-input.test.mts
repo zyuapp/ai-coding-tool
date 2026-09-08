@@ -29,6 +29,7 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "diff.set-range", range: { kind: "commit", commit: "60cceb8" } },
     { type: "image.open", source: "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply" },
     { type: "image.close" },
+    { type: "image.download" },
     { type: "find.results", target: { kind: "terminal", terminalId: "terminal" }, results: { matches: 0, index: 0, counting: false } },
     { type: "shortcut.captured", binding: null },
     { type: "shortcut.unavailable", refusal: { reason: "unsupported", binding: "Meta+Shift+P", message: "Not available" } },

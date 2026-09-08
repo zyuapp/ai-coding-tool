@@ -15,7 +15,7 @@ async function loaded(width: number, height: number) {
 }
 
 test("a loaded picture exposes zoom controls and resizes its image", async () => {
-  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => {} }));
+  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => {}, onDownload: () => {} }));
   const readout = () => query(document, ".viewer-zoom span").textContent;
   const zoom = (label: string) => query<HTMLButtonElement>(document, `.viewer-zoom button[aria-label="${label}"]`);
 
@@ -34,11 +34,19 @@ test("a loaded picture exposes zoom controls and resizes its image", async () =>
 
 test("the picture viewer closes on Escape and on the backdrop, but not on a drag off the picture", async () => {
   const closed: string[] = [];
-  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => closed.push("closed") }));
+  const downloads: string[] = [];
+  const view = await mount(React.createElement(AttachmentViewer, { source: "shot.png", onClose: () => closed.push("closed"), onDownload: () => downloads.push("download") }));
   const backdrop = query(document, ".viewer.image");
+  const download = query<HTMLButtonElement>(document, "button[aria-label='Download image']");
+  assert.equal(download.disabled, true);
   const image = await loaded(800, 400);
   const press = (target: Element) => target.dispatchEvent(new dom.window.PointerEvent("pointerdown", { bubbles: true }));
   const release = (target: Element) => target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+  assert.equal(download.disabled, false);
+  await act(async () => { press(download); release(download); });
+  assert.deepEqual(downloads, ["download"]);
+  assert.deepEqual(closed, [], "saving leaves the preview open");
 
   await act(async () => { press(image); release(backdrop); });
   assert.deepEqual(closed, []);

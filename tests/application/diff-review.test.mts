@@ -126,10 +126,14 @@ test("Escape closes an enlarged image before reaching the active run", () => {
   const source = "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply";
   const opened = reduce(state, { type: "image.open", source });
   assert.equal(deriveView(opened.state).viewingImage, source);
+  const downloading = reduce(opened.state, { type: "image.download" });
+  assert.equal(downloading.state.viewingImage, source);
+  assert.deepEqual(downloading.effects, [{ type: "image.download", source }]);
   const closed = reduce(opened.state, { type: "view.escape" });
   assert.equal(closed.state.viewingImage, null);
   assert.equal(closed.state.activeRuns, state.activeRuns);
   assert.deepEqual(closed.effects, []);
+  assert.deepEqual(reduce(closed.state, { type: "image.download" }).effects, []);
 });
 
 /** Opens the review and answers the read it asks for, which is what the renderer would do. */

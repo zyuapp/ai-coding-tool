@@ -129,7 +129,7 @@ export type ImageCommand =
   | { type: "image.recall"; taskId?: string; paths: string[] };
 
 /** Enlarges a picture without changing a composer's attachments. */
-export type ImageViewCommand = { type: "image.open"; source: string } | { type: "image.close" };
+export type ImageViewCommand = { type: "image.open"; source: string } | { type: "image.close" } | { type: "image.download" };
 
 export type ProjectCommand =
   | { type: "project.open" }
