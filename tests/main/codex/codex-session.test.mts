@@ -376,69 +376,6 @@ test("manual compaction uses Sol's thread operation and the same visible progres
   codex.provider.closeAll();
 });
 
-test("native review runs as a detached session subagent and copies its result into the parent", async () => {
-  const emitted: ProviderEvent[] = [];
-  const reports: ProviderEvent[] = [];
-  const codex = harness();
-  const warm = await turn(codex);
-  const running = codex.provider.execute(input({
-    prompt: "",
-    continuation: { provider: "codex", value: threadId },
-    model: "gpt-5.6-terra",
-    effort: "low",
-    policy: "allow-edits",
-    operation: { type: "review", target: { type: "baseBranch", branch: "main" } },
-    emit: (event) => emitted.push(event),
-    reportSubagent: (event) => reports.push(event),
-  }));
-  for (let waited = 0; codex.clients.length < 2; waited += 1) {
-    if (waited > 100) throw new Error("review session was never opened");
-    await tick();
-  }
-  const client = codex.latest();
-  await sentBy(client, "review/start");
-
-  assert.notEqual(client, warm.client, "review reopens the thread because review/start has no setting overrides");
-  assert.equal(warm.client.closed, true);
-  assert.deepEqual(client.calls("thread/resume"), [{
-    threadId,
-    cwd: "/tmp/project",
-    model: "gpt-5.6-terra",
-    approvalPolicy: "on-request",
-    sandbox: "workspace-write",
-    approvalsReviewer: "user",
-    config: { model_reasoning_effort: "low" },
-    developerInstructions: DEVELOPER_INSTRUCTIONS,
-  }]);
-  assert.deepEqual(client.calls("review/start"), [{ threadId, target: { type: "baseBranch", branch: "main" }, delivery: "detached" }]);
-  assert.equal(client.calls("turn/start").length, 0);
-  client.notify("turn/started", {
-    threadId: "thread-review",
-    turn: { id: turnId, items: [], itemsView: "summary", status: "inProgress", error: null, startedAt: 1, completedAt: null, durationMs: null },
-  });
-  client.notify("item/completed", {
-    threadId: "thread-review",
-    turnId,
-    item: { type: "exitedReviewMode", id: "review-1", review: "No findings." },
-    completedAtMs: 2,
-  });
-  client.notify("turn/completed", {
-    threadId: "thread-review",
-    turn: { id: turnId, items: [], itemsView: "summary", status: "completed", error: null, startedAt: 1, completedAt: 2, durationMs: 1_000 },
-  });
-
-  assert.deepEqual(await running, { status: "succeeded" });
-  assert.deepEqual(emitted.filter((event) => event.type !== "continuation"), [{ type: "assistant", messageId: "review:thread-review", text: "No findings." }]);
-  assert.deepEqual(client.calls("thread/inject_items"), [{
-    threadId,
-    items: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "No findings." }] }],
-  }]);
-  assert.deepEqual(reports.filter((event) => event.type === "subagent.started"), [{
-    type: "subagent.started", id: "thread-review", description: "Review against main", agentType: "reviewer", sessionScoped: true,
-  }]);
-  assert.equal(reports.some((event) => event.type === "subagent.activity" && event.kind === "text" && event.text === "No findings."), true);
-  codex.provider.closeAll();
-});
 
 async function asking(overrides: Partial<Parameters<typeof input>[0]> = {}) {
   const asked: ToolIntent[] = [];

@@ -265,7 +265,7 @@ function startReview(state: WorkspaceState, pending: PendingRun, workspace: Work
   const command = {
     ...startRunCommand(state, thread, pending.runId, "", workspace.id),
     operation: { type: "review" as const, target },
-    /** A copied thread must own a fork before its detached reviewer branches from it. */
+    /** A copied thread must own a fork before the review adds findings to its history. */
     ...(thread.inheritedContinuation ? { forkContinuation: true as const } : {}),
   };
   return settled(beginRun(state, thread.id, pending.runId, { ...ATTENDED_RUN, operation: "review" }), [{ type: "start-run", command }]);

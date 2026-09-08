@@ -144,22 +144,9 @@ type Turn = {
   /** The context measured before this compaction began, before usage notifications can replace it. */
   compactionPreTokens?: number;
   compacting?: boolean;
-  /** A native review runs on this detached thread while the app run remains on its parent. */
-  reviewThreadId?: string;
+  /** The final native review report, used to avoid repeating its following assistant message. */
   reviewOutput?: string;
-  reviewFinalizing?: boolean;
 };
-
-type ReviewOperation = Extract<NonNullable<ProviderRunInput["operation"]>, { type: "review" }>;
-
-function reviewDescription(target: ReviewOperation["target"]) {
-  switch (target.type) {
-    case "uncommittedChanges": return "Review uncommitted changes";
-    case "baseBranch": return `Review against ${target.branch}`;
-    case "commit": return `Review commit ${target.sha}`;
-    case "custom": return firstLine(target.instructions);
-  }
-}
 
 /**
  * One live Codex thread, kept across turns. The app server process belongs to the session, so a
@@ -396,27 +383,25 @@ export class CodexSession {
     }
   }
 
-  /** A review forks a native Codex thread and reports it through the same session roster as subagents. */
+  /** Inline delivery keeps the isolated native reviewer compatible with paginated history. */
   private async beginReview(turn: Turn, client: CodexClient, threadId: string) {
     const operation = turn.input.operation;
     if (operation?.type !== "review") return;
-    let started: { turn: { id: string }; reviewThreadId: string };
+    let started: { turn: { id: string } };
     try {
-      started = await client.request("review/start", { threadId, target: operation.target, delivery: "detached" });
+      started = await client.request("review/start", { threadId, target: operation.target, delivery: "inline" });
     } catch (error) {
       if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not start the review: ${reasonOf(error)}` });
       return;
     }
     turn.turnId = started.turn.id;
-    turn.reviewThreadId = started.reviewThreadId;
+    this.record.began();
     if (this.turn !== turn) return;
-    this.subagents?.registerReview(started.reviewThreadId, reviewDescription(operation.target));
-    this.reconcileReview(turn);
     if (turn.interruptWanted) {
       this.interrupt(turn);
       return;
     }
-    await this.drainSteering(turn, started.reviewThreadId);
+    await this.drainSteering(turn);
   }
 
   /**
@@ -467,7 +452,6 @@ export class CodexSession {
     });
     client.on("item/completed", (params) => {
       const child = subagents.itemCompleted(params);
-      this.receiveReviewItem(params.threadId, params.item);
       if (!child && params.threadId === this.threadId) this.receiveCompleted(params.item);
       if (params.threadId === this.threadId && params.item.type === "commandExecution" && this.backgroundProcesses.length) {
         void this.refreshBackgroundProcesses();
@@ -481,7 +465,7 @@ export class CodexSession {
     });
     client.on("turn/completed", (params) => {
       const child = subagents.turnCompleted(params);
-      if (!this.receiveReviewTurnCompleted(params.threadId, params.turn) && !child && params.threadId === this.threadId) this.receiveTurnCompleted(params.turn);
+      if (!child && params.threadId === this.threadId) this.receiveTurnCompleted(params.turn);
     });
     client.on("serverRequest/resolved", ({ requestId }) => this.questions.pending.get(requestId)?.abort());
     client.onRequest((request) => this.answer(request));
@@ -518,12 +502,6 @@ export class CodexSession {
     const children = this.subagents?.liveTurns ?? [];
     for (const child of children) {
       void this.client.request("turn/interrupt", child).catch(() => {});
-    }
-    if (turn.reviewThreadId) {
-      if (!children.some((child) => child.threadId === turn.reviewThreadId && child.turnId === turn.turnId)) {
-        void this.client.request("turn/interrupt", { threadId: turn.reviewThreadId, turnId: turn.turnId }).catch(() => {});
-      }
-      return;
     }
     void this.client.request("turn/interrupt", { threadId: this.threadId, turnId: turn.turnId }).catch(() => {});
   }
@@ -583,7 +561,7 @@ export class CodexSession {
 
   private receiveDelta(itemId: string, delta: string) {
     const turn = this.turn;
-    if (!turn) return;
+    if (!turn || turn.reviewOutput !== undefined) return;
     let buffer = turn.streamed.get(itemId);
     if (!buffer) turn.streamed.set(itemId, buffer = openMarkdownBuffer());
     const complete = appendCompleteMarkdown(buffer, delta);
@@ -595,6 +573,7 @@ export class CodexSession {
     const turn = this.turn;
     if (!turn) return;
     if (item.type === "agentMessage") {
+      if (turn.reviewOutput !== undefined) return;
       if (item.delivery === "async" && item.questions?.length && this.client && this.threadId) {
         void this.questions.answerAsync(item.questions, turn.input, this.client, this.threadId, () => this.turn === turn ? turn.turnId : undefined).catch((error: unknown) => {
           if (this.turn === turn) this.settle({ status: "failed", message: `Codex could not receive your answer: ${reasonOf(error)}` });
@@ -608,6 +587,12 @@ export class CodexSession {
       } else if (item.text.trim()) {
         turn.input.emit({ type: "assistant", messageId: item.id, text: item.text });
       }
+    } else if (item.type === "exitedReviewMode" && turn.input.operation?.type === "review") {
+      const output = item.review.trim();
+      if (output && turn.reviewOutput === undefined) {
+        turn.reviewOutput = output;
+        turn.input.emit({ type: "assistant", messageId: item.id, text: output });
+      }
     } else if (item.type === "contextCompaction") {
       const manual = turn.input.operation?.type === "compact";
       turn.input.emit({ type: "compaction", trigger: manual ? "manual" : "auto", preTokens: turn.compactionPreTokens ?? this.lastTokens });
@@ -616,50 +601,6 @@ export class CodexSession {
     } else {
       turn.items.delete(item.id);
     }
-  }
-
-  /** Copies the detached review's final report into the visible parent transcript once. */
-  private receiveReviewItem(threadId: string, item: ThreadItem) {
-    const turn = this.turn;
-    if (!turn || turn.reviewThreadId !== threadId || item.type !== "exitedReviewMode") return;
-    const output = item.review.trim();
-    if (!output || turn.reviewOutput !== undefined) return;
-    turn.reviewOutput = output;
-    turn.input.emit({ type: "assistant", messageId: `review:${threadId}`, text: output });
-  }
-
-  /** Replays review traffic that raced ahead of the `review/start` response. */
-  private reconcileReview(turn: Turn) {
-    const threadId = turn.reviewThreadId;
-    if (!threadId) return;
-    const state = this.subagents?.reviewState(threadId);
-    if (state?.output) this.receiveReviewItem(threadId, { type: "exitedReviewMode", id: turn.turnId ?? threadId, review: state.output });
-    if (state?.completed) this.finishReview(turn, state.completed);
-  }
-
-  private receiveReviewTurnCompleted(threadId: string, completed: NotificationParams<"turn/completed">["turn"]) {
-    const turn = this.turn;
-    if (!turn || turn.reviewThreadId !== threadId || (turn.turnId !== undefined && turn.turnId !== completed.id)) return false;
-    this.finishReview(turn, completed);
-    return true;
-  }
-
-  /** Keeps the parent Codex history aligned with the review result shown in the app. */
-  private finishReview(turn: Turn, completed: { id: string; status: string; error?: { message: string } | null; message?: string }) {
-    if (this.turn !== turn || turn.reviewFinalizing) return;
-    turn.reviewFinalizing = true;
-    void (async () => {
-      if (completed.status === "completed" && turn.reviewOutput && this.client && this.threadId) {
-        await this.client.request("thread/inject_items", {
-          threadId: this.threadId,
-          items: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: turn.reviewOutput }] }],
-        }).catch(() => {});
-      }
-      if (this.turn !== turn) return;
-      if (completed.status === "completed") this.settle({ status: "succeeded" });
-      else if (completed.status === "interrupted") this.settle({ status: "cancelled" });
-      else this.settle({ status: "failed", message: completed.error?.message ?? completed.message ?? turn.failure ?? "Codex could not finish the review." });
-    })();
   }
 
   private setCompacting(turn: Turn, compacting: boolean, error?: string) {
@@ -690,7 +631,7 @@ export class CodexSession {
   private async finishTurn(turn: Turn, completed: NotificationParams<"turn/completed">["turn"]) {
     await this.refreshBackgroundProcesses();
     if (this.turn !== turn) return;
-    if (completed.status === "completed" && this.goalActive) return;
+    if (completed.status === "completed" && this.goalActive && turn.input.operation?.type !== "review") return;
     if (completed.status === "completed") this.settle({ status: "succeeded" });
     else if (completed.status === "interrupted") this.settle({ status: "cancelled" });
     else if (completed.status === "failed") this.settle({ status: "failed", message: completed.error?.message ?? turn.failure ?? "Codex could not finish the turn." });

@@ -40,9 +40,9 @@ export const defaultScript: Script = {
   "thread/compact/start": () => ({}),
   "thread/backgroundTerminals/list": () => ({ data: [], nextCursor: null }),
   "thread/backgroundTerminals/terminate": () => ({ terminated: true }),
-  "review/start": () => ({
+  "review/start": (params: { threadId: string }) => ({
     turn: { id: "turn-1", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null },
-    reviewThreadId: "thread-review",
+    reviewThreadId: params.threadId,
   }),
   "turn/start": () => ({ turn: { id: "turn-1", items: [], itemsView: "notLoaded", status: "inProgress", error: null, startedAt: null, completedAt: null, durationMs: null } }),
   "turn/steer": () => ({ turnId: "turn-1" }),
