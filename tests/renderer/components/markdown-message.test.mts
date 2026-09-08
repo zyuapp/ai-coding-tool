@@ -111,6 +111,27 @@ test("an old reply previews image links, preserves its text, and enlarges in the
   await view.unmount();
 });
 
+test("generated artifacts remain visible beside the final answer after work folds away", async () => {
+  const { groupTimeline } = await import("../../../src/renderer/timeline/grouping.ts");
+  const { TimelineRow } = await import("../../../src/renderer/components/TimelineRow.tsx");
+  const messages = [
+    { id: "tool", kind: "tool" as const, text: "image_generation", at: 1 },
+    { id: "image", kind: "assistant" as const, text: "[Generated image](/tmp/cat.png)", artifact: true as const, at: 2 },
+    { id: "answer", kind: "assistant" as const, text: "A pixel art cat.", at: 3 },
+  ];
+  const opened: string[] = [];
+  const groups = groupTimeline(messages, { running: false });
+  const view = await mount(React.createElement(MessageLinkProvider, { actions: { openImage: (source) => opened.push(source) }, children: groups.map((group, index) =>
+    React.createElement(TimelineRow, { key: group.id, engine: "codex", group, index, offset: 0, measure: () => {}, onViewAttachment: () => {} })) }));
+  assert.equal(view.container.querySelector("details")?.open, false);
+  const image = query<HTMLImageElement>(view.container, "img");
+  assert.equal(image.closest("details"), null);
+  assert.match(view.container.textContent ?? "", /A pixel art cat/);
+  await act(async () => query<HTMLButtonElement>(view.container, '[aria-label="Enlarge Generated image"]').click());
+  assert.equal(new URL(opened[0]!).searchParams.get("message"), "image");
+  await view.unmount();
+});
+
 test("commit hashes in inline code open that transcript's commit, while fenced code stays code", async () => {
   const opened: Array<[string, string | undefined]> = [];
   const view = await mount(React.createElement(MessageLinkProvider, { actions: { openCommit: (hash, taskId) => opened.push([hash, taskId]) },

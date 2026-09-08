@@ -1,4 +1,5 @@
 import type { SessionPool } from "../../src/main/agent/session-pool.mts";
+import type { ImageOutput } from "../../src/main/codex/codex-images.mts";
 import { afterEach, beforeEach, vi } from "vitest";
 import { PRIVATE_CODEX_HOME_ENV } from "../../src/main/codex/codex-home.mts";
 import type { AppServerCommand, ClientMethod, ClientParams, ClientResult, ExitStatus, IncomingRequest, JsonRpcError, NotificationMethod, NotificationParams, ServerRequestMethod, ServerRequestParams, ServerRequestResult } from "../../src/main/codex/app-server-client.mts";
@@ -196,7 +197,7 @@ export type Harness = {
 };
 
 /** A provider whose app servers are scripted fakes, one per session it opens. */
-export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; pool?: SessionPool; idleMs?: number; readOrigin?: ReadOrigin } = {}): Harness {
+export function harness(script: Script = {}, options: { handshake?: () => Promise<InitializeResponse>; pool?: SessionPool; idleMs?: number; readOrigin?: ReadOrigin; imageOutput?: ImageOutput } = {}): Harness {
   const clients: FakeCodexClient[] = [];
   const host = new FakeToolHost();
   const provider = new CodexAgentProvider({
@@ -209,6 +210,7 @@ export function harness(script: Script = {}, options: { handshake?: () => Promis
     idleMs: options.idleMs,
     pool: options.pool,
     ...(options.readOrigin ? { readOrigin: options.readOrigin } : {}),
+    ...(options.imageOutput ? { imageOutput: options.imageOutput } : {}),
   });
   return { provider, clients, latest: () => clients.at(-1)!, host };
 }

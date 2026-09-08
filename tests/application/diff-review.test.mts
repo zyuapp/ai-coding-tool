@@ -115,9 +115,10 @@ test("committed image links are preserved even when another thread is on screen"
   const linked = thread("linked", "Linked");
   const state = workspace({ currentId: "current", threads: [thread("current", "Current"), linked], activeRuns: { linked: activeRun("linked", "run-image") } });
   const text = "Verified [Screenshot](/tmp/old-shot.png).";
-  const next = reduce(state, { type: "run.event", event: { type: "assistant.delta", taskId: linked.id, runId: "run-image", sequence: 1, messageId: "image-message", text } });
+  const next = reduce(state, { type: "run.event", event: { type: "assistant.delta", taskId: linked.id, runId: "run-image", sequence: 1, messageId: "image-message", text, artifact: true } });
   assert.deepEqual(next.effects, [{ type: "preserve-message-images", text, root: "/repo", messageId: "image-message" }]);
   assert.equal(next.state.threads.find((item) => item.id === linked.id)?.messages[0].text, text);
+  assert.equal(next.state.threads.find((item) => item.id === linked.id)?.messages[0].artifact, true);
 });
 
 test("Escape closes an enlarged image before reaching the active run", () => {

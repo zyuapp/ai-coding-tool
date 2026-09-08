@@ -53,7 +53,7 @@ export type SteerQueue = {
 };
 
 export type ProviderEvent =
-  | { type: "assistant"; messageId: string; text: string; append?: boolean }
+  | { type: "assistant"; messageId: string; text: string; append?: boolean; artifact?: true }
   /** The buffered remainder that has not formed a complete block yet, so the UI can type it out. */
   | { type: "assistant-tail"; messageId: string; text: string }
   /** `model` is the id the engine reported on the wire, not an AgentModel. */

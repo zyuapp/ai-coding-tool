@@ -48,6 +48,19 @@ test("native goal updates replace and clear session-only thread state", () => {
   assert.equal(cleared.goals["task-a"], undefined);
 });
 
+test("an artifact arriving during a streamed answer keeps its image separate and the answer intact", () => {
+  const at = { taskId: "task-a", runId: "run-a" };
+  let next = applyRunEvent(state(), { ...at, sequence: 1, type: "assistant.delta", messageId: "answer", text: "A cat.\n\n" });
+  next = applyRunEvent(next, { ...at, sequence: 2, type: "assistant.tail", messageId: "answer", text: "Pixel art" });
+  next = applyRunEvent(next, { ...at, sequence: 3, type: "assistant.delta", messageId: "image", text: "[Generated image](/tmp/cat.png)", artifact: true });
+  assert.deepEqual(next.streamingTails["task-a"], { messageId: "answer", text: "Pixel art" });
+  next = applyRunEvent(next, { ...at, sequence: 4, type: "assistant.delta", messageId: "answer", text: "Pixel art.", append: true });
+  assert.deepEqual(next.threads[0]!.messages.map(({ id, text, artifact }) => ({ id, text, artifact })), [
+    { id: "image", text: "[Generated image](/tmp/cat.png)", artifact: true },
+    { id: "answer", text: "A cat.\n\nPixel art.", artifact: undefined },
+  ]);
+});
+
 function subagentAt(subject: RunTransitionState, taskId: string, index: number): Subagent {
   const subagent = subject.subagents[taskId]?.[index];
   assert.ok(subagent);

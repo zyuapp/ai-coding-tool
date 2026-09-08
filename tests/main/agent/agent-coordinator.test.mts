@@ -369,6 +369,7 @@ test("coordinator forwards every provider event with one ordered sequence", asyn
   const events: AgentEvent[] = [];
   const providerEvents: ProviderEvent[] = [
     { type: "assistant", messageId: "message-1", text: "hello" },
+    { type: "assistant", messageId: "image-1", text: "[Generated image](/tmp/cat.png)", artifact: true },
     { type: "usage", tokens: 10, limit: 200_000, model: "claude" },
     { type: "compaction-status", compacting: true },
     { type: "compaction", trigger: "manual", preTokens: 10 },
@@ -384,7 +385,8 @@ test("coordinator forwards every provider event with one ordered sequence", asyn
   coordinator.start(base("task-events", "run-events"));
   await tick();
 
-  assert.deepEqual(events.slice(2, -1).map((event) => event.type), ["assistant.delta", "context.usage", "context.compaction-status", "context.compacted", "tool.intent", "continuation.updated"]);
+  assert.deepEqual(events.slice(2, -1).map((event) => event.type), ["assistant.delta", "assistant.delta", "context.usage", "context.compaction-status", "context.compacted", "tool.intent", "continuation.updated"]);
+  assert.deepEqual(events[3], { type: "assistant.delta", taskId: "task-events", runId: "run-events", sequence: 4, messageId: "image-1", text: "[Generated image](/tmp/cat.png)", artifact: true });
   assert.deepEqual(runEvents(events).map((event) => event.sequence), runEvents(events).map((_, index) => index + 1));
   const terminal = events.at(-1);
   assert.ok(terminal?.type === "run.status");

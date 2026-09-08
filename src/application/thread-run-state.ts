@@ -415,13 +415,18 @@ export function applyRunEvent<T extends RunTransitionState>(state: T, event: Run
   }
   if (event.type === "assistant.delta") {
     /** The block being committed is what the tail was showing, so it stops standing in for it. */
-    return updateThread(withStreamingTail(withSequence, event.taskId, null), event.taskId, (thread) => {
+    return updateThread(event.artifact ? withSequence : withStreamingTail(withSequence, event.taskId, null), event.taskId, (thread) => {
       const last = thread.messages.at(-1);
       let messages;
       if (last?.kind === "assistant" && last.id === event.messageId) {
         messages = replaceLastMessage(thread.messages, { ...last, text: `${last.text}${event.append ? "" : "\n"}${event.text}` });
       } else {
-        messages = appendMessages(thread.messages, [{ id: event.messageId, kind: "assistant", text: event.text, at: now() }]);
+        const message = { id: event.messageId, kind: "assistant" as const, text: event.text, ...(event.artifact ? { artifact: true as const } : {}), at: now() };
+        // Image persistence can finish during a streamed answer. Keep that answer at the tail so
+        // its next block still appends to the same message, with the image beside it.
+        messages = event.artifact && last?.kind === "assistant" && !last.artifact
+          ? [...thread.messages.slice(0, -1), message, last]
+          : appendMessages(thread.messages, [message]);
       }
       return { ...thread, messages, updatedAt: now() };
     });

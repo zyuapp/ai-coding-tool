@@ -9,6 +9,7 @@ import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppS
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { codexInstructions } from "./codex-instructions.mjs";
 import { CodexSkills } from "./codex-skills.mjs";
+import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
 import type { ApprovalsReviewer } from "./protocol/v2/ApprovalsReviewer.js";
@@ -112,6 +113,8 @@ export function intentOf(item: ThreadItem): ToolIntent | undefined {
       return { toolId: item.id, name: item.tool, input: isRecord(item.arguments) ? item.arguments : { arguments: item.arguments } };
     case "webSearch":
       return { toolId: item.id, name: "web_search", input: { query: item.query } };
+    case "imageGeneration":
+      return { toolId: item.id, name: "image_generation", input: { description: "Generating image" } };
     default:
       return undefined;
   }
@@ -139,6 +142,9 @@ type Turn = {
   streamed: Map<string, MarkdownBuffer>;
   /** Tool items started and not yet completed, by id: what an approval for one of them is about. */
   items: Map<string, ThreadItem>;
+  /** Image persistence may finish after Codex reports the end of the turn. */
+  images: Set<Promise<void>>;
+  imageIds: Set<string>;
   /** The last error the server said it would not retry, kept for the turn's failure. */
   failure?: string;
   /** The context measured before this compaction began, before usage notifications can replace it. */
@@ -188,6 +194,7 @@ export class CodexSession {
     private readonly onEnded: () => void,
     private readonly onRested: () => void,
     readOrigin: ReadOrigin = async () => ({ originUrl: null, branch: null, sha: null }),
+    private readonly imageOutput: ImageOutput = codexImageOutput,
   ) {
     this.record = new CodexThreadRecord(readOrigin);
   }
@@ -228,6 +235,8 @@ export class CodexSession {
         settle: resolve,
         streamed: new Map(),
         items: new Map(),
+        images: new Set(),
+        imageIds: new Set(),
         release: () => {
           clearTimeout(grace);
           input.abortController.signal.removeEventListener("abort", interrupt);
@@ -593,6 +602,17 @@ export class CodexSession {
         turn.reviewOutput = output;
         turn.input.emit({ type: "assistant", messageId: item.id, text: output });
       }
+    } else if (item.type === "imageGeneration") {
+      turn.items.delete(item.id);
+      if (turn.imageIds.has(item.id)) return;
+      turn.imageIds.add(item.id);
+      const saving = this.imageOutput(item, turn.input.workspaceRoot)
+        .catch(() => "The generated image could not be saved or displayed.")
+        .then((text) => {
+          if (this.turn === turn && !turn.input.abortController.signal.aborted) turn.input.emit({ type: "assistant", messageId: item.id, text, artifact: true });
+        })
+        .finally(() => { turn.images.delete(saving); });
+      turn.images.add(saving);
     } else if (item.type === "contextCompaction") {
       const manual = turn.input.operation?.type === "compact";
       turn.input.emit({ type: "compaction", trigger: manual ? "manual" : "auto", preTokens: turn.compactionPreTokens ?? this.lastTokens });
@@ -629,6 +649,7 @@ export class CodexSession {
 
   /** Reads terminals before settling, so the session cannot be reclaimed while new work is running. */
   private async finishTurn(turn: Turn, completed: NotificationParams<"turn/completed">["turn"]) {
+    await Promise.all(turn.images);
     await this.refreshBackgroundProcesses();
     if (this.turn !== turn) return;
     if (completed.status === "completed" && this.goalActive && turn.input.operation?.type !== "review") return;

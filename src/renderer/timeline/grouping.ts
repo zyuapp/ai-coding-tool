@@ -32,7 +32,7 @@ function endOf(group: TimelineGroup, next: TimelineGroup | undefined, runEndedAt
 export function groupTimeline(messages: ConversationMessage[], { running, tailMessageId, runEndedAt }: TimelineOptions): TimelineGroup[] {
   const groups: (TimelineGroup | ConversationMessage[])[] = [];
   for (const message of messages) {
-    if (message.kind === "user" || message.kind === "system") {
+    if (message.kind === "user" || message.kind === "system" || message.artifact) {
       groups.push({ kind: "message", id: message.id, message });
       continue;
     }

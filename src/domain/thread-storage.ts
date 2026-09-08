@@ -498,6 +498,7 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     nonEmptyString(value.id) &&
     typeof value.kind === "string" && isMessageKind(value.kind) &&
     typeof value.text === "string" &&
+    (value.artifact === undefined || value.artifact === true) &&
     (value.detail === undefined || typeof value.detail === "string") &&
     (value.tone === undefined || value.tone === "error") &&
     (value.attachments === undefined || (Array.isArray(value.attachments) && value.attachments.every(nonEmptyString))) &&

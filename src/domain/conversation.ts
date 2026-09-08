@@ -55,6 +55,8 @@ export type ConversationMessage = {
   id: string;
   kind: ConversationMessageKind;
   text: string;
+  /** A delivered artifact or its failure stays visible when intermediate work folds away. */
+  artifact?: true;
   detail?: string;
   /** A system message is a neutral notice unless it reports a failure. */
   tone?: "error";

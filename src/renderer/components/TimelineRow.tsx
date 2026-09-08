@@ -82,6 +82,10 @@ export function TimelineRow({ engine, group, index, offset, measure, streamingTa
         </article>
       ) : message!.kind === "system" ? (
         <SystemNotice message={message!} />
+      ) : message!.kind === "assistant" ? (
+        <article className="message assistant">
+          <div className="message-text markdown-body"><StreamingText committed={message!.text} messageId={message!.id} /></div>
+        </article>
       ) : (
         <UserMessage message={message!} onView={onViewAttachment} />
       )}

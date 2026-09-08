@@ -183,8 +183,8 @@ export class RunCoordinator {
     }
     if (event.type === "assistant") {
       /** The committed block already contains whatever a waiting tail was holding. */
-      active.pendingTail = undefined;
-      this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text, ...(event.append ? { append: true } : {}) });
+      if (!event.artifact) active.pendingTail = undefined;
+      this.publish(active, { type: "assistant.delta", messageId: event.messageId, text: event.text, ...(event.append ? { append: true } : {}), ...(event.artifact ? { artifact: true } : {}) });
     }
     if (event.type === "assistant-tail") this.queueTail(active, event.messageId, event.text);
     if (event.type === "usage") this.publish(active, { type: "context.usage", tokens: event.tokens, limit: event.limit, model: event.model });

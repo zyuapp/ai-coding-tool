@@ -4,6 +4,7 @@ import { McpHttpHost, type ToolHost } from "../tools/mcp-http-host.mjs";
 import { connectAppServer } from "./app-server-client.mjs";
 import { CodexSession, type CodexConnect } from "./codex-session.mjs";
 import type { ReadOrigin } from "./codex-thread-record.mjs";
+import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 
 /**
  * Everything a session is built with. A run that disagrees with any of it needs a session of its
@@ -38,6 +39,7 @@ const readOrigin: ReadOrigin = async (root) => {
 };
 
 export type CodexProviderOptions = {
+  imageOutput?: ImageOutput;
   connect?: CodexConnect;
   /** Reads the checkout a thread runs in; a test hands it an answer instead of a repository. */
   readOrigin?: ReadOrigin;
@@ -53,17 +55,19 @@ export class CodexAgentProvider implements AgentProvider {
   private readonly host: ToolHost;
   private readonly pool: SessionPool;
   private readonly readOrigin: ReadOrigin;
+  private readonly imageOutput: ImageOutput;
 
   constructor(options: CodexProviderOptions = {}) {
     this.connect = options.connect ?? connectAppServer;
     this.readOrigin = options.readOrigin ?? readOrigin;
+    this.imageOutput = options.imageOutput ?? codexImageOutput;
     this.host = options.host ?? new McpHttpHost();
     this.pool = options.pool ?? new SessionPool(options.idleMs);
   }
 
   execute(input: ProviderRunInput): Promise<ProviderResult> {
     const key = sessionKey(input);
-    return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin) });
+    return this.pool.execute(input, key, { open: ({ ended, rested }) => new CodexSession(key, this.connect, this.host, ended, rested, this.readOrigin, this.imageOutput) });
   }
 
   /** Reaches the thread's own session, so work that outlived the turn that started it can still be stopped. */
