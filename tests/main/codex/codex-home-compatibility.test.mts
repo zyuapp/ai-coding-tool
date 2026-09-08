@@ -8,6 +8,10 @@ import { AppServerClient, CLIENT_INFO, codexAppServer, type NotificationParams }
 import { PRIVATE_CODEX_HOME_ENV } from "../../../src/main/codex/codex-home.mts";
 import type { ConfigReadResponse } from "../../../src/main/codex/protocol/v2/ConfigReadResponse.ts";
 import type { ThreadListResponse } from "../../../src/main/codex/protocol/v2/ThreadListResponse.ts";
+import type { HooksListResponse } from "../../../src/main/codex/protocol/v2/HooksListResponse.ts";
+import type { ListMcpServerStatusResponse } from "../../../src/main/codex/protocol/v2/ListMcpServerStatusResponse.ts";
+import { codexConfig } from "../../../src/main/codex/codex-config.mts";
+import { McpHttpHost } from "../../../src/main/tools/mcp-http-host.mts";
 
 /** Real Codex with synthetic OAuth and Responses endpoints: no account, quota, or internet needed. */
 async function fixture() {
@@ -18,13 +22,20 @@ async function fixture() {
   const clients: AppServerClient[] = [];
   const bodies: string[] = [];
   let refreshes = 0;
-  const jwt = (email: string) => `e30.${Buffer.from(JSON.stringify({ email, exp: Math.floor(Date.now() / 1000) + 3600, "https://api.openai.com/auth": { chatgpt_account_id: "synthetic-account", chatgpt_plan_type: "pro" } })).toString("base64url")}.synthetic`;
+  let rejectOldTokens = false;
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = (email: string) => `e30.${Buffer.from(JSON.stringify({ email, exp: expiresAt, "https://api.openai.com/auth": { chatgpt_account_id: "synthetic-account", chatgpt_plan_type: "pro" } })).toString("base64url")}.synthetic`;
   const server = createServer((request, response) => {
     if (request.url === "/oauth/token") {
       request.resume();
       refreshes++;
       response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ id_token: jwt(`refresh${refreshes}@example.invalid`), access_token: jwt(`refresh${refreshes}@example.invalid`), refresh_token: `synthetic-refresh-${refreshes}` }));
     } else if (request.url?.endsWith("/responses")) {
+      if (rejectOldTokens && request.headers.authorization === `Bearer ${jwt("initial@example.invalid")}`) {
+        request.resume();
+        response.writeHead(401, { "Content-Type": "application/json" }).end(JSON.stringify({ error: { message: "Expired fixture token", type: "invalid_request_error", code: "invalid_api_key" } }));
+        return;
+      }
       let body = "";
       request.on("data", (chunk: Buffer) => { body += chunk.toString(); });
       request.on("end", () => {
@@ -56,12 +67,12 @@ async function fixture() {
     const url = `http://127.0.0.1:${address.port}`;
     await mkdir(path.join(shared, "agents"));
     await mkdir(path.join(shared, "skills", "compatibility"), { recursive: true });
-    await writeFile(path.join(shared, "agents", "instructions.md"), "SHARED_BASE_INSTRUCTIONS");
+    await writeFile(path.join(shared, "instructions.md"), "SHARED_BASE_INSTRUCTIONS");
     await writeFile(path.join(shared, "AGENTS.md"), "SHARED_GLOBAL_INSTRUCTIONS");
     await writeFile(path.join(shared, "skills", "compatibility", "SKILL.md"), "---\nname: compatibility\ndescription: Synthetic compatibility fixture\n---\nUse only for the compatibility fixture.\n");
     await writeFile(path.join(shared, "config.toml"), `model = "mock-model"
 model_provider = "compatibility"
-model_instructions_file = "agents/instructions.md"
+model_instructions_file = "instructions.md"
 approval_policy = "never"
 sandbox_mode = "read-only"
 cli_auth_credentials_store = "file"
@@ -84,8 +95,8 @@ requires_openai_auth = false
 supports_websockets = false
 `);
     const env: NodeJS.ProcessEnv = { PATH: process.env.PATH, HOME: path.join(root, "user"), TMPDIR: root, CODEX_HOME: shared, CODEX_SQLITE_HOME: shared, [PRIVATE_CODEX_HOME_ENV]: privateHome, CODEX_REFRESH_TOKEN_URL_OVERRIDE: `${url}/oauth/token` };
-    const start = async (sharedHome = false, auth = false) => {
-      const overrides = auth ? ["-c", 'model_provider="openai"', "-c", `chatgpt_base_url="${url}"`] : [];
+    const start = async (sharedHome = false, auth = false, extra: string[] = []) => {
+      const overrides = [...(auth ? ["-c", 'model_provider="openai"', "-c", `chatgpt_base_url="${url}"`] : []), ...extra];
       const command = await codexAppServer(overrides, { env, cwd, sharedHome });
       // Candidate binaries can be checked before replacing the development pin.
       command.executable = process.env.CODEX_COMPAT_BINARY || path.resolve("node_modules/.bin/codex");
@@ -95,7 +106,7 @@ supports_websockets = false
       assert.equal(initialized.codexHome, sharedHome ? shared : privateHome);
       return client;
     };
-    return { root, shared, privateHome, cwd, start, close, bodies, jwt, refreshes: () => refreshes };
+    return { root, shared, privateHome, cwd, env, url, clients, start, close, bodies, jwt, refreshes: () => refreshes, rejectOldTokens: () => { rejectOldTokens = true; } };
   } catch (error) {
     await close();
     throw error;
@@ -109,7 +120,8 @@ async function turn(client: AppServerClient, threadId: string) {
   });
   try {
     await client.request("turn/start", { threadId, input: [{ type: "text", text: "Return the fixture response.", text_elements: [] }] });
-    assert.equal((await completed).turn.status, "completed");
+    const result = (await completed).turn;
+    assert.equal(result.status, "completed", JSON.stringify(result.error));
   } finally { unsubscribe(); }
 }
 
@@ -177,4 +189,83 @@ test("Codex binary preserves shared settings/auth and isolates durable conversat
     assert.equal((await repaired.request("account/read", { refreshToken: false })).account?.type, "apiKey");
     assert.equal(await readlink(path.join(f.privateHome, "auth.json")), path.join(f.shared, "auth.json"));
   } finally { await f.close(); }
+}, 30_000);
+
+test("native shared authentication supplies ephemeral credentials and refreshes them after an API rejection", async ({ onTestFinished }) => {
+  const f = await fixture();
+  onTestFinished(f.close);
+  // File-backed synthetic credentials stand in for the source Codex's Keychain reader. Production
+  // selects that source's native store; the private client never receives or persists refresh tokens.
+  await writeFile(path.join(f.shared, "auth.json"), JSON.stringify({ auth_mode: "chatgpt", OPENAI_API_KEY: null,
+    tokens: { access_token: f.jwt("initial@example.invalid"), id_token: f.jwt("initial@example.invalid"), refresh_token: "synthetic-initial", account_id: "synthetic-account" }, last_refresh: new Date().toISOString() }));
+  const overrides = ["-c", "model_providers.compatibility.requires_openai_auth=true", "-c", `chatgpt_base_url="${f.url}"`];
+  const source = await codexAppServer(overrides, { env: f.env, cwd: f.cwd, sharedHome: true });
+  source.executable = process.env.CODEX_COMPAT_BINARY || path.resolve("node_modules/.bin/codex");
+  const command = await codexAppServer([...overrides, "-c", 'cli_auth_credentials_store="ephemeral"'], { env: f.env, cwd: f.cwd });
+  command.executable = source.executable;
+  command.sharedAuth = source;
+  const client = new AppServerClient(command);
+  f.clients.push(client);
+  await client.initialize(CLIENT_INFO);
+  const initial = await client.request("account/read", { refreshToken: false });
+  assert.equal(initial.account?.type, "chatgpt");
+  f.rejectOldTokens();
+  const id = (await client.request("thread/start", { cwd: f.cwd })).thread.id;
+  await turn(client, id);
+  assert.equal(f.refreshes(), 1);
+  assert((await readFile(path.join(f.shared, "auth.json"), "utf8")).includes("synthetic-refresh-1"));
+  await client.close();
+}, 30_000);
+
+test("shared plugins, MCP tools, dotenv and trusted hooks survive a private-home launch and subsequent edits", async ({ onTestFinished }) => {
+  const f = await fixture();
+  onTestFinished(f.close);
+  const host = new McpHttpHost();
+  onTestFinished(() => host.close());
+  const mcp = await host.serve([{ name: "fixture_tool", description: "Synthetic compatibility tool", input: {}, handler: async () => ({ content: [{ type: "text", text: "fixture" }] }) }]);
+  const market = path.join(f.root, "market");
+  const plugin = path.join(market, "fixture");
+  for (const folder of [".agents/plugins", "fixture/.codex-plugin", "fixture/skills/plugin-fixture", "fixture/hooks"]) await mkdir(path.join(market, folder), { recursive: true });
+  const manifest = path.join(market, ".agents/plugins/marketplace.json");
+  await writeFile(manifest, JSON.stringify({ name: "fixture-market", plugins: [{ name: "fixture", source: { source: "local", path: "./fixture" } }] }));
+  await writeFile(path.join(plugin, ".codex-plugin/plugin.json"), JSON.stringify({ name: "fixture", version: "1.0.0" }));
+  await writeFile(path.join(plugin, "skills/plugin-fixture/SKILL.md"), "---\nname: plugin-fixture\ndescription: Synthetic plugin skill\n---\nPLUGIN_FIXTURE_SKILL\n");
+  await writeFile(path.join(plugin, ".mcp.json"), JSON.stringify({ mcpServers: { fixture: { type: "http", url: mcp.url, bearer_token_env_var: "HOME_FIXTURE_TOKEN" } } }));
+  const hook = { hooks: { SessionStart: [{ hooks: [{ type: "command", command: `\"${process.execPath}\" -e 'console.log(JSON.stringify({hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:"SHARED_HOOK_"+process.env.HOME_FIXTURE_ENV}}))'` }] }] } };
+  await writeFile(path.join(f.shared, "hooks.json"), JSON.stringify(hook));
+  await writeFile(path.join(plugin, "hooks/hooks.json"), JSON.stringify(hook));
+  await writeFile(path.join(f.shared, ".env"), `HOME_FIXTURE_ENV=LOADED\nHOME_FIXTURE_TOKEN=${mcp.token}\n`);
+  const configPath = path.join(f.shared, "config.toml");
+  await writeFile(configPath, (await readFile(configPath, "utf8")).replace("plugins = false", "plugins = true").replace("hooks = false", "hooks = true"));
+  const original = await f.start(true);
+  await original.request("plugin/install", { marketplacePath: manifest, pluginName: "fixture" });
+  const originalHooks = (await original.request("hooks/list", { cwds: [f.cwd] }) as HooksListResponse).data.flatMap(({ hooks }) => hooks);
+  assert.equal(originalHooks.length, 2);
+  for (const entry of originalHooks) await original.request("config/value/write", { keyPath: `hooks.state.${JSON.stringify(entry.key)}.trusted_hash`, value: entry.currentHash, mergeStrategy: "replace" });
+  await original.close();
+  const app = codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "fixture" } }, undefined);
+  const isolated = await f.start(false, false, app);
+  const hooks = (await isolated.request("hooks/list", { cwds: [f.cwd] }) as HooksListResponse).data.flatMap(({ hooks }) => hooks);
+  assert.equal(hooks.length, 2);
+  assert(hooks.every((entry) => entry.trustStatus === "trusted"), JSON.stringify(hooks.map(({ key, currentHash, trustStatus }) => ({ key, currentHash, trustStatus }))));
+  const skills = await isolated.request("skills/list", { cwds: [f.cwd], forceReload: true });
+  assert(skills.data.flatMap(({ skills }) => skills).some(({ name }) => name.endsWith("plugin-fixture")), JSON.stringify(skills.data));
+  const status = await isolated.request("mcpServerStatus/list", {}) as ListMcpServerStatusResponse;
+  assert(status.data.some((entry) => Object.keys(entry.tools).includes("fixture_tool")));
+  const id = (await isolated.request("thread/start", { cwd: f.cwd })).thread.id;
+  await turn(isolated, id);
+  assert(f.bodies.at(-1)?.includes("SHARED_HOOK_LOADED"));
+  await isolated.close();
+  // Same saved approval, changed command: the new definition must still need review.
+  hook.hooks.SessionStart[0]!.hooks[0]!.command += " changed";
+  await writeFile(path.join(f.shared, "hooks.json"), JSON.stringify(hook));
+  const changed = await f.start(false, false, app);
+  const changedHooks = (await changed.request("hooks/list", { cwds: [f.cwd] }) as HooksListResponse).data.flatMap(({ hooks }) => hooks);
+  assert.equal(changedHooks.find((entry) => entry.source === "user")?.trustStatus, "modified");
+  await changed.close();
+  const uninstall = await f.start(true);
+  await uninstall.request("plugin/uninstall", { pluginId: "fixture@fixture-market" });
+  await uninstall.close();
+  const after = await f.start(false, false, app);
+  assert(!(await after.request("skills/list", { cwds: [f.cwd], forceReload: true })).data.flatMap(({ skills }) => skills).some(({ name }) => name.endsWith("plugin-fixture")));
 }, 30_000);

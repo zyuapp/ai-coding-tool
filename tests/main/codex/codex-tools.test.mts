@@ -138,7 +138,8 @@ test("config values are written as TOML the app server parses", () => {
   assert.equal(toml([{ name: "a:b", enabled: false }]), "[{ \"name\" = \"a:b\", \"enabled\" = false }]");
   assert.deepEqual(
     codexConfig({ channel: "main", policy: "confirm", computerUse: { status: "unavailable", message: "off" } }, undefined),
-    ["--disable", "plugins", "--enable", "goals", "--enable", "default_mode_request_user_input"],
-    "Codex's desktop-app plugins stay off while its native goal feature is enabled",
+    ["--enable", "goals", "--enable", "default_mode_request_user_input",
+      "-c", 'plugins={ "browser@openai-bundled" = { "enabled" = false }, "chrome@openai-bundled" = { "enabled" = false }, "computer-use@openai-bundled" = { "enabled" = false }, "unified-computer-use@openai-bundled" = { "enabled" = false }, "codex-app-tools@openai-bundled" = { "enabled" = false } }'],
+    "only plugins that target Codex's own desktop surfaces are overridden",
   );
 });

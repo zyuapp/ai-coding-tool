@@ -7,14 +7,11 @@ export const APP_SERVER_NAME = "aicodingtool";
 export const TOOL_TOKEN_ENV = "AICODINGTOOL_MCP_TOKEN";
 export const COMPUTER_USE_SERVER_NAME = "cua-driver";
 
-type TomlTable = Readonly<Record<string, string | boolean>>;
-type TomlValue = string | boolean | readonly string[] | readonly TomlTable[] | TomlTable;
+type TomlTable = Readonly<{ [key: string]: TomlValue }>;
+type TomlValue = string | boolean | number | readonly TomlValue[] | TomlTable;
 
-/**
- * Codex plugins are built for its own desktop app: their skills answer "in-app browser", "automation",
- * and "computer use" with that app's surfaces. A thread here gets the app's tools instead.
- */
-const WITHOUT_PLUGINS = ["--disable", "plugins", "--enable", "goals", "--enable", "default_mode_request_user_input"];
+/** These bundled plugins target Codex's desktop surfaces. User plugins retain their own settings. */
+const APP_SURFACE_PLUGINS = ["browser", "chrome", "computer-use", "unified-computer-use", "codex-app-tools"];
 
 const ESCAPED: Record<string, string> = { "\\": "\\\\", "\"": "\\\"", "\n": "\\n", "\r": "\\r", "\t": "\\t" };
 
@@ -26,10 +23,15 @@ function tomlString(value: string) {
 export function toml(value: TomlValue): string {
   if (typeof value === "string") return tomlString(value);
   if (typeof value === "boolean") return String(value);
-  if (Array.isArray(value)) return `[${(value as readonly (string | TomlTable)[]).map(toml).join(", ")}]`;
+  if (typeof value === "number") return String(value);
+  if (Array.isArray(value)) return `[${(value as readonly TomlValue[]).map(toml).join(", ")}]`;
   const entries = Object.entries(value as TomlTable).map(([key, entry]) => `${tomlString(key)} = ${toml(entry)}`);
   return entries.length ? `{ ${entries.join(", ")} }` : "{}";
 }
+
+const APP_FEATURES = ["--enable", "goals", "--enable", "default_mode_request_user_input",
+  "-c", `plugins=${toml(Object.fromEntries(APP_SURFACE_PLUGINS.map((name) => [`${name}@openai-bundled`, { enabled: false }])) )}`,
+];
 
 export type ConfigSources = Pick<ProviderRunInput, "channel" | "policy" | "computerUse">;
 
@@ -52,5 +54,5 @@ export function codexConfig(input: ConfigSources, served: ServedTools | undefine
     config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.env`] = env;
     if (input.policy === "bypass" || (input.channel === "main" && input.policy === "autonomous")) config[`mcp_servers.${COMPUTER_USE_SERVER_NAME}.default_tools_approval_mode`] = "approve";
   }
-  return [...WITHOUT_PLUGINS, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
+  return [...APP_FEATURES, ...Object.entries(config).flatMap(([key, value]) => ["-c", `${key}=${toml(value)}`])];
 }

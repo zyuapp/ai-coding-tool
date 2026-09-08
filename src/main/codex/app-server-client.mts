@@ -1,7 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { realpath, stat } from "node:fs/promises";
+import path from "node:path";
 import { codexExecutable } from "./codex-executable.mjs";
 import { toml } from "./codex-config.mjs";
-import { codexChildEnvironment, PRIVATE_CODEX_HOME_ENV } from "./codex-home.mjs";
+import { codexChildEnvironment, sharedCodexHome, PRIVATE_CODEX_HOME_ENV } from "./codex-home.mjs";
+import { encryptedMcpCredentials, privateHomeConfig, readHomeConfig, usesSharedKeyring } from "./codex-home-config.mjs";
+import { acquireSharedAuth } from "./codex-shared-auth.mjs";
 import type { ClientInfo } from "./protocol/ClientInfo.js";
 import type { ClientRequest } from "./protocol/ClientRequest.js";
 import type { InitializeCapabilities } from "./protocol/InitializeCapabilities.js";
@@ -100,7 +104,7 @@ export type IncomingRequest = {
 
 export type ExitStatus = { code: number | null; signal: NodeJS.Signals | null; stderr: string };
 
-export type AppServerCommand = { executable: string; args: readonly string[]; cwd?: string; env?: NodeJS.ProcessEnv };
+export type AppServerCommand = { executable: string; args: readonly string[]; cwd?: string; env?: NodeJS.ProcessEnv; sharedAuth?: AppServerCommand };
 
 /** The server answered a request with a JSON-RPC error. */
 export class AppServerError extends Error {
@@ -147,7 +151,23 @@ export async function codexAppServer(args: readonly string[] = [], options: { cw
     "-c", `sqlite_home=${toml(env.CODEX_HOME!)}`,
     "-c", `log_dir=${toml(`${env.CODEX_HOME}/log`)}`,
   ] : [];
-  return { executable: codexExecutable(), args: ["app-server", "--listen", "stdio://", ...args, ...storage], cwd: options.cwd, env };
+  const executable = codexExecutable();
+  if (!storage.length) return { executable, args: ["app-server", "--listen", "stdio://", ...args], cwd: options.cwd, env };
+  const source = await realpath(sharedCodexHome(environment));
+  const config = await readHomeConfig(source);
+  if (encryptedMcpCredentials(config) && await stat(path.join(source, "secrets", "mcp_oauth.age")).then(() => true).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  })) {
+    throw new Error("Codex's encrypted MCP credential store cannot be shared across homes. Configure mcp_oauth_credentials_store = \"file\" in your Codex config and reconnect those MCP servers before using them in AICodingTool.");
+  }
+  const keyring = usesSharedKeyring(config);
+  const sharedAuth = keyring ? {
+    executable, cwd: source, env: { ...environment, CODEX_HOME: source, CODEX_SQLITE_HOME: env.CODEX_HOME },
+    args: ["app-server", "--listen", "stdio://", "--disable", "plugins", "--disable", "apps", "--disable", "hooks", ...storage],
+  } : undefined;
+  return { executable, args: ["app-server", "--listen", "stdio://", ...privateHomeConfig(config, source, env.CODEX_HOME!), ...args,
+    ...(keyring ? ["-c", 'cli_auth_credentials_store="ephemeral"'] : []), ...storage], cwd: options.cwd, env, ...(sharedAuth ? { sharedAuth } : {}) };
 }
 
 /** Keeps the newest bytes a stream produced, dropping whole chunks from the front. */
@@ -188,8 +208,12 @@ export class AppServerClient {
   private nextId = 1;
   private exit: ExitStatus | undefined;
   private settleExit!: (exit: ExitStatus) => void;
+  private sharedAuth: Awaited<ReturnType<typeof acquireSharedAuth>> | undefined;
+  private authClosed: Promise<void> | undefined;
+  private readonly sharedAuthCommand: AppServerCommand | undefined;
 
   constructor(command: AppServerCommand) {
+    this.sharedAuthCommand = command.sharedAuth;
     this.exited = new Promise((resolve) => { this.settleExit = resolve; });
     /** Its own process group, so closing reaches what the server started under itself as well. */
     this.child = spawn(command.executable, command.args, { cwd: command.cwd, env: command.env, stdio: ["pipe", "pipe", "pipe"], detached: true });
@@ -215,6 +239,15 @@ export class AppServerClient {
   async initialize(clientInfo: ClientInfo, capabilities: InitializeCapabilities = { experimentalApi: true, requestAttestation: false }) {
     const server = await this.request("initialize", { clientInfo, capabilities });
     this.send({ jsonrpc: "2.0", method: "initialized", params: {} });
+    if (this.sharedAuthCommand) {
+      try {
+        const auth = await acquireSharedAuth(this.sharedAuthCommand, (command) => new AppServerClient(command));
+        if (this.exit) { await auth.release(); throw new AppServerExited(this.exit, "during authentication"); }
+        this.sharedAuth = auth;
+        const login = await auth.read();
+        if (login) await this.request("account/login/start", login);
+      } catch (error) { await this.close(); throw error; }
+    }
     return server;
   }
 
@@ -250,6 +283,7 @@ export class AppServerClient {
       await this.exited;
       clearTimeout(kill);
     }
+    await this.authClosed;
     return this.exited;
   }
 
@@ -330,6 +364,15 @@ export class AppServerClient {
       respond: (result: unknown) => reply({ result }),
       fail: (error: JsonRpcError) => reply({ error }),
     } as IncomingRequest;
+    if (method === "account/chatgptAuthTokens/refresh" && this.sharedAuth) {
+      void this.sharedAuth.read(true).then((login) => {
+        if (login?.type !== "chatgptAuthTokens") throw new Error("The shared Codex account is no longer signed into ChatGPT.");
+        const previous = (params as { previousAccountId?: string | null } | undefined)?.previousAccountId;
+        if (previous && previous !== login.chatgptAccountId) throw new Error("The shared Codex account changed. Start a new run to use that account.");
+        reply({ result: { accessToken: login.accessToken, chatgptAccountId: login.chatgptAccountId, chatgptPlanType: login.chatgptPlanType ?? null } });
+      }).catch(() => reply({ error: { code: -32603, message: "Could not refresh the shared Codex account. Check Codex sign-in and start a new run." } }));
+      return;
+    }
     if (this.requestHandlers.size === 0) {
       request.fail({ code: METHOD_NOT_FOUND, message: `No handler for ${method}` });
       return;
@@ -341,6 +384,8 @@ export class AppServerClient {
     if (this.exit) return;
     if (this.partialBytes > 0) this.receive(Buffer.from("\n"));
     this.exit = { code, signal, stderr: this.stderr.text() };
+    this.authClosed = this.sharedAuth?.release();
+    this.sharedAuth = undefined;
     for (const [id, pending] of this.pending) {
       this.pending.delete(id);
       pending.reject(new AppServerExited(this.exit, `while ${pending.method} was pending`));
