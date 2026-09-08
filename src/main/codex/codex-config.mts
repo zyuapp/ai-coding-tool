@@ -29,7 +29,7 @@ export function toml(value: TomlValue): string {
   return entries.length ? `{ ${entries.join(", ")} }` : "{}";
 }
 
-const APP_FEATURES = ["--enable", "goals", "--enable", "default_mode_request_user_input",
+export const APP_FEATURES = ["--enable", "goals", "--enable", "default_mode_request_user_input",
   "-c", `plugins=${toml(Object.fromEntries(APP_SURFACE_PLUGINS.map((name) => [`${name}@openai-bundled`, { enabled: false }])) )}`,
 ];
 
