@@ -99,6 +99,38 @@ test("steering hands a queued message to the run it was queued against, and deli
   assert.equal(required(delivered.state.threads[0]?.messages.at(-1)).text, "Check the tests too");
 });
 
+test("rejected steering keeps the message queued, reports the error, and allows retry or removal", () => {
+  const queued = queueMessage(queueMessage(running(), "Check the tests too"), "Then update the docs");
+  const [message, other] = queued.queuedMessages["task-a"];
+  const steering = reduce(queued, { type: "task.steer-queued", messageId: message.id }).state;
+  const event = { type: "queued.steer-failed" as const, taskId: "task-a", runId: "run-a", sequence: 1, messageId: message.id, message: "Could not steer. Your message is still queued for the next turn." };
+  const failed = reduce(steering, { type: "run.event", event });
+  assert.equal(failed.state.actionError, event.message);
+  assert.deepEqual(failed.state.queuedMessages["task-a"], [{ ...message, steering: false }, other]);
+  assert.deepEqual(failed.state.threads[0].messages, steering.threads[0].messages);
+  assert.equal(failed.state.activeRuns["task-a"].status, "running");
+  assert.deepEqual(failed.effects, []);
+
+  const retried = reduce(failed.state, { type: "task.steer-queued", messageId: message.id });
+  assert.equal(effectAt(retried, "send-run-command").command.type, "steer");
+  assert.equal(retried.state.queuedMessages["task-a"][0].steering, true);
+  assert.deepEqual(reduce(failed.state, { type: "task.drop-queued", messageId: message.id }).state.queuedMessages["task-a"], [other]);
+
+  const finished = reduce(failed.state, { type: "run.event", event: { type: "run.status", taskId: "task-a", runId: "run-a", sequence: 2, status: "succeeded" } });
+  const resolution = required(finished.effects.find((effect) => effect.type === "resolve-run-workspace"));
+  const pending = finished.state.pendingRuns[resolution.pendingId];
+  assert.equal(pending.prompt, message.prompt, "leaving the message queued sends it as the next turn");
+
+  assert.deepEqual(reduce(steering, { type: "run.event", event: { ...event, runId: "old-run" } }).state, steering, "a stale run cannot reset steering or display an error");
+  assert.equal(reduce(steering, { type: "run.event", event: { ...event, messageId: "missing" } }).state.actionError, null);
+
+  const side = { ...steering, sideChats: [{ id: "task-a", sourceThreadId: "parent", error: null }] };
+  const sideFailed = reduce(side, { type: "run.event", event }).state;
+  assert.equal(sideFailed.sideChats[0].error, event.message);
+  assert.equal(sideFailed.actionError, null, "a side chat reports its error in its own surface");
+  assert.equal(sideFailed.queuedMessages["task-a"][0].steering, false);
+});
+
 test("command-enter queues the message and steers it in one go", () => {
   const steered = reduce(run(running(), [{ type: "view.set-prompt", prompt: "Stop reading that file" }]), { type: "task.send", attachments: [], steer: true });
   const [message] = steered.state.queuedMessages["task-a"];

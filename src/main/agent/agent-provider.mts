@@ -66,6 +66,7 @@ export type ProviderEvent =
   /** The continuation the run was given resumes nothing any more, so the thread has to start over. */
   | { type: "continuation-lost" }
   | { type: "steered"; messageId: string }
+  | { type: "steer-failed"; messageId: string; message: string }
   | SubagentReport;
 
 /**

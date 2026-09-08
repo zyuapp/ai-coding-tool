@@ -1,5 +1,5 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
-import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, resolveWorkspaceEffect, settled, sideChannelFor, startRunCommand, targetId, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withUsedWorktree, withoutPending, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR, rejected } from "./shared.js";
+import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, resolveWorkspaceEffect, settled, sideChannelFor, startRunCommand, targetId, threadBusy, withAttendedRun, withDeliveredMessage, withSteeringFailure, withPending, withQueued, withSideChat, withUsedWorktree, withoutPending, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";
@@ -175,6 +175,7 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
       const noticed = headline ? next.threads.find((thread) => thread.id === event.taskId) : undefined;
       const said = noticed && headline ? announced(next, noticed, headline) : [];
       if (event.type === "queued.delivered") next = withDeliveredMessage(next, event.taskId, event.messageId);
+      if (event.type === "queued.steer-failed") next = withSteeringFailure(next, event.taskId, event.messageId, event.message);
       const finished = event.type === "run.status" && (event.status === "succeeded" || event.status === "failed");
       const workspaceId = threadWorkspaceId(state, state.threads.find((thread) => thread.id === event.taskId));
       /** A review the thread has open is only as current as the run that was writing under it. */

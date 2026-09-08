@@ -533,8 +533,9 @@ export class CodexSession {
         }
         await client.request("turn/steer", { threadId, input: await this.skills!.input(steer.prompt), expectedTurnId: turn.turnId });
         turn.input.emit({ type: "steered", messageId: steer.messageId });
-      } catch {
-        continue;
+      } catch (error) {
+        if (this.turn !== turn) return;
+        turn.input.emit({ type: "steer-failed", messageId: steer.messageId, message: `Could not steer: ${reasonOf(error)}. Your message is still queued for the next turn.` });
       }
     }
   }

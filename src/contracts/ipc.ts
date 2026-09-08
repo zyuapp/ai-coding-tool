@@ -470,7 +470,9 @@ export type RunEvent =
   /** The engine no longer has the session the thread was continuing, so the thread starts over next time. */
   | (RunEventBase & { type: "continuation.lost" })
   /** A steered message reached the agent, so it is part of this run rather than the next one. */
-  | (RunEventBase & { type: "queued.delivered"; messageId: string });
+  | (RunEventBase & { type: "queued.delivered"; messageId: string })
+  /** Steering was rejected, so the queued message can be steered again or removed. */
+  | (RunEventBase & { type: "queued.steer-failed"; messageId: string; message: string });
 
 /** What a workflow reports as it runs. The thread it belongs to is added on the way out of the agent process. */
 export type WorkflowReport =
@@ -827,6 +829,7 @@ export function isRunEvent(value: unknown): value is RunEvent {
   if (event.type === "continuation.updated") return isContinuation(event.continuation);
   if (event.type === "continuation.lost") return true;
   if (event.type === "queued.delivered") return isString(event.messageId);
+  if (event.type === "queued.steer-failed") return isString(event.messageId) && isString(event.message, 100_000);
   return false;
 }
 

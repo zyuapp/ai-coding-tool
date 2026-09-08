@@ -16,6 +16,13 @@ const command = {
   effort: "high",
 };
 
+test("steering failures require a message address and a bounded error", () => {
+  const event = { type: "queued.steer-failed", taskId: "task-a", runId: "run-a", sequence: 1, messageId: "message-a", message: "Could not steer" };
+  assert.equal(isRunEvent(event), true);
+  for (const message of [undefined, 123, "", "x".repeat(100_001)]) assert.equal(isRunEvent({ ...event, message }), false);
+  assert.equal(isRunEvent({ ...event, messageId: undefined }), false);
+});
+
 test("external start commands carry only a workspace ID", () => {
   assert.equal(isRunCommand(command), true);
   assert.equal(isRunCommand({ ...command, workspaceRoot: "/tmp/project" }), false);

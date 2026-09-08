@@ -195,6 +195,7 @@ export class RunCoordinator {
     if (event.type === "continuation") this.publish(active, { type: "continuation.updated", continuation: event.continuation });
     if (event.type === "continuation-lost") this.publish(active, { type: "continuation.lost" });
     if (event.type === "steered") this.publish(active, { type: "queued.delivered", messageId: event.messageId });
+    if (event.type === "steer-failed") this.publish(active, { type: "queued.steer-failed", messageId: event.messageId, message: event.message });
   }
 
   /** A workflow answers to the thread rather than to a run, so nothing about a run's state holds it back. */

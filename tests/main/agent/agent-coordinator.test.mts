@@ -468,6 +468,12 @@ test("steering only reaches the run it names, and delivery is reported against t
     [{ runId: "run-a", messageId: "message-1" }],
   );
 
+  input.emit({ type: "steer-failed", messageId: "message-2", message: "Could not steer. Your message is still queued." });
+  assert.deepEqual(events.filter((event) => event.type === "queued.steer-failed"), [{
+    type: "queued.steer-failed", taskId: "task-a", runId: "run-a", sequence: events.length,
+    messageId: "message-2", message: "Could not steer. Your message is still queued.",
+  }]);
+
   provider.runs[0].resolve({ status: "succeeded" });
   await tick();
   assert.equal(coordinator.steer("task-a", "run-a", "message-2", "too late"), false);

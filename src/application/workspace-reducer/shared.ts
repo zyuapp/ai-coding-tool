@@ -414,6 +414,16 @@ export function withDeliveredMessage(state: WorkspaceState, taskId: string, mess
   }));
 }
 
+/** A rejected steer stays queued, with its controls restored and the error on its own surface. */
+export function withSteeringFailure(state: WorkspaceState, taskId: string, messageId: string, error: string): WorkspaceState {
+  const queued = queuedFor(state, taskId);
+  if (!queued.some((message) => message.id === messageId && message.steering)) return state;
+  const next = withQueued(state, taskId, queued.map((message) => message.id === messageId ? { ...message, steering: false } : message));
+  return next.sideChats.some((chat) => chat.id === taskId)
+    ? withSideChat(next, taskId, (chat) => ({ ...chat, error }))
+    : { ...next, actionError: error, actionErrorPage: null };
+}
+
 /**
  * A finished run hands its queue on one message at a time, so each queued message gets its own run
  * and the ones behind it wait for that run to finish. A run the user stopped hands the whole queue

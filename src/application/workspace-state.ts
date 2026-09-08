@@ -129,7 +129,7 @@ export type QueuedMessage = {
   annotations?: Annotation[];
   pastes?: PastedText[];
   files?: AttachedFile[];
-  /** Set once steering is on its way to the agent, which is the point of no return. */
+  /** Locks the message while steering is in flight; a rejection restores its controls. */
   steering?: boolean;
 };
 

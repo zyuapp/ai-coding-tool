@@ -550,6 +550,16 @@ test("steered messages fold into the turn going, and one the server refuses stay
   await sentBy(client, "turn/steer", 2);
   await tick();
   assert.deepEqual(emitted.filter((event) => event.type === "steered").length, 1, "an undelivered message is the thread's to send next");
+  assert.deepEqual(emitted.filter((event) => event.type === "steer-failed"), [{
+    type: "steer-failed", messageId: "m-2",
+    message: "Could not steer: no active turn to steer. Your message is still queued for the next turn.",
+  }]);
+
+  refuse = false;
+  steering.push({ messageId: "m-2", prompt: "too late" });
+  await sentBy(client, "turn/steer", 3);
+  await tick();
+  assert.deepEqual(emitted.filter((event) => event.type === "steered").at(-1), { type: "steered", messageId: "m-2" }, "a rejection leaves the steering loop available for a retry");
 
   completeTurn(client);
   steering.close();
