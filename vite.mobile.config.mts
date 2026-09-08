@@ -3,6 +3,7 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import { mobileDevelopment } from "./scripts/mobile-development.mts";
 
 const ROOT = import.meta.dirname;
 const OUT = resolve(ROOT, "dist/mobile");
@@ -57,7 +58,10 @@ function singleFile(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), singleFile()],
+  plugins: [react(), singleFile(), mobileDevelopment(ROOT)],
+  cacheDir: "node_modules/.vite-mobile",
+  optimizeDeps: { entries: ["index.mobile.html"] },
+  server: { port: 5174, strictPort: true },
   build: {
     outDir: "dist/mobile",
     emptyOutDir: true,

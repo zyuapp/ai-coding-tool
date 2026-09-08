@@ -21,6 +21,7 @@
     "prepare:electron": "install-electron",
     "prepare:cua": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/prepare-cua-driver.mts",
     "start": "npm run prepare:electron && npm run prepare:cua && npm run build && electron .",
+    "start:mobile": "vite --config vite.mobile.config.mts",
     "package:mac": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --mac --arm64 --publish never",
     "package:linux": "npm run prepare:electron && npm run prepare:cua && npm run build && electron-builder --linux --publish never",
     "generate:codex-protocol": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/generate-codex-protocol.mts",

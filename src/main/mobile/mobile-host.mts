@@ -11,7 +11,8 @@ import {
   type MobileServerState,
   type TailscaleState,
 } from "../../domain/mobile.js";
-import { allowedOrigins, BIND_HOST, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
+import { allowedOrigins, BIND_HOST, loopbackAddress, reachableAddresses, tailscaleAddress } from "./addresses.mjs";
+import { serveDevelopmentPairing } from "./development.mjs";
 import { MobileServer } from "./mobile-server.mjs";
 import { PairingStore } from "./pairing.mjs";
 import { MobileRelay } from "./session-host.mjs";
@@ -19,6 +20,8 @@ import { readTailscale, startTailscaleServe, stopTailscaleServe, type TailscaleA
 
 export type MobileHostOptions = {
   userData: string;
+  /** Present only for source launches; the installed app never serves automatic pairing. */
+  developmentRoot?: string;
   /** The built phone page, served to whatever scans the QR. */
   staticRoot: string;
   /** Hands one relayed request to the window. False when there is no window to hand it to. */
@@ -71,6 +74,7 @@ let tailscale: TailscaleState = emptyTailscaleState();
 let starting = false;
 let stopping = false;
 let failure: string | null = null;
+let stopDevelopmentPairing: (() => Promise<void>) | null = null;
 /**
  * Starting and stopping the server are awaited by IPC handlers the user can hammer, so they run one
  * after another: a start that overlapped a stop would build a second server over live sessions.
@@ -179,7 +183,7 @@ function makeServer() {
   return new MobileServer({
     devices: store,
     staticRoot: host().staticRoot,
-    port: host().port ?? MOBILE_DEFAULT_PORT,
+    port: host().port ?? (host().developmentRoot ? 0 : MOBILE_DEFAULT_PORT),
     allowedOrigins: origins,
     snapshot: (sessionId) => bridge.snapshot(sessionId),
     command: (sessionId, command) => bridge.command(sessionId, command),
@@ -187,8 +191,8 @@ function makeServer() {
   });
 }
 
-async function startServer() {
-  if (stopping || server || !settings.enabled) return;
+async function startServer(localDevelopment = false) {
+  if (stopping || server || (!settings.enabled && !localDevelopment)) return;
   starting = true;
   failure = null;
   announce();
@@ -202,7 +206,7 @@ async function startServer() {
     starting = false;
   }
   announce();
-  if (server) scheduleServe(0);
+  if (server && settings.enabled) scheduleServe(0);
 }
 
 /**
@@ -252,12 +256,24 @@ export async function startMobileHost(hooks: MobileHostOptions): Promise<void> {
   tailscale = { ...emptyTailscaleState(), magicDnsName: settings.magicDnsName };
   devices = new PairingStore(path.join(hooks.userData, "mobile-devices.v1.json"));
   relay = new MobileRelay({ send: hooks.send });
+  if (hooks.developmentRoot) {
+    stopDevelopmentPairing = await serveDevelopmentPairing(hooks.developmentRoot, () => inTurn(async () => {
+      await startServer(true);
+      const port = server?.port;
+      if (port == null || !devices) throw new Error("The desktop mobile bridge is not ready.");
+      const code = devices.mint(Date.now());
+      announce();
+      return pairingOffer(loopbackAddress(port), code);
+    }));
+  }
   if (settings.enabled) await inTurn(startServer);
-  else void inTailscaleTurn(refreshTailscaleState).then(announce);
+  else if (!hooks.developmentRoot) void inTailscaleTurn(refreshTailscaleState).then(announce);
 }
 
 export async function stopMobileHost(): Promise<void> {
   stopping = true;
+  await stopDevelopmentPairing?.();
+  stopDevelopmentPairing = null;
   await inTurn(() => stopServer({ unserve: false }));
   await tailscaleWork;
   options = null;
@@ -272,7 +288,10 @@ export async function setMobileEnabled(enabled: boolean): Promise<MobileServerSt
   writeSettings();
   /** The switch answers at once; the server follows behind whatever turn is still running. */
   announce();
-  if (enabled) await inTurn(startServer);
+  if (enabled) await inTurn(async () => {
+    if (server) scheduleServe(0);
+    else await startServer();
+  });
   else {
     await inTurn(() => stopServer({ unserve: true }));
     devices?.discardCode();

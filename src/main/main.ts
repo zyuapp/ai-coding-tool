@@ -319,7 +319,7 @@ async function createWindow() {
   });
   await window.loadFile(path.join(__dirname, "../../renderer/index.html"));
   if (createdWindow.isDestroyed() || quitState !== "running") return;
-  await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile") })
+  await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
     .catch((error) => console.error("Could not start the phone bridge:", error));
 }
 
@@ -449,7 +449,7 @@ async function finishShutdown() {
       if (process.platform === "darwin") lockAwake = startLockAwake(powerMonitor, powerSaveBlocker);
       await automationScheduler?.start().catch((failure) => console.error("Could not restart schedules:", failure));
       if (window && !window.isDestroyed()) {
-        await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile") })
+        await startMobileBridge({ window: workspaceRuntime.owner, userData: app.getPath("userData"), staticRoot: path.join(__dirname, "../../mobile"), ...(!app.isPackaged ? { developmentRoot: app.getAppPath() } : {}) })
           .catch((failure) => console.error("Could not restart the phone bridge:", failure));
       }
     }

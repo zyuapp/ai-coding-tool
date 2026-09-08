@@ -7,6 +7,7 @@ import type * as MobileHost from "./mobile-host.mjs" with { "resolution-mode": "
 export type MobileBridgeHost = {
   window: () => Pick<BrowserWindow, "webContents" | "isDestroyed"> | null;
   userData: string;
+  developmentRoot?: string;
   /** The built phone page. */
   staticRoot: string;
 };
@@ -64,6 +65,7 @@ export function startMobileBridge(options: MobileBridgeHost) {
     if (app !== options) return;
     await mobile.startMobileHost({
       userData: options.userData,
+      developmentRoot: options.developmentRoot,
       staticRoot: options.staticRoot,
       send: (request) => send(options, request),
       onState: (state) => publishState(options, state),
