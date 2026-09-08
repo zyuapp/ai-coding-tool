@@ -1,5 +1,5 @@
 import { LuCheck as Check, LuPlus as Plus, LuSearch as Search } from "react-icons/lu";
-import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { Fragment, useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import type { BranchesResult } from "../../contracts/ipc";
 import { moveListFocus } from "../focus";
@@ -43,12 +43,17 @@ const ANCHOR_GAP = 4;
 const MIN_MENU_WIDTH = 260;
 
 /** Where a list sits beside a row it is not inside: on whichever side of it the viewport leaves more room. */
-function anchoredStyle(anchor: HTMLElement): CSSProperties {
+function anchoredStyle(anchor: HTMLElement, minimumWidth: number): CSSProperties {
   const rect = anchor.getBoundingClientRect();
-  const below = window.innerHeight - rect.bottom - ANCHOR_GAP * 2;
-  const above = rect.top - ANCHOR_GAP * 2;
+  // Draft menus leave breathing room before the composer, even when the viewport shrinks.
+  const boundary = anchor.closest(".conversation")?.getBoundingClientRect();
+  const top = Math.max(0, boundary?.top ?? 0);
+  const bottom = Math.min(window.innerHeight, boundary?.bottom ?? window.innerHeight);
+  const edgeGap = boundary ? 20 : ANCHOR_GAP;
+  const below = Math.max(0, bottom - rect.bottom - ANCHOR_GAP - edgeGap);
+  const above = Math.max(0, rect.top - top - ANCHOR_GAP - edgeGap);
   const over = above > below;
-  const width = Math.max(rect.width, MIN_MENU_WIDTH);
+  const width = Math.min(Math.max(rect.width, minimumWidth), window.innerWidth - ANCHOR_GAP * 2);
   /** A list wider than the row it hangs off would run past the window, so it slides back inside. */
   const left = Math.min(rect.left, window.innerWidth - width - ANCHOR_GAP);
   return {
@@ -61,20 +66,25 @@ function anchoredStyle(anchor: HTMLElement): CSSProperties {
 }
 
 /** Follows the anchor, since the panel it sits in scrolls out from under a list that does not move. */
-function useAnchoredStyle(anchor: HTMLElement | null | undefined) {
+export function useAnchoredStyle(anchor: HTMLElement | null | undefined, minimumWidth = MIN_MENU_WIDTH) {
   const [style, setStyle] = useState<CSSProperties | null>(null);
 
   useLayoutEffect(() => {
     if (!anchor) return;
-    const place = () => setStyle(anchoredStyle(anchor));
+    const place = () => setStyle(anchoredStyle(anchor, minimumWidth));
     place();
+    const observer = new ResizeObserver(place);
+    observer.observe(anchor);
+    const boundary = anchor.closest(".conversation");
+    if (boundary) observer.observe(boundary);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [anchor]);
+  }, [anchor, minimumWidth]);
 
   return style;
 }
@@ -97,12 +107,10 @@ export type BranchMenuProps = {
   extra?: { label: string; value: string };
   /** Names what is being chosen, for a list that is one of several a view opens. */
   title?: string;
-  /** Related checkout controls, outside the list of selectable branches. */
-  footer?: ReactNode;
 };
 
 /** The list a branch is chosen from: the branches, narrowed by search, and the name to make. */
-export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra, title, footer }: BranchMenuProps) {
+export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includeRemotes, extra, title }: BranchMenuProps) {
   const [query, setQuery] = useState("");
   const anchored = useAnchoredStyle(anchor);
   const available = branches?.status === "available" ? branches : null;
@@ -137,8 +145,6 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
       ref={menuRef}
       className={`branch-menu ${anchor ? "anchored" : ""} ${includeRemotes ? "grouped" : ""}`.trimEnd()}
       data-popover-menu
-      role={footer ? "dialog" : undefined}
-      aria-label={footer ? "Branch and worktree" : undefined}
       style={anchored ?? undefined}
       onKeyDown={moveListFocus}
     >
@@ -175,7 +181,6 @@ export function BranchMenu({ branches, selected, onPick, anchor, menuRef, includ
           </Fragment>
         ))}
       </div>
-      {footer && <div className="branch-menu-footer">{footer}</div>}
     </div>
   );
 

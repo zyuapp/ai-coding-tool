@@ -20,13 +20,6 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
   return (
     <div className="work-area">
       {mine && findBar}
-      {!workspace.currentThread && (
-        <ThreadModeSwitch
-          projects={workspace.projects}
-          projectId={workspace.currentProject?.id ?? null}
-          onSelectProject={workspace.actions.newThread}
-        />
-      )}
       <div className="conversation" ref={transcriptRef}>
         <ConversationTimeline
           find={mine}
@@ -44,6 +37,9 @@ export function WorkspaceConversation({ workspace, find, findBar, onAnnotateSide
           }}
           scrollContainerRef={transcriptRef}
           restored={workspace.restored}
+          startMode={!workspace.currentThread && (
+            <ThreadModeSwitch projects={workspace.projects} projectId={workspace.currentProject?.id ?? null} onSelectProject={workspace.actions.newThread} />
+          )}
           startOptions={!workspace.currentThread && (
             <ThreadStartOptions
               projects={workspace.projects}

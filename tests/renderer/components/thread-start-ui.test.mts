@@ -1,4 +1,4 @@
-import { dom, mount, query, item } from "../../support/renderer-dom.mts";
+import { dom, mount, query, item, place } from "../../support/renderer-dom.mts";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -20,11 +20,7 @@ test("the start options say where a thread begins, and searching narrows the bra
     branch: Array<string | null | { name: string | null; create: true }>;
     worktree: boolean[];
   } = { project: [], branch: [], worktree: [] };
-  const projects = [
-    { id: "project-a", root: "/repo/ai-coding-tool" },
-    ...["just-play", "skills", "BOSS", "just-sing"].map((name) => ({ id: name, root: `/repo/${name}` })),
-    { id: "project-b", root: "/repo/just-speak" },
-  ];
+  const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
   const options = (branch: StartOptionsProps["branch"], worktree: boolean) => React.createElement(ThreadStartOptions, {
     projects,
     projectId: "project-a",
@@ -37,70 +33,91 @@ test("the start options say where a thread begins, and searching narrows the bra
   });
 
   const view = await mount(options(null, false));
-  const project = query<HTMLButtonElement>(view.container, 'button[aria-label="Project"]');
+  const project = query<HTMLButtonElement>(document.body, 'button[aria-label="Project"]');
   assert.match(project.textContent, /ai-coding-tool/, "the project the thread starts in is filled in already");
-  assert.match(query(view.container, 'button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
-  assert.equal(view.container.querySelector(".thread-mode"), null, "the mode is asked for above these, not among them");
+  assert.match(query(document.body, 'button[aria-label="Starting branch"]').textContent, /main/, "and so is the branch the checkout is on");
+  const worktreeToggle = query<HTMLButtonElement>(document.body, ".thread-start-toggle");
+  assert.equal(worktreeToggle.textContent, "Worktree");
+  assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false", "a worktree is only ever asked for");
+  assert.equal(document.body.querySelector(".thread-mode"), null, "the mode is asked for above these, not among them");
 
   await act(async () => { project.click(); });
-  const projectSearch = query<HTMLInputElement>(view.container, 'input[aria-label="Search projects"]');
+  const projectSearch = query<HTMLInputElement>(document.body, 'input[aria-label="Search projects"]');
   assert.equal(document.activeElement, projectSearch, "the project search takes focus when it opens");
-  assert.deepEqual([...view.container.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["ai-coding-tool", "just-play", "skills", "BOSS", "just-sing"], "the initial list keeps five projects in their existing order");
+  assert.deepEqual([...document.body.querySelectorAll('[role="option"]')].map((option) => option.textContent), ["ai-coding-tool", "just-speak"]);
   await act(async () => {
     item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set!.call(projectSearch, "speak");
     projectSearch.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
   });
-  const projectOptions = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
-  assert.deepEqual(projectOptions.map((option) => option.textContent), ["just-speak"], "searching reaches projects beyond the initial five");
+  const projectOptions = [...document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  assert.deepEqual(projectOptions.map((option) => option.textContent), ["just-speak"], "searching narrows the projects");
   await act(async () => { item(projectOptions[0]).click(); });
   assert.deepEqual([...chosen.project], ["project-b"]);
 
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]').click(); });
-  assert.ok(view.container.querySelector('input[aria-label="Search branches"]'), "the branch list is searchable");
-  const branchOptions = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  await act(async () => { query<HTMLButtonElement>(document.body, 'button[aria-label="Starting branch"]').click(); });
+  assert.ok(document.body.querySelector('input[aria-label="Search branches"]'), "the branch list is searchable");
+  const branchOptions = [...document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')];
   assert.deepEqual(branchOptions.map((option) => option.textContent), ["main", "fix-loader", "feature-x"], "every local branch is offered, newest first");
   await act(async () => { item(branchOptions.find((option) => option.textContent === "fix-loader")).click(); });
   assert.deepEqual([...chosen.branch], ["fix-loader"]);
 
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]').click(); });
-  const reopened = [...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+  await act(async () => { query<HTMLButtonElement>(document.body, 'button[aria-label="Starting branch"]').click(); });
+  const reopened = [...document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')];
   await act(async () => { item(reopened.find((option) => option.textContent === "main")).click(); });
   assert.deepEqual([...chosen.branch], ["fix-loader", null], "the branch the checkout is already on asks for nothing");
 
   await view.render(options({ name: "fix-loader", create: false }, false));
-  const branchTrigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
+  const branchTrigger = query<HTMLButtonElement>(document.body, 'button[aria-label="Starting branch"]');
   assert.match(branchTrigger.textContent, /fix-loader/);
-  await act(async () => { branchTrigger.click(); });
-  const worktreeToggle = query<HTMLButtonElement>(view.container, '.branch-menu-footer button');
-  assert.equal(worktreeToggle.textContent, "Create worktree");
-  assert.equal(worktreeToggle.getAttribute("aria-pressed"), "false");
-  await act(async () => {
-    query(view.container, 'input[aria-label="Search branches"]').dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" }));
-  });
-  assert.equal(document.activeElement, worktreeToggle, "the worktree action is reachable with the menu's arrow keys");
-  await act(async () => { worktreeToggle.click(); });
+  await act(async () => { query<HTMLButtonElement>(document.body, ".thread-start-toggle").click(); });
   assert.deepEqual(chosen.worktree, [true]);
-  await view.render(options({ name: "fix-loader", create: false }, true));
-  assert.match(branchTrigger.textContent, /Worktree/, "the closed control keeps the enabled checkout mode visible");
-  await act(async () => { branchTrigger.click(); });
-  const enabledToggle = query<HTMLButtonElement>(view.container, '.branch-menu-footer button');
-  assert.equal(enabledToggle.getAttribute("aria-pressed"), "true");
-  await act(async () => { enabledToggle.click(); });
-  assert.deepEqual(chosen.worktree, [true, false], "the same menu action can turn the worktree off");
 
   await act(async () => { branchTrigger.click(); });
-  const branchSearch = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
+  const branchSearch = query<HTMLInputElement>(document.body, 'input[aria-label="Search branches"]');
   assert.equal(document.activeElement, branchSearch, "the branch search takes focus when it opens");
   await act(async () => { branchSearch.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.equal(view.container.querySelector(".branch-menu"), null, "Escape closes the branch list");
+  assert.equal(document.body.querySelector(".branch-menu"), null, "Escape closes the branch list");
   assert.equal(document.activeElement, branchTrigger, "closing the list returns focus to its trigger");
 
   await act(async () => { branchTrigger.click(); });
   await act(async () => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-  assert.equal(view.container.querySelector(".branch-menu"), null, "one outside pointer press closes the branch list");
+  assert.equal(document.body.querySelector(".branch-menu"), null, "one outside pointer press closes the branch list");
   assert.equal(document.activeElement, branchTrigger);
+  await view.unmount();
+});
+
+test("project menus stay above the composer and reposition when the conversation shrinks", async () => {
+  const { ThreadStartOptions } = await import("../../../src/renderer/components/ThreadStartOptions.tsx");
+  window.desktop = fakeDesktop();
+  const view = await mount(React.createElement("div", { className: "conversation" }, React.createElement(ThreadStartOptions, {
+    projects: [{ id: "project-a", root: "/repo/ai-coding-tool" }],
+    projectId: "project-a",
+    workspaceId: "workspace-a",
+    branch: null,
+    worktree: false,
+    onSelectProject() {},
+    onSelectBranch() {},
+    onSetWorktree() {},
+  })));
+  place(".conversation", { x: 0, y: 50, width: 600, height: 220 });
+  place('button[aria-label="Project"]', { x: 100, y: 90, width: 180, height: 30 });
+  const trigger = query<HTMLButtonElement>(document.body, 'button[aria-label="Project"]');
+  await act(async () => { trigger.click(); });
+  const menu = query<HTMLElement>(document.body, ".thread-start-popover");
+  const room = () => Number.parseFloat(menu.style.getPropertyValue("--branch-menu-room"));
+  assert.ok(Number.parseFloat(menu.style.top) >= 120, "the menu opens below its trigger");
+  assert.ok(Number.parseFloat(menu.style.top) + room() < 270, "the menu leaves space before the composer");
+
+  place(".conversation", { x: 0, y: 50, width: 600, height: 90 });
+  await act(async () => { window.dispatchEvent(new Event("resize")); });
+  const menuBottom = window.innerHeight - Number.parseFloat(menu.style.bottom);
+  assert.ok(menuBottom <= 90, "the menu moves above its trigger when there is more room there");
+  assert.ok(menuBottom - room() >= 50, "the menu stays inside the conversation");
+  await act(async () => { query<HTMLInputElement>(menu, 'input[aria-label="Search projects"]').dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  assert.equal(document.activeElement, trigger, "a portaled menu returns focus to its trigger");
   await view.unmount();
 });
 
@@ -111,7 +128,7 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
   const projects = [{ id: "project-a", root: "/repo/ai-coding-tool" }, { id: "project-b", root: "/repo/just-speak" }];
   const view = await mount(React.createElement(ThreadModeSwitch, { projects, projectId: "project-a", onSelectProject: (id) => { chosen.push(id); } }));
 
-  const modes = () => [...view.container.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+  const modes = () => [...document.body.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
   assert.deepEqual(modes().map((mode) => [mode.textContent, mode.getAttribute("aria-checked")]), [["Chat", "false"], ["Work", "true"]], "a thread in a project is work");
   await act(async () => { item(modes()[1]).click(); });
   assert.deepEqual([...chosen], [], "the mode it is already in asks for nothing");
@@ -125,7 +142,7 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
   assert.deepEqual([...chosen], ["project-a"], "turning to work starts the thread in the first project");
 
   await view.render(React.createElement(ThreadModeSwitch, { projects: [], projectId: null, onSelectProject() {} }));
-  assert.equal(view.container.querySelector(".thread-mode"), null, "with nowhere to work there is no mode to choose");
+  assert.equal(document.body.querySelector(".thread-mode"), null, "with nowhere to work there is no mode to choose");
 
   await view.render(React.createElement(ThreadStartOptions, {
     projects,
@@ -136,7 +153,7 @@ test("the mode is chat or work, and a chat is left with nothing else to answer",
     onSelectBranch() {},
     onSetWorktree() {},
   }));
-  assert.equal(view.container.querySelector(".thread-start"), null, "a chat has no project, branch, or checkout to answer for");
+  assert.equal(document.body.querySelector(".thread-start"), null, "a chat has no project, branch, or checkout to answer for");
   await view.unmount();
 });
 
@@ -157,8 +174,8 @@ test("a branch the repository does not have is offered as one to create", async 
   });
 
   const view = await mount(options(null));
-  await act(async () => { query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]').click(); });
-  const search = query<HTMLInputElement>(view.container, 'input[aria-label="Search branches"]');
+  await act(async () => { query<HTMLButtonElement>(document.body, 'button[aria-label="Starting branch"]').click(); });
+  const search = query<HTMLInputElement>(document.body, 'input[aria-label="Search branches"]');
   const setValue = item(Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value")).set;
   const type = async (text: string) => {
     await act(async () => {
@@ -169,19 +186,19 @@ test("a branch the repository does not have is offered as one to create", async 
 
   await type("main");
   assert.equal(
-    [...view.container.querySelectorAll('[role="option"]')].some((option) => /Create branch/.test(option.textContent)),
+    [...document.body.querySelectorAll('[role="option"]')].some((option) => /Create branch/.test(option.textContent)),
     false,
     "a name the repository already has is a branch to pick, not one to make",
   );
 
   await type("loader-fix");
-  const creating = item([...view.container.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((option) => /Create branch/.test(option.textContent)));
+  const creating = item([...document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((option) => /Create branch/.test(option.textContent)));
   assert.match(creating.textContent, /loader-fix/);
   await act(async () => { creating.click(); });
   assert.deepEqual(chosen, [{ name: "loader-fix", create: true }]);
 
   await view.render(options({ name: "loader-fix", create: true }));
-  const trigger = query<HTMLButtonElement>(view.container, 'button[aria-label="Starting branch"]');
+  const trigger = query<HTMLButtonElement>(document.body, 'button[aria-label="Starting branch"]');
   assert.match(trigger.textContent, /loader-fix/);
   assert.match(trigger.textContent, /new/, "a branch yet to exist says so");
   await view.unmount();

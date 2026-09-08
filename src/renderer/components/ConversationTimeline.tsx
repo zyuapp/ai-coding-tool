@@ -44,6 +44,7 @@ export type ConversationTimelineProps = {
   /** False while the stored threads are still on their way, when an empty transcript means nothing. */
   restored?: boolean;
   /** Shown under the empty state, where a thread that does not exist yet is set up. */
+  startMode?: ReactNode;
   startOptions?: ReactNode;
   /** The find bar, when it is this transcript being searched, and the match it is showing. */
   find?: FindView | null;
@@ -64,7 +65,7 @@ const WAIT_LABELS: Record<ThreadWait, string> = {
   run: "Starting…",
 };
 
-export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
+export function ConversationTimeline({ currentThread, engine, engineLabel, folder, status, compacting, waitingOn = null, streamingTail, scrollContainerRef, readingPoint, onReadingPointMove, empty, restored = true, startMode, startOptions, find, annotations = EMPTY_ANNOTATIONS, onAnnotateAdd, onAnnotateNote, onAnnotateRemove, onAnnotateSide }: ConversationTimelineProps) {
   const messages = currentThread?.messages ?? [];
   const artifactScope = useMemo(() => ({ root: folder, taskId: currentThread?.id }), [folder, currentThread?.id]);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -124,7 +125,7 @@ export function ConversationTimeline({ currentThread, engine, engineLabel, folde
   if (currentThread?.historySummary) return <div className="empty-state" role="status">Loading conversation…</div>;
 
   if (!currentThread?.messages.length && !streamingTail) {
-    return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startOptions={startOptions} />;
+    return <TimelineEmptyState restored={restored} engineLabel={engineLabel} folder={folder} empty={empty} startMode={startMode} startOptions={startOptions} />;
   }
 
   return (

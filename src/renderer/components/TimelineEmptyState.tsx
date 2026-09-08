@@ -16,12 +16,23 @@ type EmptyStateProps = {
   engineLabel: string;
   folder: string;
   empty?: { icon: IconType; title: string; description: string };
+  startMode?: ReactNode;
   startOptions?: ReactNode;
 };
 
-export function TimelineEmptyState({ restored, engineLabel, folder, empty, startOptions }: EmptyStateProps) {
+export function TimelineEmptyState({ restored, engineLabel, folder, empty, startMode, startOptions }: EmptyStateProps) {
   /** A transcript that has nothing yet because nothing has been read is not a transcript with nothing in it. */
   if (!restored) return <div className="empty-state" />;
+  if (startOptions) return (
+    <div className="empty-state thread-draft">
+      {startMode}
+      <div className="thread-draft-intro">
+        <h2>{folder ? "What are we working on?" : "What’s on your mind?"}</h2>
+        <p>{folder ? "Choose a project, then describe your task below." : "Ask a question or explore an idea."}</p>
+      </div>
+      {startOptions}
+    </div>
+  );
   const EmptyIcon = empty?.icon;
   return (
     <div className="empty-state">
