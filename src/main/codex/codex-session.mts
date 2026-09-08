@@ -607,7 +607,7 @@ export class CodexSession {
       if (turn.imageIds.has(item.id)) return;
       turn.imageIds.add(item.id);
       const saving = this.imageOutput(item, turn.input.workspaceRoot)
-        .catch(() => "The generated image could not be saved or displayed.")
+        .catch((error: unknown) => `The generated image could not be saved or displayed: ${reasonOf(error)}`)
         .then((text) => {
           if (this.turn === turn && !turn.input.abortController.signal.aborted) turn.input.emit({ type: "assistant", messageId: item.id, text, artifact: true });
         })

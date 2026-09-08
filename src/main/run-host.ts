@@ -1,4 +1,4 @@
-import { utilityProcess, type BrowserWindow, type IpcMainEvent } from "electron";
+import { app, utilityProcess, type BrowserWindow, type IpcMainEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
@@ -194,7 +194,7 @@ function emitSyntheticTerminal(host: RunHost, command: StartRunCommand, status: 
 
 function startAgent(host: RunHost) {
   if (agent) return;
-  agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [], {
+  agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [path.join(app.getPath("userData"), "generated-images")], {
     serviceName: "AI Coding Tool Agent",
     stdio: "pipe",
   });

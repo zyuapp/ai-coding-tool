@@ -41,7 +41,7 @@ test("a failure to save an image stays visible as an artifact failure", async ()
   await turn(codex, { emit: (event) => events.push(event) }, (client) => {
     client.notify("item/completed", { ...at, item: image, completedAtMs: 2 });
   });
-  assert.deepEqual(events.filter((event) => event.type === "assistant"), [{ type: "assistant", messageId: image.id, text: "The generated image could not be saved or displayed.", artifact: true }]);
+  assert.deepEqual(events.filter((event) => event.type === "assistant"), [{ type: "assistant", messageId: image.id, text: "The generated image could not be saved or displayed: Disk full", artifact: true }]);
   codex.provider.closeAll();
 });
 

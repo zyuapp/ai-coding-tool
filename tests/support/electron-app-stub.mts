@@ -5,6 +5,7 @@ type HarnessMessage = Record<string, unknown>;
 type NotificationOptions = { title: string; body?: string; silent?: boolean };
 
 class FakeAgent extends EventEmitter {
+  constructor(readonly args: string[]) { super(); }
   messages: HarnessMessage[] = [];
   stderr = new EventEmitter();
   throwOnPost = false;
@@ -189,7 +190,7 @@ export function fakeElectron(userData: string) {
       handle: (name: string, handler: Callback) => handlers.set(name, handler),
       on: (name: string, listener: Callback) => listeners.set(name, listener),
     },
-    utilityProcess: { fork: () => { const agent = new FakeAgent(); agents.push(agent); return agent; } },
+    utilityProcess: { fork: (_modulePath: string, args: string[]) => { const agent = new FakeAgent(args); agents.push(agent); return agent; } },
     protocol: { registerSchemesAsPrivileged() {}, handle: (scheme: string, handler: Callback) => protocolHandlers.set(scheme, handler) },
     net: { fetch: async (url: string) => new Response(url) },
     shell: {

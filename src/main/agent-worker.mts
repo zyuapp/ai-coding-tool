@@ -4,6 +4,7 @@ import { ClaudeAgentProvider } from "./agent/claude-agent-provider.mjs";
 import { AutomationChannel } from "./agent/automation-channel.mjs";
 import { EngineRouter } from "./agent/engine-router.mjs";
 import { CodexAgentProvider } from "./codex/codex-agent-provider.mjs";
+import { codexImageOutput } from "./codex/codex-images.mjs";
 import { SessionPool } from "./agent/session-pool.mjs";
 import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";
@@ -34,7 +35,10 @@ const pools: SessionPool[] = [];
 const engines = () => {
   const pool = new SessionPool();
   pools.push(pool);
-  return new EngineRouter({ claude: new ClaudeAgentProvider(undefined, pool), codex: new CodexAgentProvider({ host: toolHost, pool }) });
+  return new EngineRouter({ claude: new ClaudeAgentProvider(undefined, pool), codex: new CodexAgentProvider({
+    host: toolHost, pool,
+    imageOutput: (item, root) => codexImageOutput(item, root, process.argv[2]),
+  }) });
 };
 const providers = { main: engines(), side: engines() };
 const coordinators = {

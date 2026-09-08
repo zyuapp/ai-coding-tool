@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { mkdir, open, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { app, nativeImage } from "electron";
 import { MAX_MESSAGE_IMAGES, isMessageImageFile } from "../domain/message-artifacts.js";
+import { readImageFile } from "./image-files.js";
 
-const MAX_BYTES = 25 * 1024 * 1024;
 const MAX_PIXELS = 64_000_000;
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
 const pending = new Map<string, Promise<string>>();
@@ -19,30 +19,13 @@ function imageRequest(file: unknown, root: unknown, messageId: unknown) {
   return { file, root, key, extension, directory: path.join(app.getPath("userData"), "message-images") };
 }
 
-/** An open file handle bounds the read even when the original is replaced or removed during capture. */
-async function boundedImage(file: string) {
-  const handle = await open(file, "r");
-  try {
-    const metadata = await handle.stat();
-    if (!metadata.isFile() || metadata.size === 0 || metadata.size > MAX_BYTES) throw new Error("Image is too large or unavailable.");
-    const bytes = Buffer.alloc(metadata.size);
-    let offset = 0;
-    while (offset < bytes.length) {
-      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
-      if (!bytesRead) throw new Error("Image changed while reading.");
-      offset += bytesRead;
-    }
-    return bytes;
-  } finally { await handle.close(); }
-}
-
 /** Only images referenced in replies are retained; browser captures that are never used stay temporary. */
 async function copyImage(request: ReturnType<typeof imageRequest>) {
   const destination = path.join(request.directory, `${request.key}.${request.extension}`);
   if (await stat(destination).then((entry) => entry.isFile(), () => false)) return destination;
   const { openableFile } = await import("./path-policy.mjs");
   const source = await openableFile(request.root ? [request.root] : [], request.file);
-  const bytes = await boundedImage(source);
+  const bytes = await readImageFile(source);
   const decoded = nativeImage.createFromBuffer(bytes);
   const size = decoded.getSize();
   if (decoded.isEmpty() || size.width * size.height > MAX_PIXELS) throw new Error("Image cannot be previewed.");
