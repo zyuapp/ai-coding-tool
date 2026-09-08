@@ -143,38 +143,6 @@ export function usePanelRows(input: PanelRowsInput & { notes: string }) {
   );
 }
 
-/** Enough space below the last file to align its header with the top of the review. */
-export function useReviewScrollSpace(
-  scroller: RefObject<HTMLDivElement | null>,
-  rows: PanelRow[],
-  windowed: boolean,
-  virtualizer: Virtualizer<HTMLDivElement, Element>,
-) {
-  const lastFile = useMemo(() => rows.findLastIndex((row) => row.kind === "file"), [rows]);
-  const totalSize = windowed ? virtualizer.getTotalSize() : 0;
-  const lastFileStart = windowed ? virtualizer.measurementsCache[lastFile]?.start ?? 0 : 0;
-  useLayoutEffect(() => {
-    const element = scroller.current;
-    if (!element) return;
-    const measure = () => {
-      let space = 0;
-      if (lastFile >= 0) {
-        const header = element.children[lastFile] as HTMLElement | undefined;
-        const end = element.lastElementChild as HTMLElement | null;
-        const start = windowed ? lastFileStart : header?.offsetTop ?? 0;
-        const height = windowed ? totalSize : (end?.offsetTop ?? 0) + (end?.offsetHeight ?? 0);
-        space = Math.max(0, element.clientHeight - (height - start));
-      }
-      element.style.setProperty("--diff-scroll-space", `${space}px`);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    if (!windowed && element.lastElementChild) observer.observe(element.lastElementChild);
-    return () => observer.disconnect();
-  }, [scroller, rows, lastFile, windowed, totalSize, lastFileStart]);
-}
-
 type TickOptions = {
   scroller: RefObject<HTMLDivElement | null>;
   rows: PanelRow[];
@@ -189,8 +157,8 @@ type TickOptions = {
 
 /**
  * Ticking a file off folds it away, which pulls everything under it up past the reader. The next
- * file still to read comes to the top instead, so working down the list is one click a file. The
- * fold rebuilds the rows, so the row to scroll to only exists a render after it is asked for.
+ * file still to read scrolls toward the top, stopping at the end of the review. The fold rebuilds
+ * the rows, so the row to scroll to only exists a render after it is asked for.
  * Un-ticking a file opens it where the reader already is, and moving the review then would lose them.
  */
 export function useTickThrough({ scroller, rows, windowed, virtualizer, files, viewed, searching, onSetViewed }: TickOptions) {

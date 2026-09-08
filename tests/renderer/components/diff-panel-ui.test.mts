@@ -115,7 +115,7 @@ test("the row held at the top echoes the one in the list rather than doubling it
   await view.unmount();
 });
 
-test("Viewed aligns a short review's next file and the next click marks that file", async (t) => {
+test("Viewed keeps a short review's next file visible and it can still be marked", async (t) => {
   const prototype = dom.window.HTMLElement.prototype;
   const offsets = new WeakMap<HTMLElement, number>();
   const geometry: PropertyDescriptorMap = {
@@ -123,7 +123,7 @@ test("Viewed aligns a short review's next file and the next click marks that fil
     offsetHeight: { get() { return 20; } },
     clientHeight: { get() { return 480; } },
     scrollHeight: { get(this: HTMLElement) {
-      return this.children.length * 20 + Number.parseFloat(this.style.getPropertyValue("--diff-scroll-space") || "0");
+      return this.children.length * 20 + 24;
     } },
     scrollTop: {
       get(this: HTMLElement) { return offsets.get(this) ?? 0; },
@@ -160,10 +160,10 @@ test("Viewed aligns a short review's next file and the next click marks that fil
   await tickPinned();
   const nextHeader = query(scroller, `[aria-label="Mark ${PATHS[1]} viewed"]`).closest(".diff-file-row")?.parentElement;
   assert.ok(nextHeader);
-  assert.equal(scroller.scrollTop, nextHeader.offsetTop, "the short file reaches the top without a prior scroll");
-  assert.equal(query(view.container, ".diff-file-pinned .diff-file-name").textContent, PATHS[1]);
+  assert.equal(scroller.scrollTop, 0, "a review that fits stays at the top");
+  assert.ok(nextHeader.offsetTop + nextHeader.offsetHeight <= scroller.clientHeight, "the next header remains visible");
 
-  await tickPinned();
+  await act(async () => { query<HTMLInputElement>(scroller, `[aria-label="Mark ${PATHS[1]} viewed"]`).click(); });
   assert.deepEqual(marked, PATHS);
   assert.match(query(view.container, ".diff-progress").textContent, /2 of 2 viewed/);
 });
