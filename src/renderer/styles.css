@@ -1088,8 +1088,12 @@ button, select { color: inherit; }
 
 /** The mode is the thread's own choice, so it sits under its name rather than in with the details. */
 .thread-mode {
+  position: absolute;
+  z-index: 4;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  flex: none;
   align-items: center;
   border: 1px solid var(--line-soft);
   border-radius: 999px;
@@ -1111,6 +1115,8 @@ button, select { color: inherit; }
 }
 .thread-mode button:hover { color: var(--ink-faint); }
 .thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); box-shadow: var(--shadow-thumb); }
+/** The session panel takes the right of the strip, so the mode centres on what is left of it. */
+.workspace.summary-open .work-area > .thread-mode { transform: translateX(calc(-50% - 141px)); }
 /** The session panel holds the same corner, so the bar takes the space beside it rather than under it. */
 .workspace.summary-open .work-area > .find-slot > .find-bar { right: calc(clamp(20px, 4vw, 64px) + 282px); }
 
@@ -1194,16 +1200,6 @@ button, select { color: inherit; }
 }
 /** The transcript's own empty state centres on the transcript rather than lifting off its floor. */
 .conversation > .empty-state { padding-bottom: 0; }
-/** One flow keeps the tabs, invitation and controls spaced consistently at every zoom. */
-.conversation:has(> .thread-draft) { padding-top: 14px; }
-.conversation > .thread-draft { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; height: auto; min-height: 100%; }
-.thread-draft > .thread-draft-intro { margin-top: clamp(24px, 5vh, 40px); }
-.conversation > .thread-draft .thread-draft-intro h2 { margin: 0; font-size: var(--text-display); font-weight: 560; letter-spacing: -0.025em; }
-.conversation > .thread-draft .thread-draft-intro p { max-width: 420px; margin: 8px 0 0; color: var(--muted); }
-.thread-draft .thread-start { flex: none; margin-top: 20px; }
-.empty-state .thread-mode button { margin: 0; min-width: 72px; min-height: 28px; border-radius: 999px; padding: 0 12px; background: transparent; color: var(--quiet); font-size: var(--text-control); font-weight: 500; }
-.empty-state .thread-mode button:hover { color: var(--ink-faint); }
-.empty-state .thread-mode button[aria-checked="true"] { background: var(--surface-active); color: var(--ink); }
 .conversation > .empty-state .empty-glyph {
   width: 46px;
   height: 46px;
@@ -1220,9 +1216,6 @@ button, select { color: inherit; }
 /** Project, branch and checkout are one decision, so they sit in one track rather than three apart. */
 .thread-start {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 100%;
   align-items: center;
   gap: 0;
   margin-top: 26px;
@@ -1307,16 +1300,7 @@ button, select { color: inherit; }
   box-shadow: var(--shadow-popover);
   text-align: left;
 }
-.thread-start-popover.anchored { position: fixed; min-width: 0; max-width: none; max-height: min(280px, var(--branch-menu-room, 100vh)); z-index: 1000; }
-.thread-start-popover button {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 30px;
-  margin: 0;
-  padding: 0 13px;
-  color: var(--ink-faint);
-  font-size: var(--text-control);
+.empty-state .thread-start-popover button {
   width: 100%;
   max-width: none;
   justify-content: space-between;
@@ -1332,7 +1316,7 @@ button, select { color: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.thread-start-popover button:hover { background: var(--surface-menu-hover); }
+.empty-state .thread-start-popover button:hover { background: var(--surface-menu-hover); }
 /** The branch list, wherever it hangs: the empty state's start options, and the session panel. */
 .branch-menu {
   position: absolute;
@@ -1402,7 +1386,7 @@ button, select { color: inherit; }
 .branch-menu-field .branch-menu-search, .thread-start-search-field .thread-start-search { margin: 0; border: 0; border-radius: 0; padding: 6px 0; background: none; }
 .branch-menu-field .branch-menu-search:focus, .thread-start-search-field .thread-start-search:focus { outline: 0; }
 /** A list anchored to a narrow trigger still needs room for a ref, and must stay inside the window. */
-.branch-menu.anchored { min-width: 0; }
+.branch-menu.anchored { min-width: 260px; }
 
 .branch-menu-search, .thread-start-search {
   width: 100%;

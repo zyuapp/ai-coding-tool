@@ -1,8 +1,7 @@
 import { LuCheck as Check, LuChevronDown as ChevronDown, LuFolderGit2 as FolderGit2, LuFolderSymlink as FolderSymlink, LuGitBranch as GitBranch, LuSearch as Search, LuX as X } from "react-icons/lu";
 import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type { DraftBranch } from "../../application/workspace-state";
-import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
+import { BranchMenu, useBranches } from "./BranchMenu";
 import { projectName, type Project } from "../../domain/project";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
@@ -62,14 +61,12 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
   const [projectQuery, setProjectQuery] = useState("");
   const [branchesOpen, setBranchesOpen] = useState(false);
   const projectRef = useRef<HTMLDivElement>(null);
-  const projectMenu = useRef<HTMLDivElement>(null);
   const projectTrigger = useRef<HTMLButtonElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
   const branchTrigger = useRef<HTMLButtonElement>(null);
   const branchMenu = useRef<HTMLDivElement>(null);
-  useDismissibleLayer(projectsOpen, [projectRef, projectMenu], () => setProjectsOpen(false), projectTrigger);
+  useDismissibleLayer(projectsOpen, [projectRef], () => setProjectsOpen(false), projectTrigger);
   useDismissibleLayer(branchesOpen, [branchRef, branchMenu], () => setBranchesOpen(false), branchTrigger);
-  const projectStyle = useAnchoredStyle(projectsOpen ? projectTrigger.current : null, 220);
   const project = projects.find((item) => item.id === projectId);
   const matched = matchProjects(projects, projectQuery);
   const branches = useBranches(workspaceId);
@@ -89,7 +86,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
           <span>{projectName(project)}</span>
           <ChevronDown size={14} />
         </button>
-        {projectsOpen && createPortal(<div ref={projectMenu} className="thread-start-popover anchored" style={projectStyle ?? undefined} onKeyDown={moveListFocus}>
+        {projectsOpen && <div className="thread-start-popover" onKeyDown={moveListFocus}>
           <label className="thread-start-search-field">
             <Search size={13} aria-hidden="true" />
             <input
@@ -119,7 +116,7 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
               </button>
             ))}
           </div>
-        </div>, document.body)}
+        </div>}
       </div>
 
       {/** A checkout that already exists is entered as it stands, so there is no branch left to pick
@@ -140,7 +137,6 @@ export function ThreadStartOptions({ projects, projectId, workspaceId, branch, w
         </button>
         {branchesOpen && (
           <BranchMenu
-            anchor={branchTrigger.current}
             menuRef={branchMenu}
             branches={branches}
             selected={selected}

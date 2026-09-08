@@ -43,17 +43,12 @@ const ANCHOR_GAP = 4;
 const MIN_MENU_WIDTH = 260;
 
 /** Where a list sits beside a row it is not inside: on whichever side of it the viewport leaves more room. */
-function anchoredStyle(anchor: HTMLElement, minimumWidth: number): CSSProperties {
+function anchoredStyle(anchor: HTMLElement): CSSProperties {
   const rect = anchor.getBoundingClientRect();
-  // Draft menus leave breathing room before the composer, even when the viewport shrinks.
-  const boundary = anchor.closest(".conversation")?.getBoundingClientRect();
-  const top = Math.max(0, boundary?.top ?? 0);
-  const bottom = Math.min(window.innerHeight, boundary?.bottom ?? window.innerHeight);
-  const edgeGap = boundary ? 20 : ANCHOR_GAP;
-  const below = Math.max(0, bottom - rect.bottom - ANCHOR_GAP - edgeGap);
-  const above = Math.max(0, rect.top - top - ANCHOR_GAP - edgeGap);
+  const below = window.innerHeight - rect.bottom - ANCHOR_GAP * 2;
+  const above = rect.top - ANCHOR_GAP * 2;
   const over = above > below;
-  const width = Math.min(Math.max(rect.width, minimumWidth), window.innerWidth - ANCHOR_GAP * 2);
+  const width = Math.max(rect.width, MIN_MENU_WIDTH);
   /** A list wider than the row it hangs off would run past the window, so it slides back inside. */
   const left = Math.min(rect.left, window.innerWidth - width - ANCHOR_GAP);
   return {
@@ -66,25 +61,20 @@ function anchoredStyle(anchor: HTMLElement, minimumWidth: number): CSSProperties
 }
 
 /** Follows the anchor, since the panel it sits in scrolls out from under a list that does not move. */
-export function useAnchoredStyle(anchor: HTMLElement | null | undefined, minimumWidth = MIN_MENU_WIDTH) {
+function useAnchoredStyle(anchor: HTMLElement | null | undefined) {
   const [style, setStyle] = useState<CSSProperties | null>(null);
 
   useLayoutEffect(() => {
     if (!anchor) return;
-    const place = () => setStyle(anchoredStyle(anchor, minimumWidth));
+    const place = () => setStyle(anchoredStyle(anchor));
     place();
-    const observer = new ResizeObserver(place);
-    observer.observe(anchor);
-    const boundary = anchor.closest(".conversation");
-    if (boundary) observer.observe(boundary);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
-      observer.disconnect();
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [anchor, minimumWidth]);
+  }, [anchor]);
 
   return style;
 }
