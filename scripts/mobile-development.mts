@@ -52,7 +52,7 @@ export function mobileDevelopment(root: string): Plugin {
             offer = await requestDevelopmentPairing(root);
           } catch {
             res.statusCode = 503;
-            res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mobile preview</title></head><body><p>Waiting for desktop app…</p><p>Run <code>npm start</code> in another terminal.</p><script>setTimeout(() => location.reload(), 1500)</script></body></html>`);
+            res.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mobile preview</title><style>body{margin:0;padding:24px;font:15px/1.5 system-ui;background:#0e1117;color:#e7e9ee}code{font-size:13px}</style></head><body><p>Waiting for desktop app…</p><p>Run <code>npm start</code> in another terminal.</p><script>setTimeout(() => location.reload(), 1500)</script></body></html>`);
             return;
           }
           socketProxy.target = new URL(offer.url).origin;
