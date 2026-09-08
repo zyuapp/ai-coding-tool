@@ -65,6 +65,10 @@ export async function runSystemEffect(effect: SystemEffect, host: EffectHost): P
       return;
 
     /** Where every engine stands: asked outright, or answered by an engine's own sign-in once it is over. */
+    case "engine.reload-settings":
+      try { desktop.send({ type: "reload-settings" }); }
+      catch (error) { await dispatch({ type: "engine.settings-reload-status", status: "failed", message: errorMessage(error) }); }
+      return;
     case "engine.read": case "engine.sign-in":
       try {
         await dispatch({ type: "engine.status", status: await (effect.type === "engine.read" ? desktop.engineStatus(effect.refresh) : desktop.signInEngine(effect.engine)) });

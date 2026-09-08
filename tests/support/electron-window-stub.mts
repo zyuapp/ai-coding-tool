@@ -52,6 +52,9 @@ export function fakeWindows(onAllClosed: () => void = () => {}) {
     destroyed = false;
     focused = false;
     visible: boolean;
+    menuBarVisible = true;
+    menuBarAutoHide = false;
+    loadedURL: string | null = null;
     webContents = {
       sent: [] as SentMessage[],
       listeners: new Map<string, Callback>(),
@@ -95,8 +98,13 @@ export function fakeWindows(onAllClosed: () => void = () => {}) {
     isVisible() { return this.visible !== false; }
     restore() {}
     show() { this.visible = true; }
+    focus() { this.focused = true; }
     hide() { this.visible = false; }
+    setMenu(menu: null) { if (menu === null) this.menuBarVisible = false; }
+    setAutoHideMenuBar(autoHide: boolean) { this.menuBarAutoHide = autoHide; }
+    setMenuBarVisibility(visible: boolean) { this.menuBarVisible = visible; }
     async loadFile() {}
+    async loadURL(url: string) { this.loadedURL = url; }
   }
 
   return { FakeWindow, windows };

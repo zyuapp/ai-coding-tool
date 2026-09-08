@@ -30,8 +30,10 @@ const coordinatorOptions = {
 /** One tool service for the whole worker; every Codex session gets a token of its own on it. */
 const toolHost = new McpHttpHost();
 /** A channel's engines share one pool, so the warm sessions of a channel are capped together. */
+const pools: SessionPool[] = [];
 const engines = () => {
   const pool = new SessionPool();
+  pools.push(pool);
   return new EngineRouter({ claude: new ClaudeAgentProvider(undefined, pool), codex: new CodexAgentProvider({ host: toolHost, pool }) });
 };
 const providers = { main: engines(), side: engines() };
@@ -39,6 +41,17 @@ const coordinators = {
   main: new RunCoordinator(providers.main, (event) => parentPort.postMessage(event), coordinatorOptions),
   side: new RunCoordinator(providers.side, (event) => parentPort.postMessage(event), coordinatorOptions),
 };
+
+async function reloadSettings() {
+  try {
+    const reloaded = pools.map((pool) => pool.reloadSettings());
+    parentPort.postMessage({ type: "engine.settings-reload-status", status: "pending" });
+    await Promise.all(reloaded);
+    parentPort.postMessage({ type: "engine.settings-reload-status", status: "reloaded" });
+  } catch (error) {
+    parentPort.postMessage({ type: "engine.settings-reload-status", status: "failed", message: error instanceof Error ? error.message : String(error) });
+  }
+}
 
 function closeSessions() {
   for (const provider of Object.values(providers)) provider.closeAll();
@@ -69,7 +82,8 @@ parentPort.on("message", ({ data }) => {
     return;
   }
   if (!isInternalRunCommand(data)) return;
-  if (data.type === "start") coordinators[data.channel].start(data);
+  if (data.type === "reload-settings") void reloadSettings();
+  else if (data.type === "start") coordinators[data.channel].start(data);
   else if (data.type === "cancel") Object.values(coordinators).some((coordinator) => coordinator.cancel(data.taskId, data.runId));
   else if (data.type === "answer-question") Object.values(coordinators).some((coordinator) => coordinator.answerQuestion(data.taskId, data.runId, data.requestId, data.questionId, data.text));
   else if (data.type === "steer") Object.values(coordinators).some((coordinator) => coordinator.steer(data.taskId, data.runId, data.messageId, data.prompt));

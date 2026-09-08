@@ -43,6 +43,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     terminalSize: 13,
     allowedOrigins: [],
     chromeBrowser: false, conciseReplies: false, computerUse: true, browserTools: true, notifications: true,
+    agentSettingsReload: "idle", onReloadAgentSettings() {},
     engineAccess: { claude: { access: "ready" }, codex: { access: "ready" } }, engineChecking: false,
     remoteChecking: false,
     shortcuts: [],
@@ -55,6 +56,7 @@ function renderSettingsPanel(overrides: SettingsTestOverrides) {
     onSetReadingSize() {},
     onSetTerminalSize() {},
     onSetChromeBrowser() {}, onSetConciseReplies() {}, onSetComputerUse() {}, onSetBrowserTools() {}, onSetNotifications() {},
+    onCheckForUpdates() {}, onOpenSourceLicenses() {},
     onRestoreThread() {}, onClearArchive() {}, onRefreshEngines() {}, onSignInEngine() {}, onRefreshWorktrees() {}, onWorktreeCommand() {},
     onClearBrowserData() {},
     onCaptureShortcut() {},
@@ -71,6 +73,20 @@ async function openSettingsPage(view: MountView, name: string) {
   await act(async () => { query<HTMLButtonElement>(view.container, ".sidebar-settings").click(); });
   await act(async () => { item([...view.container.querySelectorAll<HTMLButtonElement>(".settings-sidebar nav button")].find((button) => button.textContent === name)).click(); });
 }
+
+test("General Settings keeps updates and licenses reachable without the app menu", async () => {
+  const calls: string[] = [];
+  window.desktop = fakeDesktop({
+    checkForUpdates: () => { calls.push("updates"); },
+    openSourceLicenses: async () => { calls.push("licenses"); },
+  });
+  const view = await mount(React.createElement(App));
+  await openSettingsPage(view, "General");
+  await act(async () => { query<HTMLButtonElement>(view.container, '[data-setting="general.updates"] button').click(); });
+  await act(async () => { query<HTMLButtonElement>(view.container, '[data-setting="general.licenses"] button').click(); });
+  assert.deepEqual(calls, ["updates", "licenses"]);
+  await view.unmount();
+});
 
 test("the general section installs the aic command and takes it back", async () => {
   const calls: string[] = [];
@@ -554,4 +570,21 @@ test("a switch that is off says so and offers to turn it back on", async () => {
   assert.equal(capabilitySwitch(view.container, "computer-use-availability").getAttribute("aria-checked"), "false");
   assert.equal(capabilitySwitch(view.container, "computer-use-availability").textContent, "Turn on");
   await view.unmount();
+});
+
+test("Engines offers a reload and shows when it is waiting or complete", async () => {
+  window.desktop = fakeDesktop({});
+  let reloads = 0;
+  for (const status of ["idle", "reloading", "pending", "reloaded", "failed"] as const) {
+    const view = await mount(renderSettingsPanel({ initialSection: "engines", agentSettingsReload: status, onReloadAgentSettings: () => { reloads++; } }));
+    const section = query<HTMLElement>(view.container, '[aria-labelledby="agent-settings-heading"]');
+    const button = query<HTMLButtonElement>(section, "button");
+    assert.equal(button.textContent, "Reload agent settings");
+    assert.equal(button.disabled, status === "reloading" || status === "pending");
+    if (status === "pending") assert.match(section.textContent, /Reload pending/);
+    if (status === "reloaded") assert.match(section.textContent, /Settings reloaded/);
+    await act(async () => { button.click(); });
+    await view.unmount();
+  }
+  assert.equal(reloads, 3);
 });

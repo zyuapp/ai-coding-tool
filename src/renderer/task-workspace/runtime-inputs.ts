@@ -1,3 +1,4 @@
+import { agentEventInput } from "../../application/workspace-reducer";
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { WorkspaceExecution } from "../../application/workspace-execution";
 import { errorMessage } from "./errors";
@@ -28,7 +29,7 @@ export function createRuntimeInputs(host: RuntimeInputHost) {
         const completions: WorkspaceExecution["completed"][] = [];
         let failure: string | undefined;
         for (const event of input.events) {
-          const single: WorkspaceInput = "runId" in event ? { type: "run.event", event } : { type: "thread.event", event };
+          const single = agentEventInput(event);
           try {
             for (const taskId of host.history.needed(single)) await host.history.hydrate(taskId);
             if (!host.active(inputGeneration)) return closed();

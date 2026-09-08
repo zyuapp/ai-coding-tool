@@ -26,9 +26,11 @@ export type GeneralSettingsProps = {
   /** Whether a thread that needs the user announces itself on the desktop. */
   notifications: boolean;
   onSetNotifications: (enabled: boolean) => void;
+  onCheckForUpdates: () => void;
+  onOpenSourceLicenses: () => void;
 };
 
-export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, conciseReplies, onSetConciseReplies, notifications, onSetNotifications }: GeneralSettingsProps) {
+export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, conciseReplies, onSetConciseReplies, notifications, onSetNotifications, onCheckForUpdates, onOpenSourceLicenses }: GeneralSettingsProps) {
   const [cli, setCli] = useState<CliStatus | null>(null);
   const [cliBusy, setCliBusy] = useState(false);
   const [cliError, setCliError] = useState<string | null>(null);
@@ -102,6 +104,18 @@ export function GeneralSettings({ chromeBrowser, onSetChromeBrowser, conciseRepl
 
         <SettingRow id="general.concise-replies" status={conciseReplies} description="Claude leads with the answer and keeps it short. Ask it to expand and it still will.">
           <button type="button" role="switch" aria-checked={conciseReplies} onClick={() => onSetConciseReplies(!conciseReplies)}>{conciseReplies ? "Turn off" : "Turn on"}</button>
+        </SettingRow>
+      </section>
+
+      <section className="settings-group" aria-labelledby="app-heading">
+        <div className="settings-group-heading">
+          <h3 id="app-heading">AI Coding Tool</h3>
+        </div>
+        <SettingRow id="general.updates" description={null}>
+          <button type="button" onClick={onCheckForUpdates}>Check for updates</button>
+        </SettingRow>
+        <SettingRow id="general.licenses" description={null}>
+          <button type="button" onClick={onOpenSourceLicenses}>View licenses</button>
         </SettingRow>
       </section>
     </>

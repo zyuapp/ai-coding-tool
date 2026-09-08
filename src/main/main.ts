@@ -26,6 +26,7 @@ import { startKeyboardHost } from "./keyboard-host.js";
 import { openInEditor } from "./open-in-editor.js";
 import { serveExternalApps } from "./open-in-app.js";
 import { installAppMenu } from "./app-menu.js";
+import { openSourceLicenses } from "./license-window.js";
 import { registerAppImageProtocol } from "./linux-protocol.js";
 import { adoptLoginShellPath } from "./login-path.js";
 import { startLockAwake, type LockAwake } from "./lock-awake.js";
@@ -268,6 +269,11 @@ async function createWindow() {
     },
   });
   const createdWindow = window;
+  if (process.platform === "linux") {
+    /** Keep native accelerators, but never reveal a menu strip (including on Alt). */
+    window.setAutoHideMenuBar(false);
+    window.setMenuBarVisibility(false);
+  }
   browser.startBrowserHost(window, {
     onPage: (event: BrowserPageEvent) => {
       workspaceRuntime.owner()?.webContents.send("browser:event", event);
@@ -588,11 +594,7 @@ ipcMain.on("updates:check", (event) => {
 
 ipcMain.handle("licenses:open", async (event) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
-  const notices = app.isPackaged
-    ? path.join(process.resourcesPath, "legal", "THIRD-PARTY-NOTICES.txt")
-    : path.join(app.getAppPath(), "assets", "legal", "THIRD-PARTY-NOTICES.txt");
-  const failure = await shell.openPath(notices);
-  if (failure) throw new Error(failure);
+  await openSourceLicenses(window);
 });
 
 ipcMain.on("computer-use:restart", (event) => {

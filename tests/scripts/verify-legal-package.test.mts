@@ -8,7 +8,7 @@ import { afterEach, test } from "vitest";
 // @ts-expect-error Electron Builder loads this plain-JavaScript hook directly.
 const { default: afterPack, verifyLegalPackage } = await import("../../scripts/verify-legal-package.mjs");
 // @ts-expect-error Packaging hooks share these plain-JavaScript lockfile helpers.
-const { ANTHROPIC_AGENT_SDK_VERSION, lockedPackageVersion } = await import("../../scripts/cua-driver-version.mjs");
+const { ANTHROPIC_AGENT_SDK_VERSION, CUA_DRIVER_VERSION, UBJS_VERSION, lockedPackageVersion } = await import("../../scripts/cua-driver-version.mjs");
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
@@ -64,10 +64,10 @@ async function packageFixture() {
   await writeFile(driver, "driver");
   await chmod(driver, 0o755);
   const packages = [
-    ["@trycua/cua-driver", "0.23.2", "MIT"],
-    ["@trycua/cua-driver-darwin-arm64", "0.23.2", "MIT AND MPL-2.0"],
-    ["@ubjs/core", "0.31.0-3", "MPL-2.0"],
-    ["@ubjs/node", "0.31.0-3", "MPL-2.0"],
+    ["@trycua/cua-driver", CUA_DRIVER_VERSION, "MIT"],
+    ["@trycua/cua-driver-darwin-arm64", CUA_DRIVER_VERSION, "MIT AND MPL-2.0"],
+    ["@ubjs/core", UBJS_VERSION, "MPL-2.0"],
+    ["@ubjs/node", UBJS_VERSION, "MPL-2.0"],
   ];
   for (const [name, version, license] of packages) {
     const folder = path.join(resources, "cua-sdk", "node_modules", name);
@@ -93,9 +93,9 @@ test("the package hook rejects truncated licenses, version drift, and unexpected
   await cp(path.resolve("assets/legal/MPL-2.0.txt"), path.join(legal, "MPL-2.0.txt"));
   const manifest = path.join(resources, "cua-sdk/node_modules/@trycua/cua-driver/package.json");
   await writeFile(manifest, JSON.stringify({ name: "@trycua/cua-driver", version: "0.23.0", license: "MIT" }));
-  await assert.rejects(verifyLegalPackage(resources), /notices cover 0\.23\.2/);
+  await assert.rejects(verifyLegalPackage(resources), { message: `@trycua/cua-driver is 0.23.0; notices cover ${CUA_DRIVER_VERSION}.` });
 
-  await writeFile(manifest, JSON.stringify({ name: "@trycua/cua-driver", version: "0.23.2", license: "MIT" }));
+  await writeFile(manifest, JSON.stringify({ name: "@trycua/cua-driver", version: CUA_DRIVER_VERSION, license: "MIT" }));
   await mkdir(path.join(resources, "cua-sdk/node_modules/@ubjs/node-darwin-arm64"));
   await assert.rejects(verifyLegalPackage(resources), /expected core, node/);
 });

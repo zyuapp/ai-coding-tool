@@ -7,7 +7,7 @@
 .worktree-menu-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .worktree-menu-copy > span, .worktree-menu-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .worktree-menu-copy small { color: var(--muted); font-size: 10px; }
-.worktree-menu-choice:hover:not(:disabled) small, .worktree-menu-choice:focus-visible small { color: var(--accent-ink); opacity: .75; }
+.worktree-menu-choice:hover:not(:disabled) small, .worktree-menu-choice:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) small { color: var(--accent-ink); opacity: .75; }
 .worktree-menu-panel .worktree-menu-new { width: calc(100% - 10px); height: 26px; }
 .worktree-menu-note { padding: 4px 10px; margin: 4px 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .worktree-menu-error { margin: 6px 10px; color: var(--danger); font-size: 11px; overflow-wrap: anywhere; }

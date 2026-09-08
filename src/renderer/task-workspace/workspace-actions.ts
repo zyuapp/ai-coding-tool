@@ -61,6 +61,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setModel: (engine: AgentEngine, model: AgentModel) => dispatch({ type: "task.set-model", engine, model }),
     setEffort: (engine: AgentEngine, effort: AgentEffort) => dispatch({ type: "task.set-effort", engine, effort }),
     readEngineStatus: () => dispatch({ type: "engine.read" }),
+    reloadAgentSettings: () => dispatch({ type: "engine.reload-settings" }),
     refreshEngineStatus: () => dispatch({ type: "engine.read", refresh: true }),
     signInEngine: (engine: AgentEngine) => dispatch({ type: "engine.sign-in", engine }),
     setWorktree: (worktree: boolean) => dispatch({ type: "task.set-worktree", worktree }),

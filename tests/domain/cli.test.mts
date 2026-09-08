@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
@@ -56,7 +56,11 @@ test("Linux installs in the user's local bin and opens the URL through the deskt
   assert.ok(isCliScript(LINUX_CLI_SCRIPT));
 });
 
-test("the Linux command hands xdg-open the exact folder URL", { skip: process.platform === "win32" }, async (t) => {
+test.for([
+  { name: "prefers gio when both openers are installed", gio: true, gioStatus: 0, opener: "gio", status: 0 },
+  { name: "uses xdg-open when gio is unavailable", gio: false, gioStatus: 0, opener: "xdg-open", status: 0 },
+  { name: "reports gio failures without falling back to a browser", gio: true, gioStatus: 42, opener: "gio", status: 42 },
+])("the Linux command $name", { skip: process.platform === "win32" }, async ({ gio, gioStatus, opener, status }, t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "aic-linux-cli-script-"));
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));
   const bin = path.join(root, "bin");
@@ -66,14 +70,21 @@ test("the Linux command hands xdg-open the exact folder URL", { skip: process.pl
   await Promise.all([mkdir(bin), mkdir(project)]);
   await Promise.all([
     writeFile(command, LINUX_CLI_SCRIPT, "utf8"),
-    writeFile(path.join(bin, "xdg-open"), "#!/bin/sh\nprintf %s \"$1\" > \"$AIC_TEST_OUTPUT\"\n", "utf8"),
+    writeFile(path.join(bin, "xdg-open"), '#!/bin/sh\nprintf "xdg-open\\n%s\\n" "$1" > "$AIC_TEST_OUTPUT"\n', { mode: 0o755 }),
+    ...(gio ? [writeFile(path.join(bin, "gio"), `#!/bin/sh\nprintf 'gio\\n%s\\n%s\\n' "$1" "$2" > "$AIC_TEST_OUTPUT"\nexit ${gioStatus}\n`, { mode: 0o755 })] : []),
+    ...["base64", "tr"].map((tool) => symlink(execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), path.join(bin, tool))),
   ]);
-  await Promise.all([chmod(command, 0o755), chmod(path.join(bin, "xdg-open"), 0o755)]);
+  await chmod(command, 0o755);
 
-  execFileSync(command, [project], {
-    env: { ...process.env, AIC_TEST_OUTPUT: opened, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}` },
+  const result = spawnSync(command, [project], {
+    env: { ...process.env, AIC_TEST_OUTPUT: opened, PATH: bin },
+    encoding: "utf8",
   });
-  assert.equal(projectPathFromUrl(await readFile(opened, "utf8")), project);
+  assert.ifError(result.error);
+  assert.equal(result.status, status, result.stderr);
+  const [actualOpener, ...args] = (await readFile(opened, "utf8")).trim().split("\n");
+  assert.equal(actualOpener, opener);
+  assert.deepEqual(args, opener === "gio" ? ["open", urlFor(project)] : [urlFor(project)]);
 });
 
 test("CLI platform configuration preserves macOS and rejects unsupported systems", () => {

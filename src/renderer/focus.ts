@@ -63,7 +63,7 @@ export function useModalFocus(root: ElementRef) {
     const focusables = () => [...dialog.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((element) => element.offsetParent !== null);
     (focusables()[0] ?? dialog).focus();
     const trap = (event: KeyboardEvent) => {
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) return;
       const items = focusables();
       if (!items.length) {
         event.preventDefault();

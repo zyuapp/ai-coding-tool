@@ -31,6 +31,7 @@ type Held = {
   session: PooledSession;
   usedAt: number;
   idle?: ReturnType<typeof setTimeout>;
+  reload?: { done: Promise<void>; resolve(): void };
 };
 
 /**
@@ -58,18 +59,30 @@ export class SessionPool {
     return held?.session.live ? held.session : undefined;
   }
 
+  /** Retire the current sessions once their work finishes; new sessions load settings on launch. */
+  reloadSettings(): Promise<void> {
+    const waiting = [...this.sessions].map(([taskId, held]) => {
+      if (!held.reload) {
+        let resolve!: () => void;
+        const done = new Promise<void>((settled) => { resolve = settled; });
+        held.reload = { done, resolve };
+      }
+      const done = held.reload.done;
+      if (!held.session.busy) this.release(taskId, held);
+      return done;
+    });
+    return Promise.all(waiting).then(() => {});
+  }
+
   /** Lets every session go, which is what ends the processes they hold. */
   closeAll() {
-    for (const held of [...this.sessions.values()]) {
-      clearTimeout(held.idle);
-      held.session.close();
-    }
-    this.sessions.clear();
+    for (const [taskId, held] of [...this.sessions]) this.release(taskId, held);
   }
 
   private sessionFor<S extends PooledSession>(input: ProviderRunInput, key: string, opener: SessionOpener<S>): Held {
     const held = this.sessions.get(input.taskId);
     const reusable = held?.session.live
+      && (!held.reload || held.session.busy)
       && held.session.key === key
       && !held.session.answering
       && !input.forkContinuation
@@ -84,7 +97,12 @@ export class SessionPool {
     this.evict();
     const session = opener.open({
       ended: () => {
-        if (this.sessions.get(input.taskId)?.session === session) this.sessions.delete(input.taskId);
+        const ended = this.sessions.get(input.taskId);
+        if (ended?.session === session) {
+          this.sessions.delete(input.taskId);
+          clearTimeout(ended.idle);
+          ended.reload?.resolve();
+        }
       },
       rested: () => {
         const settled = this.sessions.get(input.taskId);
@@ -104,6 +122,7 @@ export class SessionPool {
    */
   private rest(taskId: string, held: Held) {
     if (this.sessions.get(taskId) !== held || !held.session.live) return;
+    if (held.reload && !held.session.busy) return this.release(taskId, held);
     held.usedAt = Date.now();
     clearTimeout(held.idle);
     held.idle = setTimeout(() => (held.session.busy ? this.rest(taskId, held) : this.release(taskId, held)), this.idleMs);
@@ -114,6 +133,7 @@ export class SessionPool {
     clearTimeout(held.idle);
     if (this.sessions.get(taskId) === held) this.sessions.delete(taskId);
     held.session.close();
+    held.reload?.resolve();
   }
 
   private evict() {

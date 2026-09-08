@@ -23,6 +23,14 @@ Never hand-edit the generated legal notices. Run `npm run prepare:cua`, review t
 
 `~/.local/bin/cua-driver`, the standalone CLI, is a separate install and out of scope. Leave it alone unless asked.
 
+## Resolve setup blockers
+
+Missing tooling is setup work within this task. Install or download the required tools into a temporary directory and continue without asking the user to do the setup. For Rust-based native reports, use an official Rust toolchain and `cargo-about` release matching the host. Keep `CARGO_HOME`, `RUSTUP_HOME`, downloaded sources, and report configuration under `/tmp`; use Rustup's `--no-modify-path` option and set the tool path only for the commands that need it. Do not change the user's shell configuration or standalone CLI installations.
+
+If the sandbox blocks downloads or localhost test listeners, retry through the environment's permission mechanism. If a package or executable is for another platform, obtain the matching host build of the same candidate version for executable checks. Neither an initial network error nor an absent local tool is enough to declare the update blocked.
+
+Stop an affected update only for the compatibility problems defined below, or when required evidence still cannot be obtained after reasonable setup and recovery attempts. Report the specific remaining blocker and what was tried. Never weaken compatibility checks, invent source metadata, or commit incomplete native notices to get past a blocker; continue other dependencies that can be completed independently.
+
 ## 1. Check
 
 ```
@@ -65,7 +73,7 @@ Also inspect the candidate's config/auth/storage changes for new home-relative i
 
 Breaking means an export a production call site uses was removed, renamed, or changed incompatibly; a default changed in a way that changes behaviour; or a new required config or permission step. A generated response gaining a required nullable field is not breaking when production code only receives or ignores that field. Update typed test fixtures mechanically and continue. Do not change runtime behaviour solely to satisfy a fixture.
 
-**If it breaks, stop.** Change nothing. Report the dependency, version, breakage, affected call sites, and required migration. The user decides whether to take it on.
+**If it breaks, stop that dependency's update.** Leave its pin and runtime unchanged. Report the dependency, version, breakage, affected call sites, and required migration. The user decides whether to take it on.
 
 **If it is clean, continue** one dependency at a time.
 
@@ -103,12 +111,18 @@ shasum -a 256 /tmp/cua.tgz
 Add the release to the `releases` map in `scripts/cua-driver-version.mjs`. Record all of the following from the exact release tag and its locked sources. Do not guess or carry a value forward because its package version looks unchanged.
 
 - Full CUA source commit.
-- Downloaded archive SHA-256.
+- Downloaded macOS archive SHA-256 and the release's Linux x64/arm64 archive checksums. Keep all platform checksums in the release metadata consumed by `scripts/prepare-cua-driver.mts`.
 - Resolved UBJS version and full source commit.
 - UniFFI version and full source commit.
 - `libffi` and `libffi-sys` versions.
 
-Regenerate `assets/legal/CUA-RUST-DEPENDENCIES.html` from the new CUA source commit and `assets/legal/UBJS-NATIVE-DEPENDENCIES.html` from the new UBJS source commit. Scope both reports to production dependencies linked into the shipped native artifacts for `aarch64-apple-darwin`. Exclude development-only and build-only dependencies, as the notices state. Do not replace version strings in an old report. If the exact graph or license text cannot be reproduced, stop and report the missing source or tooling instead of committing the update.
+Regenerate `assets/legal/CUA-RUST-DEPENDENCIES.html` from the new CUA source commit and `assets/legal/UBJS-NATIVE-DEPENDENCIES.html` from the new UBJS source commit. Scope both reports to production dependencies linked into the shipped native artifacts for `aarch64-apple-darwin`. Exclude development-only and build-only dependencies, as the notices state. Do not replace version strings in an old report.
+
+Use `cargo-about generate --locked --fail --target aarch64-apple-darwin` with the CUA `crates/cua-driver/Cargo.toml` and UBJS `runtimes/napi/Cargo.toml` manifests in their exact source trees. Set `ignore-build-dependencies = true` and `ignore-dev-dependencies = true` in the temporary report configuration. This resolves the macOS dependency graph on Linux without compiling macOS binaries.
+
+If an upstream crate omits its license field, inspect its source license and use a checksum-verified `cargo-about` clarification; do not exclude the crate or guess its license. Where a source file references a standard license instead of including its full text, obtain the complete text from the license steward. Preserve existing valid dual-license selections, review package and license differences, and normalize trailing whitespace in generated output. A report may be unchanged after regeneration when the locked source and graph are unchanged.
+
+If reproduction fails, follow **Resolve setup blockers** before leaving the update unfinished. Stop only if the exact graph or license text remains unverifiable after those attempts, and report the evidence still missing instead of committing the update.
 
 ```
 npm run prepare:cua
@@ -123,6 +137,8 @@ cat vendor/cua-driver/version
 
 Run `npm run check:licenses` and then `npm test`. The first command gives notice drift a clear failure before the broader suite runs. If `tests/renderer.test.mts` needs isolation, re-run it with `npx vitest run tests/renderer.test.mts --testTimeout=30000` before calling it a failure.
 
+Update stale dependency-version fixtures to use the shared release pins while preserving explicit mismatched versions in rejection tests. These fixture changes are part of the dependency update, not runtime breakage. Rerun the affected checks before committing.
+
 For Codex, `npm test` runs the same offline compatibility fixture against the newly installed development pin. Also run it with `CODEX_COMPAT_BINARY="$(command -v codex)"` when the user's installed CLI differs, since that is the executable the shipped app uses; report which versions were exercised. A missing binary or blocked localhost listener is a verification gap, not a passing check. Reuse the existing Codex-home and task-database tests for launcher/link and clean-cutover changes.
 
 Before committing, run `git diff --check` and inspect `git diff --name-only`. A dependency update is incomplete if `npm run prepare:cua` changed a legal file and that file is missing from the commit.
@@ -133,7 +149,7 @@ Make one commit per dependency. Stage only that dependency's files:
 
 - Agent SDK: `package.json`, `package-lock.json`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Commit as `Move the agent SDK to <version>`.
 - Codex: `package.json`, `package-lock.json`, and `src/main/codex/protocol`. Include `scripts/generate-codex-protocol.mts` if generation needed a fix, any behaviour-preserving typed fixture updates required by the generated responses, and either generated legal notice if it changed. Commit as `Move Codex to <version>`.
-- Cua Driver: `package.json`, `package-lock.json`, `scripts/cua-driver-version.mjs`, `assets/legal/CUA-RUST-DEPENDENCIES.html`, `assets/legal/UBJS-NATIVE-DEPENDENCIES.html`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Commit as `Move the Cua Driver to <version>`.
+- Cua Driver: `package.json`, `package-lock.json`, `scripts/cua-driver-version.mjs`, `assets/legal/CUA-RUST-DEPENDENCIES.html`, `assets/legal/UBJS-NATIVE-DEPENDENCIES.html`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Include any required `scripts/prepare-cua-driver.mts` fixes and behaviour-preserving packaging fixture updates. Commit as `Move the Cua Driver to <version>`.
 
 When updating more than one, finish and commit each dependency before touching the next because they share `package.json`.
 

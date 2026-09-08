@@ -70,6 +70,14 @@ export function computerUseCapability(
   return { status: "available", display };
 }
 
+/** Select by the compositor connection, so XWayland never sends native windows to X11 capture. */
+export function linuxWindowCaptureBackend(environment: NodeJS.ProcessEnv = process.env): "hyprland" | "x11" | null {
+  if (environment.WAYLAND_DISPLAY && environment.HYPRLAND_INSTANCE_SIGNATURE?.trim()) return "hyprland";
+  const display = linuxDisplayServer(environment);
+  const waylandSession = environment.XDG_SESSION_TYPE?.trim().toLowerCase() === "wayland" || display === "xwayland" || display === "wayland";
+  return display === "x11" && !waylandSession ? "x11" : null;
+}
+
 export function windowCaptureCapability(
   platform: NodeJS.Platform = process.platform,
   environment: NodeJS.ProcessEnv = process.env,
@@ -77,18 +85,14 @@ export function windowCaptureCapability(
   if (platform === "darwin") return { status: "available", display: "macos" };
   if (platform !== "linux") return { status: "unsupported", message: `Window capture is not supported on ${platform}.` };
   const display = linuxDisplayServer(environment);
-  /** Chromium uses PipeWire even when DISPLAY also exposes XWayland, so fail before capture. */
-  const waylandSession = environment.XDG_SESSION_TYPE?.trim().toLowerCase() === "wayland" || display === "xwayland" || display === "wayland";
-  if (waylandSession && display !== "none") {
+  if (linuxWindowCaptureBackend(environment)) return { status: "available", display };
+  if (display !== "none") {
     return {
       status: "unsupported",
       display,
-      message: display === "wayland"
-        ? "This Wayland compositor does not expose a safe global active-window capture path. Use an X11 session."
-        : "Global active-window capture is unavailable in this Wayland session because its capture portal cannot identify the active X11/XWayland window. Use an X11 session.",
+      message: "Window capture is not available on this Wayland desktop yet. Supported Linux sessions are Hyprland and X11.",
     };
   }
-  if (display === "x11") return { status: "available", display };
   return {
     status: "unsupported",
     display,

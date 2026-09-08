@@ -343,7 +343,9 @@ test("Claude subagent events reach correlated renderer state", async () => {
     workflows: {},
     subagents: {},
   };
-  for (const event of events) state = "runId" in event ? applyRunEvent(state, event) : applyThreadEvent(state, event);
+  for (const event of events) {
+    if (event.type !== "engine.settings-reload-status") state = "runId" in event ? applyRunEvent(state, event) : applyThreadEvent(state, event);
+  }
 
   const task = state.threads[0];
   assert.ok(task);

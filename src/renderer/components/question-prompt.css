@@ -22,7 +22,7 @@
 .question-options { display: grid; gap: 6px; margin: 10px 0; }
 .question-option { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .question-option:hover, .question-option:has(input:checked) { background: var(--accent-surface); border-color: var(--accent-line-strong); }
-.question-option:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.question-option:has(input:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *)) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .question-option:has(input:disabled) { opacity: 0.5; cursor: default; }
 .question-option input { flex: none; margin: 3px 0 0; accent-color: var(--accent); }
 .question-option-description { display: block; color: var(--muted); font-size: 12px; }
@@ -30,8 +30,8 @@
 .question-answer label { font-size: 12px; color: var(--muted); }
 .question-answer textarea { box-sizing: border-box; width: 100%; min-height: 64px; max-height: 120px; resize: vertical; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); color: var(--ink); font: inherit; line-height: 1.5; }
 .question-answer textarea::placeholder { color: var(--muted); }
-.question-answer textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.question-answer textarea:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .question-answer button { justify-self: end; border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; background: var(--ink); color: var(--canvas); font: inherit; font-weight: 600; cursor: pointer; }
 .question-answer button:hover:not(:disabled) { opacity: 0.85; }
-.question-answer button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.question-answer button:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .question-answer button:disabled { opacity: 0.4; cursor: default; }

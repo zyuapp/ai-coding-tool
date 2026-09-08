@@ -1,7 +1,7 @@
 import { utilityProcess, type BrowserWindow, type IpcMainEvent } from "electron";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
+import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
@@ -54,6 +54,7 @@ const backgroundThreads = new Set<string>();
 const sessionSubagents = new Map<string, Set<string>>();
 const liveSubagents = new Map<string, Set<string>>();
 const pendingStarts = new Map<string, StartRunCommand>();
+let settingsReloadPending = false;
 const automationDispatches = new Map<string, AutomationDispatchState>();
 const threadRequests = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -198,7 +199,11 @@ function startAgent(host: RunHost) {
     stdio: "pipe",
   });
   agent.on("message", (event: unknown) => {
-    if (isRunEvent(event)) publishRunEvent(host, event);
+    if (isAgentSettingsReloadEvent(event)) {
+      settingsReloadPending = event.status === "pending";
+      sendToRenderer(host, event);
+    }
+    else if (isRunEvent(event)) publishRunEvent(host, event);
     /** No run to gate them: workflows, background work, and child agents can all outlive a parent turn. */
     else if (isWorkflowEvent(event)) sendToRenderer(host, event);
     else if (isBackgroundEvent(event)) publishBackgroundEvent(host, event);
@@ -211,6 +216,10 @@ function startAgent(host: RunHost) {
   });
   agent.on("exit", (code) => {
     agent = null;
+    if (settingsReloadPending) {
+      settingsReloadPending = false;
+      sendToRenderer(host, { type: "engine.settings-reload-status", status: "failed", message: "Agent process exited while reloading settings. Try again." });
+    }
     if (host.running()) {
       pendingStarts.clear();
       const message = `Agent process exited${code === null ? "" : ` with code ${code}`}.`;
@@ -245,10 +254,16 @@ async function resolveStart(host: RunHost, command: StartRunCommand) {
 
 function postCommand(host: RunHost, command: RunCommand) {
   try {
+    if (command.type === "reload-settings") settingsReloadPending = true;
     if (!agent) startAgent(host);
     if (!agent) throw new Error("Agent process is unavailable.");
     agent.postMessage(command);
   } catch (error) {
+    if (command.type === "reload-settings") {
+      settingsReloadPending = false;
+      sendToRenderer(host, { type: "engine.settings-reload-status", status: "failed", message: error instanceof Error ? error.message : String(error) });
+      return;
+    }
     /** A stop or a label belongs to no run, so a failure to send it has no run to report against. */
     if (command.type === "stop-process" || command.type === "label") return;
     const state = runStates.get(runKey(command.taskId, command.runId));
@@ -276,6 +291,10 @@ async function dispatchStart(host: RunHost, command: StartRunCommand) {
 
 function handleRunCommand(host: RunHost, event: IpcMainEvent, payload: unknown) {
   if (!host.running() || !host.trusted(event) || !isRunCommand(payload)) return;
+  if (payload.type === "reload-settings") {
+    if (!agent) return sendToRenderer(host, { type: "engine.settings-reload-status", status: "reloaded" });
+    return postCommand(host, payload);
+  }
   if (payload.type === "start") {
     if (runStates.has(runKey(payload.taskId, payload.runId))) return;
     for (const [oldKey, oldCommand] of supersedePendingStarts(pendingStarts, runKey(payload.taskId, payload.runId), (command) => command.taskId === payload.taskId)) {

@@ -113,10 +113,24 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   agents[0].emit("message", { type: "subagent.started", taskId: "concurrent-a", id: "invalid", description: "Invalid", sessionScoped: false });
   await tick();
   const subagentsFor = (taskId: string) => main.sentOn<AgentEvent>("run:event")
-    .filter((event) => event.type.startsWith("subagent.") && event.taskId === taskId);
+    .filter((event) => "taskId" in event && event.type.startsWith("subagent.") && event.taskId === taskId);
   assert.deepEqual(subagentsFor("concurrent-a").map((event) => event.type), ["subagent.started", "subagent.started", "subagent.status"]);
 
+  const reloadEvents = () => main.sentOn<AgentEvent>("run:event").filter((event) => event.type === "engine.settings-reload-status");
+  const beforeReload = agents[0].messages.length;
+  runCommand(untrusted, { type: "reload-settings" });
+  assert.equal(agents[0].messages.length, beforeReload);
+  runCommand(trusted, { type: "reload-settings" });
+  assert.equal(agents[0].messages.at(-1)?.type, "reload-settings");
+  agents[0].emit("message", { type: "engine.settings-reload-status", status: "invalid" });
+  assert.equal(reloadEvents().length, 0);
+  agents[0].emit("message", { type: "engine.settings-reload-status", status: "pending" });
+  assert.equal(reloadEvents().at(-1)?.status, "pending");
+  agents[0].emit("message", { type: "engine.settings-reload-status", status: "reloaded" });
+  assert.equal(reloadEvents().at(-1)?.status, "reloaded");
+  runCommand(trusted, { type: "reload-settings" });
   agents[0].emit("exit", 9);
+  assert.equal(reloadEvents().at(-1)?.status, "failed", "a worker exit releases the pending UI");
   assert.deepEqual(statusesFor("run-new"), ["failed"]);
   assert.deepEqual(backgroundFor("concurrent-a"), [[shell], []], "the processes died with the agent process, and nothing is left to say so");
   assert.deepEqual(backgroundFor("concurrent-b"), [[]], "a thread with nothing running is not told twice");
@@ -131,6 +145,8 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   runCommand(trusted, command("post", "run-post"));
   await waitFor(() => agents[1]?.messages.some((message) => message.runId === "run-post"));
   agents[1].throwOnPost = true;
+  runCommand(trusted, { type: "reload-settings" });
+  assert.equal(reloadEvents().at(-1)?.status, "failed", "a send failure releases the pending UI");
   runCommand(trusted, { type: "cancel", taskId: "post", runId: "run-post" });
   assert.equal(sent().some((event) => event.runId === "run-post" && event.type === "run.status" && event.status === "failed"), true);
   agents[1].throwOnPost = false;
@@ -392,5 +408,12 @@ test("the app menu sends help actions through the window command path", async ()
   const openLicenses = handler<(event: IpcEvent) => Promise<void>>("licenses:open");
   await assert.rejects(openLicenses(main.untrusted));
   await openLicenses(main.trusted);
-  assert.equal(main.openedPaths.at(-1), path.join(process.cwd(), "assets", "legal", "THIRD-PARTY-NOTICES.txt"));
+  const viewer = main.windows.find((window) => window.loadedURL === "aicodingtool-licenses://notices/");
+  assert.ok(viewer, "licenses open inside the app without an external text editor");
+  assert.equal(viewer.visible, true);
+  assert.equal(viewer.menuBarVisible, false);
+  await openLicenses({ sender: main.runtimeViews[0].webContents });
+  assert.equal(main.windows.filter((window) => window.loadedURL === viewer.loadedURL).length, 1);
+  assert.equal(viewer.focused, true, "another click brings the existing reader forward");
+  viewer.close();
 });

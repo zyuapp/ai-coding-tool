@@ -7,7 +7,7 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { ArchiveSettings } from "./ArchiveSettings";
 import { BrowserSettings } from "./BrowserSettings";
 import { ComputerUseSettings, useComputerUsePermissions } from "./ComputerUseSettings";
-import { EngineSettings } from "./EngineSettings";
+import { EngineSettings, type EngineSettingsProps } from "./EngineSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import type { AgentEngine, EngineReadiness } from "../../domain/agent-engine";
 import type { SettingsSection } from "../../domain/settings-section";
@@ -147,6 +147,8 @@ export type SettingsPanelProps = {
   /** Where each engine stands on this machine, and whether the app is asking about them now. */
   engineAccess: Record<AgentEngine, EngineReadiness>;
   engineChecking: boolean;
+  agentSettingsReload: EngineSettingsProps["reloadStatus"];
+  onReloadAgentSettings: () => void;
   shortcuts: ShortcutSetting[];
   /** The action waiting for a keystroke, while the window hands every one of them over. */
   capturingShortcut: string | null;
@@ -162,6 +164,8 @@ export type SettingsPanelProps = {
   onSetComputerUse: (enabled: boolean) => void;
   onSetBrowserTools: (enabled: boolean) => void;
   onSetNotifications: (enabled: boolean) => void;
+  onCheckForUpdates: () => void;
+  onOpenSourceLicenses: () => void;
   onRestoreThread: (threadId: string) => void;
   onClearArchive: () => void;
   onRefreshEngines: () => void;
@@ -202,6 +206,7 @@ export function SettingsPanel({
   remoteChecking,
   engineAccess,
   engineChecking,
+  agentSettingsReload, onReloadAgentSettings,
   shortcuts, capturingShortcut, desktopShortcutUnavailable,
   onSetThemeFamily,
   onSetThemeMode,
@@ -214,6 +219,8 @@ export function SettingsPanel({
   onSetComputerUse,
   onSetBrowserTools,
   onSetNotifications,
+  onCheckForUpdates,
+  onOpenSourceLicenses,
   onRestoreThread,
   onClearArchive,
   onRefreshEngines,
@@ -289,7 +296,7 @@ export function SettingsPanel({
           <p>How AI Coding Tool answers from outside its own window.</p>
         </div>
 
-        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} />
+        <GeneralSettings chromeBrowser={chromeBrowser} onSetChromeBrowser={onSetChromeBrowser} conciseReplies={conciseReplies} onSetConciseReplies={onSetConciseReplies} notifications={notifications} onSetNotifications={onSetNotifications} onCheckForUpdates={onCheckForUpdates} onOpenSourceLicenses={onOpenSourceLicenses} />
       </main>
       )}
 
@@ -304,7 +311,7 @@ export function SettingsPanel({
       </main>
       )}
 
-      {section === "engines" && <EngineSettings engineAccess={engineAccess} checking={engineChecking} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} />}
+      {section === "engines" && <EngineSettings reloadStatus={agentSettingsReload} onReload={onReloadAgentSettings} engineAccess={engineAccess} checking={engineChecking} onRefresh={onRefreshEngines} onSignIn={onSignInEngine} />}
 
       {section === "worktrees" && (
         <WorktreeSettings

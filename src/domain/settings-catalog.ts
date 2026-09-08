@@ -46,6 +46,8 @@ export const SETTINGS_CONTROLS = [
   { id: "general.notifications", section: "general", label: "Desktop notifications", keywords: "alert banner notify sound away" },
   { id: "general.chrome-browser", section: "general", label: "Claude in Chrome", keywords: "extension browser chrome experimental" },
   { id: "general.concise-replies", section: "general", label: "Concise replies", keywords: "short brief terse length verbose waffle answers style" },
+  { id: "general.updates", section: "general", label: "Updates", keywords: "check version release upgrade" },
+  { id: "general.licenses", section: "general", label: "Open source licenses", keywords: "legal notices third party copyright" },
   { id: "appearance.theme", section: "appearance", label: "Colours", keywords: "theme colors palette dark light auto mode appearance" },
   { id: "appearance.ui-font", section: "appearance", label: "Interface", keywords: "font typeface family ui interface sans" },
   { id: "appearance.mono-font", section: "appearance", label: "Code and terminal", keywords: "font typeface family monospace code terminal shell diff" },

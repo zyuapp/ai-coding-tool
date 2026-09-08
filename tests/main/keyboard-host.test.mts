@@ -7,6 +7,8 @@ test("Wayland with XWayland leaves the global capture key unclaimed before a por
   const previousDisplay = process.env.DISPLAY;
   const previousWayland = process.env.WAYLAND_DISPLAY;
   const previousSessionType = process.env.XDG_SESSION_TYPE;
+  const previousHyprland = process.env.HYPRLAND_INSTANCE_SIGNATURE;
+  Reflect.deleteProperty(process.env, "HYPRLAND_INSTANCE_SIGNATURE");
   process.env.DISPLAY = ":99";
   process.env.WAYLAND_DISPLAY = "wayland-test";
   process.env.XDG_SESSION_TYPE = "wayland";
@@ -19,13 +21,17 @@ test("Wayland with XWayland leaves the global capture key unclaimed before a por
     const refusal = {
       binding: "Alt+Shift+S",
       reason: "unsupported",
-      message: "Global active-window capture is unavailable in this Wayland session because its capture portal cannot identify the active X11/XWayland window. Use an X11 session.",
+      message: "Window capture is not available on this Wayland desktop yet. Supported Linux sessions are Hyprland and X11.",
     };
     assert.deepEqual(main.sentOn("window:shortcut-refused"), [refusal]);
 
     /** A renderer reload repeats its preferences handshake and must receive its own capability state. */
     setShortcuts(main.trusted, {});
     assert.deepEqual(main.sentOn("window:shortcut-refused"), [refusal, refusal]);
+    process.env.HYPRLAND_INSTANCE_SIGNATURE = "hyprland-test";
+    setShortcuts(main.trusted, {});
+    assert.equal(main.globalShortcuts.size, 1, "Hyprland registers the capture shortcut");
+    assert.ok(main.globalShortcuts.has("Alt+Shift+S"));
     await main.dispose();
   } finally {
     if (previousDisplay === undefined) Reflect.deleteProperty(process.env, "DISPLAY");
@@ -34,5 +40,7 @@ test("Wayland with XWayland leaves the global capture key unclaimed before a por
     else process.env.WAYLAND_DISPLAY = previousWayland;
     if (previousSessionType === undefined) Reflect.deleteProperty(process.env, "XDG_SESSION_TYPE");
     else process.env.XDG_SESSION_TYPE = previousSessionType;
+    if (previousHyprland === undefined) Reflect.deleteProperty(process.env, "HYPRLAND_INSTANCE_SIGNATURE");
+    else process.env.HYPRLAND_INSTANCE_SIGNATURE = previousHyprland;
   }
 });

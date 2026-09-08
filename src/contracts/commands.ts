@@ -276,7 +276,8 @@ export type RemoteCommand =
 export type EngineCommand =
   /** `refresh` throws away what the app was told before, for a user who just installed or upgraded one. */
   | { type: "engine.read"; refresh?: boolean }
-  | { type: "engine.sign-in"; engine: AgentEngine };
+  | { type: "engine.sign-in"; engine: AgentEngine }
+  | { type: "engine.reload-settings" };
 
 /** Presentation state. Nothing here reaches the agent process; only `view.set-session-panel-open` outlives the window. */
 export type ViewCommand =
