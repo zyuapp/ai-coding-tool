@@ -1,7 +1,7 @@
-import { LuCheck as Check } from "react-icons/lu";
+import { LuCheck as Check, LuGauge as Gauge } from "react-icons/lu";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
-import { AGENT_ENGINES, SPEED_CHOICES, capabilitiesFor, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { AGENT_ENGINES, capabilitiesFor, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import { POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description?: string };
@@ -97,8 +97,12 @@ export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, o
         <div className="sheet-body">
           <Group heading="Mode" choices={MODES} value={settings.policy} onChange={onPolicy} />
           <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onModel={onModel} />
-          {capabilitiesFor(settings.engine).fastMode && <Group heading="Speed" choices={SPEED_CHOICES} value={settings.fastMode ? "fast" : "standard"} onChange={(speed) => onFastMode(speed === "fast")} />}
           {effortsOf[settings.model].length > 0 && <Group heading="Effort" choices={effortsOf[settings.model]} value={effortForModel(settings.model, settings.effort)} onChange={(effort) => onEffort(settings.engine, effort)} />}
+          {capabilitiesFor(settings.engine).fastMode && <button type="button" className="sheet-option fast-mode-switch" role="switch" aria-label="Fast mode" aria-checked={settings.fastMode ?? false} onClick={() => onFastMode(!settings.fastMode)}>
+            <Gauge size={20} aria-hidden="true" />
+            <span><strong>Fast mode</strong><small>Faster responses · uses more of your plan</small></span>
+            <span className="switch-track" aria-hidden="true" />
+          </button>}
         </div>
       </div>
     </div>

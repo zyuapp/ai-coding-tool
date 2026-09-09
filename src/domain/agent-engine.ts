@@ -92,12 +92,6 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
   },
 };
 
-/** Speed changes latency and usage, independently of reasoning effort. */
-export const SPEED_CHOICES = [
-  { value: "standard", label: "Standard", description: "Normal plan usage" },
-  { value: "fast", label: "Fast", description: "Faster responses · uses more of your plan" },
-] as const;
-
 export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
 
 /** Every engine, in the order pickers list them. */

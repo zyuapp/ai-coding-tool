@@ -1097,6 +1097,14 @@ button {
   color: var(--ink-faint);
 }
 
+.fast-mode-switch { margin-top: 10px; }
+.fast-mode-switch > svg { flex: none; }
+.fast-mode-switch > span:first-of-type { flex: 1; }
+.switch-track { flex: none; width: 34px; height: 20px; padding: 3px; border-radius: 10px; background: var(--line-strong); }
+.switch-track::after { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); }
+.fast-mode-switch[aria-checked="true"] .switch-track { background: var(--accent); }
+.fast-mode-switch[aria-checked="true"] .switch-track::after { transform: translateX(14px); background: var(--accent-ink); }
+
 .sheet-locked {
   color: var(--quiet);
   background: transparent;

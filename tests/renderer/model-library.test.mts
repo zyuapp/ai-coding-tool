@@ -54,7 +54,7 @@ test("saved model favorites discard obsolete IDs and duplicates", () => {
   assert.deepEqual(readViewPreferences({ getItem: () => '{"favoriteModels":false}', setItem() {} }).favoriteModels, []);
 });
 
-test("the Codex speed menu explains usage and dispatches the selected speed", async () => {
+test("the Codex speed toggle follows effort and dispatches both speed changes", async () => {
   const selected: boolean[] = [];
   const props = {
     mode: "confirm" as const, engine: "codex" as const, engineLabel: "Codex", engineLocked: true,
@@ -63,17 +63,18 @@ test("the Codex speed menu explains usage and dispatches the selected speed", as
     onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead() {}, onSignIn() {},
   };
   const view = await mount(React.createElement(ComposerSettings, props));
-  const summary = query<HTMLElement>(view.container, 'summary[aria-label="Speed"]');
-  const menu = summary.parentElement!;
-  assert.match(summary.textContent!, /Standard/);
-  await act(async () => { summary.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
-  const fast = query<HTMLButtonElement>(menu, '[role="option"][aria-selected="false"]');
-  assert.match(fast.textContent!, /uses more of your plan/);
-  await act(async () => { fast.click(); });
+  const toggle = query<HTMLButtonElement>(view.container, 'button[aria-label="Fast mode"]');
+  assert.equal(toggle.parentElement?.lastElementChild, toggle);
+  assert.ok(toggle.previousElementSibling?.querySelector('summary[aria-label="Effort"]'));
+  assert.equal(toggle.getAttribute("aria-pressed"), "false");
+  assert.match(toggle.title, /use more of your plan/);
+  await act(async () => { toggle.click(); });
   assert.deepEqual(selected, [true]);
   await view.render(React.createElement(ComposerSettings, { ...props, fastMode: true }));
-  assert.match(summary.textContent!, /Fast/);
+  assert.equal(toggle.getAttribute("aria-pressed"), "true");
+  await act(async () => { toggle.click(); });
+  assert.deepEqual(selected, [true, false]);
   await view.render(React.createElement(ComposerSettings, { ...props, engine: "claude", engineLabel: "Claude", model: "opus" }));
-  assert.equal(view.container.querySelector('summary[aria-label="Speed"]'), null);
+  assert.equal(view.container.querySelector('button[aria-label="Fast mode"]'), null);
   await view.unmount();
 });
