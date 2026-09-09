@@ -30,7 +30,40 @@ test("modifiers, app switching chords, typing and IME do not highlight the previ
   assert.equal(document.activeElement, button);
 });
 
-test("navigation enables appearance before a menu moves focus, even when it stops propagation", () => {
+test("movement keys keep a mouse-focused control quiet unless focus moves", async () => {
+  const button = document.createElement("button");
+  const other = document.createElement("button");
+  document.body.append(button, other);
+  button.focus();
+  for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]) {
+    press(key, {}, button);
+    assert.equal(keyboardFocusVisible(), false, key);
+    assert.equal(document.activeElement, button);
+  }
+  await new Promise(resolve => setTimeout(resolve, 0));
+  other.focus();
+  assert.equal(keyboardFocusVisible(), false, "later script focus does not inherit an unused arrow key");
+  press("Tab");
+  press("ArrowLeft");
+  assert.equal(keyboardFocusVisible(), true, "existing keyboard navigation stays visible");
+});
+
+test("movement intent is cleared by pointer input and window switching", () => {
+  const button = document.createElement("button");
+  document.body.append(button);
+  press("ArrowDown");
+  window.dispatchEvent(new dom.window.PointerEvent("pointerdown"));
+  button.focus();
+  assert.equal(keyboardFocusVisible(), false);
+  press("ArrowDown");
+  window.dispatchEvent(new Event("blur"));
+  window.dispatchEvent(new Event("focus"));
+  button.blur();
+  button.focus();
+  assert.equal(keyboardFocusVisible(), false);
+});
+
+test("navigation enables appearance as a menu moves focus, even when it stops propagation", () => {
   const menu = document.createElement("div");
   const button = document.createElement("button");
   menu.append(button);
