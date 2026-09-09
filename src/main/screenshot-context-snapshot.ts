@@ -51,7 +51,7 @@ export function accessibilityFromSnapshot(snapshot: unknown, target: ScreenshotT
   // In particular, CUA marks ambiguous Hyprland AT-SPI matches as application-scoped.
   if (snapshot.degraded === true) return { status: "unavailable", reason: "window" };
   if (typeof snapshot.tree_markdown !== "string" || !snapshot.tree_markdown.trim()) return { status: "unavailable", reason: "empty" };
-  const allLines = snapshot.tree_markdown.split("\n");
+  const allLines = treeRows(snapshot.tree_markdown);
   // macOS also supplies the application's menu bar, including menus outside the captured image.
   // Keep exactly the captured window's subtree on both platforms.
   const rootPattern = target.platform === "macos"
@@ -84,7 +84,9 @@ export function accessibilityFromSnapshot(snapshot: unknown, target: ScreenshotT
   const kept: string[] = [];
   let length = 0;
   let protectedDepth: number | null = null;
-  let truncated = Number(snapshot.total_element_count ?? snapshot.element_count) >= SCREENSHOT_CONTEXT_MAX_ELEMENTS;
+  // CUA counts actionable elements separately from its cap on all visited nodes.
+  // Its explicit walk warning is authoritative; a small element_count can still be capped.
+  let truncated = snapshot.tree_markdown.split("\n").some(isTruncationWarning);
   for (const raw of lines.slice(0, SCREENSHOT_CONTEXT_MAX_ELEMENTS * 2)) {
     if (!raw.trim()) continue;
     const depth = raw.length - raw.trimStart().length;
@@ -116,4 +118,19 @@ export function accessibilityFromSnapshot(snapshot: unknown, target: ScreenshotT
   if (lines.length > SCREENSHOT_CONTEXT_MAX_ELEMENTS * 2) truncated = true;
   const text = kept.join("\n").trim();
   return text ? { status: "captured", text, truncated } : { status: "unavailable", reason: "empty" };
+}
+
+function isTruncationWarning(line: string): boolean {
+  return /^⚠.*\b(?:AX tree|accessibility tree) truncated\b/i.test(line.trimStart());
+}
+
+/** Native labels may contain literal newlines; only tree bullets begin another node. */
+function treeRows(markdown: string): string[] {
+  const rows: string[] = [];
+  for (const line of markdown.split("\n")) {
+    if (isTruncationWarning(line)) break;
+    if (/^\s*- /.test(line)) rows.push(line);
+    else if (rows.length && line.trim()) rows[rows.length - 1] += `\\n${line.trim()}`;
+  }
+  return rows;
 }

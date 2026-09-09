@@ -62,6 +62,44 @@ test("mismatched owners, windows, titles, and ambiguous Linux trees cannot suppl
   }
 });
 
+test("multiline browser labels retain the page subtree on macOS and Linux", () => {
+  for (const platform of ["macos", "linux-x11", "linux-hyprland"] as const) {
+    const mac = platform === "macos";
+    const tree_markdown = [
+      mac ? '- AXWindow "Draft"' : '- frame = "Draft"',
+      `  - [0] ${mac ? "AXPopUpButton" : "push button"} (Extension`,
+      'Has access to this site) [actions=[press,showmenu]]',
+      mac ? '  - AXWebArea "Page"' : '  - document web "Page"',
+      `    - ${mac ? "AXStaticText" : "label"} = "Page text`,
+      'with a second line"',
+      `    - ${mac ? "AXSecureTextField" : "password text"} = "secret`,
+      'secret-continuation"',
+      `    - ${mac ? "AXStaticText" : "label"} = "Below the viewport"`,
+      '- AXMenuBar',
+      '  - AXMenuItem "Private recent document"',
+    ].join("\n");
+    const result = accessibilityFromSnapshot({ ...snapshot, tree_markdown }, { ...target, platform });
+    assert.equal(result.status, "captured");
+    if (result.status !== "captured") continue;
+    assert.match(result.text, /Extension\\nHas access to this site/);
+    assert.match(result.text, /Page text\\nwith a second line/);
+    assert.match(result.text, /Below the viewport/);
+    assert.doesNotMatch(result.text, /actions=|secret|Private recent document/);
+  }
+});
+
+test("native truncation is reported even when few visited nodes are actionable", () => {
+  const result = accessibilityFromSnapshot({
+    ...snapshot,
+    element_count: 12, total_element_count: 12,
+    tree_markdown: `${snapshot.tree_markdown}\n⚠️  AX tree truncated at 400 nodes (app has a very large accessibility tree). Use pixel clicks.`,
+  }, target);
+  assert.equal(result.status, "captured");
+  if (result.status !== "captured") return;
+  assert.equal(result.truncated, true);
+  assert.doesNotMatch(result.text, /Use pixel clicks|AX tree truncated/);
+});
+
 test("long and protected content is bounded before it reaches the main process or prompt", () => {
   const tree_markdown = [
     '- frame = "Draft"',
