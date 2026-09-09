@@ -41,6 +41,8 @@ test("capture context survives annotated copies and rejects invalid attachment r
   await assert.rejects(save(main.trusted, "AQIG", "/etc/passwd"), /not one/);
   await writeFile(`${original}.context.json`, "broken JSON");
   assert.equal(await read(main.trusted, original), null);
+  await writeFile(`${original}.context.json`, "x".repeat(128_001));
+  assert.equal(await read(main.trusted, original), null);
   assert.deepEqual(await read(main.trusted, annotated), context, "the annotated image owns its metadata copy");
 });
 

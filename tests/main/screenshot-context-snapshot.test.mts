@@ -67,16 +67,16 @@ test("multiline browser labels retain the page subtree on macOS and Linux", () =
     const mac = platform === "macos";
     const tree_markdown = [
       mac ? '- AXWindow "Draft"' : '- frame = "Draft"',
-      `  - [0] ${mac ? "AXPopUpButton" : "push button"} (Extension`,
-      'Has access to this site) [actions=[press,showmenu]]',
-      mac ? '  - AXWebArea "Page"' : '  - document web "Page"',
+      mac ? '  - [0] AXPopUpButton (Extension' : '  - [0] push button "Extension',
+      mac ? 'Has access to this site) [actions=[press,showmenu]]' : 'Has access to this site" [actions=[press,showmenu]]',
+      mac ? '  - AXWebArea "Page"' : '  - document web = "Page"',
       `    - ${mac ? "AXStaticText" : "label"} = "Page text`,
       'with a second line"',
       `    - ${mac ? "AXSecureTextField" : "password text"} = "secret`,
       'secret-continuation"',
       `    - ${mac ? "AXStaticText" : "label"} = "Below the viewport"`,
-      '- AXMenuBar',
-      '  - AXMenuItem "Private recent document"',
+      mac ? '- AXMenuBar' : '- menu bar = "Application"',
+      mac ? '  - AXMenuItem "Private recent document"' : '  - menu item = "Private recent document"',
     ].join("\n");
     const result = accessibilityFromSnapshot({ ...snapshot, tree_markdown }, { ...target, platform });
     assert.equal(result.status, "captured");
@@ -125,7 +125,7 @@ test("the driver read is window-specific, bounded, and skips the duplicate scree
     },
   }, target);
   assert.equal(result.status, "captured");
-  assert.deepEqual(calls, [["get_window_state", { pid: 324, window_id: target.windowId, include_screenshot: false, max_elements: 400, max_depth: 25 }]]);
+  assert.deepEqual(calls, [["get_window_state", { pid: 324, window_id: target.windowId, include_screenshot: false, max_elements: 2000, max_depth: 50 }]]);
 });
 
 test("persisted and external context validates bounded text and real timestamps", () => {

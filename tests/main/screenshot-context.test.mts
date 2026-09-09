@@ -59,6 +59,26 @@ test("a hung native walk is killed at the deadline and concurrent captures do no
   assert.equal(mocks.fork.mock.calls.length, 1);
 });
 
+test("a retry that stalls retains the first usable context and still kills the worker", async () => {
+  vi.useFakeTimers();
+  const pending = captureScreenshotContext(target);
+  child.emit("message", { partial: { status: "captured", text: "Window controls", truncated: false } });
+  await vi.advanceTimersByTimeAsync(SCREENSHOT_CONTEXT_TIMEOUT_MS);
+  assert.deepEqual((await pending).accessibility, { status: "captured", text: "Window controls", truncated: true });
+  assert.equal(child.kill.mock.calls.length, 1);
+  const next = captureScreenshotContext(target);
+  child.emit("message", { status: "captured", text: "Page content", truncated: false });
+  assert.equal((await next).accessibility.status, "captured", "the next capture can start after termination");
+});
+
+test("the final snapshot replaces a provisional title-bar read", async () => {
+  const pending = captureScreenshotContext(target);
+  child.emit("message", { partial: { status: "captured", text: "Window controls", truncated: false } });
+  assert.equal(child.kill.mock.calls.length, 0);
+  child.emit("message", { status: "captured", text: "Page content", truncated: false });
+  assert.deepEqual((await pending).accessibility, { status: "captured", text: "Page content", truncated: false });
+});
+
 test("Hyprland metadata enables only its own read process's Wayland backend and bypasses macOS permissions", async () => {
   const linux = { ...target, platform: "linux-hyprland" as const, windowId: 0x55aa12345678 };
   const pending = captureScreenshotContext(linux);

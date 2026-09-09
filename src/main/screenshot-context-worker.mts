@@ -3,7 +3,7 @@ import type { AccessibilitySnapshot } from "../domain/screenshot-context.js";
 
 const parentPort = (process as typeof process & { parentPort: {
   once(event: "message", listener: (event: { data: ScreenshotTarget }) => void): void;
-  postMessage(snapshot: AccessibilitySnapshot): void;
+  postMessage(snapshot: AccessibilitySnapshot | { partial: AccessibilitySnapshot }): void;
 } }).parentPort;
 
 parentPort.once("message", ({ data }) => void capture(data));
@@ -13,7 +13,7 @@ async function capture(target: ScreenshotTarget) {
     const { CuaDriver } = await import(process.argv[2]) as typeof import("@trycua/cua-driver");
     const driver = CuaDriver.create(undefined) as ReturnType<typeof CuaDriver.create> & { uniffiDestroy(): void };
     try {
-      parentPort.postMessage(await snapshotWindowAccessibility(driver, target));
+      parentPort.postMessage(await snapshotWindowAccessibility(driver, target, (partial) => parentPort.postMessage({ partial })));
     } finally {
       await driver.shutdown();
       driver.uniffiDestroy();

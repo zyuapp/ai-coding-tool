@@ -52,6 +52,7 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
   const [annotating, setAnnotating] = useState<string | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(false);
   /** Which staged images have already been read in, so a rerender never reads the same one twice. */
   const takenImages = useRef(new Set<string>());
 
@@ -71,6 +72,10 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
   }
 
   async function send(onSend: (attachments: RunAttachment[], steer: boolean) => void, steer: boolean) {
+    if (loading || images.some((image) => takenImages.current.has(image.id) && !attachments.some((attachment) => attachment.id === image.id))) {
+      setAttachmentError("Wait for the screenshots to finish loading.");
+      return;
+    }
     if (attachments.length === 0) {
       onSend([], steer);
       return;
@@ -112,6 +117,7 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
    */
   useEffect(() => {
     let cancelled = false;
+    let settled = false;
     const staged = new Set(images.map((image) => image.id));
     for (const id of takenImages.current) if (!staged.has(id)) takenImages.current.delete(id);
     setAttachments((current) => {
@@ -119,7 +125,8 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
       return kept.length === current.length ? current : kept;
     });
     const arriving = images.filter((image) => !takenImages.current.has(image.id));
-    if (arriving.length === 0) return;
+    if (arriving.length === 0) { setLoading(false); return; }
+    setLoading(true);
     for (const image of arriving) takenImages.current.add(image.id);
     void (async () => {
       try {
@@ -137,19 +144,26 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
             .filter(({ image }) => !current.some((item) => item.id === image.id))
             .map(({ image, preview, context }) => ({ id: image.id, source: preview, preview, annotations: [], path: image.path, ...(context ? { context } : {}) })),
         ]);
+        setAttachmentError(null);
       } catch (error) {
         if (cancelled) return;
         for (const image of arriving) takenImages.current.delete(image.id);
         setAttachmentError(error instanceof Error ? error.message : String(error));
+      } finally {
+        settled = true;
+        if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (!settled) for (const image of arriving) takenImages.current.delete(image.id);
+    };
   }, [images]);
 
   return {
     items: attachments,
     error: attachmentError,
-    sending,
+    sending: sending || loading,
     editing: attachments.find((attachment) => attachment.id === annotating),
     attachPasted,
     annotate: setAnnotating,

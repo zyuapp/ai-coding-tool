@@ -52,3 +52,64 @@ test("an unavailable metadata read never prevents attaching or sending the image
   assert.deepEqual(sent, [{ path: "/tmp/shot.png", labels: [] }]);
   await view.unmount();
 });
+
+test("a second capture arriving during the first context read retains both screenshots", async () => {
+  const pending = new Map<string, (value: ScreenshotContext) => void>();
+  window.desktop = fakeDesktop({ readAttachmentContext: (path) => new Promise((resolve) => pending.set(path, resolve)) });
+  let controller!: ComposerAttachments;
+  function Harness({ images }: { images: StagedImage[] }) { controller = useComposerAttachments(images); return null; }
+  const first = { id: "first", path: "/tmp/first.png", label: "First" };
+  const second = { id: "second", path: "/tmp/second.png", label: "Second" };
+  const view = await mount(React.createElement(Harness, { images: [first] }));
+  try {
+    await view.render(React.createElement(Harness, { images: [first, second] }));
+    await act(async () => {
+      pending.get(first.path)!(context);
+      pending.get(second.path)!({ ...context, title: "Second" });
+    });
+    assert.deepEqual(controller.items.map((image) => image.id), ["first", "second"]);
+    let sent: RunAttachment[] = [];
+    await act(async () => controller.send((attachments) => { sent = attachments; }, false));
+    assert.deepEqual(sent.map(({ path, context }) => [path, context?.title]), [[first.path, "Draft"], [second.path, "Second"]]);
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("sending during metadata loading cannot silently omit the staged screenshot", async () => {
+  let resolve!: (value: ScreenshotContext) => void;
+  window.desktop = fakeDesktop({ readAttachmentContext: () => new Promise((done) => { resolve = done; }) });
+  let controller!: ComposerAttachments;
+  const images = [{ id: "shot", path: "/tmp/shot.png", label: "Capture" }];
+  function Harness() { controller = useComposerAttachments(images); return null; }
+  const view = await mount(React.createElement(Harness));
+  try {
+    const sends: RunAttachment[][] = [];
+    assert.equal(controller.sending, true);
+    await act(async () => controller.send((attachments) => sends.push(attachments), false));
+    assert.equal(sends.length, 0);
+    await act(async () => resolve(context));
+    assert.equal(controller.sending, false);
+    assert.equal(controller.error, null);
+    await act(async () => controller.send((attachments) => sends.push(attachments), false));
+    assert.deepEqual(sends, [[{ path: "/tmp/shot.png", labels: [], context }]]);
+  } finally { await view.unmount(); }
+});
+
+test("changing threads while context loads cannot restore an old thread's screenshot", async () => {
+  const pending = new Map<string, Array<(value: ScreenshotContext) => void>>();
+  window.desktop = fakeDesktop({ readAttachmentContext: (path) => new Promise((resolve) => pending.set(path, [...(pending.get(path) ?? []), resolve])) });
+  let controller!: ComposerAttachments;
+  function Harness({ images }: { images: StagedImage[] }) { controller = useComposerAttachments(images); return null; }
+  const first = { id: "first", path: "/tmp/first.png", label: "First" };
+  const second = { id: "second", path: "/tmp/second.png", label: "Second" };
+  const view = await mount(React.createElement(React.StrictMode, null, React.createElement(Harness, { images: [first] })));
+  try {
+    await view.render(React.createElement(React.StrictMode, null, React.createElement(Harness, { images: [second] })));
+    await act(async () => {
+      for (const resolve of pending.get(second.path) ?? []) resolve({ ...context, title: "Second" });
+      for (const resolve of pending.get(first.path) ?? []) resolve(context);
+    });
+    assert.deepEqual(controller.items.map(({ id, context }) => [id, context?.title]), [["second", "Second"]]);
+  } finally { await view.unmount(); }
+});

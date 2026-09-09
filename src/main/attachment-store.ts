@@ -41,9 +41,16 @@ export async function readAttachmentContext(file: string): Promise<ScreenshotCon
   try {
     const handle = await open(`${saved}.context.json`, "r");
     try {
-      const size = (await handle.stat()).size;
-      if (size > 128_000) return null;
-      const value: unknown = JSON.parse(await handle.readFile("utf8"));
+      const metadata = await handle.stat();
+      if (!metadata.isFile() || metadata.size === 0 || metadata.size > 128_000) return null;
+      const bytes = Buffer.alloc(metadata.size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+        if (!bytesRead) return null;
+        offset += bytesRead;
+      }
+      const value: unknown = JSON.parse(bytes.toString("utf8"));
       return isScreenshotContext(value) ? value : null;
     } finally {
       await handle.close();

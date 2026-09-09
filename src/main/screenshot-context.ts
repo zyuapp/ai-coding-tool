@@ -51,6 +51,7 @@ function read(target: ScreenshotTarget): Promise<AccessibilitySnapshot> {
       return;
     }
     let settled = false;
+    let partial: AccessibilitySnapshot | undefined;
     const stop = () => finish({ status: "unavailable", reason: "failed" });
     const finish = (snapshot: AccessibilitySnapshot) => {
       if (settled) return;
@@ -60,12 +61,19 @@ function read(target: ScreenshotTarget): Promise<AccessibilitySnapshot> {
       try { worker.kill(); } catch { /* The process may already have exited. */ }
       resolve(snapshot);
     };
-    const timer = setTimeout(() => finish({ status: "unavailable", reason: "timeout" }), SCREENSHOT_CONTEXT_TIMEOUT_MS);
+    const timer = setTimeout(() => finish(partial ?? { status: "unavailable", reason: "timeout" }), SCREENSHOT_CONTEXT_TIMEOUT_MS);
     worker.once("exit", () => {
       if (active === worker) active = null;
-      finish({ status: "unavailable", reason: "failed" });
+      finish(partial ?? { status: "unavailable", reason: "failed" });
     });
-    worker.once("message", (value: unknown) => finish(isAccessibilitySnapshot(value) ? value : { status: "unavailable", reason: "failed" }));
+    worker.on("message", (value: unknown) => {
+      if (value && typeof value === "object" && "partial" in value && isAccessibilitySnapshot(value.partial)) {
+        if (value.partial.status === "captured") partial = { ...value.partial, truncated: true };
+        return;
+      }
+      const snapshot: AccessibilitySnapshot = isAccessibilitySnapshot(value) ? value : { status: "unavailable", reason: "failed" };
+      finish(snapshot.status === "captured" ? snapshot : partial ?? snapshot);
+    });
     app.once("will-quit", stop);
     try { worker.postMessage(target); } catch { finish({ status: "unavailable", reason: "failed" }); }
   });
