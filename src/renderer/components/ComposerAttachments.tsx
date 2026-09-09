@@ -2,6 +2,7 @@ import { LuX as X } from "react-icons/lu";
 import { useEffect, useRef, useState } from "react";
 import { markPrefix } from "../../application/attachments";
 import { MAX_ATTACHMENTS, type RunAttachment, type StagedImage } from "../../domain/conversation";
+import type { ScreenshotContext } from "../../domain/screenshot-context";
 import { ImageAnnotator, renderAnnotatedSource, type Annotation } from "./ImageAnnotator";
 
 type Attachment = {
@@ -11,6 +12,7 @@ type Attachment = {
   annotations: Annotation[];
   /** Where the image already sits on disk, for one the workspace staged rather than the composer read. */
   path?: string;
+  context?: ScreenshotContext;
 };
 
 /** Reads a file this app already wrote into the attachments directory back out as a data URL. */
@@ -89,8 +91,10 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
               ? attachment.source
               : await renderAnnotatedSource(attachment.source, attachment.annotations, markPrefix(at, attachments.length))
             ).replace(/^data:[^,]*,/, ""),
+            attachment.path,
           ),
         labels: attachment.annotations.filter((annotation) => annotation.kind === "box").map((annotation) => annotation.text),
+        ...(attachment.context ? { context: attachment.context } : {}),
       })));
       setAttachments([]);
       setAttachmentError(null);
@@ -119,13 +123,19 @@ export function useComposerAttachments(images: StagedImage[], onImageRemove?: (i
     for (const image of arriving) takenImages.current.add(image.id);
     void (async () => {
       try {
-        const read = await Promise.all(arriving.map(async (image) => ({ image, preview: await dataUrlOf(image.path) })));
+        const read = await Promise.all(arriving.map(async (image) => {
+          const [preview, context] = await Promise.all([
+            dataUrlOf(image.path),
+            window.desktop.readAttachmentContext(image.path).catch(() => null),
+          ]);
+          return { image, preview, context };
+        }));
         if (cancelled) return;
         setAttachments((current) => [
           ...current,
           ...read
             .filter(({ image }) => !current.some((item) => item.id === image.id))
-            .map(({ image, preview }) => ({ id: image.id, source: preview, preview, annotations: [], path: image.path })),
+            .map(({ image, preview, context }) => ({ id: image.id, source: preview, preview, annotations: [], path: image.path, ...(context ? { context } : {}) })),
         ]);
       } catch (error) {
         if (cancelled) return;

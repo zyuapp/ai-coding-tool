@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runInNewContext } from "node:vm";
@@ -24,6 +24,25 @@ const handler = <T extends Registered>(name: string) => registered<T>(main.handl
 const listener = <T extends Registered>(name: string) => registered<T>(main.listeners, name);
 const appListener = <T extends Registered>(name: string) => registered<T>(main.appListeners, name);
 const protocolHandler = <T extends Registered>(name: string) => registered<T>(main.protocolHandlers, name);
+
+test("capture context survives annotated copies and rejects invalid attachment references", async () => {
+  const save = handler<(event: IpcEvent, data: string, original?: unknown) => Promise<string>>("attachment:save");
+  const read = handler<(event: IpcEvent, file: unknown) => Promise<unknown>>("attachment:context");
+  const original = await save(main.trusted, "AQID");
+  const context = { version: 1, platform: "linux-hyprland", app: "Editor", title: "Draft", capturedAt: 123, accessibility: { status: "captured", text: "Document ready", truncated: false } };
+  await writeFile(`${original}.context.json`, JSON.stringify(context));
+  assert.deepEqual(await read(main.trusted, original), context);
+  const annotated = await save(main.trusted, "AQIE", original);
+  assert.notEqual(annotated, original);
+  assert.deepEqual(await read(main.trusted, annotated), context);
+  assert.equal(await read(main.trusted, await save(main.trusted, "AQIF")), null);
+  await assert.rejects(read(main.untrusted, original), /Untrusted/);
+  await assert.rejects(read(main.trusted, "/etc/passwd"), /not one/);
+  await assert.rejects(save(main.trusted, "AQIG", "/etc/passwd"), /not one/);
+  await writeFile(`${original}.context.json`, "broken JSON");
+  assert.equal(await read(main.trusted, original), null);
+  assert.deepEqual(await read(main.trusted, annotated), context, "the annotated image owns its metadata copy");
+});
 
 test("the main window sends ordinary web links to the default browser", async () => {
   const open = main.window.webContents.windowOpenHandler;

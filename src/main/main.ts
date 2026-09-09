@@ -18,7 +18,7 @@ import type { WorktreeService } from "./workspace/worktrees.mjs" with { "resolut
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { TaskDatabaseService } from "./task-database-service.mjs" with { "resolution-mode": "import" };
 import type { EngineAccessHost } from "./agent/engine-services.mjs" with { "resolution-mode": "import" };
-import { attachmentsDirectory, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
+import { attachmentsDirectory, readAttachmentContext, savedAttachmentPath, writeAttachment } from "./attachment-store.js";
 import { browserPageUrl, registerBrowserIpc } from "./browser-ipc.js";
 import { cliStatus, installCli, uninstallCli } from "./cli-install.js";
 import { computerUseForRun, computerUsePermissions, requestComputerUsePermission, resumeComputerUse, stopComputerUse } from "./computer-use-host.js";
@@ -738,6 +738,13 @@ ipcMain.handle("attachment:read", async (event, file: unknown) => {
   return (await readFile(saved)).toString("base64");
 });
 
+ipcMain.handle("attachment:context", async (event, file: unknown) => {
+  if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
+  const saved = typeof file === "string" ? savedAttachmentPath(file) : null;
+  if (!saved) throw new Error("That image is not one this app is keeping.");
+  return readAttachmentContext(saved);
+});
+
 ipcMain.handle("message-images:preserve", async (event, files: unknown, root: unknown, messageId: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   await preserveMessageImages(files, root, messageId);
@@ -768,10 +775,12 @@ ipcMain.handle("file:describe", async (event, paths: unknown) => {
   return described.filter((item) => item !== null);
 });
 
-ipcMain.handle("attachment:save", async (event, data: unknown) => {
+ipcMain.handle("attachment:save", async (event, data: unknown, original: unknown) => {
   if (!trustedSender(event)) throw new Error("Untrusted IPC sender.");
   if (typeof data !== "string") throw new Error("Attachment is empty or too large.");
-  const file = await writeAttachment(data);
+  if (original !== undefined && (typeof original !== "string" || !savedAttachmentPath(original))) throw new Error("That image is not one this app is keeping.");
+  const context = typeof original === "string" ? await readAttachmentContext(original) : null;
+  const file = await writeAttachment(data, context);
   return file;
 });
 

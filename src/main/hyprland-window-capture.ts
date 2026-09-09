@@ -4,9 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import type { WindowShot } from "./window-screenshot.js";
+import { captureScreenshotContext } from "./screenshot-context.js";
+import { hyprlandAccessibilityWindowId } from "./screenshot-context-snapshot.js";
 
 const windowSchema = z.object({
   stableId: z.string().min(1).max(128).regex(/^[\w-]+$/),
+  address: z.string().optional(),
   pid: z.number().int().positive(),
   class: z.string(),
   title: z.string(),
@@ -35,6 +38,11 @@ export async function captureFrontmostHyprlandWindow(): Promise<WindowShot> {
       return { status: "failed", message: "Hyprland did not provide a usable window ID or size. Update Hyprland and grim, then try again." };
     }
     const window = parsed.data;
+    const context = captureScreenshotContext({
+      platform: "linux-hyprland", pid: window.pid,
+      windowId: hyprlandAccessibilityWindowId(window.address) ?? 0,
+      app: window.class || "Unknown app", title: window.title,
+    });
     directory = await mkdtemp(path.join(tmpdir(), "aic-shot-"));
     const file = path.join(directory, "window.png");
     await run("grim", ["-T", window.stableId, "-t", "png", file]);
@@ -48,6 +56,7 @@ export async function captureFrontmostHyprlandWindow(): Promise<WindowShot> {
       title: window.title,
       png: png.toString("base64"),
       frame: { x: window.at[0], y: window.at[1], width: window.size[0], height: window.size[1] },
+      context: await context,
     };
   } catch (cause) {
     if (typeof cause === "object" && cause !== null && "code" in cause && cause.code === "ENOENT") {

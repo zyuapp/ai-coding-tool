@@ -4,11 +4,14 @@ import path from "node:path";
 import { afterEach, beforeEach, test, vi } from "vitest";
 import { captureFrontmostHyprlandWindow } from "../../src/main/hyprland-window-capture.ts";
 import { captureFrontmostWindow } from "../../src/main/window-screenshot.ts";
+import type { ScreenshotContext } from "../../src/domain/screenshot-context.ts";
 
-const { run } = vi.hoisted(() => ({ run: vi.fn<(command: string, args: string[], options: object, callback: (error: Error | null, stdout: string) => void) => void>() }));
+const { run, contextRead } = vi.hoisted(() => ({ run: vi.fn<(command: string, args: string[], options: object, callback: (error: Error | null, stdout: string) => void) => void>(), contextRead: vi.fn() }));
 vi.mock("node:child_process", () => ({ execFile: run, spawn: vi.fn() }));
+vi.mock("../../src/main/screenshot-context.ts", () => ({ captureScreenshotContext: contextRead }));
 
-const active = { stableId: "1800000a", pid: 424242, class: "org.example.Editor", title: "A window", at: [-900, 32], size: [875, 600], mapped: true, hidden: false };
+const active = { stableId: "1800000a", address: "0x55aa12345678", pid: 424242, class: "org.example.Editor", title: "A window", at: [-900, 32], size: [875, 600], mapped: true, hidden: false };
+const context: ScreenshotContext = { version: 1, platform: "linux-hyprland", app: active.class, title: active.title, capturedAt: 1, accessibility: { status: "captured", text: "Editor content", truncated: false } };
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6F9sAAAAASUVORK5CYII=", "base64");
 let metadata: unknown;
 let captureError: Error | null;
@@ -19,6 +22,7 @@ beforeEach(() => {
   captureError = null;
   bytes = png;
   run.mockReset();
+  contextRead.mockReset().mockResolvedValue(context);
   run.mockImplementation((command, args, _options, callback) => {
     if (command === "hyprctl") callback(null, JSON.stringify(metadata));
     else if (command === "grim") {
@@ -31,7 +35,8 @@ afterEach(() => vi.unstubAllEnvs());
 
 test("captures a specific Hyprland toplevel and removes its temporary image", async () => {
   const shot = await captureFrontmostHyprlandWindow();
-  assert.deepEqual(shot, { status: "captured", app: active.class, title: active.title, png: png.toString("base64"), frame: { x: -900, y: 32, width: 875, height: 600 } });
+  assert.deepEqual(shot, { status: "captured", app: active.class, title: active.title, png: png.toString("base64"), frame: { x: -900, y: 32, width: 875, height: 600 }, context });
+  assert.deepEqual(contextRead.mock.calls, [[{ platform: "linux-hyprland", pid: active.pid, windowId: 0x55aa12345678, app: active.class, title: active.title }]]);
   assert.deepEqual(run.mock.calls[0]?.slice(0, 2), ["hyprctl", ["-j", "activewindow"]]);
   const capture = run.mock.calls[1]!;
   assert.deepEqual(capture[1].slice(0, 4), ["-T", active.stableId, "-t", "png"]);

@@ -1,5 +1,6 @@
 import type { RunAttachment } from "../domain/conversation.js";
 import { clampTitle } from "../domain/thread.js";
+import { screenshotContextPrompt } from "../domain/screenshot-context.js";
 
 const ATTACHMENT_HEADING = "Attached screenshots (numbered red boxes mark the areas in question):";
 
@@ -23,7 +24,7 @@ export function promptWithAttachments(text: string, attachments: RunAttachment[]
     const span = prefix && count > 0
       ? count > 1 ? ` (marks ${prefix}1\u2013${prefix}${count})` : ` (mark ${prefix}1)`
       : "";
-    return [`${attachment.path}${span}`, ...marks].join("\n");
+    return [`${attachment.path}${span}`, ...marks, ...(attachment.context ? [screenshotContextPrompt(attachment.context)] : [])].join("\n");
   });
   return [text, `${ATTACHMENT_HEADING}\n${blocks.join("\n")}`].filter((part) => part.length > 0).join("\n\n");
 }

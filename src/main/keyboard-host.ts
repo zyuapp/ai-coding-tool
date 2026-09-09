@@ -62,7 +62,7 @@ async function captureWindowToComposer(host: KeyboardHost) {
   const shot = await captureFrontmostWindow(captureOptions.sound);
   if (shot.status === "captured") {
     try {
-      const file = await writeAttachment(shot.png);
+      const file = await writeAttachment(shot.png, shot.context);
       sendToWindow(host, "window:screenshot", { app: shot.app, title: shot.title, path: file });
       /** Only ever after the capture: neither the flash nor coming forward belongs in the shot. */
       if (captureOptions.focus) {

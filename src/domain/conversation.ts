@@ -76,6 +76,7 @@ export type ConversationMessage = {
 /** Images sent into a run, grouped by path with one positional label per annotation. */
 export type RunAttachment = {
   path: string;
+  context?: ScreenshotContext;
   /** Label per annotation, positional: index 0 is the box marked "1". Empty strings are unlabelled boxes. */
   labels: string[];
 };
@@ -126,3 +127,4 @@ export function sentPrompts(messages: ConversationMessage[]): RecalledMessage[] 
   sentPromptCache.set(messages, prompts);
   return prompts;
 }
+import type { ScreenshotContext } from "./screenshot-context.js";
