@@ -67,6 +67,7 @@ export type TaskCommand =
   | { type: "task.set-policy"; taskId?: string; policy: ExecutionPolicy }
   /** A thread keeps its engine; the pair only moves the draft, and a model or effort the engine lacks changes nothing. */
   | { type: "task.set-model"; taskId?: string; engine: AgentEngine; model: AgentModel }
+  | { type: "task.set-fast-mode"; taskId?: string; fastMode: boolean }
   | { type: "task.set-effort"; taskId?: string; engine: AgentEngine; effort: AgentEffort }
   /**
    * Asks the thread to run in its own checkout, or to come back to the project. The worktree is

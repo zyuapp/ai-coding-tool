@@ -1,7 +1,7 @@
 import { LuCheck as Check } from "react-icons/lu";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { MobileThreadSettings } from "../../contracts/mobile";
-import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
+import { AGENT_ENGINES, SPEED_CHOICES, capabilitiesFor, byEngine, byModel, effortForModel, engineLabel, modelsFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import { POLICIES, POLICY_CHOICES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 
 type Choice<T extends string> = { value: T; label: string; description?: string };
@@ -23,7 +23,7 @@ function OptionButton<T extends string>({ choice, selected, onSelect }: { choice
   );
 }
 
-function Group<T extends string>({ heading, choices, value, onChange }: { heading: string; choices: Choice<T>[]; value: T; onChange: (value: T) => void }) {
+function Group<T extends string>({ heading, choices, value, onChange }: { heading: string; choices: readonly Choice<T>[]; value: T; onChange: (value: T) => void }) {
   return (
     <section className="sheet-group" role="radiogroup" aria-label={heading}>
       <h3>{heading}</h3>
@@ -50,13 +50,14 @@ function ModelGroup({ engine, model, locked, onModel }: { engine: AgentEngine; m
   );
 }
 
-export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, onEffort }: {
+export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, onEffort, onFastMode }: {
   settings: MobileThreadSettings;
   /** Set for a thread that exists, whose engine is settled; a draft may still pick either. */
   locked: boolean;
   onClose: () => void;
   onPolicy: (policy: ExecutionPolicy) => void;
   onModel: (engine: AgentEngine, model: AgentModel) => void;
+  onFastMode: (fastMode: boolean) => void;
   onEffort: (engine: AgentEngine, effort: AgentEffort) => void;
 }) {
   const sheet = useRef<HTMLDivElement>(null);
@@ -96,6 +97,7 @@ export function ThreadSettings({ settings, locked, onClose, onPolicy, onModel, o
         <div className="sheet-body">
           <Group heading="Mode" choices={MODES} value={settings.policy} onChange={onPolicy} />
           <ModelGroup engine={settings.engine} model={settings.model} locked={locked} onModel={onModel} />
+          {capabilitiesFor(settings.engine).fastMode && <Group heading="Speed" choices={SPEED_CHOICES} value={settings.fastMode ? "fast" : "standard"} onChange={(speed) => onFastMode(speed === "fast")} />}
           {effortsOf[settings.model].length > 0 && <Group heading="Effort" choices={effortsOf[settings.model]} value={effortForModel(settings.model, settings.effort)} onChange={(effort) => onEffort(settings.engine, effort)} />}
         </div>
       </div>

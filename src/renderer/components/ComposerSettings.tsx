@@ -1,12 +1,14 @@
 import type { IconType } from "react-icons";
 import { LuSearch as Search, LuStar as Star, LuGrid2X2 as Grid, LuX as X, LuBrain as Brain, LuCheck as Check, LuFeather as Feather, LuFileCheck2 as FileCheck2, LuFlame as Flame, LuGauge as Gauge, LuHand as Hand, LuMoon as Moon, LuNetwork as Network, LuShieldOff as ShieldOff, LuSignal as Signal, LuSignalHigh as SignalHigh, LuSignalLow as SignalLow, LuSignalMedium as SignalMedium, LuSparkles as Sparkles, LuZap as Zap } from "react-icons/lu";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { AGENT_ENGINES, byEngine, byModel, effortForModel, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
+import { AGENT_ENGINES, SPEED_CHOICES, capabilitiesFor, byEngine, byModel, effortForModel, engineLabel, engineNotice, modelsFor, type AgentEngine, type AgentModel, type EngineNotice, type EngineReadiness } from "../../domain/agent-engine";
 import { POLICIES, type AgentEffort, type ExecutionPolicy } from "../../domain/run";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 import { CopyButton } from "./CopyButton";
 
 type Choice<T extends string> = { value: T; label: string; description?: string; icon: IconType; danger?: true };
+
+const speeds: Choice<"standard" | "fast">[] = SPEED_CHOICES.map((choice) => ({ ...choice, icon: choice.value === "fast" ? Zap : Gauge }));
 
 const modes: Choice<ExecutionPolicy>[] = [
   { value: "autonomous", ...POLICIES.autonomous, icon: Zap },
@@ -218,7 +220,7 @@ function ModelMenu({ onOpen, ...props }: ModelLibraryProps & { onOpen: () => voi
   </SettingMenu>;
 }
 
-export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
+export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engineAccess, model, effort, fastMode, onFastModeChange, onModeChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onEngineRead, onSignIn, onOpenEngineSettings }: {
   mode: ExecutionPolicy;
   engine: AgentEngine;
   engineLabel: string;
@@ -227,6 +229,8 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
   engineAccess: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   effort: AgentEffort;
+  fastMode: boolean;
+  onFastModeChange: (fastMode: boolean) => void;
   onModeChange: (mode: ExecutionPolicy) => void;
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
@@ -242,6 +246,7 @@ export function ComposerSettings({ mode, engine, engineLabel, engineLocked, engi
     <div className="composer-settings">
       <ChoiceMenu label="Permission mode" axis="Mode" heading={`How should ${engineLabel} actions be approved?`} choices={modes} value={mode} onChange={onModeChange} />
       <ModelMenu engine={engine} engineLocked={engineLocked} engineAccess={engineAccess} model={model} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onChange={onModelChange} onOpen={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+      {capabilitiesFor(engine).fastMode && <ChoiceMenu label="Speed" axis="Speed" heading="Response speed" choices={speeds} value={fastMode ? "fast" : "standard"} onChange={(choice) => onFastModeChange(choice === "fast")} />}
       {effortsOf[model].length > 0 && <ChoiceMenu label="Effort" axis="Effort" heading={`How hard should ${engineLabel} think?`} choices={effortsOf[model]} value={effortForModel(model, effort)} onChange={(choice) => onEffortChange(engine, choice)} />}
     </div>
   );

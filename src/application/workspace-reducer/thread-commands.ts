@@ -11,12 +11,12 @@ import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
-import { defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
+import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
   type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive"
     | "task.restore" | "task.clear-archive" | "task.rename" | "title.suggested" | "task.fork"
-    | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort";
+    | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort" | "task.set-fast-mode";
 }>;
 
 /** Offers the title to the engine's own record of the thread; an engine that keeps none ignores it. */
@@ -191,6 +191,14 @@ export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommand
       const draftEffort = effortForModel(input.model, state.draftEffort);
       const drafted = input.taskId === undefined ? { ...state, draftEngine: input.engine, draftModel: input.model, draftEffort } : state;
       return settled(taskId ? updateThread(drafted, taskId, (thread) => ({ ...thread, model: input.model, updatedAt: now() })) : drafted);
+    }
+
+    case "task.set-fast-mode": {
+      const taskId = targetId(state, input.taskId);
+      const thread = state.threads.find((item) => item.id === taskId);
+      if (taskId && !thread || !capabilitiesFor(thread?.engine ?? state.draftEngine).fastMode) return settled(state);
+      const drafted = input.taskId === undefined ? { ...state, draftFastMode: input.fastMode } : state;
+      return settled(taskId ? updateThread(drafted, taskId, (item) => ({ ...item, fastMode: input.fastMode, updatedAt: now() })) : drafted);
     }
 
     case "task.set-effort": {

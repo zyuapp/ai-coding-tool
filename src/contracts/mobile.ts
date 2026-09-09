@@ -19,7 +19,7 @@ export type MobileCommand = Extract<AppCommand, {
   type:
     | "task.new" | "task.select" | "task.send" | "task.archive" | "task.restore" | "task.rename"
     | "task.dismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
-    | "task.set-effort" | "task.steer-queued" | "task.drop-queued"
+    | "task.set-effort" | "task.set-fast-mode" | "task.steer-queued" | "task.drop-queued"
     | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer"
     | "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall"
     | "paste.add" | "paste.remove" | "paste.recall"
@@ -71,6 +71,8 @@ export type MobileThreadSettings = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
+  /** Absent when connected to an older desktop. */
+  fastMode?: boolean;
   policy: ExecutionPolicy;
 };
 
@@ -259,6 +261,8 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
       return named && isPolicy(command.policy);
     case "task.set-model":
       return named && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model);
+    case "task.set-fast-mode":
+      return named && typeof command.fastMode === "boolean";
     case "task.set-effort":
       return named && isAgentEngine(command.engine) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort);
     case "task.steer-queued":

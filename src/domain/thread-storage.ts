@@ -369,6 +369,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     isExecutionPolicy(value.executionPolicy) &&
     isAgentEngine(value.engine) &&
     (value.model === undefined || isAgentModel(value.model) && engineHasModel(value.engine, value.model)) &&
+    (value.fastMode === undefined || value.engine === "codex" && typeof value.fastMode === "boolean") &&
     (value.effort === undefined || isAgentEffort(value.effort) && engineHasEffort(value.engine, value.effort)) &&
     (value.contextUsage === undefined || isContextUsage(value.contextUsage)) &&
     Array.isArray(value.messages) &&

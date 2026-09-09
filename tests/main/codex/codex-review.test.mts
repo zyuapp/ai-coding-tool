@@ -53,6 +53,7 @@ test("native review runs inline on paginated history and emits its findings once
   assert.deepEqual(client.calls("thread/resume"), [{
     threadId,
     cwd: "/tmp/project",
+    serviceTier: "default",
     model: "gpt-5.6-terra",
     approvalPolicy: "on-request",
     sandbox: "workspace-write",

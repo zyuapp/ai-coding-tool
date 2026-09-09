@@ -91,6 +91,7 @@ test("a slash skill anywhere in the prompt is sent as a native Codex skill", asy
     ],
     model: "gpt-5.6-sol",
     effort: "high",
+    serviceTier: "default",
     approvalPolicy: "untrusted",
     approvalsReviewer: "user",
     sandboxPolicy: { type: "readOnly", networkAccess: false },

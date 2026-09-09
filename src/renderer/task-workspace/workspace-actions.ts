@@ -59,6 +59,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     setPrompt: (prompt: string) => dispatch({ type: "view.set-prompt", prompt }),
     setPolicy: (policy: ExecutionPolicy) => dispatch({ type: "task.set-policy", policy }),
     setModel: (engine: AgentEngine, model: AgentModel) => dispatch({ type: "task.set-model", engine, model }),
+    setFastMode: (fastMode: boolean) => dispatch({ type: "task.set-fast-mode", fastMode }),
     setEffort: (engine: AgentEngine, effort: AgentEffort) => dispatch({ type: "task.set-effort", engine, effort }),
     readEngineStatus: () => dispatch({ type: "engine.read" }),
     reloadAgentSettings: () => dispatch({ type: "engine.reload-settings" }),

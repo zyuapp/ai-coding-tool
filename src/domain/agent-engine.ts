@@ -62,6 +62,7 @@ export type EffortSpec = { id: AgentEffort; label: string; description?: string 
 
 /** The panels and controls an engine can feed; one that cannot is not drawn for its threads. */
 export type EngineCapabilities = {
+  fastMode: boolean;
   workflows: boolean;
   subagents: boolean;
 };
@@ -80,16 +81,22 @@ const ENGINES: Record<AgentEngine, EngineSpec> = {
     models: CLAUDE_MODELS,
     defaultModel: "opus",
     defaultEffort: "high",
-    capabilities: { workflows: true, subagents: true },
+    capabilities: { fastMode: false, workflows: true, subagents: true },
   },
   codex: {
     label: "Codex",
     models: CODEX_MODELS,
     defaultModel: "gpt-5.6-sol",
     defaultEffort: "high",
-    capabilities: { workflows: false, subagents: true },
+    capabilities: { fastMode: true, workflows: false, subagents: true },
   },
 };
+
+/** Speed changes latency and usage, independently of reasoning effort. */
+export const SPEED_CHOICES = [
+  { value: "standard", label: "Standard", description: "Normal plan usage" },
+  { value: "fast", label: "Fast", description: "Faster responses · uses more of your plan" },
+] as const;
 
 export const DEFAULT_MODEL: AgentModel = ENGINES[DEFAULT_ENGINE].defaultModel;
 

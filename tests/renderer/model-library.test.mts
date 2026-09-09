@@ -15,7 +15,7 @@ test("the library filters providers, searches globally, pins without choosing, a
     favoriteModels: ["gpt-6-astra"] as AgentModel[],
     onModelFavorite: (model: AgentModel, favorite: boolean) => { pinned.push([model, favorite]); },
     onModelChange: (_engine: string, model: AgentModel) => { selected.push(model); },
-    onModeChange() {}, onEffortChange() {}, onEngineRead() {}, onSignIn() {},
+    onModeChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead() {}, onSignIn() {},
   };
   const view = await mount(React.createElement(ComposerSettings, props));
   const menu = view.container.querySelectorAll(".setting-menu")[1]!;
@@ -52,4 +52,28 @@ test("saved model favorites discard obsolete IDs and duplicates", () => {
   const preferences = readViewPreferences({ getItem: () => JSON.stringify({ favoriteModels: ["opus", "obsolete", 7, "opus", "gpt-6-astra"] }), setItem() {} });
   assert.deepEqual(preferences.favoriteModels, ["opus", "gpt-6-astra"]);
   assert.deepEqual(readViewPreferences({ getItem: () => '{"favoriteModels":false}', setItem() {} }).favoriteModels, []);
+});
+
+test("the Codex speed menu explains usage and dispatches the selected speed", async () => {
+  const selected: boolean[] = [];
+  const props = {
+    mode: "confirm" as const, engine: "codex" as const, engineLabel: "Codex", engineLocked: true,
+    engineAccess: EVERY_ENGINE_READY, model: "gpt-5.6-sol" as const, effort: "high" as const,
+    fastMode: false, onFastModeChange: (fastMode: boolean) => { selected.push(fastMode); },
+    onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead() {}, onSignIn() {},
+  };
+  const view = await mount(React.createElement(ComposerSettings, props));
+  const summary = query<HTMLElement>(view.container, 'summary[aria-label="Speed"]');
+  const menu = summary.parentElement!;
+  assert.match(summary.textContent!, /Standard/);
+  await act(async () => { summary.click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const fast = query<HTMLButtonElement>(menu, '[role="option"][aria-selected="false"]');
+  assert.match(fast.textContent!, /uses more of your plan/);
+  await act(async () => { fast.click(); });
+  assert.deepEqual(selected, [true]);
+  await view.render(React.createElement(ComposerSettings, { ...props, fastMode: true }));
+  assert.match(summary.textContent!, /Fast/);
+  await view.render(React.createElement(ComposerSettings, { ...props, engine: "claude", engineLabel: "Claude", model: "opus" }));
+  assert.equal(view.container.querySelector('summary[aria-label="Speed"]'), null);
+  await view.unmount();
 });

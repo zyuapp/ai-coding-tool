@@ -371,3 +371,10 @@ test("what a run reports about itself is bounded before it reaches the workspace
   assert.equal(isThreadRequest({ ...request, op: "nothing-to-report" }), false);
   assert.equal(isExternalCommand({ type: "automation.notify", taskId: "task-1", headline: "5xx" }), false, "a finding is raised by a run reporting on itself, not by a command anyone may send");
 });
+
+test("fast mode is a boolean setting carried only by Codex runs", () => {
+  const codex = { ...command, engine: "codex", model: "gpt-5.6-sol" };
+  for (const fastMode of [undefined, false, true]) assert.equal(isRunCommand({ ...codex, fastMode }), true);
+  for (const fastMode of [null, "true", 1]) assert.equal(isRunCommand({ ...codex, fastMode }), false);
+  assert.equal(isRunCommand({ ...command, fastMode: true }), false);
+});

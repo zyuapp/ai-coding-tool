@@ -321,6 +321,7 @@ test("folded groups survive a visit, and a store holding garbage folds nothing",
 });
 
 test("the composer reads settings as labels, and says no effort for a model that takes none", () => {
+  assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-5.6-sol", effort: "high", policy: "confirm", fastMode: true }), { mode: "Confirm", model: "Sol · Fast", effort: "High" });
   assert.deepEqual(settingsSummary({ engine: "codex", model: "gpt-5.6-sol", effort: "xhigh", policy: "allow-edits" }), { mode: "Edits", model: "Sol", effort: "Extra high" });
   assert.deepEqual(settingsSummary({ engine: "claude", model: "opus", effort: "high", policy: "autonomous" }), { mode: "Auto", model: "Opus", effort: "High" });
   assert.deepEqual(settingsSummary({ engine: "claude", model: "haiku", effort: "high", policy: "confirm" }), { mode: "Confirm", model: "Haiku", effort: null });

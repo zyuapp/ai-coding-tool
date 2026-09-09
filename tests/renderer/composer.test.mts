@@ -26,7 +26,7 @@ function renderConversationComposer(overrides: Partial<ConversationComposerProps
     onPromptChange() {},
     onModeChange() {},
     onModelChange() {},
-    onEffortChange() {},
+    onEffortChange() {}, fastMode: false, onFastModeChange() {},
     onSend() {},
     onSteerQueued() {},
     onDropQueued() {},
@@ -84,7 +84,7 @@ test("one outside pointer press dismisses the slash menu until the draft changes
     const [prompt, setPrompt] = React.useState("");
     return renderConversationComposer({
       prompt, folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium", runActive: false,
-      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+      onPromptChange: setPrompt, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
     });
   }
   const view = await mount(React.createElement(Harness));
@@ -479,7 +479,7 @@ test("the send button holds while the checkout a send needs is still being made"
   const composer = (waiting: boolean) => React.createElement(ConversationComposer, {
     prompt: "Refactor the loader", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine: "claude", engineLabel: "Claude", model: "opus", effort: "medium",
     runActive: false, waiting, queuedMessages: [],
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {},
     onSend: () => { sent.push("sent"); }, onCancel() {},
   });
 

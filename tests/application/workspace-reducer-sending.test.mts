@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { reduce, type WorkspaceInput, type WorkspaceTransition } from "../../src/application/workspace-reducer.ts";
 import { deriveView, type WorkspaceState } from "../../src/application/workspace-state.ts";
+import { parseThreadStore, serializeThreadStore } from "../../src/domain/thread-storage.ts";
 import type { AgentModel } from "../../src/domain/agent-engine.ts";
 import { task, workspace, activeRun, effectAt, required, run, running, queueMessage } from "./workspace-reducer-fixtures.mts";
 
@@ -508,4 +509,40 @@ test("a send that carries its own text is not a draft, so its @ is left alone", 
   const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
 
   assert.equal(effectAt(started, "start-run").command.prompt, "email me at zhuocheng@gmail.com");
+});
+
+test("Codex speed is remembered on the thread, inherited by forks, and sent with runs", () => {
+  const drafted = run(workspace(), [
+    { type: "task.set-model", engine: "codex", model: "gpt-5.6-sol" },
+    { type: "task.set-fast-mode", fastMode: true },
+    { type: "view.set-prompt", prompt: "Inspect the app" },
+  ]);
+  assert.equal(deriveView(drafted).fastMode, true);
+  const sending = reduce(drafted, { type: "task.send" });
+  const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+  assert.equal(effectAt(started, "start-run").command.fastMode, true);
+  const thread = started.state.threads[0];
+  assert.equal(thread.fastMode, true);
+  const stored = parseThreadStore(serializeThreadStore({ version: 2, tasks: [thread], projects: [], worktrees: [], lastFolder: null }));
+  assert.ok(stored.ok);
+  const restored = reduce(workspace(), { type: "store.loaded", data: stored.data }).state;
+  assert.equal(deriveView(restored).fastMode, true);
+  const forked = reduce(restored, { type: "task.fork" }).state;
+  assert.equal(forked.threads.find((item) => item.id !== thread.id)?.fastMode, true);
+  const side = reduce(restored, { type: "side-chat.open", chatId: "speed-side" }).state;
+  assert.equal(side.threads.find((item) => item.id === "speed-side")?.fastMode, true);
+  const off = reduce(restored, { type: "task.set-fast-mode", taskId: thread.id, fastMode: false }).state;
+  assert.equal(deriveView(off).fastMode, false);
+  assert.equal(off.draftFastMode, true, "a targeted change leaves new-thread defaults alone");
+});
+
+test("fast mode stays a Codex preference when switching the draft to Claude", () => {
+  const codex = workspace({ draftEngine: "codex", draftModel: "gpt-5.6-sol", draftFastMode: true });
+  const claude = reduce(codex, { type: "task.set-model", engine: "claude", model: "opus" }).state;
+  assert.equal(deriveView(claude).fastMode, false);
+  assert.equal(reduce(claude, { type: "task.set-fast-mode", fastMode: true }).state, claude);
+  const back = reduce(claude, { type: "task.set-model", engine: "codex", model: "gpt-5.6-terra" }).state;
+  assert.equal(deriveView(back).fastMode, true);
+  const thread = workspace({ threads: [task("claude")], currentId: "claude" });
+  assert.equal(reduce(thread, { type: "task.set-fast-mode", fastMode: true }).state, thread);
 });

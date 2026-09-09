@@ -30,7 +30,7 @@ test("a thread that has an engine offers only its models, and says a new thread 
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "codex", engineLabel: "Codex", engineLocked: true, model: "gpt-5.6-terra", effort: "high", runActive: false,
-    onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange: (engine, model) => chosen.push([engine, model]), onEffortChange() {}, fastMode: false, onFastModeChange() {},
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => {});
@@ -61,7 +61,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "signed-out" } }, model: "opus", effort: "high", runActive: false,
-    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; }, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => {});
@@ -82,7 +82,7 @@ test("an engine that is signed out is greyed and inert, and its one sign-in butt
   await view.render(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } }, model: "opus", effort: "high", runActive: false,
-    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn: (engine) => signIns.push(engine),
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn: (engine) => signIns.push(engine),
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => { query<HTMLElement>(modelMenu, "summary").click(); await new Promise((resolve) => setTimeout(resolve, 0)); });
@@ -101,7 +101,7 @@ test("an engine too old to speak to is inert, and its hint names both versions a
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready" }, codex: { access: "outdated", version: "0.147.0", required: "0.150.1", fix: "brew update && brew upgrade --cask codex" } },
-    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, onSignIn() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange: (_engine, model) => chosen.push(model), onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => {});
@@ -122,7 +122,7 @@ test("a Claude behind the app offers only the models it knows, and says an upgra
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready", version: "2.1.100", required: "2.1.250", fix: "claude update", models: ["opus", "sonnet"] }, codex: { access: "ready" } },
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSignIn() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => {});
@@ -143,7 +143,7 @@ test("the hint about a broken engine opens the Engines page, which is where it i
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: false, model: "opus", effort: "high", runActive: false,
     engineAccess: { claude: { access: "ready" }, codex: { access: "missing", fix: "brew install --cask codex" } },
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSignIn() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSignIn() {},
     onOpenEngineSettings: () => { opened += 1; },
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
@@ -163,7 +163,7 @@ test("a thread that has its engine asks nothing when its model menu opens", asyn
   const view = await mount(React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm",
     engine: "claude", engineLabel: "Claude", engineLocked: true, model: "opus", effort: "high", runActive: false,
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onEngineRead: () => { reads += 1; },
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onEngineRead: () => { reads += 1; },
     queuedMessages: [], onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   }));
   await act(async () => {});
@@ -328,7 +328,7 @@ test("the effort menu offers what the model takes, and is gone for a model that 
   const composer = (engine: "claude" | "codex", model: AgentModel) => React.createElement(ConversationComposer, {
     prompt: "", folder: "/project", workspaceId: "workspace-1", mode: "confirm", engine, engineLabel: "Claude", model, effort: "high",
     runActive: false, queuedMessages: [],
-    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
+    onPromptChange() {}, onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {}, onSend() {}, onCancel() {},
   });
   const efforts = async (engine: "claude" | "codex", model: AgentModel) => {
     const view = await mount(composer(engine, model));

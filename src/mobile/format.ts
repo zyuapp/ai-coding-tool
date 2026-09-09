@@ -88,7 +88,7 @@ export function settingsSummary(settings: MobileThreadSettings): { mode: string;
   const spec = modelsFor(settings.engine).find((candidate) => candidate.id === settings.model);
   return {
     mode: POLICIES[settings.policy].label,
-    model: spec?.label ?? settings.model,
+    model: `${spec?.label ?? settings.model}${settings.engine === "codex" && settings.fastMode ? " · Fast" : ""}`,
     effort:
       spec?.efforts.find((candidate) => candidate.id === effortForModel(settings.model, settings.effort))?.label ?? null,
   };

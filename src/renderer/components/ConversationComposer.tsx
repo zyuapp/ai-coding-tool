@@ -62,6 +62,8 @@ export type ConversationComposerProps = {
   engineAccess?: Record<AgentEngine, EngineReadiness>;
   model: AgentModel;
   effort: AgentEffort;
+  fastMode: boolean;
+  onFastModeChange: (fastMode: boolean) => void;
   contextUsage?: ContextUsage;
   runActive: boolean;
   question?: PendingQuestion;
@@ -130,6 +132,8 @@ export function ConversationComposer({
   engineAccess = EVERY_ENGINE_READY,
   model,
   effort,
+  fastMode,
+  onFastModeChange,
   contextUsage,
   runActive,
   question,
@@ -229,7 +233,7 @@ export function ConversationComposer({
           rows={2}
         />
         <div className="composer-bar">
-          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
+          <ComposerSettings mode={mode} engine={engine} engineLabel={engineLabel} engineLocked={engineLocked} engineAccess={engineAccess} model={model} effort={effort} fastMode={fastMode} onFastModeChange={onFastModeChange} onModeChange={onModeChange} favoriteModels={favoriteModels} onModelFavorite={onModelFavorite} onModelChange={onModelChange} onEffortChange={onEffortChange} onEngineRead={onEngineRead} onSignIn={onSignIn} {...(onOpenEngineSettings ? { onOpenEngineSettings } : {})} />
           <div className="composer-actions">
             {contextUsage && <ContextUsageMeter usage={contextUsage} />}
             <button

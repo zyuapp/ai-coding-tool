@@ -62,12 +62,13 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
   assert.ok(methods.indexOf("account/read") > 0);
   assert.ok(methods.indexOf("account/read") < methods.indexOf("thread/start"));
   assert.ok(methods.indexOf("thread/start") < methods.indexOf("turn/start"));
-  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.deepEqual(client.calls("turn/start"), [{
     threadId,
     input: [{ type: "text", text: "inspect the app", text_elements: [] }],
     model: "gpt-5.6-sol",
     effort: "high",
+    serviceTier: "default",
     approvalPolicy: "untrusted",
     approvalsReviewer: "user",
     sandboxPolicy: { type: "readOnly", networkAccess: false },
@@ -83,6 +84,7 @@ test("a run opens one app server in the workspace, signs in, starts a thread, an
     input: [{ type: "text", text: "and again", text_elements: [] }],
     model: "gpt-5.6-terra",
     effort: "low",
+    serviceTier: "default",
     approvalPolicy: "on-request",
     approvalsReviewer: "user",
     sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false, excludeTmpdirEnvVar: false, excludeSlashTmp: false },
@@ -104,12 +106,13 @@ test("a bypass turn disables approvals and the sandbox", async () => {
   const codex = harness();
   const { client } = await turn(codex, { policy: "bypass" });
 
-  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("thread/start"), [{ cwd: "/tmp/project", model: "gpt-5.6-sol", serviceTier: "default", approvalPolicy: "never", sandbox: "danger-full-access", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.deepEqual(client.calls("turn/start")[0], {
     threadId,
     input: [{ type: "text", text: "inspect the app", text_elements: [] }],
     model: "gpt-5.6-sol",
     effort: "high",
+    serviceTier: "default",
     approvalPolicy: "never",
     approvalsReviewer: "user",
     sandboxPolicy: { type: "dangerFullAccess" },
@@ -148,14 +151,14 @@ test("Codex sets a native goal and keeps the run through its follow-up turns", a
 test("a thread the run continues is resumed, and a side chat forks it instead", async () => {
   const resumed = harness();
   const { client } = await turn(resumed, { continuation: { provider: "codex", value: "thread-9" } });
-  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
+  assert.deepEqual(client.calls("thread/resume"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: DEVELOPER_INSTRUCTIONS }]);
   assert.equal(client.calls("thread/start").length, 0);
   resumed.provider.closeAll();
 
   const emitted: ProviderEvent[] = [];
   const forked = harness();
   const fork = await turn(forked, { channel: "side", continuation: { provider: "codex", value: "thread-9" }, forkContinuation: true, emit: (event) => emitted.push(event) });
-  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
+  assert.deepEqual(fork.client.calls("thread/fork"), [{ threadId: "thread-9", cwd: "/tmp/project", model: "gpt-5.6-sol", serviceTier: "default", approvalPolicy: "untrusted", sandbox: "read-only", approvalsReviewer: "user", config: { model_reasoning_effort: "high" }, developerInstructions: `${DEVELOPER_INSTRUCTIONS}\n\n${SIDE_CHAT_INSTRUCTIONS}` }]);
   assert.deepEqual(emitted[0], { type: "continuation", continuation: { provider: "codex", value: "thread-fork" } }, "the fork's own id is what the side chat keeps");
   forked.provider.closeAll();
 
@@ -726,4 +729,30 @@ test("a thread that cannot be unarchived reports the loss instead of retrying fo
   assert.match(result.message ?? "", /Codex could not continue this thread/);
   assert.deepEqual(emitted.filter((event) => event.type === "continuation-lost").length, 1);
   assert.equal(codex.latest().calls("thread/resume").length, 1);
+});
+
+test("fast mode follows each turn and explicitly resets a warm session to standard", async () => {
+  const codex = harness();
+  try {
+    const { client } = await turn(codex, { fastMode: true });
+    expect(client.calls("thread/start")[0]).toMatchObject({ serviceTier: "priority" });
+    expect(client.calls("turn/start")[0]).toMatchObject({ serviceTier: "priority" });
+    const next = await turn(codex, { fastMode: false, continuation: { provider: "codex", value: threadId } });
+    assert.equal(next.client, client);
+    expect(client.calls("turn/start")[1]).toMatchObject({ serviceTier: "default" });
+  } finally {
+    codex.provider.closeAll();
+  }
+});
+
+test.each([false, true])("fast mode overrides a resumed or forked thread's saved speed (%s)", async (fastMode) => {
+  for (const forkContinuation of [false, true]) {
+    const codex = harness();
+    try {
+      const { client } = await turn(codex, { fastMode, forkContinuation, continuation: { provider: "codex", value: "thread-9" } });
+      expect(client.calls(forkContinuation ? "thread/fork" : "thread/resume")[0]).toMatchObject({ serviceTier: fastMode ? "priority" : "default" });
+    } finally {
+      codex.provider.closeAll();
+    }
+  }
 });

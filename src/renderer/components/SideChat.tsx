@@ -13,7 +13,7 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
 import { useFileDrop } from "../file-drop";
 
-export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onSteerQueued, onDropQueued, onClose }: {
+export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findBar, sourceTitle, sourceContinued, project, threads, onPrompt, onAnnotateAdd, onAnnotateNote, onAnnotateRecall, onAnnotateRemove, onPasteAdd, onPasteRecall, onPasteRemove, onFilesAdd, onFileRecall, onFileRemove, onImageRecall, onImageRemove, readingPoint, onReadingPointMove, onSend, onAnswerQuestion, onQuestionAnswerChange, onCancel, onDecide, onPolicyChange, favoriteModels, onModelFavorite, onModelChange, onEffortChange, onFastModeChange, onSteerQueued, onDropQueued, onClose }: {
   chat: SideChatView;
   /** What the engine running this chat is called. */
   engineLabel: string;
@@ -53,6 +53,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;
   onModelChange: (engine: AgentEngine, model: AgentModel) => void;
+  onFastModeChange: (fastMode: boolean) => void;
   onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void;
   onSteerQueued: (messageId: string) => void;
   onDropQueued: (messageId: string) => void;
@@ -109,6 +110,8 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
         engineLocked
         model={chat.thread.model ?? defaultModelFor(chat.thread.engine)}
         effort={chat.thread.effort ?? defaultEffortFor(chat.thread.engine)}
+        fastMode={chat.thread.fastMode ?? false}
+        onFastModeChange={onFastModeChange}
         {...(chat.thread.contextUsage ? { contextUsage: chat.thread.contextUsage } : {})}
         runActive={chat.running}
         question={chat.question}

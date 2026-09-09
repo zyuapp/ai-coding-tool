@@ -99,6 +99,8 @@ export type ProviderRunInput = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
+  /** Codex only. Absent means standard speed. */
+  fastMode?: boolean;
   operation?: RunOperation;
   /** Read by the Claude engine alone; any other engine leaves it unopened. */
   claude?: ClaudeRunSettings;

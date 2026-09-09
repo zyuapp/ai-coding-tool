@@ -36,7 +36,7 @@ async function asking(surface: "main" | "side") {
       onQuestionAnswerChange: (question, text) => dispatch({ type: "question.set-answer", taskId: "task-a", ...question, text }),
       onAnswerQuestion: (question) => dispatch({ type: "question.answer", taskId: "task-a", ...question }),
       onSend: (_attachments, steer) => dispatch({ type: "task.send", steer }),
-      onModeChange() {}, onModelChange() {}, onEffortChange() {}, onSteerQueued() {}, onDropQueued() {}, onCancel() {},
+      onModeChange() {}, onModelChange() {}, onEffortChange() {}, fastMode: false, onFastModeChange() {}, onSteerQueued() {}, onDropQueued() {}, onCancel() {},
     });
   }
   const view = await mount(React.createElement(Harness));

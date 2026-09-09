@@ -251,6 +251,7 @@ export type WorkspaceState = {
   draftEngine: AgentEngine;
   draftModel: AgentModel;
   draftEffort: AgentEffort;
+  draftFastMode: boolean;
   /** What main last said about which engines can take a run. Session-only, and never persisted. */
   /** What main has said about the engines' access; null until it has been asked. */
   engineStatus: EngineStatus | null;
@@ -431,6 +432,7 @@ export function emptyWorkspaceState(storageError: string | null = null): Workspa
     draftEngine: DEFAULT_ENGINE,
     draftModel: DEFAULT_MODEL,
     draftEffort: DEFAULT_EFFORT,
+    draftFastMode: false,
     engineStatus: null,
     engineChecking: false,
     agentSettingsReload: "idle",
@@ -535,6 +537,7 @@ export function stateFromData(data: ThreadStoreData, storageError: string | null
     draftEngine: firstThread?.engine ?? DEFAULT_ENGINE,
     draftModel: firstThread?.model ?? DEFAULT_MODEL,
     draftEffort: firstThread?.effort ?? DEFAULT_EFFORT,
+    draftFastMode: firstThread?.fastMode ?? false,
     expandedProjects: new Set(firstProject ? [firstProject] : []),
   };
 }
@@ -581,6 +584,7 @@ export function withStoreData(state: WorkspaceState, data: ThreadStoreData): Wor
     draftEngine: landing.draftEngine,
     draftModel: landing.draftModel,
     draftEffort: landing.draftEffort,
+    draftFastMode: landing.draftFastMode,
     expandedProjects: landing.expandedProjects,
   };
 }
@@ -772,6 +776,7 @@ export function deriveView(state: WorkspaceState) {
     policy: currentThread?.executionPolicy ?? state.draftPolicy,
     model: currentThread ? currentThread.model ?? defaultModelFor(currentThread.engine) : state.draftModel,
     effort: currentThread ? currentThread.effort ?? defaultEffortFor(currentThread.engine) : state.draftEffort,
+    fastMode: capabilitiesFor(currentThread?.engine ?? state.draftEngine).fastMode && (currentThread ? currentThread.fastMode ?? false : state.draftFastMode),
     prompt: state.prompts[promptKey(state)] ?? "",
     annotations: annotationsFor(state, promptKey(state)),
     pastes: pastesFor(state, promptKey(state)),

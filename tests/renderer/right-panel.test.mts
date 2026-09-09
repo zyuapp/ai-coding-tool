@@ -124,7 +124,7 @@ test("a side chat composes with everything the main composer has", async () => {
     onDecide(allow) { decisions.push(allow); },
     onPolicyChange(policy) { policies.push(policy); },
     onModelChange() {},
-    onEffortChange() {},
+    onEffortChange() {}, onFastModeChange() {},
     onSteerQueued() {},
     onDropQueued() {},
     onClose() {},

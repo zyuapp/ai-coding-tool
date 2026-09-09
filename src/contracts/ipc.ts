@@ -1,6 +1,5 @@
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
-export { isAgentSettingsReloadEvent } from "./agent-settings.js";
-export type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
+export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
@@ -74,6 +73,8 @@ export type StartRunCommand = {
   engine: AgentEngine;
   model: AgentModel;
   effort: AgentEffort;
+  /** Codex only. Absent means standard speed. */
+  fastMode?: boolean;
   operation?: RunOperation;
   claude?: ClaudeRunSettings;
   /** Set when the user turned computer use off: the run gets no computer-use tools. */
@@ -632,7 +633,7 @@ function isStartCommand(command: Record<string, unknown>, internal: boolean) {
     && (command.forkContinuation === undefined || command.forkContinuation === true);
   const operationOnly = compact || review;
   const base = isRunChannel(command.channel) && isString(command.taskId) && isString(command.runId) && (operationOnly ? isBlankable(command.prompt, MAX_PROMPT_LENGTH) : isString(command.prompt, MAX_PROMPT_LENGTH)) && isString(command.workspaceId) && isPolicy(command.policy) && isAgentEngine(command.engine) && isAgentModel(command.model) && engineHasModel(command.engine, command.model) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort) && (command.operation === undefined || operationOnly) && (command.claude === undefined || isClaudeRunSettings(command.claude)) && (command.computerUseTools === undefined || command.computerUseTools === false) && (command.browserTools === undefined || command.browserTools === false) && (command.continuation === undefined || isContinuation(command.continuation)) && (command.forkContinuation === undefined || (command.forkContinuation === true && isContinuation(command.continuation))) && (command.unattended === undefined || command.unattended === true);
-  if (!base) return false;
+  if (!base || !(command.fastMode === undefined || command.engine === "codex" && typeof command.fastMode === "boolean")) return false;
   if (!internal) return !["workspaceRoot", "projectless", "computerUse", "cwd", "folder", "sessionId", "mode", "requestId"].some((key) => key in command);
   return isString(command.workspaceRoot, 4_096) && typeof command.projectless === "boolean" && isComputerUseRunConfig(command.computerUse);
 }

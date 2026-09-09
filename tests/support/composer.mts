@@ -18,7 +18,7 @@ export function composer(props: Partial<ConversationComposerProps>) {
     onPromptChange() {},
     onModeChange() {},
     onModelChange() {},
-    onEffortChange() {},
+    onEffortChange() {}, fastMode: false, onFastModeChange() {},
     onSend() {},
     onSteerQueued() {},
     onDropQueued() {},

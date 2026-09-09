@@ -61,6 +61,7 @@ function ThreadScreen({ thread, connection, waiting, send }: {
         onClose={() => setSettingsOpen(false)}
         onPolicy={(policy) => send({ type: "task.set-policy", taskId: thread.id, policy })}
         onModel={(engine, model) => send({ type: "task.set-model", taskId: thread.id, engine, model })}
+        onFastMode={(fastMode) => send({ type: "task.set-fast-mode", taskId: thread.id, fastMode })}
         onEffort={(engine, effort) => send({ type: "task.set-effort", taskId: thread.id, engine, effort })}
       />}
       {connection !== "live" && <span className="sr-only" role="status">{CONNECTION_LABELS[connection]}</span>}
@@ -98,6 +99,7 @@ function DraftScreen({ draft, waiting, send }: {
         onClose={() => setSettingsOpen(false)}
         onPolicy={(policy) => send({ type: "task.set-policy", policy })}
         onModel={(engine, model) => send({ type: "task.set-model", engine, model })}
+        onFastMode={(fastMode) => send({ type: "task.set-fast-mode", fastMode })}
         onEffort={(engine, effort) => send({ type: "task.set-effort", engine, effort })}
       />}
     </>

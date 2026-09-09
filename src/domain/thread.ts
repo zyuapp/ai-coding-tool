@@ -16,6 +16,8 @@ export type Thread = {
   /** One the engine offers; the engine's default when absent. */
   model?: AgentModel;
   effort?: AgentEffort;
+  /** Codex only. Absent means standard speed. */
+  fastMode?: boolean;
   contextUsage?: ContextUsage;
   messages: ConversationMessage[];
   /** Present while the persisted conversation has yet to be loaded. */

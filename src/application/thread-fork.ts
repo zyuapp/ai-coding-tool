@@ -9,6 +9,7 @@ function inherited(source: Thread) {
     engine: source.engine,
     ...(source.model ? { model: source.model } : {}),
     ...(source.effort ? { effort: source.effort } : {}),
+    ...(source.engine === "codex" ? { fastMode: source.fastMode ?? false } : {}),
   };
 }
 

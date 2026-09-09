@@ -30,7 +30,7 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
     case "task.dismiss-all": case "task.archive": case "task.restore":
     case "task.clear-archive": case "task.rename": case "title.suggested":
     case "task.fork": case "task.move": case "task.set-policy":
-    case "task.set-model": case "task.set-effort":
+    case "task.set-model": case "task.set-effort": case "task.set-fast-mode":
       return reduceThreadCommands(state, input);
 
     case "view.move-worktree": case "task.set-worktree": case "task.move-worktree": case "task.set-branch": case "task.checkout-branch":

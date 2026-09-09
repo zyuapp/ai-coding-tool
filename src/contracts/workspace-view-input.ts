@@ -132,6 +132,7 @@ const shapes = {
   "task.fork": { taskId: optionalText, worktree: optionalBoolean },
   "task.set-policy": { taskId: optionalText, policy: policy },
   "task.set-model": { taskId: optionalText, engine: isAgentEngine, model: isAgentModel },
+  "task.set-fast-mode": { taskId: optionalText, fastMode: boolean },
   "task.set-effort": { taskId: optionalText, engine: isAgentEngine, effort: isAgentEffort },
   "task.set-worktree": { taskId: optionalText, worktree: boolean },
   "task.move-worktree": { taskId: optionalText, destination: isWorktreeDestination },

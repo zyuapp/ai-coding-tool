@@ -147,6 +147,7 @@ export class RunCoordinator {
         engine: command.engine,
         model: command.model,
         effort: command.effort,
+        ...(command.engine === "codex" ? { fastMode: command.fastMode ?? false } : {}),
         operation: command.operation,
         claude: command.claude,
         continuation: command.continuation,

@@ -38,6 +38,7 @@ function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["
     onPolicyChange: (policy: ExecutionPolicy) => void dispatch({ type: "task.set-policy", taskId: chatId, policy }),
     onModelFavorite: (model: AgentModel, favorite: boolean) => void dispatch({ type: "view.set-model-favorite", model, favorite }),
     onModelChange: (engine: AgentEngine, model: AgentModel) => void dispatch({ type: "task.set-model", taskId: chatId, engine, model }),
+    onFastModeChange: (fastMode: boolean) => void dispatch({ type: "task.set-fast-mode", taskId: chatId, fastMode }),
     onEffortChange: (engine: AgentEngine, effort: AgentEffort) => void dispatch({ type: "task.set-effort", taskId: chatId, engine, effort }),
     onSteerQueued: (messageId: string) => void dispatch({ type: "task.steer-queued", taskId: chatId, messageId }),
     onDropQueued: (messageId: string) => void dispatch({ type: "task.drop-queued", taskId: chatId, messageId }),

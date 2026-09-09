@@ -293,6 +293,7 @@ function startComposerRun(state: WorkspaceState, pending: PendingRun, workspace:
     engine,
     model,
     effort,
+    ...(engine === "codex" ? { fastMode: state.draftFastMode } : {}),
     messages: [],
     continuationStatus: "none",
     lastChangeSnapshot: { files: [], capturedAt: now() },
