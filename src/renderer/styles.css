@@ -3533,7 +3533,7 @@ button.file-name { cursor: pointer; }
   line-height: 1.5;
 }
 .composer textarea::placeholder { color: var(--quiet-soft); }
-.composer-bar { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px 9px 13px; }
+.composer-bar { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px 9px 8px; }
 .composer-settings { position: relative; min-width: 0; display: flex; align-items: center; gap: 4px; }
 .fast-mode-toggle {
   display: grid;
@@ -3553,11 +3553,12 @@ button.file-name { cursor: pointer; }
 .setting-menu { position: relative; color: var(--quiet-strong); font-size: var(--text-control); }
 .setting-menu > summary {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   min-height: 30px;
+  line-height: 20px;
   border-radius: 15px;
-  padding: 0 8px;
+  padding: 5px 8px;
   cursor: pointer;
   list-style: none;
 }
@@ -3747,6 +3748,7 @@ button.setting-hint:hover { color: var(--ink); }
   .workspace.summary-open .work-area > .find-slot > .find-bar { right: clamp(20px, 4vw, 64px); }
   .composer-wrap { padding: 10px 14px 14px; }
   .composer-settings { gap: 0; }
+  .composer-bar { padding-left: 10px; }
   .setting-menu > summary { padding-inline: 6px; }
   .command-menu { max-height: min(330px, calc(100vh - 220px)); border-radius: 13px; }
   .command-option { grid-template-columns: 32px minmax(0, 1fr); }
