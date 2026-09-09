@@ -41,6 +41,40 @@ beforeEach(() => {
   } as unknown as DesktopAPI;
 });
 
+test("the runtime persists snooze, restores its timer and files it back into Priority at expiry", async () => {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(1_800_000_000_000);
+  let saved = store();
+  saved.tasks[0].outcome = "finished";
+  window.desktop.loadTaskStore = async () => saved;
+  window.desktop.persistTaskStore = async (delta) => {
+    saved = { ...saved, tasks: saved.tasks.map((thread) => {
+      const update = delta.tasks.find(({ task }) => task.id === thread.id);
+      return update ? { ...update.task, messages: thread.messages } : thread;
+    }) };
+  };
+  vi.mocked(runWorkspaceEffect).mockImplementation(async (effect, host) => {
+    if (effect.type === "schedule-snooze-expiry") host.scheduleSnoozeExpiry(effect.at);
+  });
+  let runtime = createWorkspaceRuntime();
+  try {
+    await runtime.start();
+    await runtime.dispatch({ type: "task.snooze", taskId: "selected", hours: 1 });
+    await runtime.flush();
+    const deadline = Date.now() + 3_600_000;
+    assert.equal(saved.tasks[0].snoozedUntil, deadline);
+    runtime.dispose();
+    runtime = createWorkspaceRuntime();
+    await runtime.start();
+    assert.equal(runtime.getState().threads[0].snoozedUntil, deadline);
+    await vi.advanceTimersByTimeAsync(3_600_000);
+    await runtime.flush();
+    assert.equal(runtime.getState().threads[0].snoozedUntil, undefined);
+    assert.equal(runtime.getState().threads[0].outcome, "finished");
+    assert.equal(saved.tasks[0].snoozedUntil, undefined);
+  } finally { runtime.dispose(); vi.useRealTimers(); }
+});
+
 test("starting the runtime twice shares its load and subscriptions", async () => {
   const loaded = Promise.withResolvers<LoadedTaskStore>();
   let reads = 0;

@@ -10,6 +10,7 @@ import type { AutomationView } from "../../domain/automation";
 import type { WorktreeGroup } from "../../application/workspace-state";
 import { ContextMenu } from "./PopoverMenu";
 import { threadMenuEntries } from "./thread-menu";
+import type { SnoozeHours } from "../../domain/thread-snooze";
 import { RenameInput, useRenaming } from "./SidebarRename";
 import { ThreadEngineIcon } from "./ThreadEngineIcon";
 
@@ -90,6 +91,7 @@ export type ThreadRowsOptions = {
   onSelectThread: (threadId: string) => void;
   onArchiveThread: (threadId: string) => void;
   onDismissThread: (threadId: string) => void;
+  onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
   onRenameThread: (threadId: string, title: string) => void;
   onForkThread: (threadId: string, worktree: boolean) => void;
 };
@@ -110,6 +112,7 @@ export function useThreadRows({
   onSelectThread,
   onArchiveThread,
   onDismissThread,
+  onSnoozeThread,
   onRenameThread,
   onForkThread,
 }: ThreadRowsOptions) {
@@ -190,7 +193,7 @@ export function useThreadRows({
   };
 
   /** The row itself, which is the same whether the list around it lets it be dragged or not. */
-  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction) => (
+  const rowBody = (thread: Thread, className: string, content: React.ReactNode, action: RowAction, priority = false) => (
     <>
     <div
       className={className}
@@ -223,6 +226,7 @@ export function useThreadRows({
         onRename: () => threadNames.start(thread.id),
         onFork: (worktree) => onForkThread(thread.id, worktree),
         onArchive: () => onArchiveThread(thread.id),
+        ...(priority ? { onSnooze: (hours: SnoozeHours) => onSnoozeThread(thread.id, hours) } : {}),
       })}
     />}
     </>
@@ -249,14 +253,14 @@ export function useThreadRows({
   );
 
   /** Activity mode ranks its rows itself, so nothing there is dragged and no list places it. */
-  const activityRow = (thread: Thread, action: RowAction) => (
+  const activityRow = (thread: Thread, action: RowAction, priority: boolean) => (
     <div className="task-entry" key={thread.id} tabIndex={0} onKeyDown={(event) => selectOnEnter(event, thread.id)}>
       {rowBody(thread, `task-row ${thread.id === currentId ? "active" : ""}`, (
         <span className="task-row-text">
           <span>{thread.title}</span>
           <small>{activityMeta(thread, projects, formatTime)}</small>
         </span>
-      ), action)}
+      ), action, priority)}
     </div>
   );
 

@@ -9,6 +9,8 @@ import { engineBlocker } from "../../domain/agent-engine.js";
 import { engineReadinessOf, refreshEngines } from "../engine-access.js";
 import { findProject } from "../../domain/project.js";
 import { expandThreadHandles } from "../../domain/thread-handles.js";
+import { withoutSnooze } from "../../domain/thread-snooze.js";
+import { updateThread } from "../thread-run-state.js";
 
 type SendInput = Extract<WorkspaceInput, {
   type: "task.send" | "question.answer" | "question.set-answer" | "task.steer-queued" | "task.drop-queued";
@@ -72,7 +74,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
           ...(files.length ? { files } : {}),
         };
         const drafted = draftKey === undefined ? state : clearedDraft(state, draftKey);
-        const next = withQueued(drafted, thread.id, [...queuedFor(state, thread.id), queued]);
+        const sent = thread.snoozedUntil === undefined ? drafted : updateThread(drafted, thread.id, withoutSnooze);
+        const next = withQueued(sent, thread.id, [...queuedFor(state, thread.id), queued]);
         return input.steer ? reduceSending(next, { type: "task.steer-queued", taskId: thread.id, messageId: queued.id }) : settled(next);
       }
       /**
@@ -117,7 +120,8 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
         return rejected(state, CHECKOUT_RUNNING_ERROR);
       }
       const resolving = resolveWorkspaceEffect(pending.id, thread, project, namedWorktree ?? worktreeFor(state, thread), wantsWorktree, branch);
-      return settled(withPending(state, { ...pending, ...(resolving.createWorktree ? { creatingWorktree: true } : {}) }), [resolving]);
+      const sent = thread?.snoozedUntil === undefined ? state : updateThread(state, thread.id, withoutSnooze);
+      return settled(withPending(sent, { ...pending, ...(resolving.createWorktree ? { creatingWorktree: true } : {}) }), [resolving]);
     }
 
     case "task.steer-queued": {
@@ -126,8 +130,10 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const queued = taskId ? queuedFor(state, taskId) : [];
       const message = queued.find((item) => item.id === input.messageId);
       if (!taskId || !active || !message || message.steering) return settled(state);
+      const thread = state.threads.find((item) => item.id === taskId);
+      const sent = thread?.snoozedUntil === undefined ? state : updateThread(state, taskId, withoutSnooze);
       return settled(
-        withAttendedRun(withQueued(state, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)), taskId),
+        withAttendedRun(withQueued(sent, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)), taskId),
         [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: message.prompt } }],
       );
     }

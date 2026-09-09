@@ -12,6 +12,7 @@ import { SidebarActivity } from "./SidebarActivity";
 import { SidebarHeader, SidebarResizer } from "./SidebarChrome";
 import { PROJECT_DRAG, RECENTS_DROPPABLE, SidebarProjects, useShownThreads } from "./SidebarProjects";
 import { useThreadRows } from "./SidebarThreadRow";
+import type { SnoozeHours } from "../../domain/thread-snooze";
 
 export type ProjectSidebarProps = {
   open: boolean;
@@ -56,6 +57,7 @@ export type ProjectSidebarProps = {
   onArchiveThread: (threadId: string) => void;
   /** Takes the dot off one thread, and off every thread carrying one. */
   onDismissThread: (threadId: string) => void;
+  onSnoozeThread: (threadId: string, hours: SnoozeHours) => void;
   onDismissAll: () => void;
   onRenameThread: (threadId: string, title: string) => void;
   onMoveThread: (threadId: string, target: ThreadDropTarget) => void;
@@ -110,6 +112,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
   onSelectThread,
   onArchiveThread,
   onDismissThread,
+  onSnoozeThread,
   onDismissAll,
   onRenameThread,
   onMoveThread,
@@ -140,6 +143,7 @@ export const ProjectSidebar = memo(function ProjectSidebar({
     onSelectThread,
     onArchiveThread,
     onDismissThread,
+    onSnoozeThread,
     onRenameThread,
     onForkThread,
   });

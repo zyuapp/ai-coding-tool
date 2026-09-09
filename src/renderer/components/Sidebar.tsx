@@ -51,6 +51,7 @@ export function Sidebar({ workspace, open, settingsVisible, onOpenSettings }: {
       onSelectThread={workspace.actions.selectThread}
       onArchiveThread={workspace.actions.archiveThread}
       onDismissThread={workspace.actions.dismissThread}
+      onSnoozeThread={workspace.actions.snoozeThread}
       onDismissAll={workspace.actions.dismissAllThreads}
       onRenameThread={workspace.actions.renameThread}
       onMoveThread={workspace.actions.moveThread}

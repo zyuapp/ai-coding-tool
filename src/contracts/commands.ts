@@ -1,4 +1,5 @@
 import type { AutomationDraft, AutomationPatch } from "../domain/automation.js";
+import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
@@ -55,6 +56,7 @@ export type TaskCommand =
   | { type: "task.rename"; taskId: string; title: string }
   /** Takes the dot off a thread, which is the only thing that does. Opening the thread only dims it. */
   | { type: "task.dismiss"; taskId: string }
+  | { type: "task.snooze"; taskId: string; hours: SnoozeHours }
   /** The same for every dotted thread the user has already looked at, leaving the unseen ones alone. */
   | { type: "task.dismiss-all" }
   | { type: "task.move"; taskId: string; target: TaskDropTarget }

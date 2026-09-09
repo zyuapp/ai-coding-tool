@@ -11,10 +11,11 @@ import { projectFor, worktreeById } from "../thread-location.js";
 import { DRAFT_DOCK, blockedThreadIds, busyThreadIds, sideChatIds, type WorkspaceState } from "../workspace-state.js";
 import { dismissableThreads, dismissed, readAttention } from "../../domain/attention.js";
 import { clampTitle, type Thread } from "../../domain/thread.js";
+import { isSnoozeHours } from "../../domain/thread-snooze.js";
 import { capabilitiesFor, defaultModelFor, effortForModel, engineHasModel, modelHasEffort } from "../../domain/agent-engine.js";
 
 type ThreadCommandInput = Extract<WorkspaceInput, {
-  type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive"
+  type: "task.new" | "task.select" | "task.dismiss" | "task.dismiss-all" | "task.archive" | "task.snooze" | "snoozes.elapsed"
     | "task.restore" | "task.clear-archive" | "task.rename" | "title.suggested" | "task.fork"
     | "task.move" | "task.set-policy" | "task.set-model" | "task.set-effort" | "task.set-fast-mode";
 }>;
@@ -54,6 +55,15 @@ function priorityNeighbour(state: WorkspaceState, taskId: string): string | unde
 
 export function reduceThreadCommands(state: WorkspaceState, input: ThreadCommandInput): WorkspaceTransition {
   switch (input.type) {
+    case "snoozes.elapsed":
+      return settled(state);
+
+    case "task.snooze": {
+      if (!isSnoozeHours(input.hours) || !priorityThreads(state).some((thread) => thread.id === input.taskId)) return settled(state);
+      const snoozedUntil = now() + input.hours * 60 * 60 * 1000;
+      return settled({ ...updateThread(state, input.taskId, (thread) => ({ ...thread, snoozedUntil })), openMenu: null });
+    }
+
     case "task.new": {
       /** A checkout names the project it was cut from, so starting in one settles both answers. */
       const worktree = worktreeById(state, input.worktreeId);

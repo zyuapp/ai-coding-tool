@@ -36,6 +36,8 @@ export type Thread = {
   outcome?: ThreadOutcome;
   /** Set while the user has yet to see that verdict. It marks the thread, the verdict ranks it. */
   outcomeUnread?: true;
+  /** Temporarily files this thread under Threads, preserving everything that needs attention. */
+  snoozedUntil?: number;
   /** What runs on this thread found, newest last. Cleared by a dismissal, never by the next run. */
   findings?: AutomationFinding[];
   /**

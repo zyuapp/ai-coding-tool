@@ -382,6 +382,7 @@ function isThreadBase(value: unknown): value is StoredThread {
     (value.findings === undefined || Array.isArray(value.findings) && value.findings.every(isAutomationFinding)) &&
     (value.lastFindingAt === undefined || finiteNumber(value.lastFindingAt)) &&
     (value.handledIssues === undefined || Array.isArray(value.handledIssues) && value.handledIssues.every((key: unknown) => nonEmptyString(key))) &&
+    (value.snoozedUntil === undefined || finiteNumber(value.snoozedUntil) && value.snoozedUntil > 0) &&
     (value.lastChecked === undefined || (isRecord(value.lastChecked) && finiteNumber(value.lastChecked.at) && nonEmptyString(value.lastChecked.note))) &&
     (value.worktreeId === undefined || nonEmptyString(value.worktreeId)) &&
     (value.worktreeEnteredAt === undefined || finiteNumber(value.worktreeEnteredAt)) &&

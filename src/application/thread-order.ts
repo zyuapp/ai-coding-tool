@@ -25,7 +25,9 @@ export function activitySections(threads: Thread[], busy: Set<string>, blocked: 
   const running: Thread[] = [];
   const settled: RankedThread[] = [];
   for (const thread of threads) {
-    if (blocked.has(thread.id)) {
+    if (thread.snoozedUntil !== undefined) {
+      settled.push({ thread, activity: threadActivityAt(thread) });
+    } else if (blocked.has(thread.id)) {
       priority.push({ thread, activity: threadActivityAt(thread) });
     } else if (busy.has(thread.id)) {
       running.push(thread);

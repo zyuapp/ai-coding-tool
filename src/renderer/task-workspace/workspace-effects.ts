@@ -12,6 +12,9 @@ import { messageImages } from "../message-images";
  */
 export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHost): Promise<void> {
   switch (effect.type) {
+    case "schedule-snooze-expiry":
+      host.scheduleSnoozeExpiry(effect.at);
+      return;
     case "preserve-message-images": {
       const files = messageImages(effect.text).map((image) => image.path);
       if (files.length) await host.desktop.preserveMessageImages(files, effect.root, effect.messageId);

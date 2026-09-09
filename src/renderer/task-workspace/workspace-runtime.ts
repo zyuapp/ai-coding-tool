@@ -5,6 +5,7 @@ import { executeWorkspaceInput, type WorkspaceExecution } from "../../applicatio
 import { createLocalTaskStore, createDraftPersistence } from "./local-task-store";
 import { loadViewPreferences } from "./local-view-preferences";
 import { createRuntimeInputs } from "./runtime-inputs";
+import { createSnoozeTimer } from "./snooze-timer";
 import { createRuntimeHistory } from "./runtime-history";
 import { errorMessage } from "./errors";
 import { releaseThreadWaiters, type ThreadWaiter } from "./thread-requests";
@@ -38,6 +39,7 @@ export function createWorkspaceRuntime() {
   const environmentRefreshes = { current: new Map<string, EnvironmentRefreshEffect | null>() };
   const mobileView = noMobileView();
   const drafts = createDraftPersistence(() => state, dispatch);
+  const snoozeTimer = createSnoozeTimer((at) => { void dispatch({ type: "snoozes.elapsed", at }); });
   const history = createRuntimeHistory({ state: () => state, load: (taskId) => window.desktop.loadThreadMessages(taskId), dispatch: (input) => rawExecute(input).completed.then(() => undefined), persistence });
   const inputs = createRuntimeInputs({
     generation: () => generation,
@@ -89,7 +91,7 @@ export function createWorkspaceRuntime() {
       active: () => !disposed && generation === executionGeneration,
       commit,
       prepare: async (input) => { for (const taskId of history.needed(input)) await history.hydrate(taskId); },
-      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop: window.desktop, environmentRefreshes }),
+      perform: (effect, dispatch) => runWorkspaceEffect(effect, { dispatch, desktop: window.desktop, environmentRefreshes, scheduleSnoozeExpiry: snoozeTimer.schedule }),
     });
     effectsInFlight.add(execution.completed);
     void execution.completed.finally(() => effectsInFlight.delete(execution.completed));
@@ -166,6 +168,7 @@ export function createWorkspaceRuntime() {
       subscriptions = null;
       if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
       drafts.dispose();
+      snoozeTimer.dispose();
       started = null;
       generation += 1;
       history.invalidate();

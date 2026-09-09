@@ -1,4 +1,5 @@
 import { apply } from "./workspace-reducer/dispatch.js";
+import { reconcileSnoozes } from "./thread-snooze.js";
 import { prunedFind, prunedWorkflowPanels, settled, shownPageEffects, TAKE_KEYS } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
@@ -25,7 +26,7 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
       return combineTransitions(transition, next);
     }, settled(state));
   }
-  const applied = apply(state, input);
+  const applied = reconcileSnoozes(state, apply(state, input), input);
   const transition = { ...applied, state: prunedWorkflowPanels(prunedFind(applied.state)) };
   if (transition.state.currentId === state.currentId) return transition;
   if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };

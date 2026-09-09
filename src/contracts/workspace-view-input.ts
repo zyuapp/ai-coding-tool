@@ -1,4 +1,5 @@
 import type { AppCommand } from "./commands.js";
+import { isSnoozeHours } from "../domain/thread-snooze.js";
 import type { WorkspaceEvent } from "../application/workspace-reducer.js";
 import { isBrowserAction } from "./ipc.js";
 import { isAgentEffort, isAgentEngine, isAgentModel } from "../domain/agent-engine.js";
@@ -128,6 +129,7 @@ const shapes = {
   "task.clear-archive": {  },
   "task.rename": { taskId: text, title: text },
   "task.dismiss": { taskId: text },
+  "task.snooze": { taskId: text, hours: isSnoozeHours },
   "task.dismiss-all": {  },
   "task.move": { taskId: text, target: dropTarget },
   "task.fork": { taskId: optionalText, worktree: optionalBoolean },

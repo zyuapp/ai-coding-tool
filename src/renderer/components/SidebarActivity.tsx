@@ -43,7 +43,7 @@ export function SidebarActivity({ activityThreads, sections, blockedThreadIds, o
             {sections[key] && threads.length === 0 && key === "priority" && <p className="sidebar-empty">Nothing waiting</p>}
             {/** Only Priority speaks: a spinner appearing in Running is not news anyone needs read out. */}
             {sections[key] && <nav className="task-list" aria-label={label} aria-live={key === "priority" ? "polite" : undefined}>
-              {threads.map((thread) => renderRow(thread, key === "priority" && !blockedThreadIds.has(thread.id) ? "dismiss" : "none"))}
+              {threads.map((thread) => renderRow(thread, key === "priority" && !blockedThreadIds.has(thread.id) ? "dismiss" : "none", key === "priority"))}
             </nav>}
           </section>
         );

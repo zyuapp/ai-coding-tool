@@ -12,6 +12,7 @@ export type EffectHost = {
   dispatch: (input: WorkspaceInput) => Promise<void>;
   desktop: DesktopAPI;
   environmentRefreshes: EnvironmentRefreshes;
+  scheduleSnoozeExpiry: (at: number | null) => void;
 };
 
 /** Work whose only answer is what went wrong with it. */

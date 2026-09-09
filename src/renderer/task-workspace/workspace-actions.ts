@@ -1,4 +1,5 @@
 import type { WorkspaceInput } from "../../application/workspace-reducer";
+import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
 import type { DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
@@ -18,6 +19,7 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     newThread: (projectId?: string, worktreeId?: string) => dispatch({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) }),
     openFolder: () => dispatch({ type: "project.open" }),
     selectThread: (threadId: string) => dispatch({ type: "task.select", taskId: threadId }),
+    snoozeThread: (threadId: string, hours: SnoozeHours) => dispatch({ type: "task.snooze", taskId: threadId, hours }),
     archiveThread: (threadId: string) => dispatch({ type: "task.archive", taskId: threadId }),
     restoreThread: (threadId: string) => dispatch({ type: "task.restore", taskId: threadId }),
     clearArchive: () => dispatch({ type: "task.clear-archive" }),
