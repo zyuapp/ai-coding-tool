@@ -68,7 +68,7 @@ export class FakeCodexClient implements CodexClient {
     return this.handshake();
   }
 
-  request<M extends ClientMethod>(method: M, ...params: ClientParams<M> extends undefined ? [params?: undefined] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
+  request<M extends ClientMethod>(method: M, ...params: undefined extends ClientParams<M> ? [params?: ClientParams<M>] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
     this.sent.push({ method, params: params[0] });
     const answer = this.script[method];
     if (!answer) return Promise.reject(new Error(`${method} is not scripted`));

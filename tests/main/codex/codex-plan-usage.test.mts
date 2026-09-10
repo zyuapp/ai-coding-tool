@@ -9,6 +9,7 @@ function snapshot(overrides: Partial<RateLimitSnapshot> = {}): RateLimitSnapshot
   return {
     limitId: "codex",
     limitName: "Codex",
+    normalModelSlug: null,
     primary: null,
     secondary: null,
     credits: null,
@@ -29,6 +30,7 @@ const response: GetAccountRateLimitsResponse = {
   rateLimitResetCredits: null,
   accountId: null,
   rateLimitUpsell: null,
+  ordinaryUsageAllowed: null,
 };
 
 test("Codex rate limits become the same session and week windows as Claude usage", () => {

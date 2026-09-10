@@ -251,7 +251,7 @@ export class AppServerClient {
     return server;
   }
 
-  request<M extends ClientMethod>(method: M, ...params: ClientParams<M> extends undefined ? [params?: undefined] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
+  request<M extends ClientMethod>(method: M, ...params: undefined extends ClientParams<M> ? [params?: ClientParams<M>] : [params: ClientParams<M>]): Promise<ClientResult<M>> {
     if (this.exit) return Promise.reject(new AppServerExited(this.exit, `before ${method}`));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
