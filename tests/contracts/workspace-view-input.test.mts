@@ -25,6 +25,11 @@ test("the view can send provider commands, attachments, and presentation reports
     { type: "automation.save", draft: { prompt: "Check status", schedule: "0 * * * *", paused: false } },
     { type: "automation.update", patch: { surfaceWhen: "", paused: true } },
     { type: "review.start", target: { type: "commit", sha: "abc", title: null } },
+    { type: "diff.set-mode", mode: "branch" },
+    { type: "diff.open-commits" },
+    { type: "diff.search-commits", query: "reset token" },
+    { type: "diff.page-commits", direction: 1 },
+    { type: "diff.select-commit", commit: "60cceb8" },
     { type: "diff.open-commit", taskId: "thread", commit: "60cceb8" },
     { type: "diff.set-range", range: { kind: "commit", commit: "60cceb8" } },
     { type: "image.open", source: "message-image://file/?path=%2Ftmp%2Fshot.png&root=&message=reply" },
@@ -39,7 +44,7 @@ test("the view can send provider commands, attachments, and presentation reports
 });
 
 test("a view cannot inject storage, provider, scheduler, or history events", () => {
-  const types = ["store.loaded", "store.thread-loaded", "store.absent", "store.failed", "run.resolved", "run.event", "thread.event", "agent.events", "automation.fired", "remote.changed", "engine.loaded", "worktree.deleted", "preferences.loaded"];
+  const types = ["diff.commits-loaded", "store.loaded", "store.thread-loaded", "store.absent", "store.failed", "run.resolved", "run.event", "thread.event", "agent.events", "automation.fired", "remote.changed", "engine.loaded", "worktree.deleted", "preferences.loaded"];
   for (const type of types) assert.equal(isWorkspaceViewInput({ type }), false, type);
   for (const value of [null, [], "task.send", {}, { type: "__proto__" }, { type: "constructor" }, { type: "unknown" }]) {
     assert.equal(isWorkspaceViewInput(value), false);
@@ -48,6 +53,10 @@ test("a view cannot inject storage, provider, scheduler, or history events", () 
 
 test("malformed fields and nested values are rejected before reaching the reducer", () => {
   const inputs = [
+    { type: "diff.set-mode", mode: "pull-request" },
+    { type: "diff.search-commits", query: "x".repeat(201) },
+    { type: "diff.page-commits", direction: 100 },
+    { type: "diff.select-commit", commit: "--all" },
     { type: "task.select" },
     { type: "task.select", taskId: 42 },
     { type: "task.send", text: null },

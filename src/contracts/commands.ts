@@ -3,7 +3,7 @@ import type { SnoozeHours } from "../domain/thread-snooze.js";
 import type { ShortcutSurface } from "../domain/shortcuts.js";
 import type { BrowserAction } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
-import type { DiffRange } from "../domain/diff.js";
+import type { DiffMode, DiffRange } from "../domain/diff.js";
 import type { FindTarget } from "../domain/find.js";
 import type { SettingsSection } from "../domain/settings-section.js";
 import type { SidebarMode, SidebarSection } from "../domain/sidebar.js";
@@ -38,6 +38,11 @@ export type DiffCommand =
   | { type: "diff.refresh" }
   | { type: "diff.open-commit"; commit: string; taskId?: string }
   | { type: "diff.set-range"; range: DiffRange }
+  | { type: "diff.set-mode"; mode: DiffMode }
+  | { type: "diff.open-commits" }
+  | { type: "diff.search-commits"; query: string }
+  | { type: "diff.page-commits"; direction: -1 | 1 }
+  | { type: "diff.select-commit"; commit: string }
   /** Folds one file shut, or opens it again. Every file starts open. */
   | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
   | { type: "diff.set-viewed"; path: string; viewed: boolean }

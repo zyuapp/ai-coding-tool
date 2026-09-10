@@ -111,11 +111,17 @@ export function buildDock({ workspace, inspectedSubagent, workingSubagents, unre
           key={workspace.currentThread?.id ?? "draft"}
           diff={workspace.diff}
           workspaceId={workspace.diff.workspaceId ?? workspace.workspaceId}
+          currentBranch={workspace.environment?.status === "available" && (!workspace.diff.workspaceId || workspace.diff.workspaceId === workspace.workspaceId) ? workspace.environment.branch : null}
           openMenu={workspace.openMenu}
           onSetOpenMenu={workspace.actions.setOpenMenu}
           find={reviewFind}
           onFindResults={(results) => { if (reviewFind) void workspace.actions.reportFind(reviewFind.target, results); }}
           onSetRange={workspace.actions.setDiffRange}
+          onSetMode={workspace.actions.setDiffMode}
+          onOpenCommits={workspace.actions.openDiffCommits}
+          onSearchCommits={workspace.actions.searchDiffCommits}
+          onPageCommits={workspace.actions.pageDiffCommits}
+          onSelectCommit={workspace.actions.selectDiffCommit}
           onSetCollapsed={workspace.actions.setDiffCollapsed}
           onSetViewed={workspace.actions.setDiffViewed}
           onSetSplit={workspace.actions.setDiffSplit}

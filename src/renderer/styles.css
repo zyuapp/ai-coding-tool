@@ -1488,9 +1488,6 @@ button, select { color: inherit; }
 .message-commit { display: inline; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
 .markdown-body .message-commit code { color: var(--link); }
 .message-commit:hover code { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
-.diff-commit-heading { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; }
-.diff-commit-heading code { color: var(--ink); }
-.diff-commit-heading button { padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; background: none; color: var(--muted); font: inherit; }
 .markdown-body p { margin: 0 0 15px; }
 .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 {
   margin: 28px 0 12px;
@@ -3775,23 +3772,50 @@ button.setting-hint:hover { color: var(--ink); }
 
 /* Diff panel */
 .diff-panel { display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.diff-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
-/** The two sides share one track, taking the width their refs need rather than half each. */
-.diff-compare { display: flex; align-items: center; flex: 0 1 auto; width: fit-content; max-width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-input); overflow: hidden; }
-/** Shrink follows content, so a long remote ref gives way before a short one does. */
+.diff-toolbar { display: flex; flex-direction: column; flex: none; gap: 5px; padding: 7px 10px 8px; border-bottom: 1px solid var(--line-soft); }
+.diff-toolbar-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 26px; }
+.diff-mode-trigger { display: flex; align-items: center; gap: 5px; min-height: 26px; border: 0; border-radius: 6px; padding: 3px 5px; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-menu); cursor: pointer; }
+.diff-mode-trigger svg { color: var(--quiet); }
+.diff-mode-trigger:hover, .diff-mode-trigger[aria-expanded="true"] { background: var(--surface-hover); }
+.diff-mode-trigger:disabled { opacity: 0.5; cursor: default; }
+.branch-menu.diff-mode-menu { min-width: 170px; }
+.diff-mode-menu button { font-size: var(--text-menu); }
+.diff-mode-menu button[aria-checked="true"] { color: var(--ink); }
+/** Current work points toward the target; both retain the existing branch comparison choices. */
+.diff-compare { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .diff-side { position: relative; flex: 0 1 auto; min-width: 0; }
-.diff-side-trigger { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 26px; padding: 0 8px 0 10px; border: 0; background: none; color: var(--ink-dim); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
-/** Which side this is, said rather than drawn: an arrow between the two reads as a merge. */
-.diff-side-label { flex: none; color: var(--quiet); }
-.diff-side-trigger:hover:not(:disabled) { background: var(--surface-hover); }
-.diff-side-trigger[aria-expanded="true"] { background: var(--surface-active); }
+.diff-side-trigger { display: flex; align-items: center; gap: 5px; width: 100%; min-height: 26px; padding: 4px 5px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.diff-side-trigger:hover:not(:disabled), .diff-side-trigger[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink-dim); }
 .diff-side-trigger:disabled { opacity: 0.5; cursor: default; }
-/** A long ref gives up its own tail first. Left to shrink in proportion, both sides truncate at once. */
-.diff-side-trigger code { min-width: 0; max-width: 20ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); }
-/** The caret follows the ref rather than the side's far edge, which would strand a gap after a short ref. */
-.diff-side-trigger > svg { flex: none; margin-left: -2px; color: var(--quiet-soft); }
-/** Git writes a comparison as `base...compare`; periods sit on the baseline, so the cell lifts them. */
-.diff-range { flex: none; display: grid; place-items: center; align-self: stretch; width: 27px; padding-bottom: 4px; border-inline: 1px solid var(--line); background: var(--sunken); color: var(--quiet-soft); font-family: var(--mono); font-size: var(--text-meta); line-height: 1; }
+.diff-side-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-side-trigger > svg { flex: none; color: var(--quiet); }
+.diff-range-arrow { flex: none; color: var(--quiet); }
+.diff-commit-picker { min-width: 0; }
+.diff-commit-trigger { display: flex; align-items: center; gap: 7px; width: 100%; min-width: 0; min-height: 26px; padding: 4px 5px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: inherit; font-size: var(--text-meta); text-align: left; cursor: pointer; }
+.diff-commit-trigger code { flex: none; color: var(--quiet-strong); font: 11px var(--mono); }
+.diff-commit-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-commit-trigger > svg { flex: none; margin-left: auto; color: var(--quiet); }
+.diff-commit-trigger:hover, .diff-commit-trigger[aria-expanded="true"] { background: var(--surface-hover); color: var(--ink-dim); }
+.diff-commit-trigger:disabled { opacity: 0.5; cursor: default; }
+.commit-menu { position: fixed; z-index: 1000; display: flex; flex-direction: column; max-height: min(390px, var(--branch-menu-room, 100vh)); border: 1px solid var(--line-mid); border-radius: 10px; padding: 8px 5px 5px; background: var(--surface-menu); box-shadow: var(--shadow-popover); overflow: hidden; }
+.commit-menu > .branch-menu-field { flex: none; margin: 0 3px 5px; }
+.commit-menu .branch-menu-search { min-width: 0; font-size: var(--text-meta); }
+.commit-menu-list { height: 290px; min-height: 0; overflow-y: auto; scrollbar-width: thin; overscroll-behavior: contain; }
+.commit-menu-option { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 50px; padding: 7px 8px; border: 0; border-radius: 5px; background: none; color: var(--ink-dim); font: inherit; text-align: left; cursor: pointer; }
+.commit-menu-option:hover { background: var(--surface-menu-hover); }
+.commit-menu-option[aria-selected="true"] { background: var(--surface-active); }
+.commit-menu-option > svg { flex: none; }
+.commit-menu-copy { flex: 1; min-width: 0; }
+.commit-menu-subject { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); line-height: 18px; }
+.commit-menu-meta { display: flex; align-items: center; gap: 6px; color: var(--quiet); font-size: 11px; line-height: 17px; }
+.commit-menu-meta code { flex: none; font: 10px var(--mono); }
+.commit-menu-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commit-menu-empty { padding: 12px 8px; margin: 0; color: var(--quiet); font-size: var(--text-meta); }
+.commit-menu-footer { display: flex; align-items: center; justify-content: flex-end; flex: none; gap: 3px; margin-top: 4px; padding: 4px 3px 0; border-top: 1px solid var(--line-soft); }
+.commit-menu-footer > span { margin-right: auto; padding-left: 5px; color: var(--quiet); font-size: 11px; font-variant-numeric: tabular-nums; }
+.commit-menu-footer button { display: grid; place-items: center; min-width: 24px; min-height: 24px; padding: 3px 5px; border: 0; border-radius: 5px; background: none; color: var(--quiet-strong); font: inherit; font-size: var(--text-meta); cursor: pointer; }
+.commit-menu-footer button:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink-dim); }
+.commit-menu-footer button:disabled { opacity: 0.35; cursor: default; }
 
 .diff-toolbar-actions { display: flex; gap: 2px; }
 .diff-toolbar-actions button { display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--quiet-strong); cursor: pointer; }

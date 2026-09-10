@@ -1,7 +1,7 @@
 import type { WorkspaceInput } from "../../application/workspace-reducer";
 import type { SnoozeHours } from "../../domain/thread-snooze";
 import type { AutomationDraft, AutomationPatch } from "../../domain/automation";
-import type { DiffRange } from "../../domain/diff";
+import type { DiffMode, DiffRange } from "../../domain/diff";
 import type { FindResults, FindTarget } from "../../domain/find";
 import type { AgentEngine, AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy, SubagentGroup } from "../../domain/run";
@@ -101,6 +101,11 @@ export function workspaceActions(dispatch: (input: WorkspaceInput) => Promise<vo
     toggleDiff: () => dispatch({ type: "diff.toggle" }),
     refreshDiff: () => dispatch({ type: "diff.refresh" }),
     setDiffRange: (range: DiffRange) => dispatch({ type: "diff.set-range", range }),
+    setDiffMode: (mode: DiffMode) => dispatch({ type: "diff.set-mode", mode }),
+    openDiffCommits: () => dispatch({ type: "diff.open-commits" }),
+    searchDiffCommits: (query: string) => dispatch({ type: "diff.search-commits", query }),
+    pageDiffCommits: (direction: -1 | 1) => dispatch({ type: "diff.page-commits", direction }),
+    selectDiffCommit: (commit: string) => dispatch({ type: "diff.select-commit", commit }),
     setDiffCollapsed: (path: string, collapsed: boolean) => dispatch({ type: "diff.set-collapsed", path, collapsed }),
     setDiffViewed: (path: string, viewed: boolean) => dispatch({ type: "diff.set-viewed", path, viewed }),
     setDiffSplit: (split: boolean) => dispatch({ type: "diff.set-split", split }),

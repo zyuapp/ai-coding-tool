@@ -13,7 +13,7 @@ import {
   type WorkspaceState,
 } from "../../src/application/workspace-state.ts";
 import type { DiffSummaryResult } from "../../src/contracts/ipc.js";
-import { DRAWN_FILE_LIMIT, DRAWN_LINE_BUDGET, type DiffFileSummary, type DiffRange } from "../../src/domain/diff.js";
+import { DEFAULT_BRANCH_RANGE, DRAWN_FILE_LIMIT, DRAWN_LINE_BUDGET, type DiffFileSummary, type DiffRange } from "../../src/domain/diff.js";
 import type { Project } from "../../src/domain/project.js";
 import type { Thread } from "../../src/domain/thread.js";
 
@@ -31,7 +31,7 @@ function diff(state: WorkspaceState): DiffState {
 }
 
 /** A file list as the desktop answers with one. */
-function summary(files: DiffFileSummary[], range: DiffRange = { kind: "uncommitted" }, ignoreWhitespace = true): AvailableDiffSummary {
+function summary(files: DiffFileSummary[], range: DiffRange = DEFAULT_BRANCH_RANGE, ignoreWhitespace = true): AvailableDiffSummary {
   return {
     status: "available",
     range,
@@ -167,7 +167,7 @@ test("opening the review asks for the comparison it is going to draw", () => {
   const opened = reduce(workspace(), { type: "diff.toggle" });
 
   assert.deepEqual(opened.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "draft", workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: true },
+    { type: "read-diff", owner: "draft", workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
   ]);
   assert.equal(dockFor(opened.state, "draft").tab, DIFF_PANEL);
   assert.equal(diff(opened.state).loading, true);
@@ -218,7 +218,7 @@ test("changing the comparison starts a fresh read and keeps nothing but the layo
 
 test("asking for the comparison already on screen reads nothing again", () => {
   const reviewed = reviewing(workspace(), [file("a.ts")]);
-  const same = reduce(reviewed, { type: "diff.set-range", range: { kind: "uncommitted" } });
+  const same = reduce(reviewed, { type: "diff.set-range", range: DEFAULT_BRANCH_RANGE });
 
   assert.deepEqual(same.effects, []);
 });
@@ -237,7 +237,7 @@ test("a review hides the lines that only moved until it is asked not to", () => 
     type: "read-diff",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     ignoreWhitespace: false,
   });
 });
@@ -270,8 +270,8 @@ test("a file that changes after a recount still comes back unread", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
-    result: summary([file("a.ts", 6, 4)], { kind: "uncommitted" }, false),
+    range: DEFAULT_BRANCH_RANGE,
+    result: summary([file("a.ts", 6, 4)], DEFAULT_BRANCH_RANGE, false),
   }).state;
 
   assert.deepEqual(diff(rewritten).viewed, {});
@@ -284,8 +284,8 @@ test("a list counted the other way is dropped", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
-    result: summary([file("a.ts"), file("spaced.ts")], { kind: "uncommitted" }, true),
+    range: DEFAULT_BRANCH_RANGE,
+    result: summary([file("a.ts"), file("spaced.ts")], DEFAULT_BRANCH_RANGE, true),
   }).state;
 
   assert.deepEqual(availableResult(diff(stale)).files.map((item) => item.path), ["a.ts"], "the read before the toggle answers nothing now");
@@ -320,7 +320,7 @@ test("a file folded by hand stays folded through a fresh list", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     result: summary([file("a.ts"), file("b.ts")]),
   });
 
@@ -335,7 +335,7 @@ test("a ticked file that changes comes back open as well as unread", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     result: summary([file("a.ts", 9)]),
   });
 
@@ -352,7 +352,7 @@ test("a file that changes again comes back unread", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     result: summary([file("a.ts", 4), file("b.ts", 1)]),
   });
 
@@ -367,7 +367,7 @@ test("a file that is gone from the list stops being folded", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     result: summary([file("b.ts")]),
   });
 
@@ -404,7 +404,7 @@ test("a checkout that blows up under an open review folds itself away", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     result: summary([file("a.ts", 500_000), file("b.ts", 500_000)]),
   });
 
@@ -420,7 +420,7 @@ test("a fresh list keeps a file the user opened by hand", () => {
     type: "diff.loaded",
     owner: "draft",
     workspaceId: "workspace-a",
-    range: { kind: "uncommitted" },
+    range: DEFAULT_BRANCH_RANGE,
     result: summary([big, file("b.ts")]),
   });
 
@@ -453,7 +453,7 @@ test("a run that settles reads the review the thread has open again", () => {
   });
 
   assert.deepEqual(settled.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "task-a", workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: true },
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
   ]);
 });
 
@@ -518,14 +518,14 @@ test("a review composed in the draft is asked for again under the thread the sen
   const taskId = startRunEffect(started.effects).command.taskId;
 
   assert.deepEqual(started.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: { kind: "uncommitted" }, ignoreWhitespace: true },
+    { type: "read-diff", owner: taskId, workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
   ], "the read is re-issued under the new thread");
 
   /** The reply the draft asked for is stale and drops; the one the thread asked for lands. */
-  const stale = reduce(started.state, { type: "diff.loaded", owner: "draft", workspaceId: "workspace-a", range: { kind: "uncommitted" }, result: summary([file("ghost.ts")]) });
+  const stale = reduce(started.state, { type: "diff.loaded", owner: "draft", workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, result: summary([file("ghost.ts")]) });
   assert.equal(diffFor(stale.state, taskId).loading, true);
 
-  const landed = reduce(stale.state, { type: "diff.loaded", owner: taskId, workspaceId: "workspace-a", range: { kind: "uncommitted" }, result: summary([file("a.ts")]) });
+  const landed = reduce(stale.state, { type: "diff.loaded", owner: taskId, workspaceId: "workspace-a", range: DEFAULT_BRANCH_RANGE, result: summary([file("a.ts")]) });
   assert.equal(diffFor(landed.state, taskId).loading, false);
   assert.deepEqual(availableResult(diffFor(landed.state, taskId)).files.map((item) => item.path), ["a.ts"]);
 });
@@ -544,12 +544,12 @@ test("a thread that moves into a worktree reviews the checkout it moved to", () 
   });
 
   assert.deepEqual(moved.effects.filter((effect) => effect.type === "read-diff"), [
-    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: { kind: "uncommitted" }, ignoreWhitespace: true },
+    { type: "read-diff", owner: "task-a", workspaceId: "workspace-wt", range: DEFAULT_BRANCH_RANGE, ignoreWhitespace: true },
   ]);
   assert.equal(diffFor(moved.state, "task-a").workspaceId, "workspace-wt");
   assert.equal(diffFor(moved.state, "task-a").result, null, "the old checkout's list is not what this one holds");
 
-  const landed = reduce(moved.state, { type: "diff.loaded", owner: "task-a", workspaceId: "workspace-wt", range: { kind: "uncommitted" }, result: summary([file("b.ts")]) });
+  const landed = reduce(moved.state, { type: "diff.loaded", owner: "task-a", workspaceId: "workspace-wt", range: DEFAULT_BRANCH_RANGE, result: summary([file("b.ts")]) });
   assert.deepEqual(availableResult(diffFor(landed.state, "task-a")).files.map((item) => item.path), ["b.ts"]);
 });
 
@@ -559,7 +559,7 @@ test("a fresh draft compares its own project, not the last draft's", () => {
   ]);
   const fresh = reduce(reviewed, { type: "task.new" });
 
-  assert.deepEqual(diffFor(fresh.state, "draft").range, { kind: "uncommitted" });
+  assert.deepEqual(diffFor(fresh.state, "draft").range, DEFAULT_BRANCH_RANGE);
 });
 
 test("a checkout the app cannot name leaves the review with nothing to read", () => {

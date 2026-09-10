@@ -249,6 +249,14 @@ export type DiffRange =
   | { kind: "commit"; commit: string }
   | { kind: "branches"; base: string; compare: string | null };
 
+export type DiffMode = "uncommitted" | "commits" | "branch";
+
+export function modeForRange(range: DiffRange): DiffMode {
+  return range.kind === "branches" ? "branch" : range.kind === "commit" ? "commits" : "uncommitted";
+}
+
+export const DEFAULT_BRANCH_RANGE: Extract<DiffRange, { kind: "branches" }> = { kind: "branches", base: "HEAD", compare: null };
+
 export const UNCOMMITTED: DiffRange = { kind: "uncommitted" };
 
 export function rangeKey(range: DiffRange) {

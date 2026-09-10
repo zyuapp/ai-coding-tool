@@ -6,6 +6,7 @@ import { reduceProjectCommands } from "./projects.js";
 import { reduceRuns } from "./runs.js";
 import { reduceAutomations } from "./automations.js";
 import { reduceSideChats } from "./side-chats.js";
+import { reduceDiffCommits } from "./diff-commits.js";
 import { reduceDiffs } from "./diffs.js";
 import { reduceStore } from "./store.js";
 import { reduceComposer } from "./composer.js";
@@ -62,6 +63,10 @@ export function apply(state: WorkspaceState, input: Exclude<WorkspaceInput, { ty
 
     case "side-chat.open": case "side-chat.close":
       return reduceSideChats(state, input);
+
+    case "diff.set-mode": case "diff.open-commits": case "diff.search-commits":
+    case "diff.page-commits": case "diff.select-commit": case "diff.commits-loaded":
+      return reduceDiffCommits(state, input);
 
     case "view.refresh-environment": case "diff.toggle": case "diff.refresh": case "diff.open-commit":
     case "diff.set-range": case "diff.set-collapsed": case "diff.set-viewed":

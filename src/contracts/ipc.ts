@@ -1,3 +1,5 @@
+import type { BranchesResult, CommitHistoryRequest, CommitHistoryResult } from "./git.js";
+export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
@@ -99,11 +101,6 @@ export type CreateWorktreeRequest = {
  * reducer says that; the desktop only reports what it did on disk.
  */
 export type CreatedWorktree = Omit<Worktree, "projectId">;
-
-export type BranchesResult =
-  /** `branches` are local and can be moved onto; `remotes` can only be compared against. */
-  | { status: "available"; branches: string[]; remotes: string[]; current: string | null }
-  | { status: "error"; message: string };
 
 export type ReleaseWorktreeRequest = {
   worktreeId: string;
@@ -241,6 +238,7 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string, ignoreWhitespace?: boolean): Promise<DiffPatchResult>;
   /** The local branches a thread can start from, newest first. */
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
+  commitHistory(workspaceId: WorkspaceId, request: CommitHistoryRequest): Promise<CommitHistoryResult>;
   /** What the checkout has to say about its pull request, including that `gh` is not installed. */
   pullRequest(workspaceId: WorkspaceId): Promise<PullRequestAnswer>;
   /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */

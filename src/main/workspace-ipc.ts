@@ -26,6 +26,20 @@ async function readChangedFiles(host: WorkspaceIpcHost, workspaceId: string) {
 }
 
 export function registerWorkspaceIpc(host: WorkspaceIpcHost, trusted: (event: IpcMainInvokeEvent) => boolean) {
+  ipcMain.handle("workspace:commits", async (event, workspaceId: unknown, request: unknown) => {
+    if (!trusted(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
+    const { isCommitHistoryRequest } = await import("../domain/commit-history.js");
+    if (!isCommitHistoryRequest(request)) return { status: "error", message: "Invalid commit search." } as const;
+    try {
+      const resolution = await host.workspaces().resolve(worktreePath(workspaceId));
+      if (resolution.status !== "available") throw new Error(`Workspace is unavailable (${resolution.reason}).`);
+      const { commitHistory } = await import("./workspace/git-commits.mjs");
+      return await commitHistory(resolution.workspace.root, request);
+    } catch (error) {
+      return { status: "error", message: error instanceof Error ? error.message : String(error) } as const;
+    }
+  });
+
   ipcMain.handle("workspace:branches", async (event, workspaceId: unknown) => {
     if (!trusted(event)) return { status: "error", message: "Untrusted IPC sender." } as const;
     try {

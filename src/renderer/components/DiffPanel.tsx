@@ -17,7 +17,7 @@ import {
 import { useDrawnFiles, usePanelRows, usePinnedFile, useRoomForTwo, useSelectionSpan, useTickThrough } from "../diff/use-panel";
 import { useReadWholeReview, useReviewFind } from "../diff/use-review-find";
 import { useLazyColours } from "../diff/use-colours";
-import { DiffToolbar } from "./DiffToolbar";
+import { DiffToolbar, type DiffPickerActions } from "./DiffToolbar";
 import { PanelRowView, PinnedFileRow } from "./DiffRows";
 
 /** What an unwrapped line costs. Rows wrap, so the windowing measures each one and corrects this. */
@@ -26,9 +26,10 @@ const ROW_HEIGHT = 20;
 /** Above this many rows the review is windowed; a short one is cheaper, and steadier, drawn whole. */
 const VIRTUALIZE_ABOVE = 200;
 
-export type DiffPanelProps = {
+export type DiffPanelProps = DiffPickerActions & {
   diff: DiffState;
   workspaceId?: string;
+  currentBranch?: string | null;
   onSetRange: (range: DiffRange) => void;
   onSetCollapsed: (path: string, collapsed: boolean) => void;
   onSetViewed: (path: string, viewed: boolean) => void;
@@ -102,7 +103,7 @@ function ReviewProgress({ files, viewed, additions, deletions }: {
 export function DiffPanel({
   diff,
   workspaceId,
-  onSetRange,
+  currentBranch,
   onSetCollapsed,
   onSetViewed,
   onSetSplit,
@@ -117,6 +118,7 @@ export function DiffPanel({
   onSetOpenMenu,
   find = null,
   onFindResults,
+  ...comparisonActions
 }: DiffPanelProps) {
   const available = diff.result?.status === "available" ? diff.result : null;
   const files = useMemo(() => available?.files ?? [], [available]);
@@ -168,7 +170,7 @@ export function DiffPanel({
   }, [selection?.path, selection?.anchor]);
 
   /** A comparison that changes is a different set of lines, so a range picked in the last one is gone. */
-  useEffect(() => { setSelection(null); setNote(""); setEditing(null); }, [diff.range]);
+  useEffect(() => { setSelection(null); setNote(""); setEditing(null); }, [diff.range, diff.mode, workspaceId]);
   const quote = selection && span?.rows.length ? commentQuote(selection.path, span.rows, selectionSide(span.rows)) : null;
 
   const selectByKey = (path: string, key: string, extend: boolean) => {
@@ -226,21 +228,21 @@ export function DiffPanel({
   return (
     <section className="diff-panel" aria-label="Changes" ref={panelRef}>
       <DiffToolbar
-        range={diff.range}
-        loading={diff.loading}
+        {...comparisonActions}
+        diff={diff}
         split={split}
         roomForTwo={roomForTwo}
-        ignoreWhitespace={diff.ignoreWhitespace}
+        currentBranch={currentBranch}
         {...(workspaceId ? { workspaceId } : {})}
         openMenu={openMenu}
         onSetOpenMenu={onSetOpenMenu}
-        onSetRange={onSetRange}
         onToggleSplit={() => onSetSplit(!diff.split)}
         onToggleWhitespace={() => onSetIgnoreWhitespace(!diff.ignoreWhitespace)}
         onRefresh={onRefresh}
       />
 
       {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} />}
+      {diff.mode === "commits" && diff.range.kind !== "commit" && <p className="session-note">{diff.history?.loading ? "Reading commits…" : "Choose a commit to review"}</p>}
       {notice && <p className="session-note">{notice}</p>}
 
       <div className="diff-scroll">

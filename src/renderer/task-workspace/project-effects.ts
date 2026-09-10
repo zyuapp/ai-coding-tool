@@ -5,8 +5,27 @@ import type { EffectHost, EnvironmentRefreshEffect } from "./effect-host";
 /** The project's folder, its checkouts, and what Git says about them. */
 export type ProjectEffect = Extract<WorkspaceEffect, {
   type: "pick-project" | "register-project" | "create-worktree" | "release-worktree" | "list-worktrees"
-    | "reveal-worktree" | "delete-worktree" | "refresh-environment" | "read-diff" | "checkout-branch";
+    | "reveal-worktree" | "delete-worktree" | "refresh-environment" | "read-diff" | "read-commits" | "checkout-branch";
 }>;
+
+/** Typing replaces a pending search before Git starts. Each runtime owns its own pending requests. */
+const commitSearches = new WeakMap<EffectHost["environmentRefreshes"], Map<string, string>>();
+
+async function readCommits(effect: Extract<ProjectEffect, { type: "read-commits" }>, host: EffectHost) {
+  let pending = commitSearches.get(host.environmentRefreshes);
+  if (!pending) { pending = new Map(); commitSearches.set(host.environmentRefreshes, pending); }
+  pending.set(effect.owner, effect.requestId);
+  if (effect.debounce) await new Promise((resolve) => setTimeout(resolve, 180));
+  if (pending.get(effect.owner) !== effect.requestId) return;
+  try {
+    const result = await host.desktop.commitHistory(effect.workspaceId, effect.request);
+    await host.dispatch({ type: "diff.commits-loaded", owner: effect.owner, workspaceId: effect.workspaceId, requestId: effect.requestId, result });
+  } catch (error) {
+    await host.dispatch({ type: "diff.commits-loaded", owner: effect.owner, workspaceId: effect.workspaceId, requestId: effect.requestId, result: { status: "error", message: errorMessage(error) } });
+  } finally {
+    if (pending.get(effect.owner) === effect.requestId) pending.delete(effect.owner);
+  }
+}
 
 /** One Git scan per checkout. A tick during a slow scan replaces the one follow-up still needed. */
 async function refreshEnvironment(first: EnvironmentRefreshEffect, host: EffectHost) {
@@ -128,6 +147,9 @@ export async function runProjectEffect(effect: ProjectEffect, host: EffectHost):
         });
       }
       return;
+
+    case "read-commits":
+      return readCommits(effect, host);
 
     case "checkout-branch":
       try {

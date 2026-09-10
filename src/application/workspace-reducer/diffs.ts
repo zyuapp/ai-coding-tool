@@ -5,7 +5,8 @@ import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
-import { fileFingerprint, rangeKey } from "../../domain/diff.js";
+import { fileFingerprint, modeForRange, rangeKey } from "../../domain/diff.js";
+import { readCommits } from "./diff-commits.js";
 import { isCommitHash } from "../../domain/message-artifacts.js";
 
 type DiffInput = Extract<WorkspaceInput, {
@@ -24,7 +25,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const dock = dockFor(state, owner);
       const opened = withDock(state, owner, { panels: dock.panels.includes(DIFF_PANEL) ? dock.panels : [...dock.panels, DIFF_PANEL] });
       const shown = focusDockTab(showDockTab(opened, owner, DIFF_PANEL), owner, DIFF_PANEL);
-      const read = readDiffFrom(shown.state, owner, workspaceId, { kind: "commit", commit: input.commit }, { result: null, collapsed: [], viewed: {} });
+      const read = readDiffFrom(shown.state, owner, workspaceId, { kind: "commit", commit: input.commit }, { mode: "commits", result: null, collapsed: [], viewed: {} });
       return { ...read, effects: [...shown.effects, ...browserEffectsForTab(read.state, owner, DIFF_PANEL), ...read.effects] };
     }
     /** A thread with no checkout has nothing to read; what other checkouts said is still theirs. */
@@ -41,14 +42,17 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
 
     case "diff.refresh": {
       const owner = dockOwner(state);
+      const diff = diffFor(state, owner);
+      if (diff.mode === "commits" && diff.range.kind !== "commit") return readCommits(state, owner, { query: "", offset: 0 });
       return readDiff(state, owner, diffFor(state, owner).range);
     }
 
     case "diff.set-range": {
       const owner = dockOwner(state);
-      if (rangeKey(diffFor(state, owner).range) === rangeKey(input.range)) return settled(state);
+      const diff = diffFor(state, owner);
+      if (diff.mode === modeForRange(input.range) && rangeKey(diff.range) === rangeKey(input.range)) return settled(state);
       /** A different comparison is a different set of files, so nothing carries over but the layout. */
-      return readDiff(state, owner, input.range, { result: null, collapsed: [], viewed: {} });
+      return readDiff(state, owner, input.range, { mode: modeForRange(input.range), result: null, collapsed: [], viewed: {} });
     }
 
     case "diff.set-collapsed": {

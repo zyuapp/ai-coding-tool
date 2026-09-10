@@ -76,6 +76,7 @@ async function resolveBase(root: string, range: DiffRange) {
   if (range.kind === "commit") throw new Error("Commit comparisons resolve both revisions together.");
   if (range.kind === "uncommitted") return await hasCommits(root) ? "HEAD" : EMPTY_TREE;
   const head = range.compare ?? "HEAD";
+  if (range.base === "HEAD" && head === "HEAD" && !(await hasCommits(root))) return EMPTY_TREE;
   try {
     const mergeBase = (await run(root, ["merge-base", range.base, head])).trim();
     if (mergeBase) return mergeBase;

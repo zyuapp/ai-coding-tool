@@ -26,7 +26,7 @@ export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHo
 
     case "pick-project": case "register-project": case "create-worktree": case "release-worktree":
     case "list-worktrees": case "reveal-worktree": case "delete-worktree": case "refresh-environment":
-    case "read-diff": case "checkout-branch":
+    case "read-diff": case "read-commits": case "checkout-branch":
       return runProjectEffect(effect, host);
 
     case "image.download": case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "browser.open": case "browser.navigate":

@@ -11,6 +11,7 @@ import type { BrowserAction } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
 import type { ConversationMessage } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
+import type { CommitHistoryRequest, CommitHistoryResult } from "../../domain/commit-history.js";
 import type { FindResults, FindTarget } from "../../domain/find.js";
 import type { SubagentActivity } from "../../domain/run.js";
 import type { ShortcutOverrides } from "../../domain/shortcuts.js";
@@ -55,6 +56,7 @@ export type WorkspaceEvent =
   | { type: "environment.updated"; workspaceId: string; taskId?: string; runId?: string; result: ChangedFilesResult }
   /** A comparison's file list, named by the dock that asked so a slow read cannot land in another. */
   | { type: "diff.loaded"; owner: string; workspaceId: string; range: DiffRange; result: DiffSummaryResult }
+  | { type: "diff.commits-loaded"; owner: string; workspaceId: string; requestId: string; result: CommitHistoryResult }
   /** What a page in the browser panel did. Main watches the page; the reducer keeps the record. */
   | { type: "browser.updated"; page: BrowserPageEvent }
   /** What a shell did. Its output is not here: that goes straight to the view and never becomes state. */
@@ -99,6 +101,7 @@ export type WorkspaceEffect =
   | { type: "send-run-command"; command: CancelRunCommand | AnswerQuestionCommand | ApprovalDecisionCommand | SteerRunCommand | StopProcessCommand | LabelThreadCommand }
   | { type: "refresh-environment"; workspaceId: string; taskId?: string; runId?: string }
   | { type: "read-diff"; owner: string; workspaceId: string; range: DiffRange; ignoreWhitespace: boolean }
+  | { type: "read-commits"; owner: string; workspaceId: string; requestId: string; request: CommitHistoryRequest; debounce: boolean }
   /** Moves a checkout onto a branch, making it at that checkout's HEAD first when `create`. */
   | { type: "checkout-branch"; workspaceId: string; branch: string; create?: boolean }
   | { type: "suggest-title"; taskId: string; engine: AgentEngine; text: string; attachments: string[] }

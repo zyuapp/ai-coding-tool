@@ -8,6 +8,7 @@ import { isCaptureOptions } from "../domain/capture.js";
 import { isScreenshotContext } from "../domain/screenshot-context.js";
 import type { Annotation, AnnotationAnchor, AttachedFile, AttachedFileDraft, PastedText, RunAttachment } from "../domain/conversation.js";
 import { isDiffRange } from "../domain/diff.js";
+import { isCommitQuery } from "../domain/commit-history.js";
 import { isCommitHash, isImageSource } from "../domain/message-artifacts.js";
 import type { FindTarget } from "../domain/find.js";
 import { isReviewTarget } from "../domain/review.js";
@@ -118,6 +119,11 @@ const shapes = {
   "diff.toggle": {  },
   "diff.refresh": {  },
   "diff.set-range": { range: isDiffRange },
+  "diff.set-mode": { mode: literals("uncommitted", "commits", "branch") },
+  "diff.open-commits": {},
+  "diff.search-commits": { query: isCommitQuery },
+  "diff.page-commits": { direction: step },
+  "diff.select-commit": { commit: isCommitHash },
   "diff.set-collapsed": { path: text, collapsed: boolean },
   "diff.set-viewed": { path: text, viewed: boolean },
   "diff.set-split": { split: boolean },

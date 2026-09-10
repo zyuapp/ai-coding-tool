@@ -31,6 +31,7 @@ const PATHS = ["src/app.ts", "src/deep/nested/second.ts"];
 
 function diffState(): DiffState {
   return {
+    mode: "uncommitted",
     workspaceId: "workspace-1",
     range: { kind: "uncommitted" },
     result: {
@@ -54,6 +55,11 @@ function panel(overrides: Partial<DiffPanelProps> = {}): React.ReactElement {
     diff: diffState(),
     workspaceId: "workspace-1",
     onSetRange: () => {},
+    onSetMode: () => {},
+    onOpenCommits: () => {},
+    onSearchCommits: () => {},
+    onPageCommits: () => {},
+    onSelectCommit: () => {},
     onSetCollapsed: () => {},
     onSetViewed: () => {},
     onSetSplit: () => {},

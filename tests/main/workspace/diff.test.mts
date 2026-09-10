@@ -6,6 +6,7 @@ import path from "node:path";
 import { test, describe } from "vitest";
 import { promisify } from "node:util";
 import {
+  DEFAULT_BRANCH_RANGE,
   commentQuote,
   diffRows,
   fileFingerprint,
@@ -273,7 +274,7 @@ test("a branch comparison measures from where the two sides last agreed", async 
   assert.deepEqual(result.files.map((file) => file.path), ["mine.txt"]);
 });
 
-test("a repository with no commits lists what it holds instead of failing", async (t) => {
+test.for([{ kind: "uncommitted" as const }, DEFAULT_BRANCH_RANGE])("a repository with no commits lists what it holds (%s)", async (range, t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "aicodingtool-diff-empty-"));
   t.onTestFinished(() => rm(root, { recursive: true, force: true }));
   await git(root, "init", "-b", "main");
@@ -282,11 +283,11 @@ test("a repository with no commits lists what it holds instead of failing", asyn
   await git(root, "config", "commit.gpgsign", "false");
   await writeFile(path.join(root, "first.txt"), "one\ntwo\n");
 
-  const result = await diffSummary("fixture", { kind: "uncommitted" }, workspaces(root));
+  const result = await diffSummary("fixture", range, workspaces(root));
   assertAvailable(result);
   assert.deepEqual(result.files.map((file) => [file.path, file.additions]), [["first.txt", 2]]);
 
-  const patch = await diffPatch("fixture", { kind: "uncommitted" }, "first.txt", workspaces(root));
+  const patch = await diffPatch("fixture", range, "first.txt", workspaces(root));
   assertAvailable(patch);
   assert.deepEqual(parseFilePatch(patch.patch, "first.txt").hunks[0].rows.map((row) => row.text), ["one", "two"]);
 });
