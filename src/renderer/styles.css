@@ -3536,8 +3536,9 @@ button.file-name { cursor: pointer; }
   line-height: 1.5;
 }
 .composer textarea::placeholder { color: var(--quiet-soft); }
-.composer-bar { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px 9px 8px; }
-.composer-settings { position: relative; min-width: 0; display: flex; align-items: center; gap: 4px; }
+/** Settings wrap as whole controls; Send/Stop keeps its own space at the bottom right. */
+.composer-bar { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; padding: 7px 9px 9px 8px; }
+.composer-settings { position: relative; flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .fast-mode-toggle {
   display: grid;
   place-items: center;
@@ -3553,7 +3554,7 @@ button.file-name { cursor: pointer; }
 }
 .fast-mode-toggle:hover { background: var(--wash); color: var(--ink); }
 .fast-mode-toggle[aria-pressed="true"] { background: var(--accent-chip); color: var(--accent-bright); }
-.setting-menu { position: relative; color: var(--quiet-strong); font-size: var(--text-control); }
+.setting-menu { flex: none; color: var(--quiet-strong); font-size: var(--text-control); }
 .setting-menu > summary {
   display: flex;
   align-items: baseline;
@@ -3575,7 +3576,8 @@ button.file-name { cursor: pointer; }
 .setting-popover {
   position: absolute;
   z-index: 20;
-  bottom: 39px;
+  /** Anchor above the whole settings group, including when its controls wrap. */
+  bottom: calc(100% + 9px);
   left: -4px;
   width: min(560px, calc(100cqw - 40px));
   /** The list scrolls rather than growing past the top of the window on a long model roster. */
@@ -3627,7 +3629,7 @@ button.setting-hint:hover { color: var(--ink); }
 .setting-icon, .setting-check { display: grid; place-items: center; }
 .setting-icon { color: var(--muted-strong); }
 .setting-check { color: var(--ink-faint); }
-.composer-actions { display: flex; align-items: center; gap: 12px; }
+.composer-actions { flex: none; display: flex; align-items: center; gap: 12px; }
 .context-usage {
   position: relative;
   display: grid;
@@ -3669,6 +3671,7 @@ button.setting-hint:hover { color: var(--ink); }
 .context-usage:hover .context-usage-tooltip,
 .context-usage:focus-visible:where(:root:not([data-focus-appearance="quiet"]) *) .context-usage-tooltip { opacity: 1; transform: translate(-50%, 0); }
 .send-button {
+  flex: none;
   width: 32px;
   height: 32px;
   border: 0;
@@ -3691,6 +3694,9 @@ button.setting-hint:hover { color: var(--ink); }
 }
 @container (max-width: 300px) {
   .context-usage { display: none; }
+  .composer-settings { gap: 0; }
+  .composer-bar { gap: 6px; padding-left: 10px; }
+  .setting-menu > summary { padding-inline: 6px; }
 }
 
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.35; } 30% { transform: translateY(-4px); opacity: 1; } }
@@ -3750,9 +3756,6 @@ button.setting-hint:hover { color: var(--ink); }
   /** The panel takes the whole width here, so the bar sits over it instead of beside it. */
   .workspace.summary-open .work-area > .find-slot > .find-bar { right: clamp(20px, 4vw, 64px); }
   .composer-wrap { padding: 10px 14px 14px; }
-  .composer-settings { gap: 0; }
-  .composer-bar { padding-left: 10px; }
-  .setting-menu > summary { padding-inline: 6px; }
   .command-menu { max-height: min(330px, calc(100vh - 220px)); border-radius: 13px; }
   .command-option { grid-template-columns: 32px minmax(0, 1fr); }
   .command-source { display: none; }
@@ -4105,7 +4108,6 @@ button.setting-hint:hover { color: var(--ink); }
 }
 .tooltip[data-placed] { visibility: visible; }
 
-.setting-menu:has(.model-library) { position: static; }
 .model-library { width: min(620px, calc(100cqw - 40px)); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .model-search { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); color: var(--quiet); flex-shrink: 0; }
 .model-search input { min-width: 0; flex: 1; border: 0; background: transparent; color: var(--ink); font: inherit; padding: 5px 0; outline: none; }
@@ -4143,4 +4145,14 @@ button.setting-hint:hover { color: var(--ink); }
   .model-provider-rail button { gap: 6px; padding-inline: 5px; }
   .model-row-icon { display: none; }
   .model-library-footer span { display: none; }
+}
+/** At composer widths that wrap controls, give the models the full menu width. */
+@container (max-width: 300px) {
+  .model-library { width: calc(100cqw - 16px); }
+  .model-library-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .model-provider-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-right: 0; border-bottom: 1px solid var(--line-soft); }
+  .model-provider-rail button { gap: 4px; padding-inline: 3px; }
+  .model-provider-rail button > span:last-child { display: none; }
+  .model-provider-rail hr { display: none; }
+  .model-results { padding-inline: 6px; }
 }
