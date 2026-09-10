@@ -48,6 +48,39 @@ test("movement keys keep a mouse-focused control quiet unless focus moves", asyn
   assert.equal(keyboardFocusVisible(), true, "existing keyboard navigation stays visible");
 });
 
+test("spaces and newlines in text fields preserve quiet focus appearance", () => {
+  for (const tag of ["textarea", "input"]) {
+    const field = document.createElement(tag);
+    document.body.append(field);
+    window.dispatchEvent(new dom.window.PointerEvent("pointerdown"));
+    field.focus();
+    for (const [key, extra] of [["h", {}], [" ", {}], ["i", {}], ["Enter", { shiftKey: true }], ["Enter", {}]] as const) {
+      press(key, extra, field);
+      assert.equal(keyboardFocusVisible(), false, `${tag}: ${JSON.stringify(key)}`);
+      assert.equal(document.activeElement, field);
+    }
+    press("Tab", {}, field);
+    assert.equal(keyboardFocusVisible(), true, "Tab still starts keyboard navigation from a text field");
+    press(" ", {}, field);
+    assert.equal(keyboardFocusVisible(), true, "typing preserves a field reached through keyboard navigation");
+  }
+});
+
+test("Space and Enter still highlight keyboard-operated buttons and checkboxes", () => {
+  const button = document.createElement("button");
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  document.body.append(button, checkbox);
+  for (const control of [button, checkbox]) {
+    for (const key of [" ", "Enter"]) {
+      window.dispatchEvent(new dom.window.PointerEvent("pointerdown"));
+      control.focus();
+      press(key, {}, control);
+      assert.equal(keyboardFocusVisible(), true);
+    }
+  }
+});
+
 test("movement intent is cleared by pointer input and window switching", () => {
   const button = document.createElement("button");
   document.body.append(button);

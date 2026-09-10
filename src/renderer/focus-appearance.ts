@@ -26,6 +26,13 @@ export function installFocusAppearance() {
   const keydown = (event: KeyboardEvent) => {
     clearMovement();
     if (!focused || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || !NAVIGATION_KEYS.has(event.key)) return;
+    const target = event.target instanceof HTMLElement ? event.target : document.activeElement;
+    const editingText = target instanceof HTMLElement && (
+      target.matches('textarea, input:not([type="button"], [type="submit"], [type="reset"], [type="image"], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"])')
+      || target.isContentEditable
+    );
+    // Space and Enter are text entry here, not keyboard activation of a control.
+    if (editingText && (event.key === " " || event.key === "Enter")) return;
     if (MOVEMENT_KEYS.has(event.key)) {
       // Arrows can scroll or edit text without navigating away from a mouse-focused control.
       movementOrigin = document.activeElement;

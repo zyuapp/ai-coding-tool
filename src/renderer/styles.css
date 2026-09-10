@@ -261,7 +261,7 @@ button, select { color: inherit; }
 :root[data-focus-appearance="quiet"] :focus { outline: none; }
 :where(button, input, textarea, select, summary, a[href], [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible:where(:root:not([data-focus-appearance="quiet"]) *),
 :where(.agent-search, .font-select-search, .review-search, .thread-jump-search, .branch-menu-field, .thread-start-search-field, .model-search, .size-stepper):has(input:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *),
-:where(.composer, .diff-comment):has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) {
+:where(.diff-comment):has(textarea:focus-visible):where(:root:not([data-focus-appearance="quiet"]) *) {
   outline: 2px solid var(--focus-ring);
   /** Keep the indicator inside rows and controls whose parents clip overflow. */
   outline-offset: -2px;
