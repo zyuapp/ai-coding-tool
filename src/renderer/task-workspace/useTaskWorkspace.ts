@@ -24,7 +24,9 @@ export function useTaskWorkspace() {
   const runtime = held.current;
   const state = useSyncExternalStore(runtime.subscribe, runtime.getState);
   useEffect(() => { void runtime.start(); return () => runtime.dispose(); }, [runtime]);
-  useWorkspaceSubscriptions({ restored: state.restored, dispatch: runtime.dispatch });
+  const displayed = useRef(state);
+  displayed.current = state;
+  useWorkspaceSubscriptions({ restored: state.restored, dispatch: runtime.dispatch, displayedState: () => displayed.current });
   const view = useMemo(() => deriveView(state), [state]);
 
   /** Held still across renders, so a memoized view is not redrawn by a handler that only looks new. */

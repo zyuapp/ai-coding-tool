@@ -28,6 +28,9 @@ export function reduce(state: WorkspaceState, input: WorkspaceInput): WorkspaceT
   }
   const applied = reconcileSnoozes(state, apply(state, input), input);
   const transition = { ...applied, state: prunedWorkflowPanels(prunedFind(applied.state)) };
+  if (transition.state.browserOrigins !== state.browserOrigins || (input.type === "task.set-policy" && transition.state !== state) || input.type === "store.loaded" || input.type === "preferences.loaded" || transition.effects.some((effect) => ["browser.open", "browser.navigate", "browser.act", "browser.history", "browser.reload"].includes(effect.type))) {
+    transition.effects = [{ type: "browser.permissions", permissions: browserPermissions(transition.state) }, ...transition.effects];
+  }
   if (transition.state.currentId === state.currentId) return transition;
   if (transition.state.openMenu === "session:location") transition.state = { ...transition.state, openMenu: null };
   const landed = transition.state.currentId !== null && input.type !== "view.go-back" && input.type !== "view.go-forward"
@@ -106,8 +109,13 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "thread.new": return [...leaving, newThread];
     case "thread.new-worktree": return [...leaving, newThread, { type: "task.set-worktree", worktree: true }];
     case "run.cancel": return [{ type: "run.cancel" }];
-    case "run.allow": return [{ type: "run.decide", allow: true }];
-    case "run.deny": return [{ type: "run.decide", allow: false }];
+    case "run.allow":
+    case "run.deny": {
+      const taskId = state.sideChats.find((chat) => chat.id === state.keyboardTab)?.id ?? state.currentId;
+      const active = taskId ? state.activeRuns[taskId] : undefined;
+      const approval = active ? state.approvals[active.runId] : undefined;
+      return approval ? [{ type: "run.decide", taskId: approval.taskId, runId: approval.runId, approvalId: approval.approvalId, allow: action === "run.allow" }] : [];
+    }
     case "composer.focus": return [{ type: "view.focus-composer" }];
     case "effort.increase":
     case "effort.decrease": {
@@ -153,4 +161,8 @@ export function shortcutCommands(state: WorkspaceState, action: string, surface:
     case "settings.toggle": return [{ type: "view.set-settings-open", open: !state.settingsOpen }];
     default: return [];
   }
+}
+
+export function browserPermissions(state: WorkspaceState) {
+  return { origins: state.browserOrigins, autonomousTaskIds: state.threads.filter((thread) => thread.executionPolicy === "autonomous").map((thread) => thread.id) };
 }

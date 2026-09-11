@@ -8,7 +8,7 @@ import type { Project } from "../../domain/project";
 import { defaultEffortFor, defaultModelFor, type AgentEngine, type AgentModel } from "../../domain/agent-engine";
 import type { AgentEffort, ExecutionPolicy } from "../../domain/run";
 import type { ThreadHandleOption } from "../../domain/thread-handles";
-import { ApprovalCard } from "./ApprovalCard";
+import { ApprovalCard, type ApprovalCardProps } from "./ApprovalCard";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { ConversationComposer } from "./ConversationComposer";
 import { useFileDrop } from "../file-drop";
@@ -48,7 +48,7 @@ export function SideChat({ chat, engineLabel, focusToken = 0, find = null, findB
   onQuestionAnswerChange?: (question: QuestionAddress, text: string) => void;
   onSend: (attachments: RunAttachment[], steer: boolean) => void;
   onCancel: () => void;
-  onDecide: (allow: boolean) => void;
+  onDecide: ApprovalCardProps["onDecide"];
   onPolicyChange: (policy: ExecutionPolicy) => void;
   favoriteModels?: AgentModel[];
   onModelFavorite?: (model: AgentModel, favorite: boolean) => void;

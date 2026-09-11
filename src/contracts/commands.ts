@@ -166,7 +166,7 @@ export type RunControlCommand =
   | { type: "run.compact"; taskId?: string }
   | { type: "question.set-answer"; taskId: string; runId: string; requestId: string; questionId: string; text: string }
   | { type: "question.answer"; taskId: string; runId: string; requestId: string; questionId: string; text?: string }
-  | { type: "run.decide"; allow: boolean; taskId?: string }
+  | { type: "run.decide"; allow: boolean; taskId: string; runId: string; approvalId: string }
   /** Kills one process the run left running, without ending the run. */
   | { type: "run.stop-process"; taskId?: string; processId: string };
 
@@ -214,7 +214,7 @@ export type BrowserCommand =
   | { type: "browser.reload"; taskId?: string; tabId?: string }
   | { type: "browser.act"; taskId?: string; tabId?: string; action: BrowserAction }
   /** Answers the navigation a run is waiting on. Allowing it also allows that origin from now on. */
-  | { type: "browser.decide"; allow: boolean }
+  | { type: "browser.decide"; allow: boolean; approvalId: string }
   /** Signs the whole app out: cookies, storage, and caches for every site. */
   | { type: "browser.clear-data" };
 

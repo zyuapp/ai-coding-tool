@@ -7,7 +7,7 @@ import type { AgentEvent, AnswerQuestionCommand, ApprovalDecisionCommand, Automa
 import type { ViewPreferences } from "../../contracts/preferences.js";
 import type { AgentEngine } from "../../domain/agent-engine.js";
 import type { AutomationDraft, AutomationPatch, AutomationView } from "../../domain/automation.js";
-import type { BrowserAction } from "../../domain/browser.js";
+import type { BrowserAction, BrowserPermissions } from "../../domain/browser.js";
 import type { CaptureOptions } from "../../domain/capture.js";
 import type { ConversationMessage } from "../../domain/conversation.js";
 import type { DiffRange } from "../../domain/diff.js";
@@ -111,11 +111,12 @@ export type WorkspaceEffect =
   | { type: "automation.run-now"; taskId: string }
   | { type: "automation.ack"; ack: AutomationAck }
   /** The browser panel's pages. `open` is idempotent: a tab that already has a view keeps it. */
-  | { type: "browser.open"; tabId: string; url?: string }
-  | { type: "browser.navigate"; tabId: string; url: string }
-  | { type: "browser.history"; tabId: string; delta: -1 | 1 }
-  | { type: "browser.reload"; tabId: string }
-  | { type: "browser.act"; tabId: string; action: BrowserAction }
+  | { type: "browser.permissions"; permissions: BrowserPermissions }
+  | { type: "browser.open"; taskId?: string; tabId: string; url?: string }
+  | { type: "browser.navigate"; taskId?: string; tabId: string; url: string }
+  | { type: "browser.history"; taskId?: string; tabId: string; delta: -1 | 1 }
+  | { type: "browser.reload"; taskId?: string; tabId: string }
+  | { type: "browser.act"; taskId?: string; tabId: string; action: BrowserAction }
   | { type: "browser.close"; tabId: string }
   /** Which tab the panel shows. Where it shows is the panel's own to report. */
   | { type: "browser.show"; tabId: string | null }

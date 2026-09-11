@@ -19,26 +19,37 @@ export function browserPageUrl(value: unknown) {
   return value;
 }
 
+function browserTaskId(value: unknown) {
+  return value === undefined ? undefined : browserTabId(value);
+}
+
 export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boolean) {
-  ipcMain.handle("browser:open", (event, tabId: unknown, url: unknown) => {
+  ipcMain.handle("browser:permissions", (event, permissions: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    browser.openTab(browserTabId(tabId), url === undefined ? undefined : browserPageUrl(url));
+    if (!permissions || typeof permissions !== "object" || !("origins" in permissions) || !("autonomousTaskIds" in permissions)
+      || !Array.isArray(permissions.origins) || !permissions.origins.every((origin) => typeof origin === "string" && new URL(browserPageUrl(origin)).origin === origin)
+      || !Array.isArray(permissions.autonomousTaskIds) || !permissions.autonomousTaskIds.every((id) => typeof id === "string" && id.length > 0 && id.length <= 256)) throw new Error("Invalid browser permissions.");
+    browser.configurePermissions({ origins: permissions.origins, autonomousTaskIds: permissions.autonomousTaskIds });
+  });
+  ipcMain.handle("browser:open", (event, tabId: unknown, url: unknown, taskId: unknown) => {
+    if (!trusted(event)) throw new Error("Untrusted IPC sender.");
+    browser.openTab(browserTabId(tabId), url === undefined ? undefined : browserPageUrl(url), browserTaskId(taskId));
   });
 
-  ipcMain.handle("browser:navigate", (event, tabId: unknown, url: unknown) => {
+  ipcMain.handle("browser:navigate", (event, tabId: unknown, url: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    browser.navigate(browserTabId(tabId), browserPageUrl(url));
+    browser.navigate(browserTabId(tabId), browserPageUrl(url), browserTaskId(taskId));
   });
 
-  ipcMain.handle("browser:history", (event, tabId: unknown, delta: unknown) => {
+  ipcMain.handle("browser:history", (event, tabId: unknown, delta: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (delta !== 1 && delta !== -1) throw new Error("Invalid history step.");
-    browser.goHistory(browserTabId(tabId), delta);
+    browser.goHistory(browserTabId(tabId), delta, browserTaskId(taskId));
   });
 
-  ipcMain.handle("browser:reload", (event, tabId: unknown) => {
+  ipcMain.handle("browser:reload", (event, tabId: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
-    browser.reload(browserTabId(tabId));
+    browser.reload(browserTabId(tabId), browserTaskId(taskId));
   });
 
   ipcMain.handle("browser:close", (event, tabId: unknown) => {
@@ -57,30 +68,30 @@ export function registerBrowserIpc(trusted: (event: IpcMainInvokeEvent) => boole
     browser.setBounds(bounds);
   });
 
-  ipcMain.handle("browser:act", (event, tabId: unknown, action: unknown) => {
+  ipcMain.handle("browser:act", (event, tabId: unknown, action: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (!isBrowserAction(action)) throw new Error("Invalid browser action.");
-    return browser.act(browserTabId(tabId), action);
+    return browser.act(browserTabId(tabId), action, browserTaskId(taskId));
   });
 
-  ipcMain.handle("browser:read", (event, tabId: unknown, textLimit: unknown, timeoutMs: unknown) => {
+  ipcMain.handle("browser:read", (event, tabId: unknown, textLimit: unknown, timeoutMs: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (typeof textLimit !== "number" || typeof timeoutMs !== "number") throw new Error("Invalid page read.");
-    return browser.readPage(browserTabId(tabId), textLimit, timeoutMs);
+    return browser.readPage(browserTabId(tabId), textLimit, timeoutMs, browserTaskId(taskId));
   });
 
-  ipcMain.handle("browser:inspect", (event, tabId: unknown, inspection: unknown) => {
+  ipcMain.handle("browser:inspect", (event, tabId: unknown, inspection: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (!isBrowserRead(inspection) || !["console", "network", "wait"].includes(inspection.op) || "tabId" in inspection) {
       throw new Error("Invalid browser inspection.");
     }
-    return browser.inspectPage(browserTabId(tabId), inspection as BrowserInspection);
+    return browser.inspectPage(browserTabId(tabId), inspection as BrowserInspection, browserTaskId(taskId));
   });
 
-  ipcMain.handle("browser:capture", (event, tabId: unknown, fullPage: unknown, timeoutMs: unknown) => {
+  ipcMain.handle("browser:capture", (event, tabId: unknown, fullPage: unknown, timeoutMs: unknown, taskId: unknown) => {
     if (!trusted(event)) throw new Error("Untrusted IPC sender.");
     if (typeof fullPage !== "boolean" || typeof timeoutMs !== "number") throw new Error("Invalid page capture.");
-    return browser.capturePage(browserTabId(tabId), fullPage, timeoutMs);
+    return browser.capturePage(browserTabId(tabId), fullPage, timeoutMs, browserTaskId(taskId));
   });
 
   ipcMain.handle("browser:find", (event, tabId: unknown, query: unknown, forward: unknown, findNext: unknown) => {

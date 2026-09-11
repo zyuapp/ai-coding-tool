@@ -80,7 +80,7 @@ test("workspace hook runs a projectless task and scopes events, approvals, and c
   await settleFrame();
   assert.equal(item(workspace.get().currentThread).messages.length, 2);
   assert.equal(item(workspace.get().approval).approvalId, "approval-1");
-  await act(async () => { workspace.get().actions.decideApproval(true); workspace.get().actions.cancelRun(); });
+  await act(async () => { workspace.get().actions.decideApproval(item(workspace.get().approval), true); workspace.get().actions.cancelRun(); });
   assert.deepEqual(desktop.sent.slice(1).map((command) => command.type), ["approval", "cancel"]);
 
   await workspace.view.unmount();

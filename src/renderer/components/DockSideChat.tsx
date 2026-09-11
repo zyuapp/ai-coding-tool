@@ -34,7 +34,7 @@ function chatHandlers(dispatch: Dispatch, chatId: string, images: SideChatView["
     onReadingPointMove: (point: ReadingPoint) => void dispatch({ type: "view.reading-point", taskId: chatId, point }),
     onSend: (attachments: RunAttachment[], steer: boolean) => void dispatch({ type: "task.send", taskId: chatId, attachments, steer }),
     onCancel: () => void dispatch({ type: "run.cancel", taskId: chatId }),
-    onDecide: (allow: boolean) => void dispatch({ type: "run.decide", allow, taskId: chatId }),
+    onDecide: ({ runId, approvalId }: { runId: string; approvalId: string }, allow: boolean) => void dispatch({ type: "run.decide", allow, taskId: chatId, runId, approvalId }),
     onPolicyChange: (policy: ExecutionPolicy) => void dispatch({ type: "task.set-policy", taskId: chatId, policy }),
     onModelFavorite: (model: AgentModel, favorite: boolean) => void dispatch({ type: "view.set-model-favorite", model, favorite }),
     onModelChange: (engine: AgentEngine, model: AgentModel) => void dispatch({ type: "task.set-model", taskId: chatId, engine, model }),

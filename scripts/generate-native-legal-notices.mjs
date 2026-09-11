@@ -1,5 +1,5 @@
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
-import { userInfo } from "node:os";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { parse } from "smol-toml";
@@ -8,7 +8,7 @@ import {
   checkNativeReports, legalDirectory, normalized, projectRoot, readReceipt, receiptPath,
   reportDefinitions, reusableReport, sha256, target, ubjsBuildScript, ubjsBuildScriptSha256,
 } from "./legal/native-reports.mjs";
-import { atomicWrite, nativeTools, run, sourceTree } from "./legal/native-tools.mjs";
+import { atomicWrite, nativeTools, privateCache, run, sourceTree } from "./legal/native-tools.mjs";
 
 async function verifyBuildInputs(cua) {
   if (sha256(await readFile(path.join(cua.directory, ubjsBuildScript))) !== ubjsBuildScriptSha256) {
@@ -88,7 +88,7 @@ async function generateReport(definition, source, tools, scratch) {
   };
 }
 
-export async function generateNativeReports({ force = false, cache = `/tmp/ai-coding-tool-native-licenses-${userInfo().uid}` } = {}) {
+export async function generateNativeReports({ force = false, cache = path.join(homedir(), ".cache", "ai-coding-tool", "native-licenses") } = {}) {
   const definitions = await reportDefinitions();
   const receipt = await readReceipt();
   const current = new Map(await Promise.all(definitions.map(async (definition) => [
@@ -99,7 +99,7 @@ export async function generateNativeReports({ force = false, cache = `/tmp/ai-co
     console.log("Native reports verified; both reused without downloads or Rust tooling.");
     return;
   }
-  await mkdir(cache, { recursive: true, mode: 0o700 });
+  cache = await privateCache(cache);
   const scratch = await mkdtemp(path.join(cache, "run-"));
   const next = { schema: 1, reports: {} };
   const results = new Map();

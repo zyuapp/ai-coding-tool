@@ -147,18 +147,18 @@ export function persistView(state: WorkspaceState): WorkspaceEffect[] {
  * own load takes the panel: a run leaves the dock on whatever tab it was showing, open or closed,
  * and its page loads parked out of sight.
  */
-export function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean): WorkspaceTransition {
+export function loadBrowserPage(state: WorkspaceState, owner: string, url: string, tabId: string | undefined, newTab: boolean, byUser: boolean, taskId?: string): WorkspaceTransition {
   const origin = browserOrigin(url);
   const allowing = byUser && origin && !state.browserOrigins.includes(origin);
   const remembered = allowing ? { ...state, browserOrigins: [...state.browserOrigins, origin] } : state;
   const target = newTab ? undefined : browserTarget(dockFor(remembered, owner), tabId);
-  const cleared = { ...remembered, browserApproval: null, actionError: null };
+  const cleared = { ...remembered, browserApproval: remembered.browserApproval?.tabId === target?.id ? null : remembered.browserApproval, actionError: null };
   if (target) {
     const surfaced = byUser ? showDockTab(cleared, owner, target.id) : cleared;
     const shown = withDock(patchBrowserTab(surfaced, owner, target.id, { url, loading: true, error: undefined }), owner, { browserTabId: target.id });
     const navigating = byUser ? focusDockTab(shown, owner, target.id) : settled(shown);
     return settled(navigating.state, [
-      { type: "browser.navigate", tabId: target.id, url },
+      { type: "browser.navigate", tabId: target.id, url, ...(taskId ? { taskId } : {}) },
       ...persistView(navigating.state),
       ...navigating.effects,
     ]);
@@ -168,7 +168,7 @@ export function loadBrowserPage(state: WorkspaceState, owner: string, url: strin
   const shown = withDock(surfaced, owner, { browserTabs: [...dockFor(cleared, owner).browserTabs, tab], browserTabId: tab.id });
   const opened = byUser ? focusDockTab(shown, owner, tab.id) : settled(shown);
   return settled(opened.state, [
-    { type: "browser.open", tabId: tab.id, url },
+    { type: "browser.open", tabId: tab.id, url, ...(taskId ? { taskId } : {}) },
     /** The panel draws one page, so a tab nobody is looking at never claims it. */
     ...(byUser ? [{ type: "browser.show" as const, tabId: tab.id }] : []),
     ...persistView(opened.state),
@@ -188,10 +188,12 @@ export function withBlankTab(state: WorkspaceState, owner: string) {
  * the run wanted a new page — so it is shown in that tab rather than needing a panel of its own.
  */
 export function askToBrowse(state: WorkspaceState, owner: string, url: string, taskId: string, tabId: string | undefined, newTab: boolean): WorkspaceTransition {
+  if (state.browserApproval) return rejected(state, "A site is already waiting for approval. Wait for that decision before opening another site.");
+  const approvalId = crypto.randomUUID();
   const target = newTab ? undefined : browserTarget(dockFor(state, owner), tabId);
-  if (target) return settled({ ...showDockTab(state, owner, target.id), browserApproval: { url, taskId, tabId: target.id } });
+  if (target) return settled({ ...showDockTab(state, owner, target.id), browserApproval: { approvalId, url, taskId, tabId: target.id } });
   const { state: opened, tab } = withBlankTab(state, owner);
-  return settled({ ...opened, browserApproval: { url, taskId, tabId: tab.id } }, [
+  return settled({ ...opened, browserApproval: { approvalId, url, taskId, tabId: tab.id } }, [
     { type: "browser.open", tabId: tab.id },
     { type: "browser.show", tabId: tab.id },
   ]);
@@ -206,7 +208,8 @@ export function closeBrowserTab(state: WorkspaceState, owner: string, tabId: str
   const tab = dock.tab === tabId ? dockTabAfterClosing(state, owner, tabId) : dock.tab;
   const browserTabs = dock.browserTabs.filter((page) => page.id !== tabId);
   const next = dock.browserTabId === tabId ? browserTabs[index - 1] ?? browserTabs[index] ?? null : browserTabs.find((page) => page.id === dock.browserTabId) ?? null;
-  const closed = withDock(state, owner, { browserTabs, browserTabId: next?.id ?? null, tab });
+  const cleared = state.browserApproval?.tabId === tabId ? { ...state, browserApproval: null } : state;
+  const closed = withDock(cleared, owner, { browserTabs, browserTabId: next?.id ?? null, tab });
   const showing = browserTabs.find((page) => page.id === tab);
   /** Only the dock on screen owns the panel, so closing a page in a dock behind it changes nothing there. */
   const shows = owner === dockOwner(state)

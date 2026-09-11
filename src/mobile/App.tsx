@@ -44,7 +44,7 @@ function ThreadScreen({ thread, connection, waiting, send }: {
   return (
     <>
       <Conversation thread={thread} />
-      {thread.approval && <ApprovalSheet approval={thread.approval} onDecide={(allow) => send({ type: "run.decide", taskId: thread.id, allow })} />}
+      {thread.approval && <ApprovalSheet approval={thread.approval} onDecide={(approval, allow) => send({ type: "run.decide", taskId: thread.id, runId: approval.runId, approvalId: approval.approvalId, allow })} />}
       <Composer
         running={running}
         waiting={waiting}

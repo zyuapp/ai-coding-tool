@@ -31,17 +31,20 @@ export async function runSurfaceEffect(effect: SurfaceEffect, host: EffectHost):
     case "app.open-source-licenses":
       return reportFailure(host, desktop.openSourceLicenses());
 
+    case "browser.permissions":
+      return reportFailure(host, desktop.configureBrowserPermissions(effect.permissions));
+
     case "browser.open":
-      return reportFailure(host, desktop.openBrowserTab(effect.tabId, effect.url));
+      return reportFailure(host, desktop.openBrowserTab(effect.tabId, effect.url, effect.taskId));
 
     case "browser.navigate":
-      return reportFailure(host, desktop.navigateBrowser(effect.tabId, effect.url));
+      return reportFailure(host, desktop.navigateBrowser(effect.tabId, effect.url, effect.taskId));
 
     case "browser.history":
-      return reportFailure(host, desktop.browserHistory(effect.tabId, effect.delta));
+      return reportFailure(host, desktop.browserHistory(effect.tabId, effect.delta, effect.taskId));
 
     case "browser.reload":
-      return reportFailure(host, desktop.reloadBrowser(effect.tabId));
+      return reportFailure(host, desktop.reloadBrowser(effect.tabId, effect.taskId));
 
     case "browser.close":
       return reportFailure(host, desktop.closeBrowserTab(effect.tabId));
@@ -50,7 +53,7 @@ export async function runSurfaceEffect(effect: SurfaceEffect, host: EffectHost):
       return reportFailure(host, desktop.showBrowserTab(effect.tabId));
 
     case "browser.act":
-      return reportFailure(host, desktop.actInBrowser(effect.tabId, effect.action));
+      return reportFailure(host, desktop.actInBrowser(effect.tabId, effect.action, effect.taskId));
 
     case "browser.clear-data":
       return reportFailure(host, desktop.clearBrowserData());

@@ -30,7 +30,7 @@ export async function runWorkspaceEffect(effect: WorkspaceEffect, host: EffectHo
       return runProjectEffect(effect, host);
 
     case "image.download": case "file.open": case "app.open-folder": case "app.check-for-updates": case "app.open-source-licenses": case "browser.open": case "browser.navigate":
-    case "browser.history": case "browser.reload": case "browser.close": case "browser.show":
+    case "browser.permissions": case "browser.history": case "browser.reload": case "browser.close": case "browser.show":
     case "browser.act": case "browser.clear-data": case "terminal.start": case "terminal.write":
     case "terminal.resize": case "terminal.close": case "find-in-page": case "stop-find-in-page":
     case "focus-browser": case "find-in-terminal": case "stop-find-in-terminal":

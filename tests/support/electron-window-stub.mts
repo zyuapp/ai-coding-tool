@@ -26,7 +26,8 @@ export class FakeWebContentsView {
       if (this.webContents.listeners.get(name) === listener) this.webContents.listeners.delete(name);
     },
     emit: (name: string, ...args: unknown[]) => this.webContents.listeners.get(name)?.(...args),
-    setWindowOpenHandler(_handler: WindowOpenHandler) {},
+    windowOpenHandler: undefined as WindowOpenHandler | undefined,
+    setWindowOpenHandler: (handler: WindowOpenHandler) => { this.webContents.windowOpenHandler = handler; },
     close: () => { this.destroyed = true; },
     reload() {},
     isLoading: () => false,
@@ -56,6 +57,7 @@ export function fakeWindows(onAllClosed: () => void = () => {}) {
     menuBarAutoHide = false;
     loadedURL: string | null = null;
     webContents = {
+      id: nextWebContentsId++,
       sent: [] as SentMessage[],
       listeners: new Map<string, Callback>(),
       windowOpenHandler: undefined as WindowOpenHandler | undefined,

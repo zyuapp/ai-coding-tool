@@ -145,12 +145,29 @@ test("the agent process schedules and stops automations for the task it is runni
     return response.result as T;
   };
 
-  const scheduled = await respondTo({ type: "automation.request", requestId: "request-1", taskId: "task-agent", op: "save", draft: { prompt: "Babysit PR 42", schedule: HOURLY } });
+  const workspace = await registered<(event: IpcEvent) => Promise<{ id: string }>>(main.handlers, "workspace:projectless")(main.trusted);
+  registered<(event: IpcEvent, command: unknown) => void>(main.listeners, "run:command")(main.trusted, {
+    type: "start", channel: "main", taskId: "task-agent", runId: "run-agent", title: "Work", prompt: "work", workspaceId: workspace.id, policy: "confirm", engine: "claude", model: "opus", effort: "high",
+  });
+  await waitFor(() => agent.messages.some((message) => message.type === "start" && message.taskId === "task-agent"));
+  const scheduled = await respondTo({ type: "automation.request", requestId: "request-1", taskId: "task-agent", runId: "run-agent", op: "save", draft: { prompt: "Babysit PR 42", schedule: HOURLY } });
   assert.equal(scheduled.type, "automation.response");
   assert.equal(scheduled.requestId, "request-1");
   assert.equal(scheduled.ok, true);
   assert.equal(resultOf<AutomationView>(scheduled).taskId, "task-agent", "the agent's automation is bound to its own task");
   assert.deepEqual(latestFor("task-agent").map((view) => view.prompt), ["Babysit PR 42"]);
+
+  for (const request of [
+    { type: "automation.request", requestId: "escalate-save", taskId: "task-agent", runId: "run-agent", op: "save", draft: { prompt: "unsafe", schedule: HOURLY, policy: "bypass" } },
+    { type: "automation.request", requestId: "escalate-update", taskId: "task-agent", runId: "run-agent", op: "update", patch: { policy: "autonomous" } },
+    { type: "automation.request", requestId: "stale-update", taskId: "task-agent", runId: "old-run", op: "update", patch: { prompt: "unsafe" } },
+    { type: "automation.request", requestId: "unknown-save", taskId: "unknown-task", runId: "run-agent", op: "save", draft: { prompt: "unsafe", schedule: HOURLY } },
+  ] satisfies AutomationRequest[]) {
+    const result = await respondTo(request);
+    assert.equal(result.ok, false);
+  }
+  assert.equal((await automationFor("task-agent"))?.prompt, "Babysit PR 42");
+  assert.equal((await automationFor("task-agent"))?.policy, "confirm");
 
   const read = await respondTo({ type: "automation.request", requestId: "request-2", taskId: "task-agent", op: "read" });
   assert.equal(resultOf<AutomationView>(read).prompt, "Babysit PR 42");
@@ -158,7 +175,7 @@ test("the agent process schedules and stops automations for the task it is runni
   const other = await respondTo({ type: "automation.request", requestId: "request-3", taskId: "task-unrelated", op: "read" });
   assert.equal(resultOf<null>(other), null, "a run cannot read another task's automation");
 
-  const rejected = await respondTo({ type: "automation.request", requestId: "request-4", taskId: "task-agent", op: "update", patch: { schedule: "nonsense" } });
+  const rejected = await respondTo({ type: "automation.request", requestId: "request-4", taskId: "task-agent", runId: "run-agent", op: "update", patch: { schedule: "nonsense" } });
   if (rejected.ok) assert.fail("expected the invalid schedule to be rejected");
   assert.match(rejected.message, /not a valid schedule/);
 

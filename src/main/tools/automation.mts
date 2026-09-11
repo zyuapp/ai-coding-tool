@@ -11,7 +11,7 @@ const scheduleField = z.string().describe(
 );
 
 const policyField = z.enum(["confirm", "plan", "allow-edits", "autonomous", "bypass"]).optional().describe(
-  "Permission policy for scheduled runs. Nobody is watching when these fire, so anything that needs to act without a prompt should use \"autonomous\". Defaults to the task's own policy.",
+  "Permission policy for scheduled runs. Defaults to this run's policy and cannot exceed it. Ask the user to change the task's permissions before scheduling work that needs stronger permissions.",
 );
 
 const surfaceWhenField = z.string().max(MAX_SURFACE_WHEN).optional().describe(

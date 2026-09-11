@@ -1,5 +1,6 @@
 import { Cron } from "croner";
 import { randomUUID } from "node:crypto";
+import type { ExecutionPolicy } from "../../domain/run.js";
 import {
   automationAfterRun,
   didRun,
@@ -27,6 +28,18 @@ export type AutomationSchedulerOptions = {
   now?: () => number;
   onChange?: (automations: AutomationView[]) => void;
 };
+
+/** Rechecked inside the mutation queue; only native user writes may omit the run's ceiling. */
+export type AutomationAuthority = () => ExecutionPolicy;
+
+function permittedPolicy(policy: ExecutionPolicy | undefined, authority?: AutomationAuthority) {
+  if (!authority) return policy;
+  const ceiling = authority();
+  const effective = policy ?? ceiling;
+  const rank = { plan: 0, confirm: 1, "allow-edits": 2, autonomous: 3, bypass: 4 };
+  if (rank[effective] > rank[ceiling]) throw new Error("An automation cannot use stronger permissions than this run. Change the task's permissions before scheduling it.");
+  return effective;
+}
 
 export class AutomationScheduler {
   private readonly automations = new Map<string, Automation>();
@@ -79,11 +92,12 @@ export class AutomationScheduler {
   }
 
   /** One automation per thread: creating a second one replaces the first. */
-  save(draft: AutomationDraft): Promise<AutomationView> {
-    return this.change(() => this.saveDraft(draft));
+  save(draft: AutomationDraft, authority?: AutomationAuthority): Promise<AutomationView> {
+    return this.change(() => this.saveDraft(draft, authority));
   }
 
-  private async saveDraft(draft: AutomationDraft): Promise<AutomationView> {
+  private async saveDraft(draft: AutomationDraft, authority?: AutomationAuthority): Promise<AutomationView> {
+    const policy = permittedPolicy(draft.policy, authority);
     assertSchedule(draft.schedule, draft.timezone);
     const existing = this.find(draft.taskId);
     const at = this.now();
@@ -95,7 +109,7 @@ export class AutomationScheduler {
       prompt: draft.prompt,
       schedule: draft.schedule,
       ...(draft.timezone === undefined ? {} : { timezone: draft.timezone }),
-      ...(draft.policy === undefined ? {} : { policy: draft.policy }),
+      ...(policy === undefined ? {} : { policy }),
       ...(surfaceWhen ? { surfaceWhen } : {}),
       paused: draft.paused ?? false,
       createdAt: existing?.createdAt ?? at,
@@ -111,13 +125,16 @@ export class AutomationScheduler {
     return this.view(automation);
   }
 
-  update(taskId: string, patch: AutomationPatch): Promise<AutomationView> {
-    return this.change(() => this.updateDraft(taskId, patch));
+  update(taskId: string, patch: AutomationPatch, authority?: AutomationAuthority): Promise<AutomationView> {
+    return this.change(() => this.updateDraft(taskId, patch, authority));
   }
 
-  private async updateDraft(taskId: string, patch: AutomationPatch): Promise<AutomationView> {
+  private async updateDraft(taskId: string, patch: AutomationPatch, authority?: AutomationAuthority): Promise<AutomationView> {
     const existing = this.find(taskId);
     if (!existing) throw new Error("This task has no automation.");
+    const pausingOnly = patch.paused === true && Object.keys(patch).length === 1;
+    if (pausingOnly) authority?.();
+    const policy = pausingOnly ? existing.policy : permittedPolicy(patch.policy ?? existing.policy, authority);
     const schedule = patch.schedule ?? existing.schedule;
     const timezone = patch.timezone ?? existing.timezone;
     if (patch.schedule !== undefined || patch.timezone !== undefined) assertSchedule(schedule, timezone);
@@ -129,7 +146,7 @@ export class AutomationScheduler {
       ...(patch.prompt === undefined ? {} : { prompt: patch.prompt }),
       schedule,
       ...(timezone === undefined ? {} : { timezone }),
-      ...(patch.policy === undefined ? {} : { policy: patch.policy }),
+      ...(policy === undefined ? {} : { policy }),
       ...(patch.paused === undefined ? {} : { paused: patch.paused }),
       updatedAt: this.now(),
     };

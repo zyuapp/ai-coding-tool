@@ -1,13 +1,12 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { CLI_INSTALL_PATH, cliConfiguration, isCliScript, type CliConfiguration, type CliStatus } from "../domain/cli.js";
 
 const run = promisify(execFile);
-const STAGING_PATH = path.join(tmpdir(), "aic-cli-install");
 
 export function createCliInstaller(configuration: CliConfiguration | null, platform: string, searchPath: () => string = () => process.env.PATH ?? "") {
   function result(state: CliStatus["state"], target = configuration?.installPath ?? CLI_INSTALL_PATH): CliStatus {
@@ -20,7 +19,7 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
   async function status(): Promise<CliStatus> {
     if (!configuration) return result("unsupported");
     try {
-      if (platform === "linux" && !(await lstat(configuration.installPath)).isFile()) return result("conflict");
+      if (!(await lstat(configuration.installPath)).isFile()) return result("conflict");
       const contents = await readFile(configuration.installPath, "utf8");
       return result(isCliScript(contents) ? "installed" : "conflict");
     } catch (error) {
@@ -31,7 +30,7 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
 
   async function install(): Promise<CliStatus> {
     const target = requireSupported(configuration);
-    if (platform === "linux") {
+    try {
       await mkdir(path.dirname(target.installPath), { recursive: true });
       const staged = `${target.installPath}.${process.pid}.${randomUUID()}.tmp`;
       try {
@@ -41,20 +40,9 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
       } finally {
         await rm(staged, { force: true }).catch(() => undefined);
       }
-      return status();
-    }
-    try {
-      await mkdir(path.dirname(target.installPath), { recursive: true });
-      await writeFile(target.installPath, target.script, "utf8");
-      await chmod(target.installPath, 0o755);
     } catch (error) {
       if (!isPermissionError(error) || platform !== "darwin") throw error;
-      await writeFile(STAGING_PATH, target.script, "utf8");
-      try {
-        await elevate(`mkdir -p '${path.dirname(target.installPath)}' && cp '${STAGING_PATH}' '${target.installPath}' && chmod 755 '${target.installPath}'`);
-      } finally {
-        await rm(STAGING_PATH, { force: true });
-      }
+      await elevate(cliInstallCommand(target));
     }
     return status();
   }
@@ -65,12 +53,30 @@ export function createCliInstaller(configuration: CliConfiguration | null, platf
       await rm(target.installPath, { force: true });
     } catch (error) {
       if (!isPermissionError(error) || platform !== "darwin") throw error;
-      await elevate(`rm -f '${target.installPath}'`);
+      await elevate(`/bin/rm -f ${shellQuote(target.installPath)}`);
     }
     return status();
   }
 
   return { status, install, uninstall };
+}
+
+function shellQuote(value: string) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** Only known bytes cross elevation. The elevated process owns its private staging directory. */
+export function cliInstallCommand(target: CliConfiguration) {
+  return [
+    "set -eu",
+    "umask 077",
+    'stage=$(/usr/bin/mktemp -d /private/tmp/aic-cli-install.XXXXXXXX)',
+    `trap '/bin/rm -rf "$stage"' EXIT`,
+    `/usr/bin/printf '%s' ${shellQuote(Buffer.from(target.script, "utf8").toString("base64"))} | /usr/bin/base64 -D > "$stage/aic"`,
+    '/bin/chmod 755 "$stage/aic"',
+    `/bin/mkdir -p ${shellQuote(path.dirname(target.installPath))}`,
+    `/bin/mv -fh "$stage/aic" ${shellQuote(target.installPath)}`,
+  ].join("\n");
 }
 
 function requireSupported(configuration: CliConfiguration | null): CliConfiguration {

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { userInfo } from "node:os";
 import path from "node:path";
 import { cargoAboutVersion, sha256, toolchain } from "./native-reports.mjs";
 
@@ -8,6 +9,46 @@ const cargoAboutArchives = {
   "linux-arm64": ["aarch64-unknown-linux-musl", "af5169282fb6f84e13471493f405437e43ac517744c9ae12fbe2cdf0a6f0e5a8"],
   "linux-x64": ["x86_64-unknown-linux-musl", "9099a59e820c38a68b9d65f300662a567d56562f9a10f6aa4c7e86c17c2566af"],
 };
+
+/** A cache may contain executable code, so an existing directory must already be private. */
+export async function privateCache(cache) {
+  const uid = userInfo().uid;
+  await mkdir(cache, { recursive: true, mode: 0o700 });
+  const root = await lstat(cache);
+  if (!root.isDirectory() || root.isSymbolicLink() || root.uid !== uid || (root.mode & 0o077) !== 0) {
+    throw new Error(`Unsafe native tooling cache: ${cache}. Use a private directory owned by your account.`);
+  }
+  const canonical = await realpath(cache);
+  for (let parent = path.dirname(canonical); ; parent = path.dirname(parent)) {
+    const entry = await lstat(parent);
+    const sharedTemporary = entry.uid === 0 && (entry.mode & 0o1000) !== 0;
+    if ((entry.uid !== uid && entry.uid !== 0) || ((entry.mode & 0o022) !== 0 && !sharedTemporary)) {
+      throw new Error(`Unsafe native tooling cache parent: ${parent}.`);
+    }
+    if (parent === path.dirname(parent)) break;
+  }
+  return canonical;
+}
+
+/** A cached tool can link within its private cache, never into somebody else's executable tree. */
+export async function cachedExecutable(cache, file) {
+  const root = await privateCache(cache);
+  const entry = await lstat(file).catch((error) => { if (error.code === "ENOENT") return null; throw error; });
+  if (!entry) return false;
+  const resolved = await realpath(file);
+  const inside = (candidate) => candidate.startsWith(`${root}${path.sep}`);
+  if (!inside(resolved)) throw new Error(`Unsafe cached executable: ${file}.`);
+  const uid = userInfo().uid;
+  for (const candidate of [path.resolve(file), resolved]) {
+    for (let current = candidate; current !== root; current = path.dirname(current)) {
+      if (!inside(current)) throw new Error(`Unsafe cached executable: ${file}.`);
+      const part = await lstat(current);
+      if (part.uid !== uid || (!part.isSymbolicLink() && (part.mode & 0o022) !== 0)) throw new Error(`Unsafe cached executable: ${current}.`);
+    }
+  }
+  if (!(await lstat(resolved)).isFile()) throw new Error(`Invalid cached executable: ${file}.`);
+  return true;
+}
 
 export function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -63,13 +104,14 @@ export async function sourceTree(definition, cache, scratch, previous) {
 }
 
 export async function nativeTools(cache) {
+  cache = await privateCache(cache);
   const host = cargoAboutArchives[`${process.platform}-${process.arch}`];
   if (!host) throw new Error(`Native report tooling is not configured for ${process.platform}/${process.arch}. Use macOS arm64 or Linux x64/arm64.`);
   const cargoHome = path.join(cache, "cargo-home");
   const rustupHome = path.join(cache, "rustup-home");
   const env = { ...process.env, CARGO_HOME: cargoHome, RUSTUP_HOME: rustupHome, RUSTUP_TOOLCHAIN: toolchain, PATH: `${cargoHome}/bin:${process.env.PATH ?? ""}` };
   const rustc = path.join(cargoHome, "bin/rustc");
-  const ready = await run(rustc, ["--version"], { env }).then((text) => text.startsWith(`rustc ${toolchain} `)).catch(() => false);
+  const ready = await cachedExecutable(cache, rustc) && await run(rustc, ["--version"], { env }).then((text) => text.startsWith(`rustc ${toolchain} `)).catch(() => false);
   if (!ready) {
     console.log(`Installing Rust ${toolchain} in ${cache} (one-time setup).`);
     const rustHost = host[0].replace("-musl", "-gnu");
@@ -89,6 +131,7 @@ export async function nativeTools(cache) {
   // Re-extract the checked archive rather than trusting a potentially edited cached executable.
   await run("tar", ["-xzf", archive, "-C", cache]);
   const binary = path.join(cache, name, "cargo-about");
+  if (!(await cachedExecutable(cache, binary))) throw new Error(`Missing cached executable: ${binary}.`);
   if ((await run(binary, ["--version"], { env })).trim() !== `cargo-about ${cargoAboutVersion}`) throw new Error("Unexpected cargo-about version.");
   return { binary, env };
 }

@@ -22,7 +22,7 @@ const threads = new ThreadChannel((request) => parentPort.postMessage(request));
 /** Both channels get the same tools; a side chat's automations are retired when its thread closes. */
 const coordinatorOptions = {
   isWritePathInside,
-  automations: (taskId: string) => automations.bridgeFor(taskId),
+  automations: (taskId: string, currentRunId: () => string) => automations.bridgeFor(taskId, currentRunId),
   findings: (taskId: string) => threads.findingsFor(taskId),
   threads: (taskId: string) => threads.bridgeFor(taskId),
   browser: (taskId: string) => threads.browserFor(taskId),

@@ -6,6 +6,7 @@ import { BaseWindow, BrowserWindow, session, WebContentsView, type Rectangle, ty
 import type { BrowserPageEvent } from "../contracts/ipc.js";
 import type {
   BrowserAction,
+  BrowserPermissions,
   BrowserBounds,
   BrowserConsoleEntry,
   BrowserConsoleLevel,
@@ -41,13 +42,15 @@ const MAX_DIAGNOSTIC_ENTRIES = 200;
 const MAX_DIAGNOSTIC_TEXT = 4_000;
 const NETWORK_IDLE_MS = 500;
 
-type Tab = {
-  id: string;
+type NavigationOwner = { id: string; taskId?: string };
+
+type Tab = NavigationOwner & {
   view: WebContentsView;
   /** Whether the window is drawing this page. Only the page on screen is ever a child of it. */
   shown: boolean;
-  consoleEntries: BrowserConsoleEntry[];
-  networkEntries: BrowserNetworkEntry[];
+  epoch: number;
+  consoleEntries: (BrowserConsoleEntry & { pageOrigin: string })[];
+  networkEntries: (BrowserNetworkEntry & { pageOrigin: string })[];
   consoleSequence: number;
   networkSequence: number;
   pendingRequests: Set<number>;
@@ -55,6 +58,7 @@ type Tab = {
 };
 
 const tabs = new Map<string, Tab>();
+const popups = new Map<number, { owner: NavigationOwner; window: BrowserWindow }>();
 let host: BrowserWindow | null = null;
 let publish: (event: BrowserPageEvent) => void = () => undefined;
 let publishFind: (tabId: string, results: FindResults) => void = () => undefined;
@@ -65,7 +69,50 @@ let parked: Rectangle = PARKED_VIEWPORT;
 let parking: BaseWindow | null = null;
 let browserSession: Session | null = null;
 const tabByContents = new Map<number, string>();
-const pendingRequests = new Map<number, { tabId: string; startedAt: number; method: string; url: string; resourceType: string }>();
+const pendingRequests = new Map<number, { tabId: string; startedAt: number; method: string; url: string; resourceType: string; pageOrigin: string }>();
+
+let allowedOrigins = new Set<string>();
+let autonomousTasks = new Set<string>();
+
+export function configurePermissions(permissions: BrowserPermissions) {
+  allowedOrigins = new Set(permissions.origins);
+  autonomousTasks = new Set(permissions.autonomousTaskIds);
+}
+
+function originOf(url: string) {
+  try { return new URL(url).origin; } catch { return ""; }
+}
+
+function permitted(taskId: string | undefined, url: string) {
+  return taskId === undefined || autonomousTasks.has(taskId) || allowedOrigins.has(originOf(url));
+}
+
+function requirePage(tab: Tab, taskId?: string) {
+  if (!permitted(taskId, tab.view.webContents.getURL())) throw new Error("This site needs browser approval before the agent can use it.");
+}
+
+/** Also checks inside the document, since navigation can precede queued script execution. */
+function guardedScript(script: string, taskId?: string) {
+  if (taskId === undefined || autonomousTasks.has(taskId)) return script;
+  return `(() => { if (!${JSON.stringify([...allowedOrigins])}.includes(location.origin)) throw new Error('This site needs browser approval.'); return (${script}); })()`;
+}
+
+function allowNavigation(tab: NavigationOwner, url: string) {
+  if (!/^https?:/.test(url)) return false;
+  if (permitted(tab.taskId, url)) return true;
+  report(tab.id, { loading: false, navigationRequest: { taskId: tab.taskId!, url } });
+  return false;
+}
+
+function samePage(tab: Tab, epoch: number, taskId?: string) {
+  requirePage(tab, taskId);
+  if (tab.epoch !== epoch || !tabs.has(tab.id)) throw new Error("The page changed while it was being read. Try again.");
+}
+
+/** Shared by snapshots and element searches: password values are never a source of a label. */
+const ELEMENT_LABEL = `node.getAttribute('aria-label') || node.getAttribute('placeholder') || node.getAttribute('title')
+  || node.getAttribute('alt') || Array.from(node.labels || []).map((label) => label.innerText || label.textContent || '').join(' ').trim()
+  || (node.innerText || (node.tagName === 'INPUT' && node.type === 'password' ? '' : node.value) || '').trim() || node.getAttribute('name') || ''`;
 
 /** Reads what a caller can act on, keeping the refs it hands out on the elements themselves. */
 const SNAPSHOT_SCRIPT = `(() => {
@@ -82,8 +129,7 @@ const SNAPSHOT_SCRIPT = `(() => {
     node.setAttribute('${REF_ATTRIBUTE}', String(++ref));
     const tag = node.tagName.toLowerCase();
     const type = tag === 'input' ? (node.getAttribute('type') || 'text').toLowerCase() : '';
-    const label = node.getAttribute('aria-label') || node.getAttribute('placeholder') || node.getAttribute('title')
-      || node.getAttribute('alt') || (node.innerText || node.value || '').trim() || node.getAttribute('name') || '';
+    const label = ${ELEMENT_LABEL};
     const element = { ref: String(ref), role: node.getAttribute('role') || (type ? tag + ':' + type : tag), name: label.replace(/\\s+/g, ' ').slice(0, 140) };
     if (type !== 'password' && typeof node.value === 'string' && node.value) element.value = node.value.slice(0, 140);
     elements.push(element);
@@ -144,11 +190,14 @@ export function startBrowserHost(window: BrowserWindow, handlers: { onPage: (eve
     callback({ requestHeaders: chromeHeaders(details.url, details.requestHeaders, IDENTITY) });
   });
   partition.webRequest.onBeforeRequest((details, callback) => {
+    const popup = details.webContentsId === undefined ? undefined : popups.get(details.webContentsId);
+    if (popup && details.resourceType === "mainFrame" && !allowNavigation(popup.owner, details.url)) { callback({ cancel: true }); return; }
     const tabId = details.webContentsId === undefined ? undefined : tabByContents.get(details.webContentsId);
     const tab = tabId ? tabs.get(tabId) : undefined;
     if (tab) {
+      if (details.resourceType === "mainFrame" && !allowNavigation(tab, details.url)) { callback({ cancel: true }); return; }
       const startedAt = Date.now();
-      pendingRequests.set(details.id, { tabId: tab.id, startedAt, method: details.method, url: details.url, resourceType: details.resourceType });
+      pendingRequests.set(details.id, { tabId: tab.id, startedAt, method: details.method, url: details.url, resourceType: details.resourceType, pageOrigin: originOf(details.resourceType === "mainFrame" ? details.url : tab.view.webContents.getURL()) });
       /** A live socket may stay open for hours and does not mean the page is still settling. */
       if (details.resourceType !== "webSocket") tab.pendingRequests.add(details.id);
       tab.lastNetworkAt = startedAt;
@@ -182,6 +231,7 @@ export function stopBrowserHost() {
   browserSession = null;
   tabByContents.clear();
   pendingRequests.clear();
+  configurePermissions({ origins: [], autonomousTaskIds: [] });
   discardShots();
 }
 
@@ -199,6 +249,7 @@ function finishRequest(id: number, result: { url: string; status?: number; error
   tab.pendingRequests.delete(id);
   tab.lastNetworkAt = Date.now();
   boundedPush(tab.networkEntries, {
+    pageOrigin: started.pageOrigin,
     sequence: ++tab.networkSequence,
     startedAt: started.startedAt,
     method: started.method,
@@ -268,7 +319,7 @@ function inWindow(box: BrowserBounds): Rectangle {
 }
 
 /** Idempotent: a tab that already has a view keeps it, so showing a tab never reloads its page. */
-export function openTab(tabId: string, url?: string) {
+export function openTab(tabId: string, url?: string, taskId?: string) {
   if (tabs.get(tabId)) return;
   if (!host || host.isDestroyed()) return;
   const view = new WebContentsView({
@@ -276,6 +327,8 @@ export function openTab(tabId: string, url?: string) {
   });
   const tab: Tab = {
     id: tabId,
+    taskId,
+    epoch: 0,
     view,
     shown: false,
     consoleEntries: [],
@@ -293,13 +346,14 @@ export function openTab(tabId: string, url?: string) {
   layout(tab);
 }
 
-function watch({ id, view }: Tab) {
+function watch(tab: Tab) {
+  const { id, view } = tab;
   const contents = view.webContents;
   const state = () => ({ url: contents.getURL(), title: contents.getTitle(), canGoBack: contents.navigationHistory.canGoBack(), canGoForward: contents.navigationHistory.canGoForward() });
   contents.on("did-start-loading", () => report(id, { loading: true }));
   contents.on("did-stop-loading", () => report(id, { loading: false, ...state() }));
   contents.on("page-title-updated", (_event, title) => report(id, { title }));
-  contents.on("did-navigate", () => report(id, state()));
+  contents.on("did-navigate", () => { tab.epoch++; report(id, state()); });
   contents.on("did-navigate-in-page", () => report(id, state()));
   contents.on("did-fail-load", (_event, code, description, validatedURL, isMainFrame) => {
     if (isMainFrame && code !== -3) report(id, { loading: false, error: `${description} (${validatedURL})` });
@@ -310,6 +364,7 @@ function watch({ id, view }: Tab) {
     if (!tab) return;
     const level: BrowserConsoleLevel = details.level;
     boundedPush(tab.consoleEntries, {
+      pageOrigin: originOf(contents.getURL()),
       sequence: ++tab.consoleSequence,
       at: Date.now(),
       level,
@@ -320,27 +375,48 @@ function watch({ id, view }: Tab) {
   });
   /** Chromium counts a page's matches itself, and numbers the one it is on from one. */
   contents.on("found-in-page", (_event, result) => publishFind(id, { matches: result.matches, index: Math.max(0, (result.activeMatchOrdinal ?? 1) - 1) }));
-  /** A shortcut belongs to the app while a page has the keys, so the page never sees that keystroke. */
-  contents.on("before-input-event", (event, input) => {
-    if (keyPressed(input)) event.preventDefault();
-  });
+  watchNavigation(contents, tab);
   /** Each document is a fresh page, so each one is given the side buttons again. */
   contents.on("dom-ready", () => {
     void contents.executeJavaScript(MOUSE_NAVIGATION_SCRIPT).catch(() => undefined);
   });
-  /** The panel only ever holds web pages; anything else the page asks for is left to the OS. */
-  contents.on("will-navigate", (event, url) => {
-    if (!/^https?:$/.test(new URL(url).protocol)) event.preventDefault();
+}
+
+/** Popups inherit the initiating task and the same navigation checks as their opener. */
+function watchNavigation(contents: Electron.WebContents, owner: NavigationOwner) {
+  contents.on("before-mouse-event", (_event, mouse) => {
+    if (mouse.type === "mouseDown") owner.taskId = undefined;
   });
-  /** A sign-in popup keeps the app's session, so the login it completes is the panel's login too. */
+  contents.on("before-input-event", (event, input) => {
+    if (keyPressed(input)) event.preventDefault();
+    else if (input.type === "keyDown") owner.taskId = undefined;
+  });
+  contents.on("will-navigate", (event, url) => {
+    if (!allowNavigation(owner, url)) event.preventDefault();
+  });
+  contents.on("will-redirect", (event, url, _inPlace, isMainFrame) => {
+    if (isMainFrame && !allowNavigation(owner, url)) event.preventDefault();
+  });
   contents.setWindowOpenHandler(({ url }) => {
-    if (!/^https?:/.test(url)) return { action: "deny" };
-    return { action: "allow", overrideBrowserWindowOptions: { width: 560, height: 720, autoHideMenuBar: true } };
+    if (!allowNavigation(owner, url)) return { action: "deny" };
+    const childOwner = { ...owner };
+    return {
+      action: "allow", overrideBrowserWindowOptions: { width: 560, height: 720, autoHideMenuBar: true },
+      createWindow: (options) => {
+        const window = new BrowserWindow(options);
+        const contentsId = window.webContents.id;
+        popups.set(contentsId, { owner: childOwner, window });
+        watchNavigation(window.webContents, childOwner);
+        window.on("closed", () => { popups.delete(contentsId); });
+        return window.webContents;
+      },
+    };
   });
 }
 
 async function load(tab: Tab, url: string) {
   try {
+    if (!allowNavigation(tab, url)) return;
     await tab.view.webContents.loadURL(url);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -348,24 +424,33 @@ async function load(tab: Tab, url: string) {
   }
 }
 
-export function navigate(tabId: string, url: string) {
+export function navigate(tabId: string, url: string, taskId?: string) {
   const tab = tabs.get(tabId);
   if (!tab) {
-    openTab(tabId, url);
+    openTab(tabId, url, taskId);
     return;
   }
+  tab.taskId = taskId;
   void load(tab, url);
 }
 
-export function goHistory(tabId: string, delta: -1 | 1) {
-  const history = tabs.get(tabId)?.view.webContents.navigationHistory;
+export function goHistory(tabId: string, delta: -1 | 1, taskId?: string) {
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  requirePage(tab, taskId);
+  tab.taskId = taskId;
+  const history = tab.view.webContents.navigationHistory;
   if (!history) return;
   if (delta === -1 && history.canGoBack()) history.goBack();
   if (delta === 1 && history.canGoForward()) history.goForward();
 }
 
-export function reload(tabId: string) {
-  tabs.get(tabId)?.view.webContents.reload();
+export function reload(tabId: string, taskId?: string) {
+  const tab = tabs.get(tabId);
+  if (!tab) return;
+  requirePage(tab, taskId);
+  tab.taskId = taskId;
+  tab.view.webContents.reload();
 }
 
 /** Searches a page, stepping to the next match when the query is one the page is already showing. */
@@ -387,6 +472,11 @@ export function closeTab(tabId: string) {
   const tab = tabs.get(tabId);
   if (!tab) return;
   tabs.delete(tabId);
+  for (const [contentsId, popup] of popups) {
+    if (popup.owner.id !== tabId) continue;
+    popups.delete(contentsId);
+    if (!popup.window.isDestroyed()) popup.window.destroy();
+  }
   tabByContents.delete(tab.view.webContents.id);
   for (const [requestId, request] of pendingRequests) {
     if (request.tabId === tabId) pendingRequests.delete(requestId);
@@ -429,17 +519,21 @@ async function settled(tabId: string, timeoutMs: number) {
 }
 
 /** Waits for the page to settle, then reads it. Null when that tab is gone by the time it settles. */
-export async function readPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null> {
+export async function readPage(tabId: string, textLimit: number, timeoutMs: number, taskId?: string): Promise<BrowserSnapshot | null> {
   const tab = await settled(tabId, timeoutMs);
   if (!tab) return null;
+  requirePage(tab, taskId);
+  const epoch = tab.epoch;
   const limit = Math.max(200, Math.min(textLimit || DEFAULT_TEXT_LIMIT, 120_000));
-  const page = await tab.view.webContents.executeJavaScript(SNAPSHOT_SCRIPT.replace("__LIMIT__", String(limit)), true) as {
+  const page = await tab.view.webContents.executeJavaScript(guardedScript(SNAPSHOT_SCRIPT.replace("__LIMIT__", String(limit)), taskId), true) as {
     url: string;
     title: string;
     text: string;
     truncated: boolean;
     elements: BrowserSnapshot["elements"];
   };
+  samePage(tab, epoch, taskId);
+  if (!permitted(taskId, page.url)) throw new Error("This site needs browser approval.");
   return {
     tabId,
     url: page.url,
@@ -459,28 +553,28 @@ function newest<T extends { sequence: number }>(entries: T[], since: number, lim
 const consoleRanks: Record<BrowserConsoleLevel, number> = { debug: 0, info: 1, warning: 2, error: 3 };
 
 /** Reads bounded diagnostic history or waits for a condition in one tab. */
-export async function inspectPage(tabId: string, inspection: BrowserInspection): Promise<BrowserInspectionResult | null> {
+export async function inspectPage(tabId: string, inspection: BrowserInspection, taskId?: string): Promise<BrowserInspectionResult | null> {
   const tab = tabs.get(tabId);
   if (!tab) return null;
+  requirePage(tab, taskId);
   const contents = tab.view.webContents;
   if (inspection.op === "console") {
     const minimum = consoleRanks[inspection.minimumLevel ?? "debug"];
-    const read = newest(tab.consoleEntries, inspection.since ?? 0, Math.max(1, Math.min(inspection.limit ?? 50, MAX_DIAGNOSTIC_ENTRIES)), (entry) => consoleRanks[entry.level] >= minimum);
+    const read = newest(tab.consoleEntries.filter((entry) => permitted(taskId, entry.pageOrigin)).map(({ pageOrigin: _origin, ...entry }) => entry), inspection.since ?? 0, Math.max(1, Math.min(inspection.limit ?? 50, MAX_DIAGNOSTIC_ENTRIES)), (entry) => consoleRanks[entry.level] >= minimum);
     return { kind: "console", tabId, url: contents.getURL(), title: contents.getTitle(), ...read, latestSequence: tab.consoleSequence };
   }
   if (inspection.op === "network") {
-    const read = newest(tab.networkEntries, inspection.since ?? 0, Math.max(1, Math.min(inspection.limit ?? 50, MAX_DIAGNOSTIC_ENTRIES)), (entry) => !inspection.failuresOnly || entry.error !== undefined || (entry.status ?? 0) >= 400);
+    const read = newest(tab.networkEntries.filter((entry) => permitted(taskId, entry.pageOrigin)).map(({ pageOrigin: _origin, ...entry }) => entry), inspection.since ?? 0, Math.max(1, Math.min(inspection.limit ?? 50, MAX_DIAGNOSTIC_ENTRIES)), (entry) => !inspection.failuresOnly || entry.error !== undefined || (entry.status ?? 0) >= 400);
     return { kind: "network", tabId, url: contents.getURL(), title: contents.getTitle(), ...read, latestSequence: tab.networkSequence };
   }
-  return waitForPage(tab, inspection);
+  return waitForPage(tab, inspection, taskId);
 }
 
 function pageConditionScript(condition: BrowserWaitCondition, value: string) {
   const sought = JSON.stringify(value.toLocaleLowerCase());
   const selector = JSON.stringify('a[href],button,input,select,textarea,summary,[role=button],[role=link],[role=tab],[role=menuitem],[role=textbox],[contenteditable=""],[contenteditable=true]');
   const found = `Array.from(document.querySelectorAll(${selector})).some((node) => {
-    const label = node.getAttribute('aria-label') || node.getAttribute('placeholder') || node.getAttribute('title')
-      || node.getAttribute('alt') || node.innerText || node.value || node.getAttribute('name') || '';
+    const label = ${ELEMENT_LABEL};
     return String(label).toLocaleLowerCase().includes(${sought});
   })`;
   if (condition === "text" || condition === "text-gone") {
@@ -490,22 +584,27 @@ function pageConditionScript(condition: BrowserWaitCondition, value: string) {
   return condition === "element" ? found : `!(${found})`;
 }
 
-async function waitMatches(tab: Tab, condition: BrowserWaitCondition, value: string) {
+async function waitMatches(tab: Tab, condition: BrowserWaitCondition, value: string, taskId?: string) {
+  requirePage(tab, taskId);
   if (condition === "url") return tab.view.webContents.getURL().toLocaleLowerCase().includes(value.toLocaleLowerCase());
   if (condition === "network-idle") return tab.pendingRequests.size === 0 && Date.now() - tab.lastNetworkAt >= NETWORK_IDLE_MS;
-  return await tab.view.webContents.executeJavaScript(pageConditionScript(condition, value), true) as boolean;
+  const epoch = tab.epoch;
+  const result = await tab.view.webContents.executeJavaScript(guardedScript(pageConditionScript(condition, value), taskId), true) as boolean;
+  samePage(tab, epoch, taskId);
+  return result;
 }
 
-async function waitForPage(tab: Tab, inspection: Extract<BrowserInspection, { op: "wait" }>): Promise<BrowserInspectionResult | null> {
+async function waitForPage(tab: Tab, inspection: Extract<BrowserInspection, { op: "wait" }>, taskId?: string): Promise<BrowserInspectionResult | null> {
   const startedAt = Date.now();
   const deadline = startedAt + inspection.timeoutMs;
   let matched = false;
   do {
     if (!tabs.has(tab.id)) return null;
-    matched = await waitMatches(tab, inspection.condition, inspection.value ?? "");
+    matched = await waitMatches(tab, inspection.condition, inspection.value ?? "", taskId);
     if (matched || Date.now() >= deadline) break;
     await new Promise((resolve) => setTimeout(resolve, Math.min(100, Math.max(1, deadline - Date.now()))));
   } while (true);
+  requirePage(tab, taskId);
   const contents = tab.view.webContents;
   return {
     kind: "wait",
@@ -587,22 +686,30 @@ async function drawPage(tab: Tab, fullPage: boolean) {
 }
 
 /** Waits for the page to settle, then writes a picture of it. Null when that tab is gone by then. */
-export async function capturePage(tabId: string, fullPage: boolean, timeoutMs: number): Promise<BrowserShot | null> {
+export async function capturePage(tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string): Promise<BrowserShot | null> {
   const tab = await settled(tabId, timeoutMs);
   if (!tab) return null;
   const contents = tab.view.webContents;
+  requirePage(tab, taskId);
+  const epoch = tab.epoch;
   const drawn = await drawPage(tab, fullPage);
+  samePage(tab, epoch, taskId);
   return { tabId, url: contents.getURL(), title: contents.getTitle(), path: await writeShot(drawn.bytes), width: drawn.width, height: drawn.height };
 }
 
-export async function act(tabId: string, action: BrowserAction): Promise<string> {
+export async function act(tabId: string, action: BrowserAction, taskId?: string): Promise<string> {
   const tab = tabs.get(tabId);
   if (!tab) return "That tab is no longer open.";
-  return await tab.view.webContents.executeJavaScript(actionScript(action), true) as string;
+  requirePage(tab, taskId);
+  tab.taskId = taskId;
+  const result = await tab.view.webContents.executeJavaScript(guardedScript(actionScript(action), taskId), true) as string;
+  requirePage(tab, taskId);
+  return result;
 }
 
 /** Signs the whole app out of everything the panel has ever logged into. */
 export async function clearData() {
+  allowedOrigins.clear();
   const partition = session.fromPartition(PARTITION);
   await partition.clearStorageData();
   await partition.clearCache();

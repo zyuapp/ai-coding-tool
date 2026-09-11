@@ -4,6 +4,7 @@ import path from "node:path";
 import { isAgentSettingsReloadEvent, isAutomationRequest, isBackgroundEvent, isGoalEvent, isRunCommand, isRunEvent, isSubagentEvent, isThreadRequest, isWorkflowEvent, unreadableRequest, type AgentEvent, type AutomationRequest, type AutomationResponse, type BackgroundEvent, type RunCommand, type RunEvent, type StartRunCommand, type SubagentEvent } from "../contracts/ipc.js";
 import type { ThreadRequest, ThreadResponse } from "../contracts/threads.js";
 import type { Automation, AutomationRunStatus, TickKind } from "../domain/automation.js";
+import type { ExecutionPolicy } from "../domain/run.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
 import { acceptRunEvent, automationFire, AUTOMATION_SETTLE_TIMEOUT, failedEventsForTransportLoss, settledWithin, supersedePendingStarts } from "./run-routing.js";
@@ -48,6 +49,8 @@ const THREAD_WAIT_SLACK = 5_000;
 
 let agent: Electron.UtilityProcess | null = null;
 const runStates = new Map<string, RunState>();
+/** Provider sessions can begin follow-up turns, but cannot choose a new permission ceiling. */
+const sessionRuns = new Map<string, { runId: string; policy: ExecutionPolicy }>();
 /** Threads the agent process last reported background work for, so its death can take that work off the panel. */
 const backgroundThreads = new Set<string>();
 /** Session-scoped Codex children, and the subset whose turns an agent-process death would cut short. */
@@ -70,6 +73,7 @@ function sendToRenderer(host: RunHost, event: AgentEvent) {
 function recordRun(command: StartRunCommand) {
   const key = runKey(command.taskId, command.runId);
   runStates.set(key, { taskId: command.taskId, runId: command.runId, lastSequence: 0, terminal: false });
+  sessionRuns.set(command.taskId, { runId: command.runId, policy: command.policy });
   return key;
 }
 
@@ -80,6 +84,8 @@ function publishRunEvent(host: RunHost, event: RunEvent) {
   if (!state && event.type === "run.started") {
     state = { taskId: event.taskId, runId: event.runId, lastSequence: 0, terminal: false };
     runStates.set(key, state);
+    const session = sessionRuns.get(event.taskId);
+    if (session && event.agentInitiated && !runStates.has(runKey(event.taskId, session.runId))) sessionRuns.set(event.taskId, { ...session, runId: event.runId });
   }
   if (!state || event.sequence <= state.lastSequence) return;
   if (!acceptRunEvent(state, event)) return;
@@ -143,14 +149,22 @@ async function handleAutomationRequest(host: RunHost, request: AutomationRequest
   let response: AutomationResponse;
   try {
     const scheduler = host.scheduler();
+    const authority = () => {
+      const session = sessionRuns.get(request.taskId);
+      const state = "runId" in request ? runStates.get(runKey(request.taskId, request.runId)) : undefined;
+      if (!state || state.terminal || !session || !("runId" in request) || session.runId !== request.runId) {
+        throw new Error("This run is no longer authorized to change the task's automation.");
+      }
+      return session.policy;
+    };
     const result = await (request.op === "read"
       ? scheduler.forThread(request.taskId)
       : request.op === "list"
         ? scheduler.list()
         : request.op === "save"
-          ? scheduler.save({ ...request.draft, taskId: request.taskId })
+          ? scheduler.save({ ...request.draft, taskId: request.taskId }, authority)
           : request.op === "update"
-            ? scheduler.update(request.taskId, request.patch)
+            ? scheduler.update(request.taskId, request.patch, authority)
             : scheduler.remove(request.taskId));
     response = { type: "automation.response", requestId: request.requestId, ok: true, result };
   } catch (error) {
@@ -216,6 +230,7 @@ function startAgent(host: RunHost) {
   });
   agent.on("exit", (code) => {
     agent = null;
+    sessionRuns.clear();
     if (settingsReloadPending) {
       settingsReloadPending = false;
       sendToRenderer(host, { type: "engine.settings-reload-status", status: "failed", message: "Agent process exited while reloading settings. Try again." });

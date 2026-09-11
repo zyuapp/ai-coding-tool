@@ -70,3 +70,34 @@ test("downloads reuse verified bytes, repair corrupt cache, and reject mismatche
   await assert.rejects(download(pathToFileURL(source).href, cached, "a".repeat(64)), /Checksum mismatch/);
   assert.equal(await readFile(cached, "utf8"), good);
 });
+
+test("native executable caches reject shared and redirected paths before executing tools", async () => {
+  // @ts-expect-error Legal generation uses plain JavaScript.
+  const { privateCache, cachedExecutable, nativeTools } = await import("../../scripts/legal/native-tools.mjs");
+  const { chmod, mkdir, realpath, symlink } = await import("node:fs/promises");
+  const root = await realpath(await temporaryRoot());
+  const cache = path.join(root, "cache");
+  assert.equal(await privateCache(cache), cache);
+  const bin = path.join(cache, "bin");
+  await mkdir(bin, { mode: 0o700 });
+  const tool = path.join(bin, "tool");
+  await writeFile(tool, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await symlink(tool, path.join(bin, "alias"));
+  assert.equal(await cachedExecutable(cache, path.join(bin, "alias")), true);
+  await symlink(root, path.join(root, "linked-cache"));
+  await assert.rejects(privateCache(path.join(root, "linked-cache")), /Unsafe/);
+  await symlink("/bin/sh", path.join(bin, "outside"));
+  await assert.rejects(cachedExecutable(cache, path.join(bin, "outside")), /Unsafe/);
+  await chmod(bin, 0o777);
+  await assert.rejects(cachedExecutable(cache, tool), /Unsafe/);
+  await chmod(bin, 0o700);
+  await mkdir(path.join(cache, "cargo-home/bin"), { recursive: true });
+  const marker = path.join(root, "executed");
+  await writeFile(path.join(cache, "cargo-home/bin/rustc"), `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 });
+  await chmod(cache, 0o777);
+  await assert.rejects(nativeTools(cache), /Unsafe/);
+  await assert.rejects(stat(marker), { code: "ENOENT" });
+  await chmod(cache, 0o700);
+  await chmod(root, 0o777);
+  await assert.rejects(privateCache(cache), /Unsafe.*parent/);
+});

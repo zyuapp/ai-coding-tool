@@ -148,7 +148,7 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.equal(document.querySelectorAll(".markdown li").length, 2);
 
   click(".approval-actions .allow");
-  assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "t1", allow: true });
+  assert.deepEqual(lastCommand(line), { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: true });
   assert.ok([...document.querySelectorAll(".approval-actions button")].every((node) => (node as HTMLButtonElement).disabled), "one answer is all a card takes");
   assert.ok(document.querySelector(".approval[data-decided]"));
 

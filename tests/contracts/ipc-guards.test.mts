@@ -225,7 +225,7 @@ test("run guards enforce numeric and string boundaries", () => {
   assert.equal(isRunEvent({ ...usage, limit: 0 }), false);
 });
 
-const automationRequest = { type: "automation.request", requestId: "request-1", taskId: "task-1" };
+const automationRequest = { type: "automation.request", requestId: "request-1", taskId: "task-1", runId: "run-1" };
 
 test("automation requests carry a task and a well-formed payload", () => {
   assert.equal(isAutomationRequest({ ...automationRequest, op: "read" }), true);
@@ -239,6 +239,8 @@ test("automation requests carry a task and a well-formed payload", () => {
   assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { schedule: "* * * * *" } }), false);
   assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { prompt: "poll", schedule: "* * * * *", policy: "root" } }), false);
   assert.equal(isAutomationRequest({ ...automationRequest, op: "update", patch: { paused: "yes" } }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, runId: undefined, op: "update", patch: { paused: true } }), false);
+  assert.equal(isAutomationRequest({ ...automationRequest, runId: undefined, op: "save", draft: { prompt: "poll", schedule: "* * * * *" } }), false);
   assert.equal(isAutomationRequest({ ...automationRequest, op: "explode" }), false);
   assert.equal(isAutomationRequest({ type: "automation.request", requestId: "request-1", op: "read" }), false);
   assert.equal(isAutomationRequest({ ...automationRequest, op: "save", draft: { prompt: "", schedule: "* * * * *" } }), false);

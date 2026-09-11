@@ -40,7 +40,7 @@ test("a phone may drive the conversation and nothing outside it", () => {
     { type: "task.steer-queued", messageId: "queued-1" },
     { type: "task.drop-queued", taskId: "task-1", messageId: "queued-1" },
     { type: "run.cancel" },
-    { type: "run.decide", allow: false },
+    { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: false },
     { type: "run.stop-process", taskId: "task-1", processId: "bash-1" },
     { type: "annotation.add", quote: "this line", note: "why?" },
     { type: "annotation.add", quote: "this line", anchor: { kind: "message", messageId: "message-1", start: 0, end: 9 } },

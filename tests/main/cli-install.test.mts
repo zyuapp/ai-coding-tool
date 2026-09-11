@@ -56,3 +56,21 @@ test("unsupported platforms report status and refuse changes", async () => {
   await assert.rejects(installer.install(), /macOS or Linux/);
   await assert.rejects(installer.uninstall(), /macOS or Linux/);
 });
+
+test.skipIf(process.platform !== "darwin")("elevated CLI command uses exact embedded bytes and replaces destination symlinks", async () => {
+  const { cliInstallCommand } = await import("../../src/main/cli-install.ts");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const { configuration } = await linuxInstaller();
+  const root = path.dirname(path.dirname(configuration.installPath));
+  const victim = path.join(root, "victim");
+  await mkdir(victim, { recursive: true });
+  await writeFile(path.join(victim, "aic"), "preserve");
+  const target = { ...configuration, installPath: path.join(root, "aic ' $(false)"), script: "#!/bin/sh\nprintf '%s' 'literal `$HOME` $(false)'\n" };
+  await symlink(victim, target.installPath);
+  await promisify(execFile)("/bin/sh", ["-c", cliInstallCommand(target)]);
+  assert.equal(await readFile(target.installPath, "utf8"), target.script);
+  assert.equal((await lstat(target.installPath)).isSymbolicLink(), false);
+  assert.equal(await readFile(path.join(victim, "aic"), "utf8"), "preserve");
+  assert.equal((await stat(target.installPath)).mode & 0o777, 0o755);
+});

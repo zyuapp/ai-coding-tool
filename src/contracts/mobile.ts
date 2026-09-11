@@ -271,7 +271,7 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     case "run.cancel":
       return named;
     case "run.decide":
-      return named && typeof command.allow === "boolean";
+      return isString(command.taskId) && isString(command.runId) && isString(command.approvalId) && typeof command.allow === "boolean";
     case "run.stop-process":
       return named && isString(command.processId);
     default:

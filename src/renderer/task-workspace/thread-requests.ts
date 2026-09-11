@@ -1,3 +1,4 @@
+import { browserPermissions } from "../../application/workspace-reducer";
 import { browserTarget, dockFor, dockOwner, terminalTarget, type WorkspaceState } from "../../application/workspace-state";
 import { findThread, resolveScope, threadBusy, threadSummaries, threadSummary, threadTranscript, threadWaitResult } from "../../application/thread-projection";
 import { isNews, unreadFindings } from "../../domain/attention";
@@ -98,16 +99,17 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
       if (request.read.op === "tabs") return ok({ kind: "tabs", tabs: dock.browserTabs });
       const tab = browserTarget(dock, request.read.tabId);
       if (!tab) return ok({ kind: "no-tab" });
+      await window.desktop.configureBrowserPermissions(browserPermissions(host.state()));
       if (request.read.op === "screenshot") {
-        const shot = await window.desktop.captureBrowserPage(tab.id, request.read.fullPage === true, request.read.timeoutMs);
+        const shot = await window.desktop.captureBrowserPage(tab.id, request.read.fullPage === true, request.read.timeoutMs, request.taskId);
         return shot ? ok({ kind: "shot", shot }) : ok({ kind: "no-tab" });
       }
       if (request.read.op === "console" || request.read.op === "network" || request.read.op === "wait") {
         const { tabId: _tabId, ...inspection } = request.read;
-        const inspected = await window.desktop.inspectBrowserPage(tab.id, inspection);
+        const inspected = await window.desktop.inspectBrowserPage(tab.id, inspection, request.taskId);
         return inspected ? ok(inspected) : ok({ kind: "no-tab" });
       }
-      const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs);
+      const snapshot = await window.desktop.readBrowserPage(tab.id, request.read.textLimit ?? DEFAULT_PAGE_TEXT, request.read.timeoutMs, request.taskId);
       return snapshot ? ok({ kind: "snapshot", snapshot }) : ok({ kind: "no-tab" });
     }
     if (request.op === "terminal") {

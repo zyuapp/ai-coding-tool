@@ -472,7 +472,7 @@ test("a report the thread dropped is never answered as raised", async () => {
   const host = toolHost({ ...waiting, approvals: { "run-1": { approvalId: "ap1", taskId: "task-a", runId: "run-1", title: "Run tests", description: "", toolName: "Bash", input: {} } } });
   /** The user answers the run's question in the moment the report is going in, which takes the run over. */
   const joined = host.dispatch;
-  host.dispatch = (input) => { joined({ type: "run.decide", taskId: "task-a", allow: true }); joined(input); };
+  host.dispatch = (input) => { joined({ type: "run.decide", taskId: "task-a", runId: "run-1", approvalId: "ap1", allow: true }); joined(input); };
 
   const answered = await answer(host, { op: "notify", report: { headline: "Disk at 91%", key: "disk" } });
   assert.equal(host.task().findings, undefined, "a run the user joined answers them rather than raising");

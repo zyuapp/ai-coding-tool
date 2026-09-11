@@ -112,10 +112,9 @@ export function reduceRuns(state: WorkspaceState, input: RunInput): WorkspaceTra
     }
 
     case "run.decide": {
-      const taskId = input.taskId ?? state.currentId;
-      const active = taskId ? state.activeRuns[taskId] : undefined;
+      const active = state.activeRuns[input.taskId];
       const approval = active ? state.approvals[active.runId] : undefined;
-      if (!active || !approval) return settled(state);
+      if (!active || !approval || active.runId !== input.runId || approval.approvalId !== input.approvalId) return settled(state);
       const { [active.runId]: _decided, ...approvals } = state.approvals;
       /** Answering a run's question is joining it, exactly as steering into it is. */
       return settled(withAttendedRun({ ...state, approvals }, active.taskId), [{

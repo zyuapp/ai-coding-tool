@@ -27,12 +27,12 @@ export class AutomationChannel {
     private readonly timeout = REQUEST_TIMEOUT,
   ) {}
 
-  bridgeFor(taskId: string): AutomationBridge {
+  bridgeFor(taskId: string, currentRunId: () => string): AutomationBridge {
     return {
       read: () => this.request({ taskId, op: "read" }) as Promise<AutomationView | null>,
       list: () => this.request({ taskId, op: "list" }) as Promise<AutomationView[]>,
-      save: (draft: Omit<AutomationDraft, "taskId">) => this.request({ taskId, op: "save", draft }) as Promise<AutomationView>,
-      update: (patch: AutomationPatch) => this.request({ taskId, op: "update", patch }) as Promise<AutomationView>,
+      save: async (draft: Omit<AutomationDraft, "taskId">) => await this.request({ taskId, runId: currentRunId(), op: "save", draft }) as AutomationView,
+      update: async (patch: AutomationPatch) => await this.request({ taskId, runId: currentRunId(), op: "update", patch }) as AutomationView,
       remove: () => this.request({ taskId, op: "delete" }) as Promise<boolean>,
     };
   }

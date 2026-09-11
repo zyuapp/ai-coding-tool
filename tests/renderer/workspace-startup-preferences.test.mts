@@ -38,7 +38,7 @@ test("desktop initialization waits for restoration and applies current runtime p
     }
   }
   function Harness({ restored }: { restored: boolean }) {
-    useWorkspaceSubscriptions({ restored, dispatch });
+    useWorkspaceSubscriptions({ restored, dispatch, displayedState: () => state });
     return null;
   }
   const view = await mount(React.createElement(Harness, { restored: false }));
@@ -90,7 +90,7 @@ test("reopened views report both focused and unfocused initial DOM state", async
     const focus = vi.spyOn(document, "hasFocus").mockReturnValue(focused);
     let state = workspace({ focused: !focused });
     function Harness() {
-      useWorkspaceSubscriptions({ restored: false, dispatch: async (input) => { state = reduce(state, input).state; } });
+      useWorkspaceSubscriptions({ restored: false, displayedState: () => state, dispatch: async (input) => { state = reduce(state, input).state; } });
       return null;
     }
     const view = await mount(React.createElement(Harness));

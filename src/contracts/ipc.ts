@@ -5,7 +5,7 @@ export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadA
 import { isQuestionRequest, type QuestionRequest } from "../domain/agent-question.js";
 import { isAutomationDraft, isAutomationPatch, type AutomationDraft, type AutomationPatch, type AutomationRunStatus, type AutomationView } from "../domain/automation.js";
 import type { BrowserRead, ExternalCommand, FindingReport, TerminalRead, ThreadRequest, ThreadResponse } from "./threads.js";
-import type { BrowserAction, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
+import type { BrowserAction, BrowserPermissions, BrowserBounds, BrowserInspection, BrowserInspectionResult, BrowserShot, BrowserSnapshot } from "../domain/browser.js";
 import type { CaptureOptions } from "../domain/capture.js";
 import type { ComputerUsePermission, ComputerUsePermissions, ComputerUseRunConfig } from "../domain/computer-use.js";
 import type { CliStatus } from "../domain/cli.js";
@@ -196,8 +196,8 @@ export type AutomationRequest = {
 } & (
   | { op: "read" }
   | { op: "list" }
-  | { op: "save"; draft: Omit<AutomationDraft, "taskId"> }
-  | { op: "update"; patch: AutomationPatch }
+  | { op: "save"; runId: string; draft: Omit<AutomationDraft, "taskId"> }
+  | { op: "update"; runId: string; patch: AutomationPatch }
   | { op: "delete" }
 );
 
@@ -282,22 +282,23 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   onThreadRequest(listener: (request: ThreadRequest) => void): () => void;
   answerThreadRequest(response: ThreadResponse): void;
   /** The browser panel's pages live in main; the window owns the record of them and their geometry. */
-  openBrowserTab(tabId: string, url?: string): Promise<void>;
-  navigateBrowser(tabId: string, url: string): Promise<void>;
-  browserHistory(tabId: string, delta: -1 | 1): Promise<void>;
-  reloadBrowser(tabId: string): Promise<void>;
+  configureBrowserPermissions(permissions: BrowserPermissions): Promise<void>;
+  openBrowserTab(tabId: string, url?: string, taskId?: string): Promise<void>;
+  navigateBrowser(tabId: string, url: string, taskId?: string): Promise<void>;
+  browserHistory(tabId: string, delta: -1 | 1, taskId?: string): Promise<void>;
+  reloadBrowser(tabId: string, taskId?: string): Promise<void>;
   closeBrowserTab(tabId: string): Promise<void>;
   /** Which tab the panel is showing. */
   showBrowserTab(tabId: string | null): Promise<void>;
   /** Where the panel is, in window coordinates. Null while the panel is not on screen. */
   setBrowserBounds(bounds: BrowserBounds | null): Promise<void>;
-  actInBrowser(tabId: string, action: BrowserAction): Promise<string>;
+  actInBrowser(tabId: string, action: BrowserAction, taskId?: string): Promise<string>;
   /** Waits for the tab to stop loading, then reads the page. Null when that tab is gone. */
-  readBrowserPage(tabId: string, textLimit: number, timeoutMs: number): Promise<BrowserSnapshot | null>;
+  readBrowserPage(tabId: string, textLimit: number, timeoutMs: number, taskId?: string): Promise<BrowserSnapshot | null>;
   /** Reads recent diagnostics or waits for a condition in one page. */
-  inspectBrowserPage(tabId: string, inspection: BrowserInspection): Promise<BrowserInspectionResult | null>;
+  inspectBrowserPage(tabId: string, inspection: BrowserInspection, taskId?: string): Promise<BrowserInspectionResult | null>;
   /** Waits the same way, then writes a picture of the page to a file. Null when that tab is gone. */
-  captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number): Promise<BrowserShot | null>;
+  captureBrowserPage(tabId: string, fullPage: boolean, timeoutMs: number, taskId?: string): Promise<BrowserShot | null>;
   clearBrowserData(): Promise<void>;
   onBrowserEvent(listener: (event: BrowserPageEvent) => void): () => void;
   /** Searching a page. Chromium holds the text and counts the matches, so it reports them back. */
@@ -392,6 +393,7 @@ export function isShortcutOverrides(value: unknown): value is ShortcutOverrides 
 
 /** What a page did, pushed from main so the reducer stays the only writer of the tab record. */
 export type BrowserPageEvent = {
+  navigationRequest?: { taskId: string; url: string };
   tabId: string;
   url?: string;
   title?: string;
@@ -640,9 +642,8 @@ export function isAutomationRequest(value: unknown): value is AutomationRequest 
   const request = value as Record<string, unknown>;
   if (request.type !== "automation.request" || !isString(request.requestId) || !isString(request.taskId)) return false;
   if (request.op === "read" || request.op === "list" || request.op === "delete") return true;
-  if (request.op === "save") return isAutomationDraft({ ...(request.draft as object), taskId: request.taskId });
-  if (request.op === "update") return isAutomationPatch(request.patch);
-  return false;
+  if (request.op === "save") return isString(request.runId) && isAutomationDraft({ ...(request.draft as object), taskId: request.taskId });
+  return request.op === "update" && isString(request.runId) && isAutomationPatch(request.patch);
 }
 
 /** The command surface open to callers outside the window. Everything else is the user's alone. */

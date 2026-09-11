@@ -119,6 +119,7 @@ export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
     acknowledgeAutomation: (ack) => acknowledged.push(ack),
     onThreadRequest: (next) => { threadRequested = next; return () => {}; },
     answerThreadRequest: (response) => threadAnswers.push(response),
+    configureBrowserPermissions: async () => {},
     openBrowserTab: async (tabId, url) => { browserCalls.push(["open", tabId, url]); },
     navigateBrowser: async (tabId, url) => { browserCalls.push(["navigate", tabId, url]); },
     browserHistory: async (tabId, delta) => { browserCalls.push(["history", tabId, delta]); },

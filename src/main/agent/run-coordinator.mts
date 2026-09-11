@@ -38,7 +38,7 @@ type ActiveRun = {
 
 type CoordinatorOptions = {
   isWritePathInside?: (root: string, candidate: string) => boolean | Promise<boolean>;
-  automations?: (taskId: string) => AutomationBridge;
+  automations?: (taskId: string, currentRunId: () => string) => AutomationBridge;
   findings?: (taskId: string) => FindingBridge;
   threads?: (taskId: string) => ThreadBridge;
   browser?: (taskId: string) => BrowserBridge;
@@ -152,7 +152,11 @@ export class RunCoordinator {
         claude: command.claude,
         continuation: command.continuation,
         forkContinuation: command.forkContinuation,
-        automations: this.options.automations?.(command.taskId),
+        automations: this.options.automations?.(command.taskId, () => {
+          const current = this.runs.get(command.taskId);
+          if (!current || current.terminal || current.abortController.signal.aborted) throw new Error("This task has no active run to change its automation.");
+          return current.runId;
+        }),
         findings: this.options.findings?.(command.taskId),
         threads: this.options.threads?.(command.taskId),
         browser: command.browserTools === false ? undefined : this.options.browser?.(command.taskId),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import React from "react";
 import { test, afterAll, beforeAll } from "vitest";
 import { isBadgeCount, isThreadNotice, type DesktopAPI, type ThreadNotice } from "../../src/contracts/ipc.ts";
+import { emptyWorkspaceState } from "../../src/application/workspace-state.ts";
 import type { WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { registered, startMainProcess, type MainHarness } from "../support/electron-harness.mjs";
 import { mount } from "../support/renderer-dom.mts";
@@ -109,7 +110,7 @@ test("the window answers a clicked notification by selecting that thread", async
   try {
     const dispatched: WorkspaceInput[] = [];
     function Harness() {
-      useWorkspaceSubscriptions({ restored: false, dispatch: async (input) => { dispatched.push(input); } });
+      useWorkspaceSubscriptions({ restored: false, displayedState: emptyWorkspaceState, dispatch: async (input) => { dispatched.push(input); } });
       return null;
     }
     view = await mount(React.createElement(Harness));

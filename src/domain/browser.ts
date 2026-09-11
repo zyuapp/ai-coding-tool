@@ -114,6 +114,7 @@ export type BrowserBounds = { x: number; y: number; width: number; height: numbe
 
 /** A navigation the user has to answer before a run may make it. */
 export type BrowserApproval = {
+  approvalId: string;
   url: string;
   taskId: string;
   /** The tab it would load in, or a new one when absent. */
@@ -175,3 +176,6 @@ export function describeTab(tab: BrowserTab) {
   const parts = [`${tab.title || tab.url || "Blank tab"} [${tab.id}]`, tab.url, ...(tab.loading ? ["loading"] : []), ...(tab.error ? [tab.error] : [])];
   return parts.filter(Boolean).join(" · ");
 }
+
+/** The workspace grants origins globally and autonomous browsing per task. */
+export type BrowserPermissions = { origins: string[]; autonomousTaskIds: string[] };

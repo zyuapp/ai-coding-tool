@@ -323,7 +323,7 @@ test("a thread blocked on an approval leads until the user answers, then goes ba
   const dismissed = reduce(asking, { type: "task.dismiss", taskId });
   assert.deepEqual(deriveView(dismissed.state).activityThreads.priority.map((item) => item.id), [taskId], "a question cannot be dismissed away");
 
-  const answered = run(reduce(asking, { type: "run.decide", allow: true }).state, [
+  const answered = run(reduce(asking, { type: "run.decide", taskId, runId, approvalId: "approval-1", allow: true }).state, [
     { type: "run.event", event: { type: "run.status", taskId, runId, sequence: 3, status: "running" } },
   ]);
   assert.deepEqual(deriveView(answered).blockedThreadIds, new Set());
@@ -428,9 +428,9 @@ test("a side chat answers its own approval without the main thread in the way", 
   assert.equal(required(required(view.sideChats[0]).approval).approvalId, "approval-1");
   assert.equal(view.approval, undefined, "the main thread shows nothing");
 
-  assert.deepEqual(reduce(asking, { type: "run.decide", allow: true }).effects, [], "the main thread cannot answer for the side chat");
+  assert.deepEqual(reduce(asking, { type: "run.decide", taskId: "main-task", runId, approvalId: "approval-1", allow: true }).effects, [], "the main thread cannot answer for the side chat");
 
-  const decided = reduce(asking, { type: "run.decide", allow: true, taskId: "chat-1" });
+  const decided = reduce(asking, { type: "run.decide", allow: true, taskId: "chat-1", runId, approvalId: "approval-1" });
   assert.deepEqual(decided.effects, [{ type: "send-run-command", command: { type: "approval", taskId: "chat-1", runId, approvalId: "approval-1", allow: true } }]);
   assert.equal(required(deriveView(decided.state).sideChats[0]).approval, undefined);
 });
@@ -511,4 +511,23 @@ test("stopping a workflow reaches the thread's session after the run that starte
   assert.deepEqual(reduce(stopping.state, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a stop already on its way is not repeated");
   const ended = workspace({ threads: [task("task-a")], currentId: "task-a", workflows: { "task-a": [{ ...workflow, status: "completed" }] } });
   assert.deepEqual(reduce(ended, { type: "run.stop-process", processId: "wf-1" }).effects, [], "a workflow that already ended has nothing to stop");
+});
+
+test("approval decisions cannot move to a newer run or prompt or a different task", () => {
+  const state = workspace({
+    threads: [task("task-a"), task("task-b")], currentId: "task-b",
+    activeRuns: { "task-a": activeRun("task-a", "run-a") },
+    approvals: { "run-a": { taskId: "task-a", runId: "run-a", approvalId: "approval-a", title: "Run", description: "", toolName: "Bash", input: {} } },
+  });
+  const identity = { taskId: "task-a", runId: "run-a", approvalId: "approval-a" };
+  for (const override of [{ taskId: "task-b" }, { runId: "old-run" }, { approvalId: "old-approval" }]) {
+    for (const allow of [true, false]) {
+      const stale = reduce(state, { type: "run.decide", ...identity, ...override, allow });
+      assert.equal(stale.state, state);
+      assert.deepEqual(stale.effects, []);
+    }
+  }
+  const accepted = reduce(state, { type: "run.decide", ...identity, allow: true });
+  assert.equal(accepted.effects.length, 1);
+  assert.deepEqual(reduce(accepted.state, { type: "run.decide", ...identity, allow: true }).effects, []);
 });

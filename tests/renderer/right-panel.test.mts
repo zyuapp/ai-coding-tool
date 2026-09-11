@@ -121,7 +121,7 @@ test("a side chat composes with everything the main composer has", async () => {
     onImageRemove() {},
     onSend() {},
     onCancel() {},
-    onDecide(allow) { decisions.push(allow); },
+    onDecide(_approval, allow) { decisions.push(allow); },
     onPolicyChange(policy) { policies.push(policy); },
     onModelChange() {},
     onEffortChange() {}, onFastModeChange() {},

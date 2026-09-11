@@ -114,7 +114,7 @@ export function DockContent({ workspace, panels, launchers, activeTab, find, fin
             onOpen={(url) => void workspace.actions.openBrowser(url, false, browserTab.id)}
             onGo={(delta) => void workspace.actions.goInBrowser(delta, browserTab.id)}
             onReload={() => void workspace.actions.reloadBrowser(browserTab.id)}
-            onDecide={(allow) => void workspace.actions.decideBrowser(allow)}
+            onDecide={(approvalId, allow) => void workspace.actions.decideBrowser(approvalId, allow)}
           />
         </div>
       )}

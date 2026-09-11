@@ -209,11 +209,11 @@ test("an acknowledged command leaves the queue and a refused one says why", () =
 
 test("a command whose acknowledgement never arrived is sent again once the replay has settled", () => {
   const live = paired();
-  const asked = run(live, [{ kind: "dispatch", requestId: "r1", command: { type: "run.decide", taskId: "t1", allow: true } }]);
+  const asked = run(live, [{ kind: "dispatch", requestId: "r1", command: { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: true } }]);
   const dropped = run(asked.state, [{ kind: "closed" }, { kind: "opened" }, { kind: "received", message: { kind: "ping", sequence: 2, at: 1 } }]);
   assert.deepEqual(sent(dropped.effects).filter((message) => message.kind === "command"), []);
   const settled = run(dropped.state, [{ kind: "settled" }]);
-  assert.deepEqual(sent(settled.effects), [{ kind: "command", requestId: "r1", command: { type: "run.decide", taskId: "t1", allow: true } }]);
+  assert.deepEqual(sent(settled.effects), [{ kind: "command", requestId: "r1", command: { type: "run.decide", taskId: "t1", runId: "r1", approvalId: "a1", allow: true } }]);
 });
 
 test("a settle that lands before the line is live asks again rather than stranding the command", () => {
