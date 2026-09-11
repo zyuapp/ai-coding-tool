@@ -2,7 +2,8 @@ import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessag
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
-import type { AgentTurn, ProviderEvent, ProviderResult, ProviderRunInput, SteerQueue, ToolDecision } from "./agent-provider.mjs";
+import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
+import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "./markdown-buffer.mjs";
 import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
@@ -128,6 +129,7 @@ export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: 
  * stream stays open between them, and the turn ends on its own result.
  */
 export class ClaudeSession {
+  private sideChatBoundaryPending = false;
   private query: Query | null = null;
   private turn: Turn | null = null;
   private readonly queue: Pending[] = [];
@@ -172,6 +174,7 @@ export class ClaudeSession {
   }
 
   open(opener: SessionOpener, seed: ProviderRunInput) {
+    this.sideChatBoundaryPending = seed.channel === "side" && (continuationOf(seed) === undefined || seed.forkContinuation === true);
     this.model = seed.model;
     this.effort = effortFlag(seed);
     this.reportWorkflow = seed.reportWorkflow;
@@ -230,7 +233,10 @@ export class ClaudeSession {
   private async begin(turn: Turn) {
     await this.retune(turn.input);
     if (this.turn !== turn) return;
-    this.push({ message: userMessage(turn.input.prompt) });
+    // One message keeps the boundary after inherited history without giving Claude an extra turn.
+    const prompt = this.sideChatBoundaryPending ? `${SIDE_CHAT_BOUNDARY}\n\nSide-chat request:\n${turn.input.prompt}` : turn.input.prompt;
+    this.sideChatBoundaryPending = false;
+    this.push({ message: userMessage(prompt) });
     await this.drainSteering(turn.input.steering, (event) => turn.input.emit(event), () => this.turn === turn ? turn : null);
   }
 

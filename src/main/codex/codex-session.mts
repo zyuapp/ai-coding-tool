@@ -8,6 +8,7 @@ import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
 import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppServerClient, type AppServerCommand, type BackgroundTerminal, type ExitStatus, type IncomingRequest, type NotificationParams } from "./app-server-client.mjs";
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { codexInstructions } from "./codex-instructions.mjs";
+import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
 import { CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
@@ -496,6 +497,12 @@ export class CodexSession {
           if (error instanceof AppServerError) throw new OpenFailure(`Codex could not continue this thread (${reasonOf(error)}). Start a new thread to keep going.`, true);
           throw error;
         });
+    if (seed.channel === "side" && (continuation === undefined || seed.forkContinuation)) {
+      await client.request("thread/inject_items", {
+        threadId: started.thread.id,
+        items: [{ type: "message", role: "user", content: [{ type: "input_text", text: SIDE_CHAT_BOUNDARY }] }],
+      });
+    }
     this.threadId = started.thread.id;
     this.record.opened(client, this.threadId, seed.workspaceRoot);
     /** A thread that came back from disk already has the rollout the record is written against. */
