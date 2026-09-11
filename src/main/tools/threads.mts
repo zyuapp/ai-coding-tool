@@ -121,12 +121,12 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "start_thread",
-    description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. Pass worktree to give it an isolated checkout, which is what you want when it edits the same files as this thread.",
+    description: "Start a new AICodingTool thread on its own prompt and run it. Use when the user asks for separate pieces of work to run side by side, one thread per piece. The new thread runs with the permission policy the app is set to, so write a prompt that stands on its own. It starts in this thread's checkout, worktree included. Pass worktree to give it an isolated checkout instead, which is what you want when it edits the same files as this thread.",
     input: {
       prompt: z.string().describe("The first message of the new thread. It has none of this conversation's context, so say everything it needs."),
       project: z.string().optional().describe("Which project to start it in: its folder name, its path, or its id. Defaults to this thread's project."),
-      worktree: z.boolean().optional().describe("Run the new thread in its own git worktree, detached at whatever the project has checked out, so its edits never touch the project checkout."),
-      worktreeId: z.string().optional().describe("Start the thread in a worktree that already exists, as list_threads reports it, so it works alongside the threads already in there. Takes precedence over worktree."),
+      worktree: z.boolean().optional().describe("Run the new thread in its own new git worktree, detached at whatever the project has checked out, so its edits never touch this thread's checkout."),
+      worktreeId: z.string().optional().describe("Start the thread in another worktree that already exists, as list_threads reports it. Omit both worktree fields to share this thread's checkout. Takes precedence over worktree."),
       model: modelField,
       effort: effortField,
     },

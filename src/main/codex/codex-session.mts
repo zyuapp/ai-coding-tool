@@ -9,7 +9,7 @@ import { AppServerError, AppServerExited, CLIENT_INFO, codexAppServer, type AppS
 import { codexConfig, TOOL_TOKEN_ENV } from "./codex-config.mjs";
 import { codexInstructions } from "./codex-instructions.mjs";
 import { SIDE_CHAT_BOUNDARY } from "../agent/side-chat-instructions.mjs";
-import { CodexSkills } from "./codex-skills.mjs";
+import { adoptAppSkills, CodexSkills } from "./codex-skills.mjs";
 import { codexImageOutput, type ImageOutput } from "./codex-images.mjs";
 import { CodexSubagents } from "./codex-subagents.mjs";
 import { CodexThreadRecord, resumeThread, type ReadOrigin } from "./codex-thread-record.mjs";
@@ -482,6 +482,7 @@ export class CodexSession {
     client.onRequest((request) => this.answer(request));
     void client.exited.then((exit) => this.exited(exit));
     await client.initialize(CLIENT_INFO);
+    await adoptAppSkills(client);
     await skills.refresh(true);
     const account = await client.request("account/read", { refreshToken: false });
     if (!account.account) throw new OpenFailure(SIGN_IN);

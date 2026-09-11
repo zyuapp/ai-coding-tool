@@ -153,11 +153,14 @@ export async function answerThreadRequest(host: ThreadRequestHost, request: Thre
         })()
       : { command };
     if ("error" in selected) return failed(selected.error);
-    /** A new thread with no project named belongs where the thread that asked for it lives. */
+    /** A new thread with no place named starts where the thread that asked for it lives: its project, and its worktree when it has one. */
     const callerProjectId = caller?.projectId;
-    const targeted = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
+    const placed = selected.command.type === "task.send" && selected.command.taskId === undefined && selected.command.project === undefined && callerProjectId
       ? { ...selected.command, project: callerProjectId }
       : selected.command;
+    const targeted = placed.type === "task.send" && placed.taskId === undefined && placed.worktree === undefined && placed.worktreeId === undefined && caller?.worktreeId
+      ? { ...placed, worktreeId: caller.worktreeId }
+      : placed;
     const result = await host.execute(targeted).completed;
     if (!result.ok) return failed(result.message);
     const after = host.state();

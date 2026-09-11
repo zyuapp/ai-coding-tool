@@ -5,6 +5,7 @@ import { test } from "vitest";
 import { act } from "react";
 import type { RunCommand } from "../../src/contracts/ipc.ts";
 import type { ThreadResponse } from "../../src/contracts/threads.ts";
+import type { Thread } from "../../src/domain/thread.ts";
 
 import { item } from "../support/renderer-dom.mts";
 import { settleFrame } from "../support/settle.mts";
@@ -177,6 +178,33 @@ test("a new thread inherits agent settings and can select any registered model",
     await desktop.askThreads({ type: "thread.request", requestId: "invalid", taskId: caller.id, op: "command", command: { type: "task.send", text: "Use Luna", model: "gpt-5.6-luna", effort: "ultra" } });
   });
   assert.match(failedThreadResponse(desktop.threadAnswers.at(-1)).message, /does not support ultra effort/);
+
+  await workspace.view.unmount();
+});
+
+test("a new thread starts in the caller's worktree unless the command places it elsewhere", async () => {
+  const project = { id: "project-1", root: "/project", workspaceId: "workspace-1" };
+  const worktree = { id: "wt-caller", projectId: project.id, root: "/worktrees/repo-caller", workspaceId: "worktree-caller", baseCommit: "abcdef1", createdAt: 1, lastUsedAt: 1 };
+  const caller: Thread = {
+    id: "task-1", title: "Add the header", projectId: project.id, worktreeId: worktree.id, engine: "claude", executionPolicy: "confirm", messages: [],
+    continuationStatus: "none", lastChangeSnapshot: { files: [], capturedAt: 1 }, updatedAt: 1,
+  };
+  const desktop = fakeDesktop({ loadTaskStore: async () => ({ version: 2, hiddenTasks: 0, projects: [project], worktrees: [worktree], tasks: [caller], lastFolder: project.root }) });
+  const workspace = await mountWorkspace(desktop);
+  await settleFrame();
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "shared", taskId: caller.id, op: "command", command: { type: "task.send", text: "Review the header" } });
+  });
+  const shared = item(threadCommandResult(desktop.threadAnswers.at(-1)).thread);
+  assert.equal(shared.worktreeId, worktree.id, "the reviewer reads the same checkout as the thread that asked for it");
+  assert.equal(startCommand(desktop.sent.at(-1)).workspaceId, worktree.workspaceId);
+
+  await act(async () => {
+    await desktop.askThreads({ type: "thread.request", requestId: "own", taskId: caller.id, op: "command", command: { type: "task.send", text: "Try another approach", worktree: true } });
+  });
+  const own = item(threadCommandResult(desktop.threadAnswers.at(-1)).thread);
+  assert.notEqual(own.worktreeId, worktree.id, "asking for a worktree of its own is honoured");
 
   await workspace.view.unmount();
 });

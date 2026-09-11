@@ -101,6 +101,7 @@
     "files": [
       "dist/**",
       "assets/**",
+      "!assets/app-plugin/**",
       "!assets/legal/**",
       "!dist/renderer/legal/**",
       "!dist/mobile/legal/**",
@@ -113,6 +114,10 @@
       "!**/node_modules/zod/src/**/*"
     ],
     "extraResources": [
+      {
+        "from": "assets/app-plugin",
+        "to": "app-plugin"
+      },
       {
         "from": "vendor/cua-driver/cua-driver",
         "to": "cua-driver"

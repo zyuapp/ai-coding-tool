@@ -8,6 +8,7 @@ import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
 import { runTools } from "./run-tools.mjs";
 import { SessionPool } from "./session-pool.mjs";
 import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
+import { APP_PLUGIN_NAME, appPluginRoot, unqualifiedSkillName } from "../app-plugin.mjs";
 
 type QueryFactory = typeof query;
 const linkInstructions = `Only Markdown links are clickable in your output. Link web pages as [label](https://example.com), workspace files as [label](/absolute/path:line), and other threads as [title](aicodingtool://thread/<id>). Omit the line when it is unavailable.`;
@@ -76,6 +77,19 @@ async function* idlePrompt() {
   await new Promise<void>(() => {});
 }
 
+/** The app's own plugin, when the main process has said where it is. */
+function appPlugins() {
+  const root = appPluginRoot();
+  return root === undefined ? {} : { plugins: [{ type: "local" as const, path: root }] };
+}
+
+/** Claude qualifies a plugin skill as `plugin:skill`; the app's own skills are offered by their alias. */
+function appCommand(command: SlashCommand): SlashCommand {
+  if (!command.name.startsWith(`${APP_PLUGIN_NAME}:`)) return command;
+  const { aliases: _aliases, ...rest } = command;
+  return { ...rest, name: unqualifiedSkillName(command.name), description: command.description.replace(`(${APP_PLUGIN_NAME}) `, "") };
+}
+
 export async function discoverClaudeCommands(workspaceRoot: string, projectless: boolean, queryFactory: QueryFactory = query): Promise<SlashCommand[]> {
   const session = queryFactory({
     prompt: idlePrompt(),
@@ -84,10 +98,11 @@ export async function discoverClaudeCommands(workspaceRoot: string, projectless:
       pathToClaudeCodeExecutable: claudeExecutable(),
       settingSources: projectless ? ["user"] : ["user", "project", "local"],
       skills: "all",
+      ...appPlugins(),
     },
   });
   try {
-    return await session.supportedCommands();
+    return (await session.supportedCommands()).map(appCommand);
   } finally {
     session.close();
   }
@@ -201,6 +216,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         settingSources: (input.projectless ? ["user"] : ["user", "project", "local"]) as ("user" | "project" | "local")[],
         ...(input.claude?.conciseReplies ? { settings: { outputStyle: "Concise" } } : {}),
         skills: "all" as const,
+        ...appPlugins(),
         forwardSubagentText: true,
         includePartialMessages: true,
         canUseTool,
