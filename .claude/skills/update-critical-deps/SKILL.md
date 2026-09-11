@@ -25,7 +25,7 @@ Never hand-edit the generated legal notices. Run `npm run prepare:cua`, review t
 
 ## Resolve setup blockers
 
-Missing tooling is setup work within this task. Install or download the required tools into a temporary directory and continue without asking the user to do the setup. For Rust-based native reports, use an official Rust toolchain and `cargo-about` release matching the host. Keep `CARGO_HOME`, `RUSTUP_HOME`, downloaded sources, and report configuration under `/tmp`; use Rustup's `--no-modify-path` option and set the tool path only for the commands that need it. Do not change the user's shell configuration or standalone CLI installations.
+Native report setup is automated by `npm run generate:native-licenses`. It installs pinned Rust and cargo-about tooling and caches source archives and reports under `/tmp/ai-coding-tool-native-licenses-<uid>`. It does not change shell configuration or standalone CLI installations. Reuse that cache; do not reconstruct report templates or license clarifications by hand. `NATIVE_LICENSE_CACHE` can select another temporary cache directory.
 
 If the sandbox blocks downloads or localhost test listeners, retry through the environment's permission mechanism. If a package or executable is for another platform, obtain the matching host build of the same candidate version for executable checks. Neither an initial network error nor an absent local tool is enough to declare the update blocked.
 
@@ -116,13 +116,19 @@ Add the release to the `releases` map in `scripts/cua-driver-version.mjs`. Recor
 - UniFFI version and full source commit.
 - `libffi` and `libffi-sys` versions.
 
-Regenerate `assets/legal/CUA-RUST-DEPENDENCIES.html` from the new CUA source commit and `assets/legal/UBJS-NATIVE-DEPENDENCIES.html` from the new UBJS source commit. Scope both reports to production dependencies linked into the shipped native artifacts for `aarch64-apple-darwin`. Exclude development-only and build-only dependencies, as the notices state. Do not replace version strings in an old report.
+Generate or reuse the native reports with one command after recording the release pins:
 
-Use `cargo-about generate --locked --fail --target aarch64-apple-darwin` with the CUA `crates/cua-driver/Cargo.toml` and UBJS `runtimes/napi/Cargo.toml` manifests in their exact source trees. Set `ignore-build-dependencies = true` and `ignore-dev-dependencies = true` in the temporary report configuration. This resolves the macOS dependency graph on Linux without compiling macOS binaries.
+```sh
+npm run generate:native-licenses
+```
 
-If an upstream crate omits its license field, inspect its source license and use a checksum-verified `cargo-about` clarification; do not exclude the crate or guess its license. Where a source file references a standard license instead of including its full text, obtain the complete text from the license steward. Preserve existing valid dual-license selections, review package and license differences, and normalize trailing whitespace in generated output. A report may be unchanged after regeneration when the locked source and graph are unchanged.
+The command verifies exact source/build inputs and report checksums. Unchanged reports need no downloads or Rust tools. A new CUA release reuses the UBJS report when its upstream source, native versions, and reviewed CUA build transformation are unchanged. Otherwise it automatically runs `cargo-about generate --locked --fail` for the production `aarch64-apple-darwin` graph, excluding build-only and development-only dependencies. Downloaded sources, tooling, and generated reports are cached. `-- --force` bypasses report reuse for a deliberate regeneration check; routine updates do not need it.
 
-If reproduction fails, follow **Resolve setup blockers** before leaving the update unfinished. Stop only if the exact graph or license text remains unverifiable after those attempts, and report the evidence still missing instead of committing the update.
+Review changed reports and `scripts/legal/native-reports.lock.json`, which records their source, recipe, lockfile, and output hashes. Commit that receipt with the dependency even when the HTML is unchanged. Never hand-edit a report or its receipt to pass validation.
+
+Investigate only command failures or newly changed license entries. Reviewed report templates and checksum-verified license clarifications live in `scripts/legal/native/`. If a source license or CUA's UBJS build transformation changes, inspect the exact source before updating its recipe/checksum; do not exclude an unresolved crate or guess its license. A new license clarification must use the upstream license text, or complete text from its steward when the source only references it. Keep existing valid dual-license selections.
+
+If required evidence remains unavailable, follow **Resolve setup blockers**, leave that dependency unchanged, and report the missing evidence. Continue independent dependency updates.
 
 ```
 npm run prepare:cua
@@ -149,7 +155,7 @@ Make one commit per dependency. Stage only that dependency's files:
 
 - Agent SDK: `package.json`, `package-lock.json`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Commit as `Move the agent SDK to <version>`.
 - Codex: `package.json`, `package-lock.json`, and `src/main/codex/protocol`. Include `scripts/generate-codex-protocol.mts` if generation needed a fix, any behaviour-preserving typed fixture updates required by the generated responses, and either generated legal notice if it changed. Commit as `Move Codex to <version>`.
-- Cua Driver: `package.json`, `package-lock.json`, `scripts/cua-driver-version.mjs`, `assets/legal/CUA-RUST-DEPENDENCIES.html`, `assets/legal/UBJS-NATIVE-DEPENDENCIES.html`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Include any required `scripts/prepare-cua-driver.mts` fixes and behaviour-preserving packaging fixture updates. Commit as `Move the Cua Driver to <version>`.
+- Cua Driver: `package.json`, `package-lock.json`, `scripts/cua-driver-version.mjs`, `scripts/legal/native-reports.lock.json`, `assets/legal/CUA-RUST-DEPENDENCIES.html`, `assets/legal/UBJS-NATIVE-DEPENDENCIES.html`, `assets/legal/NPM-RUNTIME-LICENSES.txt`, and `assets/legal/THIRD-PARTY-NOTICES.txt`. Include any required native report recipe or generator changes, `scripts/prepare-cua-driver.mts` fixes, and behaviour-preserving packaging fixture updates. Commit as `Move the Cua Driver to <version>`.
 
 When updating more than one, finish and commit each dependency before touching the next because they share `package.json`.
 

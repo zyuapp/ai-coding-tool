@@ -111,3 +111,11 @@ test("the package hook rejects Anthropic SDK version drift", async () => {
   await writeAsar(resources, undefined, "0.4.0");
   await assert.rejects(verifyLegalPackage(resources), { message: `Packaged Anthropic SDK is 0.4.0; notices cover ${ANTHROPIC_AGENT_SDK_VERSION}.` });
 });
+
+test("the package hook rejects changed native license text with unchanged version labels", async () => {
+  const resources = await packageFixture();
+  const report = path.join(resources, "legal/UBJS-NATIVE-DEPENDENCIES.html");
+  const text = await readFile(report, "utf8");
+  await writeFile(report, text.replace("Mozilla Public License Version 2.0", "Changed license text"));
+  await assert.rejects(verifyLegalPackage(resources), /unverified inputs or content/);
+});

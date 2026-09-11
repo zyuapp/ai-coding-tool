@@ -1,0 +1,15 @@
+accepted = ["Apache-2.0", "MIT", "Unicode-3.0", "ISC", "MPL-2.0", "BSD-3-Clause", "BSD-2-Clause", "CDLA-Permissive-2.0", "MIT-0", "Zlib", "BSL-1.0"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+[uniffi-runtime-napi.clarify]
+license = "MPL-2.0"
+[[uniffi-runtime-napi.clarify.files]]
+path = "{{MPL_PATH}}"
+checksum = "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+
+[uniffi-runtime-core.clarify]
+license = "MPL-2.0"
+[[uniffi-runtime-core.clarify.files]]
+path = "{{MPL_PATH}}"
+checksum = "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"

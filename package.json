@@ -16,6 +16,7 @@
     "build:mobile": "vite build --config vite.mobile.config.mts",
     "check": "npm run check:licenses && tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.preview.json && npm run lint",
     "check:licenses": "node scripts/generate-legal-notices.mjs --check",
+    "generate:native-licenses": "node scripts/generate-native-legal-notices.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "test": "npm run check && npm run build && vitest run",
     "prepare:electron": "install-electron",

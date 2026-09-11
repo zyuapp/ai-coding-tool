@@ -11,6 +11,7 @@ import {
   UBJS_VERSION,
 } from "./cua-driver-version.mjs";
 import { runtimeLicenseEntries } from "./generate-legal-notices.mjs";
+import { checkNativeReports } from "./legal/native-reports.mjs";
 
 const legalFiles = [
   "AI-CODING-TOOL-MIT.txt",
@@ -89,6 +90,7 @@ export async function verifyLegalPackage(resourcesPath) {
     `UniFFI JavaScript runtime ${UBJS_VERSION}`,
     `libffi-sys ${CUA_RELEASE.libffiSysVersion}`,
   ]);
+  await checkNativeReports(legalPath);
 
   const npmLicense = path.join(legalPath, "NPM-RUNTIME-LICENSES.txt");
   const npmLicenseText = await readFile(npmLicense, "utf8");

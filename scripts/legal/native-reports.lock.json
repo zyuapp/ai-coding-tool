@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "reports": {
+    "cua": {
+      "inputs": {
+        "repository": "trycua/cua",
+        "commit": "cc54254464c0c9aebfd6547fe7e4a0ceaf0456d7",
+        "version": "0.26.1",
+        "manifest": "libs/cua-driver/rust/crates/cua-driver/Cargo.toml",
+        "target": "aarch64-apple-darwin",
+        "defaultFeatures": true,
+        "features": [],
+        "ignoreBuildDependencies": true,
+        "ignoreDevDependencies": true,
+        "toolchain": "1.97.1",
+        "cargoAboutVersion": "0.9.2",
+        "uniffiCommit": "309762f55db3f0548194a9ceba3027fa64b18a93",
+        "uniffiVersion": "0.31.0",
+        "recipeSha256": "3dcfbcc050f8b49aa4eeb35beb8ec3c102a4b92704d1a4de52b192b3d2e4cf8c"
+      },
+      "inputSha256": "32fe08ff3692e2c91b04d382268fed75d5d835f334088a3b3aad990d2393e1c2",
+      "sourceArchiveSha256": "60f096adcb8b2a738d18e8ca9f290f126791fda64369cad7083e5cf61c008c2d",
+      "lockSha256": "9d4be689e289e6f314b2843bf8545620f88706d0cbbf149a60a6901d6100ab47",
+      "reportSha256": "6618110c717f32af86a915d397f22fad9c00ae201d49e6859caaa75cefeb2863",
+      "verifiedCuaCommit": "cc54254464c0c9aebfd6547fe7e4a0ceaf0456d7"
+    },
+    "ubjs": {
+      "inputs": {
+        "repository": "jhugman/uniffi-bindgen-react-native",
+        "commit": "dcb5c4ab2350d57f6d26f5fa81a99c77ed86d449",
+        "version": "0.31.0-3",
+        "manifest": "runtimes/napi/Cargo.toml",
+        "target": "aarch64-apple-darwin",
+        "defaultFeatures": true,
+        "features": [],
+        "ignoreBuildDependencies": true,
+        "ignoreDevDependencies": true,
+        "toolchain": "1.97.1",
+        "cargoAboutVersion": "0.9.2",
+        "uniffiCommit": "309762f55db3f0548194a9ceba3027fa64b18a93",
+        "uniffiVersion": "0.31.0",
+        "libffiVersion": "3.5.2",
+        "libffiSysVersion": "4.1.0",
+        "buildScriptSha256": "db02ec1345edbf6090f0093ddae3bd41d624d2984af58bcdce3a66cfcad373dc",
+        "mplSha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+        "recipeSha256": "cfbd56a89889ee485fc4a2aa8809d934ee7ea19a2ca910a0f2bdb864b5da1416"
+      },
+      "inputSha256": "9e6ff158210bc7e84bfe7a3eb0a9e3727e12141caf85f9477a37ecd46bb1a2d0",
+      "sourceArchiveSha256": "4c7529a42a1a191107892cee09c3af888fd606f662e9f7ecfd3c025938bcc607",
+      "lockSha256": "925e26f606cd906f74675c14687bbe4561844a86c935a4db77dd089a83449316",
+      "reportSha256": "4925f4f692fc1cccb7546f3137ddd910fae3b13d45dc8b2313bbd4801b0a6780",
+      "verifiedCuaCommit": "cc54254464c0c9aebfd6547fe7e4a0ceaf0456d7"
+    }
+  }
+}
