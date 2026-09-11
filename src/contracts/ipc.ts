@@ -1,4 +1,4 @@
-import type { BranchesResult, CommitHistoryRequest, CommitHistoryResult } from "./git.js";
+import type { BranchesResult } from "./git.js";
 export type { BranchesResult } from "./git.js";
 import type { AgentSettingsReloadEvent, ReloadAgentSettingsCommand } from "./agent-settings.js";
 export { isAgentSettingsReloadEvent, type AgentSettingsReloadEvent, type ReloadAgentSettingsCommand } from "./agent-settings.js";
@@ -238,7 +238,6 @@ export type DesktopAPI = MobileDesktopAPI & ImageDesktopAPI & {
   diffPatch(workspaceId: WorkspaceId, range: DiffRange, path: string, previousPath?: string, ignoreWhitespace?: boolean): Promise<DiffPatchResult>;
   /** The local branches a thread can start from, newest first. */
   branches(workspaceId: WorkspaceId): Promise<BranchesResult>;
-  commitHistory(workspaceId: WorkspaceId, request: CommitHistoryRequest): Promise<CommitHistoryResult>;
   /** What the checkout has to say about its pull request, including that `gh` is not installed. */
   pullRequest(workspaceId: WorkspaceId): Promise<PullRequestAnswer>;
   /** Moves a project checkout onto a branch. Never forced, so uncommitted work stops it. */

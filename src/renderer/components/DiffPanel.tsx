@@ -242,7 +242,6 @@ export function DiffPanel({
       />
 
       {available && <ReviewProgress files={files} viewed={diff.viewed} additions={available.additions} deletions={available.deletions} />}
-      {diff.mode === "commits" && diff.range.kind !== "commit" && <p className="session-note">{diff.history?.loading ? "Reading commits…" : "Choose a commit to review"}</p>}
       {notice && <p className="session-note">{notice}</p>}
 
       <div className="diff-scroll">

@@ -1,6 +1,5 @@
 /** What the handlers in this folder share: the state helpers, and the errors they report. */
 import type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceTransition } from "./types.js";
-import { requestDiffCommits } from "../workspace-diff.js";
 import { promptWithAnnotations } from "../annotations.js";
 import { promptWithAttachments } from "../attachments.js";
 import { annotationsFor, composerDraft, filesFor, focusedTab, imagesFor, pastesFor, withAnnotations, withFiles, withImages, withPastes } from "../composer-drafts.js";
@@ -740,21 +739,10 @@ export function defaultBranchRange(state: WorkspaceState): Extract<DiffRange, { 
 export function readDiffFrom(state: WorkspaceState, owner: string, workspaceId: string | undefined, range: DiffRange, patch: Partial<DiffState> = {}): WorkspaceTransition {
   const previous = diffFor(state, owner);
   const sameWorkspace = previous.workspaceId === workspaceId;
-  /** A background refresh cannot restore the old branch diff while the first commit is being chosen. */
-  if (previous.mode === "commits" && range.kind !== "commit" && patch.mode === undefined) {
-    const waiting = withDiff(state, owner, {
-      ...patch, workspaceId: workspaceId ?? null, result: null, loading: false,
-      ...(!sameWorkspace ? { history: undefined, branchRange: undefined, commitRange: undefined, commitSummary: undefined } : {}),
-    });
-    return !sameWorkspace && workspaceId ? requestDiffCommits(waiting, owner, workspaceId, { query: "", offset: 0 }) : settled(waiting);
-  }
   patch = {
     ...patch,
     mode: modeForRange(range),
     branchRange: range.kind === "branches" ? range : sameWorkspace ? previous.branchRange : undefined,
-    commitRange: range.kind === "commit" ? range : sameWorkspace ? previous.commitRange : undefined,
-    commitSummary: patch.commitSummary ?? (sameWorkspace && (range.kind !== "commit" || previous.commitSummary?.sha.startsWith(range.commit)) ? previous.commitSummary : undefined),
-    history: sameWorkspace && modeForRange(range) === "commits" ? previous.history : undefined,
   };
   if (!workspaceId) return settled(withDiff(state, owner, { ...patch, range, workspaceId: null, result: null, loading: false }));
   /** The read takes the whitespace setting the review lands with, which is the one it already had. */

@@ -50,11 +50,10 @@ export type FakeDesktop = DesktopAPI & {
 const gitDesktop = {
     changedFiles: async () => ({ status: "available", files: [], branch: "main", baseline: null, additions: 0, deletions: 0 }),
     branches: async () => ({ status: "available", branches: ["main", "fix-loader", "feature-x"], remotes: ["origin/main"], current: "main" }),
-    commitHistory: async () => ({ status: "available", commits: [], head: null, offset: 0, hasMore: false }),
     pullRequest: async () => ({ status: "none" }) as const,
     diffSummary: async (_workspaceId, range, ignoreWhitespace = false) => ({ status: "available", range, ignoreWhitespace, files: [], additions: 0, deletions: 0 }),
     diffPatch: async () => ({ status: "available", patch: "" }),
-} satisfies Pick<DesktopAPI, "changedFiles" | "branches" | "commitHistory" | "pullRequest" | "diffSummary" | "diffPatch">;
+} satisfies Pick<DesktopAPI, "changedFiles" | "branches" | "pullRequest" | "diffSummary" | "diffPatch">;
 
 export function fakeDesktop(overrides: Partial<DesktopAPI> = {}): FakeDesktop {
   const sent: RunCommand[] = [];

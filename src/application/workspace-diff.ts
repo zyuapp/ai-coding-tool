@@ -1,8 +1,6 @@
 import type { DiffSummaryResult } from "../contracts/ipc.js";
 import { DEFAULT_BRANCH_RANGE, fileFingerprint, foldedForSize, modeForRange, rangeKey, type DiffFileSummary, type DiffMode, type DiffRange } from "../domain/diff.js";
-import type { CommitHistoryRequest, CommitHistoryResult, CommitSummary } from "../domain/commit-history.js";
 import type { WorkspaceState } from "./workspace-state.js";
-import type { WorkspaceTransition } from "./workspace-reducer/types.js";
 
 /**
  * One thread's review of its own checkout: what it is comparing, which files it has folded away, and
@@ -10,15 +8,10 @@ import type { WorkspaceTransition } from "./workspace-reducer/types.js";
  * file is drawn and never becomes state, the way a page's contents and a shell's scrollback never do.
  */
 export type DiffState = {
-  /** Commits may be selected before the first history page supplies a commit to compare. */
-  mode: DiffMode;
-  /** The last concrete comparison, held while a first visit to Commits is still reading history. */
+  /** A commit link opens a concrete comparison outside the selectable review modes. */
+  mode: DiffMode | "commit";
   range: DiffRange;
   branchRange?: Extract<DiffRange, { kind: "branches" }>;
-  commitRange?: Extract<DiffRange, { kind: "commit" }>;
-  commitSummary?: CommitSummary;
-  /** Only one page is retained; searching never copies the repository's history into workspace state. */
-  history?: DiffCommitHistory;
   /** The checkout the list was read from, so a thread that moves does not read a stale one. */
   workspaceId: string | null;
   result: DiffSummaryResult | null;
@@ -32,16 +25,7 @@ export type DiffState = {
   ignoreWhitespace: boolean;
 };
 
-export type DiffCommitHistory = {
-  workspaceId: string;
-  requestId: string;
-  request: CommitHistoryRequest;
-  result: CommitHistoryResult | null;
-  loading: boolean;
-};
-
 export const DIFF_MODE_MENU = "diff:mode";
-export const DIFF_COMMITS_MENU = "diff:commits";
 
 export const EMPTY_DIFF: DiffState = {
   mode: "branch",
@@ -61,15 +45,6 @@ export function diffFor(state: Pick<WorkspaceState, "diffs">, owner: string): Di
 
 export function withDiff(state: WorkspaceState, owner: string, patch: Partial<DiffState>): WorkspaceState {
   return { ...state, diffs: { ...state.diffs, [owner]: { ...diffFor(state, owner), ...patch } } };
-}
-
-/** Records exactly which history page was requested before its effect can answer. */
-export function requestDiffCommits(state: WorkspaceState, owner: string, workspaceId: string, request: CommitHistoryRequest, debounce = false): WorkspaceTransition {
-  const requestId = crypto.randomUUID();
-  return {
-    state: withDiff(state, owner, { workspaceId, history: { workspaceId, requestId, request, result: null, loading: true } }),
-    effects: [{ type: "read-commits", owner, workspaceId, requestId, request, debounce }],
-  };
 }
 
 /**

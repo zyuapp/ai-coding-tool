@@ -1,10 +1,9 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { LuArrowRight as ArrowRight, LuCheck as Check, LuChevronDown as ChevronDown, LuColumns2 as Columns2, LuPilcrow as Pilcrow, LuRefreshCw as RefreshCw, LuRows3 as Rows3 } from "react-icons/lu";
-import { DIFF_COMMITS_MENU, DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
+import { DIFF_MODE_MENU, type DiffState } from "../../application/workspace-diff";
 import { DEFAULT_BRANCH_RANGE, type DiffMode, type DiffRange } from "../../domain/diff";
 import { BranchMenu, useAnchoredStyle, useBranches } from "./BranchMenu";
-import { CommitMenu } from "./CommitMenu";
 import { moveListFocus, useDismissibleLayer } from "../focus";
 
 const BASE_MENU = "diff:base";
@@ -13,16 +12,11 @@ const HEAD_SIDE = { label: "HEAD", value: "HEAD" };
 const WORKING_SIDE = { label: "Working tree", value: "" };
 const MODES: Array<{ value: DiffMode; label: string }> = [
   { value: "uncommitted", label: "Uncommitted" },
-  { value: "commits", label: "Commits" },
   { value: "branch", label: "Branch" },
 ];
 
 export type DiffPickerActions = {
   onSetMode: (mode: DiffMode) => void;
-  onOpenCommits: () => void;
-  onSearchCommits: (query: string) => void;
-  onPageCommits: (direction: -1 | 1) => void;
-  onSelectCommit: (commit: string) => void;
 };
 
 type MenuControl = {
@@ -61,36 +55,21 @@ function SidePicker({ id, label, value, extra, currentBranch, workspaceId, openM
   );
 }
 
-function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: MenuControl & { mode: DiffMode; disabled: boolean; onSetMode: (mode: DiffMode) => void }) {
+function ModePicker({ mode, disabled, openMenu, onSetOpenMenu, onSetMode }: MenuControl & { mode: DiffState["mode"]; disabled: boolean; onSetMode: (mode: DiffMode) => void }) {
   const open = openMenu === DIFF_MODE_MENU;
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const anchored = useAnchoredStyle(open ? trigger.current : null, 170);
   useDismissibleLayer(open, [trigger, menu], () => onSetOpenMenu(null), trigger);
-  const label = MODES.find((item) => item.value === mode)!.label;
+  const label = mode === "commit" ? "Commit" : MODES.find((item) => item.value === mode)!.label;
   return <>
     <button ref={trigger} className="diff-mode-trigger" type="button" aria-label={`Review mode: ${label}`} aria-haspopup="menu" aria-expanded={open} disabled={disabled} onClick={() => onSetOpenMenu(open ? null : DIFF_MODE_MENU)}>{label}<ChevronDown size={12} /></button>
     {open && createPortal(
       <div ref={menu} className="branch-menu anchored diff-mode-menu" role="menu" aria-label="Review mode" data-popover-menu style={anchored ?? undefined} onKeyDown={moveListFocus}>
-        {MODES.map((item) => <button type="button" key={item.value} role="menuitemradio" aria-checked={mode === item.value} autoFocus={mode === item.value} onClick={() => onSetMode(item.value)}><span className="branch-menu-mark">{mode === item.value && <Check size={14} />}</span><span>{item.label}</span></button>)}
+        {MODES.map((item) => <button type="button" key={item.value} role="menuitemradio" aria-checked={mode === item.value} autoFocus={mode === item.value || (mode === "commit" && item.value === "uncommitted")} onClick={() => onSetMode(item.value)}><span className="branch-menu-mark">{mode === item.value && <Check size={14} />}</span><span>{item.label}</span></button>)}
       </div>, document.body,
     )}
   </>;
-}
-
-function CommitPicker({ diff, openMenu, onSetOpenMenu, onOpenCommits, onSearchCommits, onPageCommits, onSelectCommit, disabled }: MenuControl & Omit<DiffPickerActions, "onSetMode"> & { diff: DiffState; disabled: boolean }) {
-  const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const open = openMenu === DIFF_COMMITS_MENU;
-  useDismissibleLayer(open, [trigger, menu], () => onSetOpenMenu(null), trigger);
-  const sha = diff.range.kind === "commit" ? diff.range.commit : null;
-  const subject = sha && diff.commitSummary?.sha.startsWith(sha) ? diff.commitSummary.subject : null;
-  return <div className="diff-commit-picker" data-popover-menu>
-    <button ref={trigger} className="diff-commit-trigger" type="button" aria-label={sha ? `Choose commit: ${sha.slice(0, 7)}${subject ? ` ${subject}` : ""}` : "Choose a commit"} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} data-tip={subject ?? sha ?? "Choose a commit"} onClick={() => open ? onSetOpenMenu(null) : onOpenCommits()}>
-      {sha && <code>{sha.slice(0, 7)}</code>}<span>{subject ?? (sha ? "" : "Choose a commit")}</span><ChevronDown size={12} />
-    </button>
-    {open && <CommitMenu anchor={trigger} menuRef={menu} history={diff.history} selected={sha} onSearch={onSearchCommits} onPage={onPageCommits} onPick={onSelectCommit} />}
-  </div>;
 }
 
 export type DiffToolbarProps = MenuControl & DiffPickerActions & {
@@ -105,8 +84,8 @@ export type DiffToolbarProps = MenuControl & DiffPickerActions & {
   onRefresh: () => void;
 };
 
-/** Mode first; a branch comparison reads current work → target, and commits have their own picker. */
-export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceId, openMenu, onSetOpenMenu, onSetMode, onOpenCommits, onSearchCommits, onPageCommits, onSelectCommit, onSetRange, onToggleSplit, onToggleWhitespace, onRefresh }: DiffToolbarProps) {
+/** Mode first; a branch comparison reads current work → target. */
+export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceId, openMenu, onSetOpenMenu, onSetMode, onSetRange, onToggleSplit, onToggleWhitespace, onRefresh }: DiffToolbarProps) {
   const range = diff.range.kind === "branches" ? diff.range : diff.branchRange ?? DEFAULT_BRANCH_RANGE;
   return (
     <header className="diff-toolbar">
@@ -118,12 +97,12 @@ export function DiffToolbar({ diff, split, roomForTwo, currentBranch, workspaceI
           <button type="button" aria-label="Read the comparison again" data-tip="Read again" onClick={onRefresh}><RefreshCw size={15} className={diff.loading ? "spinning" : ""} /></button>
         </div>
       </div>
+      {diff.range.kind === "commit" && <code className="diff-linked-commit" title={diff.range.commit}>{diff.range.commit.slice(0, 7)}</code>}
       {diff.mode === "branch" && <div className="diff-compare">
         <SidePicker id={COMPARE_MENU} label="Compare" value={range.compare ?? ""} extra={WORKING_SIDE} currentBranch={currentBranch} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(compare) => onSetRange({ ...range, compare: compare || null })} />
         <ArrowRight className="diff-range-arrow" size={14} aria-hidden="true" />
         <SidePicker id={BASE_MENU} label="Target branch" value={range.base} extra={HEAD_SIDE} workspaceId={workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onPick={(base) => onSetRange({ ...range, base })} />
       </div>}
-      {diff.mode === "commits" && <CommitPicker diff={diff} disabled={!workspaceId} openMenu={openMenu} onSetOpenMenu={onSetOpenMenu} onOpenCommits={onOpenCommits} onSearchCommits={onSearchCommits} onPageCommits={onPageCommits} onSelectCommit={onSelectCommit} />}
     </header>
   );
 }

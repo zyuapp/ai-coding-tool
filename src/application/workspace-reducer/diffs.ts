@@ -1,17 +1,16 @@
 /** The review: which comparison a dock holds, and what Git answers about it. */
 import { reduceDock } from "./dock.js";
-import { DIFF_PANEL, environmentFor, now, readDiff, readDiffFrom, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled, rejected, focusDockTab, showDockTab, browserEffectsForTab } from "./shared.js";
+import { DIFF_PANEL, currentWorkspaceId, defaultBranchRange, environmentFor, now, readDiff, readDiffFrom, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled, rejected, focusDockTab, showDockTab, browserEffectsForTab } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { threadWorkspaceId } from "../thread-location.js";
 import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
-import { fileFingerprint, modeForRange, rangeKey } from "../../domain/diff.js";
-import { readCommits } from "./diff-commits.js";
+import { fileFingerprint, modeForRange, rangeKey, UNCOMMITTED } from "../../domain/diff.js";
 import { isCommitHash } from "../../domain/message-artifacts.js";
 
 type DiffInput = Extract<WorkspaceInput, {
   type: "view.refresh-environment" | "diff.toggle" | "diff.refresh" | "diff.open-commit" | "diff.set-range" | "diff.set-collapsed"
-    | "diff.set-viewed" | "diff.set-split" | "diff.set-ignore-whitespace" | "diff.loaded" | "environment.updated";
+    | "diff.set-mode" | "diff.set-viewed" | "diff.set-split" | "diff.set-ignore-whitespace" | "diff.loaded" | "environment.updated";
 }>;
 
 export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceTransition {
@@ -25,7 +24,7 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
       const dock = dockFor(state, owner);
       const opened = withDock(state, owner, { panels: dock.panels.includes(DIFF_PANEL) ? dock.panels : [...dock.panels, DIFF_PANEL] });
       const shown = focusDockTab(showDockTab(opened, owner, DIFF_PANEL), owner, DIFF_PANEL);
-      const read = readDiffFrom(shown.state, owner, workspaceId, { kind: "commit", commit: input.commit }, { mode: "commits", result: null, collapsed: [], viewed: {} });
+      const read = readDiffFrom(shown.state, owner, workspaceId, { kind: "commit", commit: input.commit }, { mode: "commit", result: null, collapsed: [], viewed: {} });
       return { ...read, effects: [...shown.effects, ...browserEffectsForTab(read.state, owner, DIFF_PANEL), ...read.effects] };
     }
     /** A thread with no checkout has nothing to read; what other checkouts said is still theirs. */
@@ -42,9 +41,17 @@ export function reduceDiffs(state: WorkspaceState, input: DiffInput): WorkspaceT
 
     case "diff.refresh": {
       const owner = dockOwner(state);
-      const diff = diffFor(state, owner);
-      if (diff.mode === "commits" && diff.range.kind !== "commit") return readCommits(state, owner, { query: "", offset: 0 });
       return readDiff(state, owner, diffFor(state, owner).range);
+    }
+
+    case "diff.set-mode": {
+      const owner = dockOwner(state);
+      const diff = diffFor(state, owner);
+      const closed = { ...state, openMenu: null };
+      if (diff.mode === input.mode) return settled(closed);
+      const range = input.mode === "uncommitted" ? UNCOMMITTED
+        : (diff.workspaceId === currentWorkspaceId(state) ? diff.branchRange : undefined) ?? defaultBranchRange(state);
+      return readDiff(closed, owner, range, { mode: input.mode, result: null, collapsed: [], viewed: {} });
     }
 
     case "diff.set-range": {

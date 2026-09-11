@@ -284,20 +284,13 @@ async function chooseMode(view: MountView, label: string) {
   await act(async () => { option.click(); });
 }
 
-test("the review switches modes, searches commits, and returns to its branch target", async () => {
+test("the review switches to uncommitted changes and returns to its branch target", async () => {
   seedReviewableProject();
-  const latest = { sha: "a".repeat(40), subject: "Finish account migration", author: "Agent", committedAt: "2026-09-10T04:00:00Z" };
-  const older = { sha: "b".repeat(40), subject: "Hash reset tokens", author: "Agent", committedAt: "2026-09-09T04:00:00Z" };
-  const requested: string[] = [];
   const ranges: unknown[] = [];
   const desktop = reviewableDesktop();
   window.desktop = fakeDesktop({
     diffSummary: async (workspaceId, range, whitespace) => { ranges.push(range); return desktop.diffSummary(workspaceId, range, whitespace); },
     diffPatch: desktop.diffPatch,
-    commitHistory: async (_workspaceId, request) => {
-      requested.push(request.query);
-      return { status: "available", commits: request.query ? [older] : [latest, older], head: latest.sha, offset: 0, hasMore: false };
-    },
   });
   const view = await mount(React.createElement(App));
   try {
@@ -307,20 +300,6 @@ test("the review switches modes, searches commits, and returns to its branch tar
     await chooseMode(view, "Uncommitted");
     assert.deepEqual(ranges.at(-1), { kind: "uncommitted" });
     assert.ok(view.container.querySelector('button[aria-label="Review mode: Uncommitted"]'));
-    await chooseMode(view, "Commits");
-    assert.deepEqual(ranges.at(-1), { kind: "commit", commit: latest.sha });
-    assert.match(query(view.container, '.diff-commit-trigger').textContent, /aaaaaaaFinish account migration/);
-    const search = query<HTMLInputElement>(document.body, 'input[aria-label="Search commit messages or SHA"]');
-    assert.equal(document.activeElement, search);
-    await act(async () => { for (const value of ["r", "re", "reset"]) { search.value = value; search.dispatchEvent(new dom.window.Event("input", { bubbles: true })); } });
-    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 220)); });
-    assert.deepEqual(requested, ["", "reset"]);
-    const matches = [...document.querySelectorAll<HTMLButtonElement>('.commit-menu [role="option"]')];
-    assert.equal(matches.length, 1);
-    assert.match(item(matches[0]).textContent, /Hash reset tokens/);
-    await act(async () => { item(matches[0]).click(); });
-    assert.deepEqual(ranges.at(-1), { kind: "commit", commit: older.sha });
-    assert.match(query(view.container, '.diff-commit-trigger').textContent, /bbbbbbbHash reset tokens/);
     await chooseMode(view, "Branch");
     assert.deepEqual(ranges.at(-1), { kind: "branches", base: "origin/main", compare: null });
     assert.deepEqual([...view.container.querySelectorAll('.diff-side-trigger > span')].map((span) => span.textContent), ["main", "origin/main"]);

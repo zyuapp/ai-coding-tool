@@ -39,10 +39,6 @@ export type DiffCommand =
   | { type: "diff.open-commit"; commit: string; taskId?: string }
   | { type: "diff.set-range"; range: DiffRange }
   | { type: "diff.set-mode"; mode: DiffMode }
-  | { type: "diff.open-commits" }
-  | { type: "diff.search-commits"; query: string }
-  | { type: "diff.page-commits"; direction: -1 | 1 }
-  | { type: "diff.select-commit"; commit: string }
   /** Folds one file shut, or opens it again. Every file starts open. */
   | { type: "diff.set-collapsed"; path: string; collapsed: boolean }
   | { type: "diff.set-viewed"; path: string; viewed: boolean }
