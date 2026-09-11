@@ -33,6 +33,7 @@ import { adoptLoginShellPath } from "./login-path.js";
 import { startLockAwake, type LockAwake } from "./lock-awake.js";
 import { createWorkspaceRuntimeHost } from "./workspace-runtime-host.js";
 import { startRunHost } from "./run-host.js";
+import { appPluginPath } from "./app-plugin-path.js";
 import { registerTerminalIpc } from "./terminal-ipc.js";
 import { checkForUpdates, type UpdateHost } from "./updates.js";
 import { appProfile } from "./user-data.js";
@@ -349,7 +350,7 @@ app.whenReady().then(async () => {
   const { PRIVATE_CODEX_HOME_ENV } = await import("./codex/codex-home.mjs");
   process.env[PRIVATE_CODEX_HOME_ENV] = path.join(userData, "codex-private");
   const { setAppPluginRoot } = await import("./app-plugin.mjs");
-  setAppPluginRoot(app.isPackaged ? path.join(process.resourcesPath, "app-plugin") : path.join(app.getAppPath(), "assets", "app-plugin"));
+  setAppPluginRoot(appPluginPath(app.isPackaged, process.resourcesPath, app.getAppPath()));
   if (process.platform === "linux" && app.isPackaged && process.env.APPIMAGE) {
     void registerAppImageProtocol({ appImage: process.env.APPIMAGE, home: homedir(), iconSource: icon, dataHome: process.env.XDG_DATA_HOME })
       .catch((error) => console.error("Could not register the AppImage URL handler:", error));

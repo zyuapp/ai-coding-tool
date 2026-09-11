@@ -10,6 +10,7 @@ import { ThreadChannel } from "./agent/thread-channel.mjs";
 import { RunCoordinator } from "./agent/run-coordinator.mjs";
 import { isWritePathInside } from "./path-policy.mjs";
 import { McpHttpHost } from "./tools/mcp-http-host.mjs";
+import { setAppPluginRoot } from "./app-plugin.mjs";
 
 type ParentPort = {
   on(event: "message", listener: (event: { data: unknown }) => void): void;
@@ -28,6 +29,7 @@ const coordinatorOptions = {
   browser: (taskId: string) => threads.browserFor(taskId),
   terminal: (taskId: string) => threads.terminalFor(taskId),
 };
+setAppPluginRoot(process.argv[3] || undefined);
 /** One tool service for the whole worker; every Codex session gets a token of its own on it. */
 const toolHost = new McpHttpHost();
 /** A channel's engines share one pool, so the warm sessions of a channel are capped together. */

@@ -7,6 +7,7 @@ import type { Automation, AutomationRunStatus, TickKind } from "../domain/automa
 import type { ExecutionPolicy } from "../domain/run.js";
 import type { AutomationScheduler } from "./automation/automation-scheduler.mjs" with { "resolution-mode": "import" };
 import type { WorkspaceService } from "./workspace/workspace-service.mjs" with { "resolution-mode": "import" };
+import { appPluginPath } from "./app-plugin-path.js";
 import { acceptRunEvent, automationFire, AUTOMATION_SETTLE_TIMEOUT, failedEventsForTransportLoss, settledWithin, supersedePendingStarts } from "./run-routing.js";
 
 /** What the agent process needs from main: the window it reports to, and the services a run resolves against. */
@@ -208,7 +209,8 @@ function emitSyntheticTerminal(host: RunHost, command: StartRunCommand, status: 
 
 function startAgent(host: RunHost) {
   if (agent) return;
-  agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [path.join(app.getPath("userData"), "generated-images")], {
+  /** The worker hosts every engine session, so it is told where the app's plugin is along with where images go. */
+  agent = utilityProcess.fork(path.join(__dirname, "agent-worker.mjs"), [path.join(app.getPath("userData"), "generated-images"), appPluginPath(app.isPackaged, process.resourcesPath, app.getAppPath())], {
     serviceName: "AI Coding Tool Agent",
     stdio: "pipe",
   });

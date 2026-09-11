@@ -105,7 +105,8 @@ test("main transport validates, correlates, cancels, supersedes per task, and fa
   runCommand(trusted, command("concurrent-b", "run-concurrent-b"));
   runCommand(trusted, { type: "label", taskId: "concurrent-a", title: "Renamed during startup" });
   await waitFor(() => ["run-concurrent-a", "run-concurrent-b"].every((runId) => agents[0]?.messages.some((message) => message.runId === runId)));
-  assert.deepEqual(agents[0].args, [path.join(userData, "generated-images")]);
+  assert.equal(agents[0].args[0], path.join(userData, "generated-images"));
+  assert.match(agents[0].args[1] ?? "", /app-plugin$/, "the worker is told where the app's plugin is");
   assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-a")?.title, "Renamed during startup");
   assert.equal(agents[0].messages.find((message) => message.runId === "run-concurrent-b")?.title, "Work");
 
