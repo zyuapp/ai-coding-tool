@@ -5,6 +5,37 @@ import { deriveView } from "../../src/application/workspace-state.ts";
 import { threadSummaries } from "../../src/application/thread-projection.ts";
 import { activeRun, dock, task, workspace, effectAt, required, run } from "./workspace-reducer-fixtures.mts";
 
+function parentStatus(prompt: string) {
+  return JSON.parse(required(/<parent-task-status>\n(.*?)\n<\/parent-task-status>/s.exec(prompt)?.[1])) as { taskId: string; status: string; lastRunOutcome: string | null; workingAgents: number };
+}
+
+test("side-chat sends and steering report the real parent's current state while keeping the transcript unchanged", () => {
+  for (const engine of ["claude", "codex"] as const) {
+    const source = task("main-task", { engine, continuation: { provider: engine, value: "main-session" }, continuationStatus: "available" });
+    const opened = run(workspace({
+      threads: [source], currentId: source.id,
+      activeRuns: { [source.id]: activeRun(source.id, "parent-run") },
+      subagents: { [source.id]: [{ id: "helper", description: "Research", status: "working", startedAt: 1, activity: [] }] },
+    }), [{ type: "side-chat.open", chatId: "chat-1" }]);
+    const sending = reduce(opened, { type: "task.send", taskId: "chat-1", text: "what is the progress?" });
+    const started = reduce(sending.state, { type: "run.resolved", pendingId: effectAt(sending, "resolve-run-workspace").pendingId, workspace: { id: "projectless", kind: "projectless", root: "/tmp" } });
+    const first = parentStatus(effectAt(started, "start-run").command.prompt);
+    assert.equal(first.taskId, source.id);
+    assert.equal(first.status, "running");
+    assert.equal(first.workingAgents, 1);
+    assert.equal(required(started.state.threads.find((thread) => thread.id === "chat-1")).messages[0].text, "what is the progress?");
+
+    const queued = reduce(started.state, { type: "task.send", taskId: "chat-1", text: "and now?" });
+    const finished = reduce(queued.state, { type: "run.event", event: { type: "run.status", taskId: source.id, runId: "parent-run", sequence: 1, status: "succeeded" } });
+    const steered = reduce(finished.state, { type: "task.steer-queued", taskId: "chat-1", messageId: required(queued.state.queuedMessages["chat-1"])[0].id });
+    const command = effectAt(steered, "send-run-command").command;
+    assert.equal(command.type, "steer");
+    if (command.type !== "steer") throw new Error("Expected steering");
+    assert.equal(parentStatus(command.prompt).status, "idle", "status is captured at delivery, not when the follow-up was queued");
+    assert.equal(parentStatus(command.prompt).lastRunOutcome, "finished");
+  }
+});
+
 test("a side chat forks the source thread once, then continues on its own branch", () => {
   const source = task("main-task", { executionPolicy: "autonomous", continuation: { provider: "claude", value: "main-session" }, continuationStatus: "available" });
   const opened = run(workspace({ threads: [source], currentId: "main-task" }), [

@@ -1,5 +1,5 @@
 /** A send: the prompt the composer hands over, and the queue behind a run already going. */
-import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, settled, targetId, withAttendedRun, withPending, withQueued, rejected } from "./shared.js";
+import { CHECKOUT_RUNNING_ERROR, MISSING_PROJECT_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_ELSEWHERE_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_RELEASING_ERROR, clearedDraft, forkableContinuation, queuedFor, resolveWorkspaceEffect, runsInWorkspace, sentPrompt, sideChatPrompt, settled, targetId, withAttendedRun, withPending, withQueued, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { annotationsFor, filesFor, pastesFor } from "../composer-drafts.js";
 import { threadHandleOptions } from "../thread-projection.js";
@@ -134,7 +134,7 @@ export function reduceSending(state: WorkspaceState, input: SendInput): Workspac
       const sent = thread?.snoozedUntil === undefined ? state : updateThread(state, taskId, withoutSnooze);
       return settled(
         withAttendedRun(withQueued(sent, taskId, queued.map((item) => item.id === message.id ? { ...item, steering: true } : item)), taskId),
-        [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: message.prompt } }],
+        [{ type: "send-run-command", command: { type: "steer", taskId, runId: active.runId, messageId: message.id, prompt: sideChatPrompt(state, taskId, message.prompt) } }],
       );
     }
 
