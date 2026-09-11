@@ -3,10 +3,11 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { threadSummaries } from "../../src/application/thread-projection.ts";
+import { sideChatPrompt } from "../../src/application/workspace-reducer/shared.ts";
 import { activeRun, dock, task, workspace, effectAt, required, run } from "./workspace-reducer-fixtures.mts";
 
 function parentStatus(prompt: string) {
-  return JSON.parse(required(/<parent-task-status>\n(.*?)\n<\/parent-task-status>/s.exec(prompt)?.[1])) as { taskId: string; status: string; lastRunOutcome: string | null; workingAgents: number };
+  return JSON.parse(required(/<parent-task-status>\n(.*?)\n<\/parent-task-status>/s.exec(prompt)?.[1])) as { taskId: string; status: string; lastRunOutcome: string | null; workingAgents: number; workingAgentIds: string[] };
 }
 
 test("side-chat sends and steering report the real parent's current state while keeping the transcript unchanged", () => {
@@ -23,6 +24,7 @@ test("side-chat sends and steering report the real parent's current state while 
     assert.equal(first.taskId, source.id);
     assert.equal(first.status, "running");
     assert.equal(first.workingAgents, 1);
+    assert.deepEqual(first.workingAgentIds, ["helper"], "the status identifies the live helper despite a fork's copied failure notice");
     assert.equal(required(started.state.threads.find((thread) => thread.id === "chat-1")).messages[0].text, "what is the progress?");
 
     const queued = reduce(started.state, { type: "task.send", taskId: "chat-1", text: "and now?" });
@@ -34,6 +36,13 @@ test("side-chat sends and steering report the real parent's current state while 
     assert.equal(parentStatus(command.prompt).status, "idle", "status is captured at delivery, not when the follow-up was queued");
     assert.equal(parentStatus(command.prompt).lastRunOutcome, "finished");
   }
+});
+
+test("a side chat explicitly reports unknown parent status when the source is unavailable", () => {
+  const state = workspace({ sideChats: [{ id: "side", sourceThreadId: "missing-parent", error: null }] });
+  const status = parentStatus(sideChatPrompt(state, "side", "progress?"));
+  assert.equal(status.taskId, "missing-parent");
+  assert.equal(status.status, "unknown");
 });
 
 test("a side chat forks the source thread once, then continues on its own branch", () => {

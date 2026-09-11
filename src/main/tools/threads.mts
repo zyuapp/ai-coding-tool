@@ -14,7 +14,7 @@ export type ThreadToolContext = { bridge: ThreadBridge; now: () => number };
 const MINUTE = 60_000;
 const DEFAULT_WAIT_MS = 5 * MINUTE;
 
-const threadIdField = z.string().describe("The thread, named by the ID list_threads reports, an unambiguous prefix of it, or its exact title.");
+const threadIdField = z.string().describe("The thread's known ID, an unambiguous prefix of it, or its exact title. Use list_threads only if you need to discover the target.");
 
 const projectField = z.string().optional().describe(
   "\"current\" (the default) for the project this thread belongs to, \"all\" for every project, or a project named by its folder name or its path.",
@@ -96,7 +96,7 @@ export const THREAD_TOOLS: readonly ToolDefinition<ThreadToolContext>[] = [
   }),
   defineTool({
     name: "read_thread",
-    description: "Read another thread's transcript. Use after list_threads to see how something was done there, rather than guessing from its title. A message that links a thread as aicodingtool://thread/<id> is naming it for you, so read it by that id rather than searching for it.",
+    description: "Read another thread's transcript when the request calls for fetching its contents. Use a known ID directly, including one supplied in app context or an aicodingtool://thread/<id> link. Use list_threads first only when the target is unknown.",
     input: {
       threadId: threadIdField,
       limit: z.number().optional().describe("How many of the newest messages to read. Defaults to 30."),

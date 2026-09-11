@@ -620,7 +620,7 @@ test("reading other threads needs no approval, but starting or stopping one does
     authorize: async (intent) => { asked.push(intent.name); return "deny"; },
   });
   assert.equal(mcpServers?.["aicodingtool-threads"]?.type, "sdk");
-  assert.match(systemAppend({ systemPrompt }), /the aicodingtool-threads tools are the only way to reach them/);
+  assert.match(systemAppend({ systemPrompt }), /Use the aicodingtool-threads tools when the user's request requires fetching or acting on another AICodingTool thread/);
   for (const name of ["mcp__aicodingtool-threads__list_threads", "mcp__aicodingtool-threads__read_thread", "mcp__aicodingtool-threads__wait_for_thread"]) {
     assert.equal((await useTool(canUseTool, name, {})).behavior, "allow", name);
   }
