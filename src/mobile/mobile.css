@@ -1386,7 +1386,6 @@ button {
 .thread-start {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 6px;
   padding: 0 4px 8px;
 }
@@ -1406,16 +1405,25 @@ button {
 }
 
 .thread-start-project {
+  flex: 1;
   min-width: 0;
   color: var(--muted);
 }
 
-.thread-start-project span {
+.thread-start-project span,
+.thread-start-worktree > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.thread-start svg,
+.thread-start-worktree button {
+  flex: none;
+}
+
 .thread-start-toggle {
+  flex: none;
   border: 1px solid var(--line-strong);
   color: var(--ink-dim);
 }
@@ -1436,6 +1444,8 @@ button {
 }
 
 .thread-start-worktree {
+  flex: 1;
+  min-width: 0;
   padding-right: 4px;
   border: 1px solid var(--accent-line-strong);
   background: var(--accent-chip);
