@@ -129,6 +129,15 @@ export function App() {
     send({ type: "task.new", ...(projectId ? { projectId } : {}), ...(worktreeId ? { worktreeId } : {}) });
   }, [send, current]);
 
+  const newFromList = useCallback((projectId: string | null, project: string | null) => newThread(projectId, project), [newThread]);
+
+  const rememberScroll = useCallback((top: number) => {
+    listScroll.current = top;
+  }, []);
+
+  const dismiss = useCallback((taskId: string) => send({ type: "task.dismiss", taskId }), [send]);
+  const dismissAll = useCallback(() => send({ type: "task.dismiss-all" }), [send]);
+
   const back = useCallback(() => {
     setOpening(null);
     setSheet(null);
@@ -190,11 +199,11 @@ export function App() {
             activity={state.view.activity}
             now={now}
             initialScrollTop={listScroll.current}
-            onScroll={(top) => { listScroll.current = top; }}
+            onScroll={rememberScroll}
             onOpen={openThread}
-            onNew={(projectId, project) => newThread(projectId, project)}
-            onDismiss={(taskId) => send({ type: "task.dismiss", taskId })}
-            onDismissAll={() => send({ type: "task.dismiss-all" })}
+            onNew={newFromList}
+            onDismiss={dismiss}
+            onDismissAll={dismissAll}
           />}
     </div>
   );

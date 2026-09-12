@@ -146,7 +146,6 @@ test("the open thread carries its transcript, approval, queue, draft and setting
     runStatuses: { "in-app": "running" },
     approvals: { "run-1": approval },
     queuedMessages: { "in-app": [{ id: "queued-1", text: "then this", prompt: "then this", attachments: [] }] },
-    prompts: { "in-app": "half typed" },
     streamingTails: { "in-app": { messageId: "message-9", text: "still writ" } },
   });
 
@@ -162,7 +161,7 @@ test("the open thread carries its transcript, approval, queue, draft and setting
   assert.equal(thread.approval?.toolName, "Bash");
   assert.match(thread.approval!.detail, /rm -rf build/);
   assert.deepEqual(thread.queued, [{ id: "queued-1", text: "then this" }]);
-  assert.equal(thread.prompt, "half typed");
+  assert.equal("prompt" in thread, false, "the draft stays on the desktop");
   assert.deepEqual(thread.settings, { fastMode: false, engine: "claude", model: "sonnet", effort: "high", policy: "allow-edits" });
 });
 
@@ -172,7 +171,6 @@ test("a Mac with no thread open describes the one it is about to start", () => {
     draftModel: "sonnet",
     draftEffort: "low",
     draftPolicy: "autonomous",
-    prompts: { "draft:project-app": "half typed" },
   });
 
   const view = projectMobileView(state, NOW);
@@ -180,7 +178,6 @@ test("a Mac with no thread open describes the one it is about to start", () => {
   assert.deepEqual(view.draft, {
     projectId: "project-app",
     projectName: "App",
-    prompt: "half typed",
     settings: { fastMode: false, engine: "claude", model: "sonnet", effort: "low", policy: "autonomous" },
     worktree: false,
     worktreeName: null,
@@ -207,8 +204,10 @@ test("starting and finishing a draft both travel, and a patch puts them back", (
   assert.deepEqual(applyMobilePatch(projectMobileView(drafting, NOW), sent!), projectMobileView(open, NOW));
 
   const typed = workspace([task("in-app", { projectId: "project-app" })], { draftProjectId: "project-app", prompts: { "draft:project-app": "one word" } });
-  const moved = diffMobileView(projectMobileView(drafting, NOW), projectMobileView(typed, NOW));
-  assert.deepEqual(moved, { draft: { projectId: "project-app", projectName: "App", prompt: "one word", settings: { fastMode: false, engine: "claude", model: "opus", effort: "high", policy: "confirm" }, worktree: false, worktreeName: null, worktrees: [], canWorktree: false } });
+  assert.equal(diffMobileView(projectMobileView(drafting, NOW), projectMobileView(typed, NOW)), null, "typing on the desktop never travels to the phone");
+  const retargeted = workspace([task("in-app", { projectId: "project-app" })], { draftProjectId: "project-app", draftModel: "sonnet" });
+  const moved = diffMobileView(projectMobileView(drafting, NOW), projectMobileView(retargeted, NOW));
+  assert.deepEqual(moved, { draft: { projectId: "project-app", projectName: "App", settings: { fastMode: false, engine: "claude", model: "sonnet", effort: "high", policy: "confirm" }, worktree: false, worktreeName: null, worktrees: [], canWorktree: false } });
 });
 
 test("the transcript is bounded in both directions", () => {
@@ -272,18 +271,18 @@ test("opening, changing and closing a thread are three different patches", () =>
 });
 
 test("only what moved travels, and a patch puts it back", () => {
-  const before = workspace([task("in-app", { projectId: "project-app" })], { currentId: "in-app", prompts: { "in-app": "half" } });
-  const after = workspace([task("in-app", { projectId: "project-app" })], { currentId: "in-app", prompts: { "in-app": "half typed" } });
+  const before = workspace([task("in-app", { projectId: "project-app" })], { currentId: "in-app" });
+  const after = workspace([task("in-app", { projectId: "project-app", model: "sonnet" })], { currentId: "in-app" });
 
   const patch = diffMobileView(projectMobileView(before, NOW), projectMobileView(after, NOW));
   assert.ok(patch?.thread?.kind === "changed");
-  assert.deepEqual(patch.thread.delta, { prompt: "half typed" });
+  assert.deepEqual(patch.thread.delta, { settings: { fastMode: false, engine: "claude", model: "sonnet", effort: "high", policy: "confirm" } });
   assert.deepEqual(applyMobilePatch(projectMobileView(before, NOW), patch), projectMobileView(after, NOW));
 });
 
 test("a patch for a thread the phone no longer holds leaves it alone", () => {
   const open = workspace([task("in-app", { projectId: "project-app" })], { currentId: "in-app" });
-  const patch = { thread: { kind: "changed" as const, id: "somebody-else", delta: { prompt: "stray" } } };
+  const patch = { thread: { kind: "changed" as const, id: "somebody-else", delta: { title: "stray" } } };
   assert.deepEqual(applyMobilePatch(projectMobileView(open, NOW), patch), projectMobileView(open, NOW));
   assert.deepEqual(applyMobilePatch(emptyMobileView(), patch), emptyMobileView());
 });

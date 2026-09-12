@@ -1,5 +1,5 @@
 import { LuCheck as Check, LuCheckCheck as CheckCheck, LuSquarePen as SquarePen } from "react-icons/lu";
-import { useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { MobileActivity, MobileProjectGroup, MobileThreadEntry } from "../../contracts/mobile";
 import { readFolded, writeFolded, type MobileListMode } from "../client/storage";
 import { activityMeta, groupMark, threadMeta } from "../format";
@@ -39,7 +39,7 @@ const ACTIVITY_SECTIONS: ReadonlyArray<{ key: keyof MobileActivity; label: strin
   { key: "threads", label: "Threads" },
 ];
 
-export function ThreadList({ mode, groups, activity, now, initialScrollTop, onScroll, onOpen, onNew, onDismiss, onDismissAll }: {
+export const ThreadList = memo(function ThreadList({ mode, groups, activity, now, initialScrollTop, onScroll, onOpen, onNew, onDismiss, onDismissAll }: {
   mode: MobileListMode;
   groups: MobileProjectGroup[];
   activity: MobileActivity;
@@ -124,4 +124,4 @@ export function ThreadList({ mode, groups, activity, now, initialScrollTop, onSc
       )}
     </div>
   );
-}
+});

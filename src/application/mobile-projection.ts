@@ -133,7 +133,6 @@ function projectMobileDraft(state: WorkspaceState, view: ReturnType<typeof deriv
   return {
     projectId: project?.id ?? null,
     projectName: project ? projectName(project) : null,
-    prompt: view.prompt,
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy },
     worktree: view.draftWorktree,
     worktreeName: view.draftWorktreeName,
@@ -201,7 +200,6 @@ function projectMobileThread(state: WorkspaceState, view: ReturnType<typeof deri
       }
       : null,
     queued: view.queuedMessages.map((message) => ({ id: message.id, text: message.text, ...(message.steering ? { steering: true } : {}) })),
-    prompt: view.prompt,
     settings: { engine: view.engine, model: view.model, effort: view.effort, fastMode: view.fastMode, policy: view.policy },
     location,
     worktrees: project ? worktreeChoices(state, project, thread.worktreeId) : [],
@@ -250,7 +248,7 @@ function diffMobileThread(previous: MobileThreadView | null, next: MobileThreadV
 
 /** Every field of the open thread a delta can carry, which is all of them but its id and its transcript. */
 const MOVING_KEYS = [
-  "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "streamingTail", "status", "prompt", "question", "approval",
+  "loading", "title", "projectId", "projectName", "worktreeId", "omitted", "streamingTail", "status", "question", "approval",
   "queued", "settings", "location", "worktrees", "canMove", "changes", "reviewable", "branchRange",
 ] as const satisfies ReadonlyArray<keyof Omit<MobileThreadView, "id" | "messages">>;
 

@@ -67,7 +67,6 @@ function view(): MobileView {
       status: "awaiting-approval",
       approval: { approvalId: "a1", runId: "r1", title: "Run a command", description: "rm -rf build", toolName: "Bash", detail: "{}" },
       queued: [{ id: "q1", text: "then deploy" }],
-      prompt: "",
       settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" },
       location: { kind: "local" },
       worktrees: [],
@@ -264,7 +263,7 @@ test("New opens the thread the Mac is about to start, and the first message star
   assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });
 
   /** The Mac has no thread open from here until a message makes one, which is what it answers with. */
-  const draft = { projectId: "p", projectName: "App", prompt: "", settings: { engine: "claude", model: "opus" as const, effort: "high" as const, policy: "confirm" as const }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true };
+  const draft = { projectId: "p", projectName: "App", settings: { engine: "claude", model: "opus" as const, effort: "high" as const, policy: "confirm" as const }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true };
   receive({ kind: "patch", sequence: 2, patch: { thread: { kind: "closed" }, draft } });
   assert.equal(document.querySelector("textarea")?.getAttribute("placeholder"), "Ask Claude to work on anything");
   assert.doesNotMatch(document.body.textContent ?? "", /Opening the thread/);

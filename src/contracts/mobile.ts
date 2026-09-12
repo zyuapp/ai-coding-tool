@@ -140,8 +140,6 @@ export type MobileThreadView = {
   approval: MobileApproval | null;
   question?: PendingQuestion | null;
   queued: MobileQueuedMessage[];
-  /** The composer draft, which the phone and the desktop share. */
-  prompt: string;
   settings: MobileThreadSettings;
   location: MobileLocation;
   /** The project's other checkouts, most recently used first. */
@@ -164,8 +162,6 @@ export type MobileDraftView = {
   projectId: string | null;
   /** The folder the thread would start in, or null when it would belong to no project. */
   projectName: string | null;
-  /** The composer draft, which the phone and the desktop share. */
-  prompt: string;
   settings: MobileThreadSettings;
   /** Whether the first message makes the thread a checkout of its own. */
   worktree: boolean;
@@ -237,7 +233,7 @@ export type MobilePatch = {
  * page for any other reason: a phone the Mac turns away is told to reload, where one left running
  * is wrong in silence.
  */
-export const MOBILE_PROTOCOL_VERSION = 3;
+export const MOBILE_PROTOCOL_VERSION = 4;
 
 const MAX_ID_LENGTH = 256;
 const MAX_PROMPT_LENGTH = 1_000_000;
