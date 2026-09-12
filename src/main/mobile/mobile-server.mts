@@ -116,6 +116,16 @@ type Session = MobileSession & {
   queries: number;
 };
 
+/**
+ * A workspace as it is handed to another computer: without the states of the computers this one
+ * is paired with, which the other computer has no use for and which would otherwise nest without end.
+ */
+function handedOver(update: WorkspaceUpdate): WorkspaceUpdate {
+  if ("patches" in update) return { revision: update.revision, patches: update.patches.filter((patch) => patch.path[0] !== "computers") };
+  const { computers } = update.state;
+  return { revision: update.revision, state: { ...update.state, computers: { ...computers, paired: computers.paired.map((computer) => ({ ...computer, state: null })) } } };
+}
+
 /** Every server message but the sequence the session stamps on it as it goes out. */
 type Unsequenced<T> = T extends unknown ? Omit<T, "sequence"> : never;
 type OutboundMessage = Unsequenced<MobileServerMessage> | Unsequenced<ComputerServerMessage>;
@@ -216,8 +226,9 @@ export class MobileServer {
     this.heartbeat = setInterval(() => this.tick(), MOBILE_PING_INTERVAL_MS);
     this.heartbeat.unref?.();
     this.stopWorkspace = this.options.workspace?.subscribe((update) => {
+      const handed = handedOver(update);
       for (const session of this.sessions.values()) {
-        if (session.kind === "computer" && !session.awaitingSnapshot) this.emit(session, { kind: "workspace", update });
+        if (session.kind === "computer" && !session.awaitingSnapshot) this.emit(session, { kind: "workspace", update: handed });
       }
     }) ?? null;
   }
@@ -332,7 +343,7 @@ export class MobileServer {
         const workspace = this.options.workspace;
         if (!workspace) throw new Error("This computer takes no other computers.");
         session.awaitingSnapshot = false;
-        this.emit(session, { kind: "workspace", sessionId: session.id, update: workspace.snapshot() });
+        this.emit(session, { kind: "workspace", sessionId: session.id, update: handedOver(workspace.snapshot()) });
         return;
       }
       const view = await this.options.snapshot(session.id);

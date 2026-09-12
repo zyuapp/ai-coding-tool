@@ -18,6 +18,12 @@ const REQUEST_TIMEOUT_MS = 30_000;
 
 export const COMPUTER_OFFLINE = "That computer cannot be reached right now.";
 
+/** The socket a host is dialled on: the tailnet name over TLS, or a plain socket to this machine's own loopback. */
+export function computerSocketUrl(host: string): string {
+  const loopback = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(host);
+  return `${loopback ? "ws" : "wss"}://${host}${WORKSPACE_SOCKET_PATH}`;
+}
+
 export type ComputerCredential = { token: string } | { code: string };
 
 export type ComputerClientOptions = {
@@ -85,7 +91,7 @@ export function createComputerClient(options: ComputerClientOptions) {
   let status: ComputerStatus = "connecting";
   const results = new Map<string, Waiting<WorkspaceCommandResult>>();
   const answers = new Map<string, Waiting<unknown>>();
-  const url = options.url ?? `wss://${options.host}${WORKSPACE_SOCKET_PATH}`;
+  const url = options.url ?? computerSocketUrl(options.host);
 
   function report(next: ComputerStatus, error: string | null = null) {
     status = next;
