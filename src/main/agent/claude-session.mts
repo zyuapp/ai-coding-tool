@@ -1,7 +1,7 @@
 import type { CanUseTool, Query, SDKActiveGoalMessage, SDKMessage, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { claudeEffort, contextWindowLimit, modelTakesEffort, type AgentModel, type ClaudeEffort } from "../../domain/agent-engine.js";
 import type { AgentEffort, BackgroundProcess, BackgroundProcessKind, ExecutionPolicy, SubagentReport, ToolIntent } from "../../domain/run.js";
-import type { BackgroundReport, WorkflowReport } from "../../contracts/ipc.js";
+import type { WorkflowReport } from "../../contracts/ipc.js";
 import { continuationOf, type AgentTurn, type ProviderEvent, type ProviderResult, type ProviderRunInput, type SteerQueue, type ToolDecision } from "./agent-provider.mjs";
 import { SIDE_CHAT_BOUNDARY } from "./side-chat-instructions.mjs";
 import { parseWorkflowProgress, workflowProgressOf } from "./workflow-progress.mjs";
@@ -11,6 +11,8 @@ import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
 import { readOnlyToolNames } from "./claude-mcp-host.mjs";
 import { grantsTool, type ToolReach } from "./approval-grant.mjs";
+import { BackgroundWork } from "./background-work.mjs";
+import { TurnSlot, type SessionTurn } from "./session-turn.mjs";
 
 const setupToolName = "mcp__aicodingtool-computer-use__request_setup";
 /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
@@ -119,12 +121,7 @@ function openStream(emit: (event: ProviderEvent) => void, model?: AgentModel): S
 type Owing = { owed: number };
 
 /** One turn a run asked for: the stream that answers it, and the promise the answer settles. */
-type Turn = Owing & {
-  input: ProviderRunInput;
-  settle: (result: ProviderResult) => void;
-  stream: Stream;
-  release: () => void;
-};
+type Turn = Owing & SessionTurn & { stream: Stream };
 
 export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: CanUseTool) => Query;
 
@@ -137,7 +134,7 @@ export type SessionOpener = (prompt: AsyncIterable<SDKUserMessage>, canUseTool: 
 export class ClaudeSession {
   private sideChatBoundaryPending = false;
   private query: Query | null = null;
-  private turn: Turn | null = null;
+  private readonly turns = new TurnSlot<Turn>(INTERRUPT_GRACE_MS, () => this.close());
   private readonly queue: Pending[] = [];
   private waiting: ((next: Pending | null) => void) | null = null;
   private ended = false;
@@ -151,8 +148,6 @@ export class ClaudeSession {
   private readonly workflowIds = new Set<string>();
   /** Where those workflows report. Taken when the session opens: they belong to the thread, not to a run. */
   private reportWorkflow: (report: WorkflowReport) => void = () => {};
-  /** Where those tasks report. Taken when the session opens: a shell or a monitor belongs to the thread, not to a run. */
-  private reportBackground: (report: BackgroundReport) => void = () => {};
   /** Where subagents report. Taken when the session opens: one launched in the background outlives the turn that launched it. */
   private reportSubagent: (report: SubagentReport) => void = () => {};
   /** The subagents still running here, by task id, and by the tool call that launched each. */
@@ -160,8 +155,8 @@ export class ClaudeSession {
   private readonly subagentByToolUse = new Map<string, string>();
   private reportGoal: ProviderRunInput["reportGoal"] = () => {};
   private hasGoal = false;
-  /** Every background task the agent process last reported live, by id. Replaced whole, so it holds nothing that has stopped. */
-  private readonly backgroundTaskIds = new Set<string>();
+  /** What the agent process left running here: a shell, a monitor, or a task of its own. */
+  private readonly background = new BackgroundWork(() => this.busy, () => this.onIdle());
   /** What the agent process called this session. A later run resumes it by this id. */
   sessionId?: string;
   private model?: AgentModel;
@@ -172,12 +167,17 @@ export class ClaudeSession {
 
   /** A turn is in flight, so the session owes an answer before it can take another. */
   get answering() {
-    return this.turn !== null;
+    return this.turns.answering;
   }
 
   /** Anything closing the session would cut short: a turn in flight, or work the agent left running behind it. */
   get busy() {
-    return this.answering || this.agentTurn !== null || this.backgroundTaskIds.size > 0;
+    return this.answering || this.agentTurn !== null || this.background.running;
+  }
+
+  /** The turn a run asked for, while one is in flight. */
+  private get turn() {
+    return this.turns.turn;
   }
 
   get live() {
@@ -189,12 +189,10 @@ export class ClaudeSession {
     this.model = seed.model;
     this.effort = effortFlag(seed);
     this.reportWorkflow = seed.reportWorkflow;
-    this.reportBackground = seed.reportBackground;
     this.reportSubagent = seed.reportSubagent;
     this.reportGoal = seed.reportGoal;
     this.beginAgentTurn = seed.beginAgentTurn;
-    /** The agent process reports nothing at startup, so a fresh one starts the thread's set empty. */
-    this.reportBackground({ type: "background.changed", processes: [] });
+    this.background.openWith(seed.reportBackground);
     this.reportGoal({ type: "goal.changed", goal: null });
     this.hasGoal = false;
     this.query = opener(this.stream(), this.canUseTool);
@@ -211,34 +209,10 @@ export class ClaudeSession {
     if (this.ended || !query) return Promise.resolve(this.outcome ?? { status: "failed", message: "The agent session ended before the run could start." });
     /** The run supersedes whatever the agent had going on its own, so that turn lets go of its own run. */
     this.endAgentTurn({ status: "cancelled" });
-    return new Promise<ProviderResult>((resolve) => {
-      let grace: ReturnType<typeof setTimeout> | undefined;
-      const interrupt = () => {
-        void query.interrupt?.()?.catch?.(() => {});
-        grace = setTimeout(() => {
-          this.settle({ status: "cancelled" });
-          this.close();
-        }, INTERRUPT_GRACE_MS);
-        grace.unref?.();
-      };
-      const turn: Turn = {
-        input,
-        owed: 1,
-        settle: resolve,
-        stream: openStream((event) => input.emit(event), input.model),
-        release: () => {
-          clearTimeout(grace);
-          input.abortController.signal.removeEventListener("abort", interrupt);
-        },
-      };
-      /** The turn is the session's before anything is awaited, so a stream that ends still answers it. */
-      this.turn = turn;
-      if (input.abortController.signal.aborted) {
-        this.settle({ status: "cancelled" });
-        return;
-      }
-      input.abortController.signal.addEventListener("abort", interrupt, { once: true });
-      void this.begin(turn);
+    return this.turns.take(input, {
+      open: (base) => ({ ...base, owed: 1, stream: openStream((event) => input.emit(event), input.model) }),
+      begin: (turn) => { void this.begin(turn); },
+      interrupt: () => { void query.interrupt?.()?.catch?.(() => {}); },
     });
   }
 
@@ -260,9 +234,7 @@ export class ClaudeSession {
   close() {
     if (this.ended) return;
     this.ended = true;
-    /** The session ending is the end of the tasks it holds: nothing is left to report them stopping. */
-    this.backgroundTaskIds.clear();
-    this.reportBackground({ type: "background.changed", processes: [] });
+    this.background.clear();
     if (this.hasGoal) this.reportGoal({ type: "goal.changed", goal: null });
     this.hasGoal = false;
     this.endAgentTurn({ status: "cancelled" });
@@ -273,7 +245,7 @@ export class ClaudeSession {
     /** The session ending is the end of the workflows it holds: their own notification can no longer come. */
     for (const id of this.workflowIds) this.reportWorkflow({ type: "workflow.finished", id, status: "stopped", summary: "" });
     this.workflowIds.clear();
-    this.settle({ status: "cancelled" });
+    this.turns.settle({ status: "cancelled" });
     this.wake(null);
     this.query?.close();
     this.query = null;
@@ -343,23 +315,15 @@ export class ClaudeSession {
     waiting?.(pending);
   }
 
-  private settle(result: ProviderResult) {
-    const turn = this.turn;
-    if (!turn) return;
-    this.turn = null;
-    turn.release();
-    turn.settle(turn.input.abortController.signal.aborted ? { status: "cancelled" } : result);
-  }
-
   private finish(result: ProviderResult) {
     this.outcome = result;
-    this.settle(result);
+    this.turns.settle(result);
     this.endAgentTurn(result);
   }
 
   /** Ends whichever turn is in flight: the one a run asked for, or the one the agent started itself. */
   private conclude(result: ProviderResult) {
-    if (this.turn) this.settle(result);
+    if (this.turn) this.turns.settle(result);
     else this.endAgentTurn(result);
   }
 
@@ -422,8 +386,7 @@ export class ClaudeSession {
     if (message.type === "system" && message.subtype === "init") this.sessionId = message.session_id;
     /** Taken before the stream guard: what the agent leaves running outlives the turn that started it. */
     if (message.type === "system" && message.subtype === "background_tasks_changed") {
-      this.trackBackground(message.tasks);
-      this.reportBackground({ type: "background.changed", processes: backgroundProcesses(message.tasks) });
+      this.background.replace(backgroundProcesses(message.tasks), message.tasks.map((task) => task.task_id));
     }
     if (this.receiveWorkflow(message)) return;
     if (this.receiveSubagent(message)) return;
@@ -574,18 +537,6 @@ export class ClaudeSession {
       return true;
     }
     return false;
-  }
-
-  /**
-   * The agent process reports its live tasks as a level rather than as start and finish bookends, so the
-   * session swaps its whole set for each payload: a bookend it never saw, or saw twice, cannot leave the
-   * session holding work that has already stopped.
-   */
-  private trackBackground(tasks: { task_id: string }[]) {
-    const wasRunning = this.backgroundTaskIds.size > 0;
-    this.backgroundTaskIds.clear();
-    for (const task of tasks) this.backgroundTaskIds.add(task.task_id);
-    if (wasRunning && !this.busy) this.onIdle();
   }
 
   private readonly canUseTool: CanUseTool = async (toolName, toolInput, options) => {
