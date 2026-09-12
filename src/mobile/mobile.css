@@ -419,7 +419,7 @@ button {
   text-align: left;
 }
 
-.thread-open:active {
+.thread-row:has(.thread-open:active) {
   background: var(--surface-active);
 }
 
@@ -1752,7 +1752,7 @@ button {
 }
 
 @media (hover: hover) {
-  .thread-open:hover,
+  .thread-row:hover,
   .diff-file-row:hover {
     background: var(--wash);
   }
