@@ -245,6 +245,9 @@ function received(state: MobileClientState, message: MobileServerMessage): Mobil
       const outbox = seen.outbox.filter((item) => item.requestId !== message.requestId);
       return settled({ ...seen, outbox, notice: message.ok ? seen.notice : message.message });
     }
+    /** The answer itself is handed to whoever asked by the connection; here it only counts. */
+    case "answer":
+      return settled(seen);
     case "ping":
       return withEffect(settled(seen), { kind: "send", message: { kind: "pong", at: message.at } });
   }

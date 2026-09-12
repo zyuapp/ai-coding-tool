@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce, type WorkspaceEffect, type WorkspaceInput } from "../../src/application/workspace-reducer.ts";
 import { executeWorkspaceInput } from "../../src/application/workspace-execution.ts";
 import { deriveView, emptyWorkspaceState, type WorkspaceState } from "../../src/application/workspace-state.ts";
-import { answerMobileRequest, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/renderer/task-workspace/mobile-bridge.ts";
+import { answerMobileRequest, MOBILE_NO_CHECKOUT, MOBILE_REFUSED, nextMobileUpdate, noMobileView, type MobileBridgeHost } from "../../src/renderer/task-workspace/mobile-bridge.ts";
 import { emptyMobileServerState, type MobileServerState, type MobileSessionView } from "../../src/domain/mobile.ts";
 import type { MobileRequest, MobileView } from "../../src/contracts/mobile.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
@@ -220,4 +220,33 @@ test("nothing is published while no phone holds a session, and the first change 
   /** The last phone leaving forgets what was published, so the next one to arrive is sent everything. */
   assert.equal(nextMobileUpdate(held, alone, NOW), null);
   assert.equal(nextMobileUpdate(held, watched, NOW)?.kind, "snapshot");
+});
+
+test("a phone's review is read from the thread's own checkout, and refused for a thread without one", async () => {
+  const reads: unknown[][] = [];
+  const state = workspace({
+    threads: [task("task-1", { projectId: "project-app", worktreeId: "wt-1" }), task("loose")],
+    projects: [{ id: "project-app", root: "/code/app", workspaceId: "ws-app" }],
+    worktrees: [{ id: "wt-1", projectId: "project-app", root: "/code/app-wt", workspaceId: "ws-wt", baseCommit: "abc", createdAt: NOW, lastUsedAt: NOW }],
+  });
+  const bridge: MobileBridgeHost = {
+    ...host(state).bridge,
+    read: {
+      diffSummary: async (...args) => { reads.push(args); return { status: "available", range: { kind: "uncommitted" }, ignoreWhitespace: true, files: [], additions: 0, deletions: 0 }; },
+      diffPatch: async (...args) => { reads.push(args); return { status: "available", patch: "@@ -1 +1 @@\n-a\n+b\n" }; },
+    },
+  };
+  const summary = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q1", sessionId: "s1", op: "query", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "uncommitted" } } }));
+  assert.equal(summary.ok, true);
+  const patch = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q2", sessionId: "s1", op: "query", query: { kind: "diff-patch", taskId: "task-1", range: { kind: "branches", base: "main", compare: null }, path: "a.ts" } }));
+  assert.deepEqual(patch, { type: "mobile.response", requestId: "q2", ok: true, result: { status: "available", patch: "@@ -1 +1 @@\n-a\n+b\n" } });
+  assert.deepEqual(reads, [
+    ["ws-wt", { kind: "uncommitted" }, true],
+    ["ws-wt", { kind: "branches", base: "main", compare: null }, "a.ts", undefined, true],
+  ], "the worktree is read, not the project, and whitespace-only changes are left out");
+
+  const loose = await answerMobileRequest(bridge, request({ type: "mobile.request", requestId: "q3", sessionId: "s1", op: "query", query: { kind: "diff-summary", taskId: "loose", range: { kind: "uncommitted" } } }));
+  assert.deepEqual(loose, { type: "mobile.response", requestId: "q3", ok: false, message: MOBILE_NO_CHECKOUT });
+  const blind = await answerMobileRequest(host(state).bridge, request({ type: "mobile.request", requestId: "q4", sessionId: "s1", op: "query", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "uncommitted" } } }));
+  assert.equal(blind.ok, false, "a host with nothing to read from refuses rather than reads nothing");
 });

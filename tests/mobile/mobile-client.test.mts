@@ -21,8 +21,9 @@ const TOKEN = "a".repeat(64);
 
 function view(title: string): MobileView {
   return {
-    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title, status: "idle", lastActivityAt: 1, unread: false }] }],
-    thread: { id: "t1", title, projectName: "App", messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], prompt: "", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" } },
+    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title, projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false }] }],
+    activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
+    thread: { id: "t1", title, projectId: "p", projectName: "App", worktreeId: null, messages: [], omitted: 0, streamingTail: null, status: "idle", approval: null, queued: [], prompt: "", settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" }, location: { kind: "local" }, worktrees: [], canMove: true, changes: null, reviewable: true, branchRange: { kind: "branches", base: "HEAD", compare: null } },
     draft: null,
     error: null,
   };

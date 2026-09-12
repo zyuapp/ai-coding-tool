@@ -1,4 +1,5 @@
-import type { MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
+import type { MobileChanges, MobileLocation, MobileMessage, MobileRunStatus, MobileThreadEntry, MobileThreadSettings } from "../contracts/mobile";
+import type { ThreadOutcome } from "../domain/thread-run";
 import { capabilitiesFor, effortForModel, modelsFor, type AgentEngine } from "../domain/agent-engine";
 import { POLICIES } from "../domain/run";
 import { toolFamily, type ToolFamily } from "../domain/tool-call";
@@ -50,10 +51,42 @@ const STATUS_LABELS: Record<Exclude<MobileRunStatus, "idle">, string> = {
   "awaiting-approval": "Needs you",
 };
 
-/** A row's second line: what the thread is doing and when it last moved. An idle thread only has a when. */
-export function threadMeta(entry: Pick<MobileThreadEntry, "status" | "lastActivityAt">, now: number): string {
+const OUTCOME_LABELS: Record<ThreadOutcome, string> = {
+  finished: "Done",
+  failed: "Failed",
+  stopped: "Stopped",
+};
+
+/**
+ * A row's second line: what the thread is doing and when it last moved. An idle thread says how its
+ * last run ended, if that verdict is still standing, else only when.
+ */
+export function threadMeta(entry: Pick<MobileThreadEntry, "status" | "lastActivityAt" | "outcome">, now: number): string {
   const when = relativeTime(entry.lastActivityAt, now);
-  return entry.status === "idle" ? when : `${STATUS_LABELS[entry.status]} · ${when}`;
+  if (entry.status !== "idle") return `${STATUS_LABELS[entry.status]} · ${when}`;
+  return entry.outcome ? `${OUTCOME_LABELS[entry.outcome]} · ${when}` : when;
+}
+
+/** The same line in a list that is not grouped by folder, which has to say which folder. */
+export function activityMeta(entry: Pick<MobileThreadEntry, "status" | "lastActivityAt" | "outcome" | "projectName">, now: number): string {
+  return `${entry.projectName ?? "No project"} · ${threadMeta(entry, now)}`;
+}
+
+/** Where a thread works, as the bar's second line and the menu name it. */
+export function locationLabel(location: MobileLocation): string {
+  switch (location.kind) {
+    case "local": return "Local";
+    case "creating": return "Creating worktree…";
+    case "releasing": return "Removing worktree…";
+    case "worktree": return location.name;
+  }
+}
+
+/** What a checkout holds, in as few characters as a menu row can spare. Null when it holds nothing. */
+export function changesLabel(changes: MobileChanges | null): string | null {
+  if (!changes || !changes.files) return null;
+  const files = `${changes.files} ${changes.files === 1 ? "file" : "files"}`;
+  return `${files} · +${changes.additions} −${changes.deletions}`;
 }
 
 /** What a folded group still owes the eye: a thread waiting on the user, else one with news. */

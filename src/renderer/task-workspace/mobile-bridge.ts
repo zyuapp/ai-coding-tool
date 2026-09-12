@@ -3,20 +3,45 @@ import type { WorkspaceState } from "../../application/workspace-state";
 import type { WorkspaceExecution } from "../../application/workspace-execution";
 import type { WorkspaceEffect, WorkspaceInput } from "../../application/workspace-reducer";
 import type { AppCommand } from "../../contracts/commands";
-import { isMobileCommand, isMobileRequest, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../../contracts/mobile";
+import { isMobileCommand, isMobileQuery, isMobileRequest, type MobileQuery, type MobileRequest, type MobileResponse, type MobileView, type MobileViewUpdate } from "../../contracts/mobile";
 import type { DesktopAPI } from "../../contracts/ipc";
 import type { MobileServerState } from "../../domain/mobile";
+import { threadWorkspaceId } from "../../application/thread-location";
 import { errorMessage } from "./errors";
 
 /** What a phone is refused with when it sends something outside the surface open to it. */
 export const MOBILE_REFUSED = "That command is not one a phone may send.";
+
+/** What a phone is refused with when it asks to review a thread that has no checkout. */
+export const MOBILE_NO_CHECKOUT = "This thread has no checkout to review.";
+
+/** The reads a phone's queries are answered from. Content only; state never travels this way. */
+export type MobileBridgeReader = Pick<DesktopAPI, "diffSummary" | "diffPatch">;
 
 /** The runtime state and the command execution that answers each phone request. */
 export type MobileBridgeHost = {
   state: () => WorkspaceState;
   dispatch: (input: WorkspaceInput) => Promise<void> | void;
   execute: (command: AppCommand) => WorkspaceExecution;
+  /** Absent in a host that answers no queries, which refuses them rather than read nothing. */
+  read?: MobileBridgeReader;
 };
+
+/**
+ * A query names a thread, and the thread names the checkout: a phone never says which directory to
+ * read. Whitespace-only changes are left out, as the desktop's review leaves them out by default.
+ */
+async function answerQuery(host: MobileBridgeHost, query: MobileQuery): Promise<unknown> {
+  const reader = host.read;
+  if (!reader) throw new Error("This computer cannot answer that.");
+  const state = host.state();
+  const thread = state.threads.find((item) => item.id === query.taskId);
+  if (!thread) throw new Error(`No thread has the ID ${query.taskId}.`);
+  const workspaceId = threadWorkspaceId(state, thread);
+  if (!workspaceId) throw new Error(MOBILE_NO_CHECKOUT);
+  if (query.kind === "diff-summary") return reader.diffSummary(workspaceId, query.range, true);
+  return reader.diffPatch(workspaceId, query.range, query.path, query.previousPath, true);
+}
 
 /**
  * Each phone reads a projection of runtime state and writes through the shared command path.
@@ -28,6 +53,10 @@ export async function answerMobileRequest(host: MobileBridgeHost, request: Mobil
   const failed = (message: string): MobileResponse => ({ type: "mobile.response", requestId, ok: false, message });
   try {
     if (request.op === "snapshot") return ok(projectMobileView(host.state(), Date.now()));
+    if (request.op === "query") {
+      if (!isMobileQuery(request.query)) return failed(MOBILE_REFUSED);
+      return ok(await answerQuery(host, request.query));
+    }
     if (!isMobileCommand(request.command)) return failed(MOBILE_REFUSED);
     const taskId = "taskId" in request.command ? request.command.taskId : undefined;
     if (taskId !== undefined && !host.state().threads.some((thread) => thread.id === taskId)) {
@@ -87,9 +116,10 @@ export function subscribeToMobile(host: MobileBridgeHost, desktop: DesktopAPI): 
     .catch((error) => host.dispatch({ type: "action.failed", message: errorMessage(error) }));
   const stopWatching = desktop.onMobileState((remote) => void host.dispatch({ type: "remote.changed", remote }));
   /** A request is read as a stranger's even across the preload, so a malformed one is never answered. */
+  const answering: MobileBridgeHost = { ...host, read: desktop };
   const stopAnswering = desktop.onMobileRequest((request) => {
     if (!isMobileRequest(request)) return;
-    void answerMobileRequest(host, request).then((response) => desktop.answerMobileRequest(response));
+    void answerMobileRequest(answering, request).then((response) => desktop.answerMobileRequest(response));
   });
   return () => {
     stopWatching();

@@ -20,7 +20,7 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: tr
 Object.defineProperty(dom.window.HTMLElement.prototype, "scrollTo", { configurable: true, writable: true, value: () => {} });
 Object.defineProperty(globalThis, "ResizeObserver", { configurable: true, value: class { observe() {} disconnect() {} } });
 /** No animation frames run here, so the sheet is asked to leave the way it does under reduced motion. */
-Object.defineProperty(dom.window, "matchMedia", { configurable: true, value: (query: string) => ({ matches: query.includes("reduced-motion") }) });
+Object.defineProperty(dom.window, "matchMedia", { configurable: true, value: (query: string) => ({ matches: query.includes("reduced-motion"), addEventListener() {}, removeEventListener() {} }) });
 
 /** Every socket the page opens, so a test can answer as the Mac would. */
 const lines: FakeSocket[] = [];
@@ -48,11 +48,14 @@ Object.defineProperty(globalThis, "WebSocket", { configurable: true, value: Fake
 
 function view(): MobileView {
   return {
-    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
+    groups: [{ projectId: "p", name: "App", threads: [{ id: "t1", title: "Fix the parser", projectName: "App", attention: false, status: "awaiting-approval", lastActivityAt: Date.now(), unread: true }] }],
+    activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" },
     thread: {
       id: "t1",
       title: "Fix the parser",
+      projectId: "p",
       projectName: "App",
+      worktreeId: null,
       messages: [
         { kind: "user", text: "please fix", at: 1 },
         { kind: "tool", text: "Bash", at: 2 },
@@ -66,6 +69,12 @@ function view(): MobileView {
       queued: [{ id: "q1", text: "then deploy" }],
       prompt: "",
       settings: { engine: "claude", model: "opus", effort: "high", policy: "confirm" },
+      location: { kind: "local" },
+      worktrees: [],
+      canMove: true,
+      changes: null,
+      reviewable: true,
+      branchRange: { kind: "branches", base: "HEAD", compare: null },
     },
     draft: null,
     error: null,
@@ -132,7 +141,7 @@ test("the phone page pairs from the address, opens a thread, and answers an appr
   assert.match(document.body.textContent ?? "", /Fix the parser/);
   assert.match(document.body.textContent ?? "", /Needs you/);
 
-  click(".thread-row");
+  click(".thread-row .thread-open");
   assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
 
   assert.equal(document.querySelector(".bar-title p")?.textContent, "App", "the bar names the project; the status lives in the row, the dots and the approval card");
@@ -172,7 +181,7 @@ test("the phone selects an answer without sending until Send answer is pressed",
     options: [{ label: "ALPHA", description: "First" }, { label: "BETA", description: "Second" }], blocking: false,
   } };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s1", build: BUILD, view: asked }) }));
-  click(".thread-row");
+  click(".thread-row .thread-open");
   typeInto('.composer-card textarea', "Keep my message");
   click('input[value="BETA"]');
   assert.equal((document.querySelector(".question-answer textarea") as HTMLTextAreaElement).value, "BETA");
@@ -182,7 +191,7 @@ test("the phone selects an answer without sending until Send answer is pressed",
   click(".question-answer button");
   assert.deepEqual(lastCommand(line), { type: "question.answer", taskId: "t1", runId: "r1", requestId: "request", questionId: "q", text: "GAMMA custom" });
   assert.equal((document.querySelector(".composer-card textarea") as HTMLTextAreaElement).value, "Keep my message");
-  click('button[aria-label="Send message"]');
+  click('button[aria-label="Queue message"]');
   assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "Keep my message" });
 });
 
@@ -195,7 +204,7 @@ test("the phone shows the thread the Mac actually has open, and says what went w
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
   receive({ kind: "snapshot", sequence: 1, sessionId: "s2", build: BUILD, view: view() });
-  click(".thread-row");
+  click(".thread-row .thread-open");
   assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
 
   /** Somebody at the Mac opened a different thread. The phone follows rather than waiting for its own. */
@@ -224,10 +233,10 @@ test("a tap shows the thread it asked for, never the one the Mac still has open"
     act(() => line.onmessage?.({ data: JSON.stringify(message) }));
   }
   const two = view();
-  two.groups[0]!.threads.push({ id: "t2", title: "Rewrite the docs", status: "idle", lastActivityAt: 1, unread: false });
+  two.groups[0]!.threads.push({ id: "t2", title: "Rewrite the docs", projectName: "App", attention: false, status: "idle", lastActivityAt: 1, unread: false });
   receive({ kind: "snapshot", sequence: 1, sessionId: "s7", build: BUILD, view: two });
 
-  click(".thread-row:nth-of-type(2)");
+  click(".thread-row:nth-of-type(2) .thread-open");
   assert.equal(document.querySelector(".bar-title h1")?.textContent, "Rewrite the docs");
   assert.match(document.body.textContent ?? "", /Opening the thread/);
   assert.doesNotMatch(document.body.textContent ?? "", /then deploy/, "the thread the Mac still has open is not shown");
@@ -255,7 +264,7 @@ test("New opens the thread the Mac is about to start, and the first message star
   assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p" });
 
   /** The Mac has no thread open from here until a message makes one, which is what it answers with. */
-  const draft = { projectName: "App", prompt: "", settings: { engine: "claude", model: "opus" as const, effort: "high" as const, policy: "confirm" as const } };
+  const draft = { projectId: "p", projectName: "App", prompt: "", settings: { engine: "claude", model: "opus" as const, effort: "high" as const, policy: "confirm" as const }, worktree: false, worktreeName: null, worktrees: [], canWorktree: true };
   receive({ kind: "patch", sequence: 2, patch: { thread: { kind: "closed" }, draft } });
   assert.equal(document.querySelector("textarea")?.getAttribute("placeholder"), "Ask Claude to work on anything");
   assert.doesNotMatch(document.body.textContent ?? "", /Opening the thread/);
@@ -306,11 +315,136 @@ test("a group folds shut and stays shut across a reload", () => {
 test("a Mac with no threads still shows a group to start one in", () => {
   const line = openPhone({ paired: true });
   act(() => line.onopen?.());
-  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], thread: null, draft: null, error: null };
+  const bare: MobileView = { groups: [{ projectId: null, name: "Recents", threads: [] }], activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
   act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s6", build: BUILD, view: bare }) }));
   assert.ok(document.querySelector(".group-header .section-action"), "the empty group still offers New");
   assert.equal(document.querySelector(".group-empty"), null, "one empty line for the whole list, not one per group");
   assert.match(document.querySelector(".empty")?.textContent ?? "", /No threads yet/);
   click(".empty .primary");
   assert.deepEqual(lastCommand(line), { type: "task.new" }, "the plain way to start goes to whatever project the Mac has open");
+});
+
+/** Taps the menu row whose label starts with `text`, inside React's own turn. */
+function clickRow(text: string) {
+  const row = [...document.querySelectorAll<HTMLButtonElement>(".menu-row")].find((node) => node.textContent?.startsWith(text));
+  assert.ok(row, `no menu row ${text}`);
+  act(() => void row.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
+}
+
+/** The frames the phone has asked the Mac to read, newest last. */
+function queries(line: FakeSocket) {
+  return line.sent.flatMap((frame) => frame.kind === "query" ? [frame] : []);
+}
+
+function live(line: FakeSocket, body: MobileView = view()) {
+  act(() => line.onopen?.());
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "snapshot", sequence: 1, sessionId: "s9", build: BUILD, view: body }) }));
+}
+
+test("the list ranks by what wants the user when asked, and a Priority row can be filed away", () => {
+  const line = openPhone({ paired: true });
+  const ranked = view();
+  ranked.activity = {
+    priority: [
+      { id: "t1", title: "Fix the parser", projectName: "App", status: "awaiting-approval", lastActivityAt: 1, unread: true, attention: false },
+      { id: "t3", title: "Nightly check", projectName: null, status: "idle", lastActivityAt: 1, unread: true, attention: true, outcome: "finished", headline: "Tests are red on main" },
+    ],
+    running: [{ id: "t2", title: "Rewrite the docs", projectName: "App", status: "running", lastActivityAt: 1, unread: false, attention: false }],
+    threads: [],
+  };
+  live(line, ranked);
+  assert.equal(localStorage.getItem("aicodingtool.mobile.list"), null);
+  click('.segmented button[aria-checked="false"]');
+  assert.equal(localStorage.getItem("aicodingtool.mobile.list"), "activity", "the choice survives a visit");
+  assert.deepEqual([...document.querySelectorAll(".section-toggle > span:first-child")].map((node) => node.textContent), ["Priority", "Running", "Threads"]);
+  assert.match(document.querySelector(".thread-headline")?.textContent ?? "", /Tests are red/);
+  assert.match(document.querySelectorAll(".thread-meta")[1]?.textContent ?? "", /^No project · Done/);
+  assert.equal(document.querySelectorAll(".thread-dismiss").length, 1, "only a settled row is filed away; a blocked one is answered");
+  click(".thread-dismiss");
+  assert.deepEqual(lastCommand(line), { type: "task.dismiss", taskId: "t3" });
+  click('button[aria-label="Dismiss all"]');
+  assert.deepEqual(lastCommand(line), { type: "task.dismiss-all" });
+  click(".thread-row .thread-open");
+  assert.deepEqual(lastCommand(line), { type: "task.select", taskId: "t1" });
+});
+
+test("while a run is going a message may join the queue or cut into it, and a queued one can be steered or dropped", () => {
+  const line = openPhone({ paired: true });
+  const busy = view();
+  busy.thread = { ...busy.thread!, approval: null, status: "running", queued: [{ id: "q1", text: "then deploy" }, { id: "q2", text: "then tag", steering: true }] };
+  live(line, busy);
+  click(".thread-row .thread-open");
+  assert.ok(document.querySelector('button[aria-label="Stop this run"]'));
+  assert.equal(document.querySelector(".steer-button"), null, "nothing typed, nothing to steer");
+  typeInto(".composer-card textarea", "also lint");
+  click(".steer-button");
+  assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "also lint", steer: true });
+  typeInto(".composer-card textarea", "and format");
+  click('button[aria-label="Queue message"]');
+  assert.deepEqual(lastCommand(line), { type: "task.send", taskId: "t1", text: "and format" });
+  assert.equal(document.querySelectorAll(".queued").length, 2);
+  assert.equal(document.querySelectorAll(".queued-steer").length, 1, "a message already on its way has no controls");
+  click(".queued-steer");
+  assert.deepEqual(lastCommand(line), { type: "task.steer-queued", taskId: "t1", messageId: "q1" });
+  click(".queued-drop");
+  assert.deepEqual(lastCommand(line), { type: "task.drop-queued", taskId: "t1", messageId: "q1" });
+});
+
+test("the thread menu moves the thread between checkouts, forks it, renames it and archives it", () => {
+  const line = openPhone({ paired: true });
+  const housed = view();
+  housed.thread = { ...housed.thread!, location: { kind: "worktree", name: "Feature", threads: 2 }, worktreeId: "wt-1", worktrees: [{ id: "wt-2", name: "Spike", branch: "spike" }], changes: { branch: "feature", files: 3, additions: 10, deletions: 2 } };
+  live(line, housed);
+  click(".thread-row .thread-open");
+  assert.equal(document.querySelector(".bar-title p")?.textContent, "App · Feature");
+  click('button[aria-label="Thread options"]');
+  assert.match(document.querySelector(".menu-row .menu-copy small")?.textContent ?? "", /3 files · \+10 −2/);
+  clickRow("Location");
+  assert.deepEqual([...document.querySelectorAll(".location-option strong")].map((node) => node.textContent), ["App", "Feature", "Spike", "New worktree"]);
+  click('.location-option[aria-checked="false"]:not(:disabled)');
+  assert.deepEqual(lastCommand(line), { type: "task.move-worktree", taskId: "t1", destination: { kind: "local" } });
+
+  click('button[aria-label="Thread options"]');
+  clickRow("New thread here");
+  assert.deepEqual(lastCommand(line), { type: "task.new", projectId: "p", worktreeId: "wt-1" });
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "New thread");
+});
+
+test("a thread's changes are read from the Mac on demand, and a file opens to its patch", async () => {
+  const line = openPhone({ paired: true });
+  live(line);
+  click(".thread-row .thread-open");
+  click('button[aria-label="Thread options"]');
+  clickRow("Changes");
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "Changes");
+  const asked = queries(line);
+  assert.equal(asked.length, 1);
+  assert.deepEqual(asked[0]!.query, { kind: "diff-summary", taskId: "t1", range: { kind: "uncommitted" } });
+  await act(async () => line.onmessage?.({ data: JSON.stringify({ kind: "answer", sequence: 2, requestId: asked[0]!.requestId, ok: true, result: {
+    status: "available", range: { kind: "uncommitted" }, ignoreWhitespace: true, additions: 1, deletions: 1,
+    files: [{ path: "src/a.ts", status: "modified", additions: 1, deletions: 1, binary: false }],
+  } }) }));
+  assert.match(document.querySelector(".changes-progress")?.textContent ?? "", /1 file/);
+  click(".diff-file-row");
+  const patch = queries(line).at(-1)!;
+  assert.deepEqual(patch.query, { kind: "diff-patch", taskId: "t1", range: { kind: "uncommitted" }, path: "src/a.ts" });
+  await act(async () => line.onmessage?.({ data: JSON.stringify({ kind: "answer", sequence: 3, requestId: patch.requestId, ok: true, result: { status: "available", patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-old\n+new\n" } }) }));
+  assert.deepEqual([...document.querySelectorAll(".diff-line")].map((node) => node.className), ["diff-line hunk", "diff-line delete", "diff-line add"]);
+  assert.equal(document.querySelector(".diff-line.add code")?.textContent, "new");
+
+  click('.changes-toolbar .segmented button[aria-checked="false"]');
+  assert.deepEqual(queries(line).at(-1)!.query, { kind: "diff-summary", taskId: "t1", range: { kind: "branches", base: "HEAD", compare: null } });
+  click('button[aria-label="Back to thread"]');
+  assert.equal(document.querySelector(".bar-title h1")?.textContent, "Fix the parser");
+});
+
+test("the phone wears the theme the Mac sends and remembers it for the next visit", () => {
+  const line = openPhone({ paired: true });
+  const themed = view();
+  themed.theme = { dark: "nord", light: "nord-snow", mode: "light" };
+  live(line, themed);
+  assert.equal(document.documentElement.dataset.theme, "nord-snow");
+  assert.deepEqual(JSON.parse(localStorage.getItem("aicodingtool.mobile.theme")!), themed.theme);
+  act(() => line.onmessage?.({ data: JSON.stringify({ kind: "patch", sequence: 2, patch: { theme: { dark: "nord", light: "nord-snow", mode: "dark" } } }) }));
+  assert.equal(document.documentElement.dataset.theme, "nord");
 });

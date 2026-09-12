@@ -13,6 +13,8 @@ import {
   type MobileErrorCode,
   type MobilePairRequest,
   type MobileResumeRequest,
+  type MobileQuery,
+  type MobileQueryRequest,
   type MobileServerMessage,
   type MobileView,
   type MobileViewUpdate,
@@ -45,6 +47,8 @@ const MAX_SOCKET_MESSAGE = 2 * 1024 * 1024;
 const MAX_HANDLED_REQUESTS = 256;
 /** How many of a device's commands may be waiting on the window at once. */
 const MAX_COMMANDS_IN_FLIGHT = 64;
+/** How many of a session's reads may be waiting on the window at once. A review asks for a few files, not a tree. */
+const MAX_QUERIES_IN_FLIGHT = 8;
 /**
  * How long a hung-up socket is given to answer the close handshake. A client that never answers
  * would otherwise keep delivering messages for `ws`'s own half-minute, so it is cut instead.
@@ -99,6 +103,8 @@ type Session = MobileSession & {
   awaitingSnapshot: boolean;
   /** When an offline session stops being worth keeping. Null while a socket is attached. */
   expiresAt: number | null;
+  /** Reads waiting on the window. A read is never resent, so nothing about it is remembered once answered. */
+  queries: number;
 };
 
 /** Every server message but the sequence the session stamps on it as it goes out. */
@@ -114,6 +120,8 @@ export type MobileServerOptions = {
   allowedOrigins: () => string[];
   snapshot: (sessionId: string) => Promise<MobileView>;
   command: (sessionId: string, command: MobileCommand) => Promise<void>;
+  /** Answers one read with whatever the window returns, which is the phone's to draw. */
+  query: (sessionId: string, query: MobileQuery) => Promise<unknown>;
   /** Something a phone did changed what settings should say. */
   onChange: () => void;
   /** How long a dropped session is held for its phone. A test shortens it rather than wait five minutes. */
@@ -262,6 +270,7 @@ export class MobileServer {
       bufferBytes: 0,
       awaitingSnapshot: true,
       expiresAt: null,
+      queries: 0,
     };
     this.sessions.set(session.id, session);
     if (!this.handled.has(deviceId)) this.handled.set(deviceId, new Map());
@@ -371,6 +380,7 @@ export class MobileServer {
    * a fresh session with the same outbox.
    */
   private onSessionMessage(session: Session, message: MobileClientMessage) {
+    if (message.kind === "query") return this.onQuery(session, message);
     if (message.kind !== "command") return;
     const { requestId } = message;
     const handled = this.handled.get(session.deviceId);
@@ -390,6 +400,22 @@ export class MobileServer {
       () => this.settle(session, requestId, { ok: true }),
       (error: unknown) => this.settle(session, requestId, { ok: false, message: error instanceof Error ? error.message : String(error) }),
     );
+  }
+
+  /**
+   * A read is answered once and never remembered: asking twice reads twice, which is harmless, and
+   * a phone that lost the answer asks again itself. Too many at once are refused rather than queued.
+   */
+  private onQuery(session: Session, message: MobileQueryRequest) {
+    const { requestId } = message;
+    if (session.queries >= MAX_QUERIES_IN_FLIGHT) {
+      return this.emit(session, { kind: "answer", requestId, ok: false, message: "This phone is asking for too much at once." });
+    }
+    session.queries += 1;
+    this.options.query(session.id, message.query).then(
+      (result) => this.emit(session, { kind: "answer", requestId, ok: true, result }),
+      (error: unknown) => this.emit(session, { kind: "answer", requestId, ok: false, message: error instanceof Error ? error.message : String(error) }),
+    ).finally(() => { session.queries -= 1; });
   }
 
   /** Only a settled request may be forgotten: forgetting one in flight would let a resend run it twice. */

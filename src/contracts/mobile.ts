@@ -4,22 +4,29 @@ import type { MobilePairingOffer, MobileServerState } from "../domain/mobile.js"
 import { engineHasEffort, engineHasModel, isAgentEffort, isAgentEngine, isAgentModel, type AgentEngine, type AgentModel } from "../domain/agent-engine.js";
 import type { AgentEffort, ExecutionPolicy } from "../domain/run.js";
 import type { Annotation, AnnotationAnchor, PastedText } from "../domain/conversation.js";
+import { isDiffRange, type DiffRange } from "../domain/diff.js";
+import type { ThemeMode } from "../domain/theme.js";
+import type { ThreadOutcome } from "../domain/thread-run.js";
+import type { WorktreeDestination } from "../domain/worktree.js";
 import type { TaskMessageKind } from "./threads.js";
 
 /**
  * The commands a paired phone may dispatch. The phone is the user on a small screen, not an agent,
  * so it gets the whole conversation: starting, opening, sending, queueing, forking, renaming,
- * archiving and restoring threads, answering approvals, stopping work, and changing what a thread
- * runs as. It gets nothing that only makes sense in front of the Mac — the terminal panel, the
- * browser panel, the diff panel, handing a checkout to another application, deleting a worktree,
- * removing a project, window and shortcut commands, and how the desktop is painted — because a
- * phone cannot see the result and a mistyped one would be felt on a machine nobody is watching.
+ * archiving and restoring threads, answering approvals, stopping work, changing what a thread runs
+ * as, and where it runs: a checkout of its own, an existing one, or the project's. It gets nothing
+ * that only makes sense in front of the Mac — the terminal panel, the browser panel, handing a
+ * checkout to another application, deleting a worktree, removing a project, window and shortcut
+ * commands, and how the desktop is painted — because a phone cannot see the result and a mistyped
+ * one would be felt on a machine nobody is watching. Changes are read through a query instead, so
+ * a phone reviewing a diff moves nothing on the desktop.
  */
 export type MobileCommand = Extract<AppCommand, {
   type:
     | "task.new" | "task.select" | "task.send" | "task.archive" | "task.restore" | "task.rename"
     | "task.dismiss" | "task.dismiss-all" | "task.fork" | "task.set-policy" | "task.set-model"
-    | "task.set-effort" | "task.set-fast-mode" | "task.steer-queued" | "task.drop-queued"
+    | "task.set-effort" | "task.set-fast-mode" | "task.set-worktree" | "task.move-worktree"
+    | "task.steer-queued" | "task.drop-queued"
     | "run.cancel" | "run.decide" | "run.stop-process" | "question.answer"
     | "annotation.add" | "annotation.note" | "annotation.remove" | "annotation.recall"
     | "paste.add" | "paste.remove" | "paste.recall"
@@ -32,10 +39,25 @@ export type MobileRunStatus = "idle" | "running" | "stopped" | "awaiting-approva
 export type MobileThreadEntry = {
   id: string;
   title: string;
+  /** What the thread's folder is called, for a list that is not grouped by folder. Null in no project. */
+  projectName: string | null;
   status: MobileRunStatus;
   lastActivityAt: number;
-  /** Whether the thread still carries the dot, which is the only thing the list shows beyond time. */
+  /** Whether the thread still carries the dot. */
   unread: boolean;
+  /** The verdict its last run left, once it has settled. */
+  outcome?: ThreadOutcome;
+  /** The newest thing a run found that the user has not seen, which is the row's second line. */
+  headline?: string;
+  /** Whether the thread has anything to file away, which is what holds it in Priority. */
+  attention: boolean;
+};
+
+/** The list ranked by what wants the user, as the desktop's activity sidebar ranks it. */
+export type MobileActivity = {
+  priority: MobileThreadEntry[];
+  running: MobileThreadEntry[];
+  threads: MobileThreadEntry[];
 };
 
 /** The list, grouped the way the sidebar groups it. `projectId` is null for threads in no project. */
@@ -64,6 +86,30 @@ export type MobileApproval = {
 export type MobileQueuedMessage = {
   id: string;
   text: string;
+  /** Set while the message is on its way into the run, which takes its controls away. */
+  steering?: boolean;
+};
+
+/** Where a thread's runs happen, as the phone names it. */
+export type MobileLocation =
+  | { kind: "local" }
+  | { kind: "creating" }
+  | { kind: "releasing" }
+  | { kind: "worktree"; name: string; threads: number };
+
+/** One of the project's other checkouts, which a thread can move into or a draft start in. */
+export type MobileWorktreeChoice = {
+  id: string;
+  name: string;
+  branch: string | null;
+};
+
+/** What the checkout holds against its baseline, as the desktop's session panel counts it. */
+export type MobileChanges = {
+  branch: string | null;
+  files: number;
+  additions: number;
+  deletions: number;
 };
 
 /** What the open thread is set to run as, which the phone can change like any other command. */
@@ -80,8 +126,11 @@ export type MobileThreadView = {
   loading?: boolean;
   id: string;
   title: string;
+  projectId: string | null;
   /** What the thread's folder is called, or null when it belongs to no project. */
   projectName: string | null;
+  /** The checkout the thread works in, when it has one of its own. */
+  worktreeId: string | null;
   messages: MobileMessage[];
   /** How many older messages the limit left out. */
   omitted: number;
@@ -94,6 +143,17 @@ export type MobileThreadView = {
   /** The composer draft, which the phone and the desktop share. */
   prompt: string;
   settings: MobileThreadSettings;
+  location: MobileLocation;
+  /** The project's other checkouts, most recently used first. */
+  worktrees: MobileWorktreeChoice[];
+  /** Whether the thread may be moved now: it has a repository, and nothing is running in it. */
+  canMove: boolean;
+  /** Null while the checkout has not been read, or the thread has none. */
+  changes: MobileChanges | null;
+  /** Whether the thread works in a registered checkout, which is what a review is read from. */
+  reviewable: boolean;
+  /** The branch comparison the desktop has this thread's review on. */
+  branchRange: Extract<DiffRange, { kind: "branches" }>;
 };
 
 /**
@@ -101,11 +161,30 @@ export type MobileThreadView = {
  * only once its first message is sent, so this is what stands in the open thread's place until then.
  */
 export type MobileDraftView = {
+  projectId: string | null;
   /** The folder the thread would start in, or null when it would belong to no project. */
   projectName: string | null;
   /** The composer draft, which the phone and the desktop share. */
   prompt: string;
   settings: MobileThreadSettings;
+  /** Whether the first message makes the thread a checkout of its own. */
+  worktree: boolean;
+  /** The existing checkout the thread starts in, when the user picked one. */
+  worktreeName: string | null;
+  /** The project's checkouts a draft may start in. */
+  worktrees: MobileWorktreeChoice[];
+  /** Whether the project has a repository, which is what a checkout is cut from. */
+  canWorktree: boolean;
+};
+
+/**
+ * The desktop's theme as a phone can wear it: the family's dark and light faces, and which of them
+ * the desktop is on. On "auto" the phone reads its own appearance, since it is on its own ground.
+ */
+export type MobileTheme = {
+  dark: string;
+  light: string;
+  mode: ThemeMode;
 };
 
 /**
@@ -114,6 +193,8 @@ export type MobileDraftView = {
  */
 export type MobileView = {
   groups: MobileProjectGroup[];
+  activity: MobileActivity;
+  theme: MobileTheme;
   /** The thread the phone has open, which is the thread the desktop has open. */
   thread: MobileThreadView | null;
   /** Where the desktop stands with no thread open. Null whenever `thread` is not. */
@@ -139,6 +220,8 @@ export type MobileThreadDelta = Partial<Omit<MobileThreadView, "id" | "messages"
  */
 export type MobilePatch = {
   groups?: MobileProjectGroup[];
+  activity?: MobileActivity;
+  theme?: MobileTheme;
   thread?:
     | { kind: "closed" }
     | { kind: "opened"; thread: MobileThreadView }
@@ -154,7 +237,7 @@ export type MobilePatch = {
  * page for any other reason: a phone the Mac turns away is told to reload, where one left running
  * is wrong in silence.
  */
-export const MOBILE_PROTOCOL_VERSION = 2;
+export const MOBILE_PROTOCOL_VERSION = 3;
 
 const MAX_ID_LENGTH = 256;
 const MAX_PROMPT_LENGTH = 1_000_000;
@@ -162,6 +245,7 @@ const MAX_TITLE_LENGTH = 1_000;
 const MAX_QUOTE_LENGTH = 100_000;
 const MAX_DEVICE_NAME_LENGTH = 128;
 const MAX_TOKEN_LENGTH = 512;
+const MAX_PATH_LENGTH = 4_096;
 /** How many drafted annotations or pastes one recall may carry. */
 const MAX_RECALL = 100;
 
@@ -265,6 +349,10 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
       return named && typeof command.fastMode === "boolean";
     case "task.set-effort":
       return named && isAgentEngine(command.engine) && isAgentEffort(command.effort) && engineHasEffort(command.engine, command.effort);
+    case "task.set-worktree":
+      return named && typeof command.worktree === "boolean";
+    case "task.move-worktree":
+      return named && isDestination(command.destination);
     case "task.steer-queued":
     case "task.drop-queued":
       return named && isString(command.messageId);
@@ -277,6 +365,26 @@ function isThreadCommand(command: Record<string, unknown>, named: boolean) {
     default:
       return false;
   }
+}
+
+function isDestination(value: unknown): value is WorktreeDestination {
+  if (!isRecord(value)) return false;
+  if (value.kind === "local" || value.kind === "new") return true;
+  return value.kind === "worktree" && isString(value.id);
+}
+
+/**
+ * What a phone reads that is content rather than state: a review's file list and one file's patch.
+ * The thread names the checkout, so a phone never says which directory to read.
+ */
+export type MobileQuery =
+  | { kind: "diff-summary"; taskId: string; range: DiffRange }
+  | { kind: "diff-patch"; taskId: string; range: DiffRange; path: string; previousPath?: string };
+
+export function isMobileQuery(value: unknown): value is MobileQuery {
+  if (!isRecord(value) || !isString(value.taskId) || !isDiffRange(value.range)) return false;
+  if (value.kind === "diff-summary") return true;
+  return value.kind === "diff-patch" && isString(value.path, MAX_PATH_LENGTH) && (value.previousPath === undefined || isString(value.previousPath, MAX_PATH_LENGTH));
 }
 
 function isAnnotationCommand(command: Record<string, unknown>, named: boolean) {
@@ -338,9 +446,16 @@ export type MobileCommandRequest = {
   command: MobileCommand;
 };
 
+/** One read, answered by exactly one {@link MobileAnswerMessage}. Never resent: a read that was lost is simply asked again. */
+export type MobileQueryRequest = {
+  kind: "query";
+  requestId: string;
+  query: MobileQuery;
+};
+
 export type MobilePongMessage = { kind: "pong"; at: number };
 
-export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | MobileCommandRequest | MobilePongMessage;
+export type MobileClientMessage = MobilePairRequest | MobileResumeRequest | MobileCommandRequest | MobileQueryRequest | MobilePongMessage;
 
 /**
  * Every message the server sends carries a sequence, counting from one within a session and never
@@ -368,11 +483,13 @@ export type MobilePatchMessage = Sequenced & { kind: "patch"; patch: MobilePatch
 
 export type MobileAckMessage = Sequenced & { kind: "ack"; requestId: string } & ({ ok: true } | { ok: false; message: string });
 
+export type MobileAnswerMessage = Sequenced & { kind: "answer"; requestId: string } & ({ ok: true; result: unknown } | { ok: false; message: string });
+
 export type MobileErrorMessage = Sequenced & { kind: "error"; code: MobileErrorCode; message: string };
 
 export type MobilePingMessage = Sequenced & { kind: "ping"; at: number };
 
-export type MobileServerMessage = MobilePairedMessage | MobileSnapshotMessage | MobilePatchMessage | MobileAckMessage | MobileErrorMessage | MobilePingMessage;
+export type MobileServerMessage = MobilePairedMessage | MobileSnapshotMessage | MobilePatchMessage | MobileAckMessage | MobileAnswerMessage | MobileErrorMessage | MobilePingMessage;
 
 function isErrorCode(value: unknown): value is MobileErrorCode {
   return value === "version" || value === "unauthorized" || value === "expired-code"
@@ -390,6 +507,7 @@ export function isMobileClientMessage(value: unknown): value is MobileClientMess
       && isCount(value.lastSequence);
   }
   if (value.kind === "command") return isString(value.requestId) && isMobileCommand(value.command);
+  if (value.kind === "query") return isString(value.requestId) && isMobileQuery(value.query);
   if (value.kind === "pong") return isCount(value.at);
   return false;
 }
@@ -408,6 +526,10 @@ export function isMobileServerMessage(value: unknown): value is MobileServerMess
     if (!isString(value.requestId)) return false;
     return value.ok === true || (value.ok === false && isBlankable(value.message, MAX_PROMPT_LENGTH));
   }
+  if (value.kind === "answer") {
+    if (!isString(value.requestId)) return false;
+    return (value.ok === true && "result" in value) || (value.ok === false && isBlankable(value.message, MAX_PROMPT_LENGTH));
+  }
   if (value.kind === "error") return isErrorCode(value.code) && isBlankable(value.message, MAX_PROMPT_LENGTH);
   if (value.kind === "ping") return isCount(value.at);
   return false;
@@ -424,6 +546,7 @@ export type MobileRequest = {
 } & (
   | { op: "snapshot" }
   | { op: "command"; command: MobileCommand }
+  | { op: "query"; query: MobileQuery }
 );
 
 export type MobileResponse = {
@@ -436,6 +559,7 @@ export function isMobileRequest(value: unknown): value is MobileRequest {
   if (value.type !== "mobile.request" || !isString(value.requestId) || !isString(value.sessionId)) return false;
   if (value.op === "snapshot") return true;
   if (value.op === "command") return isMobileCommand(value.command);
+  if (value.op === "query") return isMobileQuery(value.query);
   return false;
 }
 

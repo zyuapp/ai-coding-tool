@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MobileCommand } from "../../contracts/mobile";
+import type { MobileCommand, MobileQuery } from "../../contracts/mobile";
 import { createMobileConnection, type MobileConnection } from "./connection";
 import { initialMobileClient, type MobileClientState } from "./protocol";
 import { deviceName, readCredential, readPairingCode, socketUrl, withoutPairingCode } from "./storage";
@@ -8,7 +8,14 @@ import { deviceName, readCredential, readPairingCode, socketUrl, withoutPairingC
  * The connection held for as long as the page is open. The pairing code is taken out of the address
  * before anything else happens, so a reload cannot try to spend a code that is already gone.
  */
-export function useMobileClient(): { state: MobileClientState; send: (command: MobileCommand) => void; dismissNotice: () => void } {
+export type MobileClient = {
+  state: MobileClientState;
+  send: (command: MobileCommand) => void;
+  query: (query: MobileQuery) => Promise<unknown>;
+  dismissNotice: () => void;
+};
+
+export function useMobileClient(): MobileClient {
   const start = useMemo(() => {
     const code = readPairingCode(window.location.href);
     const url = socketUrl(window.location.href);
@@ -27,9 +34,12 @@ export function useMobileClient(): { state: MobileClientState; send: (command: M
     };
   }, [start]);
 
-  return useMemo(() => ({
-    state,
+  /** The three verbs never change identity: a screen that keys an effect on `query` must not re-ask on every frame. */
+  const verbs = useMemo(() => ({
     send: (command: MobileCommand) => connection.current?.send(command),
+    query: (query: MobileQuery) => connection.current?.query(query) ?? Promise.reject(new Error("Not connected to your computer.")),
     dismissNotice: () => connection.current?.dismissNotice(),
-  }), [state]);
+  }), []);
+
+  return useMemo(() => ({ state, ...verbs }), [state, verbs]);
 }

@@ -58,6 +58,14 @@
   --link: var(--p-link);
   --focus-ring: var(--p-fg-2);
   --code-surface: var(--p-bg-4);
+  --code-ink: var(--p-ansi-white);
+
+  --diff-add-surface: color-mix(in srgb, var(--p-success) 12%, var(--p-bg-0));
+  --diff-add-gutter: color-mix(in srgb, var(--p-success) 18%, var(--p-bg-1));
+  --diff-del-surface: color-mix(in srgb, var(--p-danger) 12%, var(--p-bg-0));
+  --diff-del-gutter: color-mix(in srgb, var(--p-danger) 18%, var(--p-bg-1));
+  --diff-hunk-surface: color-mix(in srgb, var(--p-info) 6%, var(--p-bg-1));
+  --diff-hunk-ink: color-mix(in srgb, var(--p-info) 60%, var(--p-fg-4));
 
   --shadow-float: 0 1px 2px rgb(var(--p-shadow) / calc(0.16 * var(--p-shadow-scale))), 0 6px 16px rgb(var(--p-shadow) / calc(0.22 * var(--p-shadow-scale)));
   --shadow-float-lift: 0 1px 3px rgb(var(--p-shadow) / calc(0.2 * var(--p-shadow-scale))), 0 10px 26px rgb(var(--p-shadow) / calc(0.28 * var(--p-shadow-scale)));
@@ -183,6 +191,40 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The list's two shapes sit where its title would, centred, since "Threads" says nothing they do not. */
+.bar-switch {
+  align-items: center;
+}
+
+.bar-action {
+  margin: 0 -2px 0 0;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+
+.segmented button {
+  min-height: 30px;
+  padding: 0 14px;
+  border-radius: 7px;
+  font-size: var(--text-menu);
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.segmented button[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(var(--p-shadow) / calc(0.18 * var(--p-shadow-scale)));
 }
 
 .line-mark {
@@ -349,26 +391,28 @@ button {
 
 .thread-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 22px;
+  grid-template-columns: minmax(0, 1fr) 44px;
   align-items: center;
-  gap: 10px;
   width: 100%;
   min-height: 56px;
-  padding: 9px 8px 9px 12px;
   border-radius: var(--radius-row);
+}
+
+.thread-open {
+  min-width: 0;
+  min-height: 56px;
+  padding: 9px 4px 9px 12px;
+  border-radius: var(--radius-row) 0 0 var(--radius-row);
   text-align: left;
 }
 
-.thread-row:active {
+.thread-open:active {
   background: var(--surface-active);
-}
-
-.thread-text {
-  min-width: 0;
 }
 
 /* A long line fades out at the edge rather than ending in an ellipsis, as the desktop's rows do. */
 .thread-title,
+.thread-headline,
 .thread-meta {
   display: block;
   white-space: nowrap;
@@ -384,12 +428,36 @@ button {
   color: var(--ink);
 }
 
+/* What a run found, which a row in Priority is there to say. */
+.thread-headline {
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-faint);
+}
+
 .thread-meta {
   margin-top: 3px;
   font-size: 12px;
   line-height: 1.3;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* Takes the mark's column on a Priority row the user may file away. */
+.thread-dismiss {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  justify-self: end;
+  border-radius: 10px;
+  color: var(--quiet);
+}
+
+.thread-dismiss:active {
+  background: var(--surface-active);
+  color: var(--ink);
 }
 
 .thread-row[data-status="awaiting-approval"] .thread-meta {
@@ -402,6 +470,7 @@ button {
   place-items: center;
   width: 22px;
   height: 22px;
+  justify-self: center;
 }
 
 .thread-mark::before {
@@ -495,30 +564,80 @@ button {
   user-select: none;
 }
 
+.queued-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A message behind the run: what it says, and the two things that can still be done to it. */
 .queued {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 8px 7px 12px;
+  min-height: 44px;
+  padding: 6px 6px 6px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   font-size: var(--text-control);
 }
 
+.queued[data-steering] {
+  opacity: 0.6;
+}
+
+.queued-mark {
+  flex: none;
+  color: var(--quiet);
+}
+
 .queued-text {
   flex: 1;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
+  color: var(--ink-dim);
+  line-height: 1.4;
 }
 
 .queued-state {
   flex: none;
+  padding-right: 6px;
   font-size: var(--text-meta);
   color: var(--muted);
+}
+
+.queued-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.queued-steer {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: var(--text-menu);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+.queued-drop {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--quiet);
+}
+
+.queued-steer:active,
+.queued-drop:active {
+  background: var(--surface-active);
 }
 
 .notice {
@@ -921,6 +1040,22 @@ button {
   margin-right: 7px;
 }
 
+/* Cuts into the run that is going. Text where the disc is a glyph, because the two mean different things. */
+.steer-button {
+  flex: none;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  font-size: var(--text-menu);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+.steer-button:active {
+  background: var(--surface-active);
+}
+
 .send-button {
   position: relative;
   display: grid;
@@ -1111,6 +1246,413 @@ button {
   border: 0;
 }
 
+.sheet-note {
+  margin: 8px 9px 4px;
+  font-size: var(--text-meta);
+  line-height: 1.4;
+  color: var(--quiet);
+}
+
+.sheet-done:disabled {
+  color: var(--quiet-soft);
+}
+
+/* Menus ----------------------------------------------------------------- */
+
+.menu-group {
+  padding: 4px 0;
+}
+
+.menu-group + .menu-group {
+  border-top: 1px solid var(--line-soft);
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 50px;
+  padding: 7px 9px;
+  border-radius: 11px;
+  color: var(--ink-dim);
+  text-align: left;
+}
+
+.menu-row:active {
+  background: var(--surface-hover);
+}
+
+.menu-row:disabled {
+  color: var(--quiet);
+}
+
+.menu-row[data-danger] {
+  color: var(--danger-soft);
+}
+
+.menu-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+}
+
+.menu-row:disabled .menu-glyph {
+  color: var(--quiet-soft);
+}
+
+.menu-row[data-danger] .menu-glyph {
+  background: var(--danger-surface);
+  color: var(--danger-soft);
+}
+
+.menu-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu-copy strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 540;
+}
+
+.menu-copy small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-chevron {
+  flex: none;
+  color: var(--quiet);
+}
+
+.location-option {
+  gap: 12px;
+}
+
+.location-option:disabled:not([aria-checked="true"]) {
+  color: var(--quiet);
+}
+
+.rename-form {
+  padding: 4px 9px 8px;
+}
+
+.rename-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+
+.rename-form input:focus {
+  border-color: var(--accent-line-strong);
+}
+
+/* Start options ---------------------------------------------------------- */
+
+/* How a thread starts, above the card it starts from: chips, not a form. */
+.thread-start {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 4px 8px;
+}
+
+.thread-start-project,
+.thread-start-worktree,
+.thread-start-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 16px;
+  font-size: var(--text-menu);
+  font-weight: 540;
+  white-space: nowrap;
+}
+
+.thread-start-project {
+  min-width: 0;
+  color: var(--muted);
+}
+
+.thread-start-project span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thread-start-toggle {
+  border: 1px solid var(--line-strong);
+  color: var(--ink-dim);
+}
+
+.thread-start-toggle:active {
+  background: var(--surface-active);
+}
+
+.thread-start-toggle:disabled {
+  color: var(--quiet);
+  border-color: var(--line);
+}
+
+.thread-start-toggle[aria-pressed="true"] {
+  border-color: var(--accent-line-strong);
+  background: var(--accent-chip);
+  color: var(--ink);
+}
+
+.thread-start-worktree {
+  padding-right: 4px;
+  border: 1px solid var(--accent-line-strong);
+  background: var(--accent-chip);
+  color: var(--ink);
+}
+
+.thread-start-worktree button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--muted-strong);
+}
+
+/* Changes --------------------------------------------------------------- */
+
+.changes {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}
+
+.changes-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-glass);
+  backdrop-filter: blur(18px);
+}
+
+.changes-toolbar .segmented button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 44vw;
+}
+
+.changes-refresh {
+  margin: 0;
+}
+
+.spinning {
+  animation: spin 900ms linear infinite;
+}
+
+.changes-progress {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0 0;
+  padding: 0 var(--gutter);
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+.changes-note {
+  margin: 0;
+  padding: 24px var(--gutter);
+  text-align: center;
+  font-size: var(--text-control);
+  color: var(--quiet);
+}
+
+.change-counts {
+  display: inline-flex;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-meta);
+}
+
+.change-counts strong {
+  font-weight: 600;
+  color: var(--success);
+}
+
+.change-counts em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.changes-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 8px 0;
+}
+
+.diff-file {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.diff-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 12px 6px 10px;
+  text-align: left;
+}
+
+.diff-file-row:active {
+  background: var(--surface-active);
+}
+
+.diff-file-caret {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  color: var(--quiet);
+}
+
+.diff-file-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--muted-soft);
+}
+
+.diff-file-name {
+  flex: 1;
+  min-width: 0;
+  font: 13px/1.35 var(--mono);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.diff-file-name em {
+  font-style: normal;
+  color: var(--quiet);
+}
+
+.diff-file-binary {
+  flex: none;
+  font-size: var(--text-meta);
+  color: var(--quiet);
+}
+
+.diff-note {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--text-meta);
+  color: var(--quiet);
+}
+
+.diff-body {
+  border-top: 1px solid var(--line-soft);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  font: 12px/1.55 var(--mono);
+}
+
+.diff-line {
+  display: flex;
+  align-items: flex-start;
+  min-height: 19px;
+  min-width: max-content;
+}
+
+.diff-line.hunk {
+  padding: 3px 10px;
+  background: var(--diff-hunk-surface);
+  color: var(--diff-hunk-ink);
+}
+
+.diff-line.add { background: var(--diff-add-surface); }
+.diff-line.delete { background: var(--diff-del-surface); }
+
+.diff-gutter {
+  flex: none;
+  width: 3.4em;
+  padding-right: 6px;
+  text-align: right;
+  color: var(--quiet);
+  background: var(--sunken);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.diff-line.add .diff-gutter { background: var(--diff-add-gutter); }
+.diff-line.delete .diff-gutter { background: var(--diff-del-gutter); }
+
+.diff-line code {
+  flex: 1;
+  padding: 0 12px 0 8px;
+  color: var(--code-ink);
+  font-family: inherit;
+  white-space: pre;
+}
+
+.diff-line.add code::before,
+.diff-line.delete code::before {
+  display: inline-block;
+  width: 1ch;
+  margin-right: 4px;
+  color: var(--muted);
+}
+
+.diff-line.add code::before { content: "+"; }
+.diff-line.delete code::before { content: "−"; }
+
+.diff-more {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--text-menu);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+.diff-more:active {
+  background: var(--surface-active);
+}
+
 /* Odds and ends -------------------------------------------------------- */
 
 .ghost {
@@ -1187,11 +1729,13 @@ button {
 }
 
 @media (hover: hover) {
-  .thread-row:hover {
+  .thread-open:hover,
+  .diff-file-row:hover {
     background: var(--wash);
   }
 
-  .sheet-option:hover {
+  .sheet-option:hover,
+  .menu-row:not(:disabled):hover {
     background: var(--surface-hover);
   }
 }

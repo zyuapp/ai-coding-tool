@@ -1,4 +1,4 @@
-import { isMobileServerMessage, type MobileCommand } from "../../contracts/mobile";
+import { isMobileServerMessage, type MobileCommand, type MobileQuery } from "../../contracts/mobile";
 import { MOBILE_DEAD_AFTER_MS, MOBILE_PING_INTERVAL_MS } from "../../domain/mobile";
 import { reduceMobileClient, type MobileClientEffect, type MobileClientEvent, type MobileClientState } from "./protocol";
 import { writeCredential, type CredentialStore } from "./storage";
@@ -19,9 +19,19 @@ const RELOADED_KEY = "aicodingtool.mobile.reloaded";
  */
 export type MobileConnection = {
   send: (command: MobileCommand) => void;
+  /**
+   * One read, answered by the Mac or refused. A read is never held for a line that is down: the
+   * screen that asked shows the refusal and asks again when the user does.
+   */
+  query: (query: MobileQuery) => Promise<unknown>;
   dismissNotice: () => void;
   stop: () => void;
 };
+
+/** What a read is refused with when the line is not there to carry it. */
+export const MOBILE_QUERY_OFFLINE = "Not connected to your computer.";
+
+type Asking = { resolve: (result: unknown) => void; reject: (error: Error) => void };
 
 export type MobileConnectionOptions = {
   url: string;
@@ -38,6 +48,7 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
   let deadline: ReturnType<typeof setTimeout> | null = null;
   let lastHeardAt = Date.now();
   let stopped = false;
+  const asking = new Map<string, Asking>();
 
   function dispatch(event: MobileClientEvent) {
     if (stopped) return;
@@ -75,9 +86,18 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
     deadline = null;
   }
 
+  /** Every read still waiting is refused: the line it was asked on is gone, and its answer with it. */
+  function refuseAll() {
+    for (const [requestId, waiting] of [...asking]) {
+      asking.delete(requestId);
+      waiting.reject(new Error(MOBILE_QUERY_OFFLINE));
+    }
+  }
+
   /** Closes the line without asking for another: a deliberate hang-up is not a dropped call. */
   function drop() {
     disarm();
+    refuseAll();
     const closing = socket;
     socket = null;
     if (!closing) return;
@@ -121,12 +141,20 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
     opening.onmessage = (event) => {
       watch();
       const message = parse(event.data);
-      if (message) dispatch({ kind: "received", message });
+      if (!message) return;
+      if (message.kind === "answer") {
+        const waiting = asking.get(message.requestId);
+        asking.delete(message.requestId);
+        if (message.ok) waiting?.resolve(message.result);
+        else waiting?.reject(new Error(message.message));
+      }
+      dispatch({ kind: "received", message });
     };
     opening.onclose = () => {
       if (socket !== opening) return;
       disarm();
       socket = null;
+      refuseAll();
       dispatch({ kind: "closed" });
     };
     opening.onerror = () => opening.close();
@@ -146,6 +174,17 @@ export function createMobileConnection({ url, initial, store, onState }: MobileC
   return {
     send(command) {
       dispatch({ kind: "dispatch", requestId: crypto.randomUUID(), command });
+    },
+    query(query) {
+      return new Promise((resolve, reject) => {
+        if (stopped || state.connection !== "live" || socket?.readyState !== WebSocket.OPEN) {
+          reject(new Error(MOBILE_QUERY_OFFLINE));
+          return;
+        }
+        const requestId = crypto.randomUUID();
+        asking.set(requestId, { resolve, reject });
+        socket.send(JSON.stringify({ kind: "query", requestId, query }));
+      });
     },
     dismissNotice() {
       dispatch({ kind: "dismiss-notice" });

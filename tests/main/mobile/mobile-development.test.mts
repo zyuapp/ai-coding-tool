@@ -63,7 +63,7 @@ test("the development preview automatically pairs through the desktop bridge and
   assert.match(await waiting.text(), /Waiting for desktop app/);
 
   const requests: MobileRequest[] = [];
-  const view: MobileView = { groups: [{ projectId: null, name: "Desktop threads", threads: [] }], thread: null, draft: null, error: null };
+  const view: MobileView = { groups: [{ projectId: null, name: "Desktop threads", threads: [] }], activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
   let tailscaleCalls = 0;
   const options = {
     userData: folder,

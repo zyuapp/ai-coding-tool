@@ -69,7 +69,7 @@ test("a phone may drive the conversation and nothing outside it", () => {
     { type: "image.add", taskId: "task-1", path: "/tmp/shot.png", label: "shot" },
     { type: "task.clear-archive" },
     { type: "task.move", taskId: "task-1", target: { projectId: null, index: 0 } },
-    { type: "task.set-worktree", worktree: true },
+    { type: "task.checkout-branch", branch: "main" },
   ];
   for (const command of refused) assert.equal(isMobileCommand(command), false, JSON.stringify(command));
 });
@@ -179,4 +179,37 @@ test("repeated bad codes lock the door until the lockout expires", () => {
   attempts = registerPairingFailure(attempts, NOW);
   assert.equal(pairingLocked(attempts, NOW), true);
   assert.equal(pairingLocked(attempts, attempts.lockedUntil!), false, "the lockout ends on its own");
+});
+
+test("a phone may move a thread between checkouts, and nothing else about worktrees", () => {
+  const allowed: unknown[] = [
+    { type: "task.set-worktree", worktree: true },
+    { type: "task.set-worktree", taskId: "task-1", worktree: false },
+    { type: "task.move-worktree", taskId: "task-1", destination: { kind: "new" } },
+    { type: "task.move-worktree", taskId: "task-1", destination: { kind: "local" } },
+    { type: "task.move-worktree", destination: { kind: "worktree", id: "worktree-1" } },
+  ];
+  for (const command of allowed) assert.equal(isMobileCommand(command), true, JSON.stringify(command));
+  const refused: unknown[] = [
+    { type: "task.set-worktree", worktree: "yes" },
+    { type: "task.move-worktree", taskId: "task-1", destination: { kind: "worktree" } },
+    { type: "task.move-worktree", taskId: "task-1", destination: { kind: "elsewhere" } },
+    { type: "worktree.delete", root: "/tmp/checkout" },
+    { type: "task.checkout-branch", branch: "main" },
+  ];
+  for (const command of refused) assert.equal(isMobileCommand(command), false, JSON.stringify(command));
+});
+
+test("a query names a thread and a comparison, and travels to the window like a command", () => {
+  const summary = { kind: "diff-summary", taskId: "task-1", range: { kind: "uncommitted" } };
+  const patch = { kind: "diff-patch", taskId: "task-1", range: { kind: "branches", base: "main", compare: null }, path: "src/a.ts", previousPath: "src/b.ts" };
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: summary }), true);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: patch }), true);
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "diff-patch", taskId: "task-1", range: { kind: "uncommitted" } } }), false, "a patch names its file");
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "diff-summary", taskId: "task-1", range: { kind: "commit", commit: "nope" } } }), false, "a range is read as strictly as the desktop reads it");
+  assert.equal(isMobileClientMessage({ kind: "query", requestId: "q1", query: { kind: "read-file", taskId: "task-1", path: "/etc/passwd" } }), false);
+  assert.equal(isMobileRequest({ type: "mobile.request", requestId: "r1", sessionId: "s1", op: "query", query: summary }), true);
+  assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: true, result: { status: "available", patch: "" } }), true);
+  assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: false, message: "No checkout." }), true);
+  assert.equal(isMobileServerMessage({ kind: "answer", sequence: 3, requestId: "q1", ok: true }), false, "an answer carries what was read");
 });

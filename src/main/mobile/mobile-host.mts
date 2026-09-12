@@ -187,6 +187,7 @@ function makeServer() {
     allowedOrigins: origins,
     snapshot: (sessionId) => bridge.snapshot(sessionId),
     command: (sessionId, command) => bridge.command(sessionId, command),
+    query: (sessionId, query) => bridge.query(sessionId, query),
     onChange: announce,
   });
 }

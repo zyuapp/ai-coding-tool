@@ -11,12 +11,12 @@ import { MobileServer } from "../../../src/main/mobile/mobile-server.mts";
 import { PairingStore } from "../../../src/main/mobile/pairing.mts";
 import { MobileRelay } from "../../../src/main/mobile/session-host.mts";
 import { MAX_PENDING_SOCKETS, MOBILE_EVENT_BUFFER } from "../../../src/domain/mobile.ts";
-import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, type MobileRequest, type MobileServerMessage, type MobileView } from "../../../src/contracts/mobile.ts";
+import { MOBILE_PROTOCOL_VERSION, type MobileClientMessage, type MobileCommand, type MobileQuery, type MobileRequest, type MobileServerMessage, type MobileView } from "../../../src/contracts/mobile.ts";
 
 const PAGE = "<!doctype html><title>phone</title>";
 
 function view(title: string): MobileView {
-  return { groups: [{ projectId: null, name: title, threads: [] }], thread: null, draft: null, error: null };
+  return { groups: [{ projectId: null, name: title, threads: [] }], activity: { priority: [], running: [], threads: [] }, theme: { dark: "aicodingtool-dark", light: "aicodingtool-light", mode: "dark" }, thread: null, draft: null, error: null };
 }
 
 async function until<T>(check: () => T | null | false | undefined, message: string): Promise<T> {
@@ -33,6 +33,8 @@ async function harness(t: { onTestFinished(callback: () => void | Promise<void>)
   await writeFile(path.join(folder, "index.html"), PAGE);
   const devices = new PairingStore(path.join(folder, "mobile-devices.v1.json"));
   const commands: MobileCommand[] = [];
+  const queries: MobileQuery[] = [];
+  let refuseQuery: string | null = null;
   let snapshot = view("first");
   let refuseSnapshot: string | null = null;
   let held: Promise<void> | null = null;
@@ -48,6 +50,11 @@ async function harness(t: { onTestFinished(callback: () => void | Promise<void>)
       return snapshot;
     },
     command: async (_sessionId, command) => { commands.push(command); },
+    query: async (_sessionId, query) => {
+      if (refuseQuery) throw new Error(refuseQuery);
+      queries.push(query);
+      return { status: "available", patch: "" };
+    },
     onChange: () => { changes += 1; },
     sessionGraceMs: 0,
   });
@@ -66,6 +73,8 @@ async function harness(t: { onTestFinished(callback: () => void | Promise<void>)
     changed: () => changes,
     setSnapshot: (next: MobileView) => { snapshot = next; },
     refuse: (message: string | null) => { refuseSnapshot = message; },
+    queries,
+    refuseQuery: (message: string | null) => { refuseQuery = message; },
     /** Makes the next snapshot wait, so a test can publish into the gap before it lands. */
     hold: () => {
       held = new Promise<void>((resolve) => { release = resolve; });
@@ -506,4 +515,28 @@ test("sockets that never say who they are cannot be piled up without limit", asy
   t.onTestFinished(() => idle.forEach((client) => client.socket.close()));
   const over = phone(socketUrl);
   await assert.rejects(over.opened(), /503/);
+});
+
+test("a read is answered with what the window returned, refused with why, and never remembered", async (t) => {
+  const { devices, socketUrl, queries, refuseQuery } = await harness(t);
+  const code = devices.mint(Date.now());
+  const client = phone(socketUrl);
+  t.onTestFinished(() => client.socket.close());
+  await client.opened();
+  client.send({ kind: "pair", version: MOBILE_PROTOCOL_VERSION, code: code.code, deviceName: "iPhone" });
+  await client.waitFor("snapshot");
+
+  const query: MobileQuery = { kind: "diff-patch", taskId: "task-1", range: { kind: "uncommitted" }, path: "a.ts" };
+  client.send({ kind: "query", requestId: "q1", query });
+  const answer = await client.waitFor("answer");
+  assert.deepEqual(answer, { kind: "answer", sequence: answer.sequence, requestId: "q1", ok: true, result: { status: "available", patch: "" } });
+
+  client.send({ kind: "query", requestId: "q1", query });
+  await until(() => client.messages.filter((message) => message.kind === "answer").length === 2, "the same read asked again is read again");
+  assert.equal(queries.length, 2);
+
+  refuseQuery("The checkout is gone.");
+  client.send({ kind: "query", requestId: "q2", query });
+  const refused = await until(() => client.messages.find((message) => message.kind === "answer" && message.requestId === "q2"), "a refusal");
+  assert.deepEqual(refused, { kind: "answer", sequence: refused.sequence, requestId: "q2", ok: false, message: "The checkout is gone." });
 });
