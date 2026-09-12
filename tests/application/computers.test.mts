@@ -63,7 +63,7 @@ test("what only this computer's panels can do is refused for a thread elsewhere,
   const state = withComputers(workspace(), [paired("linux", remoteState)], { active: "linux" });
   assert.deepEqual(routeInput(state, { type: "terminal.open" }), { kind: "refuse", message: PANEL_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "browser.new-tab" }), { kind: "refuse", message: PANEL_ELSEWHERE });
-  assert.deepEqual(routeInput(state, { type: "file.open", path: "src/app.ts", line: null }), { kind: "refuse", message: FILES_ELSEWHERE });
+  assert.deepEqual(routeInput(state, { type: "file.open", path: "src/app.ts" }), { kind: "refuse", message: FILES_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "app.open-folder", appId: "cursor" }), { kind: "refuse", message: FILES_ELSEWHERE });
   assert.deepEqual(routeInput(state, { type: "task.send", attachments: [{ path: "/tmp/shot.png", labels: [] }] }), { kind: "refuse", message: ATTACHMENTS_ELSEWHERE });
   assert.equal(reduce(state, { type: "terminal.open" }).result?.ok, false);
