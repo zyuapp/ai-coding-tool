@@ -5,6 +5,7 @@ import { continuationOf, type AgentProvider, type ProviderResult, type ProviderR
 import { withheldTools } from "./channel-tools.mjs";
 import { claudeMcpServer } from "./claude-mcp-host.mjs";
 import { claudePermissionMode, ClaudeSession } from "./claude-session.mjs";
+import { grantsTool } from "./approval-grant.mjs";
 import { runTools } from "./run-tools.mjs";
 import { SessionPool } from "./session-pool.mjs";
 import { SIDE_CHAT_INSTRUCTIONS } from "./side-chat-instructions.mjs";
@@ -150,7 +151,7 @@ function sessionKey(input: ProviderRunInput) {
     input.channel,
     input.workspaceRoot,
     input.projectless,
-    input.policy === "bypass",
+    grantsTool("workspace", input),
     input.computerUse.status === "available" ? input.computerUse.mcp : input.computerUse.status,
     Boolean(input.claude?.chromeBrowser),
     Boolean(input.claude?.conciseReplies),
@@ -206,7 +207,7 @@ export class ClaudeAgentProvider implements AgentProvider {
         resume: continuation,
         ...(input.forkContinuation && continuation ? { forkSession: true } : {}),
         permissionMode: claudePermissionMode(input.policy),
-        ...(input.policy === "bypass" ? { allowDangerouslySkipPermissions: true } : {}),
+        ...(grantsTool("workspace", input) ? { allowDangerouslySkipPermissions: true } : {}),
         model: input.model,
         ...(modelTakesEffort(input.model) ? { effort: claudeEffort(input.effort) } : {}),
         betas: ["context-1m-2025-08-07" as const],

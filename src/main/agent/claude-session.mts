@@ -10,6 +10,7 @@ import { AUTOMATION_SERVER_NAME } from "../tools/automation.mjs";
 import { BROWSER_SERVER_NAME, BROWSER_TOOLS } from "../tools/browser.mjs";
 import { THREAD_SERVER_NAME, THREAD_TOOLS } from "../tools/threads.mjs";
 import { readOnlyToolNames } from "./claude-mcp-host.mjs";
+import { grantsTool, type ToolReach } from "./approval-grant.mjs";
 
 const setupToolName = "mcp__aicodingtool-computer-use__request_setup";
 /** Scheduled runs have nobody to approve anything, and these tools only reach the run's own automation. */
@@ -18,6 +19,13 @@ const automationToolPrefix = `mcp__${AUTOMATION_SERVER_NAME}__`;
 const readOnlyThreadTools = readOnlyToolNames(THREAD_SERVER_NAME, THREAD_TOOLS);
 /** Reading a page the panel already holds changes nothing; opening one and acting in it does. */
 const readOnlyBrowserTools = readOnlyToolNames(BROWSER_SERVER_NAME, BROWSER_TOOLS);
+const computerUseToolPrefix = "mcp__cua-driver__";
+
+/** What a tool reaches, read from the name the agent process calls it by. */
+function toolReach(toolName: string): ToolReach {
+  if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return "app";
+  return toolName.startsWith(computerUseToolPrefix) ? "computer-use" : "workspace";
+}
 
 /** The model the agent process stamps on replies it produced itself: slash commands, interrupts, error notices. */
 const SYNTHETIC_MODEL = "<synthetic>";
@@ -586,12 +594,8 @@ export class ClaudeSession {
     const answered = (decision: ToolDecision) => decision === "allow"
       ? allow
       : { behavior: "deny" as const, message: typeof decision === "object" ? decision.deny : "The user denied this action.", toolUseID: options.toolUseID };
-    if (toolName === setupToolName || toolName.startsWith(automationToolPrefix) || readOnlyThreadTools.has(toolName) || readOnlyBrowserTools.has(toolName)) return allow;
-    if (turn) {
-      if (turn.input.policy === "bypass") return allow;
-      if (turn.input.channel === "main" && turn.input.policy === "autonomous" && toolName.startsWith("mcp__cua-driver__")) return allow;
-      return answered(await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)));
-    }
+    if (grantsTool(toolReach(toolName), turn?.input)) return allow;
+    if (turn) return answered(await turn.input.authorize(normalizeToolIntent(toolName, toolInput, options.toolUseID)));
     /** Work that outlived its run still has to ask, so the turn the agent started takes the question. */
     const agentTurn = this.openAgentTurn();
     if (!agentTurn) return { behavior: "deny", message: "The run this call belongs to is over.", toolUseID: options.toolUseID };

@@ -2,6 +2,7 @@ import { CodexQuestions } from "./codex-questions.mjs";
 import { contextWindowLimit } from "../../domain/agent-engine.js";
 import type { BackgroundProcess, ExecutionPolicy, ToolIntent } from "../../domain/run.js";
 import { continuationOf, type ProviderResult, type ProviderRunInput } from "../agent/agent-provider.mjs";
+import { grantsTool } from "../agent/approval-grant.mjs";
 import { appendCompleteMarkdown, openMarkdownBuffer, type MarkdownBuffer } from "../agent/markdown-buffer.mjs";
 import { runTools } from "../agent/run-tools.mjs";
 import type { ServedTools, ToolHost } from "../tools/mcp-http-host.mjs";
@@ -707,7 +708,7 @@ export class CodexSession {
   private async allowed(intent: ToolIntent) {
     const turn = this.turn;
     if (!turn) return false;
-    if (turn.input.policy === "bypass") return true;
+    if (grantsTool("workspace", turn.input)) return true;
     return await turn.input.authorize(intent) === "allow";
   }
 
