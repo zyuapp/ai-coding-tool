@@ -1,4 +1,4 @@
-import { runStatusFor } from "./thread-run-state.js";
+import { runStatusFor, workflowThreadIds } from "./thread-run-state.js";
 import { projectFor, worktreeFor } from "./thread-location.js";
 import { sideChatIds, type WorkspaceState } from "./workspace-state.js";
 import type { ProjectScope, ThreadFilter, ThreadSummary, ThreadTranscript, ThreadWaitResult } from "../contracts/threads.js";
@@ -25,7 +25,8 @@ export function resolveScope(state: WorkspaceState, callerThreadId: string, proj
 export function threadBusy(state: WorkspaceState, threadId: string): boolean {
   return Boolean(state.activeRuns[threadId])
     || Object.values(state.pendingRuns).some((pending) => pending.taskId === threadId)
-    || Boolean(state.queuedMessages[threadId]?.length);
+    || Boolean(state.queuedMessages[threadId]?.length)
+    || Boolean(state.workflows[threadId]?.some((workflow) => workflow.status === "running"));
 }
 
 export function threadWaitResult(state: WorkspaceState, threadId: string, timedOut: boolean): ThreadWaitResult | null {
@@ -56,6 +57,7 @@ function projectionIndex(state: WorkspaceState): ProjectionIndex {
   const busy = new Set(Object.keys(state.activeRuns));
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const [threadId, queued] of Object.entries(state.queuedMessages)) if (queued.length) busy.add(threadId);
+  for (const threadId of workflowThreadIds(state)) busy.add(threadId);
   return { projects, worktrees, busy };
 }
 

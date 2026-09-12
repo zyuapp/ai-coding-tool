@@ -1,7 +1,7 @@
 import { sideChatView } from "./side-chat-view.js";
 import { worktreeMenuView, type WorktreeMenuSearch } from "./worktree-menu.js";
 import type { PendingQuestion } from "../domain/agent-question.js";
-import { runStatusFor, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
+import { runStatusFor, workflowThreadIds, type ApprovalView, type RunTransitionState, type StreamingTail, type ThreadRunStatus } from "./thread-run-state.js";
 import { backfillProjectSortIndex } from "./project-order.js";
 import { sidebarLists } from "./sidebar-lists.js";
 import { backfillSortIndex } from "./thread-order.js";
@@ -649,6 +649,7 @@ export function busyThreadIds(state: WorkspaceState): Set<string> {
   const busy = new Set(Object.keys(state.activeRuns));
   for (const pending of Object.values(state.pendingRuns)) if (pending.taskId) busy.add(pending.taskId);
   for (const taskId of state.creatingWorktrees) busy.add(taskId);
+  for (const taskId of workflowThreadIds(state)) busy.add(taskId);
   /** A checkout on its way out is ground about to move, so every thread standing on it waits. */
   for (const taskId of leavingThreadIds(state)) busy.add(taskId);
   return busy;
