@@ -71,13 +71,14 @@ export type InputRoute =
 const LOCAL = { kind: "local" } as const;
 
 /** Commands that stay on this computer whatever thread is on screen: the window, its settings, and its drafts. */
-const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
+const LOCAL_PREFIXES = ["computer-use.", "cli.", "engine.", "remote.", "computers.", "app.list", "app.check-for-updates", "app.open-source-licenses", "worktree.", "annotation.", "paste.", "image.", "file.", "view.set-theme", "view.set-ui", "view.set-mono", "view.set-reading", "view.set-terminal", "view.set-sidebar", "view.set-session", "view.set-capture", "view.set-chrome", "view.set-concise", "view.set-computer", "view.set-browser", "view.set-notifications", "view.set-settings", "view.set-shortcut", "view.reset-shortcuts", "view.capture-shortcut", "view.dismiss-", "view.set-section", "view.set-subagent", "view.set-model-favorite", "view.set-menu", "view.go-", "view.mounted", "view.closed", "view.toggle-project", "view.edit-project", "view.move-worktree", "view.jump-", "view.find-", "view.focus-composer", "view.system-scheme", "view.set-prompt", "view.reading-point", "view.refresh-environment", "usage.", "project.open", "attachments.notice"] as const;
 
 /** Commands that only this computer's own panels can carry out. */
 const PANEL_PREFIXES = ["terminal.", "browser."] as const;
 
 export const PANEL_ELSEWHERE = "The terminal and browser panels open only for threads on this computer.";
 export const ATTACHMENTS_ELSEWHERE = "Images and files cannot be sent to a thread on another computer yet.";
+export const FILES_ELSEWHERE = "That folder is on another computer, so it cannot be opened here.";
 
 function forwarded(computer: PairedComputer, inputs: WorkspaceInput[], select?: true): InputRoute {
   return { kind: "computer", computer, inputs, ...(select ? { select } : {}) };
@@ -122,6 +123,12 @@ export function routeInput(state: WorkspaceState, input: WorkspaceInput): InputR
   if (type === "project.move" || type === "project.edit" || type === "project.remove") {
     const computer = computerOfProject(state, input.projectId);
     return computer ? forwarded(computer, [input]) : LOCAL;
+  }
+  /** A file or folder is opened on the machine that has it, which is not this one. */
+  if (type === "file.open" || type === "app.open-folder") {
+    const named = type === "file.open" ? computerOfThread(state, input.taskId) : null;
+    const elsewhere = named ?? (type === "file.open" && input.taskId !== undefined ? null : active);
+    return elsewhere ? { kind: "refuse", message: FILES_ELSEWHERE } : LOCAL;
   }
   if (LOCAL_PREFIXES.some((prefix) => type.startsWith(prefix))) return LOCAL;
   const named = "taskId" in input ? computerOfThread(state, input.taskId) : null;
