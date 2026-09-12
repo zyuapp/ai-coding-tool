@@ -1,12 +1,5 @@
-import type { WorkspaceEffect } from "../../application/workspace-reducer";
 import { errorMessage } from "./errors";
-import type { EffectHost, EnvironmentRefreshEffect } from "./effect-host";
-
-/** The project's folder, its checkouts, and what Git says about them. */
-export type ProjectEffect = Extract<WorkspaceEffect, {
-  type: "pick-project" | "register-project" | "create-worktree" | "release-worktree" | "list-worktrees"
-    | "reveal-worktree" | "delete-worktree" | "refresh-environment" | "read-diff" | "checkout-branch";
-}>;
+import type { EffectHandlers, EffectHost, EnvironmentRefreshEffect } from "./effect-host";
 
 /** One Git scan per checkout. A tick during a slow scan replaces the one follow-up still needed. */
 async function refreshEnvironment(first: EnvironmentRefreshEffect, host: EffectHost) {
@@ -33,110 +26,107 @@ async function refreshEnvironment(first: EnvironmentRefreshEffect, host: EffectH
   }
 }
 
-export async function runProjectEffect(effect: ProjectEffect, host: EffectHost): Promise<void> {
-  const { dispatch, desktop } = host;
-  switch (effect.type) {
-    case "pick-project":
-      try {
-        const workspace = await desktop.openFolder();
-        if (workspace) await dispatch({ type: "project.opened", workspace });
-      } catch (error) {
-        await dispatch({ type: "action.failed", message: errorMessage(error) });
-      }
-      return;
+/** The project's folder, its checkouts, and what Git says about them. */
+export const projectEffects = {
+  "pick-project": async (_effect, { dispatch, desktop }) => {
+    try {
+      const workspace = await desktop.openFolder();
+      if (workspace) await dispatch({ type: "project.opened", workspace });
+    } catch (error) {
+      await dispatch({ type: "action.failed", message: errorMessage(error) });
+    }
+  },
 
-    case "register-project":
-      try {
-        const workspace = await desktop.registerProject(effect.root);
-        await dispatch({ type: "project.registered", projectId: effect.projectId, workspace });
-      } catch (error) {
-        await dispatch({ type: "project.register-failed", projectId: effect.projectId, message: errorMessage(error) });
-      }
-      return;
+  "register-project": async (effect, { dispatch, desktop }) => {
+    try {
+      const workspace = await desktop.registerProject(effect.root);
+      await dispatch({ type: "project.registered", projectId: effect.projectId, workspace });
+    } catch (error) {
+      await dispatch({ type: "project.register-failed", projectId: effect.projectId, message: errorMessage(error) });
+    }
+  },
 
-    case "create-worktree":
-      try {
-        const worktree = await desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: !effect.move });
-        if (effect.name) worktree.name = effect.name;
-        await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree, move: effect.move, projectId: effect.projectId });
-      } catch (error) {
-        await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: `Could not create the worktree: ${errorMessage(error)}` });
-      }
-      return;
+  "create-worktree": async (effect, { dispatch, desktop }) => {
+    try {
+      const worktree = await desktop.createWorktree({ projectRoot: effect.projectRoot, carryChanges: !effect.move });
+      if (effect.name) worktree.name = effect.name;
+      await dispatch({ type: "worktree.created", taskId: effect.taskId, worktree, move: effect.move, projectId: effect.projectId });
+    } catch (error) {
+      await dispatch({ type: "worktree.failed", taskId: effect.taskId, message: `Could not create the worktree: ${errorMessage(error)}` });
+    }
+  },
 
-    case "release-worktree":
-      try {
-        const snapshot = await desktop.releaseWorktree({
-          worktreeId: effect.worktreeId,
-          root: effect.root,
-          taskId: effect.taskId,
-          title: effect.title,
-          release: "returned-to-local",
-        });
-        await dispatch({ type: "worktree.released", taskId: effect.taskId, snapshot });
-      } catch (error) {
-        await dispatch({ type: "worktree.release-failed", taskId: effect.taskId, message: errorMessage(error) });
-      }
-      return;
+  "release-worktree": async (effect, { dispatch, desktop }) => {
+    try {
+      const snapshot = await desktop.releaseWorktree({
+        worktreeId: effect.worktreeId,
+        root: effect.root,
+        taskId: effect.taskId,
+        title: effect.title,
+        release: "returned-to-local",
+      });
+      await dispatch({ type: "worktree.released", taskId: effect.taskId, snapshot });
+    } catch (error) {
+      await dispatch({ type: "worktree.release-failed", taskId: effect.taskId, message: errorMessage(error) });
+    }
+  },
 
-    case "list-worktrees":
-      try {
-        await dispatch({ type: "worktrees.loaded", worktrees: await desktop.listManagedWorktrees() });
-      } catch (error) {
-        await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
-      }
-      return;
+  "list-worktrees": async (_effect, { dispatch, desktop }) => {
+    try {
+      await dispatch({ type: "worktrees.loaded", worktrees: await desktop.listManagedWorktrees() });
+    } catch (error) {
+      await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
+    }
+  },
 
-    case "reveal-worktree":
-      try {
-        await desktop.revealWorktree(effect.root);
-      } catch (error) {
-        await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
-      }
-      return;
+  "reveal-worktree": async (effect, { dispatch, desktop }) => {
+    try {
+      await desktop.revealWorktree(effect.root);
+    } catch (error) {
+      await dispatch({ type: "worktrees.failed", message: errorMessage(error) });
+    }
+  },
 
-    case "delete-worktree":
-      try {
-        const snapshot = await desktop.releaseWorktree({
-          worktreeId: effect.worktreeId,
-          root: effect.root,
-          taskId: null,
-          title: effect.title,
-          release: "deleted",
-          missingOnly: effect.missingOnly,
-        });
-        await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot, missingOnly: effect.missingOnly });
-      } catch (error) {
-        await dispatch({ type: "worktrees.failed", root: effect.root, message: errorMessage(error) });
-      }
-      return;
+  "delete-worktree": async (effect, { dispatch, desktop }) => {
+    try {
+      const snapshot = await desktop.releaseWorktree({
+        worktreeId: effect.worktreeId,
+        root: effect.root,
+        taskId: null,
+        title: effect.title,
+        release: "deleted",
+        missingOnly: effect.missingOnly,
+      });
+      await dispatch({ type: "worktree.deleted", worktreeId: effect.worktreeId, root: effect.root, snapshot, missingOnly: effect.missingOnly });
+    } catch (error) {
+      await dispatch({ type: "worktrees.failed", root: effect.root, message: errorMessage(error) });
+    }
+  },
 
-    case "refresh-environment":
-      return refreshEnvironment(effect, host);
+  "refresh-environment": (effect, host) => refreshEnvironment(effect, host),
 
-    case "read-diff":
-      try {
-        const result = await desktop.diffSummary(effect.workspaceId, effect.range, effect.ignoreWhitespace);
-        await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result });
-      } catch (error) {
-        await dispatch({
-          type: "diff.loaded",
-          owner: effect.owner,
-          workspaceId: effect.workspaceId,
-          range: effect.range,
-          result: { status: "error", message: errorMessage(error) },
-        });
-      }
-      return;
+  "read-diff": async (effect, { dispatch, desktop }) => {
+    try {
+      const result = await desktop.diffSummary(effect.workspaceId, effect.range, effect.ignoreWhitespace);
+      await dispatch({ type: "diff.loaded", owner: effect.owner, workspaceId: effect.workspaceId, range: effect.range, result });
+    } catch (error) {
+      await dispatch({
+        type: "diff.loaded",
+        owner: effect.owner,
+        workspaceId: effect.workspaceId,
+        range: effect.range,
+        result: { status: "error", message: errorMessage(error) },
+      });
+    }
+  },
 
-    case "checkout-branch":
-      try {
-        if (effect.create) await desktop.createBranch(effect.workspaceId, effect.branch);
-        await desktop.checkoutBranch(effect.workspaceId, effect.branch);
-      } catch (error) {
-        await dispatch({ type: "action.failed", message: errorMessage(error) });
-      }
-      await dispatch({ type: "view.refresh-environment" });
-      return;
-  }
-}
+  "checkout-branch": async (effect, { dispatch, desktop }) => {
+    try {
+      if (effect.create) await desktop.createBranch(effect.workspaceId, effect.branch);
+      await desktop.checkoutBranch(effect.workspaceId, effect.branch);
+    } catch (error) {
+      await dispatch({ type: "action.failed", message: errorMessage(error) });
+    }
+    await dispatch({ type: "view.refresh-environment" });
+  },
+} satisfies Partial<EffectHandlers>;

@@ -1,92 +1,69 @@
-import type { WorkspaceEffect } from "../../application/workspace-reducer";
+import type { WorkspaceSurfaceEffect } from "../../contracts/workspace-runtime";
 import { clearTerminalSearch, disposeTerminalView, searchTerminalView } from "./terminal-views";
-import { reportFailure, type EffectHost } from "./effect-host";
+import { reportFailure, type EffectHandlers } from "./effect-host";
+
+/** A panel the window does not own is held by the window that does, so what it is told travels there. */
+function heldElsewhere(effect: WorkspaceSurfaceEffect): boolean {
+  if (!window.workspace?.owner) return false;
+  window.workspace.surface(effect);
+  return true;
+}
 
 /** The panels that hold something of their own: pages, shells, and the files opened out of them. */
-export type SurfaceEffect = Extract<WorkspaceEffect, {
-  type: `browser.${string}` | `terminal.${string}` | "image.download" | "file.open" | "app.open-folder" | "app.check-for-updates" | "app.open-source-licenses" | "find-in-page"
-    | "stop-find-in-page" | "focus-browser" | "find-in-terminal" | "stop-find-in-terminal";
-}>;
+export const surfaceEffects = {
+  "image.download": (effect, host) => reportFailure(host, host.desktop.downloadImage(effect.source)),
 
-export async function runSurfaceEffect(effect: SurfaceEffect, host: EffectHost): Promise<void> {
-  const { desktop } = host;
-  if (window.workspace?.owner && (effect.type === "terminal.close" || effect.type === "find-in-terminal" || effect.type === "stop-find-in-terminal")) {
-    window.workspace.surface(effect);
-    if (effect.type === "terminal.close") return reportFailure(host, desktop.closeTerminal(effect.terminalId));
-    return;
-  }
-  switch (effect.type) {
-    case "image.download":
-      return reportFailure(host, desktop.downloadImage(effect.source));
+  "file.open": (effect, host) => reportFailure(host, host.desktop.openFile(effect.roots, effect.path, effect.line)),
 
-    case "file.open":
-      return reportFailure(host, desktop.openFile(effect.roots, effect.path, effect.line));
+  "app.open-folder": (effect, host) => reportFailure(host, host.desktop.openFolderInApp(effect.appId, effect.root)),
 
-    case "app.open-folder":
-      return reportFailure(host, desktop.openFolderInApp(effect.appId, effect.root));
+  "app.check-for-updates": (_effect, { desktop }) => desktop.checkForUpdates(),
 
-    case "app.check-for-updates":
-      return desktop.checkForUpdates();
+  "app.open-source-licenses": (_effect, host) => reportFailure(host, host.desktop.openSourceLicenses()),
 
-    case "app.open-source-licenses":
-      return reportFailure(host, desktop.openSourceLicenses());
+  "browser.permissions": (effect, host) => reportFailure(host, host.desktop.configureBrowserPermissions(effect.permissions)),
 
-    case "browser.permissions":
-      return reportFailure(host, desktop.configureBrowserPermissions(effect.permissions));
+  "browser.open": (effect, host) => reportFailure(host, host.desktop.openBrowserTab(effect.tabId, effect.url, effect.taskId)),
 
-    case "browser.open":
-      return reportFailure(host, desktop.openBrowserTab(effect.tabId, effect.url, effect.taskId));
+  "browser.navigate": (effect, host) => reportFailure(host, host.desktop.navigateBrowser(effect.tabId, effect.url, effect.taskId)),
 
-    case "browser.navigate":
-      return reportFailure(host, desktop.navigateBrowser(effect.tabId, effect.url, effect.taskId));
+  "browser.history": (effect, host) => reportFailure(host, host.desktop.browserHistory(effect.tabId, effect.delta, effect.taskId)),
 
-    case "browser.history":
-      return reportFailure(host, desktop.browserHistory(effect.tabId, effect.delta, effect.taskId));
+  "browser.reload": (effect, host) => reportFailure(host, host.desktop.reloadBrowser(effect.tabId, effect.taskId)),
 
-    case "browser.reload":
-      return reportFailure(host, desktop.reloadBrowser(effect.tabId, effect.taskId));
+  "browser.close": (effect, host) => reportFailure(host, host.desktop.closeBrowserTab(effect.tabId)),
 
-    case "browser.close":
-      return reportFailure(host, desktop.closeBrowserTab(effect.tabId));
+  "browser.show": (effect, host) => reportFailure(host, host.desktop.showBrowserTab(effect.tabId)),
 
-    case "browser.show":
-      return reportFailure(host, desktop.showBrowserTab(effect.tabId));
+  "browser.act": (effect, host) => reportFailure(host, host.desktop.actInBrowser(effect.tabId, effect.action, effect.taskId)),
 
-    case "browser.act":
-      return reportFailure(host, desktop.actInBrowser(effect.tabId, effect.action, effect.taskId));
+  "browser.clear-data": (_effect, host) => reportFailure(host, host.desktop.clearBrowserData()),
 
-    case "browser.clear-data":
-      return reportFailure(host, desktop.clearBrowserData());
+  "terminal.start": (effect, host) => reportFailure(host, host.desktop.startTerminal(effect.terminalId, { cwd: effect.cwd })),
 
-    case "terminal.start":
-      return reportFailure(host, desktop.startTerminal(effect.terminalId, { cwd: effect.cwd }));
+  "terminal.write": (effect, host) => reportFailure(host, host.desktop.writeTerminal(effect.terminalId, effect.data)),
 
-    case "terminal.write":
-      return reportFailure(host, desktop.writeTerminal(effect.terminalId, effect.data));
+  "terminal.resize": (effect, host) => reportFailure(host, host.desktop.resizeTerminal(effect.terminalId, effect.cols, effect.rows)),
 
-    case "terminal.resize":
-      return reportFailure(host, desktop.resizeTerminal(effect.terminalId, effect.cols, effect.rows));
+  /** The view outlives the panel, so the shell going is the only thing that takes it away. */
+  "terminal.close": (effect, host) => {
+    if (!heldElsewhere(effect)) disposeTerminalView(effect.terminalId);
+    return reportFailure(host, host.desktop.closeTerminal(effect.terminalId));
+  },
 
-    /** The view outlives the panel, so the shell going is the only thing that takes it away. */
-    case "terminal.close":
-      disposeTerminalView(effect.terminalId);
-      return reportFailure(host, desktop.closeTerminal(effect.terminalId));
+  "find-in-page": (effect, host) => reportFailure(host, host.desktop.findInPage(effect.tabId, effect.query, effect.forward, effect.findNext)),
 
-    case "find-in-page":
-      return reportFailure(host, desktop.findInPage(effect.tabId, effect.query, effect.forward, effect.findNext));
+  "stop-find-in-page": (effect, host) => reportFailure(host, host.desktop.stopFindInPage(effect.tabId)),
 
-    case "stop-find-in-page":
-      return reportFailure(host, desktop.stopFindInPage(effect.tabId));
+  "focus-browser": (effect, host) => reportFailure(host, host.desktop.focusBrowserTab(effect.tabId)),
 
-    case "focus-browser":
-      return reportFailure(host, desktop.focusBrowserTab(effect.tabId));
+  "find-in-terminal": (effect) => {
+    if (heldElsewhere(effect)) return;
+    searchTerminalView(effect.terminalId, effect.query, effect.forward);
+  },
 
-    case "find-in-terminal":
-      searchTerminalView(effect.terminalId, effect.query, effect.forward);
-      return;
-
-    case "stop-find-in-terminal":
-      clearTerminalSearch(effect.terminalId);
-      return;
-  }
-}
+  "stop-find-in-terminal": (effect) => {
+    if (heldElsewhere(effect)) return;
+    clearTerminalSearch(effect.terminalId);
+  },
+} satisfies Partial<EffectHandlers>;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "vitest";
 import { isWorkspaceViewInput, type WorkspaceViewInput } from "../../src/contracts/workspace-view-input.ts";
 
@@ -87,4 +88,16 @@ test("image and commit actions validate their targets at the view boundary", () 
   assert.equal(isWorkspaceViewInput({ type: "image.open", source: "https://example.com/image.png" }), false);
   assert.equal(isWorkspaceViewInput({ type: "diff.open-commit", commit: "--output=/tmp/file" }), false);
   assert.equal(isWorkspaceViewInput({ type: "diff.set-range", range: { kind: "commit", commit: "HEAD;touch x" } }), false);
+});
+
+test("every command the application declares has exactly one shape", async () => {
+  const commands = await readFile(new URL("../../src/contracts/commands.ts", import.meta.url), "utf8");
+  const shapes = await readFile(new URL("../../src/contracts/workspace-view-input.ts", import.meta.url), "utf8");
+  const table = shapes.slice(shapes.indexOf("const shapes = {"));
+  const declared = new Set([...commands.matchAll(/\{ type: "([\w.-]+)"/g)].map(([, type]) => type));
+  assert.ok(declared.size > 100, `found ${declared.size} command types`);
+  for (const type of declared) {
+    const entries = [...table.matchAll(new RegExp(`^ {2}"${type.replace(/\./g, "\\.")}":`, "gm"))];
+    assert.equal(entries.length, 1, `${type} has ${entries.length} shape entries`);
+  }
 });

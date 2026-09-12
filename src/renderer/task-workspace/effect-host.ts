@@ -15,6 +15,12 @@ export type EffectHost = {
   scheduleSnoozeExpiry: (at: number | null) => void;
 };
 
+/** What one effect takes to be carried out. */
+export type EffectHandler<Type extends WorkspaceEffect["type"]> = (effect: Extract<WorkspaceEffect, { type: Type }>, host: EffectHost) => void | Promise<void>;
+
+/** Effects by name. A module's own table names the effects it owns, which is where that grouping lives. */
+export type EffectHandlers<Type extends WorkspaceEffect["type"] = WorkspaceEffect["type"]> = { [T in Type]: EffectHandler<T> };
+
 /** Work whose only answer is what went wrong with it. */
 export async function reportFailure(host: EffectHost, work: Promise<unknown>) {
   try {

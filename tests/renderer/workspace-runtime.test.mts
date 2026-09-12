@@ -4,7 +4,7 @@ import "../support/renderer-dom.mts";
 import type { DesktopAPI, LoadedTaskStore, TaskStoreDelta } from "../../src/contracts/ipc.ts";
 import type { ConversationMessage } from "../../src/domain/conversation.ts";
 import type { EngineStatus } from "../../src/domain/agent-engine.ts";
-import { runSystemEffect } from "../../src/renderer/task-workspace/system-effects.ts";
+import { systemEffects } from "../../src/renderer/task-workspace/system-effects.ts";
 import { task } from "../application/workspace-reducer-fixtures.mts";
 
 vi.mock("../../src/renderer/task-workspace/runtime-subscriptions.ts", () => ({ subscribeWorkspaceRuntime: vi.fn(() => ({ stop: () => {}, flush: () => {} })) }));
@@ -102,7 +102,7 @@ test("the engine check started by subscriptions applies its result after startup
     return { stop: () => {}, flush: () => {} };
   });
   vi.mocked(runWorkspaceEffect).mockImplementation(async (effect, host) => {
-    if (effect.type === "engine.read") await runSystemEffect(effect, host);
+    if (effect.type === "engine.read") await systemEffects["engine.read"](effect, host);
   });
   const runtime = createWorkspaceRuntime();
   try {
