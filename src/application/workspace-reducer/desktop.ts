@@ -1,5 +1,8 @@
 /** The machine around the thread: its shells, its files, and the applications that open them. */
-import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR, focusDockTab, settled, showDockTab, shownPageEffects, rejected } from "./shared.js";
+import { shownPageEffects } from "./browser-tabs.js";
+import { focusDockTab, showDockTab } from "./dock-tabs.js";
+import { APP_FOLDER_ERROR, FILE_FOLDER_ERROR, TERMINAL_FOLDER_ERROR } from "./errors.js";
+import { settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadFileRoots } from "../thread-location.js";
 import { currentFolder, dockFor, dockOwner, dockTabAfterClosing, ownerOfTerminal, withDock, type WorkspaceState } from "../workspace-state.js";

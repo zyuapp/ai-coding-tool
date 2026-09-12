@@ -1,6 +1,7 @@
 /** Scheduled ticks: what a thread arms, and what a tick makes of the run it starts. */
-import { resolveWorkspaceEffect, settled, targetId, withPending } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { resolveWorkspaceEffect, withPending } from "./run-queue.js";
+import { settled, targetId } from "./shared.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { declinedTick, raisedFinding, whyTickCannotRun } from "../findings.js";
 import { withNothingToReport } from "../run-testimony.js";
 import { automationRunLabel, automationRunPrompt } from "../thread-run-state.js";
@@ -68,4 +69,14 @@ export function reduceAutomations(state: WorkspaceState, input: AutomationInput)
     case "automations.changed":
       return settled({ ...state, automations: input.automations });
   }
+}
+
+/** An archived thread is unreachable, so its automation would tick forever with nowhere to run. */
+export function retireAutomations(state: WorkspaceState, taskIds: Iterable<string>): WorkspaceEffect[] {
+  const scheduled = new Set(state.automations.map((automation) => automation.taskId));
+  return [...taskIds].filter((taskId) => scheduled.has(taskId)).map((taskId) => ({ type: "automation.delete" as const, taskId }));
+}
+
+export function ack(pending: PendingRun, started: boolean): WorkspaceEffect[] {
+  return pending.automationId ? [{ type: "automation.ack", ack: { automationId: pending.automationId, runId: pending.runId, started } }] : [];
 }

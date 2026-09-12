@@ -1,5 +1,7 @@
 /** The project folders the app is open on. */
-import { PROJECT_WORKTREES_ERROR, RUNNING_PROJECT_ERROR, now, retireAutomations, settled, rejected } from "./shared.js";
+import { retireAutomations } from "./automations.js";
+import { PROJECT_WORKTREES_ERROR, RUNNING_PROJECT_ERROR } from "./errors.js";
+import { now, settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { reduceProjects } from "../project-commands.js";
 import type { WorkspaceState } from "../workspace-state.js";

@@ -15,7 +15,7 @@ import type { Continuation } from "../src/domain/run.js";
 import type { ProviderResult, ThreadBridge } from "../src/main/agent/agent-provider.mjs";
 
 const { ClaudeAgentProvider }: typeof import("../src/main/agent/claude-agent-provider.mjs") = await import(new URL("../dist/main/main/agent/claude-agent-provider.mjs", import.meta.url).href);
-const { sideChatPrompt }: typeof import("../src/application/workspace-reducer/shared.js") = await import(new URL("../dist/main/application/workspace-reducer/shared.js", import.meta.url).href);
+const { sideChatPrompt }: typeof import("../src/application/workspace-reducer/run-queue.js") = await import(new URL("../dist/main/application/workspace-reducer/run-queue.js", import.meta.url).href);
 const { emptyWorkspaceState }: typeof import("../src/application/workspace-state.js") = await import(new URL("../dist/main/application/workspace-state.js", import.meta.url).href);
 
 const model = process.argv[2] ?? "sonnet";

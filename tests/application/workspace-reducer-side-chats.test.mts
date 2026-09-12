@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { reduce } from "../../src/application/workspace-reducer.ts";
 import { deriveView } from "../../src/application/workspace-state.ts";
 import { threadSummaries } from "../../src/application/thread-projection.ts";
-import { sideChatPrompt } from "../../src/application/workspace-reducer/shared.ts";
+import { sideChatPrompt } from "../../src/application/workspace-reducer/run-queue.ts";
 import { activeRun, dock, task, workspace, effectAt, required, run } from "./workspace-reducer-fixtures.mts";
 
 function parentStatus(prompt: string) {

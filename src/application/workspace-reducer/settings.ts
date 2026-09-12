@@ -1,6 +1,7 @@
 /** Settings: appearance, keystrokes, and the switches that change what a run may do. */
-import { TAKE_KEYS, persistView, settled, stopCapture, targetId, rejected } from "./shared.js";
-import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
+import { TAKE_KEYS, persistView } from "./dock-tabs.js";
+import { settled, targetId, rejected } from "./shared.js";
+import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { withSubagents } from "../thread-run-state.js";
 import { viewPreferences } from "../view-preferences.js";
@@ -205,4 +206,9 @@ export function reduceSettings(state: WorkspaceState, input: SettingsInput): Wor
       return settled(input.open ? withDock(settings, owner, { open: false, expanded: false }) : settings, effects);
     }
   }
+}
+
+/** Settings stop waiting for a keystroke the moment they are no longer the thing in front. */
+export function stopCapture(state: WorkspaceState): WorkspaceEffect[] {
+  return state.capturingShortcut === null ? [] : [{ type: "capture-shortcut", capturing: false }];
 }

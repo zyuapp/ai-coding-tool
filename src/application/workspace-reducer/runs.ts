@@ -1,5 +1,11 @@
 /** A run's life: the checkout it resolves to, what it reports, and how it ends. */
-import { ack, beginRun, clearedDraft, drainQueue, handOverDraftDock, now, queuedFor, readDiffFrom, resolveWorkspaceEffect, settled, sideChannelFor, startRunCommand, targetId, threadBusy, withAttendedRun, withDeliveredMessage, withSteeringFailure, withPending, withQueued, withSideChat, withUsedWorktree, withoutPending, WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR, rejected } from "./shared.js";
+import { ack } from "./automations.js";
+import { readDiffFrom } from "./diff-reads.js";
+import { handOverDraftDock } from "./dock-tabs.js";
+import { WORKTREE_CREATING_ERROR, WORKTREE_RELEASING_ERROR } from "./errors.js";
+import { beginRun, clearedDraft, drainQueue, queuedFor, resolveWorkspaceEffect, sideChannelFor, startRunCommand, threadBusy, withAttendedRun, withDeliveredMessage, withPending, withQueued, withSideChat, withSteeringFailure, withoutPending } from "./run-queue.js";
+import { now, settled, targetId, rejected } from "./shared.js";
+import { withUsedWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { threadTitleFor } from "../attachments.js";
 import { fileTitle } from "../files.js";

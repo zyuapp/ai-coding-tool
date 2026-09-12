@@ -1,10 +1,14 @@
 /** The review: which comparison a dock holds, and what Git answers about it. */
 import { reduceDock } from "./dock.js";
-import { DIFF_PANEL, currentWorkspaceId, defaultBranchRange, environmentFor, now, readDiff, readDiffFrom, refreshEnvironment, retainedEnvironments, sameChangedFiles, sameStrings, settled, rejected, focusDockTab, showDockTab, browserEffectsForTab } from "./shared.js";
+import { browserEffectsForTab } from "./browser-tabs.js";
+import { defaultBranchRange, readDiff, readDiffFrom } from "./diff-reads.js";
+import { focusDockTab, showDockTab } from "./dock-tabs.js";
+import { currentWorkspaceId, environmentFor, refreshEnvironment, retainedEnvironments, sameChangedFiles } from "./environment.js";
+import { now, sameStrings, settled, rejected } from "./shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { threadWorkspaceId } from "../thread-location.js";
-import { diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
+import { DIFF_PANEL, diffFor, diffMatches, dockFor, dockOwner, foldedOnLoad, retainedViews, withDiff, withDock, type WorkspaceState } from "../workspace-state.js";
 import { fileFingerprint, modeForRange, rangeKey, UNCOMMITTED } from "../../domain/diff.js";
 import { isCommitHash } from "../../domain/message-artifacts.js";
 

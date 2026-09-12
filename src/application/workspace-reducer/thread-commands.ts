@@ -1,6 +1,9 @@
 /** Threads themselves: making one, choosing it, and what the list can do to it. */
 import { reduceWorktrees } from "./worktrees.js";
-import { TAKE_KEYS, closeSideChats, disposeDocks, focusDockTab, now, retireAutomations, settled, showDockTab, targetId } from "./shared.js";
+import { retireAutomations } from "./automations.js";
+import { TAKE_KEYS, disposeDocks, focusDockTab, showDockTab } from "./dock-tabs.js";
+import { closeSideChats } from "./side-chats.js";
+import { now, settled, targetId } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { focusComposer } from "../composer-drafts.js";
 import { forkedThreads } from "../thread-fork.js";

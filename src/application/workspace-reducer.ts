@@ -1,6 +1,9 @@
 import { apply } from "./workspace-reducer/dispatch.js";
 import { reconcileSnoozes } from "./thread-snooze.js";
-import { prunedFind, prunedWorkflowPanels, settled, shownPageEffects, TAKE_KEYS } from "./workspace-reducer/shared.js";
+import { shownPageEffects } from "./workspace-reducer/browser-tabs.js";
+import { prunedWorkflowPanels, TAKE_KEYS } from "./workspace-reducer/dock-tabs.js";
+import { prunedFind } from "./workspace-reducer/find.js";
+import { settled } from "./workspace-reducer/shared.js";
 import type { WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
 import { dockFor, dockOwner, findTargetFor, keyboardTerminalId, recordVisit, threadSlots, type WorkspaceState } from "./workspace-state.js";
 import type { AppCommand } from "../contracts/commands.js";
@@ -9,7 +12,8 @@ import { slotShortcutIndex, type ShortcutSurface } from "../domain/shortcuts.js"
 import { defaultEffortFor, defaultModelFor, effortForModel, effortsFor } from "../domain/agent-engine.js";
 
 export type { WorkspaceCommandResult, WorkspaceEffect, WorkspaceEvent, WorkspaceInput, WorkspaceTransition } from "./workspace-reducer/types.js";
-export { DIFF_PANEL, WORKFLOW_PANEL, WORKSPACE_ERRORS } from "./workspace-reducer/shared.js";
+export { WORKSPACE_ERRORS } from "./workspace-reducer/errors.js";
+export { DIFF_PANEL, WORKFLOW_PANEL } from "./workspace-state.js";
 
 /**
  * The single writer for workspace state. Commands come from the UI (and, later, from anything else

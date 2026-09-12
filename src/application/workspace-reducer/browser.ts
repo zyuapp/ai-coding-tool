@@ -1,5 +1,8 @@
 /** The browser panel's pages, and what they report back. */
-import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR, askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, focusDockTab, loadBrowserPage, patchBrowserTab, persistView, settled, showDockTab, withBlankTab, rejected } from "./shared.js";
+import { askToBrowse, browserAllowed, browserEffectsForTab, closeBrowserTab, loadBrowserPage, patchBrowserTab, withBlankTab } from "./browser-tabs.js";
+import { focusDockTab, persistView, showDockTab } from "./dock-tabs.js";
+import { BROWSER_TAB_ERROR, BROWSER_URL_ERROR } from "./errors.js";
+import { settled, rejected } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { browserTarget, dockFor, dockOwner, ownerOfBrowserTab, withDock, type WorkspaceState } from "../workspace-state.js";
 import { browserOrigin, browserUrl } from "../../domain/browser.js";

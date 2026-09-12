@@ -2,7 +2,11 @@
 import { reduceWorktreeMove, relocateThread } from "./worktree-moves.js";
 import { reduceWorktreeSettings } from "./worktree-settings.js";
 import { reduceDiffs } from "./diffs.js";
-import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR, dropWorktree, leaveWorktree, now, releaseWorktrees, rereadDiff, runsInWorkspace, settled, targetId, threadBusy, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree, rejected } from "./shared.js";
+import { rereadDiff } from "./diff-reads.js";
+import { SWITCH_PROJECT_ERROR, SWITCH_RUNNING_ERROR, WORKTREE_CREATING_ERROR, WORKTREE_MISSING_ERROR, WORKTREE_PROJECT_ERROR, WORKTREE_RELEASING_ERROR, WORKTREE_RUNNING_ERROR } from "./errors.js";
+import { runsInWorkspace, threadBusy } from "./run-queue.js";
+import { now, settled, targetId, rejected } from "./shared.js";
+import { dropWorktree, leaveWorktree, releaseWorktrees, withCreatingWorktree, withReleasingWorktree, withoutCreatingWorktree, withoutReleasingWorktree } from "./worktree-claims.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
 import { updateThread } from "../thread-run-state.js";
 import { leavingThreadIds, projectFor, threadWorkspaceId, worktreeFor } from "../thread-location.js";

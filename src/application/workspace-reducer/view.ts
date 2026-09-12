@@ -1,7 +1,10 @@
 /** Where the user is looking: history, focus, and the find bar. */
-import { refreshEnvironment, searchEffects, settled, stopCapture, stopSearchEffects, TAKE_KEYS } from "./shared.js";
+import { TAKE_KEYS } from "./dock-tabs.js";
+import { refreshEnvironment } from "./environment.js";
+import { searchEffects, stopSearchEffects } from "./find.js";
+import { settled } from "./shared.js";
 import type { WorkspaceEffect, WorkspaceInput, WorkspaceTransition } from "./types.js";
-import { reduceSettings } from "./settings.js";
+import { reduceSettings, stopCapture } from "./settings.js";
 import { reduceThreadCommands } from "./thread-commands.js";
 import { projectFor } from "../thread-location.js";
 import { busyThreadIds, dockHoldsTab, findTargetFor, reachableVisit, type FindState, type WorkspaceState } from "../workspace-state.js";
